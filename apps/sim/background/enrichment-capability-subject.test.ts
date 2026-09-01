@@ -58,6 +58,17 @@ vi.mock('@/executor/utils/resolved-secret-trace-registry', () => ({
 }))
 vi.mock('@/lib/table/events', () => ({ appendTableEvent: vi.fn() }))
 
+/**
+ * Unmocked, the pacing loop constructs a real RateLimiter against the global
+ * db mock and sleeps real jittered backoff between attempts — nondeterministic
+ * seconds per test, and a timeout under a loaded parallel run.
+ */
+vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitWithSubscription = vi.fn().mockResolvedValue({ allowed: true })
+  },
+}))
+
 import { runRowCascadeLoop } from '@/background/workflow-column-execution'
 
 const GROUP = {
@@ -114,10 +125,19 @@ describe('enrichment cell capability subject', () => {
    * once, outside any per-test budget.
    */
   beforeAll(async () => {
-    await import('@/lib/table/service')
-    await import('@/lib/table/rows/service')
-    await import('@/lib/table/workflow-columns')
-    await import('@/lib/table/rows/executions')
+    await Promise.all([
+      import('@/enrichments/registry'),
+      import('@/enrichments/run'),
+      import('@/lib/billing/core/usage-log'),
+      import('@/lib/table/cell-write'),
+      import('@/lib/table/dispatcher'),
+      import('@/lib/table/rows/executions'),
+      import('@/lib/table/rows/service'),
+      import('@/lib/table/service'),
+      import('@/lib/table/workflow-columns'),
+      import('@/lib/workflows/executor/execute-workflow'),
+      import('@/lib/workflows/persistence/utils'),
+    ])
   }, 60_000)
 
   beforeEach(() => {
