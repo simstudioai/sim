@@ -29,6 +29,7 @@ import {
 } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
+import { resolveEnterpriseByokKey } from '@/lib/mothership/request/enterprise-byok'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { finalizeStream } from '@/lib/mothership/request/lifecycle/finalize'
 import {
@@ -577,6 +578,8 @@ export async function requestChatTitle(params: {
 
     const { fetchGo } = await import('@/lib/mothership/request/go/fetch')
     const mothershipBaseURL = await getMothershipBaseURL({ userId })
+    // Title reads the user's message content, so an enterprise chat pins its key here too.
+    const byokApiKey = await resolveEnterpriseByokKey(workspaceId)
     const response = await fetchGo(`${mothershipBaseURL}/api/generate-chat-title`, {
       method: 'POST',
       signal,
@@ -588,6 +591,7 @@ export async function requestChatTitle(params: {
         ...(workspaceId ? { workspaceId } : {}),
         ...(organizationId ? { organizationId, chatId } : {}),
         ...(userId ? { userId } : {}),
+        ...(byokApiKey ? { byokApiKey } : {}),
       }),
       otelContext,
       spanName: 'sim → go /api/generate-chat-title',

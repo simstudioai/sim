@@ -61,6 +61,13 @@ export interface ChatContextItem {
 export interface ResumeRequest {
   streamId: string;
   results: ResumeResult[];
+  /**
+   * Enterprise BYOK, re-resolved by sim per call (S27: context-only, zero retention).
+   * A LIVE run keeps its key inside the loop closure and ignores this; a DEAD run's
+   * continuation leg has no closure, so without it that leg would silently fall back
+   * to the hosted key mid-chat.
+   */
+  byokApiKey?: string | undefined;
 }
 
 export interface ResumeResult {
@@ -87,6 +94,8 @@ export interface SteerRequest {
 /** POST /api/generate-chat-title */
 export interface TitleRequest {
   message: string;
+  /** Enterprise BYOK: the title call reads user content, so it pins the same key (S27). */
+  byokApiKey?: string | undefined;
 }
 
 /** The 409 body for a duplicate send while a sibling instance streams (S32). */
@@ -123,6 +132,8 @@ export interface ExecuteRequest {
   integrationTools?: unknown[] | undefined;
   mothershipTools?: unknown[] | undefined;
   delegationToken?: string | undefined;
+  /** Enterprise BYOK: one-shot executions pin the customer key like chat turns (S27). */
+  byokApiKey?: string | undefined;
 }
 
 export interface ExecuteMessage {
