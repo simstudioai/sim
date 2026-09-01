@@ -449,6 +449,11 @@ export interface WorkflowGroupCellPayload {
    *  auto-fire (row writes, CSV import) → billing falls back to the workspace
    *  billed account. */
   triggeredByUserId?: string
+  /** Person whose permission group gates this cell's tools. Null/absent means
+   *  no acting person, so no per-tool gate applies. Not `triggeredByUserId`:
+   *  that is an attribution and names the workspace billed account when the
+   *  credential names no human, which would run a bystander's denylist. */
+  capabilityGovernedUserId?: string | null
 }
 
 export type QueuedWorkflowGroupCellPayload = Omit<
@@ -865,6 +870,11 @@ export async function runWorkflowColumn(opts: {
    *  callers (row writes, CSV import) → falls back to the workspace billed
    *  account at billing time. */
   triggeredByUserId?: string | null
+  /** Person whose permission group gates the run's cells. Omitted by producers
+   *  that cannot tell an acting person from an attribution fallback; those
+   *  default to `triggeredByUserId` in `insertDispatch`. Pass it explicitly —
+   *  `null` included — wherever the principal is in hand. */
+  capabilityGovernedUserId?: string | null
 }): Promise<{ dispatchId: string | null; shouldSignalRowsChanged: boolean }> {
   const {
     tableId,
@@ -877,6 +887,7 @@ export async function runWorkflowColumn(opts: {
     excludeRowIds,
     limit,
     triggeredByUserId,
+    capabilityGovernedUserId,
   } = opts
   const isManualRun = opts.isManualRun ?? true
   // Empty `rowIds` array means "scope explicitly empty" — auto-fire callers
@@ -945,6 +956,7 @@ export async function runWorkflowColumn(opts: {
     limit,
     isManualRun,
     triggeredByUserId,
+    ...('capabilityGovernedUserId' in opts ? { capabilityGovernedUserId } : {}),
   })
 
   try {
