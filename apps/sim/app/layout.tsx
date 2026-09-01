@@ -119,7 +119,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   // Collapse comes from the cookie (independent of localStorage
                   // parsing); the persisted width is read defensively below. Match the
                   // value strictly so 'sidebar_collapsed=10' isn't read as collapsed.
-                  var cookieMatch = document.cookie.match(/(?:^|;s*)sidebar_collapsed=([^;]*)/);
+                  var cookieMatch = document.cookie.match(/(?:^|;\\s*)sidebar_collapsed=([^;]*)/);
                   var hasCookie = cookieMatch !== null;
                   var collapsed = cookieMatch !== null && cookieMatch[1] === '1';
 
