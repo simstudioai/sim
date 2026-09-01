@@ -37,6 +37,13 @@ function logGroupArgs(signal?: AbortSignal): ExecuteServerSelectorArgs {
   }
 }
 
+function logStreamArgs(): ExecuteServerSelectorArgs {
+  const args = logGroupArgs()
+  args.selectorKey = 'cloudwatch.logStreams'
+  args.context.logGroupName = '/aws/lambda/example'
+  return args
+}
+
 function cloudWatchError(status: number): CloudWatchLogsServiceException {
   return new CloudWatchLogsServiceException({
     name: 'CloudWatchLogsError',
@@ -45,7 +52,7 @@ function cloudWatchError(status: number): CloudWatchLogsServiceException {
   })
 }
 
-describe('CloudWatch server selector adapter errors', () => {
+describe('CloudWatch server selector adapter', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it.each([
@@ -93,6 +100,47 @@ describe('CloudWatch server selector adapter errors', () => {
     ).resolves.toEqual({ kind: 'detail', item: null })
     expect(mockListCloudWatchLogGroups).toHaveBeenCalledWith(
       expect.objectContaining({ prefix: '/aws/missing' })
+    )
+  })
+
+  it.each([
+    {
+      selectorKey: 'cloudwatch.logGroups' as const,
+      mockListing: mockListCloudWatchLogGroups,
+      args: logGroupArgs,
+      providerField: 'logGroupName' as const,
+      binding: {},
+    },
+    {
+      selectorKey: 'cloudwatch.logStreams' as const,
+      mockListing: mockListCloudWatchLogStreams,
+      args: logStreamArgs,
+      providerField: 'logStreamName' as const,
+      binding: { logGroupName: '/aws/lambda/example' },
+    },
+  ])('forwards opaque cursors for $selectorKey', async (testCase) => {
+    testCase.mockListing.mockResolvedValueOnce({
+      items: [{ [testCase.providerField]: 'target' }],
+      pages: 20,
+      truncated: true,
+      nextToken: 'opaque::next+=',
+    })
+    const args = testCase.args()
+    args.request = { kind: 'list', search: 'target', cursor: 'opaque::start+=' }
+
+    await expect(
+      cloudWatchSelectorAttachments[testCase.selectorKey].execute(args)
+    ).resolves.toEqual({
+      kind: 'list',
+      items: [{ id: 'target', label: 'target' }],
+      nextCursor: 'opaque::next+=',
+    })
+    expect(testCase.mockListing).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prefix: 'target',
+        nextToken: 'opaque::start+=',
+        ...testCase.binding,
+      })
     )
   })
 

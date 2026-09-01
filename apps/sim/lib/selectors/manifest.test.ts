@@ -59,6 +59,11 @@ describe('selector manifest', () => {
     ])
   })
 
+  it('declares both CloudWatch selectors as paginated', () => {
+    expect(selectorManifest['cloudwatch.logGroups'].listMode).toBe('paginated')
+    expect(selectorManifest['cloudwatch.logStreams'].listMode).toBe('paginated')
+  })
+
   /**
    * `serviceIds` names which credentials a selector accepts; the integration
    * allowlist has to judge which resource it *reaches*, and for a shared

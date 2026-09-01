@@ -28,19 +28,21 @@ export interface CloudWatchListingResult<T> {
   items: T[]
   truncated: boolean
   pages: number
+  nextToken?: string
 }
 
 export async function listCloudWatchLogGroups(input: {
   credentials: CloudWatchListingCredentials
   prefix?: string
   limit?: number
+  nextToken?: string
   signal?: AbortSignal
   suppressTruncationLog?: boolean
 }): Promise<CloudWatchListingResult<DescribedLogGroup>> {
   const client = createCloudWatchLogsClient(input.credentials)
   try {
     const groups: DescribedLogGroup[] = []
-    let nextToken: string | undefined
+    let nextToken = input.nextToken
     let pages = 0
     let truncated = false
     for (let page = 0; page < MAX_PAGES; page += 1) {
@@ -50,7 +52,7 @@ export async function listCloudWatchLogGroups(input: {
         new DescribeLogGroupsCommand({
           ...(input.prefix ? { logGroupNamePrefix: input.prefix } : {}),
           limit: Math.min(PAGE_SIZE, remaining),
-          ...(nextToken ? { nextToken } : {}),
+          ...(nextToken !== undefined ? { nextToken } : {}),
         }),
         input.signal ? { abortSignal: input.signal } : undefined
       )
@@ -80,6 +82,7 @@ export async function listCloudWatchLogGroups(input: {
       items: input.limit === undefined ? groups : groups.slice(0, input.limit),
       truncated,
       pages,
+      ...(nextToken !== undefined ? { nextToken } : {}),
     }
   } finally {
     client.destroy()
@@ -91,6 +94,7 @@ export async function listCloudWatchLogStreams(input: {
   logGroupName: string
   prefix?: string
   limit?: number
+  nextToken?: string
   signal?: AbortSignal
   suppressTruncationLog?: boolean
 }): Promise<CloudWatchListingResult<DescribedLogStream>> {
@@ -102,6 +106,7 @@ export async function listCloudWatchLogStreams(input: {
       {
         prefix: input.prefix,
         limit: input.limit,
+        ...(input.nextToken !== undefined ? { nextToken: input.nextToken } : {}),
         ...(input.suppressTruncationLog !== undefined
           ? { suppressTruncationLog: input.suppressTruncationLog }
           : {}),
@@ -112,6 +117,7 @@ export async function listCloudWatchLogStreams(input: {
       items: result.logStreams,
       truncated: result.truncated ?? false,
       pages: result.pages ?? 0,
+      ...(result.nextToken !== undefined ? { nextToken: result.nextToken } : {}),
     }
   } finally {
     client.destroy()
