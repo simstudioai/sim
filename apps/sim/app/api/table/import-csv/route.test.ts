@@ -41,9 +41,6 @@ vi.mock('@/app/api/table/utils', async () => {
   const { asOrchestrationError, messageForOrchestrationError, statusForOrchestrationError } =
     await import('@/lib/core/orchestration/types')
   return {
-    /** Mirrors the real helper: only a session (or personal key) names one. */
-    capabilityGovernedAuthUserId: (auth: { authType?: string; userId?: string }) =>
-      auth.authType === 'session' ? (auth.userId ?? null) : null,
     csvProxyBodyCapResponse: () => null,
     multipartErrorResponse: (error: { code: string; message: string }) =>
       NextResponse.json(

@@ -11,7 +11,7 @@ import {
 } from '@/lib/api/contracts/tables'
 import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import { getValidationErrorMessage } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { capabilityGovernedAuthUserId, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { isMultipartError, readMultipart } from '@/lib/core/utils/multipart'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -21,7 +21,6 @@ import { performTableCsvImport } from '@/lib/table/orchestration'
 import { getUserSettings } from '@/lib/users/queries'
 import {
   accessError,
-  capabilityGovernedAuthUserId,
   checkAccess,
   csvProxyBodyCapResponse,
   multipartErrorResponse,

@@ -2,12 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { capabilityGovernedAuthUserId } from '@/lib/auth/hybrid'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableRowLimitError } from '@/lib/table/billing'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import type { ColumnDefinition } from '@/lib/table/types'
 import {
-  capabilityGovernedAuthUserId,
   orchestrationErrorResponse,
   orchestrationOutcomeErrorResponse,
   rootErrorMessage,

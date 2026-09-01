@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
-import { type AuthResult, AuthType } from '@/lib/auth/hybrid'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   asOrchestrationError,
@@ -276,24 +275,6 @@ function roleSubjectUserId(principal: TableAccessPrincipal): string {
  */
 export function capabilityGovernedUserId(principal: TableAccessPrincipal): string | null {
   return principal.kind === 'user' ? principal.userId : null
-}
-
-/**
- * The id whose permission group governs a request authenticated by
- * `checkSessionOrInternalAuth`, or `null` when none does.
- *
- * Distinct from {@link capabilityGovernedUserId}, which answers the same
- * question for a {@link TableAccessPrincipal} — a union that has no way to spell
- * "internal JWT" and reports one as a person. An internal JWT's `auth.userId` is
- * the subject the executor embedded, so keying on its presence would hand the
- * run's actor's capabilities to a caller the executor exemption deliberately
- * passes ungated. `authType` is the authoritative signal, and `apiKeyType`
- * covers the personal-key case for a caller that later shares this helper.
- */
-export function capabilityGovernedAuthUserId(auth: AuthResult): string | null {
-  if (!auth.userId) return null
-  if (auth.authType === AuthType.SESSION) return auth.userId
-  return auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal' ? auth.userId : null
 }
 
 /**

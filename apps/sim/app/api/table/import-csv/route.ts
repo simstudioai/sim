@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { csvExtensionSchema, csvImportFormSchema } from '@/lib/api/contracts/tables'
 import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import { getValidationErrorMessage } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { capabilityGovernedAuthUserId, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { isMultipartError, readMultipart } from '@/lib/core/utils/multipart'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,7 +16,6 @@ import { performCreateTableFromCsv } from '@/lib/table/orchestration'
 import { getUserSettings } from '@/lib/users/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
-  capabilityGovernedAuthUserId,
   csvProxyBodyCapResponse,
   multipartErrorResponse,
   orchestrationOutcomeErrorResponse,

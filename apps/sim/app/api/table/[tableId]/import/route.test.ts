@@ -41,9 +41,6 @@ vi.mock('@/app/api/table/utils', async () => {
     /** Mirrors the real helper: only a `user` principal names a governed subject. */
     capabilityGovernedUserId: (principal: { kind: string; userId?: string }) =>
       principal.kind === 'user' ? (principal.userId ?? null) : null,
-    /** Mirrors the real helper: only a session (or personal key) names one. */
-    capabilityGovernedAuthUserId: (auth: { authType?: string; userId?: string }) =>
-      auth.authType === 'session' ? (auth.userId ?? null) : null,
     accessError: (result: { status: number }) => {
       const message = result.status === 404 ? 'Table not found' : 'Access denied'
       return NextResponse.json({ error: message }, { status: result.status })
