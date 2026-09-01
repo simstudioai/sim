@@ -1,15 +1,29 @@
--- Adds the permission-group subject a queued cell is gated against to the cell sidecar, repeats
--- 0315's dispatch backfill, and adds the index the account-deletion cancel needs.
+-- Adds the permission-group subject a queued cell is gated against to the cell sidecar, and adds
+-- the index the account-deletion cancel needs.
 --
 -- The cell column exists because a dispatcher pre-stamp outlives the worker that wrote it: a cell
 -- task that finds the row's cascade lock held bails, and whoever owns the lock drains the marker.
 -- Without the subject on the marker that drain runs someone else's request under its own subject.
 -- Additive and nullable; NULL means "no acting person, no per-tool gate", which is exactly what a
--- marker written before this column existed was already doing.
--- Replay-safe: this file ends in post-COMMIT CONCURRENTLY steps, and a failed concurrent build
--- replays the whole file from the top (see packages/db/scripts/migrate.ts). Every statement before
--- the COMMIT therefore has to survive being run twice.
+-- marker written before this column existed was already doing. There is no backfill: every
+-- pre-existing row is NULL by definition and NULL is the correct, pre-migration-equivalent value.
+--
+-- Transaction shape: the runner batches every pending file into ONE transaction and only an
+-- embedded `COMMIT;` ends it (packages/db/scripts/migrate.ts). `table_row_executions` is the large
+-- table in this pair, so its `VALIDATE CONSTRAINT` scan must not run inside that batch — there it
+-- would hold 0315's ACCESS EXCLUSIVE on `table_run_dispatches` and the FK's SHARE ROW EXCLUSIVE on
+-- `user` (blocking every signup) for the length of the scan. The `COMMIT;` below puts the scan in
+-- its own autocommit statement, where it takes only SHARE UPDATE EXCLUSIVE and runs alongside
+-- ordinary traffic.
+--
+-- Replay-safe: this file runs entirely in autocommit (0315 already committed), so a failure at any
+-- statement leaves it unjournaled and replays the whole file from the top. Every statement below
+-- has to survive being run twice.
 ALTER TABLE "table_row_executions" ADD COLUMN IF NOT EXISTS "capability_governed_user_id" text;--> statement-breakpoint
+-- Ends the runner's batch transaction if one is still open — it is not when 0315 applies in the
+-- same run, and a redundant COMMIT is a Postgres WARNING, not an error. Keeping it unconditional
+-- is what makes this file correct on its own, for a database that already has 0315.
+COMMIT;--> statement-breakpoint
 -- Postgres has no ADD CONSTRAINT IF NOT EXISTS, so the replay guard is an explicit pg_constraint
 -- lookup. Scoped to conrelid so an identically named constraint on another table cannot mask it.
 DO $$ BEGIN
@@ -21,31 +35,11 @@ DO $$ BEGIN
     ALTER TABLE "table_row_executions" ADD CONSTRAINT "table_row_executions_capability_governed_user_id_user_id_fk" FOREIGN KEY ("capability_governed_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action NOT VALID;
   END IF;
 END $$;--> statement-breakpoint
--- VALIDATE on an already-validated constraint is a no-op, so this needs no guard of its own.
+-- Own transaction. The scan is the price of a constraint the schema snapshot describes as an
+-- ordinary FK: leaving it NOT VALID forever would make a migrated database differ from a freshly
+-- created one, which every later drift check and snapshot diff would then have to special-case.
+-- VALIDATE on an already-validated constraint is a no-op, so this needs no replay guard.
 ALTER TABLE "table_row_executions" VALIDATE CONSTRAINT "table_row_executions_capability_governed_user_id_user_id_fk";--> statement-breakpoint
--- Repeat of 0315's backfill, deliberately.
---
--- 0315 ran at ITS deploy, while instances of the previous release were still serving. Those
--- instances insert dispatches without the column, so a run they started in that window carries a
--- NULL subject and reads as actorless — ungated — even when a person triggered it. Nothing in a
--- read-side compatibility rule can repair that: treating "NULL subject, non-null triggered_by" as
--- governed re-applies the workspace billed account to workspace-key runs, which is the exact
--- bystander substitution 0315 exists to remove, and "only for rows older than the new writers" is
--- not a predicate this schema can express.
---
--- Repeating the backfill one migration later closes the 0315 window at the next deploy boundary,
--- because by then every writer of those rows was the old release. It does not close its own: rows
--- inserted by an old instance during THIS deploy stay NULL until they go terminal. That residue is
--- bounded by one deploy's drain rather than by a dispatch's lifetime, and it fails toward the
--- behavior those rows had before the column existed.
--- migration-safe: bounded backfill over non-terminal dispatches only (status pending/dispatching — a few rows at any instant, indexed by `table_run_dispatches_active_idx`), idempotent under the IS NULL guard, and it preserves rather than changes the gate those rows already had. A replay after the new writers are live could only re-gate a still-queued actorless row, which fails closed.
-UPDATE "table_run_dispatches"
-SET "capability_governed_user_id" = "triggered_by_user_id"
-WHERE "status" IN ('pending', 'dispatching')
-  AND "capability_governed_user_id" IS NULL
-  AND "triggered_by_user_id" IS NOT NULL;--> statement-breakpoint
--- Concurrent index operations cannot run inside the migration runner's transaction.
-COMMIT;--> statement-breakpoint
 SET lock_timeout = 0;--> statement-breakpoint
 -- Account deletion cancels every still-active dispatch the departing account governs, and that is
 -- the only query keyed on the subject. The other two indexes on this table lead with `table_id` /
