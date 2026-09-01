@@ -12,6 +12,15 @@ import {
 } from './generate-docs'
 
 describe('documentation tool metadata', () => {
+  it('uses evaluated outputs for factory-defined tools', async () => {
+    const approve = await getToolInfo('sailpoint_approve_access_request')
+    const identity = await getToolInfo('sailpoint_get_identity')
+
+    expect(Object.keys(approve?.outputs ?? {})).toEqual(['accepted', 'status'])
+    expect(Object.keys(identity?.outputs ?? {})).toEqual(['identity'])
+    expect(identity?.outputs.identity.properties).toHaveProperty('name')
+  }, 15_000)
+
   it('keeps legitimate parameters named params', async () => {
     const tool = await getToolInfo('supabase_rpc')
 
