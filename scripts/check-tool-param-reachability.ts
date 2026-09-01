@@ -35,6 +35,14 @@
  *     merge validation still sees a value — and a direct caller sends the object
  *     itself.
  *
+ * Choosing `user-only` carries an obligation: `check-block-registry.ts` requires
+ * every required `user-only` parameter to have a subBlock whose `id` or
+ * `canonicalParamId` equals the parameter id, because the serializer resolves it
+ * by direct lookup. A block whose canonical key differs has to be aligned on the
+ * parameter id — safe to do, because canonical ids are config-derived rather
+ * than stored, and `backfillCanonicalModes` re-derives a renamed pair's mode
+ * from whichever value is populated.
+ *
  * There is deliberately no allowlist. All three answers leave the parameter
  * reachable, so a parameter needing an exemption is one no caller can supply —
  * exactly what this audit exists to reject.
