@@ -54,7 +54,7 @@ export const tablesListPreferenceConfig = {
     sort: tablesSortParams.default,
     filters: { rows: [], owner: [] },
   },
-} satisfies ResourceListPreferenceConfig
+} as const satisfies ResourceListPreferenceConfig
 
 /** Filter/search/sort view-state: clean URLs, no back-stack churn. */
 export const tablesUrlKeys = {

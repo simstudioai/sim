@@ -52,7 +52,7 @@ export const knowledgeListPreferenceConfig = {
     sort: knowledgeSortParams.default,
     filters: { connector: [], content: [], owner: [] },
   },
-} satisfies ResourceListPreferenceConfig
+} as const satisfies ResourceListPreferenceConfig
 
 /** Filter/search/sort view-state: clean URLs, no back-stack churn. */
 export const knowledgeUrlKeys = {

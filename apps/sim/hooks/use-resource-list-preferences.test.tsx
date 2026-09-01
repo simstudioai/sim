@@ -292,7 +292,7 @@ describe('useResourceListPreferences', () => {
     const applyPreference = vi.fn()
     const result = renderPreferenceHook({ preference: defaultPreference, applyPreference })
     await flushEffects()
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    const storageWrite = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
       throw new DOMException('Storage is full', 'QuotaExceededError')
     })
 
@@ -302,6 +302,7 @@ describe('useResourceListPreferences', () => {
       ...defaultPreference,
       filters: { ...defaultPreference.filters, type: ['image'] },
     })
+    storageWrite.mockRestore()
   })
 
   it('clears filters and sort back to their complete module defaults', async () => {

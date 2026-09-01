@@ -94,7 +94,7 @@ export const filesListPreferenceConfig = {
     sort: filesSortParams.default,
     filters: { type: [], size: [], uploadedBy: [] },
   },
-} satisfies ResourceListPreferenceConfig
+} as const satisfies ResourceListPreferenceConfig
 
 /** Filter/search/sort view-state: clean URLs, no back-stack churn. */
 export const filesFilterUrlKeys = {
