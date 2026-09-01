@@ -69,4 +69,5 @@ export interface ChatState {
   finalizeMessageStream: (messageId: string) => void
   getConversationId: (workflowId: string) => string
   generateNewConversationId: (workflowId: string) => string
+  reset: () => void
 }

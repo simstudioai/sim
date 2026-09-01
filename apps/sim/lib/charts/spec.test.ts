@@ -95,6 +95,7 @@ describe('shapeTableRows', () => {
 })
 
 const XSS_FORMATTER = '<img src=x onerror="alert(1)">'
+const XSS_LINK = 'javascript:alert(document.domain)'
 
 describe('parseChartSpec option confinement', () => {
   it('forces the tooltip off the innerHTML path, keeping the formatter template', () => {
@@ -175,6 +176,23 @@ describe('parseChartSpec option confinement', () => {
     expect(media[0].option.toolbox).toBeUndefined()
   })
 
+  it('drops every navigation sink — title link/sublink and treemap/sunburst item links', () => {
+    const option = parse({
+      schema_version: 1,
+      option: {
+        title: { text: 'click me', link: XSS_LINK, sublink: XSS_LINK, target: 'self' },
+        series: [
+          { type: 'treemap', data: [{ name: 'a', value: 1, link: XSS_LINK }] },
+          { type: 'sunburst', data: [{ name: 'b', value: 1, link: XSS_LINK }] },
+        ],
+        baseOption: { title: { link: XSS_LINK } },
+        media: [{ query: { minWidth: 100 }, option: { title: { link: XSS_LINK } } }],
+      },
+    })
+    expect(JSON.stringify(option)).not.toContain('javascript:')
+    expect(option.title).toEqual({ text: 'click me', target: 'self' })
+  })
+
   it('adds no tooltip to a document that declares none', () => {
     const option = parse({ schema_version: 1, option: { series: [{ type: 'bar', data: [1] }] } })
     expect('tooltip' in option).toBe(false)
@@ -191,7 +209,7 @@ describe('parseChartSpec option confinement', () => {
   })
 
   it('leaves dataset rows alone — they hold data, not components', () => {
-    const rows = [{ tooltip: 'ok', toolbox: 'ok' }]
+    const rows = [{ tooltip: 'ok', toolbox: 'ok', link: 'ok' }]
     const option = parse({ schema_version: 1, option: { dataset: { source: rows } } })
     expect((option.dataset as Record<string, unknown>).source).toEqual(rows)
   })
@@ -267,6 +285,24 @@ describe('chart option confinement against echarts', () => {
       })
     )
     expect(model.getComponent('toolbox')).toBeUndefined()
+  })
+
+  it('leaves the title component no link to hand to windowOpen', () => {
+    const model = renderModel(
+      parse({
+        schema_version: 1,
+        option: {
+          xAxis: {},
+          yAxis: {},
+          series: [{ type: 'bar', data: [1] }],
+          title: { text: 'click me', link: XSS_LINK, sublink: XSS_LINK },
+        },
+      })
+    )
+    const title = model.getComponent('title')
+    expect(title?.get('text')).toBe('click me')
+    expect(title?.get('link')).toBeUndefined()
+    expect(title?.get('sublink')).toBeUndefined()
   })
 })
 

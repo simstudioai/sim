@@ -20,9 +20,7 @@ const SECTION_TABS = ['api-reference', 'academy', 'cli'] as const
  *
  * A substring test is wrong: `/integrations/clickup` and
  * `/integrations/clickhouse` both contain `/cli`, which lit the CLI tab and
- * unlit Documentation on two existing integration pages. Anchoring to the start
- * is also wrong, because a non-default locale prefixes the path (`/ja/cli`), so
- * the segment can sit anywhere.
+ * unlit Documentation on two existing integration pages.
  */
 function isInSection(pathname: string, section: string): boolean {
   return (

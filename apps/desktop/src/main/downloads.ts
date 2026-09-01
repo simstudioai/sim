@@ -1,6 +1,7 @@
-import { existsSync } from 'node:fs'
+import { lstat } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import type { Session } from 'electron'
 import { app } from 'electron'
 import type { EventRecorder } from '@/main/observability'
@@ -8,6 +9,8 @@ import type { EventRecorder } from '@/main/observability'
 const logger = createLogger('DesktopDownloads')
 
 const MAX_FILENAME_LENGTH = 200
+const MAX_DOWNLOAD_PATH_ATTEMPTS = 16
+const DOWNLOAD_PATH_SUFFIX_LENGTH = 8
 
 const MIME_EXTENSIONS: Record<string, string> = {
   'text/csv': '.csv',
@@ -53,25 +56,78 @@ export function suggestedFilename(
   return `download-${stamp}${extension}`
 }
 
-/**
- * Picks a Chrome-style non-conflicting destination without overwriting an
- * existing download: `report.csv`, `report (1).csv`, and so on.
- */
-export function uniqueDownloadPath(
-  directory: string,
-  rawFilename: string,
-  pathExists: (path: string) => boolean = existsSync
-): string {
-  const filename = sanitizeFilename(rawFilename) || 'download'
+export interface UniqueDownloadPathOptions {
+  /** Asynchronous filesystem seam used by tests and non-standard storage backends. */
+  pathExists?: (path: string) => boolean | Promise<boolean>
+  /** Atomically reserves a candidate against other allocations in this process. */
+  reservePath?: (path: string) => boolean
+  /** Stops an allocation whose owning download was torn down while I/O was pending. */
+  isActive?: () => boolean
+  /** Deterministic test seam for collision-resistant copy suffixes. */
+  suffixForAttempt?: (attempt: number) => string
+  maxAttempts?: number
+}
+
+async function downloadPathExists(path: string): Promise<boolean> {
+  try {
+    await lstat(path)
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw error
+  }
+}
+
+function suffixedFilename(filename: string, suffix: string): string {
   const extension = extname(filename)
   const stem = basename(filename, extension)
-  let candidate = join(directory, filename)
-  let copy = 1
-  while (pathExists(candidate)) {
-    candidate = join(directory, `${stem} (${copy})${extension}`)
-    copy += 1
+  const marker = ` (${suffix})`
+  const maxStemLength = Math.max(1, MAX_FILENAME_LENGTH - extension.length - marker.length)
+  return `${stem.slice(0, maxStemLength)}${marker}${extension}`
+}
+
+/**
+ * Asynchronously reserves a non-conflicting destination without blocking the
+ * Electron main thread. The original filename remains the first choice; a
+ * bounded number of collision-resistant alternatives avoids an unbounded scan
+ * through attacker-controlled pre-existing copy names.
+ */
+export async function uniqueDownloadPath(
+  directory: string,
+  rawFilename: string,
+  options: UniqueDownloadPathOptions = {}
+): Promise<string | null> {
+  const filename = sanitizeFilename(rawFilename) || 'download'
+  const pathExists = options.pathExists ?? downloadPathExists
+  const reservePath = options.reservePath ?? (() => true)
+  const isActive = options.isActive ?? (() => true)
+  const suffixForAttempt =
+    options.suffixForAttempt ?? (() => generateShortId(DOWNLOAD_PATH_SUFFIX_LENGTH))
+  const requestedAttempts = options.maxAttempts ?? MAX_DOWNLOAD_PATH_ATTEMPTS
+  const maxAttempts = Math.max(
+    1,
+    Math.min(
+      MAX_DOWNLOAD_PATH_ATTEMPTS,
+      Number.isFinite(requestedAttempts)
+        ? Math.trunc(requestedAttempts)
+        : MAX_DOWNLOAD_PATH_ATTEMPTS
+    )
+  )
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (!isActive()) return null
+    const suffix =
+      attempt === 0
+        ? ''
+        : sanitizeFilename(suffixForAttempt(attempt)).slice(0, 32) ||
+          generateShortId(DOWNLOAD_PATH_SUFFIX_LENGTH)
+    const candidateFilename = attempt === 0 ? filename : suffixedFilename(filename, suffix)
+    const candidate = join(directory, candidateFilename)
+    if (await pathExists(candidate)) continue
+    if (!isActive()) return null
+    if (reservePath(candidate)) return candidate
   }
-  return candidate
+  return null
 }
 
 /**

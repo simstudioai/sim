@@ -8,6 +8,14 @@ import type { ChatContext } from '@/stores/panel'
  */
 export const SIM_SELECTION_MIME = 'text/x-sim-selection'
 
+const SIM_SELECTION_CLIPBOARD_VERSION = 1
+
+interface SelectionClipboardEnvelope {
+  version: typeof SIM_SELECTION_CLIPBOARD_VERSION
+  sourceWorkspaceId: string
+  context: ChatContext
+}
+
 /**
  * Attaches a selection context to a copy event's clipboard. Adds the custom MIME
  * type WITHOUT calling `preventDefault`, so the editor's own copy handler (Monaco,
@@ -16,11 +24,17 @@ export const SIM_SELECTION_MIME = 'text/x-sim-selection'
  */
 export function attachSelectionContextToClipboard(
   clipboardData: DataTransfer | null,
-  context: ChatContext
+  context: ChatContext,
+  sourceWorkspaceId: string
 ): void {
-  if (!clipboardData) return
+  if (!clipboardData || !sourceWorkspaceId) return
   try {
-    clipboardData.setData(SIM_SELECTION_MIME, JSON.stringify(context))
+    const envelope: SelectionClipboardEnvelope = {
+      version: SIM_SELECTION_CLIPBOARD_VERSION,
+      sourceWorkspaceId,
+      context,
+    }
+    clipboardData.setData(SIM_SELECTION_MIME, JSON.stringify(envelope))
   } catch {
     // Some browsers reject custom types mid-gesture; degrade to plain-text copy.
   }
@@ -32,13 +46,21 @@ export function attachSelectionContextToClipboard(
  * no (or an invalid) selection payload.
  */
 export function readSelectionContextFromClipboard(
-  clipboardData: DataTransfer | null
+  clipboardData: DataTransfer | null,
+  destinationWorkspaceId: string
 ): ChatContext | null {
   const raw = clipboardData?.getData(SIM_SELECTION_MIME)
   if (!raw) return null
   try {
-    const parsed = JSON.parse(raw) as ChatContext
-    if (!parsed || typeof parsed.label !== 'string') return null
+    const envelope = JSON.parse(raw) as Partial<SelectionClipboardEnvelope>
+    if (
+      envelope.version !== SIM_SELECTION_CLIPBOARD_VERSION ||
+      envelope.sourceWorkspaceId !== destinationWorkspaceId
+    ) {
+      return null
+    }
+    const parsed = envelope.context
+    if (!parsed || typeof parsed !== 'object' || typeof parsed.label !== 'string') return null
     // Require each kind's resolving field so a chip never pastes only to
     // resolve to nothing server-side.
     if (

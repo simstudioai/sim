@@ -10,10 +10,18 @@ import {
   isLargeValueRef,
   type LargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
+import {
+  createSandboxFileMountRef,
+  isSandboxFileMountRef,
+} from '@/lib/execution/payloads/sandbox-file-mount-ref'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
 import { BlockType, parseReferencePath, REFERENCE } from '@/executor/constants'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
-import type { ExecutionContext } from '@/executor/types'
+import type { ExecutionContext, UserFile } from '@/executor/types'
+import {
+  escapeInertStringContent,
+  formatInertStringLiteral,
+} from '@/executor/utils/code-formatting'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { BlockResolver } from '@/executor/variables/resolvers/block'
 import { EnvResolver } from '@/executor/variables/resolvers/env'
@@ -27,6 +35,18 @@ import {
 } from '@/executor/variables/resolvers/reference'
 import { WorkflowResolver } from '@/executor/variables/resolvers/workflow'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+
+/**
+ * Marks a Condition branch whose author-written expression reads the environment map.
+ *
+ * Carried per branch because only the pre-resolution text can answer it: the handler decides
+ * which secrets to mount, and by the time it runs, resolved trigger data quoted inside the
+ * expression would read the same as the author reaching for the map.
+ */
+export const CONDITION_READS_ENVIRONMENT_KEY = '_readsEnvironmentVariables'
+
+/** The sandbox global holding the run's secrets, in whatever shape an expression reaches it. */
+const ENVIRONMENT_MAP_IDENTIFIER = /\benvironmentVariables\b/g
 
 /** Key used to carry pre-resolved context variables through the inputs map. */
 export const FUNCTION_BLOCK_CONTEXT_VARS_KEY = '_runtimeContextVars'
@@ -138,7 +158,12 @@ function isStructurallyInertConditionLiteral(value: string): boolean {
 }
 
 type ShellQuoteContext = 'single' | 'double' | null
-type CodeStringQuoteContext = ShellQuoteContext | 'triple-single' | 'triple-double' | 'template'
+type CodeStringQuoteContext =
+  | ShellQuoteContext
+  | 'triple-single'
+  | 'triple-double'
+  | 'template'
+  | 'regex'
 type CodeScanMode =
   | { type: 'normal' }
   | { type: 'single' }
@@ -149,6 +174,46 @@ type CodeScanMode =
   | { type: 'template-expression'; depth: number }
   | { type: 'line-comment' }
   | { type: 'block-comment' }
+  | { type: 'regex'; inCharacterClass: boolean }
+
+/**
+ * Characters after which a `/` opens a regular expression rather than dividing.
+ *
+ * The scanner has to tell the two apart, because a regex body is the one place a lone quote
+ * is not a string delimiter: `/['"]/` left the scan believing everything after it sat inside
+ * a string, and every reference past that point was then formatted for the wrong context.
+ * Division always follows a value — an identifier, literal, `)`, or `]` — so anything else
+ * ending the preceding token means a regex may start.
+ *
+ * `)` is the one that is not decidable from the character alone: it ends a value in
+ * `(a + b) / 2` and a control-flow head in `if (a) /re/.test(b)`. Reading it as either one
+ * unconditionally breaks the other, so the scan remembers which kind of parenthesis each `)`
+ * closed rather than guessing — see {@link CONTROL_FLOW_HEAD_KEYWORDS}.
+ */
+const JAVASCRIPT_REGEX_ALLOWED_AFTER = new Set('(,=:[!&|?{};+-*%^~<>/'.split(''))
+
+/** Keywords whose parenthesized head is followed by a statement, where a regex may start. */
+const CONTROL_FLOW_HEAD_KEYWORDS = new Set(['if', 'while', 'for', 'switch', 'catch', 'with'])
+
+const WHITESPACE_CHAR = /\s/
+
+/** Keywords a regex may directly follow, where the preceding token is a word rather than punctuation. */
+const JAVASCRIPT_REGEX_ALLOWED_AFTER_KEYWORDS = new Set([
+  'return',
+  'typeof',
+  'instanceof',
+  'in',
+  'of',
+  'new',
+  'delete',
+  'void',
+  'case',
+  'throw',
+  'do',
+  'else',
+  'yield',
+  'await',
+])
 
 export class VariableResolver {
   private resolvers: Resolver[]
@@ -293,6 +358,11 @@ export class VariableResolver {
             const value = Reflect.get(condition, 'value')
             return {
               ...condition,
+              // Recorded before resolution: once values are inlined, an expression that reads
+              // the environment map is indistinguishable from one that merely quotes trigger
+              // data containing the word, and the handler decides what to mount from this.
+              [CONDITION_READS_ENVIRONMENT_KEY]:
+                typeof value === 'string' && this.readsEnvironmentMap(value),
               value:
                 typeof value === 'string'
                   ? await this.resolveTemplateWithoutConditionFormatting(
@@ -453,6 +523,19 @@ export class VariableResolver {
       displayCursor = index + match.length
 
       try {
+        const sandboxFilePath = await this.resolveSandboxFilePathReference(
+          match,
+          resolutionContext,
+          language,
+          template,
+          index,
+          contextVarAccumulator
+        )
+        if (sandboxFilePath) {
+          displayResult += sandboxFilePath.display
+          return sandboxFilePath.replacement
+        }
+
         const lazyBase64 = await this.resolveLazyFileBase64Reference(
           match,
           resolutionContext,
@@ -604,34 +687,31 @@ export class VariableResolver {
           throw getNestedLargeValueMaterializationError()
         }
 
-        if (
-          this.isWorkflowVariableReference(match) &&
-          this.shouldUseContextVariable(effectiveValue)
-        ) {
-          const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
-          contextVarAccumulator[varName] = effectiveValue
-          const replacement = this.formatContextVariableReference(
-            varName,
-            language,
-            template,
-            index,
-            effectiveValue
-          )
-          displayResult += this.formatDisplayValueForCodeContext(
+        if (this.canInlineResolvedCodeLiteral(effectiveValue, match)) {
+          const replacement = this.blockResolver.formatValueForBlock(
             effectiveValue,
-            language,
-            template,
-            index
+            BlockType.FUNCTION,
+            language
           )
+          displayResult += replacement
           return replacement
         }
 
-        const replacement = this.blockResolver.formatValueForBlock(
-          effectiveValue,
-          BlockType.FUNCTION,
-          language
+        const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
+        contextVarAccumulator[varName] = effectiveValue
+        const replacement = this.formatContextVariableReference(
+          varName,
+          language,
+          template,
+          index,
+          effectiveValue
         )
-        displayResult += replacement
+        displayResult += this.formatDisplayValueForCodeContext(
+          effectiveValue,
+          language,
+          template,
+          index
+        )
         return replacement
       } catch (error) {
         replacementError = error instanceof Error ? error : new Error(String(error))
@@ -646,6 +726,107 @@ export class VariableResolver {
     }
 
     return { resolvedCode: result, displayCode: displayResult }
+  }
+
+  /**
+   * Resolves `<block.file.path>` to the file's location on the sandbox filesystem.
+   *
+   * The counterpart to the `base64` reference above, and deliberately unlike it in
+   * two ways. It is not gated on the JavaScript runtime helpers, because a path is
+   * just a string and Python and Shell need it more than JavaScript does. And it
+   * stores a mount marker rather than the path itself: the sandbox does not exist
+   * yet at resolution time, and paths are assigned only once the whole mount set is
+   * known, since they are sanitized and de-duplicated together.
+   */
+  private async resolveSandboxFilePathReference(
+    reference: string,
+    context: ResolutionContext,
+    language: string | undefined,
+    template: string,
+    matchIndex: number,
+    contextVarAccumulator: Record<string, unknown>
+  ): Promise<{ replacement: string; display: string } | null> {
+    const parts = parseReferencePath(reference)
+    if (parts.length < 3 || parts.at(-1) !== 'path') {
+      return null
+    }
+
+    const fileReference = `${REFERENCE.START}${parts.slice(0, -1).join(REFERENCE.PATH_DELIMITER)}${REFERENCE.END}`
+    const file = await this.resolveReference(fileReference, context)
+    if (!isUserFileWithMetadata(file) || !file.key) {
+      return null
+    }
+
+    // Reuse the marker already standing for this file so a path referenced twice
+    // costs one context variable rather than two. What keeps it to one mount is
+    // `planUserFileMounts`, which collapses by storage key across every source —
+    // this only keeps the duplicate out of the request body.
+    const existing = Object.entries(contextVarAccumulator).find(
+      ([, value]) => isSandboxFileMountRef(value) && value.file.key === file.key
+    )
+    const varName = existing?.[0] ?? `__blockRef_${Object.keys(contextVarAccumulator).length}`
+    if (!existing) {
+      // The bytes are fetched into the sandbox, so the inline copy would be dead
+      // weight in the request body.
+      const { base64: _base64, ...fileMetadata } = file
+      contextVarAccumulator[varName] = createSandboxFileMountRef(fileMetadata as UserFile)
+    }
+
+    return {
+      replacement: this.formatContextVariablePathReference(varName, language, template, matchIndex),
+      display: reference,
+    }
+  }
+
+  /**
+   * Formats a mount-path reference for splicing into code.
+   *
+   * Unlike {@link formatContextVariableReference}, a path inside a quoted string is
+   * spliced raw rather than JSON-encoded. The general formatter is right to encode
+   * an arbitrary value — the author of `"<block.output>"` wants its JSON form — but
+   * a path is always a plain string, so encoding it would put literal quote
+   * characters inside the string the code then opens, turning `open('<file.path>')`
+   * into a lookup for a filename that begins with `"`.
+   *
+   * Splicing raw is safe precisely here: mount paths are built segment by segment
+   * through `buildStorageKeySegment`, which reduces anything outside
+   * `[A-Za-z0-9.-]` to `_`, so the value cannot carry a quote, backslash, backtick,
+   * or `$` that would escape the surrounding literal.
+   *
+   * Shell is delegated unchanged — its formatter already closes and reopens a
+   * single-quoted context around a double-quoted expansion, which expands
+   * correctly and needs no path-specific case.
+   */
+  private formatContextVariablePathReference(
+    varName: string,
+    language: string | undefined,
+    template: string,
+    matchIndex: number
+  ): string {
+    if (language === 'shell') {
+      return this.formatShellContextVariableReference(varName, template, matchIndex, '')
+    }
+
+    const quoteContext = this.getCodeStringQuoteContext(template, matchIndex, language)
+
+    if (language === 'python') {
+      const expression = `globals()[${JSON.stringify(varName)}]`
+      if (this.isPythonStringQuoteContext(quoteContext)) {
+        const quote = this.getCodeStringQuoteToken(quoteContext)
+        return `${quote} + ${expression} + ${quote}`
+      }
+      return expression
+    }
+
+    const expression = `globalThis[${JSON.stringify(varName)}]`
+    if (quoteContext === 'template') {
+      return `\${${expression}}`
+    }
+    if (quoteContext === 'single' || quoteContext === 'double') {
+      const quote = this.getCodeStringQuoteToken(quoteContext)
+      return `${quote} + ${expression} + ${quote}`
+    }
+    return expression
   }
 
   private async resolveLazyFileBase64Reference(
@@ -780,13 +961,37 @@ export class VariableResolver {
     })
   }
 
-  private isWorkflowVariableReference(reference: string): boolean {
-    const parts = parseReferencePath(reference)
-    return parts[0] === REFERENCE.PREFIX.VARIABLE
-  }
-
-  private shouldUseContextVariable(value: unknown): boolean {
-    return typeof value === 'object' && value !== null
+  /**
+   * Whether a resolved value may stay a literal in generated code rather than being bound
+   * as a context variable.
+   *
+   * Splicing a value into user-authored code hands the author's quoting the decision of how
+   * that value parses, so only values that cannot terminate a literal may stay inline.
+   * Numbers, booleans, and null render as digits or keywords. A string qualifies only when
+   * it names an environment variable and carries no character that could close a string in
+   * any supported language: that shape has to stay in source because the placeholder, never
+   * the secret, is what gets inlined, and the execution-boundary compiler binds it
+   * downstream — that is how `<variable.indirectSecret>` reaches its value.
+   *
+   * Everything else binds, which is what block outputs have always done. Inlining the rest
+   * is what let a runtime-assigned variable or loop item carrying trigger data close the
+   * string it landed in and run as code.
+   *
+   * The placeholder case is admitted only for a workflow variable, never for a loop item or
+   * any other run value. Whoever supplies the text picks which secret the compiler expands
+   * into the generated source, so that choice stays with the surface an author configures.
+   */
+  private canInlineResolvedCodeLiteral(value: unknown, reference: string): boolean {
+    if (value === null || typeof value === 'number' || typeof value === 'boolean') {
+      return true
+    }
+    if (typeof value !== 'string') {
+      return false
+    }
+    if (parseReferencePath(reference)[0] !== REFERENCE.PREFIX.VARIABLE) {
+      return false
+    }
+    return createEnvVarPattern().test(value) && !/['"`$\\\n\r\u2028\u2029]/.test(value)
   }
 
   private formatJavaScriptAsyncExpression(
@@ -937,6 +1142,105 @@ export class VariableResolver {
     )
   }
 
+  /**
+   * Whether a `/` at this point opens a regular expression rather than dividing.
+   *
+   * Division always follows a value, so the preceding token decides: an identifier that is not
+   * one of the keywords a regex may follow, a number, a `)`, or a `]` means division, and
+   * anything else means a regex may start. Guessing wrong is not silent — the scan would swallow
+   * text up to the next `/` — so the check reads the actual preceding token rather than assuming.
+   */
+  private canStartJavaScriptRegex(
+    template: string,
+    previousSignificantIndex: number,
+    closes: { controlHeadParenCloses: ReadonlySet<number>; regexCloseIndices: ReadonlySet<number> }
+  ): boolean {
+    if (previousSignificantIndex < 0) {
+      return true
+    }
+    const previous = template[previousSignificantIndex]
+    if (previous === ')') {
+      return closes.controlHeadParenCloses.has(previousSignificantIndex)
+    }
+    if (previous === '/' && closes.regexCloseIndices.has(previousSignificantIndex)) {
+      return false
+    }
+    // `+` and `-` precede a regex as operators but end a value when doubled: `i++ / 2` divides.
+    if (
+      (previous === '+' || previous === '-') &&
+      template[previousSignificantIndex - 1] === previous
+    ) {
+      return false
+    }
+    if (JAVASCRIPT_REGEX_ALLOWED_AFTER.has(previous)) {
+      return true
+    }
+    if (!this.isJavaScriptIdentifierChar(previous)) {
+      return false
+    }
+
+    let start = previousSignificantIndex
+    while (start > 0 && this.isJavaScriptIdentifierChar(template[start - 1])) {
+      start--
+    }
+    return JAVASCRIPT_REGEX_ALLOWED_AFTER_KEYWORDS.has(
+      template.slice(start, previousSignificantIndex + 1)
+    )
+  }
+
+  /**
+   * Whether a Condition expression reads the run's secrets off the environment map.
+   *
+   * The name is only a read where it can execute, so each occurrence is placed with the same
+   * scanner that decides how references are spliced — a mention inside a string, a template,
+   * or a regex is text and mounts nothing. No shape of the read itself is assumed:
+   * `environmentVariables?.FLAG` and `Object.keys(environmentVariables)` both count, because
+   * narrowing an expression that does reach the map would route the run down a branch the
+   * author did not write, silently, while admitting one too many only costs the narrowing.
+   */
+  private readsEnvironmentMap(expression: string): boolean {
+    ENVIRONMENT_MAP_IDENTIFIER.lastIndex = 0
+    let match = ENVIRONMENT_MAP_IDENTIFIER.exec(expression)
+    while (match !== null) {
+      if (this.getCodeStringQuoteContext(expression, match.index, 'javascript') === null) {
+        return true
+      }
+      match = ENVIRONMENT_MAP_IDENTIFIER.exec(expression)
+    }
+    return false
+  }
+
+  /**
+   * Whether a `(` opens a control-flow head rather than a value.
+   *
+   * What follows the matching `)` differs entirely between the two — a statement, where a regex
+   * literal may begin, versus an operator, where a `/` divides — and the closing parenthesis
+   * carries no trace of which it was. The keyword in front of the opening one is what tells
+   * them apart, so `if (a) /re/.test(b)` and `(a + b) / 2` both scan correctly.
+   *
+   * Both inputs come from the forward scan rather than a walk back through the source: the
+   * scan already knows which characters were code and which sat inside a comment, and reading
+   * backwards cannot recover that — the opener of `/* a /* b *\/` is its first delimiter, not
+   * its last, and only the scan that passed through knows the difference.
+   */
+  private opensControlFlowHead(
+    template: string,
+    previousSignificantIndex: number,
+    precededByPropertyAccess: boolean
+  ): boolean {
+    if (precededByPropertyAccess || previousSignificantIndex < 0) {
+      return false
+    }
+    if (!this.isJavaScriptIdentifierChar(template[previousSignificantIndex])) {
+      return false
+    }
+    let start = previousSignificantIndex
+    while (start > 0 && this.isJavaScriptIdentifierChar(template[start - 1])) {
+      start--
+    }
+    return CONTROL_FLOW_HEAD_KEYWORDS.has(template.slice(start, previousSignificantIndex + 1))
+  }
+
   private matchesKeywordAt(template: string, index: number, keyword: string): boolean {
     if (!template.startsWith(keyword, index)) {
       return false
@@ -1064,6 +1368,11 @@ export class VariableResolver {
   ): CodeStringQuoteContext {
     const isPython = language === 'python'
     const modes: CodeScanMode[] = [{ type: 'normal' }]
+    let lastSignificantIndex = -1
+    const openParenIsControlHead: boolean[] = []
+    let identifierFollowsPropertyAccess = false
+    const controlHeadParenCloses = new Set<number>()
+    const regexCloseIndices = new Set<number>()
 
     for (let i = 0; i < index; i++) {
       const char = template[i]
@@ -1081,6 +1390,34 @@ export class VariableResolver {
         if (char === '*' && next === '/') {
           modes.pop()
           i++
+        }
+        continue
+      }
+
+      if (mode.type === 'regex') {
+        if (char === '\\') {
+          i++
+          continue
+        }
+        // A regex literal cannot span a line, so an unterminated one means the `/` was
+        // division after all; dropping the mode keeps the rest of the scan honest.
+        if (char === '\n') {
+          modes.pop()
+          continue
+        }
+        if (char === '[') {
+          mode.inCharacterClass = true
+          continue
+        }
+        if (char === ']') {
+          mode.inCharacterClass = false
+          continue
+        }
+        if (char === '/' && !mode.inCharacterClass) {
+          modes.pop()
+          // The literal that just closed is a value, so the next `/` divides it.
+          regexCloseIndices.add(i)
+          lastSignificantIndex = i
         }
         continue
       }
@@ -1137,6 +1474,39 @@ export class VariableResolver {
           i++
           continue
         }
+        const previousSignificantIndex = lastSignificantIndex
+        if (!WHITESPACE_CHAR.test(char)) {
+          lastSignificantIndex = i
+        }
+        if (this.isJavaScriptIdentifierChar(char)) {
+          // An identifier continues only when the character right before it is part of the same
+          // token. Asking the previous *significant* character instead treats a name after a
+          // line break as a continuation and leaves it carrying the last one's answer.
+          if (i === 0 || !this.isJavaScriptIdentifierChar(template[i - 1])) {
+            identifierFollowsPropertyAccess = template[previousSignificantIndex] === '.'
+          }
+        } else if (char === '(') {
+          openParenIsControlHead.push(
+            this.opensControlFlowHead(
+              template,
+              previousSignificantIndex,
+              identifierFollowsPropertyAccess
+            )
+          )
+        } else if (char === ')') {
+          if (openParenIsControlHead.pop()) controlHeadParenCloses.add(i)
+        }
+        if (
+          !isPython &&
+          char === '/' &&
+          this.canStartJavaScriptRegex(template, previousSignificantIndex, {
+            controlHeadParenCloses,
+            regexCloseIndices,
+          })
+        ) {
+          modes.push({ type: 'regex', inCharacterClass: false })
+          continue
+        }
         if (isPython && char === "'" && next === "'" && template[i + 2] === "'") {
           modes.push({ type: 'triple-single' })
           i += 2
@@ -1186,6 +1556,39 @@ export class VariableResolver {
         i++
         continue
       }
+      const previousSignificantIndex = lastSignificantIndex
+      if (!WHITESPACE_CHAR.test(char)) {
+        lastSignificantIndex = i
+      }
+      if (this.isJavaScriptIdentifierChar(char)) {
+        // An identifier continues only when the character right before it is part of the same
+        // token. Asking the previous *significant* character instead treats a name after a
+        // line break as a continuation and leaves it carrying the last one's answer.
+        if (i === 0 || !this.isJavaScriptIdentifierChar(template[i - 1])) {
+          identifierFollowsPropertyAccess = template[previousSignificantIndex] === '.'
+        }
+      } else if (char === '(') {
+        openParenIsControlHead.push(
+          this.opensControlFlowHead(
+            template,
+            previousSignificantIndex,
+            identifierFollowsPropertyAccess
+          )
+        )
+      } else if (char === ')') {
+        if (openParenIsControlHead.pop()) controlHeadParenCloses.add(i)
+      }
+      if (
+        !isPython &&
+        char === '/' &&
+        this.canStartJavaScriptRegex(template, previousSignificantIndex, {
+          controlHeadParenCloses,
+          regexCloseIndices,
+        })
+      ) {
+        modes.push({ type: 'regex', inCharacterClass: false })
+        continue
+      }
       if (isPython && char === "'" && next === "'" && template[i + 2] === "'") {
         modes.push({ type: 'triple-single' })
         i += 2
@@ -1202,6 +1605,9 @@ export class VariableResolver {
     }
 
     const mode = modes[modes.length - 1]
+    if (mode.type === 'regex') {
+      return 'regex'
+    }
     if (
       mode.type === 'single' ||
       mode.type === 'double' ||
@@ -1414,19 +1820,12 @@ export class VariableResolver {
         }
 
         if (typeof resolved === 'string') {
-          const escaped = resolved
-            .replace(/\\/g, '\\\\')
-            .replace(/'/g, "\\'")
-            .replace(/\n/g, '\\n')
-            .replace(/\r/g, '\\r')
-            .replace(/\u2028/g, '\\u2028')
-            .replace(/\u2029/g, '\\u2029')
-          const formatted = `'${escaped}'`
+          const formatted = formatInertStringLiteral(resolved)
           projectedReferenceResult += containsResolvedSecret ? match : formatted
           return formatted
         }
         if (typeof resolved === 'object' && resolved !== null) {
-          const formatted = JSON.stringify(resolved)
+          const formatted = this.formatConditionJson(resolved, template, index)
           projectedReferenceResult += containsResolvedSecret ? match : formatted
           return formatted
         }
@@ -1456,6 +1855,27 @@ export class VariableResolver {
       projectedReferenceResult
     )
     return result
+  }
+
+  /**
+   * Renders a resolved object for a Condition expression.
+   *
+   * Inside a quoted string the object is data, so its JSON is escaped to stay inside the
+   * string the author opened: raw, the JSON's own structural quotes close that string, and
+   * `"<start.body>" === "{}"` with a crafted key emits `"{"+attackerCode()+":1}"`, which
+   * parses as concatenation and runs.
+   *
+   * Everywhere else the object is parsed at runtime rather than spliced as source. The value
+   * is identical to the object literal it replaces, but the payload is a fully escaped
+   * literal, so a crafted key can neither close a string nor forge a regex delimiter — which
+   * matters because the emitted form must be safe even when the quote scanner reads the
+   * surrounding context wrongly, and a quote inside a regex literal is enough to do that.
+   * Splicing raw JSON would make that heuristic load-bearing for injection.
+   */
+  private formatConditionJson(value: object, template: string, matchIndex: number): string {
+    const escaped = escapeInertStringContent(JSON.stringify(value))
+    const quoteContext = this.getCodeStringQuoteContext(template, matchIndex, 'javascript')
+    return quoteContext === null ? `JSON.parse('${escaped}')` : escaped
   }
 
   private async resolveReference(reference: string, context: ResolutionContext): Promise<any> {

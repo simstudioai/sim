@@ -46,6 +46,7 @@ describe('downloadGoogleVaultExportFile', () => {
       expect.stringContaining('/storage/v1/b/bucket-1/o/exports%2Fresult.zip?alt=media'),
       '203.0.113.1',
       {
+        profile: 'configuredEndpoint',
         method: 'GET',
         headers: { Authorization: 'Bearer token' },
         maxResponseBytes: MAX_BUFFERED_TRANSFER_BYTES,

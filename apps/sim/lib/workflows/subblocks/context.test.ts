@@ -5,9 +5,9 @@ import { afterAll, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
+import { isSelectorReady } from '@/lib/selectors/manifest'
 import * as blocksBarrel from '@/blocks'
 import { getAllBlocks, getBlock as getRealBlock } from '@/blocks/registry'
-import { bitbucketSelectors } from '@/hooks/selectors/providers/bitbucket/selectors'
 import {
   buildSelectorContextFromBlock,
   getSelectorContextSubBlocks,
@@ -190,6 +190,105 @@ describe('buildSelectorContextFromBlock', () => {
     ).toBeUndefined()
   })
 
+  it('preserves exact environment references through the strict selector context path', () => {
+    const subBlocks = subBlocksFromValues({
+      credential: '{{GMAIL_BASIC_CREDENTIAL}}',
+      manualCredential: '{{GMAIL_SHARED_CREDENTIAL_ID}}',
+    })
+
+    expect(
+      buildSelectorContextFromBlock('gmail', subBlocks, {
+        selectorKey: 'gmail.labels',
+        dependsOn: ['credential', 'manualCredential'],
+      }).oauthCredential
+    ).toBe('{{GMAIL_BASIC_CREDENTIAL}}')
+    expect(
+      buildSelectorContextFromBlock('gmail', subBlocks, {
+        selectorKey: 'gmail.labels',
+        dependsOn: ['credential', 'manualCredential'],
+        canonicalModes: { oauthCredential: 'advanced' },
+      }).oauthCredential
+    ).toBe('{{GMAIL_SHARED_CREDENTIAL_ID}}')
+  })
+
+  it('includes Google impersonation as an explicit active selector hint', () => {
+    const context = buildSelectorContextFromBlock(
+      'gmail',
+      subBlocksFromValues({
+        credential: '{{GMAIL_CREDENTIAL_ID}}',
+        impersonateUserEmail: '{{GMAIL_IMPERSONATE_EMAIL}}',
+      }),
+      {
+        selectorKey: 'gmail.labels',
+        dependsOn: ['credential'],
+      }
+    )
+
+    expect(context).toEqual({
+      oauthCredential: '{{GMAIL_CREDENTIAL_ID}}',
+      impersonateUserEmail: '{{GMAIL_IMPERSONATE_EMAIL}}',
+    })
+  })
+
+  it('projects only the active Slack auth source plus trigger credentials', () => {
+    const oauthAction = buildSelectorContextFromBlock(
+      'slack',
+      subBlocksFromValues({
+        authMethod: 'oauth',
+        credential: 'active-oauth',
+        botToken: 'xoxb-dormant',
+      }),
+      {
+        selectorKey: 'slack.channels',
+        dependsOn: ['authMethod', 'credential', 'botToken'],
+      }
+    )
+    expect(oauthAction.oauthCredential).toBe('active-oauth')
+
+    const botAction = buildSelectorContextFromBlock(
+      'slack',
+      subBlocksFromValues({
+        authMethod: 'bot_token',
+        credential: 'dormant-oauth',
+        botToken: '{{SLACK_BOT_TOKEN}}',
+      }),
+      {
+        selectorKey: 'slack.channels',
+        dependsOn: ['authMethod', 'credential', 'botToken'],
+      }
+    )
+    expect(botAction.oauthCredential).toBe('{{SLACK_BOT_TOKEN}}')
+
+    const trigger = buildSelectorContextFromBlock(
+      'slack_v2',
+      subBlocksFromValues({
+        eventType: 'message',
+        customBotCredential: '{{SLACK_TRIGGER_CREDENTIAL}}',
+      }),
+      {
+        selectorKey: 'slack.channels',
+        dependsOn: ['customBotCredential'],
+        triggerMode: true,
+      }
+    )
+    expect(trigger.oauthCredential).toBe('{{SLACK_TRIGGER_CREDENTIAL}}')
+  })
+
+  it('projects the optional Microsoft Excel drive cascade input', () => {
+    const excel = buildSelectorContextFromBlock(
+      'microsoft_excel',
+      subBlocksFromValues({
+        credential: 'excel-credential',
+        driveId: '{{SHAREPOINT_DRIVE_ID}}',
+      }),
+      {
+        selectorKey: 'microsoft.excel',
+        dependsOn: ['credential', 'driveId'],
+      }
+    )
+    expect(excel.driveId).toBe('{{SHAREPOINT_DRIVE_ID}}')
+  })
+
   it('uses trigger credentials with and without canonical metadata after action conversion', () => {
     const clickupValues = {
       selectedTriggerId: 'clickup_task_created',
@@ -219,6 +318,25 @@ describe('buildSelectorContextFromBlock', () => {
     expect(resolveDependencyValue('triggerCredentials', clickupValues, triggerCanonicalIndex)).toBe(
       'active-trigger'
     )
+  })
+
+  it('uses only active trigger dependencies in the strict selector context path', () => {
+    const context = buildSelectorContextFromBlock(
+      'clickup',
+      subBlocksFromValues({
+        selectedTriggerId: 'clickup_task_created',
+        credential: 'dormant-action',
+        triggerCredentials: '{{CLICKUP_SHARED_CREDENTIAL}}',
+        teamId: '<previous.output>',
+      }),
+      {
+        selectorKey: 'clickup.spaces',
+        dependsOn: ['triggerCredentials', 'teamId'],
+        triggerMode: true,
+      }
+    )
+
+    expect(context).toEqual({ oauthCredential: '{{CLICKUP_SHARED_CREDENTIAL}}' })
   })
 
   it('does not leak a dormant action credential when an unmapped trigger credential is blank', () => {
@@ -258,7 +376,7 @@ describe('buildSelectorContextFromBlock', () => {
       oauthCredential: 'credential-1',
       workspaceSlug: 'acme-platform',
     })
-    expect(bitbucketSelectors['bitbucket.repositories'].enabled({ context } as never)).toBe(true)
+    expect(isSelectorReady('bitbucket.repositories', context)).toBe(true)
   })
 
   it('should ignore subblock keys not in SELECTOR_CONTEXT_FIELDS', () => {
@@ -274,6 +392,7 @@ describe('buildSelectorContextFromBlock', () => {
 
 describe('SELECTOR_CONTEXT_FIELDS validation', () => {
   it('every entry must be a canonicalParamId (if a canonical pair exists) or a direct subblock ID', () => {
+    const explicitSurfaceFields = new Set(['excludeWorkflowId'])
     const allCanonicalParamIds = new Set<string>()
     const allSubBlockIds = new Set<string>()
     const idsInCanonicalPairs = new Set<string>()
@@ -299,6 +418,7 @@ describe('SELECTOR_CONTEXT_FIELDS validation', () => {
 
     for (const field of SELECTOR_CONTEXT_FIELDS) {
       const f = field as string
+      if (explicitSurfaceFields.has(f)) continue
       if (allCanonicalParamIds.has(f)) continue
 
       if (idsInCanonicalPairs.has(f)) {

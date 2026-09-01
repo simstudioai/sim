@@ -18,6 +18,7 @@ import { newChatRoute, settingsRoute } from '@/main/app-routes'
 import {
   activateBrowserScope as activateAgentBrowserScope,
   clearBrowserProfile as clearAgentBrowserProfile,
+  closeBrowserSession as closeAgentBrowserSession,
   initDriver as initBrowserAgentDriver,
 } from '@/main/browser-agent/driver'
 import {
@@ -27,7 +28,6 @@ import {
   setPanelOccluded as setBrowserAgentPanelOccluded,
 } from '@/main/browser-agent/panel'
 import {
-  closeSession as closeAgentBrowserSession,
   handleFocusedShortcut as handleFocusedBrowserShortcut,
   isBrowserScopeSuspended,
   quiesceBrowserSessions,
@@ -720,6 +720,8 @@ function main(): void {
         onSessionStatus: (alive, scopeId) => {
           scopeEvents.sendBrowser(scopeId, 'browser-agent:session-status', alive, scopeId)
         },
+        sitePermissionPromptSupported: (scopeId) =>
+          scopeEvents.browserSitePermissionPromptSupported(scopeId),
         onFillAvailability: (available, scopeId) => {
           scopeEvents.sendBrowser(scopeId, 'browser-credentials:fill-availability', {
             available,

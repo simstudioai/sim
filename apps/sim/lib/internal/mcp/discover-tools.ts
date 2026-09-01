@@ -25,8 +25,7 @@ export async function discoverMcpServerToolsAsExecutor({
   signal?.throwIfAborted()
   const result = await discoverMcpServerToolsUseCase.execute({
     principal,
-    // See `executionActorUserId`: preserves the pre-in-process behavior for unattended runs.
-    input: { workspaceId, serverId, executionActorUserId: context.userId },
+    input: { workspaceId, serverId },
   })
   signal?.throwIfAborted()
   return result.tools

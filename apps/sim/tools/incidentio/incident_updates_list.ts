@@ -87,7 +87,12 @@ export const incidentUpdatesListTool: ToolConfig<
         properties: {
           id: { type: 'string', description: 'The update ID' },
           incident_id: { type: 'string', description: 'The incident ID' },
-          message: { type: 'string', description: 'The update message' },
+          message: { type: 'string', description: 'The update message', optional: true },
+          merged_into_incident_id: {
+            type: 'string',
+            description: 'ID of the incident this incident was merged into',
+            optional: true,
+          },
           new_severity: {
             type: 'object',
             description: 'New severity if changed',
@@ -98,10 +103,9 @@ export const incidentUpdatesListTool: ToolConfig<
               rank: { type: 'number', description: 'Severity rank' },
             },
           },
-          new_status: {
+          new_incident_status: {
             type: 'object',
-            description: 'New status if changed',
-            optional: true,
+            description: 'The incident status after this update',
             properties: {
               id: { type: 'string', description: 'Status ID' },
               name: { type: 'string', description: 'Status name' },
@@ -110,15 +114,48 @@ export const incidentUpdatesListTool: ToolConfig<
           },
           updater: {
             type: 'object',
-            description: 'User who created the update',
+            description: 'Actor who created the update',
             properties: {
-              id: { type: 'string', description: 'User ID' },
-              name: { type: 'string', description: 'User name' },
-              email: { type: 'string', description: 'User email' },
+              user: {
+                type: 'object',
+                description: 'Set when a user made the update',
+                optional: true,
+                properties: {
+                  id: { type: 'string', description: 'User ID' },
+                  name: { type: 'string', description: 'User name' },
+                  email: { type: 'string', description: 'User email', optional: true },
+                },
+              },
+              api_key: {
+                type: 'object',
+                description: 'Set when an API key made the update',
+                optional: true,
+                properties: {
+                  id: { type: 'string', description: 'API key ID' },
+                  name: { type: 'string', description: 'API key name' },
+                },
+              },
+              workflow: {
+                type: 'object',
+                description: 'Set when a workflow made the update',
+                optional: true,
+                properties: {
+                  id: { type: 'string', description: 'Workflow ID' },
+                  name: { type: 'string', description: 'Workflow name' },
+                },
+              },
+              alert: {
+                type: 'object',
+                description: 'Set when an alert made the update',
+                optional: true,
+                properties: {
+                  id: { type: 'string', description: 'Alert ID' },
+                  title: { type: 'string', description: 'Alert title' },
+                },
+              },
             },
           },
           created_at: { type: 'string', description: 'When the update was created' },
-          updated_at: { type: 'string', description: 'When the update was last modified' },
         },
       },
     },

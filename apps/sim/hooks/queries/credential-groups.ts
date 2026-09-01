@@ -22,15 +22,16 @@ import {
   CREDENTIAL_GROUP_DETAIL_STALE_TIME,
   CREDENTIAL_GROUP_LIST_STALE_TIME,
   credentialGroupKeys,
-  fetchCredentialGroupList,
+  fetchCredentialGroupSettings,
 } from '@/hooks/queries/utils/credential-group-queries'
+import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 
 export function useCredentialGroups(workspaceId?: string) {
   return useQuery({
     queryKey: credentialGroupKeys.list(workspaceId),
     queryFn: async ({ signal }) => {
-      if (!workspaceId) return []
-      return fetchCredentialGroupList(workspaceId, signal)
+      if (!workspaceId) return { credentialGroups: [], availableProviders: [] }
+      return fetchCredentialGroupSettings(workspaceId, signal)
     },
     enabled: Boolean(workspaceId),
     staleTime: CREDENTIAL_GROUP_LIST_STALE_TIME,
@@ -119,10 +120,13 @@ export function useUpdateCredentialGroupAccess() {
       })
     },
     onSettled: (_data, _error, variables) =>
-      queryClient.invalidateQueries({
-        queryKey: credentialGroupKeys.access(variables.workspaceId, variables.groupId),
-        exact: true,
-      }),
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: credentialGroupKeys.access(variables.workspaceId, variables.groupId),
+          exact: true,
+        }),
+        invalidateSelectorQueries(queryClient),
+      ]),
   })
 }
 
@@ -136,9 +140,13 @@ export function useCreateCredentialGroup() {
       workspaceId: string
       body: ContractBodyInput<typeof createCredentialGroupContract>
     }) => requestJson(createCredentialGroupContract, { params: { id: workspaceId }, body }),
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: credentialGroupKeys.list(variables.workspaceId) })
-    },
+    onSettled: (_data, _error, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: credentialGroupKeys.list(variables.workspaceId),
+        }),
+        invalidateSelectorQueries(queryClient),
+      ]),
   })
 }
 
@@ -150,10 +158,15 @@ export function useDeleteCredentialGroup() {
         params: { id: workspaceId, groupId },
       }),
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: credentialGroupKeys.list(variables.workspaceId) })
       queryClient.removeQueries({
         queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
       })
+      return Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: credentialGroupKeys.list(variables.workspaceId),
+        }),
+        invalidateSelectorQueries(queryClient),
+      ])
     },
   })
 }
@@ -185,6 +198,7 @@ export function useUpdateCredentialGroup() {
         queryClient.invalidateQueries({
           queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
         }),
+        invalidateSelectorQueries(queryClient),
       ]),
   })
 }
@@ -223,11 +237,13 @@ export function useInviteCredentialGroupEnrollments() {
         params: { id: workspaceId, groupId },
         body,
       }),
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
-      })
-    },
+    onSettled: (_data, _error, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
+        }),
+        invalidateSelectorQueries(queryClient),
+      ]),
   })
 }
 
@@ -246,11 +262,13 @@ export function useResendCredentialGroupEnrollment() {
       requestJson(resendCredentialGroupEnrollmentContract, {
         params: { id: workspaceId, groupId, enrollmentId },
       }),
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
-      })
-    },
+    onSettled: (_data, _error, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
+        }),
+        invalidateSelectorQueries(queryClient),
+      ]),
   })
 }
 
@@ -269,10 +287,12 @@ export function useDeleteCredentialGroupEnrollment() {
       requestJson(deleteCredentialGroupEnrollmentContract, {
         params: { id: workspaceId, groupId, enrollmentId },
       }),
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
-      })
-    },
+    onSettled: (_data, _error, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
+        }),
+        invalidateSelectorQueries(queryClient),
+      ]),
   })
 }

@@ -1,5 +1,5 @@
 import type { CreateMonitorParams, CreateMonitorResponse, MonitorType } from '@/tools/datadog/types'
-import { datadogErrorMessage, parseJsonParam } from '@/tools/datadog/utils'
+import { datadogErrorMessage, parseJsonParam, resolveDatadogSite } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorResponse> = {
@@ -77,7 +77,7 @@ export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorRes
 
   request: {
     url: (params) => {
-      const site = params.site || 'datadoghq.com'
+      const site = resolveDatadogSite(params.site)
       return `https://api.${site}/api/v1/monitor`
     },
     method: 'POST',

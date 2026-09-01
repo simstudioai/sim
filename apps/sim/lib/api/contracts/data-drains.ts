@@ -127,7 +127,7 @@ const s3ConfigBodySchema = z.object({
     .string()
     .url()
     .refine((v) => v.startsWith('https://'), { message: 'endpoint must use https://' })
-    .refine((value) => validateExternalUrl(value, 'endpoint').isValid, {
+    .refine((value) => validateExternalUrl(value, 'endpoint', 'configuredEndpoint').isValid, {
       message: 'endpoint must be HTTPS and not point at a private, loopback, or metadata address',
     })
     .optional(),
@@ -304,7 +304,7 @@ const webhookConfigBodySchema = z.object({
     .string()
     .url('url must be a valid URL')
     .max(2048, 'url must be at most 2048 characters')
-    .refine((value) => validateExternalUrl(value, 'url').isValid, {
+    .refine((value) => validateExternalUrl(value, 'url', 'configuredEndpoint').isValid, {
       message: 'url must be HTTPS and not point at a private, loopback, or metadata address',
     }),
   signatureHeader: z

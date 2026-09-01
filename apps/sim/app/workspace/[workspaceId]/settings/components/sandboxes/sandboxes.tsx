@@ -58,7 +58,7 @@ export function Sandboxes() {
     ...sandboxIdUrlKeys,
   })
 
-  const { data, isLoading } = useSandboxes(workspaceId)
+  const { data, isLoading, error } = useSandboxes(workspaceId)
   const createSandbox = useCreateSandbox()
   const updateSandbox = useUpdateSandbox()
   const deleteSandbox = useDeleteSandbox()
@@ -223,6 +223,16 @@ export function Sandboxes() {
     return (
       <SettingsPanel>
         <SettingsEmptyState>Loading sandboxes...</SettingsEmptyState>
+      </SettingsPanel>
+    )
+  }
+
+  if (error && data === undefined) {
+    return (
+      <SettingsPanel>
+        <SettingsEmptyState tone='error'>
+          {getErrorMessage(error, 'Failed to load sandboxes')}
+        </SettingsEmptyState>
       </SettingsPanel>
     )
   }

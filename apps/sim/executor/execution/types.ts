@@ -56,6 +56,7 @@ export interface ExecutionMetadata {
     edges: Edge[]
     loops?: Record<string, any>
     parallels?: Record<string, any>
+    variables?: Record<string, unknown>
     deploymentVersionId?: string
   }
   largeValueExecutionIds?: string[]

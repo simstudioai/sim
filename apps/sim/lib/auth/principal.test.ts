@@ -7,6 +7,7 @@ import {
   requirePrincipalSubjectUserId,
   resolvePrincipalAttribution,
   resolvePrincipalAuditAttribution,
+  resolvePrincipalExecutionActorUserId,
   resolvePrincipalSubject,
   resolvePrincipalSubjectUserId,
   serializePrincipal,
@@ -104,6 +105,49 @@ describe('principal subject users', () => {
         kind: 'workspace_api_key',
         keyId: 'key-1',
         workspaceId: 'workspace-1',
+      })
+    ).toBeUndefined()
+  })
+
+  it('resolves only a principal-bound compatibility actor for actorless execution', () => {
+    const principal = {
+      kind: 'delegated' as const,
+      serviceId: 'executor' as const,
+      workspaceId: 'workspace-1',
+      delegationId: 'delegation-1',
+      audience: 'sim:test',
+      issuedAt: new Date('2026-01-01T00:00:00Z'),
+      expiresAt: new Date('2026-01-01T00:05:00Z'),
+      delegationContext: {
+        kind: 'workflow_execution' as const,
+        workflowId: 'workflow-1',
+        currentWorkflow: {
+          workflowId: 'workflow-1',
+          mode: 'deployment' as const,
+          deploymentVersionId: 'deployment-1',
+        },
+        compatibilityActor: {
+          kind: 'legacy_execution_user' as const,
+          userId: 'execution-actor',
+        },
+      },
+    }
+
+    expect(resolvePrincipalSubjectUserId(principal)).toBeUndefined()
+    expect(resolvePrincipalExecutionActorUserId(principal)).toBe('execution-actor')
+    expect(
+      resolvePrincipalExecutionActorUserId({
+        ...principal,
+        subjectUserId: 'authenticated-user',
+      })
+    ).toBe('authenticated-user')
+    expect(
+      resolvePrincipalExecutionActorUserId({
+        ...principal,
+        delegationContext: {
+          ...principal.delegationContext,
+          currentWorkflow: { workflowId: 'workflow-1', mode: 'draft' },
+        },
       })
     ).toBeUndefined()
   })

@@ -800,7 +800,7 @@ describe('executeTool Function', () => {
     cleanupEnvVars()
   })
 
-  it('executes trusted Function calls in process without dropping resolved execution context', async () => {
+  it('stamps standard Function identity and preserves trusted execution context', async () => {
     const fetchSpy = vi.fn()
     global.fetch = Object.assign(fetchSpy, { preconnect: vi.fn() }) as typeof fetch
 
@@ -856,7 +856,7 @@ describe('executeTool Function', () => {
         workspaceId: 'workspace-456',
         body: {
           code: 'return [{{API_KEY}}, __blockRef_0.field]',
-          isCustomTool: true,
+          isCustomTool: false,
           inputs: { location: 'San Francisco' },
           envVars: { API_KEY: 'resolved-secret' },
           contextVariables: {
@@ -1744,6 +1744,7 @@ describe('executeTool Function', () => {
   it('does not log plaintext or runtime aliases from Function errors', async () => {
     const secret = 'function-error-secret-value'
     const runtimeAlias = '__var_API_KEY'
+    const cost = { input: 0, output: 0, total: 0.00012345 }
     const registry = new ResolvedSecretTraceRegistry([
       {
         name: 'API_KEY',
@@ -1756,6 +1757,7 @@ describe('executeTool Function', () => {
         JSON.stringify({
           success: false,
           error: `Execution failed with ${secret} via ${runtimeAlias}`,
+          output: { result: null, stdout: 'trace', cost },
           __resolvedSecretNames: ['API_KEY'],
         }),
         {
@@ -1782,6 +1784,7 @@ describe('executeTool Function', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain(secret)
+    expect(result.output?.cost).toEqual(cost)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(secret)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(runtimeAlias)
     expect(JSON.stringify(projectToolResultForCopilot(result, registry))).not.toContain(secret)
@@ -1822,6 +1825,32 @@ describe('executeTool Function', () => {
     expect(result.error).toContain(secret)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(secret)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(runtimeAlias)
+  })
+
+  it('does not lift an invalid sandbox cost from a Function error response', async () => {
+    mockExecuteFunction.mockResolvedValueOnce(
+      Response.json(
+        {
+          success: false,
+          error: 'boom',
+          output: {
+            result: null,
+            stdout: 'trace',
+            cost: { input: 0, output: 0, total: -1 },
+          },
+        },
+        { status: 422 }
+      )
+    )
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'throw new Error("boom")' },
+      { executionContext: createToolExecutionContext({ userId: 'user-1' }) }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.output).not.toHaveProperty('cost')
   })
 
   it('does not log a secret-bearing non-OK response stream error', async () => {
@@ -2783,7 +2812,8 @@ describe('Internal Route Trust', () => {
     expect(result.success).toBe(true)
     expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
       'http://127.0.0.2:3000/api/v1/workflows/test',
-      'toolUrl'
+      'toolUrl',
+      'requestTarget'
     )
     expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       'http://127.0.0.2:3000/api/v1/workflows/test',
@@ -2874,7 +2904,8 @@ describe('Internal Route Trust', () => {
       expect(result.success).toBe(true)
       expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
         'http://127.0.0.1:4000/api/provider',
-        'toolUrl'
+        'toolUrl',
+        'requestTarget'
       )
       expect(mockSecureFetchWithPinnedIP).toHaveBeenCalled()
     } finally {
@@ -2913,6 +2944,104 @@ describe('Internal Route Trust', () => {
       ).not.toThrow()
     } finally {
       Reflect.deleteProperty(tools, 'test_same_origin_redirect')
+    }
+  })
+
+  it('accepts an authoritative instanceUrl only from credential resolution', async () => {
+    const environmentUrl = 'https://contoso.crm.dynamics.com'
+    const otherEnvironmentUrl = 'https://other.crm.dynamics.com'
+    const createAuthorityTool = (id: string, authoritative: boolean) => ({
+      id,
+      name: 'Credential Origin Authority Test',
+      description: 'Verifies credential-derived provider origins',
+      version: '1.0.0',
+      oauth: {
+        required: true,
+        provider: 'microsoft-dataverse',
+        ...(authoritative && { authoritativeParams: ['instanceUrl'] }),
+      },
+      params: {
+        accessToken: { type: 'string', required: true, visibility: 'hidden' },
+        instanceUrl: { type: 'string', required: true, visibility: 'hidden' },
+        environmentUrl: { type: 'string', required: true, visibility: 'user-only' },
+      },
+      request: {
+        url: (params: Record<string, unknown>) => {
+          if (!params.instanceUrl) throw new Error('Credential is not bound to an environment')
+          if (params.instanceUrl !== params.environmentUrl) {
+            throw new Error('Credential belongs to a different environment')
+          }
+          return `${params.instanceUrl}/api/data/v9.2/accounts`
+        },
+        method: 'GET' as const,
+        headers: (params: Record<string, unknown>) => ({
+          Authorization: `Bearer ${params.accessToken}`,
+        }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    })
+    const authorityToolId = 'test_credential_origin_authority'
+    const ordinaryToolId = 'test_origin_authority'
+    ;(tools as Record<string, unknown>)[authorityToolId] = createAuthorityTool(
+      authorityToolId,
+      true
+    )
+    ;(tools as Record<string, unknown>)[ordinaryToolId] = createAuthorityTool(ordinaryToolId, false)
+
+    const setTokenPayload = (payload: Record<string, unknown>) => {
+      global.fetch = Object.assign(
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify(payload), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        ),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+    }
+
+    try {
+      setTokenPayload({ accessToken: 'legacy-token' })
+      const legacyResult = await executeTool(authorityToolId, {
+        credential: 'legacy-credential',
+        environmentUrl,
+        instanceUrl: environmentUrl,
+      })
+      expect(legacyResult).toMatchObject({
+        success: false,
+        error: expect.stringContaining('not bound to an environment'),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+
+      setTokenPayload({ accessToken: 'bound-token', instanceUrl: environmentUrl })
+      const boundResult = await executeTool(authorityToolId, {
+        credential: 'bound-credential',
+        environmentUrl,
+        instanceUrl: otherEnvironmentUrl,
+      })
+      expect(boundResult.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        `${environmentUrl}/api/data/v9.2/accounts`,
+        '93.184.216.34',
+        expect.anything()
+      )
+
+      mockSecureFetchWithPinnedIP.mockClear()
+      setTokenPayload({ accessToken: 'ordinary-token' })
+      const ordinaryResult = await executeTool(ordinaryToolId, {
+        credential: 'ordinary-credential',
+        environmentUrl,
+        instanceUrl: environmentUrl,
+      })
+      expect(ordinaryResult.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+        `${environmentUrl}/api/data/v9.2/accounts`,
+        '93.184.216.34',
+        expect.anything()
+      )
+    } finally {
+      Reflect.deleteProperty(tools, authorityToolId)
+      Reflect.deleteProperty(tools, ordinaryToolId)
     }
   })
 
@@ -4051,7 +4180,7 @@ describe('Internal Route Trust', () => {
   })
 })
 
-describe('Copilot File Parameter Normalization', () => {
+describe('File Parameter Normalization', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
@@ -4177,7 +4306,16 @@ describe('Copilot File Parameter Normalization', () => {
     expect(mockResolveWorkspaceFileReference).toHaveBeenCalledTimes(3)
   })
 
-  it('does not resolve file params outside copilot execution', async () => {
+  it('resolves file params outside copilot execution too', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue({
+      id: 'wf_123',
+      name: 'brief.pdf',
+      path: '/api/files/wf_123',
+      size: 512,
+      type: 'application/pdf',
+      key: 'uploads/wf_123',
+    })
+
     const context = createToolExecutionContext({
       workspaceId: 'workspace-456',
       userId: 'user-1',
@@ -4189,11 +4327,72 @@ describe('Copilot File Parameter Normalization', () => {
       { executionContext: context }
     )
 
+    // By-reference is the only way any model can pass a file — it cannot
+    // synthesize a key or url — so resolution is not copilot-specific.
     expect(result.success).toBe(true)
     expect(mockExecuteInternalToolOperation.mock.calls[0]?.[0].input).toEqual({
-      attachment: 'wf_123',
+      attachment: {
+        id: 'wf_123',
+        name: 'brief.pdf',
+        url: '/api/files/wf_123',
+        size: 512,
+        type: 'application/pdf',
+        key: 'uploads/wf_123',
+        context: 'workspace',
+      },
+    })
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-456', 'wf_123')
+  })
+
+  it('resolves a file produced earlier in the same execution without a workspace lookup', async () => {
+    const executionFile = {
+      id: 'file_1700000000_abc',
+      name: 'invoice.pdf',
+      url: 'https://storage.example/invoice.pdf',
+      size: 2048,
+      type: 'application/pdf',
+      key: 'execution/workspace-456/wf-1/exec-1/abc/invoice.pdf',
+      context: 'execution',
+    }
+
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      userId: 'user-1',
+    } as any)
+    context.executionFilesById = new Map([[executionFile.id, executionFile]])
+
+    const result = await executeTool(
+      'test_single_file_tool',
+      { attachment: executionFile.id },
+      { executionContext: context }
+    )
+
+    // An execution-scoped attachment — a Gmail file fetched moments ago in the
+    // same agent turn — has no workspace row, so the workspace lookup would
+    // never find it.
+    expect(result.success).toBe(true)
+    expect(mockExecuteInternalToolOperation.mock.calls[0]?.[0].input).toEqual({
+      attachment: executionFile,
     })
     expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalled()
+  })
+
+  it('fails a file param naming an id that exists nowhere in scope', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue(null)
+
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      userId: 'user-1',
+    } as any)
+
+    const result = await executeTool(
+      'test_single_file_tool',
+      { attachment: 'wf_nope' },
+      { executionContext: context }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Could not resolve file reference "wf_nope"')
   })
 })
 

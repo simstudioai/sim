@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeCbinsightsChatOperation } from '@/lib/internal/cbinsights/operations/chat'
 import { executeCbinsightsGetCommercialMaturityHistoryOperation } from '@/lib/internal/cbinsights/operations/get-commercial-maturity-history'
+import { executeCbinsightsGetExitProbabilityHistoryOperation } from '@/lib/internal/cbinsights/operations/get-exit-probability-history'
 import { executeCbinsightsGetOrgFundingsOperation } from '@/lib/internal/cbinsights/operations/get-org-fundings'
 import { executeCbinsightsGetOrgOutlookOperation } from '@/lib/internal/cbinsights/operations/get-org-outlook'
 import { executeCbinsightsListBusinessRelationshipsOperation } from '@/lib/internal/cbinsights/operations/list-business-relationships'
@@ -687,5 +688,68 @@ describe('cbinsights model-input projection', () => {
   it('leaves the ID-only endpoints unprojected', () => {
     expect(cbinsightsGetScoutingReportTool.operation.modelInput).toBeUndefined()
     expect(cbinsightsSearchFirmographicsTool.operation.modelInput).toBeUndefined()
+  })
+})
+
+describe('cbinsights non-text runtime values', () => {
+  /*
+   * `params.x?.trim()` guards `undefined`, not the type: a block-to-block reference
+   * resolving to a number reached `.trim()` and threw a bare TypeError naming no
+   * parameter. The sibling history operation already used parseOptionalStringParam.
+   */
+  it('names the offending date parameter instead of throwing a TypeError', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      executeCbinsightsGetExitProbabilityHistoryOperation({
+        ...CREDS,
+        orgId: 123,
+        startDate: 20240101,
+      } as never)
+    ).rejects.toThrow('CB Insights "startDate" must be a string')
+  })
+
+  it('names a non-text keyword on search rather than crashing', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      executeCbinsightsSearchFirmographicsOperation({ ...CREDS, keyword: { a: 1 } } as never)
+    ).rejects.toThrow('CB Insights "keyword" must be a string')
+  })
+
+  it('names a non-text page token rather than crashing', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      executeCbinsightsListFundingsOperation({
+        ...CREDS,
+        orgIds: '123',
+        nextPageToken: 42,
+      } as never)
+    ).rejects.toThrow('CB Insights "nextPageToken" must be a string')
+  })
+
+  it('still treats a blank optional value as omitted, exactly as before', async () => {
+    mockFetch([AUTH_OK, { body: {} }])
+    await executeCbinsightsGetExitProbabilityHistoryOperation({
+      ...CREDS,
+      orgId: 123,
+      startDate: '   ',
+    } as never)
+    expect(JSON.parse(String(calls[1].init.body))).not.toHaveProperty('startDate')
+  })
+})
+
+describe('cbinsights rag message bound', () => {
+  /* The tool description and this error both say "under 10,000", so the guard must
+     reject the boundary value rather than forward it. */
+  it('rejects a message of exactly 10,000 characters', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      executeCbinsightsRagOperation({ ...CREDS, message: 'a'.repeat(10_000) } as never)
+    ).rejects.toThrow('CB Insights "message" must be under 10,000 characters')
+  })
+
+  it('accepts the largest message the contract allows', async () => {
+    mockFetch([AUTH_OK, { body: { data: 'ok' } }])
+    await executeCbinsightsRagOperation({ ...CREDS, message: 'a'.repeat(9_999) } as never)
+    expect(JSON.parse(String(calls[1].init.body)).message).toHaveLength(9_999)
   })
 })

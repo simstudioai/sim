@@ -1,3 +1,7 @@
+import {
+  BROWSER_WAIT_FOR_RENDERER_GRACE_MS,
+  normalizeBrowserWaitForTimeoutMs,
+} from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
@@ -80,7 +84,6 @@ import {
   type ToolCallState,
 } from '@/lib/copilot/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
-import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { isMcpTool } from '@/executor/constants'
 
 export { waitForToolCompletion } from '@/lib/copilot/request/tools/client'
@@ -251,21 +254,22 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
 }
 
 /**
- * How long the resume gate may wait on one pending tool call. Null means the
- * tool is durably waiting on a person and has no deadline.
- *
- * A call sitting on a permission prompt is waiting on a person, not on the
- * executor, so the tool's own watchdog is the wrong bound — the 60s default
- * would force-fail the prompt while the user was still reading it. Such a call
- * gets the long-running budget, which matches the gate's own wait timeout.
+ * How long the resume gate may wait on one pending tool call. Permission
+ * prompts receive the long-running budget, while `browser_wait_for` receives
+ * its normalized requested timeout plus renderer delivery grace.
  */
 export function pendingToolWaitBudgetMs(
-  toolCall: Pick<ToolCallState, 'name' | 'status'> | undefined
-): number | null {
-  if (toolCall?.name === RETIRED_BROWSER_REQUEST_TAKEOVER_ID && toolCall?.status === 'executing') {
-    return null
-  }
+  toolCall:
+    | (Pick<ToolCallState, 'name' | 'status'> & Partial<Pick<ToolCallState, 'params'>>)
+    | undefined
+): number {
   if (toolCall?.status === 'awaiting_approval') return TOOL_WATCHDOG_LONG_RUNNING_MS
+  if (toolCall?.name === 'browser_wait_for') {
+    return (
+      normalizeBrowserWaitForTimeoutMs(toolCall.params?.timeoutMs) +
+      BROWSER_WAIT_FOR_RENDERER_GRACE_MS
+    )
+  }
   return toolWatchdogTimeoutMs(toolCall?.name)
 }
 

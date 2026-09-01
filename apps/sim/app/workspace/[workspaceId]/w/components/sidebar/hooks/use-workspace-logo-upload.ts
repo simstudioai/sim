@@ -2,10 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { uploadInternalFileSession } from '@/lib/uploads/client/session-upload'
+import { validateWorkspaceLogoFile } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/workspace-logo-file'
 
 const logger = createLogger('WorkspaceLogoUpload')
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
-const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp']
 
 interface UseWorkspaceLogoUploadProps {
   workspaceId?: string
@@ -51,16 +50,6 @@ export function useWorkspaceLogoUpload({
     setPreviewUrl(currentLogoUrl || null)
   }, [currentLogoUrl])
 
-  const validateFile = useCallback((file: File): string | null => {
-    if (file.size > MAX_FILE_SIZE) {
-      return `File "${file.name}" is too large. Maximum size is 5MB.`
-    }
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      return `File "${file.name}" is not a supported image format. Please use PNG, JPEG, SVG, or WebP.`
-    }
-    return null
-  }, [])
-
   const uploadFileToServer = useCallback(async (file: File): Promise<string> => {
     const targetWorkspaceId = workspaceIdRef.current
     if (!targetWorkspaceId) {
@@ -78,7 +67,7 @@ export function useWorkspaceLogoUpload({
 
   const processFile = useCallback(
     async (file: File) => {
-      const validationError = validateFile(file)
+      const validationError = validateWorkspaceLogoFile(file)
       if (validationError) {
         onErrorRef.current?.(validationError)
         return
@@ -106,7 +95,7 @@ export function useWorkspaceLogoUpload({
         setIsUploading(false)
       }
     },
-    [uploadFileToServer, validateFile]
+    [uploadFileToServer]
   )
 
   const handleFileChange = useCallback(

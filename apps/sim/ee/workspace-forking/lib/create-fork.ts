@@ -39,6 +39,7 @@ import {
 } from '@/ee/workspace-forking/lib/copy/storage-quota'
 import { buildForkWorkflowIdMap } from '@/ee/workspace-forking/lib/copy/workflow-id-map'
 import { copyForkWorkflowMcpAttachments } from '@/ee/workspace-forking/lib/copy/workflow-mcp-attachments'
+import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
 import { setForkLockTimeout } from '@/ee/workspace-forking/lib/lineage/lineage'
 import {
   type ForkBlockPair,
@@ -161,6 +162,61 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   }
   const { result, blobTasks, contentPlan, contentRefMaps } = await db.transaction(async (tx) => {
     await setForkLockTimeout(tx)
+    /**
+     * The lock alone is not enough: `policy.organizationId` was captured by
+     * `assertCanFork` BEFORE this transaction, so a re-home that commits in
+     * between leaves us locking the organization the parent has already left
+     * and inserting the child there, which is the exact cross-organization
+     * edge the lock was added to prevent. Re-read the parent under the lock
+     * and refuse if it moved; the caller can retry against the new
+     * organization.
+     */
+    const [currentSource] = await tx
+      .select({ organizationId: workspace.organizationId })
+      .from(workspace)
+      .where(eq(workspace.id, source.id))
+      /**
+       * The row lock IS the serialization, and deliberately the only one.
+       *
+       * A fork parent and child must always share an organization. Every writer
+       * that can re-home the parent takes `FOR NO KEY UPDATE` on its row: the
+       * admin workspace move, and `lockWorkspaceRowsForPayerChanges` on the
+       * organization-attach path. Locking it here makes those wait, and the
+       * comparison below then sees their committed result.
+       *
+       * Scope, stated plainly. This closes the ordering the admin move
+       * introduces: a re-home that commits first can no longer be forked
+       * against a stale policy. It does NOT close the reverse ordering, where
+       * a fork commits while a bulk attach or detach is already waiting on
+       * this row with a workspace list snapshotted before the child existed.
+       * That batch would then re-home the parent alone. It is a pre-existing
+       * gap in `attachOwnedWorkspacesToOrganizationTx` and
+       * `detachOrganizationWorkspacesTx`, not one the move creates, and
+       * closing it needs the descendant closure, the disclosure set, and the
+       * advisory-lock plan to move together. Tracked separately rather than
+       * half-fixed here, because a partial repair at commit time is strictly
+       * worse than a documented gap.
+       *
+       * An organization mutation lock was tried here and removed: it bought
+       * nothing the row lock does not already provide, could not cover a null
+       * policy organization at all, and cost three real problems. A lock-order
+       * inversion against invitation acceptance (which takes the workspace row
+       * before the organization lock), a 5s timeout overwriting this
+       * transaction's 10s one, and an organization-wide lock held across the
+       * whole content copy.
+       */
+      .for('no key update')
+      .limit(1)
+    if (!currentSource) {
+      throw new ForkError('Source workspace no longer exists', 404)
+    }
+    if ((currentSource.organizationId ?? null) !== (policy.organizationId ?? null)) {
+      throw new ForkError(
+        'The source workspace changed organizations while this fork was being created. Try again.',
+        409
+      )
+    }
+
     const now = new Date()
 
     await tx.insert(workspace).values({

@@ -280,7 +280,7 @@ describe('mapFunctionUrlConfig', () => {
     })
   })
 
-  it('falls back to empty strings for the fields the contract declares non-nullable', () => {
+  it('maps an absent URL to null rather than an empty string a caller could request', () => {
     const mapped = mapFunctionUrlConfig({
       FunctionUrl: undefined,
       FunctionArn: undefined,
@@ -288,10 +288,10 @@ describe('mapFunctionUrlConfig', () => {
       CreationTime: undefined,
     })
 
-    expect(mapped.functionUrl).toBe('')
-    expect(mapped.functionArn).toBe('')
-    expect(mapped.authType).toBe('')
-    expect(mapped.creationTime).toBe('')
+    expect(mapped.functionUrl).toBeNull()
+    expect(mapped.functionArn).toBeNull()
+    expect(mapped.authType).toBeNull()
+    expect(mapped.creationTime).toBeNull()
   })
 
   it('returns a null CORS block when the URL has none', () => {

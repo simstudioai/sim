@@ -113,6 +113,8 @@ export {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuItemAction,
+  DropdownMenuItemLabel,
+  type DropdownMenuItemLabelProps,
   DropdownMenuLabel,
   DropdownMenuPortal,
   DropdownMenuRadioGroup,
@@ -166,6 +168,7 @@ export {
 export {
   OverflowText,
   type OverflowTextProps,
+  overflowTextClipClass,
   overflowTextFadeClass,
 } from './overflow-text/overflow-text'
 export {

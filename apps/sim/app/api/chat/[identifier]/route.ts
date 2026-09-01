@@ -9,7 +9,6 @@ import { parseRequest } from '@/lib/api/server'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { env } from '@/lib/core/config/env'
-import { validateAuthToken } from '@/lib/core/security/deployment'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -158,8 +157,8 @@ export const POST = withRouteHandler(
       if ((password || email) && !input) {
         const response = createSuccessResponse(toChatConfigResponse(deployment))
 
-        if (deployment.authType !== 'sso') {
-          setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
+        if (deployment.authType === 'password') {
+          setChatAuthCookie(response, deployment)
         }
 
         return response
@@ -392,18 +391,6 @@ export const GET = withRouteHandler(
       if (!deployment.isActive) {
         logger.warn(`[${requestId}] Chat is not active: ${identifier}`)
         return createErrorResponse('This chat is currently unavailable', 403)
-      }
-
-      const cookieName = `chat_auth_${deployment.id}`
-      const authCookie = request.cookies.get(cookieName)
-
-      if (
-        deployment.authType !== 'public' &&
-        deployment.authType !== 'sso' &&
-        authCookie &&
-        validateAuthToken(authCookie.value, deployment.id, deployment.authType, deployment.password)
-      ) {
-        return createSuccessResponse(toChatConfigResponse(deployment))
       }
 
       const authResult = await validateChatAuth(requestId, deployment, request)

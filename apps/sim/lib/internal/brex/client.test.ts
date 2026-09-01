@@ -73,6 +73,7 @@ describe('BrexReceiptClient', () => {
     )
 
     expect(mocks.pinnedFetch).toHaveBeenCalledWith('https://upload.example/file', '52.216.0.1', {
+      profile: 'contentFetch',
       method: 'PUT',
       headers: { 'Content-Length': String(buffer.byteLength) },
       body: new Uint8Array(buffer),

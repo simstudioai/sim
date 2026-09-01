@@ -133,8 +133,8 @@ export function mapFunctionConfiguration(fc: FunctionConfiguration) {
       signingJobArn: layer.SigningJobArn ?? null,
     })),
     fileSystemConfigs: (fc.FileSystemConfigs ?? []).map((config) => ({
-      arn: config.Arn,
-      localMountPath: config.LocalMountPath,
+      arn: config.Arn ?? null,
+      localMountPath: config.LocalMountPath ?? null,
     })),
     vpcConfig: fc.VpcConfig
       ? {
@@ -291,6 +291,8 @@ export function mapEventSourceMapping(esm: EventSourceMappingConfiguration) {
           fullDocument: esm.DocumentDBEventSourceConfig.FullDocument ?? null,
         }
       : null,
+    selfManagedKafkaBootstrapServers:
+      esm.SelfManagedEventSource?.Endpoints?.KAFKA_BOOTSTRAP_SERVERS ?? [],
     provisionedPollerConfig: esm.ProvisionedPollerConfig
       ? {
           minimumPollers: esm.ProvisionedPollerConfig.MinimumPollers ?? null,
@@ -312,10 +314,10 @@ export function mapFunctionUrlConfig(config: {
   Cors?: FunctionUrlConfig['Cors']
 }) {
   return {
-    functionUrl: config.FunctionUrl ?? '',
-    functionArn: config.FunctionArn ?? '',
-    authType: config.AuthType ?? '',
-    creationTime: config.CreationTime ?? '',
+    functionUrl: config.FunctionUrl ?? null,
+    functionArn: config.FunctionArn ?? null,
+    authType: config.AuthType ?? null,
+    creationTime: config.CreationTime ?? null,
     lastModifiedTime: config.LastModifiedTime ?? null,
     invokeMode: config.InvokeMode ?? null,
     cors: config.Cors

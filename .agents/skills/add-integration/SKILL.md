@@ -270,14 +270,23 @@ export const {Service}Block: BlockConfig = {
 {
   id: 'project',
   type: 'project-selector',
+  selectorKey: '{service}.projects',
   dependsOn: ['credential'],
 },
 {
   id: 'issue',
   type: 'file-selector',
+  selectorKey: '{service}.issues',
   dependsOn: ['credential', 'project'],
 }
 ```
+
+Every remote `selectorKey` must use the unified server selector path. Apply the `add-selector` skill:
+add browser-safe metadata to `apps/sim/lib/selectors/manifest.ts`, reuse or extract a server-only
+provider listing primitive, and add a credential- and destination-bound server attachment. Do not
+add code under `hooks/selectors/providers`, a provider-specific query key, browser token acquisition,
+or a selector-only API route. The shared context builder sends only active `dependsOn` values and
+preserves exact `{{KEY}}` environment references for server-side resolution.
 
 **Basic/Advanced mode for dual UX:**
 ```typescript
@@ -576,7 +585,7 @@ bun run deployment-config:check
 bun run docs:check
 ```
 
-This creates `apps/docs/content/docs/en/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
+This creates `apps/docs/content/docs/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
 
 The docs generator refreshes `packages/deployment-config/src/integrations.json`, and the deployment
 config generator projects service-account provider IDs from that catalog plus the canonical OAuth
@@ -606,8 +615,8 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Created tool file for each operation
 - [ ] Chose exactly one boundary per tool: registered `InternalToolConfig.operation` or absolute
       external HTTP(S) `ToolConfig.request`
-- [ ] No tool points to `/api/...`, constructs a URL back to Sim, declares `request.internal`, or
-      `directExecution`, or has an HTTP fallback for an in-process operation
+- [ ] No tool points to `/api/...`, constructs a URL back to Sim, declares `request.internal` or the
+      retired `directExecution` property, or has an HTTP fallback for an in-process operation
 - [ ] All params have correct visibility
 - [ ] All nullable fields use `?? null`
 - [ ] All optional outputs have `optional: true`
@@ -630,6 +639,10 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Added credential field with `requiredScopes: getScopesForService('{service}')`
 - [ ] Added conditional fields per operation
 - [ ] Set up dependsOn for cascading selectors
+- [ ] Every remote `selectorKey` exists in the shared manifest and has one server attachment with
+      trusted credential provider binding and a fixed, credential-bound, or explicitly reviewed
+      user-controlled destination policy
+- [ ] No selector provider logic, credential resolution, or provider route call runs in the browser
 - [ ] Configured tools.access with all tool IDs
 - [ ] Configured tools.config.tool selector
 - [ ] Defined outputs matching tool outputs
@@ -922,7 +935,8 @@ requiredScopes: getScopesForService('{service}'),
 3. **Block type is snake_case** - `type: 'stripe'`, not `type: 'Stripe'`
 4. **Alphabetical ordering** - Keep imports and registry entries alphabetically sorted
 5. **Required can be conditional** - Use `required: { field: 'op', value: 'create' }` instead of always true
-6. **DependsOn clears options** - When a dependency changes, selector options are refetched
+6. **DependsOn clears options** - When an active dependency changes, the shared selector facade
+   refetches with an opaque query revision; dependency values and references never enter query keys
 7. **Never pass Buffer directly to fetch** - Convert to `new Uint8Array(buffer)` for TypeScript compatibility
 8. **Always handle legacy file params** - Keep hidden `fileContent` params for backwards compatibility
 9. **Optional fields use advanced mode** - Set `mode: 'advanced'` on rarely-used optional fields

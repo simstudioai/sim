@@ -271,6 +271,39 @@ describe('performTableCsvImport', () => {
       })
     })
 
+    it('counts invalid TTL cells that the import blanks', async () => {
+      const result = await performTableCsvImport(
+        importParams({
+          table: {
+            ...TABLE,
+            schema: {
+              columns: [
+                {
+                  id: 'col_expires_at',
+                  name: 'expires_at',
+                  type: 'ttl',
+                  required: false,
+                  unique: false,
+                },
+              ],
+            },
+          },
+          fileStream: csvStream('expires_at\n2023-11-14T22:13:20Z\nnot-a-date\n'),
+        })
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.data?.rejections).toEqual({
+        rowsRejected: 0,
+        cellsRejected: 1,
+        rejectedSamples: [],
+      })
+      expect(mockImportAppendRows.mock.calls[0][2]).toEqual([
+        { col_expires_at: 1_700_000_000 },
+        { col_expires_at: null },
+      ])
+    })
+
     it('omits the accounting entirely from a clean import', async () => {
       const result = await performTableCsvImport(importParams())
 

@@ -1,6 +1,24 @@
 import type { UserFile } from '@/executor/types'
 import type { TableRow, ToolResponse } from '@/tools/types'
 
+export interface FileSearchOutput {
+  results: Array<{
+    fileId: string
+    lineNumber: number
+    text: string
+  }>
+  count: number
+  truncated: boolean
+  complete: boolean
+  indexStatus: {
+    readyFiles: number
+    pendingFiles: number
+    failedFiles: number
+    skippedFiles: number
+    partialFiles: number
+  }
+}
+
 export interface FileParserInput {
   filePath?: string | string[]
   file?: UserFile | UserFile[] | FileUploadInput | FileUploadInput[]

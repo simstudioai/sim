@@ -10,6 +10,7 @@ import {
 import { cva, type VariantProps } from 'class-variance-authority'
 import Link, { type LinkProps } from 'next/link'
 import { cn } from '../../lib/cn'
+import { OverflowText, overflowTextClipClass } from '../overflow-text/overflow-text'
 import {
   chipActiveSurfaceClass,
   chipContentIconClass,
@@ -114,11 +115,15 @@ function ChipContent({
   const isInverse = variant === 'primary' || variant === 'destructive'
   const iconClass = cn(chipContentIconClass, isInverse && 'text-current')
   const labelClass = cn(chipContentLabelClass, 'flex-1', isInverse && 'text-current')
+  const textLabel =
+    typeof children === 'string' || typeof children === 'number' ? String(children) : null
   return (
     <>
       {leftAdornment ?? (LeftIcon ? <LeftIcon className={iconClass} /> : null)}
-      {children != null && children !== false ? (
-        <span className={labelClass}>{children}</span>
+      {textLabel != null ? (
+        <OverflowText label={textLabel} className={labelClass} focusTarget='nearest-interactive' />
+      ) : children != null && children !== false ? (
+        <span className={cn(overflowTextClipClass, labelClass)}>{children}</span>
       ) : null}
       {RightIcon ? <RightIcon className={iconClass} /> : null}
     </>

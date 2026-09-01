@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, inArray } from 'drizzle-orm'
+import { and, count, desc, eq, inArray } from 'drizzle-orm'
 import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
@@ -24,6 +24,8 @@ export interface ReconcileOrganizationSeatsResult {
 interface ReconcileOrganizationSeatsParams {
   organizationId: string
   reason: string
+  /** Restrict reconciliation to an already-resolved entitled organization subscription. */
+  subscriptionId?: string
   /**
    * Real `user.id` of the actor whose action triggered this reconcile, used to
    * attribute the seat-change audit log and analytics event. Omit for system
@@ -50,6 +52,7 @@ interface ReconcileOrganizationSeatsParams {
 export async function reconcileOrganizationSeats({
   organizationId,
   reason,
+  subscriptionId,
   actorId,
 }: ReconcileOrganizationSeatsParams): Promise<ReconcileOrganizationSeatsResult> {
   if (!isBillingEnabled) {
@@ -74,9 +77,11 @@ export async function reconcileOrganizationSeats({
       .where(
         and(
           eq(subscription.referenceId, organizationId),
-          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
+          subscriptionId ? eq(subscription.id, subscriptionId) : undefined
         )
       )
+      .orderBy(desc(subscription.periodStart), desc(subscription.id))
       .for('update')
       .limit(1)
 

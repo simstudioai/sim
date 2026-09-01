@@ -50,6 +50,11 @@ services:
       # different host:port (e.g. wss://socket.example.com).
       - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-}
       - ADMISSION_GATE_MAX_INFLIGHT=${ADMISSION_GATE_MAX_INFLIGHT:-500}
+    # Lets a workflow reach a service on the Docker host. Reaching it also
+    # requires naming it in EGRESS_ALLOWED_HOSTS; this only makes the name
+    # resolve, which it does not on Linux by default.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     depends_on:
       db:
         condition: service_healthy

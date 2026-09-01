@@ -91,11 +91,6 @@ export const listMcpServersUseCase = defineAuthorizedWorkspaceUseCase({
 
 export interface DiscoverMcpToolsInput {
   workspaceId: string
-  /**
-   * The run's execution actor. See {@link requireMcpCredentialUserId}: preserves
-   * the pre-in-process behavior for runs whose principal names no Sim user.
-   */
-  executionActorUserId?: string
   refresh?: boolean
 }
 
@@ -106,7 +101,7 @@ export const discoverMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions,
   async execute({ principal, input, context }) {
     const tools = await mcpService.discoverTools(
-      requireMcpCredentialUserId(principal, input.executionActorUserId),
+      requireMcpCredentialUserId(principal),
       context.workspaceId,
       /**
        * A public `refresh` skips the positive cache but keeps the failure
@@ -122,11 +117,6 @@ export const discoverMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
 export interface DiscoverMcpServerToolsInput {
   workspaceId: string
   serverId: string
-  /**
-   * The run's execution actor. See {@link requireMcpCredentialUserId}: preserves
-   * the pre-in-process behavior for runs whose principal names no Sim user.
-   */
-  executionActorUserId?: string
   refresh?: boolean
 }
 
@@ -164,7 +154,7 @@ export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
     }
 
     const tools = await mcpService.discoverServerTools(
-      requireMcpCredentialUserId(principal, input.executionActorUserId),
+      requireMcpCredentialUserId(principal),
       context.server.id,
       context.workspaceId,
       /**

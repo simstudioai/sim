@@ -1296,7 +1296,7 @@ export async function listWorkspaceFiles(
       .orderBy(workspaceFiles.uploadedAt)
     const files = await (limit === undefined ? query : query.limit(limit))
 
-    return hydrateWorkspaceFilePaths(files, workspaceId, options)
+    return await hydrateWorkspaceFilePaths(files, workspaceId, options)
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
     if (options?.throwOnError) throw error

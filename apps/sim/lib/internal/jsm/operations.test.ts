@@ -45,7 +45,7 @@ vi.mock('@/tools/jsm/utils', () => ({ mapAssetObject: mocks.mapAssetObject }))
 
 import { executeJsmSearchObjectsAql } from '@/lib/internal/jsm/assets'
 import { executeJsmSubmitForm } from '@/lib/internal/jsm/forms'
-import { executeJsmCreateRequest, listJsmServiceDeskOptions } from '@/lib/internal/jsm/service-desk'
+import { executeJsmCreateRequest } from '@/lib/internal/jsm/service-desk'
 
 const BASE = {
   domain: 'example.atlassian.net',
@@ -56,32 +56,6 @@ const BASE = {
 describe('JSM operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  it('drains selector pages using the number of returned rows as the next offset', async () => {
-    mocks.client.json
-      .mockResolvedValueOnce({
-        values: [{ id: '1', projectName: 'One' }],
-        _links: { next: 'next' },
-      })
-      .mockResolvedValueOnce({ values: [{ id: '2', projectName: 'Two' }], isLastPage: true })
-
-    await expect(listJsmServiceDeskOptions(BASE)).resolves.toEqual([
-      { id: '1', name: 'One' },
-      { id: '2', name: 'Two' },
-    ])
-    expect(mocks.client.json).toHaveBeenNthCalledWith(
-      1,
-      'service:/servicedesk?start=0&limit=100',
-      {},
-      undefined
-    )
-    expect(mocks.client.json).toHaveBeenNthCalledWith(
-      2,
-      'service:/servicedesk?start=1&limit=100',
-      {},
-      undefined
-    )
   })
 
   it('keeps form answers separate from explicitly supplied request field values', async () => {

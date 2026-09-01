@@ -119,7 +119,9 @@ export const env = createEnv({
     DISABLE_REGISTRATION:                  z.boolean().optional(),                 // Flag to disable new user registration
     EMAIL_PASSWORD_SIGNUP_ENABLED:         z.boolean().optional().default(true),   // Enable email/password authentication (server-side enforcement)
     DISABLE_AUTH:                          z.boolean().optional(),                 // Bypass authentication entirely (self-hosted only, creates anonymous session)
-    ALLOW_PRIVATE_DATABASE_HOSTS:          z.boolean().optional(),                 // Opt-in (self-hosted only): let database/connector tools reach private/reserved/loopback hosts (e.g. Docker/K8s service names). Loosens the SSRF boundary; ignored on the hosted platform.
+    ALLOW_PRIVATE_DATABASE_HOSTS:          z.boolean().optional(),                 // Deprecated alias for the egress allowlist, kept so existing self-hosted deployments keep working. Equivalent to allowing every private, reserved, and loopback destination. Prefer EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES, which name specific destinations.
+    EGRESS_ALLOWED_HOSTS:                  z.string().optional(),                  // Comma-separated hostnames outbound requests may reach on a private network, leading wildcard allowed (e.g. "host.docker.internal,*.svc.cluster.local"). Self-hosted only; ignored on the hosted platform. Replaces ALLOW_PRIVATE_DATABASE_HOSTS.
+    EGRESS_ALLOWED_IP_RANGES:              z.string().optional(),                  // Comma-separated CIDRs or IPs outbound requests may reach on a private network (e.g. "10.0.0.0/8,192.168.65.254/32"). Self-hosted only; never lifts the cloud-metadata block.
     ALLOWED_LOGIN_EMAILS:                  z.string().optional(),                  // Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS:                 z.string().optional(),                  // Comma-separated list of allowed email domains for login
     BLOCKED_SIGNUP_DOMAINS:                z.string().optional(),                  // Comma-separated list of email domains blocked from signing up (e.g., "gmail.com,yahoo.com")
@@ -299,8 +301,6 @@ export const env = createEnv({
     TELEMETRY_ENDPOINT:                    z.string().url().optional(),            // Custom telemetry/analytics endpoint
     COST_MULTIPLIER:                       z.number().optional(),                  // Multiplier for cost calculations
     LOG_LEVEL:                             z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).optional(), // Minimum log level to display (defaults to ERROR in production, DEBUG in development)
-    PROFOUND_API_KEY:                      z.string().min(1).optional(),           // Profound analytics API key
-    PROFOUND_ENDPOINT:                     z.string().url().optional(),            // Profound analytics endpoint
     GRAFANA_OTLP_ENDPOINT:                 z.string().url().optional(),            // Grafana Cloud OTLP HTTP gateway base URL (e.g., https://otlp-gateway-prod-us-east-0.grafana.net/otlp). Trigger.dev exporters append /v1/traces, /v1/logs, /v1/metrics.
     GRAFANA_OTLP_HEADERS:                  z.string().min(1).optional(),           // Comma-separated key=value headers for OTLP requests (e.g., "Authorization=Basic <base64(instanceId:token)>"). Same format as the OTEL_EXPORTER_OTLP_HEADERS spec.
     GRAFANA_DEPLOYMENT_ENVIRONMENT:        z.string().min(1).optional(),           // Deployment tier label (e.g., "production", "staging", "development"). Emitted as the stable `deployment.environment.name` resource attribute on Trigger.dev telemetry to match the rest of the Sim OTEL stack.
@@ -432,6 +432,7 @@ export const env = createEnv({
     IVM_MAX_OWNER_WEIGHT:                  z.string().optional().default('5'),      // Max accepted weight for weighted owner scheduling
     IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER:z.string().optional().default('2200'),   // Max owner in-flight leases across replicas
     IVM_DISTRIBUTED_LEASE_MIN_TTL_MS:      z.string().optional().default('120000'), // Min TTL for distributed in-flight leases (ms)
+    IVM_LEASE_REDIS_DEADLINE_MS:           z.string().optional().default('1000'),   // Deadline for one distributed lease round trip (ms)
     IVM_QUEUE_TIMEOUT_MS:                  z.string().optional().default('300000'), // Max queue wait before rejection (ms)
     IVM_MAX_EXECUTIONS_PER_WORKER:         z.string().optional().default('200'),    // Max lifetime executions before worker is recycled
     IVM_MAX_BROKER_ARGS_JSON_CHARS:        z.string().optional().default('262144'),  // Max JSON payload size for sandbox task broker args (isolate→host)
@@ -586,6 +587,7 @@ export const env = createEnv({
     SESSION_POLICIES_ENABLED:             z.boolean().optional(),                 // Enable org session policies on self-hosted (bypasses hosted requirements)
     FORKING_ENABLED:                      z.boolean().optional(),                 // Enable workspace forking on self-hosted (bypasses hosted requirements)
     TABLES_V2_API:                        z.boolean().optional(),                 // Enable the v2 tables HTTP API (public /api/v2/tables + internal /api/table/[tableId]/query predicate-grammar route)
+    TABLE_ROW_TTL:                        z.boolean().optional(),
     CREDENTIAL_GROUPS:                    z.boolean().optional(),                 // Enable enterprise Credential Groups globally
     OAUTH_TOKEN_ENCRYPTION:               z.boolean().optional(),                 // Encrypt account OAuth tokens at rest (fallback for the oauth-token-encryption flag when AppConfig is not the source of truth)
 

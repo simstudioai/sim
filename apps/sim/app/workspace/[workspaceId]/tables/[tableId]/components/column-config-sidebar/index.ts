@@ -1,3 +1,9 @@
 export type { ColumnConfig } from './column-config-sidebar'
 export { ColumnConfigSidebar } from './column-config-sidebar'
-export { COLUMN_TYPE_OPTIONS, PLAIN_COLUMN_TYPE_OPTIONS } from './column-types'
+export {
+  COLUMN_TYPE_OPTIONS,
+  type ColumnTypeOption,
+  columnTypeOptionsForTable,
+  PLAIN_COLUMN_TYPE_OPTIONS,
+  type SidebarColumnType,
+} from './column-types'

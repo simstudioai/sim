@@ -17,6 +17,6 @@ export function mcpAuthGuarded(
 ): ReturnType<typeof auth> {
   return auth(provider, {
     ...options,
-    fetchFn: options.fetchFn ?? createSsrfGuardedMcpFetch(),
+    fetchFn: options.fetchFn ?? createSsrfGuardedMcpFetch({ serverUrl: String(options.serverUrl) }),
   })
 }

@@ -15,7 +15,7 @@ vi.mock('@/lib/environment/api', () => ({
   fetchWorkspaceEnvironment: mockFetchWorkspaceEnvironment,
 }))
 
-import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
+import { environmentKeys, useWorkspaceEnvironment } from '@/hooks/queries/environment'
 
 function renderWorkspaceEnvironment(workspaceId: string, enabled?: boolean) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -58,5 +58,44 @@ describe('useWorkspaceEnvironment', () => {
 
     expect(mockFetchWorkspaceEnvironment).not.toHaveBeenCalled()
     unmount()
+  })
+
+  it('does not retain decrypted values while a different workspace loads', () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    const pendingWorkspace = new Promise<never>(() => {})
+
+    queryClient.setQueryData(environmentKeys.workspace('workspace-1'), {
+      workspace: { SHARED_KEY: 'workspace-1-secret' },
+      personal: {},
+      conflicts: [],
+    })
+    mockFetchWorkspaceEnvironment.mockReturnValueOnce(pendingWorkspace)
+
+    function Probe({ workspaceId }: { workspaceId: string }) {
+      const { data } = useWorkspaceEnvironment(workspaceId)
+      return <span>{data?.workspace.SHARED_KEY ?? 'loading'}</span>
+    }
+
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <Probe workspaceId='workspace-1' />
+        </QueryClientProvider>
+      )
+    })
+    expect(container.textContent).toBe('workspace-1-secret')
+
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <Probe workspaceId='workspace-2' />
+        </QueryClientProvider>
+      )
+    })
+
+    expect(container.textContent).toBe('loading')
+    act(() => root.unmount())
   })
 })

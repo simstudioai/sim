@@ -35,7 +35,7 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { isUserFile } from '@/lib/core/utils/user-file'
+import { collectUserFilesById, isUserFile } from '@/lib/core/utils/user-file'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import {
@@ -250,10 +250,42 @@ function toUserFileFromWorkspaceRecord(record: {
   }
 }
 
-async function resolveCopilotFileReference(
+/**
+ * Files this execution has already produced or consumed, indexed by id.
+ *
+ * Seeded from prior block outputs and extended as each tool result is processed,
+ * so a file an agent saw earlier in the same turn resolves even though it exists
+ * in no block state and no workspace row.
+ */
+function getExecutionFileIndex(executionContext?: ExecutionContext): Map<string, UserFile> {
+  if (!executionContext) return new Map()
+  if (!executionContext.executionFilesById) {
+    executionContext.executionFilesById = collectUserFilesById(
+      Object.fromEntries(executionContext.blockStates ?? new Map())
+    )
+  }
+  return executionContext.executionFilesById
+}
+
+/** Registers files a tool just produced so a later call can name them by id. */
+function recordExecutionFiles(
+  executionContext: ExecutionContext | undefined,
+  value: unknown
+): void {
+  if (!executionContext) return
+  const index = getExecutionFileIndex(executionContext)
+  for (const [id, file] of collectUserFilesById(value)) {
+    // First occurrence wins, matching collectUserFilesById, so a file echoed
+    // through several results keeps one record.
+    if (!index.has(id)) index.set(id, file)
+  }
+}
+
+async function resolveFileReference(
   value: unknown,
-  workspaceId: string,
-  paramId: string
+  scope: ToolExecutionScope,
+  paramId: string,
+  executionContext?: ExecutionContext
 ): Promise<UserFile | unknown> {
   if (isUserFile(value)) {
     return value
@@ -272,10 +304,21 @@ async function resolveCopilotFileReference(
     return value
   }
 
-  const fileRecord = await resolveWorkspaceFileReference(workspaceId, referenceId)
+  // Tried before the workspace lookup because an execution-scoped file — a tool
+  // result from earlier in this run — has no workspace row to find.
+  const executionFile = getExecutionFileIndex(executionContext).get(referenceId)
+  if (executionFile) {
+    return executionFile
+  }
+
+  if (!scope.workspaceId) {
+    throw new Error(`Missing workspaceId while resolving file parameter "${paramId}"`)
+  }
+
+  const fileRecord = await resolveWorkspaceFileReference(scope.workspaceId, referenceId)
   if (!fileRecord) {
     throw new Error(
-      `Could not resolve workspace file reference "${referenceId}" for parameter "${paramId}"`
+      `Could not resolve file reference "${referenceId}" for parameter "${paramId}". Pass a file id from an earlier tool result, or a canonical workspace file id.`
     )
   }
 
@@ -292,15 +335,20 @@ async function resolveCopilotFileReference(
   }
 }
 
-async function normalizeCopilotFileParams(
+/**
+ * Hydrates file params supplied by reference into full file objects.
+ *
+ * Runs on every surface, not just Copilot: a model cannot synthesize the `key`
+ * and `url` a file object carries, so by-reference is the only way any model can
+ * pass one. Resolution merely selects a file — the read itself is still
+ * authorized downstream, so naming an id grants nothing on its own.
+ */
+async function normalizeFileParams(
   tool: ToolDefinition,
   params: Record<string, unknown>,
-  scope: ToolExecutionScope
+  scope: ToolExecutionScope,
+  executionContext?: ExecutionContext
 ): Promise<void> {
-  if (!scope.copilotToolExecution) {
-    return
-  }
-
   for (const [paramId, paramDef] of Object.entries(tool.params || {})) {
     const paramType = paramDef?.type
     const currentValue = params[paramId]
@@ -309,21 +357,14 @@ async function normalizeCopilotFileParams(
     }
 
     if (paramType === 'file') {
-      if (!scope.workspaceId) {
-        throw new Error(`Missing workspaceId while resolving file parameter "${paramId}"`)
-      }
-      params[paramId] = await resolveCopilotFileReference(currentValue, scope.workspaceId, paramId)
+      params[paramId] = await resolveFileReference(currentValue, scope, paramId, executionContext)
       continue
     }
 
     if (paramType === 'file[]') {
-      if (!scope.workspaceId) {
-        throw new Error(`Missing workspaceId while resolving file parameter "${paramId}"`)
-      }
-
       const values = Array.isArray(currentValue) ? currentValue : [currentValue]
       params[paramId] = await Promise.all(
-        values.map((item) => resolveCopilotFileReference(item, scope.workspaceId!, paramId))
+        values.map((item) => resolveFileReference(item, scope, paramId, executionContext))
       )
     }
   }
@@ -1176,6 +1217,9 @@ async function processFileOutputs(
       executionContext
     )
 
+    // Indexed so a later tool call in this run can name any of these by id.
+    recordExecutionFiles(executionContext, processedOutput)
+
     return {
       ...result,
       output: processedOutput,
@@ -1197,8 +1241,16 @@ async function processFileOutputs(
         tool.id === 'function_execute' || isCustomTool(tool.id)
       )
     )
-    // Return original result if file processing fails
-    return result
+    // Falling back to the original result leaves the raw file payload in place:
+    // the caller would see success while the declared file objects are actually
+    // undelivered bytes, which then flow into logs and any downstream model
+    // prompt. Reporting the failure is the only honest outcome.
+    return {
+      ...result,
+      success: false,
+      error: `Failed to store file outputs for ${tool.id}: ${normalizedError.message}`,
+      output: {},
+    }
   }
 }
 
@@ -1509,7 +1561,19 @@ export async function executeTool(
     : parentRegistry.forkForToolCall()
   if (!paramEntries) toolRegistry.markIncomplete('tool-input-not-enumerable')
   const executionContext = options.executionContext
-    ? { ...options.executionContext, resolvedSecretTraceRegistry: toolRegistry }
+    ? {
+        ...options.executionContext,
+        /**
+         * Materialized on the source before the spread so both objects hold the
+         * same `Map` instance. The index is lazily built on first access, and
+         * this clone is discarded when the call returns — so letting it be
+         * created here would record every file a tool produced onto a throwaway,
+         * and the next call in the run would rebuild an index that never saw
+         * them.
+         */
+        executionFilesById: getExecutionFileIndex(options.executionContext),
+        resolvedSecretTraceRegistry: toolRegistry,
+      }
     : undefined
   const operationContext = options.operationContext
     ? { ...options.operationContext, resolvedSecretTraceRegistry: toolRegistry }
@@ -1565,11 +1629,12 @@ async function executeToolImplementation(
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
   const requestId = generateRequestId()
+  const normalizedToolId = normalizeToolId(toolId)
   const privateToolMetadataPolicy = resolvedSecretTraceRegistry
     ? getPrivateToolMetadataPolicy(toolId)
     : undefined
   const structuralOnlyToolLogs =
-    normalizeToolId(toolId) === 'function_execute' ||
+    normalizedToolId === 'function_execute' ||
     isCustomTool(toolId) ||
     privateToolMetadataPolicy !== undefined
 
@@ -1581,7 +1646,6 @@ async function executeToolImplementation(
     let tool: ExecutableToolConfig | undefined
 
     // Preserve direct-call compatibility with legacy resource-suffixed tool ids.
-    const normalizedToolId = normalizeToolId(toolId)
     if (internalSandboxProfile && normalizedToolId !== 'function_execute') {
       throw new Error('An internal sandbox profile may only be used with function_execute')
     }
@@ -1667,6 +1731,9 @@ async function executeToolImplementation(
 
     // Ensure context is preserved if it exists
     const contextParams = { ...params }
+    for (const paramId of tool?.oauth?.authoritativeParams ?? []) {
+      contextParams[paramId] = undefined
+    }
     if (scope.billingAttribution) {
       contextParams._context = {
         ...(contextParams._context as Record<string, unknown> | undefined),
@@ -1682,7 +1749,7 @@ async function executeToolImplementation(
       throw new Error(`Tool not found: ${toolId}`)
     }
 
-    await normalizeCopilotFileParams(tool, contextParams, scope)
+    await normalizeFileParams(tool, contextParams, scope, executionContext)
     normalizeCopilotCredentialParams(contextParams)
     enforceCopilotCredentialSelection(toolId, tool, contextParams, scope)
     await resolveCopilotEnvReferences(tool, contextParams, scope, resolvedSecretTraceRegistry)
@@ -2216,9 +2283,14 @@ async function executeToolImplementation(
     const rawResponseData =
       error instanceof Error && 'data' in error ? (error as { data?: unknown }).data : undefined
     const responseData = isRecordLike(rawResponseData) ? rawResponseData : undefined
+    const functionSandboxCost =
+      normalizedToolId === 'function_execute' ? readFunctionSandboxCost(responseData) : undefined
     return {
       success: false,
-      output: errorDetails,
+      output: {
+        ...errorDetails,
+        ...(functionSandboxCost ? { cost: functionSandboxCost } : {}),
+      },
       error: errorMessage,
       ...(responseData?.retryable === false ? { retryable: false } : {}),
       // Sim's own status (hosted-key 429/503) survives the flattening from a
@@ -2379,6 +2451,33 @@ function isFunctionExecuteBody(value: unknown): value is FunctionExecuteBody {
   return isPlainRecord(value) && typeof value.code === 'string'
 }
 
+interface FunctionSandboxCost {
+  input: number
+  output: number
+  total: number
+}
+
+function readFunctionSandboxCost(value: unknown): FunctionSandboxCost | undefined {
+  if (!isRecordLike(value) || !isRecordLike(value.output) || !isRecordLike(value.output.cost)) {
+    return undefined
+  }
+  const { input, output, total } = value.output.cost
+  if (
+    typeof input !== 'number' ||
+    !Number.isFinite(input) ||
+    input < 0 ||
+    typeof output !== 'number' ||
+    !Number.isFinite(output) ||
+    output < 0 ||
+    typeof total !== 'number' ||
+    !Number.isFinite(total) ||
+    total < 0
+  ) {
+    return undefined
+  }
+  return { input, output, total }
+}
+
 function isToolResponse(value: unknown): value is ToolResponse {
   return isRecordLike(value) && typeof value.success === 'boolean' && isRecordLike(value.output)
 }
@@ -2403,12 +2502,16 @@ async function executeDeclaredInternalOperation({
 
   const operationParams = projectToolModelInputParams(tool, params, resolvedSecretTraceRegistry)
   let operationInput = tool.operation.input(operationParams)
-  const isFunctionOperation = toolId === 'function_execute' || isCustomTool(toolId)
-  if (isFunctionOperation && !isFunctionExecuteBody(operationInput)) {
-    throw new Error('Function operation input must be an object')
+  const isRegisteredCustomTool = isCustomTool(toolId)
+  const isFunctionOperation = toolId === 'function_execute' || isRegisteredCustomTool
+  if (isFunctionOperation) {
+    if (!isFunctionExecuteBody(operationInput)) {
+      throw new Error('Function operation input must be an object')
+    }
+    operationInput = { ...operationInput, isCustomTool: isRegisteredCustomTool }
   }
   if (
-    isCustomTool(toolId) &&
+    isRegisteredCustomTool &&
     isFunctionExecuteBody(operationInput) &&
     'schema' in operationInput &&
     'params' in operationInput
@@ -2611,7 +2714,7 @@ async function executeToolRequest(
       const isLastAttempt = attempt === maxAttempts - 1
 
       try {
-        const urlValidation = await validateUrlWithDNS(fullUrl, 'toolUrl')
+        const urlValidation = await validateUrlWithDNS(fullUrl, 'toolUrl', 'requestTarget')
         if (!urlValidation.isValid) {
           throw new Error(`Invalid tool URL: ${urlValidation.error}`)
         }
@@ -2625,7 +2728,8 @@ async function executeToolRequest(
           proxyOption = proxyValidation.pinnedProxyUrl
         }
 
-        const secureResponse = await secureFetchWithPinnedIP(fullUrl, urlValidation.resolvedIP!, {
+        const secureResponse = await secureFetchWithPinnedIP(fullUrl, urlValidation.resolvedIP, {
+          profile: 'requestTarget',
           method: requestParams.method,
           headers: headersRecord,
           body: requestParams.body ?? undefined,

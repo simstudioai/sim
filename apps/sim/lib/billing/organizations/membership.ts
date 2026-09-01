@@ -23,7 +23,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, count, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { invalidateMembershipCache } from '@/lib/auth/security-policy'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
@@ -429,6 +429,8 @@ export interface AddMemberParams {
   skipBillingLogic?: boolean
   /** Skip seat validation (default: false) */
   skipSeatValidation?: boolean
+  /** Restrict billing decisions to an already-resolved entitled organization subscription. */
+  organizationSubscriptionId?: string
   /** When provided, the acceptor's own pending invitation is excluded from the seat count during validation. */
   acceptingInvitationId?: string
 }
@@ -593,6 +595,7 @@ export async function ensureUserInOrganizationTx(
     role,
     skipBillingLogic = false,
     skipSeatValidation = false,
+    organizationSubscriptionId,
   } = params
   const emptyBillingActions = {
     proUsageSnapshotted: false,
@@ -665,9 +668,13 @@ export async function ensureUserInOrganizationTx(
       .where(
         and(
           eq(subscriptionTable.referenceId, organizationId),
-          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+          organizationSubscriptionId
+            ? eq(subscriptionTable.id, organizationSubscriptionId)
+            : undefined
         )
       )
+      .orderBy(desc(subscriptionTable.periodStart), desc(subscriptionTable.id))
       .limit(1)
     if (!organizationSubscription || !isPaid(organizationSubscription.plan)) {
       return {
@@ -724,9 +731,13 @@ export async function ensureUserInOrganizationTx(
           .where(
             and(
               eq(subscriptionTable.referenceId, organizationId),
-              inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+              inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+              organizationSubscriptionId
+                ? eq(subscriptionTable.id, organizationSubscriptionId)
+                : undefined
             )
           )
+          .orderBy(desc(subscriptionTable.periodStart), desc(subscriptionTable.id))
           .limit(1)
         return organizationSubscription && isPaid(organizationSubscription.plan)
           ? applyPaidOrgJoinBillingTx(tx, userId, organizationId)
@@ -2008,6 +2019,7 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
     role,
     skipBillingLogic = false,
     skipSeatValidation = false,
+    organizationSubscriptionId,
     acceptingInvitationId,
   } = params
 
@@ -2066,6 +2078,7 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
         role,
         skipBillingLogic,
         skipSeatValidation,
+        organizationSubscriptionId,
         acceptingInvitationId,
       })
     )

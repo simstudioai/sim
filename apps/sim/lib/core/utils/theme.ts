@@ -11,25 +11,30 @@ export function syncThemeToNextThemes(theme: 'system' | 'light' | 'dark') {
   if (typeof window === 'undefined') return
 
   const oldValue = localStorage.getItem('sim-theme')
-  localStorage.setItem('sim-theme', theme)
+  if (oldValue !== theme) {
+    localStorage.setItem('sim-theme', theme)
 
-  window.dispatchEvent(
-    new StorageEvent('storage', {
-      key: 'sim-theme',
-      newValue: theme,
-      oldValue: oldValue,
-      storageArea: localStorage,
-      url: window.location.href,
-    })
-  )
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'sim-theme',
+        newValue: theme,
+        oldValue,
+        storageArea: localStorage,
+        url: window.location.href,
+      })
+    )
+  }
 
   const root = document.documentElement
-  root.classList.remove('light', 'dark')
+  const appliedTheme =
+    theme === 'system'
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light'
+      : theme
+  const oppositeTheme = appliedTheme === 'dark' ? 'light' : 'dark'
+  if (root.classList.contains(appliedTheme) && !root.classList.contains(oppositeTheme)) return
 
-  if (theme === 'system') {
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-    root.classList.add(systemTheme)
-  } else {
-    root.classList.add(theme)
-  }
+  root.classList.remove('light', 'dark')
+  root.classList.add(appliedTheme)
 }

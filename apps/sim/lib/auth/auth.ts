@@ -4,10 +4,11 @@ import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { APIError, createAuthMiddleware, getOAuthState, getSessionFromCtx } from 'better-auth/api'
+import { deleteSessionCookie, setSessionCookie } from 'better-auth/cookies'
 import { nextCookies } from 'better-auth/next-js'
 import {
   admin,
@@ -39,6 +40,8 @@ import {
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
+import { resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
@@ -93,6 +96,7 @@ import {
   isSignupMxValidationEnabled,
   isSsoEnabled,
 } from '@/lib/core/config/env-flags'
+import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { trustedProxies } from '@/lib/core/utils/request'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
@@ -114,13 +118,17 @@ import {
   mapMicrosoftProfileToUser,
 } from '@/lib/oauth/microsoft'
 import {
+  assertMicrosoftDataverseOAuthLinkRequest,
+  MICROSOFT_DATAVERSE_PROVIDER_ID,
+} from '@/lib/oauth/microsoft-dataverse'
+import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
+import {
   isSalesforceLoginOrigin,
   isSalesforceOAuthProviderId,
   SALESFORCE_LOGIN_HOSTS,
   withSalesforceInstanceScope,
 } from '@/lib/oauth/salesforce'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
-import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
@@ -128,6 +136,13 @@ import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 
 const logger = createLogger('Auth')
+
+function buildSsoAdmissionErrorUrl(code: string, callbackLocation?: string | null): string {
+  const callbackUrl =
+    callbackLocation && validateCallbackUrl(callbackLocation) ? callbackLocation : '/workspace'
+  const params = new URLSearchParams({ error: code, callbackUrl })
+  return `${getBaseUrl()}/sso?${params.toString()}`
+}
 
 const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
   logger.warn('Ignoring invalid entry in TRUSTED_ORIGINS', { value })
@@ -484,7 +499,7 @@ export const auth = betterAuth({
                 // Clear the dead flag before fanning out: the connect itself
                 // proves the installation has live tokens, and a fan-out
                 // failure must not leave the hour-long flag blocking refreshes.
-                await clearDeadFlag(`slack:${teamId}`)
+                await clearOAuthRefreshDeadFlag(`slack:${teamId}`)
                 await fanOutSlackTokenChain(teamId, {
                   accessToken: tokens.accessToken,
                   refreshToken: tokens.refreshToken ?? null,
@@ -955,6 +970,20 @@ export const auth = betterAuth({
         }
       }
 
+      if (ctx.path === '/oauth2/link' && ctx.body?.providerId === MICROSOFT_DATAVERSE_PROVIDER_ID) {
+        try {
+          assertMicrosoftDataverseOAuthLinkRequest(
+            ctx.body.callbackURL,
+            ctx.body.scopes,
+            getCanonicalScopesForProvider(MICROSOFT_DATAVERSE_PROVIDER_ID)
+          )
+        } catch (error) {
+          throw new APIError('BAD_REQUEST', {
+            message: getErrorMessage(error, 'Invalid Dataverse OAuth request'),
+          })
+        }
+      }
+
       if (ctx.path.startsWith('/sign-up') && isRegistrationDisabled)
         throw new APIError('FORBIDDEN', {
           message: 'Registration is disabled, please contact your admin.',
@@ -1055,13 +1084,102 @@ export const auth = betterAuth({
       return
     }),
     after: createAuthMiddleware(async (ctx) => {
-      if (!isBillingEnabled || ctx.path !== '/subscription/upgrade') return
-      const checkoutContext = ctx as typeof ctx & {
-        billingCheckoutAdmissionClaim?: CheckoutAdmissionClaim
+      if (isBillingEnabled && ctx.path === '/subscription/upgrade') {
+        const checkoutContext = ctx as typeof ctx & {
+          billingCheckoutAdmissionClaim?: CheckoutAdmissionClaim
+        }
+        if (checkoutContext.billingCheckoutAdmissionClaim) {
+          await releaseCheckoutAdmission(checkoutContext.billingCheckoutAdmissionClaim)
+        }
       }
-      if (checkoutContext.billingCheckoutAdmissionClaim) {
-        await releaseCheckoutAdmission(checkoutContext.billingCheckoutAdmissionClaim)
+
+      if (!isSsoEnabled) return
+      const oauthState = ctx.path === '/sso/callback' ? await getOAuthState() : null
+      const providerId = resolveSsoCallbackProviderId({
+        path: ctx.path,
+        routeProviderId: ctx.params?.providerId,
+        stateProviderId: oauthState?.ssoProviderId,
+      })
+      if (!providerId) return
+
+      const newSession = ctx.context.newSession
+      if (!newSession?.session || !newSession.user) return
+
+      let admissionErrorCode: string | null = null
+      try {
+        const admission = await admitSsoUser.execute({
+          principal: {
+            kind: 'session',
+            userId: newSession.user.id,
+            sessionId: newSession.session.id,
+          },
+          input: { providerId },
+        })
+
+        if (admission.kind === 'denied') {
+          admissionErrorCode =
+            admission.reason === 'seats-unavailable'
+              ? 'sso_no_seats'
+              : admission.reason === 'organization-conflict'
+                ? 'sso_account_conflict'
+                : 'sso_provisioning_failed'
+          logger.warn('Rejected SSO organization admission', {
+            userId: newSession.user.id,
+            providerId,
+            reason: admission.reason,
+          })
+        } else if (admission.kind === 'provisioned' || admission.kind === 'already-member') {
+          const expiresAt = await clampExpiryForSession(
+            newSession.session,
+            admission.organizationId
+          )
+          const updatedSession = await ctx.context.internalAdapter.updateSession(
+            newSession.session.token,
+            {
+              activeOrganizationId: admission.organizationId,
+              ...(expiresAt ? { expiresAt } : {}),
+            }
+          )
+          if (!updatedSession) {
+            admissionErrorCode = 'sso_provisioning_failed'
+            logger.error('Failed to activate organization on the new SSO session', {
+              userId: newSession.user.id,
+              providerId,
+              organizationId: admission.organizationId,
+            })
+          } else {
+            deleteSessionCookie(ctx, true)
+            await setSessionCookie(ctx, {
+              session: updatedSession,
+              user: newSession.user,
+            })
+          }
+        }
+      } catch (error) {
+        admissionErrorCode = 'sso_provisioning_failed'
+        logger.error('SSO organization admission failed', {
+          userId: newSession.user.id,
+          providerId,
+          error,
+        })
       }
+
+      if (!admissionErrorCode) return
+
+      try {
+        await ctx.context.internalAdapter.deleteSession(newSession.session.token)
+      } catch (error) {
+        logger.error('Failed to delete rejected SSO session', {
+          userId: newSession.user.id,
+          providerId,
+          sessionId: newSession.session.id,
+          error,
+        })
+      }
+      deleteSessionCookie(ctx)
+      throw ctx.redirect(
+        buildSsoAdmissionErrorUrl(admissionErrorCode, ctx.context.responseHeaders?.get('location'))
+      )
     }),
   },
   plugins: [
@@ -1201,7 +1319,12 @@ export const auth = betterAuth({
              */
             domainVerification: { enabled: true },
             organizationProvisioning: {
-              disabled: false,
+              /**
+               * Better Auth writes member rows directly and bypasses Sim's seat,
+               * billing, session-policy, and audit invariants. Admission is owned
+               * by the application use case in the callback hook above.
+               */
+              disabled: true,
               defaultRole: 'member',
             },
           }),

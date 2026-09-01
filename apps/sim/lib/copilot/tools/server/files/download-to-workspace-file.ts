@@ -159,6 +159,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
       // secureFetchWithValidation handles: DNS resolution, private IP blocking (via ipaddr.js),
       // SSRF-safe redirect following, and streaming size enforcement
       const response = await secureFetchWithValidation(params.url, {
+        profile: 'contentFetch',
         maxResponseBytes: MAX_DOWNLOAD_BYTES,
       })
 

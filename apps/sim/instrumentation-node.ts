@@ -380,6 +380,12 @@ async function initializeOpenTelemetry() {
 }
 
 export async function register() {
+  // Builds the egress policies from EGRESS_ALLOWED_HOSTS and EGRESS_ALLOWED_IP_RANGES so a
+  // malformed entry stops the process here, naming the setting, rather than surfacing as a
+  // 500 on whichever request first happens to touch an outbound path.
+  const { resolveEgressPolicy } = await import('./lib/core/security/egress/profiles')
+  resolveEgressPolicy('requestTarget')
+
   await initializeOpenTelemetry()
 
   const shutdownPostHog = async () => {

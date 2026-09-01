@@ -6,6 +6,7 @@ import { PlayOutline, Square } from '@sim/emcn/icons'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getUnmetGroupDeps } from '@/lib/table/deps'
+import type { TimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../types'
 import { CellContent } from './cells'
 import {
@@ -26,6 +27,10 @@ export interface DataRowProps {
   /** Current workspace id — forwarded to cells so in-workspace resource URLs
    *  render as tagged-resource chips. */
   workspaceId: string
+  /** Effective viewer timezone used to render TTL instants. */
+  timeZone: string
+  /** Whether Date and Expiration values can be formatted and edited safely. */
+  timezoneStatus: TimezoneState['status']
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
@@ -114,6 +119,8 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.row !== next.row ||
     prev.columns !== next.columns ||
     prev.workspaceId !== next.workspaceId ||
+    prev.timeZone !== next.timeZone ||
+    prev.timezoneStatus !== next.timezoneStatus ||
     prev.rowIndex !== next.rowIndex ||
     prev.isFirstRow !== next.isFirstRow ||
     prev.editingColumnName !== next.editingColumnName ||
@@ -161,6 +168,8 @@ export const DataRow = React.memo(function DataRow({
   row,
   columns,
   workspaceId,
+  timeZone,
+  timezoneStatus,
   rowIndex,
   isFirstRow,
   editingColumnName,
@@ -396,6 +405,8 @@ export const DataRow = React.memo(function DataRow({
             <div className={CELL_CONTENT}>
               <CellContent
                 workspaceId={workspaceId}
+                timeZone={timeZone}
+                timezoneStatus={timezoneStatus}
                 value={
                   pendingCellValue && column.key in pendingCellValue
                     ? pendingCellValue[column.key]

@@ -93,7 +93,6 @@ const LEGACY_CORE_REPLACEMENTS = {
   getUsageLimits: 'GET /api/v2/billing/status',
 } as const
 
-const API_REFERENCE_LOCALES = ['de', 'en', 'es', 'fr', 'ja', 'zh'] as const
 const REQUIRED_API_REFERENCE_GROUPS = [
   '(generated)/workflows',
   '(generated)/workflow-runs',
@@ -1065,11 +1064,11 @@ for (const [legacyOperationId, replacement] of Object.entries(LEGACY_CORE_REPLAC
 const workflowMetaGroups = [
   {
     tag: 'Workflows',
-    file: 'content/docs/en/api-reference/(generated)/workflows/meta.json',
+    file: 'content/docs/api-reference/(generated)/workflows/meta.json',
   },
   {
     tag: 'Workflow Runs',
-    file: 'content/docs/en/api-reference/(generated)/workflow-runs/meta.json',
+    file: 'content/docs/api-reference/(generated)/workflow-runs/meta.json',
   },
 ] as const
 const visibleWorkflowOperationIds = new Set<string>()
@@ -1100,19 +1099,24 @@ for (const [operationId, specFile] of globalOperationIds) {
   }
 }
 
-for (const locale of API_REFERENCE_LOCALES) {
-  const metaFile = `content/docs/${locale}/api-reference/meta.json`
-  const meta = JSON.parse(readFileSync(path.join(DOCS_DIR, metaFile), 'utf8')) as Json
-  if (!Array.isArray(meta.pages) || !meta.pages.every((page) => typeof page === 'string')) {
-    fail(metaFile, 'pages must be an array of page identifiers')
-    continue
-  }
-  const pages = new Set(meta.pages as string[])
+const API_REFERENCE_META_FILE = 'content/docs/api-reference/meta.json'
+const apiReferenceMeta = JSON.parse(
+  readFileSync(path.join(DOCS_DIR, API_REFERENCE_META_FILE), 'utf8')
+) as Json
+if (
+  !Array.isArray(apiReferenceMeta.pages) ||
+  !apiReferenceMeta.pages.every((page) => typeof page === 'string')
+) {
+  fail(API_REFERENCE_META_FILE, 'pages must be an array of page identifiers')
+} else {
+  const pages = new Set(apiReferenceMeta.pages as string[])
   for (const group of REQUIRED_API_REFERENCE_GROUPS) {
-    if (!pages.has(group)) fail(metaFile, `missing public v2 group ${group}`)
+    if (!pages.has(group)) fail(API_REFERENCE_META_FILE, `missing public v2 group ${group}`)
   }
   for (const group of REMOVED_API_REFERENCE_GROUPS) {
-    if (pages.has(group)) fail(metaFile, `obsolete legacy group ${group} must not be published`)
+    if (pages.has(group)) {
+      fail(API_REFERENCE_META_FILE, `obsolete legacy group ${group} must not be published`)
+    }
   }
 }
 

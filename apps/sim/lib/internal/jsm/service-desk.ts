@@ -1,4 +1,3 @@
-import { createLogger } from '@sim/logger'
 import type {
   JsmApprovalsBody,
   JsmCommentBody,
@@ -16,7 +15,7 @@ import type {
   JsmSlaBody,
   JsmTransitionBody,
   JsmTransitionsBody,
-} from '@/lib/api/contracts/selectors/jsm'
+} from '@/lib/api/contracts/tools/jsm'
 import {
   validateAlphanumericId,
   validateEnum,
@@ -24,10 +23,6 @@ import {
 } from '@/lib/core/security/input-validation'
 import { asArray, asObject, createJsmClient } from '@/lib/internal/jsm/client'
 import { JsmOperationError } from '@/lib/internal/jsm/errors'
-
-const logger = createLogger('JsmServiceDeskOperations')
-const SELECTOR_PAGE_SIZE = 100
-const SELECTOR_MAX_PAGES = 50
 
 function validateId(value: string, field: string): void {
   const validation = validateAlphanumericId(value, field)
@@ -659,59 +654,4 @@ export async function executeJsmAddOrganization(input: JsmOrganizationBody, sign
       success: true,
     },
   }
-}
-
-interface SelectorConnectionInput {
-  domain: string
-  accessToken: string
-}
-
-async function collectSelectorValues(
-  input: SelectorConnectionInput,
-  path: string,
-  signal?: AbortSignal
-): Promise<Record<string, unknown>[]> {
-  const client = await createJsmClient(input, signal)
-  const values: Record<string, unknown>[] = []
-  let start = 0
-  for (let page = 0; page < SELECTOR_MAX_PAGES; page++) {
-    signal?.throwIfAborted()
-    const data = await client.json(
-      client.service(`${path}?start=${start}&limit=${SELECTOR_PAGE_SIZE}`),
-      {},
-      signal
-    )
-    const pageValues = asArray(data.values).map(asObject)
-    values.push(...pageValues)
-    const links = asObject(data._links)
-    if (data.isLastPage === true || !links.next || pageValues.length === 0) return values
-    start += pageValues.length
-  }
-  logger.warn('JSM selector hit pagination cap; list may be incomplete', {
-    pages: SELECTOR_MAX_PAGES,
-    collected: values.length,
-    path,
-  })
-  return values
-}
-
-export async function listJsmServiceDeskOptions(
-  input: SelectorConnectionInput,
-  signal?: AbortSignal
-) {
-  const values = await collectSelectorValues(input, '/servicedesk', signal)
-  return values.map((value) => ({ id: String(value.id), name: String(value.projectName) }))
-}
-
-export async function listJsmRequestTypeOptions(
-  input: SelectorConnectionInput & { serviceDeskId: string },
-  signal?: AbortSignal
-) {
-  validateId(input.serviceDeskId, 'serviceDeskId')
-  const values = await collectSelectorValues(
-    input,
-    serviceDeskPath(input.serviceDeskId, '/requesttype'),
-    signal
-  )
-  return values.map((value) => ({ id: String(value.id), name: String(value.name) }))
 }

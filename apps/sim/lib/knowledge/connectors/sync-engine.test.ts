@@ -51,7 +51,8 @@ vi.mock('@/background/knowledge-connector-sync', () => ({
   knowledgeConnectorSync: { trigger: vi.fn() },
 }))
 
-const { mockMapTags, mockListDocuments } = vi.hoisted(() => ({
+const { mockGetDocument, mockMapTags, mockListDocuments } = vi.hoisted(() => ({
+  mockGetDocument: vi.fn(),
   mockMapTags: vi.fn(),
   mockListDocuments: vi.fn(),
 }))
@@ -71,6 +72,7 @@ vi.mock('@/connectors/registry.server', () => ({
     paged: {
       name: 'Paged',
       auth: { mode: 'apiKey', optional: true },
+      getDocument: mockGetDocument,
       listDocuments: mockListDocuments,
     },
   },
@@ -1164,6 +1166,108 @@ describe('executeSync working-set overflow admission', () => {
       await expectNoDocumentWork()
     }
   )
+})
+
+describe('executeSync deferred hydration rate limits', () => {
+  const NOW = new Date('2026-08-29T03:00:00.000Z')
+  const CONNECTOR = {
+    id: 'c-1',
+    knowledgeBaseId: 'kb-1',
+    connectorType: 'paged',
+    credentialId: null,
+    encryptedApiKey: null,
+    sourceConfig: {},
+    syncMode: 'full',
+    syncIntervalMinutes: 1440,
+    status: 'active',
+    lastSyncAt: null,
+    lastSyncDocCount: null,
+    consecutiveFailures: 0,
+    syncLockToken: null,
+  }
+
+  const deferredDocument = (index: number): ExternalDocument => ({
+    externalId: `external-${index}`,
+    title: `Document ${index}`,
+    content: '',
+    contentDeferred: true,
+    contentHash: `hash-${index}`,
+    mimeType: 'text/plain',
+    metadata: { size: 1024 },
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR])
+    queueTableRows(schemaMock.knowledgeBase, [{ userId: 'u-1', workspaceId: 'ws-1' }])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { connectorArchivedAt: null, connectorDeletedAt: null, kbDeletedAt: null },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([CONNECTOR])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('stops after the active batch and preserves the provider retry delay', async () => {
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const documents = Array.from({ length: 6 }, (_, index) => deferredDocument(index))
+    const rateLimitError = Object.assign(new Error('HTTP 403 - upstream rate limit exceeded'), {
+      status: 403,
+      headers: new Headers({ 'x-ratelimit-remaining': '0' }),
+      retryAfterMs: 45 * 60 * 1000,
+    })
+
+    mockListDocuments.mockResolvedValue({ documents, hasMore: false })
+    mockGetDocument.mockImplementation(async (_token, _config, externalId: string) => {
+      if (externalId === 'external-2') throw rateLimitError
+      return {
+        ...documents[Number(externalId.slice('external-'.length))],
+        content: 'hydrated',
+        contentDeferred: false,
+      }
+    })
+
+    const result = await executeSync('c-1', {
+      billingAttribution: { workspaceId: 'ws-1' } as never,
+    })
+
+    expect(mockGetDocument).toHaveBeenCalledTimes(5)
+    expect(mockGetDocument).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'external-5',
+      expect.anything()
+    )
+    expect(result).toMatchObject({
+      docsAdded: 0,
+      docsFailed: 0,
+      error: rateLimitError.message,
+    })
+    expect(mockUploadFile).not.toHaveBeenCalled()
+    expect(mockProcessDocumentsWithQueue).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'error',
+        consecutiveFailures: 0,
+      })
+    )
+    const failureUpdate = dbChainMockFns.set.mock.calls.find(
+      ([update]) => update.status === 'error'
+    )?.[0]
+    expect(failureUpdate?.nextSyncAt.getTime()).toBeGreaterThanOrEqual(
+      NOW.getTime() + 45 * 60 * 1000
+    )
+    expect(failureUpdate?.nextSyncAt.getTime()).toBeLessThanOrEqual(NOW.getTime() + 46 * 60 * 1000)
+  })
 })
 
 describe('classifySuspectListing', () => {
@@ -2289,6 +2393,43 @@ describe('buildSyncFailureUpdate', () => {
     expect(buildSyncFailureUpdate(now, MAX_CONSECUTIVE_FAILURES, 'boom').lastSyncError).toBe(
       CONNECTOR_AUTO_DISABLED_ERROR
     )
+  })
+})
+
+describe('buildSyncRateLimitUpdate', () => {
+  const now = new Date('2026-08-20T00:00:00.000Z')
+
+  it('preserves the failure counter and schedules after the provider deadline', async () => {
+    const { buildSyncRateLimitUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+    const providerDelayMs = 45 * 60 * 1000
+    const update = buildSyncRateLimitUpdate(now, 9, 'rate limited', providerDelayMs)
+
+    expect(update.status).toBe('error')
+    expect(update.lastSyncError).toBe('rate limited')
+    expect(update.consecutiveFailures).toBe(9)
+    expect(update.nextSyncAt.getTime()).toBeGreaterThanOrEqual(now.getTime() + providerDelayMs)
+    expect(update.nextSyncAt.getTime()).toBeLessThanOrEqual(
+      now.getTime() + providerDelayMs + 60_000
+    )
+  })
+
+  it('uses a conservative fallback without consuming the breaker', async () => {
+    const { buildSyncRateLimitUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+    const update = buildSyncRateLimitUpdate(now, null, 'rate limited')
+    const fallbackMs = 30 * 60 * 1000
+
+    expect(update.consecutiveFailures).toBe(0)
+    expect(update.nextSyncAt.getTime()).toBeGreaterThanOrEqual(now.getTime() + fallbackMs)
+    expect(update.nextSyncAt.getTime()).toBeLessThanOrEqual(now.getTime() + fallbackMs + 60_000)
+  })
+
+  it('caps the provider deadline and releases the sync lease', async () => {
+    const { buildSyncRateLimitUpdate } = await import('@/lib/knowledge/connectors/sync-engine')
+    const update = buildSyncRateLimitUpdate(now, 4, 'rate limited', 30 * 24 * 60 * 60 * 1000)
+
+    expect(update.nextSyncAt).toEqual(new Date(now.getTime() + 24 * 60 * 60 * 1000))
+    expect(update.syncLockToken).toBeNull()
+    expect(update.syncLockLeaseAt).toBeNull()
   })
 })
 

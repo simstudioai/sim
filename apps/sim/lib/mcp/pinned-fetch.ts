@@ -6,7 +6,12 @@ import {
   createPinnedFetchWithDispatcher,
   createSsrfGuardedFetchWithDispatcher,
 } from '@/lib/core/security/input-validation.server'
-import { validateMcpServerSsrf } from '@/lib/mcp/domain-check'
+import {
+  MCP_EGRESS_PROFILE,
+  McpSsrfError,
+  OAUTH_EGRESS_PROFILE,
+  validateMcpServerSsrf,
+} from '@/lib/mcp/domain-check'
 import { McpError } from '@/lib/mcp/types'
 
 const logger = createLogger('McpOauthFetch')
@@ -26,9 +31,9 @@ export interface GuardedMcpFetch {
  * against the private/reserved blocklist (validate-at-connect, the LibreChat
  * pattern), and redirects are followed manually with per-hop validation — an
  * IP-literal redirect target (which bypasses any connect-time lookup) is checked
- * explicitly, and custom headers are dropped on cross-origin hops. This replaces
- * the previous single-IP pin, which no reference MCP client uses and which welded
- * every request to one address with no fallback.
+ * explicitly, and custom headers are dropped on cross-origin hops. Keeping the
+ * full address set rather than welding every request to one address is what lets
+ * the connection fall back across a server's records.
  *
  * Runs HTTP/1.1: we do not opt into undici's experimental `allowH2`, whose h2 path stalls
  * with headers-but-no-body on reused POST sessions (nodejs/undici #2311, #3433, #4143) —
@@ -87,15 +92,56 @@ function capResponseBody(response: Response, maxBytes: number): Response {
   return wrapped
 }
 
+/** The href of whatever the SDK handed the transport fetch. */
+function requestHref(input: string | URL | Request): string {
+  if (typeof input === 'string') return input
+  if (input instanceof URL) return input.href
+  if (input instanceof Request) return input.url
+  return String(input)
+}
+
 /**
- * Legacy single-IP pin, kept ONLY for self-hosted private/loopback resolutions
- * (a DNS alias the policy explicitly permits): the guarded lookup would filter
- * the address and strand the connect, while an unguarded fallback would reopen
- * rebinding/redirect escape. Pinning to the validated address preserves the old
- * behavior and its security property for exactly this carve-out.
+ * Wraps the transport's same-origin fetch so a request to any other origin is
+ * judged as content and validated per request, never inheriting the configured
+ * server's privileges or its pinned address.
+ *
+ * The MCP SDK reuses the transport's own `fetch` for its internal OAuth `auth()`
+ * legs (protected-resource / authorization-server metadata, token exchange and
+ * refresh), whose URLs come from the server's own `WWW-Authenticate`/metadata —
+ * attacker-steerable. Without this split those legs would run under
+ * {@link MCP_EGRESS_PROFILE} (honors the allowlist, permits loopback off-hosted)
+ * or, worse, be pinned onto the server's private address. Same-origin requests —
+ * the JSON-RPC transport itself — keep the persistent guarded path.
  */
-export function createPinnedPrivateMcpFetch(resolvedIP: string): GuardedMcpFetch {
-  const { fetch: pinnedFetch, dispatcher } = createPinnedFetchWithDispatcher(resolvedIP)
+function splitByConfiguredOrigin(
+  sameOrigin: typeof fetch,
+  serverUrl: string | undefined
+): typeof fetch {
+  if (!serverUrl || !URL.canParse(serverUrl)) return sameOrigin
+  const configuredOrigin = new URL(serverUrl).origin
+  const crossOrigin = createSsrfGuardedMcpFetch({ serverUrl })
+  return async (input, init) => {
+    const target = requestHref(input)
+    const sameAsConfigured = URL.canParse(target) && new URL(target).origin === configuredOrigin
+    return sameAsConfigured ? sameOrigin(input, init) : crossOrigin(target, init)
+  }
+}
+
+/**
+ * Single-IP pin, used for the self-hosted private/loopback resolutions the
+ * policy explicitly permits. The guarded transport would reach them too, but a
+ * destination vouched by hostname is vouched for wherever it points, so on this
+ * one path pinning to the address that was actually validated is the stricter
+ * choice: it holds the connection to that address rather than to whatever the
+ * name resolves to next.
+ */
+export function createPinnedPrivateMcpFetch(
+  resolvedIP: string,
+  serverUrl?: string
+): GuardedMcpFetch {
+  const { fetch: pinnedFetch, dispatcher } = createPinnedFetchWithDispatcher(resolvedIP, {
+    profile: MCP_EGRESS_PROFILE,
+  })
   const capped: typeof fetch = async (input, init) => {
     const method = init?.method ?? (input instanceof Request ? input.method : 'GET')
     const response = await pinnedFetch(input, init)
@@ -103,25 +149,23 @@ export function createPinnedPrivateMcpFetch(resolvedIP: string): GuardedMcpFetch
       ? response
       : capResponseBody(response, MAX_TRANSPORT_RESPONSE_BYTES)
   }
-  return { fetch: capped, close: () => dispatcher.destroy() }
+  return {
+    fetch: splitByConfiguredOrigin(capped, serverUrl),
+    close: () => dispatcher.destroy(),
+  }
 }
 
-export function createGuardedMcpFetch(): GuardedMcpFetch {
-  const { fetch: guardedFetch, dispatcher } = createSsrfGuardedFetchWithDispatcher()
+export function createGuardedMcpFetch(serverUrl?: string): GuardedMcpFetch {
+  const { fetch: guardedFetch, dispatcher } = createSsrfGuardedFetchWithDispatcher({
+    profile: MCP_EGRESS_PROFILE,
+  })
   // Per-request phase logging: a stalled transport request (e.g. a first `initialize` that hangs
   // to the client timeout) shows whether it stalls BEFORE response headers ("request" with no
   // "response headers" = connect/request stall) or AFTER ("response headers" then the SDK's
   // stream read stalls). Isolates the client-side first-connect stall.
   const instrumentedFetch: typeof fetch = async (input, init) => {
     const method = init?.method ?? (input instanceof Request ? input.method : 'GET')
-    const target =
-      typeof input === 'string'
-        ? input
-        : input instanceof URL
-          ? input.href
-          : input instanceof Request
-            ? input.url
-            : String(input)
+    const target = requestHref(input)
     const host = URL.canParse(target) ? new URL(target).host : target
     const startedAt = Date.now()
     transportLogger.info('MCP transport request', { host, method })
@@ -149,7 +193,10 @@ export function createGuardedMcpFetch(): GuardedMcpFetch {
       throw error
     }
   }
-  return { fetch: instrumentedFetch, close: () => dispatcher.destroy() }
+  return {
+    fetch: splitByConfiguredOrigin(instrumentedFetch, serverUrl),
+    close: () => dispatcher.destroy(),
+  }
 }
 
 /**
@@ -277,10 +324,26 @@ function releaseStreamOnSettle(
  * @throws McpSsrfError if a request URL resolves to a blocked IP address
  * @throws McpError if a request exceeds `timeoutMs`
  */
-export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOUT_MS): FetchLike {
+export function createSsrfGuardedMcpFetch(
+  options: { serverUrl?: string; timeoutMs?: number } = {}
+): FetchLike {
+  const { serverUrl, timeoutMs = OAUTH_FETCH_TIMEOUT_MS } = options
+  // The origin the operator configured. A leg that stays on it is the server
+  // they chose; everything else was named by that server's metadata.
+  let configuredOrigin: string | undefined
+  if (serverUrl && URL.canParse(serverUrl)) configuredOrigin = new URL(serverUrl).origin
+
   return (async (url, init) => {
     const target = typeof url === 'string' ? url : url.href
     const host = URL.canParse(target) ? new URL(target).host : target
+    const sameAsConfigured =
+      configuredOrigin !== undefined &&
+      URL.canParse(target) &&
+      new URL(target).origin === configuredOrigin
+    // The first hop is the configured server and keeps its privileges — a
+    // self-hosted MCP on an allowlisted private address must still be able to
+    // start discovery. Every hop the metadata names is judged as content.
+    const profile = sameAsConfigured ? MCP_EGRESS_PROFILE : OAUTH_EGRESS_PROFILE
     const startedAt = Date.now()
     const timeoutSignal = AbortSignal.timeout(timeoutMs)
     // Bound every phase — validation, request, body read — by the deadline + caller signal.
@@ -289,28 +352,28 @@ export function createSsrfGuardedMcpFetch(timeoutMs: number = OAUTH_FETCH_TIMEOU
     let dispatcher: Agent | undefined
     try {
       logger.info('OAuth guarded fetch: validating', { host })
-      const resolvedIP = await withDeadline(validateMcpServerSsrf(target), signal)
-      logger.info('OAuth guarded fetch: requesting', { host, guarded: Boolean(resolvedIP) })
-      let response: Response
-      if (resolvedIP && isPrivateIp(resolvedIP)) {
-        // Self-hosted private/loopback resolution (policy-permitted): the guarded lookup
-        // would filter the address, and an unguarded fallback would reopen rebinding —
-        // keep the legacy pin to the validated address for exactly this case.
-        const pinned = createPinnedFetchWithDispatcher(resolvedIP, {
-          maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
-        })
-        dispatcher = pinned.dispatcher
-        response = await withDeadline(pinned.fetch(url, { ...init, signal }), signal)
-      } else if (resolvedIP) {
-        const guarded = createSsrfGuardedFetchWithDispatcher({
-          maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
-        })
-        dispatcher = guarded.dispatcher
-        response = await withDeadline(guarded.fetch(url, { ...init, signal }), signal)
-      } else {
-        // No guard (self-hosted allowlist / localhost carve-out) — global fetch as before.
-        response = await withDeadline(globalThis.fetch(url, { ...init, signal }), signal)
+      const resolvedIP = await withDeadline(validateMcpServerSsrf(target, profile), signal)
+      if (!resolvedIP) {
+        // No leg of this flow may run unguarded. Under `contentFetch` the only
+        // way here is an unresolved env-var reference in the hostname, which is
+        // never a real authorization-server URL by the time OAuth runs.
+        throw new McpSsrfError('MCP OAuth request URL could not be validated')
       }
+      logger.info('OAuth guarded fetch: requesting', { host, configured: sameAsConfigured })
+      // A private address only survives validation on the configured first hop.
+      // Pinning it holds the connection to the address that was validated, which
+      // a hostname-vouched destination would otherwise not be held to.
+      const transport = isPrivateIp(resolvedIP)
+        ? createPinnedFetchWithDispatcher(resolvedIP, {
+            profile,
+            maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
+          })
+        : createSsrfGuardedFetchWithDispatcher({
+            profile,
+            maxResponseSize: MAX_OAUTH_RESPONSE_BYTES,
+          })
+      dispatcher = transport.dispatcher
+      const response = await withDeadline(transport.fetch(url, { ...init, signal }), signal)
       // The probe's `initialize` can stream (text/event-stream); hand it back live so the
       // buffer doesn't drain/stall it. Every OAuth leg is single-shot JSON and is buffered.
       const contentType = response.headers.get('content-type') ?? ''

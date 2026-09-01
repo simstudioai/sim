@@ -58,6 +58,7 @@ function accessibleWorkspace(
       organizationId,
       workspaceMode: organizationId ? 'organization' : 'personal',
       billedAccountUserId: 'owner-1',
+      allowPersonalApiKeys: false,
     },
   }
 }
@@ -80,6 +81,7 @@ describe('getWorkspaceHostContextForViewer', () => {
 
     expect(context).toEqual(
       expect.objectContaining({
+        workspace: expect.objectContaining({ allowPersonalApiKeys: false }),
         hostOrganizationId: 'org-host',
         viewer: {
           permission: 'write',

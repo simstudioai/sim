@@ -15,6 +15,10 @@ import {
   resolveOAuthAccountId,
   resolveServiceAccountToken,
 } from '@/lib/oauth/credential-service'
+import {
+  extractMicrosoftDataverseEnvironmentUrl,
+  MICROSOFT_DATAVERSE_PROVIDER_ID,
+} from '@/lib/oauth/microsoft-dataverse'
 import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
@@ -59,7 +63,7 @@ export type ResolveCredentialTokenResult =
  * Emits the semantic "credential used" trail for one resolved credential.
  * Both the audit row and the analytics event are fire-and-forget.
  */
-function recordCredentialAccess(params: {
+export function recordCredentialAccess(params: {
   actorId: string
   workspaceId: string | null
   resourceId: string
@@ -104,7 +108,9 @@ function buildOAuthTokenPayload(
 ): CredentialTokenPayload {
   const instanceUrl = isSalesforceOAuthProviderId(credential.providerId)
     ? extractSalesforceInstanceUrl(credential.scope ?? undefined)
-    : undefined
+    : credential.providerId === MICROSOFT_DATAVERSE_PROVIDER_ID
+      ? extractMicrosoftDataverseEnvironmentUrl(credential.scope)
+      : undefined
 
   let apiDomain: string | undefined
   if (credential.providerId === 'zoho-desk' && credential.scope) {

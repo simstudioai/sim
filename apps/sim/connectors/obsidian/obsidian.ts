@@ -49,7 +49,7 @@ function resolveVaultEndpoint(rawUrl: string | undefined): string {
   if (url && !url.startsWith('https://') && !url.startsWith('http://')) {
     url = `https://${url}`
   }
-  const validation = validateExternalUrl(url, 'vaultUrl')
+  const validation = validateExternalUrl(url, 'vaultUrl', 'configuredEndpoint')
   if (!validation.isValid) {
     throw new Error(validation.error || 'Invalid vault URL')
   }
@@ -112,6 +112,7 @@ async function listDirectory(
   const response = await secureFetchWithRetry(
     endpoint,
     {
+      profile: 'configuredEndpoint',
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -201,6 +202,7 @@ async function fetchNote(
   filePath: string
 ): Promise<NoteJson | null> {
   const response = await secureFetchWithRetry(noteUrl(baseUrl, filePath), {
+    profile: 'configuredEndpoint',
     method: 'GET',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -385,6 +387,7 @@ export const obsidianConnector: ConnectorConfig = {
       const response = await secureFetchWithRetry(
         `${baseUrl}/`,
         {
+          profile: 'configuredEndpoint',
           method: 'GET',
           headers: { Authorization: `Bearer ${accessToken}` },
           stripAuthOnRedirect: true,

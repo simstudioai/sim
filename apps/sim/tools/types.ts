@@ -122,6 +122,14 @@ export interface OAuthConfig {
   required: boolean // Whether this tool requires OAuth authentication
   provider: OAuthService // The service that needs to be authorized
   requiredScopes?: string[] // Specific scopes this tool needs (for granular scope validation)
+  /** Token-response fields that must replace any caller-supplied tool parameter of the same name. */
+  authoritativeParams?: readonly (
+    | 'apiDomain'
+    | 'authStyle'
+    | 'cloudId'
+    | 'domain'
+    | 'instanceUrl'
+  )[]
 }
 
 export interface ToolRetryConfig {

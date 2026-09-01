@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { BlockType, HTTP } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
@@ -30,21 +29,20 @@ export class ApiBlockHandler implements BlockHandler {
       return { data: null, status: HTTP.STATUS.OK, headers: {} }
     }
 
-    if (tool.name?.includes('HTTP') && inputs.url) {
-      let urlToValidate = inputs.url
-      if (typeof urlToValidate === 'string') {
-        if (
-          (urlToValidate.startsWith('"') && urlToValidate.endsWith('"')) ||
-          (urlToValidate.startsWith("'") && urlToValidate.endsWith("'"))
-        ) {
-          urlToValidate = urlToValidate.slice(1, -1)
-          inputs.url = urlToValidate
-        }
-      }
-
-      const urlValidation = await validateUrlWithDNS(urlToValidate, 'url')
-      if (!urlValidation.isValid) {
-        throw new Error(urlValidation.error)
+    // Templating can leave the URL wrapped in quotes the author typed around a
+    // block reference. Strip them before the tool layer composes the request.
+    //
+    // Egress is deliberately not validated here. `executeToolRequest` validates
+    // the fully composed URL and connects to the address it pinned; repeating the
+    // check on this pre-templating string would resolve DNS a second time, throw
+    // the pinned address away, and validate a URL that is not the one dialed.
+    if (tool.name?.includes('HTTP') && typeof inputs.url === 'string') {
+      const raw = inputs.url
+      if (
+        (raw.startsWith('"') && raw.endsWith('"')) ||
+        (raw.startsWith("'") && raw.endsWith("'"))
+      ) {
+        inputs.url = raw.slice(1, -1)
       }
     }
 

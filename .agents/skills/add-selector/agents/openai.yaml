@@ -1,0 +1,5 @@
+interface:
+  display_name: "Add Selector"
+  short_description: "Build a secure dynamic selector"
+  brand_color: "#2563EB"
+  default_prompt: "Use $add-selector to add or update a Sim dynamic selector through the unified server execution path."

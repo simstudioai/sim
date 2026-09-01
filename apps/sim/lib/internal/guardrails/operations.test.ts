@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   requireBillingAttribution: vi.fn(),
   validateHallucination: vi.fn(),
   validateJson: vi.fn(),
-  validatePII: vi.fn(),
+  validatePIIViaHttp: vi.fn(),
   validateRegex: vi.fn(),
 }))
 
@@ -41,8 +41,10 @@ vi.mock('@/lib/guardrails/validate_hallucination', () => ({
   validateHallucination: mocks.validateHallucination,
 }))
 vi.mock('@/lib/guardrails/validate_json', () => ({ validateJson: mocks.validateJson }))
-vi.mock('@/lib/guardrails/validate_pii', () => ({ validatePII: mocks.validatePII }))
 vi.mock('@/lib/guardrails/validate_regex', () => ({ validateRegex: mocks.validateRegex }))
+vi.mock('@/lib/guardrails/validation-client', () => ({
+  validatePIIViaHttp: mocks.validatePIIViaHttp,
+}))
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
   assertPermissionsAllowed: mocks.assertPermissionsAllowed,
   ModelNotAllowedError: class ModelNotAllowedError extends Error {},
@@ -78,7 +80,7 @@ describe('executeGuardrailsValidation', () => {
     mocks.validateHallucination.mockResolvedValue({ passed: true, score: 8 })
     mocks.validateJson.mockReturnValue({ passed: true })
     mocks.validateRegex.mockReturnValue({ passed: true })
-    mocks.validatePII.mockResolvedValue({ passed: true, detectedEntities: [] })
+    mocks.validatePIIViaHttp.mockResolvedValue({ passed: true, detectedEntities: [] })
   })
 
   it('runs hallucination work once with authorized scope, billing, provenance, and signal', async () => {
@@ -144,6 +146,62 @@ describe('executeGuardrailsValidation', () => {
     expect(mocks.validateRegex).toHaveBeenCalledOnce()
     expect(workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission).not.toHaveBeenCalled()
     expect(mocks.requireBillingAttribution).not.toHaveBeenCalled()
+  })
+
+  it('routes PII validation through the app-container capability boundary', async () => {
+    const controller = new AbortController()
+
+    const result = await executeGuardrailsValidation(
+      {
+        validationType: 'pii',
+        input: 'email a@b.com',
+        piiEntityTypes: ['EMAIL_ADDRESS'],
+        piiMode: 'mask',
+        piiLanguage: 'en',
+      },
+      {
+        actorUserId: 'user-1',
+        headers: new Headers(),
+        requestId: 'request-1',
+        signal: controller.signal,
+      }
+    )
+
+    expect(result.output.passed).toBe(true)
+    expect(mocks.validatePIIViaHttp).toHaveBeenCalledWith(
+      {
+        text: 'email a@b.com',
+        entityTypes: ['EMAIL_ADDRESS'],
+        mode: 'mask',
+        language: 'en',
+        customPatterns: undefined,
+      },
+      controller.signal
+    )
+  })
+
+  it('preserves PII verdict metadata when the capability fails', async () => {
+    mocks.validatePIIViaHttp.mockRejectedValueOnce(new Error('capability unavailable'))
+
+    const result = await executeGuardrailsValidation(
+      {
+        validationType: 'pii',
+        input: 'email a@b.com',
+      },
+      {
+        actorUserId: 'user-1',
+        headers: new Headers(),
+        requestId: 'request-1',
+      }
+    )
+
+    expect(result.output).toMatchObject({
+      passed: false,
+      validationType: 'pii',
+      input: 'email a@b.com',
+      error: 'PII validation failed: capability unavailable',
+      detectedEntities: [],
+    })
   })
 
   it('conceals inaccessible workflow validation as a failed verdict without provider work', async () => {

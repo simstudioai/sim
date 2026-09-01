@@ -43,7 +43,15 @@ export function PasteAdmissionGuard() {
       }
 
       const acceptsSelectionContext = event.target.closest('[data-paste-selection-context]')
-      if (acceptsSelectionContext && readSelectionContextFromClipboard(event.clipboardData)) return
+      const destinationWorkspaceId = acceptsSelectionContext?.getAttribute(
+        'data-paste-selection-context'
+      )
+      if (
+        destinationWorkspaceId &&
+        readSelectionContextFromClipboard(event.clipboardData, destinationWorkspaceId)
+      ) {
+        return
+      }
 
       const handlesImageFiles = event.target.closest('[data-paste-handles-images="true"]')
       if (handlesImageFiles && clipboardHasImageFile(event.clipboardData)) return

@@ -32,7 +32,11 @@ export const azureAnthropicProvider: ProviderConfig = {
     let pinnedFetch: typeof fetch | undefined
     let pinnedIP: string | undefined
     if (userProvidedEndpoint) {
-      const validation = await validateUrlWithDNS(userProvidedEndpoint, 'azureEndpoint')
+      const validation = await validateUrlWithDNS(
+        userProvidedEndpoint,
+        'azureEndpoint',
+        'configuredEndpoint'
+      )
       if (!validation.isValid) {
         logger.warn('Blocked SSRF attempt via azureEndpoint', {
           endpoint: userProvidedEndpoint,
@@ -40,11 +44,8 @@ export const azureAnthropicProvider: ProviderConfig = {
         })
         throw new Error(`Invalid Azure Anthropic endpoint: ${validation.error}`)
       }
-      if (!validation.resolvedIP) {
-        throw new Error('Invalid Azure Anthropic endpoint: could not resolve a pinnable IP address')
-      }
       pinnedIP = validation.resolvedIP
-      pinnedFetch = createPinnedFetch(pinnedIP)
+      pinnedFetch = createPinnedFetch(pinnedIP, { profile: 'configuredEndpoint' })
     }
 
     const apiKey = request.apiKey

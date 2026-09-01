@@ -1,15 +1,20 @@
 'use client'
 
-import { useMemo } from 'react'
-import { ChipCombobox, type ComboboxOption, Loader } from '@sim/emcn'
+import { useMemo, useState } from 'react'
+import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
+import type { SelectorKey } from '@/lib/selectors/manifest'
+import type { SelectorContext } from '@/lib/selectors/types'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { dependentFieldNoun } from '@/ee/workspace-forking/components/fork-sync/dependent-field-noun'
-import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
-import { useSelectorOptions } from '@/hooks/selectors/use-selector-query'
+import { useSelectorOptionDetail, useSelectorOptions } from '@/hooks/queries/selectors'
+import { useDebounce } from '@/hooks/use-debounce'
 
 interface DependentFieldSelectorProps {
   selectorKey: SelectorKey
   /** Full selector context, including the newly-chosen parent value. */
   context: Record<string, string>
+  /** Workspace whose parent resource the selector browses. */
+  workspaceId: string
   /** False until the parent (credential/KB) target is chosen. */
   enabled: boolean
   value: string
@@ -26,6 +31,7 @@ interface DependentFieldSelectorProps {
 export function DependentFieldSelector({
   selectorKey,
   context,
+  workspaceId,
   enabled,
   value,
   onChange,
@@ -37,26 +43,47 @@ export function DependentFieldSelector({
     return ctx
   }, [context])
 
-  const { data: options = [], isLoading } = useSelectorOptions(selectorKey, {
-    context: selectorContext,
-    enabled,
-  })
+  const [searchTerm, setSearchTerm] = useState('')
+  const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
+  const activeSearch = searchTerm.trim() === '' ? '' : debouncedSearch
+  const surfaceId = `fork:${title}`
 
-  const comboboxOptions = useMemo<ComboboxOption[]>(
-    () => options.map((option) => ({ label: option.label, value: option.id })),
-    [options]
+  const {
+    data: options = [],
+    isLoading,
+    isFetchingMore,
+    isLoadingAll,
+    hasMore,
+    truncated,
+    loadMore,
+    loadAll,
+  } = useSelectorOptions(selectorKey, {
+    context: selectorContext,
+    scope: { kind: 'workspace', workspaceId },
+    search: activeSearch,
+    enabled,
+    surfaceId,
+  })
+  const { data: selectedOption, isLoading: isLoadingSelectedOption } = useSelectorOptionDetail(
+    selectorKey,
+    {
+      context: selectorContext,
+      scope: { kind: 'workspace', workspaceId },
+      detailId: value || undefined,
+      enabled: enabled && Boolean(value),
+      surfaceId,
+    }
   )
 
-  const noun = dependentFieldNoun(title)
+  const comboboxOptions = useMemo<ComboboxOption[]>(() => {
+    const mapped = options.map((option) => ({ label: option.label, value: option.id }))
+    if (!selectedOption || mapped.some((option) => option.value === selectedOption.id)) {
+      return mapped
+    }
+    return [{ label: selectedOption.label, value: selectedOption.id }, ...mapped]
+  }, [options, selectedOption])
 
-  if (isLoading && enabled) {
-    return (
-      <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 text-[var(--text-muted)] text-small dark:bg-[var(--surface-4)]'>
-        <Loader className='size-3.5' animate />
-        Loading…
-      </div>
-    )
-  }
+  const noun = dependentFieldNoun(title)
 
   return (
     <ChipCombobox
@@ -65,9 +92,17 @@ export function DependentFieldSelector({
       value={value || undefined}
       onChange={(next) => onChange(next)}
       searchable
+      onSearchChange={setSearchTerm}
       searchPlaceholder={`Search ${noun}...`}
       placeholder={`Select ${noun}`}
       disabled={!enabled}
+      isLoading={enabled && (isLoading || isLoadingSelectedOption)}
+      hasMore={hasMore}
+      isLoadingMore={isFetchingMore}
+      isLoadingAll={isLoadingAll}
+      truncated={truncated}
+      onLoadMore={loadMore}
+      onLoadAll={loadAll}
       emptyMessage={`No ${noun} found`}
     />
   )

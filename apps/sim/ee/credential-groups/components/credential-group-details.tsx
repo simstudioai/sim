@@ -19,6 +19,7 @@ import {
 } from '@/lib/credential-groups/providers'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
@@ -26,7 +27,7 @@ import {
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { SettingRow } from '@/ee/components/setting-row'
 import { SlackManagedUsersModal } from '@/ee/credential-groups/components/slack-managed-users-modal'
-import { useUpdateCredentialGroup } from '@/hooks/queries/credential-groups'
+import { useCredentialGroups, useUpdateCredentialGroup } from '@/hooks/queries/credential-groups'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 
 /** Stable identity so a pending/errored credentials query cannot churn the modal's `bots` prop. */
@@ -35,6 +36,8 @@ const EMPTY_SLACK_BOTS: WorkspaceCredential[] = []
 interface CredentialGroupDetailsProps {
   credentialGroup: CredentialGroup
   workspaceId: string
+  /** Filters the account types offered below; owned by the panel header's search field. */
+  providerSearch: string
   /** Edited name; committed by the panel header's Save action, which owns the dirty state. */
   name: string
   onNameChange: (name: string) => void
@@ -61,12 +64,19 @@ function toOptionUpdateInput(
 export function CredentialGroupDetails({
   credentialGroup,
   workspaceId,
+  providerSearch,
   name,
   onNameChange,
   description,
   onDescriptionChange,
 }: CredentialGroupDetailsProps) {
   const updateGroup = useUpdateCredentialGroup()
+  /**
+   * Reads the same cache entry the list view already populated, so the deployment's configured
+   * providers arrive without a second request.
+   */
+  const credentialGroups = useCredentialGroups(workspaceId)
+  const availableProviders = credentialGroups.data?.availableProviders
   const slackBots = useWorkspaceCredentials({
     workspaceId,
     type: 'service_account',
@@ -132,6 +142,26 @@ export function CredentialGroupDetails({
     if (await updateOptions(options, `${service.name} removed`)) setRemovingProvider(null)
   }
 
+  /**
+   * A provider whose OAuth client this deployment has not configured can never finish an
+   * enrollment, so it is not offered — but one already on the group stays listed regardless, or
+   * the row that removes it would disappear along with it.
+   */
+  const configuredProviders = new Set(credentialGroup.options.map((option) => option.provider))
+  const offerableProviders = availableProviders ? new Set(availableProviders) : null
+  const providerQuery = providerSearch.trim().toLowerCase()
+  const shownProviders = CREDENTIAL_GROUP_PROVIDER_IDS.filter((provider) => {
+    if (
+      !configuredProviders.has(provider) &&
+      offerableProviders &&
+      !offerableProviders.has(provider)
+    ) {
+      return false
+    }
+    if (!providerQuery) return true
+    return getCredentialGroupProviderService(provider).name.toLowerCase().includes(providerQuery)
+  })
+
   return (
     <>
       <SettingsSection label='Group details'>
@@ -161,8 +191,15 @@ export function CredentialGroupDetails({
       </SettingsSection>
 
       <SettingsSection label='Accounts people can connect'>
+        {shownProviders.length === 0 ? (
+          <SettingsEmptyState variant='inline'>
+            {providerSearch.trim()
+              ? `No account types found matching "${providerSearch}"`
+              : 'No account types are available. Configure an OAuth client to offer one.'}
+          </SettingsEmptyState>
+        ) : null}
         <div className={RESOURCE_LIST_STACK}>
-          {CREDENTIAL_GROUP_PROVIDER_IDS.map((provider) => {
+          {shownProviders.map((provider) => {
             const service = getCredentialGroupProviderService(provider)
             const support = getCredentialGroupProviderSupport(provider)
             const option = credentialGroup.options.find(

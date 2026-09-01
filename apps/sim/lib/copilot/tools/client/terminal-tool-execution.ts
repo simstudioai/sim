@@ -151,6 +151,7 @@ async function doExecuteTerminalTool(
             status: ASYNC_TOOL_CONFIRMATION_STATUS.error,
             message:
               'The user left the Sim window while this terminal command was running, so its result was lost.',
+            data: { outcomeUnknown: true, doNotRetry: true },
           }),
         ],
         { type: 'application/json' }

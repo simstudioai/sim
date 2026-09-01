@@ -20,6 +20,7 @@ import {
   SELFHOST_SETTINGS_ITEMS,
   SETTINGS_SECTION_REGISTRY,
   UNIFIED_TO_ORGANIZATION_SECTION,
+  UNIFIED_TO_WORKSPACE_SECTION,
   WORKSPACE_SETTINGS_ITEMS,
   WORKSPACE_SETTINGS_PATH_ALIASES,
 } from '@/components/settings/navigation'
@@ -242,6 +243,25 @@ describe('settings navigation boundaries', () => {
     expect(Object.keys(UNIFIED_TO_ORGANIZATION_SECTION).sort()).toEqual(
       [...ORGANIZATION_PLANE_UNIFIED_SECTIONS].sort()
     )
+  })
+
+  it('maps every workspace projection from its unified section', () => {
+    expect(UNIFIED_TO_WORKSPACE_SECTION).toEqual({
+      teammates: 'teammates',
+      secrets: 'secrets',
+      byok: 'byok',
+      sandboxes: 'sandboxes',
+      'credential-groups': 'credential-groups',
+      'custom-tools': 'custom-tools',
+      mcp: 'mcp',
+      'workflow-mcp-servers': 'workflow-mcp-servers',
+      apikeys: 'api-keys',
+      inbox: 'inbox',
+      'recently-deleted': 'recently-deleted',
+      forks: 'forks',
+      'custom-blocks': 'custom-blocks',
+      'self-host': 'self-host',
+    })
   })
 
   it('labels the members section consistently', () => {

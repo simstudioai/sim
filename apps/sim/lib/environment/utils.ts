@@ -2,7 +2,6 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
@@ -143,11 +142,25 @@ export async function getEnvironmentVariableKeys(userId: string): Promise<{
   }
 }
 
-export async function getPersonalAndWorkspaceEnv(
+interface AccessibleEncryptedEnvironment {
+  personalEncrypted: Record<string, string>
+  workspaceEncrypted: Record<string, string>
+  personalOwners: Record<string, string>
+  workspaceUnredactedKeys: string[]
+}
+
+/**
+ * Loads only the encrypted environment slices the caller may use.
+ *
+ * Keeping this before decryption gives name-only consumers the exact same workspace,
+ * credential, shared-personal precedence, and stored-value checks as runtime resolution
+ * without exposing plaintext or touching the decrypted snapshot cache.
+ */
+async function loadAccessibleEncryptedEnvironment(
   userId: string,
   workspaceId?: string,
   options?: { workspaceAccess?: WorkspaceAccess }
-): Promise<EnvironmentResolutionSnapshot> {
+): Promise<AccessibleEncryptedEnvironment> {
   let workspaceCanAdmin = false
   if (workspaceId) {
     const access = options?.workspaceAccess ?? (await checkWorkspaceAccess(workspaceId, userId))
@@ -247,6 +260,103 @@ export async function getPersonalAndWorkspaceEnv(
         )
   }
 
+  return {
+    personalEncrypted,
+    workspaceEncrypted,
+    personalOwners,
+    workspaceUnredactedKeys: accessibleEnvCredentials
+      .filter((row) => row.type === 'env_workspace' && row.unredacted)
+      .map((row) => row.envKey),
+  }
+}
+
+/**
+ * Lists the effective environment names visible to a caller without decrypting values.
+ * This deliberately performs a fresh ACL-aware encrypted lookup instead of populating or
+ * reading the short-lived decrypted environment snapshot cache.
+ */
+export async function getEffectiveEnvironmentVariableNames(
+  userId: string,
+  workspaceId?: string
+): Promise<string[]> {
+  const { personalEncrypted, workspaceEncrypted } = await loadAccessibleEncryptedEnvironment(
+    userId,
+    workspaceId
+  )
+  return [
+    ...new Set([...Object.keys(personalEncrypted), ...Object.keys(workspaceEncrypted)]),
+  ].sort()
+}
+
+export interface ResolvedEnvironmentVariable {
+  value: string
+  scope: 'personal' | 'workspace'
+  visible: boolean
+}
+
+/**
+ * Resolves only the requested environment variables through a fresh ACL-aware lookup.
+ *
+ * This deliberately neither reads nor populates the runtime environment snapshot cache.
+ * Workspace values take precedence over personal values, matching normal resolution. Missing,
+ * inaccessible, and undecryptable values are all omitted so callers cannot distinguish them.
+ */
+export async function resolveEffectiveEnvironmentVariables(
+  userId: string,
+  workspaceId: string | undefined,
+  requestedNames: readonly string[]
+): Promise<Record<string, ResolvedEnvironmentVariable>> {
+  const names = [...new Set(requestedNames)]
+  if (names.length === 0) return {}
+
+  const { personalEncrypted, workspaceEncrypted, personalOwners, workspaceUnredactedKeys } =
+    await loadAccessibleEncryptedEnvironment(userId, workspaceId)
+  const visibleWorkspaceNames = new Set(workspaceUnredactedKeys)
+
+  const resolvedEntries = await Promise.all(
+    names.map(async (name) => {
+      const fromWorkspace = Object.hasOwn(workspaceEncrypted, name)
+      const fromPersonal = Object.hasOwn(personalEncrypted, name)
+      const encrypted = fromWorkspace
+        ? workspaceEncrypted[name]
+        : fromPersonal
+          ? personalEncrypted[name]
+          : undefined
+      if (encrypted === undefined) return null
+
+      try {
+        const { decrypted } = await decryptSecret(encrypted)
+        return [
+          name,
+          {
+            value: decrypted,
+            scope: fromWorkspace ? 'workspace' : 'personal',
+            visible: fromWorkspace
+              ? visibleWorkspaceNames.has(name)
+              : personalOwners[name] === userId,
+          },
+        ] as const
+      } catch {
+        return null
+      }
+    })
+  )
+
+  return Object.fromEntries(
+    resolvedEntries.filter(
+      (entry): entry is readonly [string, ResolvedEnvironmentVariable] => entry !== null
+    )
+  )
+}
+
+export async function getPersonalAndWorkspaceEnv(
+  userId: string,
+  workspaceId?: string,
+  options?: { workspaceAccess?: WorkspaceAccess }
+): Promise<EnvironmentResolutionSnapshot> {
+  const { personalEncrypted, workspaceEncrypted, personalOwners, workspaceUnredactedKeys } =
+    await loadAccessibleEncryptedEnvironment(userId, workspaceId, options)
+
   const decryptionFailures: string[] = []
 
   const decryptAll = async (src: Record<string, string>, source: 'personal' | 'workspace') => {
@@ -256,12 +366,11 @@ export async function getPersonalAndWorkspaceEnv(
         try {
           const { decrypted } = await decryptSecret(v)
           return [k, decrypted] as const
-        } catch (error) {
-          logger.error(`Failed to decrypt ${source} environment variable "${k}"`, {
+        } catch {
+          logger.error('Failed to decrypt environment variable', {
             userId,
             workspaceId,
             source,
-            error: getErrorMessage(error, 'Unknown error'),
           })
           decryptionFailures.push(k)
           return [k, ''] as const
@@ -282,7 +391,6 @@ export async function getPersonalAndWorkspaceEnv(
     logger.warn('Some environment variables failed to decrypt', {
       userId,
       workspaceId,
-      failedKeys: decryptionFailures,
       failedCount: decryptionFailures.length,
     })
   }
@@ -295,9 +403,7 @@ export async function getPersonalAndWorkspaceEnv(
     personalOwners,
     conflicts,
     decryptionFailures,
-    workspaceUnredactedKeys: accessibleEnvCredentials
-      .filter((row) => row.type === 'env_workspace' && row.unredacted)
-      .map((row) => row.envKey),
+    workspaceUnredactedKeys,
   }
 }
 

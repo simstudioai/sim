@@ -37,6 +37,10 @@ class FakeContents {
     this.emit('destroyed')
   }
 
+  markDestroyed(): void {
+    this.destroyed = true
+  }
+
   private emit(channel: string, ...args: unknown[]): void {
     for (const listener of [...(this.listeners.get(channel) ?? [])]) listener(...args)
   }
@@ -48,6 +52,76 @@ function webContents(): { fake: FakeContents; contents: WebContents } {
 }
 
 describe('ScopedEventRouter', () => {
+  it('defaults old renderers to no site permission prompt support', () => {
+    const router = new ScopedEventRouter()
+    const renderer = webContents()
+
+    router.activateBrowser(renderer.contents, 'chat-a')
+
+    expect(router.browserSitePermissionPromptSupported('chat-a')).toBe(false)
+  })
+
+  it('recognizes an active renderer site permission prompt handshake', () => {
+    const router = new ScopedEventRouter()
+    const renderer = webContents()
+
+    router.registerBrowserSitePermissionPromptSupport(renderer.contents)
+    router.activateBrowser(renderer.contents, 'chat-a')
+
+    expect(router.browserSitePermissionPromptSupported('chat-a')).toBe(true)
+  })
+
+  it('requires a fresh site permission prompt handshake after renderer reload', () => {
+    const router = new ScopedEventRouter()
+    const renderer = webContents()
+
+    router.registerBrowserSitePermissionPromptSupport(renderer.contents)
+    router.activateBrowser(renderer.contents, 'chat-a')
+    renderer.fake.navigate()
+    router.activateBrowser(renderer.contents, 'chat-a')
+
+    expect(router.browserSitePermissionPromptSupported('chat-a')).toBe(false)
+
+    router.registerBrowserSitePermissionPromptSupport(renderer.contents)
+
+    expect(router.browserSitePermissionPromptSupported('chat-a')).toBe(true)
+  })
+
+  it('rejects ambiguous site prompts when two live renderers share a scope', () => {
+    const router = new ScopedEventRouter()
+    const first = webContents()
+    const second = webContents()
+
+    router.activateBrowser(first.contents, 'chat-a')
+    router.activateBrowser(second.contents, 'chat-a')
+    router.registerBrowserSitePermissionPromptSupport(first.contents)
+
+    expect(router.browserSitePermissionPromptSupported('chat-a')).toBe(false)
+
+    router.registerBrowserSitePermissionPromptSupport(second.contents)
+
+    expect(router.browserSitePermissionPromptSupported('chat-a')).toBe(false)
+  })
+
+  it('recovers site prompt support after an extra recipient moves or is destroyed', () => {
+    const router = new ScopedEventRouter()
+    const stable = webContents()
+    const moving = webContents()
+
+    router.registerBrowserSitePermissionPromptSupport(stable.contents)
+    router.registerBrowserSitePermissionPromptSupport(moving.contents)
+    router.activateBrowser(stable.contents, 'chat-a')
+    router.activateBrowser(moving.contents, 'chat-a')
+    router.activateBrowser(moving.contents, 'chat-b')
+
+    expect(router.browserSitePermissionPromptSupported('chat-a')).toBe(true)
+
+    router.activateBrowser(moving.contents, 'chat-a')
+    moving.fake.markDestroyed()
+
+    expect(router.browserSitePermissionPromptSupported('chat-a')).toBe(true)
+  })
+
   it('sends resource events only to renderers activated for the matching scope', () => {
     const router = new ScopedEventRouter()
     const chatA = webContents()

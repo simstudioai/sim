@@ -1,5 +1,6 @@
 import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
   assertBillingAttributionSnapshot,
@@ -13,6 +14,7 @@ import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-pe
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
+import { attachExecutionResult, hasExecutionResult } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -48,6 +50,8 @@ export interface ExecuteWorkflowOptions {
   abortSignal?: AbortSignal
   /** Use the live/draft workflow state instead of the deployed state. Used by copilot. */
   useDraftState?: boolean
+  /** Immutable workflow state selected by a trusted server-side trigger boundary. */
+  workflowStateOverride?: NonNullable<ExecutionMetadata['workflowStateOverride']>
   /** Stop execution after this block completes. Used for "run until block" feature. */
   stopAfterBlockId?: string
   /** Run-from-block configuration using a prior execution snapshot. */
@@ -128,6 +132,12 @@ export async function executeWorkflow(
     loggingSession.setTrustedExecutionCorrelation(streamConfig.trustedExecutionCorrelation)
   }
   let postExecutionOwnershipTransferred = false
+  /**
+   * Held outside the `try` so the catch can carry it. The executor attaches its result when the
+   * run itself throws, but the post-execution work below can throw after a run has already
+   * produced one — and callers read a missing result as proof that no block ran.
+   */
+  let executionResult: ExecutionResult | undefined
 
   try {
     const metadata: ExecutionMetadata = {
@@ -142,6 +152,7 @@ export async function executeWorkflow(
       triggerType,
       triggerBlockId: streamConfig?.triggerBlockId,
       useDraftState: streamConfig?.useDraftState ?? false,
+      workflowStateOverride: streamConfig?.workflowStateOverride,
       startTime: new Date().toISOString(),
       isClientSession: false,
       enforceCredentialAccess: streamConfig?.enforceCredentialAccess ?? false,
@@ -163,13 +174,13 @@ export async function executeWorkflow(
       metadata,
       workflow,
       input,
-      workflow.variables || {},
+      streamConfig?.workflowStateOverride?.variables ?? workflow.variables ?? {},
       streamConfig?.selectedOutputs || []
     )
 
     const executionStartMs = Date.now()
 
-    const result = await executeWorkflowCore({
+    const result = (executionResult = await executeWorkflowCore({
       snapshot,
       callbacks: {
         onStream: streamConfig?.onStream,
@@ -197,7 +208,7 @@ export async function executeWorkflow(
       trustedInitialResolvedSecretTraceProvenance:
         streamConfig?.trustedInitialResolvedSecretTraceProvenance,
       runFromBlock: streamConfig?.runFromBlock,
-    })
+    }))
 
     const blockTypes = [
       ...new Set(
@@ -240,7 +251,22 @@ export async function executeWorkflow(
     }
 
     return result
-  } catch (error: unknown) {
+  } catch (caught: unknown) {
+    /**
+     * Normalized before anything reads it, for the reason the executor normalizes its own throw:
+     * a value that cannot carry the result would otherwise reach callers bare, and they read a
+     * missing result as proof that no block ran. `toError` returns an `Error` unchanged, so a
+     * custom error class keeps its identity and every ordinary failure is untouched.
+     */
+    const error = toError(caught)
+    /**
+     * Carries the run's result on a failure raised after it produced one — the post-execution
+     * work below the executor call can throw, and the executor never saw it. Skipped when the
+     * executor already attached its own, which is the more specific record.
+     */
+    if (executionResult && !hasExecutionResult(error)) {
+      attachExecutionResult(error, executionResult)
+    }
     const errorDiagnostic = loggingSession.projectDiagnosticError(error)
     logger.error(`[${requestId}] Workflow execution failed`, errorDiagnostic)
 

@@ -117,6 +117,22 @@ export const credentialGroupTabUrlKeys = {
 } as const
 
 /**
+ * Filters the account types offered inside a credential group's detail view. Separate from the
+ * settings-wide search so filtering the picker does not follow the user back out to the list of
+ * groups, where the same term would usually match nothing.
+ */
+export const credentialGroupProviderSearchParam = {
+  key: 'credential-group-provider',
+  parser: parseAsString.withDefault(''),
+} as const
+
+/** A transient picker filter: no back-stack entry, and absent from the URL when empty. */
+export const credentialGroupProviderSearchUrlKeys = {
+  history: 'replace',
+  clearOnDefault: true,
+} as const
+
+/**
  * `group-tab` is the active tab inside the deep-linked permission-group detail
  * view, so a shared `group-id` link can land on the same tab (mirrors
  * `server-tab` on the workflow MCP server detail).

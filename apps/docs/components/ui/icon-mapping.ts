@@ -448,6 +448,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   memory: BrainIcon,
   microsoft_ad: AzureIcon,
   microsoft_dataverse: MicrosoftDataverseIcon,
+  microsoft_dynamics_365: MicrosoftDataverseIcon,
   microsoft_excel: MicrosoftExcelIcon,
   microsoft_excel_v2: MicrosoftExcelIcon,
   microsoft_planner: MicrosoftPlannerIcon,

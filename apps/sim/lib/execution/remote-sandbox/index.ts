@@ -2,6 +2,11 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import {
+  createSandboxPricing,
+  priceSandboxUsage,
+  type SandboxPricing,
+} from '@/lib/billing/sandbox-pricing'
+import {
   createTimeoutAbortController,
   getRemainingExecutionMs,
   isTimeoutAbortReason,
@@ -10,10 +15,17 @@ import { recordSandboxTeardownFailure } from '@/lib/core/execution-limits/metric
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 import { SANDBOX_SYSTEM_PATH } from '@/lib/execution/remote-sandbox/cli-tools.server'
 import {
+  attachTrustedSandboxOutputCost,
   isSandboxOutputFileError,
   isSandboxOutputLimitError,
+  isSandboxOutputNotExportableError,
   MAX_SANDBOX_OUTPUT_BYTES,
+  MAX_SANDBOX_OUTPUT_FILES,
   MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+  MAX_SANDBOX_URL_MOUNT_BYTES,
+  SandboxOutputDepthError,
+  SandboxOutputDirectoryMissingError,
+  SandboxOutputFileCountError,
   SandboxOutputLimitError,
 } from '@/lib/execution/remote-sandbox/output-limits'
 import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
@@ -25,20 +37,31 @@ import {
   repairMissingSandboxImage,
   resolveWorkspaceSandbox,
 } from '@/lib/execution/remote-sandbox/resolve'
+import {
+  SANDBOX_OUTPUT_DIR_MAX_DEPTH,
+  SANDBOX_OUTPUT_DIR_SENTINEL,
+} from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type {
   CreateSandboxOptions,
   SandboxCodeResult,
+  SandboxCollectedFile,
   SandboxCommandResult,
+  SandboxCostSink,
+  SandboxDirectoryEntry,
+  SandboxExecutionCost,
   SandboxExecutionRequest,
   SandboxExecutionResult,
   SandboxFile,
   SandboxHandle,
   SandboxKind,
   SandboxPrivateInput,
+  SandboxProvider,
+  SandboxProviderId,
   SandboxShellExecutionRequest,
 } from '@/lib/execution/remote-sandbox/types'
 
 export type {
+  SandboxCostSink,
   SandboxExecutionRequest,
   SandboxExecutionResult,
   SandboxFile,
@@ -48,14 +71,41 @@ export type {
 
 const logger = createLogger('RemoteSandbox')
 
+interface CreatedSandbox {
+  sandbox: SandboxHandle
+  providerId: SandboxProviderId
+  startedAtMs: number
+  effectiveLifetimeMs?: number
+  pricing?: SandboxPricing
+}
+
 async function createSandbox(
   kind: SandboxKind,
-  options?: CreateSandboxOptions
-): Promise<SandboxHandle> {
-  const provider = resolveProvider()
-  const sandbox = await provider.create(kind, options)
+  options?: CreateSandboxOptions,
+  meterUsage = false,
+  provider: SandboxProvider = resolveProvider()
+): Promise<CreatedSandbox> {
+  const effectiveLifetimeMs =
+    options?.lifetimeMs !== undefined ? provider.resolveLifetimeMs(options.lifetimeMs) : undefined
+  if (meterUsage && effectiveLifetimeMs === undefined) {
+    throw new Error('Metered sandbox execution requires a provider lifetime')
+  }
+  const pricing = meterUsage ? createSandboxPricing(provider.id) : undefined
+  let startedAtMs = Date.now()
+  const providerOptions = {
+    ...options,
+    ...(effectiveLifetimeMs !== undefined ? { lifetimeMs: effectiveLifetimeMs } : {}),
+    ...(meterUsage ? { onProviderRequestStarted: (value: number) => (startedAtMs = value) } : {}),
+  }
+  const sandbox = await provider.create(kind, providerOptions)
   logger.info('Created sandbox', { provider: provider.id, kind, sandboxId: sandbox.sandboxId })
-  return sandbox
+  return {
+    sandbox,
+    providerId: provider.id,
+    startedAtMs,
+    ...(effectiveLifetimeMs !== undefined ? { effectiveLifetimeMs } : {}),
+    ...(pricing ? { pricing } : {}),
+  }
 }
 
 /**
@@ -72,10 +122,11 @@ async function createSelectedSandbox(
   kind: SandboxKind,
   options: CreateSandboxOptions,
   selected: ResolvedSandbox | null,
-  signal: AbortSignal
-): Promise<SandboxHandle> {
+  signal: AbortSignal,
+  meterUsage = false
+): Promise<CreatedSandbox> {
   try {
-    return await createSandbox(kind, options)
+    return await createSandbox(kind, options, meterUsage)
   } catch (error) {
     throwIfAborted(signal)
     if (!selected) throw error
@@ -155,10 +206,13 @@ function throwIfSandboxTimedOut(result: { timedOut?: boolean }): void {
   if (result.timedOut) throw new DOMException('timeout', 'AbortError')
 }
 
-function bindSandboxAbort(sandbox: SandboxHandle, signal?: AbortSignal) {
+function bindSandboxAbort(
+  sandbox: SandboxHandle,
+  provider: SandboxProviderId,
+  signal?: AbortSignal
+) {
   let killed = false
   let killPromise: Promise<void> | null = null
-  const provider = resolveProvider().id
   const kill = (reason: 'cleanup' | 'cancellation' | 'timeout'): Promise<void> => {
     if (killed) return Promise.resolve()
     if (!killPromise) {
@@ -200,6 +254,52 @@ function bindSandboxAbort(sandbox: SandboxHandle, signal?: AbortSignal) {
   }
 }
 
+function calculateSandboxCost(
+  created: CreatedSandbox,
+  cleanupStartedAtMs: number
+): SandboxExecutionCost | undefined {
+  if (!created.pricing || created.effectiveLifetimeMs === undefined) return undefined
+  const usage = priceSandboxUsage(
+    created.pricing,
+    cleanupStartedAtMs - created.startedAtMs,
+    created.effectiveLifetimeMs
+  )
+  return { input: 0, output: 0, total: usage.billedCost }
+}
+
+/**
+ * Fetches one URL mount inside the sandbox, bounded by MAX_BYTES.
+ *
+ * Three mechanisms, because no one of them is sufficient on its own.
+ * `--max-filesize` refuses an oversized object before a byte moves, but only when
+ * the response declares a Content-Length — a chunked or length-less reply walks
+ * straight past it. `head -c` therefore caps what can ever reach the disk at one
+ * byte over the limit, so a mis-declared object cannot fill the sandbox while we
+ * wait to notice. The final size check is what turns that truncated file into a
+ * refusal rather than a silently corrupted mount.
+ *
+ * curl's exit status travels through a file because its status is lost in a
+ * pipeline, and losing it would let a 403 on an expired URL look like a
+ * successful empty download. The size check is consulted first: when `head`
+ * closes the pipe early curl dies of EPIPE, and "over the limit" is the useful
+ * message there, not the write error it provokes.
+ *
+ * MAX_BYTES, URL, DST, and DIR all arrive as environment variables, never
+ * interpolated, so a presigned query string cannot break out of the command.
+ */
+const FETCH_URL_MOUNT_COMMAND = [
+  'set -e',
+  '[ -n "$DIR" ] && mkdir -p "$DIR"',
+  'STATUS_FILE=$(mktemp)',
+  'STATUS=0',
+  '{ curl -fsS --retry 3 --retry-connrefused --max-time 300 --max-filesize "$MAX_BYTES" "$URL" || STATUS=$?; echo "$STATUS" > "$STATUS_FILE"; } | head -c "$(( MAX_BYTES + 1 ))" > "$DST"',
+  'STATUS=$(cat "$STATUS_FILE")',
+  'rm -f "$STATUS_FILE"',
+  'SIZE=$(wc -c < "$DST")',
+  'if [ "$SIZE" -gt "$MAX_BYTES" ]; then rm -f "$DST"; echo "mounted file exceeds the $MAX_BYTES byte limit" >&2; exit 1; fi',
+  'if [ "$STATUS" -ne 0 ]; then rm -f "$DST"; echo "curl exited $STATUS" >&2; exit 1; fi',
+].join('\n')
+
 /**
  * Materializes sandbox input files before user code runs. `content` entries are written inline;
  * `url` entries are fetched from inside the sandbox via `curl` — their bytes never pass through the
@@ -220,16 +320,24 @@ async function writeSandboxInputs(
       const dir = file.path.slice(0, file.path.lastIndexOf('/'))
       let result: SandboxCommandResult
       try {
-        result = await sandbox.runCommand(
-          'set -e; [ -n "$DIR" ] && mkdir -p "$DIR"; curl -fsS --retry 3 --retry-connrefused --max-time 300 "$URL" -o "$DST"',
-          {
-            envs: { URL: file.url, DST: file.path, DIR: dir },
-            timeoutMs: Math.min(300_000, remainingSandboxBudgetMs(opts.signal)),
-            maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
-            signal: opts.signal,
-            rootUser: opts.rootUser,
-          }
-        )
+        result = await sandbox.runCommand(FETCH_URL_MOUNT_COMMAND, {
+          envs: {
+            URL: file.url,
+            DST: file.path,
+            DIR: dir,
+            // Clamped, not just defaulted: `sandboxFiles` reaches this layer from
+            // the request body, so a declared ceiling is a caller's number. It may
+            // lower the limit for its own mount but never raise it past the one
+            // this layer guarantees.
+            MAX_BYTES: String(
+              Math.min(file.maxBytes ?? MAX_SANDBOX_URL_MOUNT_BYTES, MAX_SANDBOX_URL_MOUNT_BYTES)
+            ),
+          },
+          timeoutMs: Math.min(300_000, remainingSandboxBudgetMs(opts.signal)),
+          maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+          signal: opts.signal,
+          rootUser: opts.rootUser,
+        })
       } catch (error) {
         throwIfAborted(opts.signal)
         throw new Error(
@@ -406,14 +514,14 @@ async function readSandboxOutputFile(
     logger.warn('Failed to read requested sandbox output file', {
       sandboxId: sandbox.sandboxId,
     })
-    return undefined
+    throw error
   }
 }
 
 async function inspectSandboxOutputFileSize(
   sandbox: SandboxHandle,
   outputSandboxPath: string
-): Promise<number | undefined> {
+): Promise<number> {
   try {
     const size = await sandbox.getFileSize(outputSandboxPath)
     if (!Number.isSafeInteger(size) || size < 0) {
@@ -425,7 +533,7 @@ async function inspectSandboxOutputFileSize(
     logger.warn('Failed to inspect requested sandbox output file', {
       sandboxId: sandbox.sandboxId,
     })
-    return undefined
+    throw error
   }
 }
 
@@ -441,22 +549,117 @@ function requestedOutputSandboxPaths(req: {
   ]
 }
 
+/**
+ * Enumerates the harvest directory, refusing anything it cannot return in full —
+ * too many files, or nesting past what the listing reaches — before a single
+ * byte is read. Sorted so a multi-file result is stable run to run rather than
+ * inheriting whatever order the provider happened to return.
+ *
+ * `declaredPaths` are the files the request already named. One sitting inside the
+ * directory is dropped rather than harvested a second time, and the rest count
+ * toward the ceiling: the limit is what one execution exports, not what one
+ * directory holds, so declaring and harvesting cannot spend it twice.
+ */
+async function listOutputDirectoryFiles(
+  sandbox: SandboxHandle,
+  outputSandboxDir: string,
+  declaredPaths: ReadonlySet<string>,
+  signal: AbortSignal
+): Promise<SandboxDirectoryEntry[]> {
+  let listed: SandboxDirectoryEntry[]
+  try {
+    listed = await sandbox.listFiles(outputSandboxDir, { depth: SANDBOX_OUTPUT_DIR_MAX_DEPTH })
+  } catch (error) {
+    // The directory is created before user code runs, so the only way it can be
+    // missing now is that the code removed it. Providers report that as a raw
+    // `lstat ... no such file or directory`, which reads like a Sim fault; say
+    // what actually happened instead. Anything else propagates untouched rather
+    // than being flattened into "produced nothing".
+    if (/not_?found|no such file|ENOENT/i.test(getErrorMessage(error))) {
+      throw new SandboxOutputDirectoryMissingError(outputSandboxDir)
+    }
+    throw error
+  }
+  const entries = listed.filter((entry) => entry.relativePath !== SANDBOX_OUTPUT_DIR_SENTINEL)
+  remainingSandboxBudgetMs(signal)
+
+  // A directory sitting exactly at the traversal limit still has unlisted
+  // contents, and the providers report no truncation of their own. Refuse
+  // rather than return a partial harvest: a file the code wrote and the caller
+  // never receives is worse than an error naming the reason.
+  const truncatedAt = entries.find(
+    (entry) =>
+      entry.kind === 'directory' &&
+      entry.relativePath.split('/').length >= SANDBOX_OUTPUT_DIR_MAX_DEPTH
+  )
+  if (truncatedAt) {
+    throw new SandboxOutputDepthError(
+      `${outputSandboxDir}/${truncatedAt.relativePath}`,
+      SANDBOX_OUTPUT_DIR_MAX_DEPTH
+    )
+  }
+
+  const files = entries.filter((entry) => entry.kind === 'file' && !declaredPaths.has(entry.path))
+  const exported = declaredPaths.size + files.length
+  if (exported > MAX_SANDBOX_OUTPUT_FILES) {
+    throw new SandboxOutputFileCountError(exported, outputSandboxDir)
+  }
+  return files.sort((a, b) => a.path.localeCompare(b.path))
+}
+
+/**
+ * Brings the harvest directory into existence before user code runs.
+ *
+ * Owned here rather than by the caller's runtime prologue because
+ * `outputSandboxDir` is this layer's contract: a caller that asks for a harvest
+ * must not also have to know it is responsible for creating the directory, or
+ * the first write in their code is ENOENT.
+ */
+async function ensureSandboxOutputDir(
+  sandbox: SandboxHandle,
+  outputSandboxDir: string | undefined,
+  signal: AbortSignal
+): Promise<void> {
+  if (!outputSandboxDir) return
+  await sandbox.writeFile(`${outputSandboxDir}/${SANDBOX_OUTPUT_DIR_SENTINEL}`, '')
+  remainingSandboxBudgetMs(signal)
+}
+
 async function collectExportedFiles(
   sandbox: SandboxHandle,
-  req: { outputSandboxPath?: string; outputSandboxPaths?: string[] },
+  req: { outputSandboxPath?: string; outputSandboxPaths?: string[]; outputSandboxDir?: string },
   options: { signal: AbortSignal }
-): Promise<{ exportedFiles?: Record<string, string>; exportedFileContent?: string }> {
+): Promise<{
+  exportedFiles?: Record<string, string>
+  exportedFileContent?: string
+  collectedFiles?: SandboxCollectedFile[]
+}> {
   const readablePaths: string[] = []
   let totalOutputBytes = 0
   for (const outputSandboxPath of requestedOutputSandboxPaths(req)) {
     const size = await inspectSandboxOutputFileSize(sandbox, outputSandboxPath)
     remainingSandboxBudgetMs(options.signal)
-    if (size === undefined) continue
     totalOutputBytes += size
     if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
       throw new SandboxOutputLimitError(totalOutputBytes)
     }
     readablePaths.push(outputSandboxPath)
+  }
+
+  // Sized into the same running total as the declared paths, so an execution
+  // cannot spend the byte ceiling twice by both declaring and harvesting. The
+  // listing applies the same rule to the file-count ceiling and drops a declared
+  // path that happens to sit inside the harvest directory — double-billing it
+  // would reject a single output larger than half the ceiling as oversized.
+  const declaredPaths = new Set(readablePaths)
+  const discovered = req.outputSandboxDir
+    ? await listOutputDirectoryFiles(sandbox, req.outputSandboxDir, declaredPaths, options.signal)
+    : []
+  for (const entry of discovered) {
+    totalOutputBytes += entry.size
+    if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
+      throw new SandboxOutputLimitError(totalOutputBytes)
+    }
   }
 
   const exportedFiles: Record<string, string> = {}
@@ -484,9 +687,45 @@ async function collectExportedFiles(
       throw error
     }
   }
+
+  const collectedFiles: SandboxCollectedFile[] = []
+  for (const entry of discovered) {
+    try {
+      // Always base64: a harvested filename is arbitrary, and the extension
+      // allowlist that picks an encoding for a declared path would decode a
+      // `.parquet` or an extensionless binary as utf8 — substituting U+FFFD and
+      // delivering corruption that still looks like a valid file.
+      const file = await sandbox.readFileWithLimit(entry.path, {
+        maxBytes: MAX_SANDBOX_OUTPUT_BYTES - readOutputBytes,
+        encoding: 'base64',
+        signal: options.signal,
+      })
+      remainingSandboxBudgetMs(options.signal)
+      readOutputBytes += file.byteLength
+      collectedFiles.push({
+        path: entry.path,
+        relativePath: entry.relativePath,
+        contentBase64: file.content,
+        byteLength: file.byteLength,
+      })
+    } catch (error) {
+      if (isSandboxOutputLimitError(error)) {
+        throw new SandboxOutputLimitError(
+          readOutputBytes + error.attemptedBytes,
+          MAX_SANDBOX_OUTPUT_BYTES
+        )
+      }
+      // Unlike a declared path, a harvested file was just observed to exist, so
+      // a failed read is an anomaly rather than a caller mistake. Dropping it
+      // would silently lose output the code successfully produced.
+      throw error
+    }
+  }
+
   return {
     exportedFileContent: req.outputSandboxPath ? exportedFiles[req.outputSandboxPath] : undefined,
     exportedFiles: Object.keys(exportedFiles).length ? exportedFiles : undefined,
+    collectedFiles: collectedFiles.length ? collectedFiles : undefined,
   }
 }
 
@@ -504,6 +743,33 @@ const MIN_CODE_BUDGET_MS = 15_000
  */
 function installBudgetMs(timeoutMs: number): number {
   return Math.max(0, Math.min(RUNTIME_INSTALL_TIMEOUT_MS, timeoutMs - MIN_CODE_BUDGET_MS))
+}
+
+/**
+ * Held back from the code's own budget when an execution will export files.
+ *
+ * The export runs after the code succeeds and draws on the same wall clock, so
+ * without a reserve a long install plus long-running code can time out during
+ * the read — destroying work the code already finished, under an error that
+ * only says "timeout".
+ */
+const MIN_EXPORT_BUDGET_MS = 10_000
+
+/**
+ * The budget handed to user code, less an export reserve when this request will
+ * read files back. Short budgets are left alone: taking the reserve out of one
+ * would starve the code to buy time for an export it never reaches.
+ */
+function codeBudgetMs(
+  req: { outputSandboxPath?: string; outputSandboxPaths?: string[]; outputSandboxDir?: string },
+  signal: AbortSignal
+): number {
+  const remainingMs = remainingSandboxBudgetMs(signal)
+  const exportsFiles = Boolean(
+    req.outputSandboxDir || req.outputSandboxPath || req.outputSandboxPaths?.length
+  )
+  if (!exportsFiles || remainingMs <= MIN_EXPORT_BUDGET_MS * 2) return remainingMs
+  return remainingMs - MIN_EXPORT_BUDGET_MS
 }
 
 /**
@@ -547,7 +813,7 @@ async function executeInSandboxWithinBudget(
   })
   throwIfAborted(signal)
 
-  const sandbox = await createSelectedSandbox(
+  const created = await createSelectedSandbox(
     kind,
     {
       language,
@@ -555,10 +821,14 @@ async function executeInSandboxWithinBudget(
       lifetimeMs: remainingSandboxBudgetMs(signal),
     },
     selected,
-    signal
+    signal,
+    req.meterUsage
   )
+  const sandbox = created.sandbox
   const sandboxId = sandbox.sandboxId
-  const abortBinding = bindSandboxAbort(sandbox, signal)
+  const abortBinding = bindSandboxAbort(sandbox, created.providerId, signal)
+  let billableResult: SandboxExecutionResult | undefined
+  let billableOutputError: unknown
 
   try {
     throwIfAborted(signal)
@@ -568,6 +838,7 @@ async function executeInSandboxWithinBudget(
     //
     await provisionWithinBudget(sandbox, selected, signal)
     await writeSandboxInputs(sandbox, req.sandboxFiles, { signal })
+    await ensureSandboxOutputDir(sandbox, req.outputSandboxDir, signal)
     const privateInputEnvironment = await writeSandboxPrivateInputs(
       sandbox,
       req.privateInputs,
@@ -583,7 +854,7 @@ async function executeInSandboxWithinBudget(
     let execution: SandboxCodeResult
     try {
       execution = await sandbox.runCode(code, {
-        timeoutMs: remainingSandboxBudgetMs(signal),
+        timeoutMs: codeBudgetMs(req, signal),
         javascriptPreload: buildJavaScriptRuntimeBindingsSource(req.runtimeBindings ?? []),
         maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
         signal,
@@ -602,12 +873,14 @@ async function executeInSandboxWithinBudget(
         sandboxId,
         hasTraceback: Boolean(execution.error.traceback),
       })
-      return {
+      const executionResult = {
         result: null,
         stdout: execution.error.traceback || errorMessage,
         error: errorMessage,
         sandboxId,
       }
+      if (execution.providerFailure !== 'provider_limit') billableResult = executionResult
+      return executionResult
     }
 
     // Distinct sources (final-expression text, stdout, stderr) join with '\n' so
@@ -636,19 +909,47 @@ async function executeInSandboxWithinBudget(
       }
     }
 
-    const { exportedFiles, exportedFileContent } = await collectExportedFiles(sandbox, req, {
-      signal,
-    })
-    throwIfAborted(signal)
-
-    return {
+    billableResult = {
       result: extraction.result,
       stdout: cleanedStdout,
       sandboxId,
-      exportedFileContent,
-      exportedFiles,
     }
+    try {
+      const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
+        sandbox,
+        req,
+        { signal }
+      )
+      throwIfAborted(signal)
+      billableResult.exportedFileContent = exportedFileContent
+      billableResult.exportedFiles = exportedFiles
+      billableResult.collectedFiles = collectedFiles
+    } catch (error) {
+      /*
+       * A harvest that cannot return what the run produced — too many files, too
+       * deep, or an output directory the code deleted — is the caller's to fix
+       * and arrives only after the sandbox has already executed. It belongs with
+       * the other post-completion export failures the policy bills, not with the
+       * provider failures it absorbs; leaving it out let a completed run whose
+       * code wrote one file too many go free.
+       */
+      if (
+        isSandboxOutputLimitError(error) ||
+        isSandboxOutputFileError(error) ||
+        isSandboxOutputNotExportableError(error)
+      ) {
+        billableOutputError = error
+      }
+      throw error
+    }
+    return billableResult
   } finally {
+    const cleanupStartedAtMs = Date.now()
+    const cost = calculateSandboxCost(created, cleanupStartedAtMs)
+    if (cost && billableResult) billableResult.cost = cost
+    if (cost && billableOutputError) {
+      attachTrustedSandboxOutputCost(billableOutputError, cost)
+    }
     abortBinding.detach()
     await abortBinding.cleanup()
   }
@@ -677,14 +978,18 @@ async function executeShellInSandboxWithinBudget(
   })
   throwIfAborted(signal)
 
-  const sandbox = await createSelectedSandbox(
+  const created = await createSelectedSandbox(
     kind,
     { imageRef: selected?.imageRef, lifetimeMs: remainingSandboxBudgetMs(signal) },
     selected,
-    signal
+    signal,
+    req.meterUsage
   )
+  const sandbox = created.sandbox
   const sandboxId = sandbox.sandboxId
-  const abortBinding = bindSandboxAbort(sandbox, signal)
+  const abortBinding = bindSandboxAbort(sandbox, created.providerId, signal)
+  let billableResult: SandboxExecutionResult | undefined
+  let billableOutputError: unknown
 
   try {
     throwIfAborted(signal)
@@ -696,6 +1001,7 @@ async function executeShellInSandboxWithinBudget(
       rootUser: true,
       signal,
     })
+    await ensureSandboxOutputDir(sandbox, req.outputSandboxDir, signal)
     const privateInputEnvironment = await writeSandboxPrivateInputs(
       sandbox,
       req.privateInputs,
@@ -711,7 +1017,7 @@ async function executeShellInSandboxWithinBudget(
           PATH: selected?.envs?.PATH ?? SANDBOX_SYSTEM_PATH,
           ...privateInputEnvironment,
         },
-        timeoutMs: remainingSandboxBudgetMs(signal),
+        timeoutMs: codeBudgetMs(req, signal),
         maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
         signal,
         rootUser: true,
@@ -735,7 +1041,9 @@ async function executeShellInSandboxWithinBudget(
         sandboxId,
         exitCode: result.exitCode,
       })
-      return { result: null, stdout, error: errorMessage, sandboxId }
+      const executionResult = { result: null, stdout, error: errorMessage, sandboxId }
+      if (result.providerFailure !== 'provider_limit') billableResult = executionResult
+      return executionResult
     }
 
     // Shell scripts have no wrapper: any __SIM_RESULT__ line is user-authored
@@ -744,19 +1052,47 @@ async function executeShellInSandboxWithinBudget(
     const extraction = extractSimResult(stdout)
     const parsed = extraction.parseFailed ? extraction.rawPayload : extraction.result
 
-    const { exportedFiles, exportedFileContent } = await collectExportedFiles(sandbox, req, {
-      signal,
-    })
-    throwIfAborted(signal)
-
-    return {
+    billableResult = {
       result: parsed,
       stdout: extraction.cleanedStdout,
       sandboxId,
-      exportedFileContent,
-      exportedFiles,
     }
+    try {
+      const { exportedFiles, exportedFileContent, collectedFiles } = await collectExportedFiles(
+        sandbox,
+        req,
+        { signal }
+      )
+      throwIfAborted(signal)
+      billableResult.exportedFileContent = exportedFileContent
+      billableResult.exportedFiles = exportedFiles
+      billableResult.collectedFiles = collectedFiles
+    } catch (error) {
+      /*
+       * A harvest that cannot return what the run produced — too many files, too
+       * deep, or an output directory the code deleted — is the caller's to fix
+       * and arrives only after the sandbox has already executed. It belongs with
+       * the other post-completion export failures the policy bills, not with the
+       * provider failures it absorbs; leaving it out let a completed run whose
+       * code wrote one file too many go free.
+       */
+      if (
+        isSandboxOutputLimitError(error) ||
+        isSandboxOutputFileError(error) ||
+        isSandboxOutputNotExportableError(error)
+      ) {
+        billableOutputError = error
+      }
+      throw error
+    }
+    return billableResult
   } finally {
+    const cleanupStartedAtMs = Date.now()
+    const cost = calculateSandboxCost(created, cleanupStartedAtMs)
+    if (cost && billableResult) billableResult.cost = cost
+    if (cost && billableOutputError) {
+      attachTrustedSandboxOutputCost(billableOutputError, cost)
+    }
     abortBinding.detach()
     await abortBinding.cleanup()
   }
@@ -813,12 +1149,13 @@ export interface PiSandboxRunner {
  * caller's sandbox body, which would have buried the change in whitespace.
  */
 export async function withPiSandbox<T>(
-  options: { lifetimeMs?: number },
+  options: { lifetimeMs?: number; cost?: SandboxCostSink },
   fn: (runner: PiSandboxRunner) => Promise<T>
 ): Promise<T> {
   const lifetimeMs =
     options.lifetimeMs !== undefined ? options.lifetimeMs : resolvePiSandboxLifetimeMs()
-  const sandbox = await createSandbox('pi', { lifetimeMs })
+  const created = await createSandbox('pi', { lifetimeMs }, Boolean(options.cost))
+  const { sandbox } = created
   logger.info('Started Pi sandbox', { sandboxId: sandbox.sandboxId, lifetimeMs })
 
   const runner: PiSandboxRunner = {
@@ -835,9 +1172,31 @@ export async function withPiSandbox<T>(
     writeFile: (path, content) => sandbox.writeFile(path, content),
   }
 
+  let sessionCompleted = false
   try {
-    return await fn(runner)
+    const result = await fn(runner)
+    sessionCompleted = true
+    return result
   } finally {
+    /*
+     * Charged only for a session that ran to completion, which is the same rule
+     * the Function path applies to its own outcomes: a run whose sandbox never
+     * delivered is not billed, because a charge nobody can tie to delivered work
+     * is not one worth defending. A session that ends by throwing — a provider
+     * crash, a lifetime limit, a cancellation — is absorbed, and a create that
+     * throws never reaches here at all.
+     *
+     * A command exiting non-zero is not a failure by this rule. `fn` returns
+     * normally there, the agent produced its answer, and the Function path bills
+     * its own non-zero exits for the same reason.
+     *
+     * Measured up to teardown rather than to the last command, so the window
+     * covers the whole time the provider held the sandbox.
+     */
+    if (sessionCompleted) {
+      const cost = calculateSandboxCost(created, Date.now())
+      if (cost && options.cost) options.cost.total += cost.total
+    }
     try {
       await sandbox.kill()
     } catch {

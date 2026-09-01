@@ -1,4 +1,3 @@
-import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import {
   defineAuthorizedWorkspaceUseCase,
   type OperationUseCase,
@@ -18,6 +17,7 @@ import {
   knowledgeDelegationPolicy,
   type LegacyPersonalKnowledgeAuthorizationContext,
 } from '@/lib/knowledge/application/authorization'
+import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
 
 interface AuthorizedKnowledgeUseCaseContext<
   O extends WorkspaceOperation,
@@ -126,8 +126,7 @@ export function defineAuthorizedKnowledgeUseCase<
       if (isLegacyPersonalKnowledgeContext(context)) {
         if (
           principal.kind === 'workspace_api_key' ||
-          // actorless-unsupported: a legacy personal knowledge base has exactly one owner, so an actorless caller is never it
-          requirePrincipalSubjectUserId(principal) !== context.legacyPersonalOwnerUserId
+          resolveKnowledgeAttributedUserId(principal, context) !== context.legacyPersonalOwnerUserId
         ) {
           throw new OrchestrationError('not_found', 'Knowledge base not found')
         }

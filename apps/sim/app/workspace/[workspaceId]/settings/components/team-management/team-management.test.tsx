@@ -2,15 +2,24 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUseOrganization } = vi.hoisted(() => ({
+const {
+  mockIsAdminOrOwner,
+  mockUseOrganization,
+  mockUseOrganizationBilling,
+  mockUseOrganizationRoster,
+} = vi.hoisted(() => ({
+  mockIsAdminOrOwner: vi.fn(),
   mockUseOrganization: vi.fn(),
+  mockUseOrganizationBilling: vi.fn(),
+  mockUseOrganizationRoster: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { email: 'viewer' } } }),
+  useSession: () => ({ data: { user: { id: 'viewer-1', email: 'viewer' } } }),
 }))
 
 vi.mock('@/lib/billing/client/utils', () => ({
@@ -22,7 +31,7 @@ vi.mock('@/lib/billing/client/utils', () => ({
 
 vi.mock('@/lib/workspaces/organization', () => ({
   generateSlug: (value: string) => value.toLowerCase(),
-  isAdminOrOwner: () => false,
+  isAdminOrOwner: mockIsAdminOrOwner,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/components/invite-modal', () => ({
@@ -31,6 +40,24 @@ vi.mock('@/app/workspace/[workspaceId]/components/invite-modal', () => ({
 
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state', () => ({
   SettingsEmptyState: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  SettingsQueryErrorState: ({
+    error,
+    fallback,
+    isRetrying,
+    onRetry,
+  }: {
+    error: unknown
+    fallback: string
+    isRetrying: boolean
+    onRetry: () => void
+  }) => (
+    <div>
+      {getErrorMessage(error, fallback)}
+      <button type='button' disabled={isRetrying} onClick={onRetry}>
+        {isRetrying ? 'Retrying…' : 'Try again'}
+      </button>
+    </div>
+  ),
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
@@ -39,9 +66,9 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () =
 
 vi.mock('@/app/workspace/[workspaceId]/settings/components/team-management/components', () => ({
   NoOrganizationView: () => <div>no-organization-view</div>,
-  OrganizationMemberLists: () => null,
+  OrganizationMemberLists: () => <div>organization-member-lists</div>,
   RemoveMemberDialog: () => null,
-  TeamSeatsOverview: () => null,
+  TeamSeatsOverview: () => <div>team-seats-overview</div>,
   TransferOwnershipDialog: () => null,
 }))
 
@@ -62,8 +89,8 @@ vi.mock('@/hooks/queries/organization', () => ({
   useCreateOrganization: () => ({ error: null, isPending: false, mutateAsync: vi.fn() }),
   useMemberRemovalImpact: () => ({ data: [], isError: false, isFetching: false }),
   useOrganization: mockUseOrganization,
-  useOrganizationBilling: () => ({ data: undefined, isLoading: false }),
-  useOrganizationRoster: () => ({ data: undefined, isLoading: false }),
+  useOrganizationBilling: mockUseOrganizationBilling,
+  useOrganizationRoster: mockUseOrganizationRoster,
   useRemoveMember: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useTransferOwnership: () => ({ isPending: false, mutateAsync: vi.fn() }),
 }))
@@ -78,6 +105,17 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
+  mockIsAdminOrOwner.mockReturnValue(false)
+  mockUseOrganizationBilling.mockReturnValue({
+    data: undefined,
+    error: null,
+    isLoading: false,
+  })
+  mockUseOrganizationRoster.mockReturnValue({
+    data: { members: [], pendingInvitations: [], workspaces: [] },
+    error: null,
+    isLoading: false,
+  })
 })
 
 afterEach(() => {
@@ -102,5 +140,82 @@ describe('TeamManagement organization errors', () => {
 
     expect(container.textContent).toContain('Organization request failed')
     expect(container.textContent).not.toContain('no-organization-view')
+  })
+
+  it('does not render a false member count while the roster is pending', () => {
+    mockUseOrganization.mockReturnValue({
+      data: { id: 'org-1' },
+      error: null,
+      isLoading: false,
+    })
+    mockUseOrganizationRoster.mockReturnValue({
+      data: undefined,
+      error: null,
+      isLoading: true,
+    })
+
+    act(() =>
+      root.render(
+        <TeamManagement organizationId='org-1' billingHref='/workspace/ws-1/settings/billing' />
+      )
+    )
+
+    expect(container.textContent).toContain('Loading members…')
+    expect(container.textContent).not.toContain('organization-member-lists')
+  })
+
+  it('shows a roster failure instead of an empty member list', () => {
+    mockUseOrganization.mockReturnValue({
+      data: { id: 'org-1' },
+      error: null,
+      isLoading: false,
+    })
+    mockUseOrganizationRoster.mockReturnValue({
+      data: undefined,
+      error: new Error('Roster request failed'),
+      isLoading: false,
+    })
+
+    act(() =>
+      root.render(
+        <TeamManagement organizationId='org-1' billingHref='/workspace/ws-1/settings/billing' />
+      )
+    )
+
+    expect(container.textContent).toContain('Roster request failed')
+    expect(container.textContent).not.toContain('organization-member-lists')
+  })
+
+  it('shows a retryable billing failure instead of a subscription upsell', async () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    mockIsAdminOrOwner.mockReturnValue(true)
+    mockUseOrganization.mockReturnValue({
+      data: { id: 'org-1' },
+      error: null,
+      isLoading: false,
+    })
+    mockUseOrganizationBilling.mockReturnValue({
+      data: undefined,
+      error: new Error('Billing request failed'),
+      isLoading: false,
+      refetch,
+    })
+
+    act(() =>
+      root.render(
+        <TeamManagement organizationId='org-1' billingHref='/workspace/ws-1/settings/billing' />
+      )
+    )
+
+    expect(container.textContent).toContain('Billing request failed')
+    expect(container.textContent).toContain('Try again')
+    expect(container.textContent).not.toContain('team-seats-overview')
+
+    await act(async () => {
+      Array.from(container.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Try again')
+        ?.click()
+    })
+    expect(refetch).toHaveBeenCalledOnce()
   })
 })

@@ -64,8 +64,10 @@ import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
+  BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
   EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
   getEmbeddingAggregateItemLimit,
+  isBYOKEmbeddingCredentialRejection,
   isEmbeddingQuotaExhaustion,
 } from '@/lib/embeddings'
 import {
@@ -1271,6 +1273,13 @@ async function dispatchInProcess(
           })
           return true
         }
+        if (isBYOKEmbeddingCredentialRejection(error)) {
+          logger.warn(`[${requestId}] Customer-managed embedding credentials were rejected`, {
+            documentId: p.documentId,
+            status: error.status,
+          })
+          return true
+        }
         const message = processingClaimed
           ? 'In-process document processing failed'
           : 'In-process document dispatch failed before claiming the document'
@@ -1848,6 +1857,7 @@ export async function processDocumentAsync(
   } catch (error) {
     const processingTime = Date.now() - startTime
     const embeddingQuotaExhausted = isEmbeddingQuotaExhaustion(error)
+    const byokCredentialRejected = isBYOKEmbeddingCredentialRejection(error)
     const usageLimitExceeded = isUsageLimitDocumentProcessingError(error)
     const permanentError = toPermanentDocumentProcessingError(error, processingFilename)
     let recordedError = permanentError ?? error
@@ -1862,22 +1872,32 @@ export async function processDocumentAsync(
       }
     }
     const quotaContinuationFailed = quotaContinuationAttempted && !quotaDeferredUntil
-    const errorMessage = embeddingQuotaExhausted
-      ? quotaContinuationFailed
-        ? getErrorMessage(recordedError, 'Embedding quota continuation dispatch failed')
-        : EMBEDDING_QUOTA_EXHAUSTED_MESSAGE
-      : getErrorMessage(recordedError, 'Unknown error')
+    const errorMessage = byokCredentialRejected
+      ? BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE
+      : embeddingQuotaExhausted
+        ? quotaContinuationFailed
+          ? getErrorMessage(recordedError, 'Embedding quota continuation dispatch failed')
+          : EMBEDDING_QUOTA_EXHAUSTED_MESSAGE
+        : getErrorMessage(recordedError, 'Unknown error')
     const logContext = {
       errorType: toError(recordedError).name,
       knowledgeBaseId,
       mimeType: docData.mimeType,
       fileSize: docData.fileSize,
+      ...(byokCredentialRejected
+        ? {
+            code: 'embedding_credentials_rejected',
+            outcome: 'customer_configuration',
+            status: error.status,
+          }
+        : {}),
     }
     const logMessage = quotaDeferredUntil
       ? `[${documentId}] Deferred document processing after ${processingTime}ms:`
       : `[${documentId}] Failed to process document after ${processingTime}ms:`
     if (
       (embeddingQuotaExhausted && !quotaContinuationFailed) ||
+      byokCredentialRejected ||
       usageLimitExceeded ||
       permanentError
     ) {
@@ -1898,6 +1918,7 @@ export async function processDocumentAsync(
         processingDeferredUntil: quotaDeferredUntil,
         processingCompletedAt: quotaDeferredUntil ? null : new Date(),
         ...(permanentError ||
+        byokCredentialRejected ||
         (embeddingQuotaExhausted && attemptContext?.quotaContinuationExhausted)
           ? { processingAttempts: MAX_PROCESSING_ATTEMPTS }
           : (embeddingQuotaExhausted || usageLimitExceeded) && attemptContext?.chargedAtDispatch

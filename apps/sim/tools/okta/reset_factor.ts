@@ -30,7 +30,7 @@ export const oktaResetFactorTool: ToolConfig<OktaResetFactorParams, OktaResetFac
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'User ID or login the factor belongs to',
+      description: 'Okta user ID (not a login or email) the factor belongs to',
     },
     factorId: {
       type: 'string',

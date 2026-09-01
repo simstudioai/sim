@@ -1,5 +1,6 @@
 import {
   type Principal,
+  type PrincipalSubject,
   resolvePrincipalSubject,
   type WorkflowExecutionAuthority,
   type WorkflowExecutionPrincipal,
@@ -67,16 +68,19 @@ function requireConsistentWorkflowSubject(
   return subject
 }
 
-export function requireCredentialGroupWorkflowSubject(principal: Principal): string {
-  const subject = resolvePrincipalSubject(requireWorkflowExecutionPrincipal(principal))
-  if (
-    subject?.kind !== 'sim_user' ||
-    principal.kind !== 'delegated' ||
-    principal.subjectUserId !== subject.userId
-  ) {
-    throw new OrchestrationError('forbidden', 'Credential Group user access required')
-  }
-  return subject.userId
+/**
+ * Asserts the delegation still names the subject its run was minted for, without
+ * requiring that subject to be a Sim user.
+ *
+ * A Slack-triggered run's subject is the external Slack user, and a scheduled,
+ * public-API, or subject-less webhook run has no subject at all. Neither is
+ * representable as a Sim user, and neither is what authorizes the call — for an
+ * actorless caller that is the deployment the workspace layer already checked.
+ * Whoever the run acts as is attribution only; an invitation issued with no Sim
+ * user simply records none.
+ */
+export function requireCredentialGroupWorkflowActor(principal: Principal): PrincipalSubject | null {
+  return requireConsistentWorkflowSubject(principal, requireWorkflowExecutionPrincipal(principal))
 }
 
 export async function requireCredentialGroupCredentialAccess(

@@ -91,7 +91,7 @@ async function fetchWithDNSPinning(
   requestId: string
 ): Promise<SecureFetchResponse | null> {
   try {
-    const urlValidation = await validateUrlWithDNS(url, 'contentUrl')
+    const urlValidation = await validateUrlWithDNS(url, 'contentUrl', 'contentFetch')
     if (!urlValidation.isValid) {
       logger.warn(`[${requestId}] Invalid content URL: ${urlValidation.error}`, { url })
       return null
@@ -100,7 +100,10 @@ async function fetchWithDNSPinning(
     if (accessToken) {
       headers.Authorization = `Bearer ${accessToken}`
     }
-    const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, { headers })
+    const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
+      profile: 'contentFetch',
+      headers,
+    })
     return response
   } catch (error) {
     logger.error(`[${requestId}] Error fetching URL with DNS pinning`, {

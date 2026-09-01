@@ -33,6 +33,15 @@ interface OAuthEndpoints {
   tokenEndpoint: string
 }
 
+/**
+ * RFC 6749 §7.1 defines `token_type` as case-insensitive, and Better Auth passes the provider's
+ * raw `token_type` through untouched. Several providers answer with lowercase `bearer`, so an
+ * exact match would reject a perfectly valid grant as an incomplete authorization.
+ */
+function isBearerTokenType(tokenType: string | undefined): boolean {
+  return tokenType?.toLowerCase() === 'bearer'
+}
+
 interface CurrentStandardOAuthProvider {
   connector: ConnectorProviderConfig
   policy: CredentialGroupProviderPolicy
@@ -138,7 +147,7 @@ function getCurrentProvider(
   const requiredScopes = [
     ...new Set([...(connector.scopes ?? []), ...connector.managedOAuth.additionalScopes]),
   ]
-  if (requiredScopes.length === 0) {
+  if (requiredScopes.length === 0 && !connector.managedOAuth.scopeless) {
     throw new CredentialGroupProviderConfigurationError(
       `Managed ${service.name} authorization has no scope policy`
     )
@@ -290,7 +299,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
           502
         )
       }
-      if (tokens.tokenType !== 'Bearer' || !tokens.accessToken) {
+      if (!isBearerTokenType(tokens.tokenType) || !tokens.accessToken) {
         throw new CredentialGroupOAuthError(
           `${service.name} returned an incomplete authorization.`,
           502

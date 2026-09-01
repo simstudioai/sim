@@ -92,7 +92,6 @@ export const incidentsListTool: ToolConfig<
             id: incident.id,
             name: incident.name,
             summary: incident.summary,
-            description: incident.description,
             mode: incident.mode,
             call_url: incident.call_url,
             severity: incident.severity
@@ -117,7 +116,7 @@ export const incidentsListTool: ToolConfig<
               : undefined,
             created_at: incident.created_at,
             updated_at: incident.updated_at,
-            incident_url: incident.incident_url,
+            permalink: incident.permalink,
             slack_channel_id: incident.slack_channel_id,
             slack_channel_name: incident.slack_channel_name,
             visibility: incident.visibility,

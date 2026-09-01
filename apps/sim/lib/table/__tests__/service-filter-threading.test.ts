@@ -15,6 +15,8 @@ import { decodeCursor } from '@/lib/table/rows/cursor'
 import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
 
+const { mockFireTableTrigger } = vi.hoisted(() => ({ mockFireTableTrigger: vi.fn() }))
+
 vi.mock('@/lib/table/sql', () => ({
   buildFilterClause: vi.fn(() => sql`true`),
   buildSortClause: vi.fn(() => sql`true`),
@@ -23,7 +25,7 @@ vi.mock('@/lib/table/sql', () => ({
 }))
 
 vi.mock('@/lib/table/trigger', () => ({
-  fireTableTrigger: vi.fn(),
+  fireTableTrigger: mockFireTableTrigger,
 }))
 
 vi.mock('@/lib/table/workflow-group-deps', () => ({
@@ -64,7 +66,9 @@ vi.mock('@/lib/table/validation', () => ({
 }))
 
 import {
+  deleteRow,
   deleteRowsByFilter,
+  deleteRowsByIds,
   queryRows,
   requireTableRowIds,
   updateRowsByFilter,
@@ -180,6 +184,104 @@ describe('service filter threading', () => {
     await expect(
       requireTableRowIds(TABLE.id, TABLE.workspaceId, ['missing-row'])
     ).rejects.toMatchObject({ code: 'not_found' })
+  })
+})
+
+describe('delete trigger dispatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('fires with the committed snapshot after deleting one row', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'row-1', data: { name: 'Ada' } }])
+
+    await deleteRow(TABLE, 'row-1', 'req-delete-one')
+
+    expect(mockFireTableTrigger).toHaveBeenCalledWith(
+      TABLE.id,
+      TABLE.workspaceId,
+      TABLE.name,
+      'delete',
+      [{ id: 'row-1', data: { name: 'Ada' } }],
+      null,
+      TABLE.schema,
+      'req-delete-one'
+    )
+  })
+
+  it('returns after deleting one row without waiting for trigger dispatch', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'row-1', data: { name: 'Ada' } }])
+    let releaseTrigger: (() => void) | undefined
+    const triggerPending = new Promise<void>((resolve) => {
+      releaseTrigger = resolve
+    })
+    mockFireTableTrigger.mockReturnValueOnce(triggerPending)
+    const deletion = deleteRow(TABLE, 'row-1', 'req-delete-one')
+    const onDeleteSettled = vi.fn()
+    void deletion.then(onDeleteSettled)
+
+    await vi.waitFor(() => expect(mockFireTableTrigger).toHaveBeenCalledTimes(1))
+    await Promise.resolve()
+
+    try {
+      expect(onDeleteSettled).toHaveBeenCalledTimes(1)
+    } finally {
+      releaseTrigger?.()
+      await deletion
+    }
+  })
+
+  it('fires once with every committed snapshot in an ID batch', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'row-1', data: { name: 'Ada' } },
+      { id: 'row-2', data: { name: 'Grace' } },
+    ])
+
+    await deleteRowsByIds(
+      TABLE,
+      { tableId: TABLE.id, workspaceId: TABLE.workspaceId, rowIds: ['row-1', 'row-2'] },
+      'req-delete-many'
+    )
+
+    expect(mockFireTableTrigger).toHaveBeenCalledWith(
+      TABLE.id,
+      TABLE.workspaceId,
+      TABLE.name,
+      'delete',
+      [
+        { id: 'row-1', data: { name: 'Ada' } },
+        { id: 'row-2', data: { name: 'Grace' } },
+      ],
+      null,
+      TABLE.schema,
+      'req-delete-many'
+    )
+  })
+
+  it('dispatches byte-bounded ID-delete snapshots before loading the next batch', async () => {
+    setEnv({
+      TABLE_MAX_ROW_SIZE_BYTES: TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES * 2,
+    })
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'row-1', data: { name: 'Ada' } }])
+      .mockResolvedValueOnce([{ id: 'row-2', data: { name: 'Grace' } }])
+
+    try {
+      await deleteRowsByIds(
+        TABLE,
+        { tableId: TABLE.id, workspaceId: TABLE.workspaceId, rowIds: ['row-1', 'row-2'] },
+        'req-delete-bounded'
+      )
+    } finally {
+      setEnv({ TABLE_MAX_ROW_SIZE_BYTES: undefined })
+    }
+
+    expect(mockFireTableTrigger).toHaveBeenCalledTimes(2)
+    expect(mockFireTableTrigger.mock.calls[0][4]).toEqual([{ id: 'row-1', data: { name: 'Ada' } }])
+    expect(mockFireTableTrigger.mock.calls[1][4]).toEqual([
+      { id: 'row-2', data: { name: 'Grace' } },
+    ])
   })
 })
 

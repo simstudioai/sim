@@ -17,6 +17,18 @@ import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'
 let host: HTMLDivElement
 let root: Root
 
+const selectionContext = {
+  kind: 'table_selection',
+  tableId: 'table-1',
+  tableName: 'Large table',
+  rowIds: ['row-1'],
+  label: 'Large table (1 row)',
+}
+
+function selectionPayload(sourceWorkspaceId = 'ws-1'): string {
+  return JSON.stringify({ version: 1, sourceWorkspaceId, context: selectionContext })
+}
+
 function dispatchPaste(
   target: Element,
   text: string,
@@ -116,32 +128,33 @@ describe('PasteAdmissionGuard', () => {
   it('lets a prompt consume a compact Sim selection reference before its large plain text', () => {
     const input = document.createElement('textarea')
     input.dataset.pasteMaxBytes = '4'
-    input.dataset.pasteSelectionContext = 'reference'
+    input.dataset.pasteSelectionContext = 'ws-1'
     host.appendChild(input)
-    const selectionContext = JSON.stringify({
-      kind: 'table_selection',
-      tableId: 'table-1',
-      tableName: 'Large table',
-      rowIds: ['row-1'],
-      label: 'Large table (1 row)',
-    })
 
-    expect(dispatchPaste(input, '12345', { selectionContext }).defaultPrevented).toBe(false)
+    expect(
+      dispatchPaste(input, '12345', { selectionContext: selectionPayload() }).defaultPrevented
+    ).toBe(false)
+  })
+
+  it('still bounds a cross-workspace selection plain-text representation', () => {
+    const input = document.createElement('textarea')
+    input.dataset.pasteMaxBytes = '4'
+    input.dataset.pasteSelectionContext = 'ws-2'
+    host.appendChild(input)
+
+    expect(
+      dispatchPaste(input, '12345', { selectionContext: selectionPayload() }).defaultPrevented
+    ).toBe(true)
   })
 
   it('still bounds a Sim selection plain-text representation outside the prompt', () => {
     const input = document.createElement('textarea')
     input.dataset.pasteMaxBytes = '4'
     host.appendChild(input)
-    const selectionContext = JSON.stringify({
-      kind: 'table_selection',
-      tableId: 'table-1',
-      tableName: 'Large table',
-      rowIds: ['row-1'],
-      label: 'Large table (1 row)',
-    })
 
-    expect(dispatchPaste(input, '12345', { selectionContext }).defaultPrevented).toBe(true)
+    expect(
+      dispatchPaste(input, '12345', { selectionContext: selectionPayload() }).defaultPrevented
+    ).toBe(true)
   })
 
   it('bounds rich HTML separately from its smaller plain-text representation', () => {

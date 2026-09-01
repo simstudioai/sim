@@ -274,11 +274,10 @@ describe('mintZohoDeskServiceAccountToken', () => {
     expect(result.apiDomain).toBe('https://desk.zoho.in')
     expect(mockLoggerWarn).toHaveBeenCalledWith(
       'Zoho api_domain disagrees with the selected data center',
-      expect.objectContaining({
+      {
         selectedDataCenter: 'eu',
-        selectedDeskBase: 'https://desk.zoho.eu',
-        reportedDeskBase: 'https://desk.zoho.in',
-      })
+        usedProviderReportedDomain: true,
+      }
     )
   })
 

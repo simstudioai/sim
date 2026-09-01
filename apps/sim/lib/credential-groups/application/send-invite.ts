@@ -1,10 +1,11 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   credentialGroupDelegationPolicy,
-  requireCredentialGroupWorkflowSubject,
+  requireCredentialGroupWorkflowActor,
 } from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupsAvailable,
@@ -28,7 +29,7 @@ export const sendCredentialGroupInvite = defineAuthorizedWorkspaceUseCase({
     resolveCredentialGroupContext(input.credentialGroupId),
   authorizationOptions: { delegation: credentialGroupDelegationPolicy },
   authorizeResource({ principal }) {
-    requireCredentialGroupWorkflowSubject(principal)
+    requireCredentialGroupWorkflowActor(principal)
   },
   execute: async ({ principal, input, context }) => {
     if (context.status !== 'active') {
@@ -40,12 +41,11 @@ export const sendCredentialGroupInvite = defineAuthorizedWorkspaceUseCase({
     }
     await requireCredentialGroupsAvailable(context.workspaceId)
 
-    const userId = requireCredentialGroupWorkflowSubject(principal)
-    const inviter = await loadCredentialGroupInviterIdentity(userId)
+    // Attribution, not authority. An actorless or Slack-triggered run names no
+    // inviter rather than borrowing its actor, so the email claims no one invited.
+    const userId = resolvePrincipalSubjectUserId(principal)
+    const inviter = userId ? await loadCredentialGroupInviterIdentity(userId) : null
     const inviterName = inviter?.name?.trim() || inviter?.email
-    if (!inviterName) {
-      throw new OrchestrationError('conflict', 'Inviting user has no display identity')
-    }
 
     try {
       const enrollment = await inviteCredentialGroupEnrollment(

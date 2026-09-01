@@ -226,6 +226,23 @@ describe('installStreamingCostPolicy', () => {
     expect(output.cost).toMatchObject({ input: 0, output: 0, total: 0.75, toolCost: 0.75 })
   })
 
+  it('adds late failed Function cost once without applying the model multiplier', () => {
+    const output = {
+      cost: { input: 1, output: 2, total: 3.25, toolCost: 0.25 },
+    } as NormalizedBlockOutput
+    const failedFunctionToolCost = { total: 0 }
+    installStreamingCostPolicy(
+      output,
+      { billable: false, multiplier: 0 },
+      () => failedFunctionToolCost.total
+    )
+
+    failedFunctionToolCost.total = 0.125
+
+    expect(output.cost).toMatchObject({ input: 0, output: 0, total: 0.375, toolCost: 0.375 })
+    expect(output.cost).toMatchObject({ total: 0.375, toolCost: 0.375 })
+  })
+
   it('zeroes model cost written by a provider for a model Sim does not host', () => {
     const output = { cost: { input: 0, output: 0, total: 0 } } as NormalizedBlockOutput
     installStreamingCostPolicy(output, resolveModelCostPolicy(SELF_KEYED_MODEL))

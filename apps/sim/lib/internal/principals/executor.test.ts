@@ -43,6 +43,14 @@ describe('createExecutorPrincipalFromExecutionContext', () => {
         ...(claims.executionId ? { executionId: claims.executionId } : {}),
         ...(claims.principal ? { principal: claims.principal } : {}),
         ...(claims.currentWorkflow ? { currentWorkflow: claims.currentWorkflow } : {}),
+        ...(options.compatibilityActorUserId
+          ? {
+              compatibilityActor: {
+                kind: 'legacy_execution_user' as const,
+                userId: options.compatibilityActorUserId,
+              },
+            }
+          : {}),
       },
     }))
   })
@@ -66,7 +74,10 @@ describe('createExecutorPrincipalFromExecutionContext', () => {
         workflowId: 'workflow-origin',
         executionId: 'execution-origin',
       }),
-      { audience: 'sim:tables', resourceScope: { tableId: 'table-1' } }
+      {
+        audience: 'sim:tables',
+        resourceScope: { tableId: 'table-1' },
+      }
     )
   })
 
@@ -152,7 +163,7 @@ describe('createExecutorPrincipalFromExecutionContext', () => {
         principal,
         currentWorkflow,
       }),
-      { audience: 'sim:tables' }
+      { audience: 'sim:tables', compatibilityActorUserId: 'user-current' }
     )
     expect(mockBindInternalExecutorDelegation.mock.calls[0]?.[0]).not.toHaveProperty(
       'subjectUserId'

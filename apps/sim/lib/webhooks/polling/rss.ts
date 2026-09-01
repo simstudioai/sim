@@ -199,7 +199,7 @@ async function fetchNewRssItems(
   logger: Logger
 ): Promise<{ feed: RssFeed; items: RssItem[]; etag?: string; lastModified?: string }> {
   try {
-    const urlValidation = await validateUrlWithDNS(config.feedUrl, 'feedUrl')
+    const urlValidation = await validateUrlWithDNS(config.feedUrl, 'feedUrl', 'requestTarget')
     if (!urlValidation.isValid) {
       logger.error(`[${requestId}] Invalid RSS feed URL: ${urlValidation.error}`)
       throw new Error(`Invalid RSS feed URL: ${urlValidation.error}`)
@@ -216,7 +216,8 @@ async function fetchNewRssItems(
       headers['If-Modified-Since'] = config.lastModified
     }
 
-    const response = await secureFetchWithPinnedIP(config.feedUrl, urlValidation.resolvedIP!, {
+    const response = await secureFetchWithPinnedIP(config.feedUrl, urlValidation.resolvedIP, {
+      profile: 'requestTarget',
       headers,
       timeout: 30000,
       maxResponseBytes: MAX_RSS_FEED_BYTES,

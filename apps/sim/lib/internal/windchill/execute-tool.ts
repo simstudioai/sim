@@ -89,7 +89,11 @@ export const executeWindchillTool: InternalToolOperationHandler = async (request
       return failureResponse('Windchill request operation does not match the selected tool', 400)
     }
 
-    const output = await executeWindchillOperation(input, { principal, requestId, signal })
+    const output = await executeWindchillOperation(input, {
+      principal,
+      requestId,
+      signal,
+    })
     signal?.throwIfAborted()
     return Response.json({ success: true, output } satisfies WindchillOperationResponse)
   } catch (error) {

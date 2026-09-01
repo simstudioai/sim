@@ -7,6 +7,7 @@ import { cn } from '../../lib/cn'
 import { Calendar, formatDateLabel, formatDateRangeLabel } from '../calendar/calendar'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '../chip/chip'
 import { chipContentLabelClass, chipIconSlotClass } from '../chip/chip-chrome'
+import { OverflowText } from '../overflow-text/overflow-text'
 import { POPOVER_ANIMATION_CLASSES } from '../popover/popover-animation'
 
 interface ChipDatePickerBaseProps {
@@ -110,15 +111,15 @@ const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(
               className
             )}
           >
-            <span
+            <OverflowText
+              label={triggerText || placeholder}
               className={cn(
                 chipContentLabelClass,
                 'flex-1',
                 !triggerText && 'text-[var(--text-muted)]'
               )}
-            >
-              {triggerText || placeholder}
-            </span>
+              focusTarget='nearest-interactive'
+            />
             {variant === 'filled' && (
               <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
                 <ChevronDown className='size-[14px]' />

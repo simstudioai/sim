@@ -27,6 +27,9 @@ const GetFunctionResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     configuration: lambdaFunctionConfigurationSchema.nullable(),
+    tagsError: z
+      .object({ errorCode: z.string().nullable(), message: z.string().nullable() })
+      .nullable(),
     code: z
       .object({
         repositoryType: z.string().nullable(),

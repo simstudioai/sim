@@ -28,8 +28,8 @@ import {
   confluenceListSpacesContract,
   confluencePageAncestorsContract,
   confluencePageChildrenContract,
+  confluencePageContract,
   confluencePageDescendantsContract,
-  confluencePageSelectorContract,
   confluencePagesByLabelContract,
   confluencePageVersionsContract,
   confluenceSearchContract,
@@ -46,7 +46,7 @@ import {
   confluenceUpdateSpaceContract,
   confluenceUploadAttachmentContract,
   confluenceUserContract,
-} from '@/lib/api/contracts/selectors/confluence'
+} from '@/lib/api/contracts/tools/confluence'
 import { ConfluenceOperationError } from '@/lib/internal/confluence/errors'
 import {
   type ConfluenceOperationContext,
@@ -335,11 +335,7 @@ export const executeConfluenceTool: InternalToolOperationHandler = async (reques
     case 'confluence_list_spaces':
       return executeOperation(confluenceListSpacesContract, request, executeConfluenceListSpaces)
     case 'confluence_retrieve':
-      return executeOperation(
-        confluencePageSelectorContract,
-        request,
-        executeConfluenceRetrievePage
-      )
+      return executeOperation(confluencePageContract, request, executeConfluenceRetrievePage)
     case 'confluence_search':
       return executeOperation(confluenceSearchContract, request, executeConfluenceSearch)
     case 'confluence_search_in_space':
