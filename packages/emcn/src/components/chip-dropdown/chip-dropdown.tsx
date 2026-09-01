@@ -47,7 +47,18 @@ interface ChipDropdownOption {
 /**
  * Trigger + menu chrome props shared by both selection modes.
  */
-interface ChipDropdownBaseProps extends VariantProps<typeof chipVariants> {
+interface ChipDropdownBaseProps extends Omit<VariantProps<typeof chipVariants>, 'variant'> {
+  /**
+   * Trigger chrome. `filled` (default) is the bordered field chip; `ghost` is
+   * the bare toolbar pill — no border, hover-only surface, label and chevron
+   * both `--text-icon` — for visual parity with neighboring icon-toolbar
+   * buttons (mirrors {@link ChipDatePicker}'s `ghost`).
+   * Unlike the date picker's, a ghost dropdown keeps the owned chevron: its
+   * label changes with the selected value, so the chevron is the one stable
+   * cue that this is a picker. Other `chipVariants` values pass through
+   * (e.g. `primary` for an inverse call-to-action trigger).
+   */
+  variant?: VariantProps<typeof chipVariants>['variant'] | 'ghost'
   /** Options to render in the menu. */
   options: ReadonlyArray<ChipDropdownOption>
   /** Shown in the trigger when nothing is selected. */
@@ -140,7 +151,9 @@ type ChipDropdownProps = ChipDropdownSingleProps | ChipDropdownMultiProps
  * `multiple` mode it toggles values, keeps the menu open across selections,
  * and optionally renders an "all" reset row and a search field.
  *
- * The trigger reuses `chipVariants` for visual parity with `Chip`. The label
+ * The trigger reuses `chipVariants` for visual parity with `Chip` — the
+ * default `filled` variant with the trigger border, or the bare toolbar pill
+ * via `variant='ghost'` (see the prop doc). The label
  * is `flex-1`, so the trailing chevron is pushed flush right. The chevron is
  * owned by the component and rendered at `size-[14px]` (matching the
  * workspace-header chevron) — there is intentionally no `rightIcon` prop. The
@@ -219,8 +232,9 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       )
     }, [options, searchable, search])
 
+    const isGhost = variant === 'ghost'
     const isInverse = variant === 'primary' || variant === 'destructive'
-    const hasTriggerBorder = variant !== 'primary' && variant !== 'destructive'
+    const hasTriggerBorder = !isGhost && !isInverse
 
     let displayLabel: ReactNode
     if (isMultiple) {
@@ -252,8 +266,15 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
      * On intrinsic-width triggers (`inline-flex` with no parent constraint) the
      * container is sized to max-content, so `flex-grow` has no leftover space to
      * consume and the layout collapses to the natural `gap-2` between items.
+     *
+     * The ghost pill's label is `--text-icon` (matching its chevron), not
+     * `--text-body`: it sits in toolbars beside icon-only buttons, and a
+     * body-colored label would read louder than every control around it.
      */
-    const labelClass = cn('flex-1 text-sm', !isInverse && 'text-[var(--text-body)]')
+    const labelClass = cn(
+      'flex-1 text-sm',
+      !isInverse && (isGhost ? 'text-[var(--text-icon)]' : 'text-[var(--text-body)]')
+    )
 
     const triggerLabelClass = cn(
       labelClass,
@@ -325,7 +346,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelledBy}
             className={cn(
-              chipVariants({ variant, active, fullWidth }),
+              chipVariants({ variant: isGhost ? 'default' : variant, active, fullWidth }),
               hasTriggerBorder && TRIGGER_BORDER_CLASS,
               className
             )}

@@ -685,9 +685,13 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
             <Tooltip.Content side='top'>Skills</Tooltip.Content>
           </Tooltip.Root>
           <ChipDropdown
+            variant='ghost'
             options={MOTHERSHIP_EFFORT_OPTIONS}
             value={effort}
             placeholder='Effort'
+            aria-label='Effort'
+            align='start'
+            matchTriggerWidth={false}
             onChange={(value) => setEffort(value as MothershipEffort)}
           />
         </div>
