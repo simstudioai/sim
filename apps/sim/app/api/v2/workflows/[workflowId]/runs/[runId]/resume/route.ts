@@ -111,6 +111,8 @@ export const POST = withRouteHandler(
           workflowId,
           status: result.status as 'completed' | 'failed' | 'paused' | 'cancelled',
           output: result.output ?? null,
+          // Resume has no request body to name selectors in, so selection never applies here.
+          blockOutputs: null,
           error:
             typeof result.error === 'string'
               ? classifyExecutionError(new Error(result.error))
