@@ -568,9 +568,14 @@ export const booleanQueryFlagSchema = z.preprocess(
  * An empty value is a caller sending an unfilled form field, not a question
  * about cost.
  *
+ * `null` is dropped for the same reason and by the same arithmetic: a client
+ * that spells an unset bound as `null` rather than by omitting the key —
+ * `requestJson` parses the query object client-side, so a `null` field reaches
+ * this schema as itself — would otherwise be handed `Number(null) === 0`.
+ *
  * An explicit `0` is preserved: `?minCost=0` is a real bound the caller typed.
  */
-export const optionalNumberQuerySchema = z.preprocess(
-  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
-  z.coerce.number().optional()
-)
+export const optionalNumberQuerySchema = z.preprocess((value) => {
+  if (value === null) return undefined
+  return typeof value === 'string' && value.trim() === '' ? undefined : value
+}, z.coerce.number().optional())
