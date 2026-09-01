@@ -5895,12 +5895,11 @@ export function PipedriveIcon(props: SVGProps<SVGSVGElement>) {
 
 export function SailPointIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'>
-      <path
-        fill='currentColor'
-        d='M7.25 2.4c5.66 1.7 9.2 6.86 9.9 15.35a.75.75 0 0 1-.75.81H7.25a.75.75 0 0 1-.75-.75V3.12a.75.75 0 0 1 .95-.72Z'
-      />
-      <rect fill='currentColor' x='3' y='19.9' width='18' height='1.8' rx='.9' />
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 109.5 107'>
+      <path fill='#0033A1' d='M63,0l13.2,78.6H0L63,0z' />
+      <path fill='#CC27B0' d='M62.9,0l46.7,78.6H76L62.9,0z' />
+      <path fill='#0071CE' d='M0,78.6h76.2l4.8,28.4L0,78.6z' />
+      <path fill='#E17FD2' d='M76,78.6h33.5L80.8,107L76,78.6z' />
     </svg>
   )
 }

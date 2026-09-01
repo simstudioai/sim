@@ -141,7 +141,7 @@ export const SailPointBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/integrations/sailpoint',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  bgColor: '#0033A1',
+  bgColor: '#FFFFFF',
   icon: SailPointIcon,
   authMode: AuthMode.ApiKey,
   canvasPresentation: {
