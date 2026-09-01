@@ -509,6 +509,7 @@ export async function executeRunFromBlock(
     const useDraftState = !params.useDeployedState
     const result = await executeCopilotWorkflowUseCase(context, runFromBlockFromCopilot, {
       workflowId,
+      variableInputs: params.variableInputs,
       assertedWorkspaceId: context.workspaceId,
       useDraftState,
       blockId: params.startBlockId,
@@ -597,6 +598,7 @@ export async function executeRunBlock(
     const useDraftState = !params.useDeployedState
     const result = await executeCopilotWorkflowUseCase(context, runBlockFromCopilot, {
       workflowId,
+      variableInputs: params.variableInputs,
       assertedWorkspaceId: context.workspaceId,
       useDraftState,
       blockId: params.blockId,
