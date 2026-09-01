@@ -16,9 +16,11 @@ import {
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
+  v1PersonalKeyCredential,
   v1RateLimitContextModuleMock,
   v1RateLimiterModuleMock,
   v1SubscriptionModuleMock,
+  v1WorkspaceKeyCredential,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -118,26 +120,6 @@ const LOG_ROW = {
   workflowUpdatedAt: new Date('2026-01-01T00:00:00.000Z'),
 }
 
-function personalKey() {
-  return {
-    authenticated: true,
-    userId: USER_ID,
-    keyType: 'personal' as const,
-    principal: { kind: 'personal_api_key' as const, userId: USER_ID, keyId: 'key-1' },
-  }
-}
-
-/** A workspace key authorizes as the workspace: its creator's group is nobody's. */
-function workspaceKey() {
-  return {
-    authenticated: true,
-    userId: 'key-creator',
-    workspaceId: WORKSPACE_ID,
-    keyType: 'workspace' as const,
-    principal: { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-2' },
-  }
-}
-
 function governedBy(overrides: Partial<typeof DEFAULT_PERMISSION_GROUP_CONFIG>) {
   permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
     ...DEFAULT_PERMISSION_GROUP_CONFIG,
@@ -175,7 +157,7 @@ function readDetail() {
 beforeEach(() => {
   vi.clearAllMocks()
   resetPermissionGroupScopeMock()
-  mockAuthenticateV1Request.mockResolvedValue(personalKey())
+  mockAuthenticateV1Request.mockResolvedValue(v1PersonalKeyCredential(USER_ID))
   mockGetUserEntityPermissions.mockResolvedValue('admin')
   mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: true })
   mockListPublicWorkflowLogs.mockResolvedValue({ data: [LOG_ROW], nextCursor: null })
@@ -224,7 +206,7 @@ describe('GET /api/v1/logs?details=full', () => {
   })
 
   it('withholds nothing from a workspace API key, whose creator has no say', async () => {
-    mockAuthenticateV1Request.mockResolvedValue(workspaceKey())
+    mockAuthenticateV1Request.mockResolvedValue(v1WorkspaceKeyCredential(WORKSPACE_ID))
     governedBy({ hideTraceSpans: true, hideCostInfo: true })
 
     const body = await (await listFull()).json()
@@ -275,7 +257,7 @@ describe('GET /api/v1/logs cost-selective queries', () => {
 
   /** A workspace key has no user and therefore no group to refuse on behalf of. */
   it('answers the same filter for a workspace API key', async () => {
-    mockAuthenticateV1Request.mockResolvedValue(workspaceKey())
+    mockAuthenticateV1Request.mockResolvedValue(v1WorkspaceKeyCredential(WORKSPACE_ID))
     governedBy({ hideCostInfo: true })
 
     const response = await listFiltered('minCost=0.5')
