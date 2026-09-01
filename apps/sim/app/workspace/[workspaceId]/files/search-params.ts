@@ -1,5 +1,6 @@
 import { createParser, parseAsArrayOf, parseAsString } from 'nuqs/server'
 import { createSortParams } from '@/lib/url-state'
+import type { ResourceListPreferenceConfig } from '@/stores/resource-list-preferences'
 
 /** Sortable list columns, matching the `Resource.Options` sort menu. */
 export const FILE_SORT_COLUMNS = ['name', 'size', 'type', 'created', 'owner', 'updated'] as const
@@ -81,6 +82,16 @@ export const filesSortParams = createSortParams(FILE_SORT_COLUMNS, {
   column: 'updated',
   direction: 'desc',
 })
+
+export const filesListPreferenceConfig = {
+  module: 'files',
+  sortColumns: FILE_SORT_COLUMNS,
+  filterKeys: ['type', 'size', 'uploadedBy'],
+  defaultPreference: {
+    sort: filesSortParams.default,
+    filters: { type: [], size: [], uploadedBy: [] },
+  },
+} satisfies ResourceListPreferenceConfig
 
 /** Filter/search/sort view-state: clean URLs, no back-stack churn. */
 export const filesFilterUrlKeys = {

@@ -1,5 +1,6 @@
 import { parseAsArrayOf, parseAsString } from 'nuqs/server'
 import { createSortParams } from '@/lib/url-state'
+import type { ResourceListPreferenceConfig } from '@/stores/resource-list-preferences'
 
 /** Sortable knowledge base columns, matching the `Resource.Options` sort menu. */
 export const KNOWLEDGE_SORT_COLUMNS = [
@@ -42,6 +43,16 @@ export const knowledgeParsers = {
   content: parseAsArrayOf(parseAsString).withDefault([]),
   owner: parseAsArrayOf(parseAsString).withDefault([]),
 } as const
+
+export const knowledgeListPreferenceConfig = {
+  module: 'knowledge',
+  sortColumns: KNOWLEDGE_SORT_COLUMNS,
+  filterKeys: ['connector', 'content', 'owner'],
+  defaultPreference: {
+    sort: knowledgeSortParams.default,
+    filters: { connector: [], content: [], owner: [] },
+  },
+} satisfies ResourceListPreferenceConfig
 
 /** Filter/search/sort view-state: clean URLs, no back-stack churn. */
 export const knowledgeUrlKeys = {

@@ -72,7 +72,9 @@ import {
 } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import { useWorkspaceTablesRoom } from '@/app/workspace/[workspaceId]/tables/hooks/use-workspace-tables-room'
+import TablesLoading from '@/app/workspace/[workspaceId]/tables/loading'
 import {
+  tablesListPreferenceConfig,
   tablesParsers,
   tablesSortParams,
   tablesUrlKeys,
@@ -96,9 +98,11 @@ import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useResourceListPreferences } from '@/hooks/use-resource-list-preferences'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import type { WorkflowFolder } from '@/stores/folders/types'
+import type { ResourceListPreference } from '@/stores/resource-list-preferences'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
 const logger = createLogger('Tables')
@@ -251,9 +255,49 @@ export function Tables() {
     sort: sortColumn,
     dir: sortDirection,
     activeSort,
-    onSort,
-    onClear,
+    onSort: applyUrlSort,
+    onClear: clearUrlSort,
   } = useUrlSort(tablesSortParams, tablesUrlKeys)
+
+  const currentListPreference = useMemo<ResourceListPreference>(
+    () => ({
+      sort: { column: sortColumn, direction: sortDirection },
+      filters: { rows: rowCountFilter, owner: ownerFilter },
+    }),
+    [sortColumn, sortDirection, rowCountFilter, ownerFilter]
+  )
+
+  const applyListPreference = useCallback(
+    (preference: ResourceListPreference) => {
+      void setTableFilters({
+        rows: [...preference.filters.rows],
+        owner: [...preference.filters.owner],
+      })
+      const defaultSort = tablesListPreferenceConfig.defaultPreference.sort
+      if (
+        preference.sort.column === defaultSort.column &&
+        preference.sort.direction === defaultSort.direction
+      ) {
+        clearUrlSort()
+      } else {
+        applyUrlSort(preference.sort.column, preference.sort.direction)
+      }
+    },
+    [applyUrlSort, clearUrlSort, setTableFilters]
+  )
+
+  const {
+    isReady: isListPreferenceReady,
+    setFilter: setListFilter,
+    clearFilters: clearTableFilters,
+    setSort: setListSort,
+    clearSort: clearListSort,
+  } = useResourceListPreferences({
+    workspaceId,
+    config: tablesListPreferenceConfig,
+    preference: currentListPreference,
+    applyPreference: applyListPreference,
+  })
 
   /**
    * The input is controlled directly by the instant nuqs value; only the URL
@@ -266,12 +310,12 @@ export function Tables() {
   const debouncedSearchTerm = useSearchFilterValue(urlSearchTerm, SEARCH_DEBOUNCE_MS)
 
   const setRowCountFilter = useCallback(
-    (next: string[]) => setTableFilters({ rows: next }),
-    [setTableFilters]
+    (next: string[]) => setListFilter('rows', next),
+    [setListFilter]
   )
   const setOwnerFilter = useCallback(
-    (next: string[]) => setTableFilters({ owner: next }),
-    [setTableFilters]
+    (next: string[]) => setListFilter('owner', next),
+    [setListFilter]
   )
 
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
@@ -641,10 +685,10 @@ export function Tables() {
         { id: 'updated', label: 'Last Updated' },
       ],
       active: activeSort,
-      onSort,
-      onClear,
+      onSort: setListSort,
+      onClear: clearListSort,
     }),
-    [activeSort, onSort, onClear]
+    [activeSort, setListSort, clearListSort]
   )
 
   const rowCountDisplayLabel = useMemo(() => {
@@ -720,10 +764,7 @@ export function Tables() {
         {hasActiveFilters && (
           <button
             type='button'
-            onClick={() => {
-              setRowCountFilter([])
-              setOwnerFilter([])
-            }}
+            onClick={clearTableFilters}
             className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
           >
             Clear all filters
@@ -740,6 +781,7 @@ export function Tables() {
       hasActiveFilters,
       setRowCountFilter,
       setOwnerFilter,
+      clearTableFilters,
     ]
   )
 
@@ -776,7 +818,7 @@ export function Tables() {
 
   const clearSearchAndFilters = () => {
     setSearchTerm('')
-    void setTableFilters({ rows: null, owner: null })
+    clearTableFilters()
   }
 
   const handleContentContextMenu = useCallback(
@@ -1299,6 +1341,8 @@ export function Tables() {
     ]
   )
   const filterConfig = useMemo(() => ({ content: filterContent }), [filterContent])
+
+  if (!isListPreferenceReady) return <TablesLoading />
 
   return (
     <>
