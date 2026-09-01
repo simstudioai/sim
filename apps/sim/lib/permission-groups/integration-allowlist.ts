@@ -17,11 +17,25 @@ import { BLOCK_ACCESS_SUCCESSORS } from '@/lib/permission-groups/block-successor
  * `check:block-successors` fails the build when the projection drifts.
  */
 export function resolveAccessControlBlockType(blockType: string): string {
-  return (
-    BLOCK_ACCESS_SUCCESSORS[blockType] ??
-    BLOCK_ACCESS_SUCCESSORS[blockType.replace(/-/g, '_')] ??
-    blockType
-  )
+  return ownSuccessor(blockType) ?? ownSuccessor(blockType.replace(/-/g, '_')) ?? blockType
+}
+
+/**
+ * Reads the successor map by its own keys only.
+ *
+ * The generated map is an object literal with an intact prototype, so a bare
+ * bracket lookup answers `constructor`, `toString`, `valueOf` and friends with
+ * an inherited function. The ids reaching here come from admin-supplied jsonb
+ * (`allowedIntegrations`) and from `ALLOWED_INTEGRATIONS`, so a group naming
+ * `constructor` made {@link toAccessControlAllowlist} call `.toLowerCase()` on
+ * a function and throw — an unclassified 500 on every enforcement path that
+ * read that group. `getBlock` guards the registry the same way for the same
+ * reason.
+ */
+function ownSuccessor(blockType: string): string | undefined {
+  return Object.hasOwn(BLOCK_ACCESS_SUCCESSORS, blockType)
+    ? BLOCK_ACCESS_SUCCESSORS[blockType]
+    : undefined
 }
 
 /**

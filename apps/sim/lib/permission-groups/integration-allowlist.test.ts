@@ -40,6 +40,18 @@ describe('resolveAccessControlBlockType', () => {
   it('accepts the dashed spelling the registry also normalizes', () => {
     expect(resolveAccessControlBlockType('google-sheets')).toBe('google_sheets_v2')
   })
+
+  /**
+   * `allowedIntegrations` is admin-supplied jsonb and `ALLOWED_INTEGRATIONS` is
+   * hand-written, so an arbitrary string reaches the successor map. An
+   * inherited key must stay an ordinary unresolved id rather than answering
+   * with `Object.prototype`'s function.
+   */
+  it('leaves an object-prototype key alone', () => {
+    expect(resolveAccessControlBlockType('constructor')).toBe('constructor')
+    expect(resolveAccessControlBlockType('toString')).toBe('toString')
+    expect(resolveAccessControlBlockType('__proto__')).toBe('__proto__')
+  })
 })
 
 describe('toAccessControlAllowlist', () => {
@@ -60,6 +72,18 @@ describe('toAccessControlAllowlist', () => {
 
   it('denies everything for an empty allowlist', () => {
     expect(toAccessControlAllowlist([])?.size).toBe(0)
+  })
+
+  /**
+   * A prototype key used to resolve to an inherited function and throw on
+   * `.toLowerCase()`, turning one configured string into a 500 on every
+   * enforcement path that read the group.
+   */
+  it('indexes an object-prototype entry as an ordinary block type', () => {
+    const allowlist = toAccessControlAllowlist(['constructor', 'slack'])
+
+    expect(allowlist?.has('constructor')).toBe(true)
+    expect(allowlist?.has('slack_v2')).toBe(true)
   })
 })
 
