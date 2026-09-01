@@ -490,14 +490,39 @@ export async function getExecutionEnvironment(
     return toWorkspaceOnlySnapshot(await getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId))
   }
 
+  /**
+   * A suspended account lends nothing, from any path.
+   *
+   * Checked before the single-identity shortcut below rather than alongside the
+   * access lookups, because "the caller already cleared this identity" does not
+   * hold everywhere: a custom-block child is admitted by
+   * `admitCustomBlockChildExecution`, which checks usage limits and nothing
+   * else, and a provider URL-validation challenge resolves with no admission at
+   * all. Behind the shortcut, a publisher who is also their workspace's billing
+   * account made both identities equal and skipped the gate entirely — the one
+   * arrangement where suspension was silently ignored.
+   *
+   * Only the personal namespace is withheld. Workspace variables belong to the
+   * workspace rather than to a person, so they keep resolving and the runs a
+   * suspended member's teammates depend on keep working — which is the whole
+   * reason admission stopped blocking on this identity in the first place.
+   */
+  if ((await getActivelyBannedUserIds([personalUserId])).length > 0) {
+    logger.error('Personal-environment identity is suspended; resolving workspace variables only', {
+      personalUserId,
+      workspaceUserId,
+      workspaceId,
+    })
+    return toWorkspaceOnlySnapshot(await getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId))
+  }
+
   if (!workspaceId || workspaceUserId === personalUserId) {
     return getPersonalAndWorkspaceEnv(personalUserId, workspaceId)
   }
 
-  const [actorAccess, personalAccess, suspendedPersonalIds] = await Promise.all([
+  const [actorAccess, personalAccess] = await Promise.all([
     checkWorkspaceAccess(workspaceId, workspaceUserId),
     checkWorkspaceAccess(workspaceId, personalUserId),
-    getActivelyBannedUserIds([personalUserId]),
   ])
 
   /**
@@ -509,23 +534,7 @@ export async function getExecutionEnvironment(
     throw new Error(`Workspace ${workspaceId} does not exist`)
   }
 
-  /**
-   * A suspended account lends nothing, even when the run itself may continue.
-   *
-   * Admission blocks on the identities a run acts as and deliberately not on the
-   * personal-variable fallback, so that suspending one member does not take down
-   * the schedules, webhooks, and deployed chats their teammates depend on. But
-   * "this run may continue" and "that person's private credentials may still be
-   * used" are different questions, and a ban revokes neither workspace
-   * membership nor the pointer naming them — so without this the run proceeds on
-   * a suspended account's own keys.
-   *
-   * Only the personal identity is checked here; admission already cleared the
-   * actor before execution reached this point.
-   */
-  const personalIdentitySuspended = suspendedPersonalIds.length > 0
-
-  if (!personalAccess.hasAccess || personalIdentitySuspended) {
+  if (!personalAccess.hasAccess) {
     if (!actorAccess.hasAccess) {
       logger.error('Neither execution identity can reach the workspace', {
         personalUserId,
@@ -536,9 +545,7 @@ export async function getExecutionEnvironment(
     }
 
     logger.error(
-      personalIdentitySuspended
-        ? 'Personal-environment identity is suspended; resolving workspace variables only'
-        : 'Personal-environment identity cannot reach the workspace; resolving workspace variables only',
+      'Personal-environment identity cannot reach the workspace; resolving workspace variables only',
       { personalUserId, workspaceUserId, workspaceId }
     )
     return toWorkspaceOnlySnapshot(

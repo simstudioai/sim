@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { getWorkspaceBilledAccountUserId } from '@/lib/billing/core/billing-attribution'
 import { getEffectiveDecryptedEnv, getExecutionEnvironment } from '@/lib/environment/utils'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 
@@ -30,7 +31,6 @@ export async function resolveBackgroundWebhookEnv(
     return getEffectiveDecryptedEnv(workflowOwnerUserId)
   }
 
-  const { getWorkspaceBilledAccountUserId } = await import('@/lib/billing/core/billing-attribution')
   const billedAccountUserId = await getWorkspaceBilledAccountUserId(workspaceId)
   if (!billedAccountUserId) {
     return getEffectiveDecryptedEnv(workflowOwnerUserId, workspaceId)

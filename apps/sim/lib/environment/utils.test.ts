@@ -640,6 +640,35 @@ describe('getExecutionEnvironment', () => {
     expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
   })
 
+  /**
+   * The arrangement that slipped past a split-path-only check: a custom-block
+   * publisher who is also their workspace's billing account makes both
+   * identities equal, taking the single-identity shortcut. That path has no
+   * admission gate at all — `admitCustomBlockChildExecution` checks usage limits
+   * and nothing else — so the suspension has to be enforced here.
+   */
+  it('withholds the personal namespace when both identities are the same suspended user', async () => {
+    grantAdminTo('publisher-1')
+    mockGetActivelyBannedUserIds.mockResolvedValue(['publisher-1'])
+    queueTableRows(environment, [{ variables: { PUBLISHER_KEY: 'publisher-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('publisher-1', 'publisher-1', 'workspace-1')
+
+    expect(snapshot.personalDecrypted).toEqual({})
+    expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
+  })
+
+  /** A workspaceless run has no workspace slice either, so a suspended identity lends nothing. */
+  it('resolves nothing personal for a suspended identity with no workspace', async () => {
+    mockGetActivelyBannedUserIds.mockResolvedValue(['suspended-1'])
+    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('suspended-1', 'suspended-1', undefined)
+
+    expect(snapshot.personalDecrypted).toEqual({})
+  })
+
   /** The actor is cleared by admission, so only the personal identity is looked up. */
   it('does not re-check the execution actor for a ban', async () => {
     grantAdminTo('actor-1')
