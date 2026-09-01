@@ -226,14 +226,7 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
   name: 'Table',
   description: 'User-defined data tables',
   longDescription:
-    'Create and manage custom data tables. Store, query, and manipulate structured data within workflows. ' +
-    'Query Rows accepts a plain predicate — `{"field":"wins","op":"gte","value":10}` — for one condition. ' +
-    'Use `all` (AND) or `any` (OR) groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, ' +
-    'nlike, nilike, contains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Order is a sort ' +
-    'spec `[{"field":"wins","direction":"desc"}]`. Query Rows returns every matching row when Limit is omitted ' +
-    '(fails if the result exceeds 5MB — add a filter or a Limit). With a Limit, responses page: a non-null ' +
-    'nextCursor means more rows exist — pass it back as the cursor. Columns to Return narrows each row to ' +
-    'the selected columns (by stable id or name; one that no longer exists is skipped); leave it empty for every column.',
+    'Create and manage custom data tables. Store, query, and manipulate structured data within workflows. Query Rows accepts a plain predicate — `{"field":"wins","op":"gte","value":10}` — for one condition. Use `all` (AND) or `any` (OR) groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Order is a sort spec `[{"field":"wins","direction":"desc"}]`. Query Rows returns every matching row when Limit is omitted (fails if the result exceeds 5MB — add a filter or a Limit). With a Limit, responses page: a non-null nextCursor means more rows exist — pass it back as the cursor. Columns to Return narrows each row to the selected columns (by stable id or name; one that no longer exists is skipped); leave it empty for every column.',
   bestPractices: `
 - To fetch specific rows, use Query Rows with a predicate filter (e.g. {"field":"slack_user_id","op":"in","value":["U1","U2"]}) — do NOT read every row and filter downstream with a Condition block.
 - Use "Get Row by ID" only when you have the row's id; otherwise filter with a predicate.
