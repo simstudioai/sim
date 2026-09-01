@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   readVersion: vi.fn(),
   loadNormalized: vi.fn(),
   notifyWorkflowUpdated: vi.fn(),
+  notifyWorkspaceWorkflowsChanged: vi.fn(),
   workflowCreated: vi.fn(),
 }))
 
@@ -91,6 +92,7 @@ vi.mock('@/lib/workflows/persistence/utils', () => ({
 
 vi.mock('@/lib/realtime/notify', () => ({
   notifyWorkflowUpdated: mocks.notifyWorkflowUpdated,
+  notifyWorkspaceWorkflowsChanged: mocks.notifyWorkspaceWorkflowsChanged,
 }))
 
 vi.mock('@/lib/core/telemetry', () => ({
@@ -237,6 +239,7 @@ describe('authorized workflow CRUD and version reads', () => {
       })
     )
     expect(mocks.notifyWorkflowUpdated).toHaveBeenCalledWith(WORKFLOW_ID)
+    expect(mocks.notifyWorkspaceWorkflowsChanged).toHaveBeenCalledWith(WORKSPACE_ID)
     expect(mocks.workflowCreated).toHaveBeenCalledWith(
       expect.objectContaining({ workflowId: WORKFLOW_ID, workspaceId: WORKSPACE_ID })
     )

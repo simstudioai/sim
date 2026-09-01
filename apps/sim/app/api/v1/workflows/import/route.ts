@@ -8,6 +8,7 @@ import {
 } from '@/lib/api/contracts/v1/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import {
   importWorkflowIntoWorkspace,
   MAX_IMPORT_BODY_BYTES,
@@ -89,6 +90,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: result.status }
       )
     }
+
+    await notifyWorkspaceWorkflowsChanged(result.workflow.workspaceId)
 
     const data: V1ImportWorkflowData = {
       id: result.workflow.id,
