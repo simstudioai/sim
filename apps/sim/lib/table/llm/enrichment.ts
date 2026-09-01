@@ -150,7 +150,7 @@ INSTRUCTIONS:
 3. For multiple conditions wrap them in {"all":[...]} for AND or {"any":[...]} for OR; groups nest
 4. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty
 ${wildcardRule}
-6. Any column listed below with a restricted operator set accepts ONLY those operators - the query is rejected outright otherwise. A multi-select cell holds a list, so match it by option name with contains, never ilike
+6. Any column listed below with a restricted operator set accepts ONLY those operators - the query is rejected outright otherwise. JSON columns reject eq, ne, gt, gte, lt, lte, in, and nin; a multi-select cell holds a list, so match it by option name with contains, never ilike
 7. For substring matching on a text column use ilike with *x*
 8. For ranking queries (highest, lowest, Nth, top N) set order and a small limit, e.g. limit 1 for the highest, 2 for the second highest
 9. Omit limit to return every matching row; the query fails if the result exceeds 5MB, so narrow with a filter instead of guessing a limit
