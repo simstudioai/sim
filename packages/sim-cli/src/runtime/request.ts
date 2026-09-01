@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readSync } from 'node:fs'
 import { CLI_CONTRACT } from '../contract/commands'
 import type { CommandSpec, FlagSpec } from '../contract/types'
+import { embedStore } from '../embed-context'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import { type QueryValue, SimApiError } from '../http/client'
 import { camel, kebab } from './derive'
@@ -201,6 +202,17 @@ function literalAtHint(error: unknown, path: string): string {
 export function readArgumentSource(raw: string, flagName: string): { text: string; from: string } {
   if (raw.startsWith('@@')) return { text: raw.slice(1), from: '' }
   if (!raw.startsWith('@')) return { text: raw, from: '' }
+
+  // An embedded run executes in-process on the hosting server, so a file path
+  // here would read the SERVER's filesystem with argv the model controls.
+  // There is no local file a caller could legitimately mean; the value must
+  // arrive inline (or as @@-escaped literal text).
+  if (embedStore.getStore()) {
+    throw new SimApiError(
+      `--${flagName} file arguments (@path) are not available in embedded runs — pass the JSON inline as a single argument`,
+      0
+    )
+  }
 
   const path = raw.slice(1)
   if (path === '-') {
