@@ -63,6 +63,8 @@ export interface ExecuteWorkflowOptions {
     startBlockId: string
     sourceSnapshot: SerializableExecutionState
     sourceExecutionId?: string
+    /** Mocked upstream outputs (block name/id → output object) overlaid on the snapshot. */
+    variableInputs?: Record<string, unknown>
   }
   /** Trusted encrypted provenance supplied by a server-only caller before execution starts. */
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
