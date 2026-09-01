@@ -147,13 +147,18 @@ describe('getUserPermissionConfig (org + entitlement gating)', () => {
     expect(mockIsOrganizationOnEnterprisePlan).not.toHaveBeenCalled()
   })
 
+  /**
+   * The env list is written by hand against whatever ids its author knew, so it
+   * is canonicalized on the way in: `slack` and `slack_v2` are the same policy,
+   * and the merged config carries the id every gate resolves a block type to.
+   */
   it('still applies the env allowlist on a no-org workspace', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({ organizationId: null })
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack'])
 
     const config = await getUserPermissionConfig('user-123', 'workspace-1')
 
-    expect(config?.allowedIntegrations).toEqual(['slack'])
+    expect(config?.allowedIntegrations).toEqual(['slack_v2'])
   })
 
   it('returns null when the organization is not on an enterprise plan', async () => {
@@ -313,6 +318,12 @@ describe('access control context resolution', () => {
     })
   })
 
+  /**
+   * The group and the deployment name the same integrations by different
+   * vintages — the editor only offers current ids, `ALLOWED_INTEGRATIONS` is
+   * hand-written. Intersecting them textually left Slack out of a policy both
+   * layers permit, so both sides are successor-resolved first.
+   */
   it('identifies the default group and preserves the environment allowlist', async () => {
     mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack'])
@@ -322,7 +333,7 @@ describe('access control context resolution', () => {
         {
           id: 'group-default',
           name: 'Organization default',
-          config: { allowedIntegrations: ['slack', 'github'] },
+          config: { allowedIntegrations: ['slack_v2', 'github'] },
         },
       ]
     )
@@ -338,7 +349,7 @@ describe('access control context resolution', () => {
       name: 'Organization default',
       resolution: 'default',
     })
-    expect(context.config?.allowedIntegrations).toEqual(['slack'])
+    expect(context.config?.allowedIntegrations).toEqual(['slack_v2'])
   })
 })
 
@@ -500,12 +511,17 @@ describe('validateBlockType', () => {
       await validateBlockType(undefined, undefined, 'start_trigger')
     })
 
+    /**
+     * `thinking` is a real retired block with no successor: it has no editor row
+     * and nothing to be permitted *as*, so it is exempt. A retired block that
+     * does have one — `notion` — is judged as `notion_v2` instead and is not.
+     */
     it('always allows legacy blocks hidden from the toolbar', async () => {
       mockGetBlock.mockImplementation((type) =>
-        type === 'notion' ? { hideFromToolbar: true } : undefined
+        type === 'thinking' ? { hideFromToolbar: true } : undefined
       )
 
-      await validateBlockType(undefined, undefined, 'notion')
+      await validateBlockType(undefined, undefined, 'thinking')
     })
 
     it('does NOT treat preview blocks as exempt — preview is not legacy', async () => {
@@ -769,13 +785,13 @@ describe('assertPermissionsAllowed', () => {
   it('exempts legacy blocks from the integration allowlist', async () => {
     queueGroupResolution([{ config: { allowedIntegrations: ['slack'] } }])
     mockGetBlock.mockImplementation((type) =>
-      type === 'notion' ? { hideFromToolbar: true } : undefined
+      type === 'thinking' ? { hideFromToolbar: true } : undefined
     )
 
     await assertPermissionsAllowed({
       userId: 'user-123',
       workspaceId: 'workspace-1',
-      blockType: 'notion',
+      blockType: 'thinking',
     })
   })
 

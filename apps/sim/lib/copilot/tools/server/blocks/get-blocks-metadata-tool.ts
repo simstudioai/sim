@@ -19,7 +19,10 @@ import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integration
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import {
+  intersectIntegrationAllowlists,
+  resolveAccessControlBlockType,
+} from '@/lib/permission-groups/integration-allowlist'
 import {
   collectDeniedOperationIds,
   createToolAccessGate,
@@ -213,7 +216,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         allowedIntegrations != null &&
         !specialBlock &&
         !isBlockTypeAccessControlExempt(blockId) &&
-        !allowedIntegrations.includes(blockId.toLowerCase())
+        !allowedIntegrations.includes(resolveAccessControlBlockType(blockId.toLowerCase()))
       ) {
         logger.debug('Block not allowed by permission group', { blockId })
         continue

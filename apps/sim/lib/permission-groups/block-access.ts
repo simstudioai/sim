@@ -1,4 +1,11 @@
+import {
+  intersectAccessControlAllowlists,
+  resolveAccessControlBlockType,
+  toAccessControlAllowlist,
+} from '@/lib/permission-groups/integration-allowlist'
 import { getBlock } from '@/blocks/registry'
+
+export { intersectAccessControlAllowlists, resolveAccessControlBlockType, toAccessControlAllowlist }
 
 /**
  * The universal workflow entry point. Every retired entry point resolves to it,
@@ -40,71 +47,4 @@ export function isBlockTypeAccessControlExempt(blockType: string): boolean {
   if (block?.hideFromToolbar !== true) return false
   const successor = resolveAccessControlBlockType(blockType)
   return successor === blockType || successor === UNIVERSAL_ENTRY_POINT
-}
-
-/**
- * The block type an allowlist decision should be made against.
- *
- * A superseded version resolves to the successor its `sunset.replacedBy` names,
- * transitively, so allowing or denying an integration covers every version of
- * it. Without this an admin would have to know each retired id and deny it
- * individually — and could not, since the editor only offers the current ones.
- *
- * A retired block with no successor keeps its own identity and appears in the
- * editor under it, which is the only way an admin can decide about it at all.
- */
-export function resolveAccessControlBlockType(blockType: string): string {
-  const seen = new Set<string>([blockType])
-  let current = blockType
-
-  while (true) {
-    const successor = getBlock(current)?.sunset?.replacedBy
-    if (!successor || seen.has(successor) || !getBlock(successor)) return current
-    seen.add(successor)
-    current = successor
-  }
-}
-
-/**
- * The allowlist, indexed for membership tests against the block type an
- * allowlist decision is made against. `null` stays `null` — unrestricted, not
- * "nothing allowed".
- *
- * Both sides have to be normalized or they compare different vocabularies. A
- * policy list can name a retired id: `ALLOWED_INTEGRATIONS` is written by hand
- * against whatever ids the author knows, so `ALLOWED_INTEGRATIONS=slack` is the
- * expected way to permit Slack. The checked type is always successor-resolved,
- * so without normalizing the policy the deployment that permitted `slack` would
- * refuse every `slack_v2` block in it.
- */
-/**
- * Intersects two independent integration policies in the *resolved* vocabulary.
- *
- * Each side is canonicalized before the intersection, not after. A policy list
- * can name a retired id while the other names its successor —
- * `ALLOWED_INTEGRATIONS=slack` against a group naming `slack_v2` — and folding
- * only case leaves those two ids disjoint, intersecting to nothing and hiding
- * an integration both policies allow. `null` stays unrestricted on either side.
- */
-export function intersectAccessControlAllowlists(
-  first: readonly string[] | null,
-  second: readonly string[] | null
-): ReadonlySet<string> | null {
-  const resolvedFirst = toAccessControlAllowlist(first)
-  const resolvedSecond = toAccessControlAllowlist(second)
-  if (resolvedFirst === null) return resolvedSecond
-  if (resolvedSecond === null) return resolvedFirst
-  return new Set([...resolvedFirst].filter((type) => resolvedSecond.has(type)))
-}
-
-export function toAccessControlAllowlist(
-  allowedIntegrations: readonly string[] | null
-): ReadonlySet<string> | null {
-  return allowedIntegrations
-    ? new Set(
-        allowedIntegrations.map((integration) =>
-          resolveAccessControlBlockType(integration.toLowerCase()).toLowerCase()
-        )
-      )
-    : null
 }
