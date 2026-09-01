@@ -1434,7 +1434,7 @@ export const CLI_CONTRACT: CliContract = {
         name: 'select-output',
         list: true,
         describe:
-          'Return blockName.field values (e.g. agent_1.content), or childWorkflowId.blockName.field for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing fields are omitted. Not available with --async',
+          'Return blockName.path values (e.g. agent_1.content), or childWorkflowId.blockName.path for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing paths are omitted. Not available with --async',
       },
       // SSE, not JSON — the generic client cannot consume it, so the response
       // encoding is chosen by `--follow`, which `workflow-run-follow.ts` adds to
