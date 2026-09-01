@@ -3,6 +3,7 @@ import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothersh
 import type { StreamEvent, StreamingContext } from '@/lib/mothership/request/types'
 import { handleCompleteEvent } from './complete'
 import { handleErrorEvent } from './error'
+import { handlePlanEvent } from './plan'
 import { handleResourceEvent } from './resource'
 import { handleRunEvent } from './run'
 import { handleSessionEvent } from './session'
@@ -25,6 +26,7 @@ export const sseHandlers: Record<string, StreamHandler> = {
   [MothershipStreamV1EventType.complete]: handleCompleteEvent,
   [MothershipStreamV1EventType.error]: handleErrorEvent,
   [MothershipStreamV1EventType.span]: handleSpanEvent,
+  plan: handlePlanEvent,
 }
 
 export const subAgentHandlers: Record<string, StreamHandler> = {
