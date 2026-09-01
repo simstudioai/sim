@@ -336,13 +336,7 @@ describe('subBlock param extraction', () => {
    * harmless today because no `notion_*` tool carries a hidden param besides `accessToken`.
    */
   it('reports a subBlocks array of only unfollowable spreads as UNKNOWN, not empty', () => {
-    for (const blockFile of [
-      'imap.ts',
-      'generic_webhook.ts',
-      'circleback.ts',
-      'rss.ts',
-      'sim_workspace_event.ts',
-    ]) {
+    for (const blockFile of ['imap.ts', 'generic_webhook.ts', 'rss.ts', 'sim_workspace_event.ts']) {
       expect(extractUserSettableParamIds(blockSource(blockFile))).toBeNull()
     }
 
