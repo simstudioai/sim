@@ -35,7 +35,10 @@ interface BuildPayloadParams {
   message: string
   workflowId?: string
   workflowName?: string
-  workspaceId?: string
+  /** Required by the wire contract: both branches resolve it before building (the
+   * workspace-scoped contract requires it; the workflow branch derives it from the
+   * workflow). A missing value used to make the worker fabricate a random identity. */
+  workspaceId: string
   userId: string
   userMessageId: string
   mode: string
@@ -420,7 +423,7 @@ export async function buildCopilotRequestPayload(
     userId,
     messageId: userMessageId,
     ...(chatId ? { chatId } : {}),
-    ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
+    workspaceId: params.workspaceId,
     ...(workflowId ? { workflowId } : {}),
     ...(allContexts.length > 0 ? { context: allContexts } : {}),
     ...(integrationTools.length > 0 ? { integrationTools } : {}),

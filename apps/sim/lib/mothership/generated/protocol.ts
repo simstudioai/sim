@@ -25,7 +25,10 @@ export interface ChatRequest {
   protocolVersion?: number | undefined;
   messageId?: string | undefined;
   chatId?: string | undefined;
-  workspaceId?: string | undefined;
+  /** Required: memories, analytics, and the chat row all key on it — sim always resolves
+   * it (workspace-scoped directly; workflow-scoped from the workflow). A missing value
+   * used to FABRICATE a random workspace identity per request. */
+  workspaceId: string;
   /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
   workflowId?: string | undefined;
   /** Connected-service operation schemas served by the integration gateway. */

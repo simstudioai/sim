@@ -333,7 +333,9 @@ type UnifiedChatBranch =
       kind: 'workflow'
       workflowId: string
       workflowName?: string
-      workspaceId?: string
+      /** Always present: the resolver's 'resolved' variant guarantees it (the workflow's
+       * own workspace) — the wire contract requires it. */
+      workspaceId: string
       effectiveModel: string
       selectedModel: string
       mode: UnifiedChatRequest['mode']
@@ -355,7 +357,7 @@ type UnifiedChatBranch =
         effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
         workflowId: string
         workflowName?: string
-        workspaceId?: string
+        workspaceId: string
         mode: UnifiedChatRequest['mode']
         provider?: string
         commands?: string[]
