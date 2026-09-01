@@ -15,11 +15,11 @@ afterEach(() => {
 
 describe('Slack agent API transport', () => {
   it('starts a structured stream with the reply recipient and task display mode', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify({ ok: true, channel: 'C1', ts: '101.2' }), { status: 200 })
-      )
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, channel: 'C1', ts: '101.2' }), {
+        status: 200,
+      })
+    )
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(
@@ -28,6 +28,7 @@ describe('Slack agent API transport', () => {
         {
           channel: 'C1',
           threadTs: '100.1',
+          initiatorUserId: 'U1',
           recipientUserId: 'U1',
           recipientTeamId: 'T1',
         },
@@ -53,12 +54,12 @@ describe('Slack agent API transport', () => {
   })
 
   it('uses the documented append, stop, and session status bodies', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockImplementation(
-        async () =>
-          new Response(JSON.stringify({ ok: true, channel: 'D1', ts: '101.2' }), { status: 200 })
-      )
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      const body = url.endsWith('agents.sessions.setStatus')
+        ? { ok: true, status: 'processing', agent_status: 'active' }
+        : { ok: true, channel: 'D1', ts: '101.2' }
+      return new Response(JSON.stringify(body), { status: 200 })
+    })
     vi.stubGlobal('fetch', fetchMock)
 
     await appendSlackAgentStream('xoxb-test', 'D1', '101.2', [
@@ -84,18 +85,98 @@ describe('Slack agent API transport', () => {
     })
   })
 
+  it('sets the human initiator when creating a processing session', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ ok: true, status: 'processing', agent_status: 'processing' }),
+          { status: 200 }
+        )
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await setSlackAgentSessionStatus(
+      'xoxb-test',
+      { channel: 'D1', threadTs: '100.1', initiatorUserId: 'U1' },
+      'processing'
+    )
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      channel_id: 'D1',
+      thread_ts: '100.1',
+      status: 'processing',
+      initiator_user_id: 'U1',
+    })
+  })
+
   it('fails fast on Slack logical errors', async () => {
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify({ ok: false, error: 'missing_scope' }), { status: 200 })
-        )
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ok: false, error: 'missing_scope' }), {
+          status: 200,
+        })
+      )
     )
 
     await expect(
-      setSlackAgentSessionStatus('xoxb-test', { channel: 'D1', threadTs: '100.1' }, 'processing')
+      setSlackAgentSessionStatus(
+        'xoxb-test',
+        { channel: 'D1', threadTs: '100.1', initiatorUserId: 'U1' },
+        'processing'
+      )
     ).rejects.toThrow('missing_scope')
+  })
+
+  it('fails fast when Slack does not recognize the stop-event subscription', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            status: 'processing',
+            agent_status: 'processing',
+            response_metadata: {
+              warnings: ['missing_agent_session_stopped_event_subscription'],
+            },
+          }),
+          { status: 200 }
+        )
+      )
+    )
+
+    await expect(
+      setSlackAgentSessionStatus(
+        'xoxb-test',
+        { channel: 'D1', threadTs: '100.1', initiatorUserId: 'U1' },
+        'processing'
+      )
+    ).rejects.toThrow('missing_agent_session_stopped_event_subscription')
+  })
+
+  it('fails fast when Slack does not confirm the requested session status', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            status: 'active',
+            agent_status: 'active',
+          }),
+          { status: 200 }
+        )
+      )
+    )
+
+    await expect(
+      setSlackAgentSessionStatus(
+        'xoxb-test',
+        { channel: 'D1', threadTs: '100.1', initiatorUserId: 'U1' },
+        'processing'
+      )
+    ).rejects.toThrow('expected processing')
   })
 })

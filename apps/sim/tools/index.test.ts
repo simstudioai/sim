@@ -41,7 +41,6 @@ import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody } from '@/tools/function/execute'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
-import { slackStartStreamV2Tool } from '@/tools/slack/start_stream_v2'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
@@ -174,7 +173,6 @@ const mockRegistryTools: Record<string, any> = {
   file_fetch: fileFetchTool,
   file_get_content: fileGetContentTool,
   memory_add: memoryAddTool,
-  slack_start_stream_v2: slackStartStreamV2Tool,
   table_batch_insert_rows: tableBatchInsertRowsTool,
   sts_get_caller_identity: getCallerIdentityTool,
   http_request: {
@@ -4426,73 +4424,6 @@ describe('Copilot OAuth Credential Enforcement', () => {
     expect(result.error).toContain('credentialId')
     expect(result.error).toContain('environment/credentials.json')
     expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('rejects a native OAuth credential before an Agent Sessions Slack request', async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      new Response(JSON.stringify({ accessToken: 'xoxb-native', credentialType: 'oauth' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
-    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
-
-    const result = await executeTool('slack_start_stream_v2', {
-      credential: 'native-slack-oauth',
-      channel: 'C1',
-      markdownText: 'hello',
-    })
-
-    expect(result).toMatchObject({
-      success: false,
-      error: 'Slack Start Stream requires a service-account credential',
-    })
-    expect(fetchMock).toHaveBeenCalledOnce()
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/auth/oauth/token')
-  })
-
-  it('allows a custom bot credential to execute an Agent Sessions Slack request', async () => {
-    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
-    mockSecureFetchWithPinnedIP.mockResolvedValue(
-      toSecureFetchResponse(
-        new Response(JSON.stringify({ ok: true, channel: 'C1', ts: '2.3' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      )
-    )
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          accessToken: 'xoxb-custom',
-          credentialType: 'service_account',
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    )
-    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
-
-    const result = await executeTool('slack_start_stream_v2', {
-      credential: 'custom-slack-bot',
-      channel: 'C1',
-      markdownText: 'hello',
-      recipientUserId: 'U1',
-      recipientTeamId: 'T1',
-    })
-
-    expect(result).toMatchObject({
-      success: true,
-      output: { ok: true, channel: 'C1', ts: '2.3' },
-    })
-    expect(fetchMock).toHaveBeenCalledOnce()
-    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
-      'https://slack.com/api/chat.startStream',
-      '93.184.216.34',
-      expect.any(Object)
-    )
   })
 })
 

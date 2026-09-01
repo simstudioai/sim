@@ -14,17 +14,11 @@ const AGENT_OPERATION_IDS = [
   'set_suggested_prompts',
   'set_agent_session_status',
   'rename_agent_session',
-  'start_stream',
-  'append_stream',
-  'stop_stream',
 ]
 const AGENT_TOOL_IDS = [
   'slack_set_suggested_prompts_v2',
   'slack_set_agent_session_status_v2',
   'slack_rename_agent_session_v2',
-  'slack_start_stream_v2',
-  'slack_append_stream_v2',
-  'slack_stop_stream_v2',
 ]
 
 function operationIds(): string[] {
@@ -98,29 +92,29 @@ describe('Slack block release', () => {
     })
   })
 
-  it('uses the service-account tool and active content mode for new agent operations', () => {
+  it('uses service-account tools for new agent operations', () => {
     const selectTool = SlackV2Block.tools.config?.tool
     if (!selectTool) throw new Error('Slack v2 tool selector is required')
 
     expect(
       selectTool({ operation: 'set_suggested_prompts', agentCredentialId: 'custom-bot' })
     ).toBe('slack_set_suggested_prompts_v2')
+    expect(selectTool({ operation: 'set_agent_session_status' })).toBe(
+      'slack_set_agent_session_status_v2'
+    )
 
     const mapped = mapSlackV2Params({
-      operation: 'append_stream',
+      operation: 'set_agent_session_status',
       agentCredentialId: 'custom-bot',
       agentChannelId: 'C123',
-      streamTs: '1700000000.000001',
-      streamContentMode: 'markdown',
-      streamMarkdownText: 'Current content',
-      streamChunks: [{ type: 'markdown_text', text: 'Stale content' }],
+      agentThreadTs: '1700000000.000001',
+      agentSessionStatus: 'processing',
     })
     expect(mapped).toMatchObject({
       credential: 'custom-bot',
       channel: 'C123',
-      ts: '1700000000.000001',
-      markdownText: 'Current content',
+      threadTs: '1700000000.000001',
+      status: 'processing',
     })
-    expect(mapped.chunks).toBeUndefined()
   })
 })

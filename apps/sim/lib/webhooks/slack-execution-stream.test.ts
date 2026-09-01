@@ -54,7 +54,9 @@ const BASE_CONFIG: SlackStreamResponseConfig = {
 
 function createLoggingSession() {
   return {
-    projectLiveDisplayText: vi.fn(async (_key: string, text: string) => ({ chunk: text })),
+    projectLiveDisplayText: vi.fn(async (_key: string, text: string) => ({
+      chunk: text,
+    })),
     projectDisplayContent: vi.fn(async (content: Record<string, unknown>) => content),
   }
 }
@@ -68,7 +70,10 @@ function createByteStream(text = ''): ReadableStream<Uint8Array> {
   })
 }
 
-function createOpenByteStream(): { stream: ReadableStream<Uint8Array>; close: () => void } {
+function createOpenByteStream(): {
+  stream: ReadableStream<Uint8Array>
+  close: () => void
+} {
   let closeStream: (() => void) | undefined
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -116,7 +121,10 @@ describe('SlackExecutionStreamController', () => {
       botToken: 'xoxb-token',
       workspaceId: 'workspace-1',
     })
-    mockStartSlackAgentStream.mockResolvedValue({ channel: 'C123', ts: '1700000001.000002' })
+    mockStartSlackAgentStream.mockResolvedValue({
+      channel: 'C123',
+      ts: '1700000001.000002',
+    })
   })
 
   it('streams agent text and task events for each selected invocation', async () => {
@@ -124,7 +132,19 @@ describe('SlackExecutionStreamController', () => {
     const events: AgentStreamEvent[] = [
       { type: 'thinking_delta', text: 'Checking context' },
       { type: 'tool_call_start', id: 'tool-1', name: 'slack_send_message' },
-      { type: 'tool_call_end', id: 'tool-1', name: 'slack_send_message', status: 'success' },
+      {
+        type: 'tool_call_end',
+        id: 'tool-1',
+        name: 'slack_send_message',
+        status: 'success',
+      },
+      { type: 'tool_call_start', id: 'tool-2', name: 'mcp-6da535c1-ask_question' },
+      {
+        type: 'tool_call_end',
+        id: 'tool-2',
+        name: 'mcp-6da535c1-ask_question',
+        status: 'success',
+      },
       { type: 'text_delta', text: 'Hello ', turn: 'pending' },
       { type: 'text_delta', text: 'world', turn: 'pending' },
       { type: 'turn_end', turn: 'final' },
@@ -148,6 +168,7 @@ describe('SlackExecutionStreamController', () => {
       {
         channel: 'C123',
         threadTs: '1700000000.000001',
+        initiatorUserId: 'U123',
         recipientUserId: 'U123',
         recipientTeamId: 'T123',
       },
@@ -163,6 +184,7 @@ describe('SlackExecutionStreamController', () => {
       {
         channel: 'C123',
         threadTs: '1700000000.000001',
+        initiatorUserId: 'U123',
         recipientUserId: 'U123',
         recipientTeamId: 'T123',
       },
@@ -180,7 +202,11 @@ describe('SlackExecutionStreamController', () => {
     const appendedChunks = mockAppendSlackAgentStream.mock.calls.flatMap((call) => call[3])
     expect(appendedChunks).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ type: 'task_update', title: 'Thinking', status: 'complete' }),
+        expect.objectContaining({
+          type: 'task_update',
+          title: 'Thinking',
+          status: 'complete',
+        }),
         expect.objectContaining({
           type: 'task_update',
           title: 'Slack Send Message',
@@ -189,6 +215,16 @@ describe('SlackExecutionStreamController', () => {
         expect.objectContaining({
           type: 'task_update',
           title: 'Slack Send Message',
+          status: 'complete',
+        }),
+        expect.objectContaining({
+          type: 'task_update',
+          title: 'Ask Question',
+          status: 'in_progress',
+        }),
+        expect.objectContaining({
+          type: 'task_update',
+          title: 'Ask Question',
           status: 'complete',
         }),
         { type: 'markdown_text', text: 'Hello ' },
@@ -208,7 +244,11 @@ describe('SlackExecutionStreamController', () => {
       undefined
     )
 
-    await controller.finalize({ success: true, output: {}, status: 'completed' })
+    await controller.finalize({
+      success: true,
+      output: {},
+      status: 'completed',
+    })
     controller.assertSucceeded()
 
     expect(mockSetSlackAgentSessionStatus).toHaveBeenLastCalledWith(
@@ -216,6 +256,7 @@ describe('SlackExecutionStreamController', () => {
       {
         channel: 'C123',
         threadTs: '1700000000.000001',
+        initiatorUserId: 'U123',
         recipientUserId: 'U123',
         recipientTeamId: 'T123',
       },
@@ -226,6 +267,7 @@ describe('SlackExecutionStreamController', () => {
       {
         channel: 'C123',
         threadTs: '1700000000.000001',
+        initiatorUserId: 'U123',
         recipientUserId: 'U123',
         recipientTeamId: 'T123',
       },
@@ -243,7 +285,11 @@ describe('SlackExecutionStreamController', () => {
       streamFormat: 'text',
       clientStreamTransformed: false,
       subscribe: ({ onEvent }) => {
-        void onEvent({ type: 'text_delta', text: 'Once upon a time', turn: 'pending' })
+        void onEvent({
+          type: 'text_delta',
+          text: 'Once upon a time',
+          turn: 'pending',
+        })
         return vi.fn()
       },
     })
@@ -269,7 +315,7 @@ describe('SlackExecutionStreamController', () => {
       outputConfigs: [{ blockId: 'lookup', path: 'result.name' }],
     }
     const { controller } = await createController(config, {
-      event: { channel: 'D123', timestamp: '1700000000.000001' },
+      event: { channel: 'D123', timestamp: '1700000000.000001', user: 'U123' },
     })
 
     await controller.callbacks.onBlockComplete?.('lookup', 'Lookup', 'generic', {
@@ -282,7 +328,11 @@ describe('SlackExecutionStreamController', () => {
 
     expect(mockStartSlackAgentStream).toHaveBeenCalledWith(
       'xoxb-token',
-      { channel: 'D123', threadTs: '1700000000.000001' },
+      {
+        channel: 'D123',
+        threadTs: '1700000000.000001',
+        initiatorUserId: 'U123',
+      },
       expect.any(Array),
       'plan',
       undefined

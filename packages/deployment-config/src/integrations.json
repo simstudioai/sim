@@ -21118,18 +21118,6 @@
           "description": "Rename the Slack agent session associated with a thread."
         },
         {
-          "name": "Start Stream",
-          "description": "Start a streaming Slack message using Markdown or structured chunks."
-        },
-        {
-          "name": "Append Stream",
-          "description": "Append Markdown or structured chunks to an active Slack stream."
-        },
-        {
-          "name": "Stop Stream",
-          "description": "Finalize an active Slack stream and return the resulting message."
-        },
-        {
           "name": "List Channels",
           "description": "List all channels in a Slack workspace. Returns public and private channels the bot has access to."
         },
@@ -21250,7 +21238,7 @@
           "description": "Set the purpose (description) for a Slack channel (max 250 characters)."
         }
       ],
-      "operationCount": 45,
+      "operationCount": 42,
       "triggers": [
         {
           "id": "slack_oauth",

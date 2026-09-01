@@ -60,14 +60,11 @@ export function normalizeSlackStreamResponseConfig(
   if (taskDisplayMode !== 'timeline' && taskDisplayMode !== 'plan') {
     throw new Error('Slack stream task display mode must be timeline or plan')
   }
-  const rawTaskTitle = providerConfig.streamTaskTitle ?? 'Running'
+  const rawTaskTitle = providerConfig.streamTaskTitle ?? ''
   if (typeof rawTaskTitle !== 'string') {
     throw new Error('Slack stream response status label must be a string')
   }
-  const taskTitle = rawTaskTitle.trim()
-  if (!taskTitle) {
-    throw new Error('Slack stream response status label is required')
-  }
+  const taskTitle = rawTaskTitle.trim() || 'Running'
   if (taskTitle.length > SLACK_TASK_TITLE_LIMIT) {
     throw new Error(
       `Slack stream response status label must be ${SLACK_TASK_TITLE_LIMIT} characters or fewer`
@@ -108,10 +105,10 @@ export function readSlackStreamResponseConfig(
   if (typeof value.includeThinking !== 'boolean' || typeof value.includeToolCalls !== 'boolean') {
     throw new Error('Persisted Slack stream visibility settings are invalid')
   }
-  const taskTitle = value.taskTitle === undefined ? 'Running' : value.taskTitle
-  if (typeof taskTitle !== 'string' || !taskTitle.trim()) {
+  if (value.taskTitle !== undefined && typeof value.taskTitle !== 'string') {
     throw new Error('Persisted Slack stream response status label is invalid')
   }
+  const taskTitle = value.taskTitle?.trim() || 'Running'
   if (taskTitle.length > SLACK_TASK_TITLE_LIMIT) {
     throw new Error('Persisted Slack stream response status label is too long')
   }

@@ -39,7 +39,7 @@ describe('Slack stream response config', () => {
     expect(providerConfig.streamTaskTitle).toBeUndefined()
   })
 
-  it('defaults the response status label to Running and rejects invalid labels', () => {
+  it('defaults omitted or blank response status labels to Running', () => {
     expect(
       normalizeSlackStreamResponseConfig({
         eventType: 'message',
@@ -47,17 +47,17 @@ describe('Slack stream response config', () => {
         streamOutputs: ['block_content'],
       })?.taskTitle
     ).toBe('Running')
-    expect(() =>
+    expect(
       normalizeSlackStreamResponseConfig({
         eventType: 'message',
         streamResponse: true,
         streamOutputs: ['block_content'],
         streamTaskTitle: '   ',
-      })
-    ).toThrow('status label is required')
+      })?.taskTitle
+    ).toBe('Running')
   })
 
-  it('upgrades persisted configs created before response status labels existed', () => {
+  it('upgrades persisted configs with omitted or blank response status labels', () => {
     expect(
       readSlackStreamResponseConfig({
         streamResponseConfig: {
@@ -65,6 +65,18 @@ describe('Slack stream response config', () => {
           outputConfigs: [{ blockId: 'block', path: 'content' }],
           includeThinking: false,
           includeToolCalls: true,
+          taskDisplayMode: 'timeline',
+        },
+      })?.taskTitle
+    ).toBe('Running')
+    expect(
+      readSlackStreamResponseConfig({
+        streamResponseConfig: {
+          enabled: true,
+          outputConfigs: [{ blockId: 'block', path: 'content' }],
+          includeThinking: false,
+          includeToolCalls: true,
+          taskTitle: '   ',
           taskDisplayMode: 'timeline',
         },
       })?.taskTitle

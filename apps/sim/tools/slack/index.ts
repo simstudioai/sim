@@ -1,5 +1,4 @@
 import { slackAddReactionTool } from '@/tools/slack/add_reaction'
-import { slackAppendStreamV2Tool } from '@/tools/slack/append_stream_v2'
 import { slackArchiveConversationTool } from '@/tools/slack/archive_conversation'
 import { slackCanvasTool } from '@/tools/slack/canvas'
 import { slackCreateChannelCanvasTool } from '@/tools/slack/create_channel_canvas'
@@ -42,8 +41,6 @@ import { slackSetStatusTool } from '@/tools/slack/set_status'
 import { slackSetSuggestedPromptsTool } from '@/tools/slack/set_suggested_prompts'
 import { slackSetSuggestedPromptsV2Tool } from '@/tools/slack/set_suggested_prompts_v2'
 import { slackSetTitleTool } from '@/tools/slack/set_title'
-import { slackStartStreamV2Tool } from '@/tools/slack/start_stream_v2'
-import { slackStopStreamV2Tool } from '@/tools/slack/stop_stream_v2'
 import { slackUpdateMessageTool } from '@/tools/slack/update_message'
 import { slackUpdateViewTool } from '@/tools/slack/update_view'
 
@@ -63,7 +60,6 @@ export {
   slackUpdateMessageTool,
   slackDeleteMessageTool,
   slackAddReactionTool,
-  slackAppendStreamV2Tool,
   slackRemoveReactionTool,
   slackRenameAgentSessionV2Tool,
   slackGetChannelInfoTool,
@@ -86,8 +82,6 @@ export {
   slackSetTitleTool,
   slackSetSuggestedPromptsTool,
   slackSetSuggestedPromptsV2Tool,
-  slackStartStreamV2Tool,
-  slackStopStreamV2Tool,
   slackInviteToConversationTool,
   slackScheduleMessageTool,
   slackListScheduledMessagesTool,

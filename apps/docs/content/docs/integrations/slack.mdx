@@ -909,90 +909,6 @@ Rename the Slack agent session associated with a thread.
 | `ok` | boolean | Whether Slack renamed the agent session |
 | `title` | string | Updated agent session title |
 
-### Slack Start Stream
-
-Start a streaming Slack message using Markdown or structured chunks.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `authMethod` | string | No | Slack authentication method |
-| `botToken` | string | No | Custom Slack bot token |
-| `channel` | string | Yes | Channel ID where Slack should create the streaming message |
-| `markdownText` | string | No | Initial Markdown content, mutually exclusive with chunks |
-| `chunks` | json | No | Initial structured Slack streaming chunks, mutually exclusive with Markdown |
-| `threadTs` | string | No | Parent thread timestamp when streaming a reply |
-| `recipientUserId` | string | No | Recipient user ID, required with Recipient Team ID when channel is not a DM |
-| `recipientTeamId` | string | No | Recipient workspace ID, required with Recipient User ID when channel is not a DM |
-| `taskDisplayMode` | string | No | Task display mode: timeline or plan |
-| `iconEmoji` | string | No | Emoji used to customize the streaming agent identity |
-| `iconUrl` | string | No | Image URL used to customize the streaming agent identity |
-| `username` | string | No | Display name used to customize the streaming agent identity |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ok` | boolean | Whether Slack started the stream |
-| `channel` | string | Channel containing the streaming message |
-| `ts` | string | Timestamp used to append to or stop the stream |
-
-### Slack Append Stream
-
-Append Markdown or structured chunks to an active Slack stream.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `authMethod` | string | No | Slack authentication method |
-| `botToken` | string | No | Custom Slack bot token |
-| `channel` | string | Yes | Channel containing the streaming message |
-| `ts` | string | Yes | Timestamp returned by Start Stream |
-| `markdownText` | string | No | Markdown content to append; provide this or chunks, but not both |
-| `chunks` | json | No | Structured Slack streaming chunks; provide this or Markdown Text, but not both |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ok` | boolean | Whether Slack appended the stream content |
-| `channel` | string | Channel containing the streaming message |
-| `ts` | string | Streaming message timestamp |
-
-### Slack Stop Stream
-
-Finalize an active Slack stream and return the resulting message.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `authMethod` | string | No | Slack authentication method |
-| `botToken` | string | No | Custom Slack bot token |
-| `channel` | string | Yes | Channel containing the streaming message |
-| `ts` | string | Yes | Timestamp returned by Start Stream |
-| `markdownText` | string | No | Final Markdown content, mutually exclusive with chunks |
-| `chunks` | json | No | Final structured Slack chunks, mutually exclusive with Markdown |
-| `blocks` | json | No | Final Block Kit blocks, as an array of up to 50 block objects |
-| `metadata` | json | No | Message metadata containing event_type and event_payload |
-| `sessionStatus` | string | No | Final agent session state: active, processing, suspended, or closed |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ok` | boolean | Whether Slack finalized the stream |
-| `channel` | string | Channel containing the finalized message |
-| `ts` | string | Finalized streaming message timestamp |
-| `message` | object | Final Slack message returned by chat.stopStream |
-|   ↳ `text` | string | Final message text |
-|   ↳ `bot_id` | string | Bot ID, or null when Slack omits it |
-|   ↳ `ts` | string | Message timestamp |
-|   ↳ `type` | string | Message type |
-|   ↳ `subtype` | string | Message subtype, or null when the message has no subtype |
-
 ### Slack List Channels
 
 List all channels in a Slack workspace. Returns public and private channels the bot has access to.
@@ -2005,16 +1921,16 @@ Trigger from Slack events (mentions, messages, reactions)
 | `eventType` | string | Yes | The single Slack event this trigger fires on. Add another trigger block for another event. |
 | `customBotCredential` | string | Yes | Choose a custom Slack bot you set up once and reuse across triggers. |
 | `manualBotCredential` | string | Yes | Set the custom bot credential ID directly. |
-| `streamResponse` | boolean | No | Stream selected workflow outputs into the Slack conversation that started this run. Custom bots only. |
-| `streamOutputs` | workflow-output-selector | No | Each selected block invocation creates its own Slack response. Agent outputs stream live; other outputs are sent when the block completes. |
-| `streamIncludeThinking` | boolean | No | Show agent thinking as Slack task updates while the response is generated. |
-| `streamTaskTitle` | string | No | The status Slack shows while each selected response is being produced. |
-| `streamIncludeToolCalls` | boolean | No | Show tool execution lifecycle as Slack task updates. |
-| `streamTaskDisplayMode` | string | No | Choose how Slack displays thinking and tool progress. |
 | `source` | string | No | Restrict to direct messages, public channels, or private channels. Leave empty to match any. |
 | `channelFilter` | channel-selector | No | Restrict to specific channels. Leave empty to trigger on any channel the bot has been added to. |
 | `manualChannelFilter` | string | No | Comma-separated channel IDs to restrict to. Set IDs directly here. |
 | `threads` | string | No | Include thread replies, exclude them \(top-level only\), or fire only on thread replies. |
+| `streamResponse` | boolean | No | Create a Slack agent session and stream selected workflow outputs into the conversation that started this run. Custom bots only. |
+| `streamOutputs` | workflow-output-selector | No | Each selected block invocation creates its own Slack response. Agent outputs stream live; other outputs are sent when the block completes. |
+| `streamTaskTitle` | string | No | Optional status Slack shows while each selected response is being produced. Leave empty to use Running. |
+| `streamTaskDisplayMode` | string | No | Choose how Slack displays thinking and tool progress. |
+| `streamIncludeThinking` | boolean | No | Show agent thinking as Slack task updates while the response is generated. |
+| `streamIncludeToolCalls` | boolean | No | Show tool execution lifecycle as Slack task updates. |
 | `emoji` | string | No | Comma-separated emoji names to restrict to. Leave empty to match any emoji. |
 | `nameContains` | string | No | Only fire when the created channel name contains this text. |
 | `interactionFilter` | string | No | Comma-separated action_ids \(buttons/selects\) or callback_ids \(modals\) to restrict to. Leave empty to fire on any interaction. |

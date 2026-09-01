@@ -4,8 +4,6 @@ import { parseRetryAfter } from '@sim/utils/retry'
 import type {
   SlackAgentSessionStatus,
   SlackCanvasFile,
-  SlackStopStreamV2Params,
-  SlackStreamChunk,
   SlackSuggestedPrompt,
 } from '@/tools/slack/types'
 
@@ -88,35 +86,6 @@ function parseSlackJson(value: unknown, label: string): unknown | undefined {
   }
 }
 
-/** Parses a documented Slack array of JSON objects and rejects ambiguous shapes. */
-export function parseSlackObjectArray(
-  value: unknown,
-  label: string
-): Record<string, unknown>[] | undefined {
-  const parsed = parseSlackJson(value, label)
-  if (parsed === undefined) return undefined
-  if (!Array.isArray(parsed) || !parsed.every(isRecordLike)) {
-    throw new Error(`${label} must be a JSON array of objects`)
-  }
-  if (parsed.length === 0) {
-    throw new Error(`${label} must contain at least one object`)
-  }
-  return parsed
-}
-
-/** Parses a documented Slack JSON object and rejects arrays and primitives. */
-export function parseSlackObject(
-  value: unknown,
-  label: string
-): Record<string, unknown> | undefined {
-  const parsed = parseSlackJson(value, label)
-  if (parsed === undefined) return undefined
-  if (!isRecordLike(parsed)) {
-    throw new Error(`${label} must be a JSON object`)
-  }
-  return parsed
-}
-
 /** Parses the prompt chips accepted by Slack Agent View and enforces its four-prompt limit. */
 export function parseSlackSuggestedPrompts(value: unknown): SlackSuggestedPrompt[] {
   const parsed = parseSlackJson(value, 'Suggested Prompts')
@@ -133,53 +102,6 @@ export function parseSlackSuggestedPrompts(value: unknown): SlackSuggestedPrompt
       message: requireSlackString(entry.message, 'Suggested prompt message'),
     }
   })
-}
-
-/** Builds the mutually-exclusive content fields accepted by Slack streaming methods. */
-export function buildSlackStreamContent(
-  params: { markdownText?: string; chunks?: SlackStreamChunk[] | string },
-  required: boolean
-): Record<string, unknown> {
-  const markdownText = params.markdownText?.trim()
-  const chunks = parseSlackObjectArray(params.chunks, 'Stream chunks')
-
-  if (markdownText && chunks) {
-    throw new Error('Provide either Markdown Text or Stream Chunks, not both')
-  }
-  if (required && !markdownText && !chunks) {
-    throw new Error('Provide either Markdown Text or Stream Chunks')
-  }
-  if (markdownText && markdownText.length > 12_000) {
-    throw new Error('Markdown Text must be 12,000 characters or fewer')
-  }
-
-  if (markdownText) return { markdown_text: markdownText }
-  if (chunks) return { chunks }
-  return {}
-}
-
-/** Builds the documented final-content fields for chat.stopStream. */
-export function buildSlackStopStreamExtras(
-  params: SlackStopStreamV2Params
-): Record<string, unknown> {
-  const extras: Record<string, unknown> = buildSlackStreamContent(params, false)
-  const blocks = parseSlackObjectArray(params.blocks, 'Final Blocks')
-  if (blocks && blocks.length > 50) {
-    throw new Error('Final Blocks must contain at most 50 blocks')
-  }
-  if (blocks) extras.blocks = blocks
-
-  const metadata = parseSlackObject(params.metadata, 'Message Metadata')
-  if (metadata) {
-    if (typeof metadata.event_type !== 'string' || !isRecordLike(metadata.event_payload)) {
-      throw new Error('Message Metadata must contain event_type and event_payload')
-    }
-    extras.metadata = metadata
-  }
-  if (params.sessionStatus) {
-    extras.session_status = requireSlackAgentSessionStatus(params.sessionStatus)
-  }
-  return extras
 }
 
 interface SlackApiResponse {

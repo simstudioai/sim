@@ -17,11 +17,15 @@ interface SlackApiResponse {
   error?: string
   channel?: string
   ts?: string
+  status?: string
+  agent_status?: string
+  response_metadata?: unknown
 }
 
 interface SlackStreamTarget {
   channel: string
   threadTs: string
+  initiatorUserId?: string
   recipientUserId?: string
   recipientTeamId?: string
 }
@@ -58,16 +62,43 @@ async function callSlackAgentApi(
 
 export async function setSlackAgentSessionStatus(
   token: string,
-  target: Pick<SlackStreamTarget, 'channel' | 'threadTs'>,
+  target: Pick<SlackStreamTarget, 'channel' | 'threadTs' | 'initiatorUserId'>,
   status: 'active' | 'processing' | 'suspended',
   signal?: AbortSignal
 ): Promise<void> {
-  await callSlackAgentApi(
+  const data = await callSlackAgentApi(
     'agents.sessions.setStatus',
     token,
-    { channel_id: target.channel, thread_ts: target.threadTs, status },
+    {
+      channel_id: target.channel,
+      thread_ts: target.threadTs,
+      status,
+      ...(target.initiatorUserId ? { initiator_user_id: target.initiatorUserId } : {}),
+    },
     signal
   )
+
+  const responseMetadata = data.response_metadata
+  if (responseMetadata !== undefined && !isRecordLike(responseMetadata)) {
+    throw new Error('Slack agents.sessions.setStatus returned invalid response metadata')
+  }
+  const warnings = responseMetadata?.warnings
+  if (
+    warnings !== undefined &&
+    (!Array.isArray(warnings) || warnings.some((warning) => typeof warning !== 'string'))
+  ) {
+    throw new Error('Slack agents.sessions.setStatus returned invalid warnings')
+  }
+  if (warnings?.includes('missing_agent_session_stopped_event_subscription')) {
+    throw new Error(
+      'Slack agents.sessions.setStatus warning: missing_agent_session_stopped_event_subscription'
+    )
+  }
+  if (data.agent_status !== status) {
+    throw new Error(
+      `Slack agents.sessions.setStatus returned agent_status=${String(data.agent_status)}; expected ${status}`
+    )
+  }
 }
 
 export async function startSlackAgentStream(

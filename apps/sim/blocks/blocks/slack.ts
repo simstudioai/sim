@@ -19,12 +19,7 @@ const SLACK_V2_AGENT_OPERATIONS = [
   'set_suggested_prompts',
   'set_agent_session_status',
   'rename_agent_session',
-  'start_stream',
-  'append_stream',
-  'stop_stream',
 ] as const
-
-const SLACK_V2_STREAM_OPERATIONS = ['start_stream', 'append_stream', 'stop_stream'] as const
 
 const CHANNEL_FIELD = ['channel', 'manualChannel'] as const
 
@@ -3055,12 +3050,7 @@ function getSlackV2AgentSubBlocks(): SubBlockConfig[] {
       placeholder: 'Thread timestamp (thread_ts)',
       condition: {
         field: 'operation',
-        value: [
-          'set_suggested_prompts',
-          'set_agent_session_status',
-          'rename_agent_session',
-          'start_stream',
-        ],
+        value: ['set_suggested_prompts', 'set_agent_session_status', 'rename_agent_session'],
       },
       required: {
         field: 'operation',
@@ -3116,102 +3106,11 @@ function getSlackV2AgentSubBlocks(): SubBlockConfig[] {
       mode: 'advanced',
     },
     {
-      id: 'streamContentMode',
-      title: 'Content Type',
-      type: 'dropdown',
-      options: [
-        { label: 'Markdown', id: 'markdown' },
-        { label: 'Structured Chunks', id: 'chunks' },
-      ],
-      value: () => 'markdown',
-      condition: { field: 'operation', value: [...SLACK_V2_STREAM_OPERATIONS] },
-    },
-    {
-      id: 'streamMarkdownText',
-      title: 'Markdown Text',
-      type: 'long-input',
-      placeholder: 'Enter content to stream',
-      condition: {
-        field: 'operation',
-        value: [...SLACK_V2_STREAM_OPERATIONS],
-        and: { field: 'streamContentMode', value: 'markdown' },
-      },
-      required: { field: 'operation', value: 'append_stream' },
-    },
-    {
-      id: 'streamChunks',
-      title: 'Stream Chunks',
-      type: 'code',
-      language: 'json',
-      placeholder: 'JSON array of Slack stream chunk objects',
-      condition: {
-        field: 'operation',
-        value: [...SLACK_V2_STREAM_OPERATIONS],
-        and: { field: 'streamContentMode', value: 'chunks' },
-      },
-      required: { field: 'operation', value: 'append_stream' },
-    },
-    {
-      id: 'streamTs',
-      title: 'Stream Timestamp',
-      type: 'short-input',
-      placeholder: 'Timestamp returned by Start Stream',
-      condition: { field: 'operation', value: ['append_stream', 'stop_stream'] },
-      required: true,
-    },
-    {
-      id: 'streamRecipientUser',
-      title: 'Recipient',
-      type: 'user-selector',
-      canonicalParamId: 'streamRecipientUserId',
-      serviceId: 'slack',
-      selectorKey: 'slack.users',
-      placeholder: 'Select recipient user',
-      dependsOn: ['agentBotCredential'],
-      condition: { field: 'operation', value: 'start_stream' },
-      required: false,
-      mode: 'basic',
-    },
-    {
-      id: 'manualStreamRecipientUser',
-      title: 'Recipient User ID',
-      type: 'short-input',
-      canonicalParamId: 'streamRecipientUserId',
-      placeholder: 'Enter Slack user ID',
-      condition: { field: 'operation', value: 'start_stream' },
-      required: false,
-      mode: 'advanced',
-    },
-    {
-      id: 'streamRecipientTeamId',
-      title: 'Recipient Team ID',
-      type: 'short-input',
-      placeholder: 'Enter Slack workspace ID',
-      condition: { field: 'operation', value: 'start_stream' },
-      required: false,
-      mode: 'advanced',
-    },
-    {
-      id: 'streamTaskDisplayMode',
-      title: 'Task Display Mode',
-      type: 'dropdown',
-      options: [
-        { label: 'Timeline', id: 'timeline' },
-        { label: 'Plan', id: 'plan' },
-      ],
-      condition: { field: 'operation', value: 'start_stream' },
-      required: false,
-      mode: 'advanced',
-    },
-    {
       id: 'agentIconEmoji',
       title: 'Agent Icon Emoji',
       type: 'short-input',
       placeholder: ':robot_face:',
-      condition: {
-        field: 'operation',
-        value: ['set_agent_session_status', 'start_stream'],
-      },
+      condition: { field: 'operation', value: 'set_agent_session_status' },
       required: false,
       mode: 'advanced',
     },
@@ -3220,10 +3119,7 @@ function getSlackV2AgentSubBlocks(): SubBlockConfig[] {
       title: 'Agent Icon URL',
       type: 'short-input',
       placeholder: 'https://example.com/icon.png',
-      condition: {
-        field: 'operation',
-        value: ['set_agent_session_status', 'start_stream'],
-      },
+      condition: { field: 'operation', value: 'set_agent_session_status' },
       required: false,
       mode: 'advanced',
     },
@@ -3232,45 +3128,7 @@ function getSlackV2AgentSubBlocks(): SubBlockConfig[] {
       title: 'Agent Username',
       type: 'short-input',
       placeholder: 'Research Agent',
-      condition: {
-        field: 'operation',
-        value: ['set_agent_session_status', 'start_stream'],
-      },
-      required: false,
-      mode: 'advanced',
-    },
-    {
-      id: 'streamFinalBlocks',
-      title: 'Final Blocks',
-      type: 'code',
-      language: 'json',
-      placeholder: 'JSON array of final Block Kit blocks',
-      condition: { field: 'operation', value: 'stop_stream' },
-      required: false,
-      mode: 'advanced',
-    },
-    {
-      id: 'streamMetadata',
-      title: 'Message Metadata',
-      type: 'code',
-      language: 'json',
-      placeholder: '{"event_type":"agent_result","event_payload":{}}',
-      condition: { field: 'operation', value: 'stop_stream' },
-      required: false,
-      mode: 'advanced',
-    },
-    {
-      id: 'streamSessionStatus',
-      title: 'Final Session Status',
-      type: 'dropdown',
-      options: [
-        { label: 'Active', id: 'active' },
-        { label: 'Processing', id: 'processing' },
-        { label: 'Suspended', id: 'suspended' },
-        { label: 'Closed', id: 'closed' },
-      ],
-      value: () => 'active',
-      condition: { field: 'operation', value: 'stop_stream' },
+      condition: { field: 'operation', value: 'set_agent_session_status' },
       required: false,
       mode: 'advanced',
     },
@@ -3313,18 +3171,6 @@ export function getSlackV2OperationSentences() {
     rename_agent_session: [
       { text: 'Rename agent session to', field: 'agentSessionTitle', core: true },
       { text: 'on thread', field: 'agentThreadTs', core: true },
-    ],
-    start_stream: [
-      { text: 'Start a stream in', field: ['agentChannel', 'manualAgentChannel'], core: true },
-      { text: ', with', field: ['streamMarkdownText', 'streamChunks'] },
-    ],
-    append_stream: [
-      { text: 'Append to stream', field: 'streamTs', core: true },
-      { text: ', with', field: ['streamMarkdownText', 'streamChunks'], core: true },
-    ],
-    stop_stream: [
-      { text: 'Stop stream', field: 'streamTs', core: true },
-      { text: ', with final state', field: 'streamSessionStatus' },
     ],
   }
 }
@@ -3396,9 +3242,6 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         { label: 'Set Suggested Prompts', id: 'set_suggested_prompts' },
         { label: 'Set Agent Session Status', id: 'set_agent_session_status' },
         { label: 'Rename Agent Session', id: 'rename_agent_session' },
-        { label: 'Start Stream', id: 'start_stream' },
-        { label: 'Append Stream', id: 'append_stream' },
-        { label: 'Stop Stream', id: 'stop_stream' },
         { label: 'List Channels', id: 'list_channels' },
         { label: 'List Channel Members', id: 'list_members' },
         { label: 'List Users', id: 'list_users' },
@@ -3451,9 +3294,6 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
       'slack_set_suggested_prompts_v2',
       'slack_set_agent_session_status_v2',
       'slack_rename_agent_session_v2',
-      'slack_start_stream_v2',
-      'slack_append_stream_v2',
-      'slack_stop_stream_v2',
       'slack_list_channels',
       'slack_list_members',
       'slack_list_users',
@@ -3496,12 +3336,6 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
             return 'slack_set_agent_session_status_v2'
           case 'rename_agent_session':
             return 'slack_rename_agent_session_v2'
-          case 'start_stream':
-            return 'slack_start_stream_v2'
-          case 'append_stream':
-            return 'slack_append_stream_v2'
-          case 'stop_stream':
-            return 'slack_stop_stream_v2'
           default: {
             const selectTool = SlackBlock.tools.config?.tool
             if (!selectTool) throw new Error('Slack tool selector is required')
@@ -3526,19 +3360,9 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
           status: params.agentSessionStatus,
           title: params.agentSessionTitle,
           initiatorUserId: params.agentInitiatorUserId,
-          markdownText:
-            params.streamContentMode === 'markdown' ? params.streamMarkdownText : undefined,
-          chunks: params.streamContentMode === 'chunks' ? params.streamChunks : undefined,
-          ts: params.streamTs,
-          recipientUserId: params.streamRecipientUserId,
-          recipientTeamId: params.streamRecipientTeamId,
-          taskDisplayMode: params.streamTaskDisplayMode,
           iconEmoji: params.agentIconEmoji,
           iconUrl: params.agentIconUrl,
           username: params.agentUsername,
-          blocks: params.streamFinalBlocks,
-          metadata: params.streamMetadata,
-          sessionStatus: params.streamSessionStatus,
           prompts: params.suggestedPrompts,
           promptsTitle: params.promptsTitle,
         }
@@ -3549,24 +3373,14 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
     ...slackV2Inputs,
     oauthCredential: { type: 'string', description: 'Slack credential (OAuth account or bot)' },
     agentCredentialId: { type: 'string', description: 'Custom Slack bot credential ID' },
-    agentChannelId: { type: 'string', description: 'Agent session or stream channel ID' },
+    agentChannelId: { type: 'string', description: 'Agent session channel ID' },
     agentThreadTs: { type: 'string', description: 'Agent session thread timestamp' },
     agentSessionStatus: { type: 'string', description: 'Agent session status' },
     agentSessionTitle: { type: 'string', description: 'Agent session title' },
     agentInitiatorUserId: { type: 'string', description: 'Agent session initiator user ID' },
-    streamContentMode: { type: 'string', description: 'Stream content type' },
-    streamMarkdownText: { type: 'string', description: 'Streaming Markdown content' },
-    streamChunks: { type: 'json', description: 'Structured Slack stream chunks' },
-    streamTs: { type: 'string', description: 'Streaming message timestamp' },
-    streamRecipientUserId: { type: 'string', description: 'Stream recipient user ID' },
-    streamRecipientTeamId: { type: 'string', description: 'Stream recipient workspace ID' },
-    streamTaskDisplayMode: { type: 'string', description: 'Stream task display mode' },
     agentIconEmoji: { type: 'string', description: 'Custom agent icon emoji' },
     agentIconUrl: { type: 'string', description: 'Custom agent icon URL' },
     agentUsername: { type: 'string', description: 'Custom agent display name' },
-    streamFinalBlocks: { type: 'json', description: 'Final Block Kit blocks' },
-    streamMetadata: { type: 'json', description: 'Final message metadata' },
-    streamSessionStatus: { type: 'string', description: 'Final agent session status' },
   },
   triggers: {
     enabled: true,

@@ -4458,7 +4458,6 @@ import {
 } from '@/tools/sixtyfour'
 import {
   slackAddReactionTool,
-  slackAppendStreamV2Tool,
   slackArchiveConversationTool,
   slackCanvasTool,
   slackCreateChannelCanvasTool,
@@ -4501,8 +4500,6 @@ import {
   slackSetSuggestedPromptsTool,
   slackSetSuggestedPromptsV2Tool,
   slackSetTitleTool,
-  slackStartStreamV2Tool,
-  slackStopStreamV2Tool,
   slackUpdateMessageTool,
   slackUpdateViewTool,
 } from '@/tools/slack'
@@ -6907,9 +6904,6 @@ export const tools: Record<string, ExecutableToolConfig> = {
   slack_set_suggested_prompts_v2: slackSetSuggestedPromptsV2Tool,
   slack_set_agent_session_status_v2: slackSetAgentSessionStatusV2Tool,
   slack_rename_agent_session_v2: slackRenameAgentSessionV2Tool,
-  slack_start_stream_v2: slackStartStreamV2Tool,
-  slack_append_stream_v2: slackAppendStreamV2Tool,
-  slack_stop_stream_v2: slackStopStreamV2Tool,
   slack_canvas: slackCanvasTool,
   slack_download: slackDownloadTool,
   slack_ephemeral_message: slackEphemeralMessageTool,

@@ -1,7 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { humanizeToolName } from '@/lib/copilot/tools/tool-display'
+import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { getSlackBotCredential } from '@/lib/oauth/credential-service'
 import { pluckByPath } from '@/lib/table/pluck'
@@ -31,6 +31,7 @@ const SLACK_MARKDOWN_LIMIT = 12_000
 const TASK_TEXT_LIMIT = 256
 
 interface SlackReplyTarget extends SlackStreamSessionTarget {
+  initiatorUserId: string
   recipientUserId?: string
   recipientTeamId?: string
 }
@@ -68,12 +69,12 @@ export function resolveSlackReplyTarget(triggerInput: Record<string, unknown>): 
   if (!threadTs) {
     throw new Error('Slack streaming trigger event is missing a thread timestamp')
   }
+  if (typeof event.user !== 'string' || !event.user) {
+    throw new Error('Slack streaming trigger event is missing the initiator user ID')
+  }
 
   if (event.channel.startsWith('D')) {
-    return { channel: event.channel, threadTs }
-  }
-  if (typeof event.user !== 'string' || !event.user) {
-    throw new Error('Slack channel streaming requires the recipient user ID')
+    return { channel: event.channel, threadTs, initiatorUserId: event.user }
   }
   if (typeof event.user_team_id !== 'string' || !event.user_team_id) {
     throw new Error('Slack channel streaming requires the recipient team ID')
@@ -81,6 +82,7 @@ export function resolveSlackReplyTarget(triggerInput: Record<string, unknown>): 
   return {
     channel: event.channel,
     threadTs,
+    initiatorUserId: event.user,
     recipientUserId: event.user,
     recipientTeamId: event.user_team_id,
   }
@@ -89,7 +91,10 @@ export function resolveSlackReplyTarget(triggerInput: Record<string, unknown>): 
 function splitMarkdown(text: string): SlackStreamChunk[] {
   const chunks: SlackStreamChunk[] = []
   for (let offset = 0; offset < text.length; offset += SLACK_MARKDOWN_LIMIT) {
-    chunks.push({ type: 'markdown_text', text: text.slice(offset, offset + SLACK_MARKDOWN_LIMIT) })
+    chunks.push({
+      type: 'markdown_text',
+      text: text.slice(offset, offset + SLACK_MARKDOWN_LIMIT),
+    })
   }
   return chunks
 }
@@ -208,7 +213,7 @@ class SlackInvocationStream {
               {
                 type: 'task_update',
                 id: `${this.taskId}-tool-${event.id}`,
-                title: truncate(humanizeToolName(event.name), TASK_TEXT_LIMIT),
+                title: truncate(getToolDisplayTitle(event.name), TASK_TEXT_LIMIT),
                 status: 'in_progress',
               },
             ])
@@ -220,7 +225,7 @@ class SlackInvocationStream {
               {
                 type: 'task_update',
                 id: `${this.taskId}-tool-${event.id}`,
-                title: truncate(humanizeToolName(event.name), TASK_TEXT_LIMIT),
+                title: truncate(getToolDisplayTitle(event.name), TASK_TEXT_LIMIT),
                 status: event.status === 'success' ? 'complete' : 'error',
               },
             ])
