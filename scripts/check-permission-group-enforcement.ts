@@ -39,6 +39,34 @@
  * the type: an operation written in a form the parsers cannot follow yields no
  * capability, and without the check it would be skipped in silence — counted as
  * reviewed while nothing had actually read what it declares.
+ *
+ * ## What "enforced" means here, and where it stops
+ *
+ * Two different strengths of evidence sit behind assertion C, and the printed
+ * total does not distinguish them:
+ *
+ *  - A capability NAMED BY AN OPERATION is enforced by construction. The funnel
+ *    applies it; the declaration and the gate are the same fact.
+ *  - A capability reachable only through a `permission-group-enforced:` comment
+ *    is enforced by ASSERTION OF THE AUTHOR. This audit matches the comment
+ *    text; it does not verify that anything below it gates. Today that is 18 of
+ *    35 capabilities — among them `logs.cost`, `inbox.use`, `personal_api_key.use`
+ *    and `copilot.tool_auto_approval` — so it is the majority of the registry,
+ *    not a rounding error. {@link parseEnforcedAnnotations} records which cheap
+ *    lookahead shapes were measured against the tree and why each is wrong more
+ *    often than right; closing this properly wants a call graph. What still
+ *    holds is narrow but real: deleting a gate AND its comment is reported by C
+ *    immediately, and assertion E stops an annotation from inventing enforcement
+ *    for a key whose field says `ui-only` or `executor`. The uncovered case is
+ *    exactly one — a gate deleted while its comment is left behind.
+ *
+ * {@link SCAN_ROOTS} is the other boundary. `background/`, `connectors/`,
+ * `tools/`, `enrichments/`, `triggers/` and every `.tsx` are unscanned, and as
+ * of this writing each contains ZERO operation declarations and ZERO capability
+ * gate calls — checked, not assumed. The boundary is documented rather than
+ * widened because a scan root that finds nothing costs walk time and teaches a
+ * reader that operations might live there. If one ever does, two things change
+ * together: `SCAN_ROOTS`, and the `.ts`-only filter in `walk`.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -76,6 +104,22 @@ const MAX_ANNOTATION_LOOKBACK = 3
  * builder visible by default instead of on purpose.
  */
 const MINTING_NAME = /^define[A-Za-z0-9_$]*Operation$/
+/**
+ * A factory parameter that admits a `Partial<…>` override of the operation it
+ * mints — `overrides?: Partial<WorkspaceOperation>` and its relatives.
+ *
+ * The capability this audit reads is the one written in the factory body or at
+ * the call site. A parameter spread over the result afterwards can replace it,
+ * including with `'none'`, and the audit would keep reporting whatever the
+ * literal said — a green tick over an operation whose capability is decided by
+ * whoever calls it. No factory in the tree does this today; the point of
+ * refusing it here is that the first one to try is reported rather than
+ * discovered later.
+ *
+ * `Partial` and not `Omit`/`Pick`: those narrow a type, they do not make a
+ * declared field optional to overwrite.
+ */
+const OVERRIDE_PARAMETER = /\bPartial\s*<[^>]*Operation\b/
 const MINTING_CALL_SOURCE = String.raw`\b(define[A-Za-z0-9_$]*Operation)\s*\(`
 const mintingCallPattern = () => new RegExp(MINTING_CALL_SOURCE, 'g')
 /** Whether a module mints an operation at all, so files that do not are skipped cheaply. */
@@ -178,6 +222,11 @@ interface OperationDeclaration {
 interface ParsedOperations {
   declarations: OperationDeclaration[]
   /**
+   * Lines of same-file factories whose parameters admit a `Partial<…>` override
+   * of the operation itself. See {@link OVERRIDE_PARAMETER}.
+   */
+  overridable: number[]
+  /**
    * Lines of operation-minting calls this parser could not read an id from,
    * and which no recognized factory accounts for.
    *
@@ -198,6 +247,7 @@ interface ParsedOperations {
 export function parseOperationCapabilities(source: string): ParsedOperations {
   const declarations: OperationDeclaration[] = []
   const unreadable: number[] = []
+  const overridable: number[] = []
 
   /**
    * Domains that wrap a builder in a same-file factory declare the capability
@@ -216,6 +266,11 @@ export function parseOperationCapabilities(source: string): ParsedOperations {
     const body = balancedGroup(source, bodyIndex)
     if (!MINTS_AN_OPERATION.test(body) && !MINTING_NAME.test(match[1])) continue
     factoryRanges.push([bodyIndex, bodyIndex + body.length])
+    const parameterIndex = source.indexOf('(', match.index + match[0].length - 1)
+    if (parameterIndex !== -1 && parameterIndex < bodyIndex) {
+      const parameters = balancedGroup(source, parameterIndex)
+      if (OVERRIDE_PARAMETER.test(parameters)) overridable.push(lineAt(source, match.index))
+    }
     const fixed = /capability\s*:\s*'([a-z0-9_.]+)'/.exec(body)?.[1]
     if (fixed) factoryCapabilities.set(match[1], fixed)
     else if (/capability\s*[,:}]/.test(body)) factoryCapabilities.set(match[1], 'positional')
@@ -270,7 +325,7 @@ export function parseOperationCapabilities(source: string): ParsedOperations {
     }
   }
 
-  return { declarations, unreadable }
+  return { declarations, unreadable, overridable }
 }
 
 export interface OperationRegistryMember {
@@ -496,7 +551,16 @@ function main(): void {
 
     if (!MINTS_AN_OPERATION.test(source) && !DECLARES_A_REGISTRY.test(source)) continue
 
-    const { declarations, unreadable } = parseOperationCapabilities(source)
+    const { declarations, unreadable, overridable } = parseOperationCapabilities(source)
+
+    for (const line of overridable) {
+      findings.push({
+        file: relativePath,
+        line,
+        message:
+          "mints operations through a factory that takes a `Partial<…Operation>` override. The capability this audit reads is the one in the factory body or at the call site, and a partial spread over the result can replace it — including with 'none' — so what is declared here stops being what ships. Take the fields the factory varies as named parameters rather than an open override",
+      })
+    }
 
     for (const line of unreadable) {
       findings.push({

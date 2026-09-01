@@ -267,3 +267,63 @@ describe('registry completeness', () => {
     ).toEqual([])
   })
 })
+
+describe('a factory that admits a Partial override of the operation', () => {
+  /**
+   * Nothing in the tree does this today, which is why it is probed here rather
+   * than caught in the wild: the capability the parsers read is the literal in
+   * the factory body, and a `Partial<WorkspaceOperation>` spread over the result
+   * can replace it with `'none'` after the audit has already approved it. The
+   * factory is reported as unparseable rather than resolved — the override's
+   * value lives at the call site, and following it is the call graph this audit
+   * does not have.
+   */
+  it('reports an `overrides?: Partial<WorkspaceOperation>` parameter', () => {
+    const { overridable } = parseOperationCapabilities(
+      'function defineTableOperation(id: string, overrides?: Partial<WorkspaceOperation>) {\n' +
+        "  return defineWorkspaceOperation({ id, capability: 'tables.use', ...overrides })\n" +
+        '}\n'
+    )
+
+    expect(overridable).toEqual([1])
+  })
+
+  it('reports the override however the parameter is spelled', () => {
+    const { overridable } = parseOperationCapabilities(
+      'function defineKnowledgeOperation(\n' +
+        '  id: string,\n' +
+        '  patch: Partial<KnowledgeOperation> = {}\n' +
+        ') {\n' +
+        "  return defineWorkspaceOperation({ id, capability: 'knowledge.use', ...patch })\n" +
+        '}\n'
+    )
+
+    expect(overridable).toEqual([1])
+  })
+
+  /**
+   * `Partial` over something that is not an operation is ordinary code — a
+   * factory taking a partial audit payload has nothing to say about capability.
+   */
+  it('leaves a Partial of an unrelated type alone', () => {
+    const { overridable } = parseOperationCapabilities(
+      'function defineTableOperation(id: string, audit?: Partial<AuditPayload>) {\n' +
+        "  return defineWorkspaceOperation({ id, capability: 'tables.use', audit })\n" +
+        '}\n'
+    )
+
+    expect(overridable).toEqual([])
+  })
+
+  it('leaves a factory with named parameters alone', () => {
+    const { declarations, overridable } = parseOperationCapabilities(
+      'function defineTableOperation(id: string, capability: string) {\n' +
+        '  return defineWorkspaceOperation({ id, capability })\n' +
+        '}\n' +
+        "defineTableOperation('table.read', 'tables.use')\n"
+    )
+
+    expect(overridable).toEqual([])
+    expect(declarations).toEqual([{ id: 'table.read', line: 4, capability: 'tables.use' }])
+  })
+})
