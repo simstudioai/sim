@@ -342,16 +342,17 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
     const flags = command.optsWithGlobals() as Record<string, unknown>
 
     if (flags.follow !== true) {
-      // `selectedOutputs` is stream-only server-side, so without `--follow` the
-      // generated path spends a request to be told so. The recovery names the
-      // run resource and its dialect: `--select-output` here takes block names,
-      // and `workflows runs get` resolves block ids only, so repeating what was
-      // just typed there fails a second time.
-      if (Array.isArray(flags.selectOutput) && flags.selectOutput.length > 0) {
+      // A queued run has produced nothing to select from, so the server would
+      // answer 400; failing locally names the recovery. The finished-run
+      // resource speaks a different dialect — it matches block ids only, so
+      // repeating the block names typed here would fail a second time.
+      if (
+        Array.isArray(flags.selectOutput) &&
+        flags.selectOutput.length > 0 &&
+        flags.async === true
+      ) {
         throw new SimApiError(
-          flags.async === true
-            ? '--select-output shapes a streamed result, and --async returns as soon as the run is queued, so there is no stream to shape. Drop one of them, or read the finished run with: sim workflows runs get <runId> --workflow <workflowId> --select-output <blockId>[.path] — that resource matches block ids, not the block names --select-output takes here.'
-            : '--select-output shapes a streamed result; add --follow. To narrow a run that has already finished: sim workflows runs get <runId> --workflow <workflowId> --select-output <blockId>[.path] — that resource matches block ids, not the block names --select-output takes here.',
+          '--select-output names outputs of a completed run, and --async returns as soon as the run is queued. Drop one of them, or read the finished run with: sim workflows runs get <runId> --workflow <workflowId> --select-output <blockId>[.path] — that resource matches block ids, not the block names --select-output takes here.',
           0
         )
       }

@@ -280,32 +280,28 @@ describe('sim workflows run --follow', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
-  it('refuses --select-output without --follow and sends nothing', async () => {
-    await expect(run(WORKFLOW_ID, '--select-output', 'agent_1.content')).rejects.toThrow(
-      /add --follow/
-    )
-    expect(request).not.toHaveBeenCalled()
+  it('sends --select-output through the sync path without --follow', async () => {
+    request.mockResolvedValue({ data: { success: true, output: {}, blockOutputs: {} } })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run(WORKFLOW_ID, '--select-output', 'agent_1.content')
+
     expect(requestRaw).not.toHaveBeenCalled()
+    expect(request.mock.calls[0][1].body).toEqual({ selectedOutputs: ['agent_1.content'] })
   })
 
-  it('points a refused --select-output at the dialect the run resource takes', async () => {
+  it('refuses --async --select-output and points at the run-resource dialect', async () => {
     // The caller just typed a block *name*, which is what this flag accepts and
-    // what `workflows runs get` rejects, so a hint that only repeated the flag
-    // would send them into a second 400.
-    await expect(run(WORKFLOW_ID, '--select-output', 'agent_1.content')).rejects.toThrow(
-      /workflows runs get .*--select-output <blockId>\[\.path\].*block ids, not the block names/s
-    )
-  })
-
-  it('tells --async --select-output that no stream is coming, rather than to follow', async () => {
-    // `--async --follow` is refused outright, so "add --follow" would be advice
-    // that cannot be taken.
+    // what `workflows runs get` rejects, so the hint must name that dialect
+    // shift instead of repeating the flag into a second failure.
     const failure = await run(WORKFLOW_ID, '--async', '--select-output', 'agent_1.content').catch(
       (error: Error) => error
     )
 
     expect(failure?.message).toContain('--async returns as soon as the run is queued')
-    expect(failure?.message).not.toContain('add --follow')
+    expect(failure?.message).toMatch(
+      /workflows runs get .*--select-output <blockId>\[\.path\].*block ids, not the block names/s
+    )
     expect(request).not.toHaveBeenCalled()
   })
 

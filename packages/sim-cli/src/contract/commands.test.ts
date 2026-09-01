@@ -678,14 +678,15 @@ describe('help and gates state what is actually true', () => {
     expect(confirm).toContain('--scope')
   })
 
-  it('names the flag its stream requirement, the way its siblings do', () => {
-    // `--include-thinking` and `--include-tool-calls` both say so; the flag
-    // that shares their server-side rule said nothing and spent a 400 to
-    // discover it.
+  it('states where selected outputs land and the one mode that rejects them', () => {
+    // The flag once required --follow; now a plain sync run answers in
+    // `blockOutputs`, and the help must say so — plus the surviving
+    // restriction (--async), so the caller never spends a 400 to learn it.
     const help = flatHelp('workflows', 'run')
 
     expect(help).toContain('--select-output')
-    expect(help).toContain('requires --follow')
+    expect(help).toContain('blockOutputs on a sync run')
+    expect(help).toContain('Not available with --async')
   })
 
   it('promises the dialect a finished run actually matches', () => {

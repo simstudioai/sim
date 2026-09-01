@@ -536,7 +536,7 @@ type ApplyWorkflowOperationsResponseRef2 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
+    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
     reason: string
   }>
   notes: Array<string>
@@ -1032,9 +1032,6 @@ type CancelWorkflowRunResponseRef0 = {
     | 'redis_write_failed'
     | 'paused_event_publish_failed'
     | 'paused_database_cancel_failed'
-    | 'queue_cancelled'
-    | 'active_resume_signal_failed'
-    | 'cancellation_not_finalized'
 }
 
 export type CancelWorkflowRunResponse = {
@@ -1048,6 +1045,7 @@ export type ChatBody = {
   workspaceId: string
   message: string
   conversationId?: string
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 }
 
 export type ChatResponse = {
@@ -3635,6 +3633,7 @@ type ExecuteWorkflowResponseRef1 = {
   workflowId: string
   status: 'completed' | 'failed' | 'paused' | 'cancelled'
   output: unknown
+  blockOutputs: Record<string, unknown> | null
   error: ExecuteWorkflowResponseRef0 | null
   startedAt?: string
   endedAt?: string
@@ -4311,7 +4310,6 @@ type GetLogResponseRef2 = {
   endedAt: string | null
   totalDurationMs: number | null
   files: Array<GetLogResponseRef0> | null
-  executedByEmail: string | null
   workflow: {
     id: string | null
     name: string
@@ -4932,7 +4930,6 @@ type GetWorkflowChatDeploymentResponseRef0 = {
 }
 
 type GetWorkflowChatDeploymentResponseRef1 = {
-  workflowId?: string
   blockId: string
   path: string
 }
@@ -5464,7 +5461,6 @@ type ListChatDeploymentsResponseRef0 = {
 }
 
 type ListChatDeploymentsResponseRef1 = {
-  workflowId?: string
   blockId: string
   path: string
 }
@@ -7295,7 +7291,6 @@ type ReplaceWorkflowChatDeploymentBodyRef0 = {
 }
 
 type ReplaceWorkflowChatDeploymentBodyRef1 = {
-  workflowId?: string
   blockId: string
   path: string
 }
@@ -7320,7 +7315,6 @@ type ReplaceWorkflowChatDeploymentResponseRef0 = {
 }
 
 type ReplaceWorkflowChatDeploymentResponseRef1 = {
-  workflowId?: string
   blockId: string
   path: string
 }
@@ -7506,7 +7500,7 @@ type ReplaceWorkflowStateResponseRef0 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
+    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
     reason: string
   }>
   notes: Array<string>
@@ -7777,6 +7771,7 @@ type ResumeWorkflowResponseRef1 = {
   workflowId: string
   status: 'completed' | 'failed' | 'paused' | 'cancelled'
   output: unknown
+  blockOutputs: Record<string, unknown> | null
   error: ResumeWorkflowResponseRef0 | null
   startedAt?: string
   endedAt?: string
@@ -9935,6 +9930,11 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe: 'Conversation to continue; a new one starts when omitted.',
       },
+      effort: {
+        kind: 'enum',
+        values: ['low', 'medium', 'high', 'xhigh', 'max'] as const,
+        describe: 'Model effort for this turn; defaults to the deployment default (high).',
+      },
     },
   },
   completeFileUpload: {
@@ -11393,7 +11393,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'array',
         describe:
-          'Block output references to include in a streamed response. Use `<blockName>.<outputPath>` for the executed workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow; block names are normalized workflow reference names. Selecting a child workflow applies to every invocation of it. Requires `stream: true` — it shapes the streamed envelope only, so it is rejected on a sync request and when `async` is true. To narrow a finished run, pass `selectedOutputs` to the run resource instead.',
+          'Block output references to include in the response, as `blockId`, `blockId.path`, or `BlockName.path` (resolved against the workflow state being run). On a sync request the named outputs come back in `blockOutputs`, keyed by these selector strings; on a stream they shape the streamed envelope. Selectors that resolve to no block or no value are omitted. Rejected when `async` is true — a queued run has produced nothing to select; narrow the finished run via the run resource instead.',
       },
       includeThinking: {
         kind: 'boolean',
