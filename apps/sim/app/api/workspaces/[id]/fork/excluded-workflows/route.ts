@@ -10,6 +10,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { assertWorkspaceAdminAccess } from '@/ee/workspace-forking/lib/lineage/authz'
 
 const logger = createLogger('ForkExcludedWorkflowsAPI')
@@ -80,6 +81,8 @@ export const PUT = withRouteHandler(
         },
         { groups: { workspace: workspaceId } }
       )
+
+      await notifyWorkspaceWorkflowsChanged(workspaceId)
     }
 
     logger.info('Updated fork-sync exclusion', {

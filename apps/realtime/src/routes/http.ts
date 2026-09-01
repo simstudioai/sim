@@ -205,6 +205,26 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       return
     }
 
+    // Fan out a workflow-tree change to everyone viewing a workspace's persistent sidebar.
+    // One signal invalidates both workflow and workflow-folder lists.
+    if (req.method === 'POST' && req.url === '/api/workspace-workflows-changed') {
+      try {
+        const body = await readRequestBody(req)
+        const { workspaceId } = JSON.parse(body)
+        if (!isNonEmptyString(workspaceId)) return sendError(res, 'Invalid workspaceId', 400)
+        roomManager.emitToRoom(
+          { type: ROOM_TYPES.WORKSPACE_WORKFLOWS, id: workspaceId },
+          'workspace-workflows-changed',
+          { workspaceId, timestamp: Date.now() }
+        )
+        sendSuccess(res)
+      } catch (error) {
+        logger.error('Error handling workspace workflows changed notification:', error)
+        sendError(res, 'Failed to process workflows change notification')
+      }
+      return
+    }
+
     // Merge a durable file write into a file's LIVE collaborative document so open editors reconcile to
     // it (Stage C) — this is the stream-end/durable reconcile, not token-by-token streaming (that is now
     // applied client-side by the open editor). Returns `{ applied }`: when false, no seeded live room

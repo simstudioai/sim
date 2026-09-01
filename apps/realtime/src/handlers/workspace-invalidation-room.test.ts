@@ -73,9 +73,15 @@ function createRoomManager(overrides?: Partial<IRoomManager>): IRoomManager {
   } as unknown as IRoomManager
 }
 
-// The two presence-free live-list rooms share one implementation; run the whole suite against both
-// so files and tables can never drift. Event names and room names derive from the room type.
-describe.each([ROOM_TYPES.WORKSPACE_FILES, ROOM_TYPES.WORKSPACE_TABLES] as const)(
+// The presence-free live-list rooms share one implementation; run the whole suite against all of
+// them so their authorization and lifecycle behavior cannot drift.
+const workspaceInvalidationRoomTypesCoveredBySharedLifecycle = [
+  ROOM_TYPES.WORKSPACE_FILES,
+  ROOM_TYPES.WORKSPACE_TABLES,
+  ROOM_TYPES.WORKSPACE_WORKFLOWS,
+] as const
+
+describe.each(workspaceInvalidationRoomTypesCoveredBySharedLifecycle)(
   'setupWorkspaceInvalidationRoom(%s)',
   (roomType) => {
     const joinEvent = `join-${roomType}`

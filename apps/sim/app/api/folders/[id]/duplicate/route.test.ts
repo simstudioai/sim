@@ -29,6 +29,7 @@ const {
   mockDuplicateWorkflow,
   mockAcquireFolderMutationLock,
   mockWithFolderTreeLock,
+  mockNotifyWorkspace,
 } = vi.hoisted(() => ({
   mockLogger: {
     info: vi.fn(),
@@ -44,6 +45,7 @@ const {
   mockDuplicateWorkflow: vi.fn(),
   mockAcquireFolderMutationLock: vi.fn(),
   mockWithFolderTreeLock: vi.fn(),
+  mockNotifyWorkspace: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -61,6 +63,9 @@ vi.mock('@/lib/folders/locks', () => ({
 vi.mock('@/lib/folders/naming', () => ({ deduplicateFolderName: mockDeduplicateFolderName }))
 vi.mock('@/lib/workflows/persistence/duplicate', () => ({
   duplicateWorkflow: mockDuplicateWorkflow,
+}))
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkspaceWorkflowsChanged: mockNotifyWorkspace,
 }))
 
 import { POST } from '@/app/api/folders/[id]/duplicate/route'
@@ -141,6 +146,8 @@ describe('POST /api/folders/[id]/duplicate', () => {
 
     expect(response.status).toBe(201)
     await expect(response.json()).resolves.toMatchObject({ folder: { name: 'Copy' } })
+    expect(mockNotifyWorkspace).toHaveBeenCalledOnce()
+    expect(mockNotifyWorkspace).toHaveBeenCalledWith(WORKSPACE_ID)
   })
 
   it('refuses a single-folder duplicate once the workspace is at the ceiling', async () => {

@@ -20,6 +20,7 @@ const {
   mockMaybeNotifyStorageLimitForBillingContext,
   mockReadWorkspaceFileMetadata,
   mockResolveStorageBillingContext,
+  mockNotifyWorkspace,
 } = vi.hoisted(() => ({
   mockAllocateUniqueWorkspaceFileName: vi.fn(),
   mockAdmitCreateWorkspaceFile: vi.fn(),
@@ -36,6 +37,7 @@ const {
   mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
   mockReadWorkspaceFileMetadata: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
+  mockNotifyWorkspace: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/tools/handlers/access', () => ({
@@ -111,6 +113,9 @@ vi.mock('@/lib/workflows/operations/import-export', () => ({ parseWorkflowJson: 
 vi.mock('@/lib/workflows/persistence/utils', () => ({ saveWorkflowToNormalizedTables: vi.fn() }))
 vi.mock('@/lib/workflows/utils', () => ({ deduplicateWorkflowName: vi.fn() }))
 vi.mock('@/app/api/v1/admin/types', () => ({ extractWorkflowMetadata: vi.fn() }))
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkspaceWorkflowsChanged: mockNotifyWorkspace,
+}))
 
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 import { executeMaterializeFile } from '@/lib/copilot/tools/handlers/materialize-file'
@@ -272,6 +277,7 @@ describe('executeMaterializeFile - workflow import', () => {
     )
 
     expect(result.success).toBe(true)
+    expect(mockNotifyWorkspace).toHaveBeenCalledWith('ws-1')
     const insertedWorkflow = dbChainMockFns.values.mock.calls[0]?.[0] as Record<string, unknown>
     expect(insertedWorkflow).toMatchObject({ name: 'Imported Workflow' })
     expect(insertedWorkflow).not.toHaveProperty('description')

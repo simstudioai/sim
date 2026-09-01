@@ -20,6 +20,7 @@ const {
   mockSaveWorkflowToNormalizedTables,
   mockDeduplicateWorkflowName,
   mockNormalizeImportedVariables,
+  mockNotifyWorkspace,
 } = vi.hoisted(() => ({
   mockLogger: {
     info: vi.fn(),
@@ -37,6 +38,7 @@ const {
   mockSaveWorkflowToNormalizedTables: vi.fn(),
   mockDeduplicateWorkflowName: vi.fn(),
   mockNormalizeImportedVariables: vi.fn(),
+  mockNotifyWorkspace: vi.fn(),
 }))
 
 vi.mock('@sim/logger', () => ({
@@ -64,6 +66,9 @@ vi.mock('@/lib/workflows/persistence/utils', () => ({
 vi.mock('@/lib/workflows/utils', () => ({ deduplicateWorkflowName: mockDeduplicateWorkflowName }))
 vi.mock('@/lib/workflows/variables/parse', () => ({
   normalizeImportedVariables: mockNormalizeImportedVariables,
+}))
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkspaceWorkflowsChanged: mockNotifyWorkspace,
 }))
 
 import { POST } from '@/app/api/v1/admin/workspaces/[id]/import/route'
@@ -113,6 +118,8 @@ describe('admin workspace import POST', () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({ imported: 1, failed: 0 })
+    expect(mockNotifyWorkspace).toHaveBeenCalledOnce()
+    expect(mockNotifyWorkspace).toHaveBeenCalledWith(WORKSPACE_ID)
   })
 
   /**

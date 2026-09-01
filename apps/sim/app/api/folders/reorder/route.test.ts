@@ -6,7 +6,7 @@
 import { authMockFns, createMockRequest, permissionsMock, permissionsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger } = vi.hoisted(() => ({
+const { mockLogger, mockNotifyFolder } = vi.hoisted(() => ({
   mockLogger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -16,11 +16,13 @@ const { mockLogger } = vi.hoisted(() => ({
     fatal: vi.fn(),
     child: vi.fn(),
   },
+  mockNotifyFolder: vi.fn(),
 }))
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/realtime/notify', () => ({ notifyFolderResourceChanged: mockNotifyFolder }))
 
 import { db } from '@sim/db'
 import { PUT } from '@/app/api/folders/reorder/route'
@@ -73,6 +75,7 @@ describe('PUT /api/folders/reorder', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data).toMatchObject({ success: true, updated: 1 })
+    expect(mockNotifyFolder).toHaveBeenCalledWith('workflow', 'workspace-123')
   })
 
   it('maps a sibling-name collision from a reparent to a 409', async () => {

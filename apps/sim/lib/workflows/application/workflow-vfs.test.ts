@@ -22,6 +22,8 @@ const { FolderLockedError, WorkflowLockedError, mocks } = vi.hoisted(() => {
       logError: vi.fn(),
       notifyFolder: vi.fn(),
       notifyWorkflow: vi.fn(),
+      notifyWorkflowDeleted: vi.fn(),
+      notifyWorkspace: vi.fn(),
       permission: vi.fn(),
       relocateFolder: vi.fn(),
       resolveContext: vi.fn(),
@@ -94,7 +96,9 @@ vi.mock('@/lib/workflows/persistence/duplicate', () => ({
 
 vi.mock('@/lib/realtime/notify', () => ({
   notifyFolderResourceChanged: mocks.notifyFolder,
+  notifyWorkflowDeleted: mocks.notifyWorkflowDeleted,
   notifyWorkflowUpdated: mocks.notifyWorkflow,
+  notifyWorkspaceWorkflowsChanged: mocks.notifyWorkspace,
 }))
 
 import {
@@ -171,15 +175,21 @@ describe('workflow VFS application commands', () => {
     queueTableRows(schemaMock.workflow, [
       { id: 'workflow-1', name: 'One', folderId: null },
       { id: 'workflow-2', name: 'Two', folderId: null },
+      { id: 'workflow-3', name: 'Three', folderId: null },
     ])
     queueTableRows(schemaMock.workflow, [{ id: 'workflow-1', name: 'One', folderId: null }])
     queueTableRows(schemaMock.workflow, [{ id: 'workflow-2', name: 'Two', folderId: null }])
+    queueTableRows(schemaMock.workflow, [{ id: 'workflow-3', name: 'Three', folderId: null }])
     mocks.updateWorkflow
       .mockResolvedValueOnce({
         success: true,
         workflow: { id: 'workflow-1', name: 'One', folderId: null },
       })
       .mockResolvedValueOnce({ success: false, error: 'Workflow is locked', errorCode: 'locked' })
+      .mockResolvedValueOnce({
+        success: true,
+        workflow: { id: 'workflow-3', name: 'Three', folderId: null },
+      })
 
     const result = await moveWorkflowVfsItems.execute({
       principal,
@@ -188,6 +198,7 @@ describe('workflow VFS application commands', () => {
         sources: [
           { source: 'workflows/One', segments: ['One'] },
           { source: 'workflows/Two', segments: ['Two'] },
+          { source: 'workflows/Three', segments: ['Three'] },
         ],
         destination: { segments: [], trailingSlash: true },
       },
@@ -197,8 +208,9 @@ describe('workflow VFS application commands', () => {
     expect(result.outcomes).toEqual([
       expect.objectContaining({ source: 'workflows/One', resourceId: 'workflow-1' }),
       expect.objectContaining({ source: 'workflows/Two', error: 'Workflow is locked' }),
+      expect.objectContaining({ source: 'workflows/Three', resourceId: 'workflow-3' }),
     ])
-    expect(mocks.audit).toHaveBeenCalledOnce()
+    expect(mocks.audit).toHaveBeenCalledTimes(2)
     expect(mocks.audit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'workflow.updated',
@@ -208,6 +220,9 @@ describe('workflow VFS application commands', () => {
     )
     expect(mocks.notifyWorkflow).toHaveBeenCalledWith('workflow-1')
     expect(mocks.notifyWorkflow).not.toHaveBeenCalledWith('workflow-2')
+    expect(mocks.notifyWorkflow).toHaveBeenCalledWith('workflow-3')
+    expect(mocks.notifyWorkspace).toHaveBeenCalledOnce()
+    expect(mocks.notifyWorkspace).toHaveBeenCalledWith('workspace-1')
   })
 
   it('propagates an unexpected mutation failure without projecting a partial outcome', async () => {
@@ -229,6 +244,7 @@ describe('workflow VFS application commands', () => {
     expect(mocks.audit).not.toHaveBeenCalled()
     expect(mocks.notifyWorkflow).not.toHaveBeenCalled()
     expect(mocks.notifyFolder).not.toHaveBeenCalled()
+    expect(mocks.notifyWorkspace).not.toHaveBeenCalled()
   })
 
   it('owns mkdir path planning and audits only the folder it creates', async () => {
@@ -274,6 +290,6 @@ describe('workflow VFS application commands', () => {
         metadata: expect.objectContaining({ operation: 'workflows.vfs.folders.create' }),
       })
     )
-    expect(mocks.notifyFolder).toHaveBeenCalledWith('workflow', 'workspace-1')
+    expect(mocks.notifyWorkspace).toHaveBeenCalledWith('workspace-1')
   })
 })

@@ -7,6 +7,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { performCreateWorkflow } from '@/lib/workflows/orchestration'
 import { listWorkflowsForUser } from '@/lib/workflows/queries'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
@@ -138,6 +139,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     const createdWorkflow = result.workflow
+    await notifyWorkspaceWorkflowsChanged(workspaceId)
 
     import('@/lib/core/telemetry')
       .then(({ PlatformEvents }) => {

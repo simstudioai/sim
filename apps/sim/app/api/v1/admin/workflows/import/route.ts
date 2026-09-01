@@ -29,6 +29,7 @@ import { NextResponse } from 'next/server'
 import { adminV1ImportWorkflowContract } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -163,6 +164,8 @@ export const POST = withRouteHandler(
         await db.delete(workflow).where(eq(workflow.id, workflowId))
         return internalErrorResponse(`Failed to save workflow state: ${saveResult.error}`)
       }
+
+      await notifyWorkspaceWorkflowsChanged(workspaceId)
 
       const variablesRecord = normalizeImportedVariables(workflowData.variables)
       if (Object.keys(variablesRecord).length > 0) {

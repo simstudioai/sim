@@ -84,6 +84,29 @@ export async function notifyWorkspaceTablesChanged(workspaceId: string): Promise
   }
 }
 
+/** Best-effort fan-out that refreshes workflow and workflow-folder lists for a workspace. */
+export async function notifyWorkspaceWorkflowsChanged(workspaceId: string): Promise<void> {
+  try {
+    const response = await fetch(`${getSocketServerUrl()}/api/workspace-workflows-changed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
+      body: JSON.stringify({ workspaceId }),
+      signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
+    })
+    if (!response.ok) {
+      logger.warn('workspace-workflows-changed notify failed', {
+        workspaceId,
+        status: response.status,
+      })
+    }
+  } catch (error) {
+    logger.warn('workspace-workflows-changed notify error', {
+      workspaceId,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
 /** Best-effort fan-out that invalidates open editors for one durably changed workflow. */
 export async function notifyWorkflowUpdated(workflowId: string): Promise<void> {
   try {
@@ -149,12 +172,13 @@ export async function notifyWorkflowReverted(workflowId: string, timestamp: numb
  * (create/rename/move/delete/restore) for one of these must fan out the same list-changed signal as a
  * direct resource mutation, because a new/renamed/removed folder changes what that resource's browser
  * shows. Extend this map as more resource lists adopt an invalidation room — `file` and
- * `knowledge_base` currently refetch through their own paths, and `workflow` has no such list room.
+ * `knowledge_base` currently refetch through their own paths.
  */
 const FOLDER_RESOURCE_NOTIFIERS: Partial<
   Record<FolderResourceType, (workspaceId: string) => Promise<void>>
 > = {
   table: notifyWorkspaceTablesChanged,
+  workflow: notifyWorkspaceWorkflowsChanged,
 }
 
 /**

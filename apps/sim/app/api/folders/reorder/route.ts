@@ -12,6 +12,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withTransactionRetry } from '@/lib/db/transaction'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { folderResourceSupportsLocking } from '@/lib/folders/resource-traits'
+import { notifyFolderResourceChanged } from '@/lib/realtime/notify'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderReorderAPI')
@@ -38,7 +39,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'Write access required' }, { status: 403 })
     }
 
-    return await withTransactionRetry(
+    const response = await withTransactionRetry(
       async (tx) => {
         await acquireFolderMutationLock(tx, workspaceId, resourceType)
         const folderIds = updates.map((u) => u.id)
@@ -178,6 +179,8 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
       },
       { label: 'reorder-folders' }
     )
+    if (response.ok) await notifyFolderResourceChanged(resourceType, workspaceId)
+    return response
   } catch (error) {
     if (error instanceof FolderLockedError) {
       return NextResponse.json({ error: error.message }, { status: error.status })

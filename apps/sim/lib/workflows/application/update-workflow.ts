@@ -11,7 +11,7 @@ import type { WorkspaceUseCaseAuditEntry } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
-import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
+import { notifyWorkflowUpdated, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import {
   type ActiveWorkflowApplicationContext,
@@ -249,11 +249,13 @@ function projectWorkflowUpdateAudit(args: {
   return entries
 }
 
-function notifyAfterWorkflowUpdate(args: {
+async function notifyAfterWorkflowUpdate(args: {
   context: ActiveWorkflowApplicationContext
   result: WorkflowUpdateResult
 }) {
-  return args.result.changes.length > 0 ? notifyWorkflowUpdated(args.context.workflowId) : undefined
+  if (args.result.changes.length === 0) return
+  await notifyWorkflowUpdated(args.context.workflowId)
+  await notifyWorkspaceWorkflowsChanged(args.context.workspaceId)
 }
 
 export const updateWorkflow = defineAuthorizedWorkflowUseCase({

@@ -11,7 +11,7 @@ import {
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { principalAuditSource } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
-import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
+import { notifyWorkflowUpdated, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
@@ -171,9 +171,12 @@ export const moveWorkflowsBulk = defineAuthorizedWorkflowUseCase({
         source: principalAuditSource(principal),
       },
     })),
-  afterSuccess: async ({ result }) => {
+  afterSuccess: async ({ context, result }) => {
     for (const workflowId of result.moved) {
       await notifyWorkflowUpdated(workflowId)
+    }
+    if (result.moved.length > 0) {
+      await notifyWorkspaceWorkflowsChanged(context.workspaceId)
     }
   },
 })

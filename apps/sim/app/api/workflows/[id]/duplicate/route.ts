@@ -9,6 +9,7 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 
 const logger = createLogger('WorkflowDuplicateAPI')
@@ -46,6 +47,7 @@ export const POST = withRouteHandler(
         requestId,
         newWorkflowId: newId,
       })
+      await notifyWorkspaceWorkflowsChanged(result.workspaceId)
 
       try {
         PlatformEvents.workflowDuplicated({

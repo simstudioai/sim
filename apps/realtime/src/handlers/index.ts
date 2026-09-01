@@ -20,6 +20,7 @@ export function setupAllHandlers(socket: AuthenticatedSocket, roomManager: IRoom
   // Presence-free, workspace-scoped live-list rooms (share one implementation).
   setupWorkspaceInvalidationRoom(socket, roomManager, ROOM_TYPES.WORKSPACE_FILES)
   setupWorkspaceInvalidationRoom(socket, roomManager, ROOM_TYPES.WORKSPACE_TABLES)
+  setupWorkspaceInvalidationRoom(socket, roomManager, ROOM_TYPES.WORKSPACE_WORKFLOWS)
   setupWorkspaceFileDocHandlers(socket, roomManager)
   setupTablesHandlers(socket, roomManager)
   setupConnectionHandlers(socket, roomManager)

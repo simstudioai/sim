@@ -23,6 +23,7 @@ import {
   syncMcpToolsForWorkflow,
 } from '@/lib/mcp/workflow-mcp-sync'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import {
   cleanupWebhooksForWorkflow,
   prepareStableTriggerWebhooksForDeploy,
@@ -85,6 +86,7 @@ interface DeploymentPreparationCheckpoints {
   auditEmitted?: boolean
   analyticsCaptured?: boolean
   socketNotified?: boolean
+  workspaceListNotified?: boolean
   workspaceEventEmitted?: boolean
 }
 
@@ -739,6 +741,12 @@ async function emitPostActivationSideEffects(params: {
   }
 
   const workspaceId = params.workflow.workspaceId as string | null
+  if (workspaceId && !params.checkpoints.workspaceListNotified) {
+    params.context.signal.throwIfAborted()
+    await notifyWorkspaceWorkflowsChanged(workspaceId)
+    await params.checkpoint({ workspaceListNotified: true })
+  }
+
   if (workspaceId && !params.checkpoints.workspaceEventEmitted) {
     params.context.signal.throwIfAborted()
     await emitWorkflowDeployedEvent({
@@ -1448,6 +1456,7 @@ function parseDeploymentPreparationCheckpoints(value: unknown): DeploymentPrepar
     ...(record.auditEmitted === true ? { auditEmitted: true } : {}),
     ...(record.analyticsCaptured === true ? { analyticsCaptured: true } : {}),
     ...(record.socketNotified === true ? { socketNotified: true } : {}),
+    ...(record.workspaceListNotified === true ? { workspaceListNotified: true } : {}),
     ...(record.workspaceEventEmitted === true ? { workspaceEventEmitted: true } : {}),
   }
 }

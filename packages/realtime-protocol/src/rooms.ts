@@ -43,6 +43,11 @@ export const ROOM_TYPES = {
    * space is the workspace id, mirroring {@link ROOM_TYPES.WORKSPACE_FILES}.
    */
   WORKSPACE_TABLES: 'workspace-tables',
+  /**
+   * The workspace workflow sidebar (one room per workspace). Carries no presence,
+   * only a lossy invalidation signal for workflow and workflow-folder lists.
+   */
+  WORKSPACE_WORKFLOWS: 'workspace-workflows',
 } as const
 
 export type RoomType = (typeof ROOM_TYPES)[keyof typeof ROOM_TYPES]

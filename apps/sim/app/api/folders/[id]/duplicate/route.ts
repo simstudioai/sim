@@ -19,6 +19,7 @@ import { nextFolderSortOrder } from '@/lib/folders/orchestration'
 import { assertFolderCollectionHasRoom, toFolderApi } from '@/lib/folders/queries'
 import { folderMutationStatus } from '@/lib/folders/status'
 import { collectDescendantFolderIds } from '@/lib/folders/subtree'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -208,6 +209,7 @@ export const POST = withRouteHandler(
 
         return { newFolderId, folderMapping, workflowStats }
       })
+      await notifyWorkspaceWorkflowsChanged(targetWorkspaceId)
 
       const elapsed = Date.now() - startTime
       logger.info(

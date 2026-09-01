@@ -3,6 +3,7 @@ import { chat, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, inArray, isNull } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import {
   enqueueWorkflowUndeploySideEffects,
   processWorkflowDeploymentOutboxEvent,
@@ -341,6 +342,7 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
     if (!skipped.has(op.workflowId)) notifyIds.add(op.workflowId)
   }
   for (const workflowId of notifyIds) void notifyForkWorkflowChanged(workflowId)
+  if (notifyIds.size > 0) await notifyWorkspaceWorkflowsChanged(targetWorkspaceId)
 
   // Attribute each skip to its bucket (a workflow is in exactly one) so the counts
   // reflect what was actually restored, not the snapshot size.

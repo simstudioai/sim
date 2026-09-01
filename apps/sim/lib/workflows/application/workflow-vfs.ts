@@ -29,9 +29,9 @@ import {
 } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import {
-  notifyFolderResourceChanged,
   notifyWorkflowDeleted,
   notifyWorkflowUpdated,
+  notifyWorkspaceWorkflowsChanged,
 } from '@/lib/realtime/notify'
 import { VfsPathLimitError, validateVfsPathSegments } from '@/lib/vfs/limits'
 import { encodeVfsPathSegments } from '@/lib/vfs/path'
@@ -462,7 +462,7 @@ export const createWorkflowVfsFolders = defineAuthorizedWorkflowUseCase({
   projectAudit: ({ result }) => createdFolderAuditEntries(result.createdFolders),
   afterSuccess: ({ context, result }) =>
     result.createdFolders.length > 0
-      ? notifyFolderResourceChanged('workflow', context.workspaceId)
+      ? notifyWorkspaceWorkflowsChanged(context.workspaceId)
       : undefined,
 })
 
@@ -606,8 +606,12 @@ export const moveWorkflowVfsItems = defineAuthorizedWorkflowUseCase({
     for (const change of result.movedWorkflows) {
       await notifyWorkflowUpdated(change.id)
     }
-    if (result.createdFolders.length > 0 || result.movedFolders.length > 0) {
-      await notifyFolderResourceChanged('workflow', context.workspaceId)
+    if (
+      result.createdFolders.length > 0 ||
+      result.movedWorkflows.length > 0 ||
+      result.movedFolders.length > 0
+    ) {
+      await notifyWorkspaceWorkflowsChanged(context.workspaceId)
     }
   },
 })
@@ -717,8 +721,8 @@ export const copyWorkflowVfsItems = defineAuthorizedWorkflowUseCase({
     for (const change of result.duplicatedWorkflows) {
       await notifyWorkflowUpdated(change.id)
     }
-    if (result.createdFolders.length > 0) {
-      await notifyFolderResourceChanged('workflow', context.workspaceId)
+    if (result.createdFolders.length > 0 || result.duplicatedWorkflows.length > 0) {
+      await notifyWorkspaceWorkflowsChanged(context.workspaceId)
     }
   },
 })
@@ -840,8 +844,8 @@ export const deleteWorkflowVfsItems = defineAuthorizedWorkflowUseCase({
     for (const workflow of result.deletedWorkflows) {
       await notifyWorkflowDeleted(workflow.id)
     }
-    if (result.deletedFolders.length > 0) {
-      await notifyFolderResourceChanged('workflow', context.workspaceId)
+    if (result.deletedWorkflows.length > 0 || result.deletedFolders.length > 0) {
+      await notifyWorkspaceWorkflowsChanged(context.workspaceId)
     }
   },
 })

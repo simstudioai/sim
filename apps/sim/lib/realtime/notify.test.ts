@@ -6,7 +6,28 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/core/utils/urls', () => ({ getSocketServerUrl: () => 'http://realtime' }))
 vi.mock('@/lib/core/config/env', () => ({ env: { INTERNAL_API_SECRET: 'secret' } }))
 
-import { mergeEditIntoLiveFileDoc } from './notify'
+import { mergeEditIntoLiveFileDoc, notifyFolderResourceChanged } from './notify'
+
+describe('notifyFolderResourceChanged', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('routes workflow folder changes to the workspace workflows endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await notifyFolderResourceChanged('workflow', 'workspace-1')
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://realtime/api/workspace-workflows-changed',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ workspaceId: 'workspace-1' }),
+      })
+    )
+  })
+})
 
 describe('mergeEditIntoLiveFileDoc', () => {
   afterEach(() => {

@@ -40,6 +40,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { DbOrTx } from '@/lib/db/types'
 import { withFolderTreeLock } from '@/lib/folders/locks'
 import { assertFolderCollectionHasRoom } from '@/lib/folders/queries'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import {
   extractWorkflowName,
   extractWorkflowsFromZip,
@@ -118,7 +119,8 @@ async function ensureImportFolder(
   workspaceId: string,
   userId: string,
   name: string,
-  parentId: string | null
+  parentId: string | null,
+  onCreated?: () => void
 ): Promise<string> {
   const existing = await findImportFolder(db, workspaceId, name, parentId)
   if (existing) return existing
@@ -148,6 +150,7 @@ async function ensureImportFolder(
         createdAt: new Date(),
         updatedAt: new Date(),
       })
+      onCreated?.()
       return folderId
     })
   } catch (error) {
@@ -173,6 +176,10 @@ export const POST = withRouteHandler(
 
     const { id: workspaceId } = parsed.data.params
     const { createFolders, rootFolderName } = parsed.data.query
+    let workspaceTreeChanged = false
+    const markWorkspaceTreeChanged = () => {
+      workspaceTreeChanged = true
+    }
 
     try {
       const workspaceData = await getWorkspaceWithOwner(workspaceId)
@@ -245,7 +252,8 @@ export const POST = withRouteHandler(
           workspaceId,
           workspaceData.ownerId,
           rootFolderName,
-          null
+          null,
+          markWorkspaceTreeChanged
         )
       }
 
@@ -259,11 +267,13 @@ export const POST = withRouteHandler(
           workspaceData.ownerId,
           createFolders,
           rootFolderId,
-          folderMap
+          folderMap,
+          markWorkspaceTreeChanged
         )
         results.push(result)
 
         if (result.success) {
+          workspaceTreeChanged = true
           logger.info(`Admin API: Imported workflow ${result.workflowId} (${result.name})`)
         } else {
           logger.warn(`Admin API: Failed to import workflow ${result.name}: ${result.error}`)
@@ -276,8 +286,10 @@ export const POST = withRouteHandler(
       logger.info(`Admin API: Import complete - ${imported} succeeded, ${failed} failed`)
 
       const response: WorkspaceImportResponse = { imported, failed, results }
+      if (workspaceTreeChanged) await notifyWorkspaceWorkflowsChanged(workspaceId)
       return NextResponse.json(response)
     } catch (error) {
+      if (workspaceTreeChanged) await notifyWorkspaceWorkflowsChanged(workspaceId)
       /**
        * The workspace folder ceiling refuses the import as a classified `conflict`. It is a
        * whole-import failure rather than a per-workflow one: once the tree is full every
@@ -302,7 +314,8 @@ async function importSingleWorkflow(
   ownerId: string,
   createFolders: boolean,
   rootFolderId: string | undefined,
-  folderMap: Map<string, string>
+  folderMap: Map<string, string>,
+  onFolderCreated: () => void
 ): Promise<ImportResult> {
   try {
     const { data: workflowData, errors } = parseWorkflowJson(wf.content)
@@ -331,7 +344,8 @@ async function importSingleWorkflow(
             workspaceId,
             ownerId,
             wf.folderPath[i],
-            parentId
+            parentId,
+            onFolderCreated
           )
           folderMap.set(fullPath, folderId)
           parentId = folderId

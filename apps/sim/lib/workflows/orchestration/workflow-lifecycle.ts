@@ -9,6 +9,7 @@ import { and, eq, isNull, ne } from 'drizzle-orm'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -486,6 +487,10 @@ export async function performDeleteWorkflow(
     metadata: { archived: true },
   })
 
+  if (result.workflow.workspaceId) {
+    await notifyWorkspaceWorkflowsChanged(result.workflow.workspaceId)
+  }
+
   return result
 }
 
@@ -524,6 +529,10 @@ export async function performRestoreWorkflow(
         workspaceId: restoreResult.workflow.workspaceId || undefined,
       },
     })
+
+    if (restoreResult.workflow.workspaceId) {
+      await notifyWorkspaceWorkflowsChanged(restoreResult.workflow.workspaceId)
+    }
 
     return { success: true, workflow: restoreResult.workflow }
   } catch (error) {

@@ -18,8 +18,9 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockWorkflowCreated } = vi.hoisted(() => ({
+const { mockWorkflowCreated, mockNotifyWorkspace } = vi.hoisted(() => ({
   mockWorkflowCreated: vi.fn(),
+  mockNotifyWorkspace: vi.fn(),
 }))
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
@@ -45,6 +46,9 @@ vi.mock('@/lib/workflows/defaults', () => ({
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkspaceWorkflowsChanged: mockNotifyWorkspace,
+}))
 
 import { POST } from '@/app/api/workflows/route'
 
@@ -109,6 +113,7 @@ describe('Workflows API Route - POST ordering', () => {
     expect(response.status).toBe(200)
     expect(data.sortOrder).toBe(1)
     expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 1 }))
+    expect(mockNotifyWorkspace).toHaveBeenCalledWith('workspace-123')
   })
 
   it('defaults to sortOrder 0 when there are no siblings', async () => {

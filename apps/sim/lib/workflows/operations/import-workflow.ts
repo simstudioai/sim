@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/contracts/v1/workflows'
 import { workflowStateSchema } from '@/lib/api/contracts/workflows'
 import { serializeZodIssues } from '@/lib/api/server'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import {
   type PerformCreateWorkflowParams,
@@ -411,6 +412,8 @@ async function executeImportWorkflowIntoWorkspace(
     name: created.workflow.name,
     blocksCount: Object.keys(workflowState.blocks).length,
   })
+
+  await notifyWorkspaceWorkflowsChanged(workspaceId)
 
   return {
     success: true,

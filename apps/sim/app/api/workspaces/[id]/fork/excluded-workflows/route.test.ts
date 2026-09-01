@@ -11,10 +11,13 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAssertWorkspaceAdminAccess, mockCaptureServerEvent } = vi.hoisted(() => ({
-  mockAssertWorkspaceAdminAccess: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
-}))
+const { mockAssertWorkspaceAdminAccess, mockCaptureServerEvent, mockNotifyWorkspace } = vi.hoisted(
+  () => ({
+    mockAssertWorkspaceAdminAccess: vi.fn(),
+    mockCaptureServerEvent: vi.fn(),
+    mockNotifyWorkspace: vi.fn(),
+  })
+)
 
 vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
   assertWorkspaceAdminAccess: mockAssertWorkspaceAdminAccess,
@@ -24,6 +27,9 @@ vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: mockCaptureServerEvent,
+}))
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkspaceWorkflowsChanged: mockNotifyWorkspace,
 }))
 
 import { PUT } from '@/app/api/workspaces/[id]/fork/excluded-workflows/route'
@@ -117,6 +123,8 @@ describe('fork excluded-workflows route', () => {
       expect.objectContaining({ workflow_count: 2, fork_sync_excluded: true }),
       { groups: { workspace: WORKSPACE_ID } }
     )
+    expect(mockNotifyWorkspace).toHaveBeenCalledOnce()
+    expect(mockNotifyWorkspace).toHaveBeenCalledWith(WORKSPACE_ID)
   })
 
   it('records the inclusion action when unmarking workflows', async () => {

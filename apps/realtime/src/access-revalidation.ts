@@ -49,8 +49,8 @@ function fallbackRoleFor(type: RoomType): string {
 /**
  * Room types whose membership is mirrored in the room manager's (Redis) presence
  * state, and therefore need a presence removal + rebroadcast after an eviction.
- * The workspace-files / workspace-tables invalidation rooms carry no presence at
- * all, and a file-doc room's roster is pod-local in-memory state reconciled by its
+ * The workspace-files / workspace-tables / workspace-workflows invalidation rooms carry no
+ * presence at all, and a file-doc room's roster is pod-local in-memory state reconciled by its
  * registered eviction handler — neither has anything for the cleanup lane to do.
  */
 const PRESENCE_ROOM_TYPES: ReadonlySet<RoomType> = new Set<RoomType>([

@@ -7,6 +7,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { ForkSyncBlocker, PromoteCopyResources } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
 import { notifyMcpToolServers } from '@/lib/mcp/workflow-mcp-sync'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import {
   enqueueWorkflowUndeploySideEffects,
   processWorkflowDeploymentOutboxEvent,
@@ -1006,6 +1007,10 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       droppedReferences: [],
       triggerUrlChanges: [],
     }
+  }
+
+  if (txResult.updated + txResult.created + txResult.archived > 0) {
+    await notifyWorkspaceWorkflowsChanged(targetWorkspaceId)
   }
 
   // Process archived orphans' undeploy side-effects after commit (durably retried by the

@@ -11,6 +11,7 @@ import { loadCopilotChatMessages } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import {
   loadWorkflowFromNormalizedTables,
@@ -170,6 +171,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: 500 }
       )
     }
+
+    await notifyWorkspaceWorkflowsChanged(targetWorkspaceId)
 
     // Copy copilot chats associated with the source workflow
     const sourceCopilotChats = await db

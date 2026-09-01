@@ -24,6 +24,7 @@ const {
   mockDbDelete,
   mockDbUpdate,
   mockWorkspaceRows,
+  mockNotifyWorkspace,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockValidateWorkspaceAccess: vi.fn(),
@@ -37,6 +38,7 @@ const {
   mockDbDelete: vi.fn(),
   mockDbUpdate: vi.fn(),
   mockWorkspaceRows: { value: [{ id: 'ws-1' }] as Array<{ id: string }> },
+  mockNotifyWorkspace: vi.fn(),
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
@@ -58,6 +60,9 @@ vi.mock('@/lib/workflows/orchestration', () => ({
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   saveWorkflowToNormalizedTables: mockSaveWorkflowToNormalizedTables,
+}))
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkspaceWorkflowsChanged: mockNotifyWorkspace,
 }))
 
 vi.mock('@/lib/workflows/operations/import-export', () => ({
@@ -275,6 +280,8 @@ describe('POST /api/v1/workflows/import', () => {
       { workspaceId: WORKSPACE_ID, subjectUserId: null },
       expect.anything()
     )
+    expect(mockNotifyWorkspace).toHaveBeenCalledOnce()
+    expect(mockNotifyWorkspace).toHaveBeenCalledWith(WORKSPACE_ID)
   })
 
   it('derives the name from the export envelope and deduplicates it', async () => {
@@ -395,6 +402,7 @@ describe('POST /api/v1/workflows/import', () => {
     expect(response.status).toBe(500)
     expect(mockDbDelete).toHaveBeenCalled()
     expect(whereSpy).toHaveBeenCalled()
+    expect(mockNotifyWorkspace).not.toHaveBeenCalled()
   })
 
   it('rolls back the created workflow when the variables write throws', async () => {

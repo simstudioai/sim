@@ -22,6 +22,7 @@ const {
   mockAssertForkStorageHeadroom,
   mockLoadTargetWebhookPaths,
   mockVerifyDrops,
+  mockNotifyWorkspace,
 } = vi.hoisted(() => ({
   mockComputePlan: vi.fn(),
   mockBuildCopySelection: vi.fn(),
@@ -40,6 +41,7 @@ const {
   mockAssertForkStorageHeadroom: vi.fn(),
   mockLoadTargetWebhookPaths: vi.fn(),
   mockVerifyDrops: vi.fn(),
+  mockNotifyWorkspace: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/deployment-outbox', () => ({
@@ -51,6 +53,9 @@ vi.mock('@/lib/workflows/orchestration/deploy', () => ({
 }))
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   undeployWorkflow: vi.fn(async () => ({ success: true })),
+}))
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkspaceWorkflowsChanged: mockNotifyWorkspace,
 }))
 vi.mock('@/ee/workspace-forking/lib/background-work/store', () => ({
   startBackgroundWork: vi.fn(),
@@ -600,6 +605,8 @@ describe('promoteFork dependent values', () => {
     })
 
     expect(result.blocked).toBeNull()
+    expect(mockNotifyWorkspace).toHaveBeenCalledOnce()
+    expect(mockNotifyWorkspace).toHaveBeenCalledWith('tgt-ws')
     // The apply map the workflow write receives carries the COPIED id: the dependent-value
     // apply runs AFTER the reference remap and wins for its subblock, so a raw source id
     // would clobber the remapped value in the written state.

@@ -93,6 +93,7 @@ import {
   useWorkflowOperations,
   useWorkspaceLogoUpload,
   useWorkspaceManagement,
+  useWorkspaceWorkflowsRoom,
   WORKSPACE_LOGO_ACCEPT_ATTRIBUTE,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
@@ -411,6 +412,7 @@ export const Sidebar = memo(function Sidebar({
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
+  useWorkspaceWorkflowsRoom(workspaceId)
   const router = useRouter()
   const pathname = usePathname()
 

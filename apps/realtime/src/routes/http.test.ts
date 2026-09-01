@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http'
 import { describe, expect, it, vi } from 'vitest'
+import { env } from '@/env'
 import type { IRoomManager } from '@/rooms'
 import { createHttpHandler } from '@/routes/http'
 
@@ -11,6 +12,7 @@ function createMocks(req: Partial<IncomingMessage>) {
   const roomManager = {
     getTotalActiveConnections: vi.fn().mockResolvedValue(0),
     isReady: vi.fn().mockReturnValue(true),
+    emitToRoom: vi.fn(),
   } as unknown as IRoomManager
 
   return {
@@ -20,6 +22,7 @@ function createMocks(req: Partial<IncomingMessage>) {
     setHeader,
     writeHead,
     end,
+    roomManager,
   }
 }
 
@@ -56,6 +59,31 @@ describe('createHttpHandler', () => {
 
     await handler(req, res)
 
+    expect(writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' })
+  })
+
+  it('fans workflow-tree changes out to the workspace workflows room', async () => {
+    const workspaceId = 'workspace-1'
+    const body = JSON.stringify({ workspaceId })
+    const request = {
+      method: 'POST',
+      url: '/api/workspace-workflows-changed',
+      headers: { 'x-api-key': env.INTERNAL_API_SECRET },
+      on(event: string, callback: (chunk?: Buffer) => void) {
+        if (event === 'data') callback(Buffer.from(body))
+        if (event === 'end') callback()
+        return this
+      },
+    } as unknown as IncomingMessage
+    const { handler, res, roomManager, writeHead } = createMocks(request)
+
+    await handler(request, res)
+
+    expect(roomManager.emitToRoom).toHaveBeenCalledWith(
+      { type: 'workspace-workflows', id: workspaceId },
+      'workspace-workflows-changed',
+      { workspaceId, timestamp: expect.any(Number) }
+    )
     expect(writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' })
   })
 })

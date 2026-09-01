@@ -21,8 +21,8 @@ interface JoinErrorPayload {
 /**
  * Joins a workspace-scoped, presence-free "invalidation room" over the shared socket and runs
  * `onChanged` whenever the server broadcasts `${roomType}-changed` for this workspace, so the list
- * refetches without waiting for staleness. Shared core behind {@link useWorkspaceFilesRoom} and
- * {@link useWorkspaceTablesRoom}; event names derive from `roomType`.
+ * refetches without waiting for staleness. Shared core behind the files, tables, and workflows
+ * workspace rooms; event names derive from `roomType`.
  *
  * These rooms carry no presence — "who's in a resource" comes from the per-resource room, not from
  * who's browsing the section. Mutations happen server-side (HTTP + copilot) and fan out this signal.
@@ -72,6 +72,9 @@ export function useWorkspaceInvalidationRoom(
         clearTimeout(retryTimer)
         retryTimer = null
       }
+      // The server's invalidation broadcast is intentionally lossy. Refetch after every successful
+      // initial join or reconnect so mutations completed before/during a disconnect are recovered.
+      onChangedRef.current()
     }
     const handleJoinError = (data: JoinErrorPayload) => {
       if (data.workspaceId !== workspaceId) return

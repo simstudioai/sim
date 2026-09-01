@@ -3,7 +3,7 @@ import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal
 import { createLogger } from '@sim/logger'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { notifyWorkflowDeleted } from '@/lib/realtime/notify'
+import { notifyWorkflowDeleted, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -69,6 +69,9 @@ export const deleteWorkflow = defineAuthorizedWorkflowUseCase({
           metadata: { archived: true },
         }
       : [],
-  afterSuccess: ({ context, result }) =>
-    result.archived ? notifyWorkflowDeleted(context.workflowId) : undefined,
+  afterSuccess: async ({ context, result }) => {
+    if (!result.archived) return
+    await notifyWorkflowDeleted(context.workflowId)
+    await notifyWorkspaceWorkflowsChanged(context.workspaceId)
+  },
 })

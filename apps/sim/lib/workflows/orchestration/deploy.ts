@@ -13,6 +13,7 @@ import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { validateTriggerWebhookConfigForDeploy } from '@/lib/webhooks/deploy'
 import { normalizedStringify } from '@/lib/workflows/comparison/normalize'
 import {
@@ -579,9 +580,12 @@ export async function performFullUndeploy(
   }
 
   await notifySocketDeploymentChanged(workflowId)
+  const undeployWorkspaceId = workflowData.workspaceId as string | null
+  if (undeployWorkspaceId) {
+    await notifyWorkspaceWorkflowsChanged(undeployWorkspaceId)
+  }
   const sideEffectWarning = await processDeploymentSideEffectsNow(outboxEventId, requestId)
 
-  const undeployWorkspaceId = workflowData.workspaceId as string | null
   if (undeployWorkspaceId) {
     void emitWorkflowUndeployedEvent({
       workflowId,

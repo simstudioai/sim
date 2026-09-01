@@ -28,6 +28,7 @@ import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
 import { canonicalWorkspaceFilePath, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
   ArchiveError,
@@ -353,6 +354,8 @@ async function executeImport(
       .set({ variables: variablesRecord, updatedAt: new Date() })
       .where(eq(workflow.id, workflowId))
   }
+
+  await notifyWorkspaceWorkflowsChanged(workspaceId)
 
   logger.info('Imported workflow from upload', {
     fileName,

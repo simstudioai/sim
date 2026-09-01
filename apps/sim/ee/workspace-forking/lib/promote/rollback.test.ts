@@ -16,6 +16,7 @@ const {
   mockProcessOutbox,
   mockNotify,
   mockGetDeploymentStatus,
+  mockNotifyWorkspace,
 } = vi.hoisted(() => ({
   mockResolveForkEdge: vi.fn(),
   mockAcquireTargetLock: vi.fn(),
@@ -29,6 +30,7 @@ const {
   mockProcessOutbox: vi.fn(),
   mockNotify: vi.fn(),
   mockGetDeploymentStatus: vi.fn(),
+  mockNotifyWorkspace: vi.fn(),
 }))
 
 vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
@@ -66,6 +68,9 @@ vi.mock('@/lib/workflows/deployment-outbox', () => ({
 
 vi.mock('@/ee/workspace-forking/lib/socket', () => ({
   notifyForkWorkflowChanged: mockNotify,
+}))
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkspaceWorkflowsChanged: mockNotifyWorkspace,
 }))
 
 import { db } from '@sim/db'
@@ -155,6 +160,8 @@ describe('rollbackFork', () => {
     expect(mockDeleteAllRuns).toHaveBeenCalledTimes(1)
     expect(mockNotify).toHaveBeenCalledWith('wf-a')
     expect(mockNotify).toHaveBeenCalledWith('wf-b')
+    expect(mockNotifyWorkspace).toHaveBeenCalledOnce()
+    expect(mockNotifyWorkspace).toHaveBeenCalledWith('target-ws')
   })
 
   it('un-archives and reactivates an archived orphan (prior version restored)', async () => {

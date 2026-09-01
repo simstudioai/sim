@@ -51,6 +51,7 @@ describe('parseRoomName', () => {
       { type: ROOM_TYPES.WORKSPACE_FILES, id: 'ws-456' },
       { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-789' },
       { type: ROOM_TYPES.TABLE, id: 'table-abc' },
+      { type: ROOM_TYPES.WORKSPACE_WORKFLOWS, id: 'ws-workflows' },
     ]
     for (const ref of refs) {
       expect(parseRoomName(roomName(ref))).toEqual(ref)

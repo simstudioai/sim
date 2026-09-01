@@ -11,7 +11,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
-import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
+import { notifyWorkflowUpdated, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveArchivedWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -94,5 +94,8 @@ export const restoreWorkflow = defineAuthorizedWorkflowUseCase({
       source: principalAuditSource(principal),
     },
   }),
-  afterSuccess: ({ context }) => notifyWorkflowUpdated(context.workflowId),
+  afterSuccess: async ({ context }) => {
+    await notifyWorkflowUpdated(context.workflowId)
+    await notifyWorkspaceWorkflowsChanged(context.workspaceId)
+  },
 })

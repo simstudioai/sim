@@ -87,6 +87,8 @@ const ROOM_WORKSPACE_RESOLVERS: Partial<Record<RoomType, RoomWorkspaceResolver>>
   [ROOM_TYPES.WORKSPACE_FILES]: resolveWorkspaceRoomWorkspace,
   // A workspace-tables room is addressed directly by its workspace id.
   [ROOM_TYPES.WORKSPACE_TABLES]: resolveWorkspaceRoomWorkspace,
+  // A workspace-workflows room is addressed directly by its workspace id.
+  [ROOM_TYPES.WORKSPACE_WORKFLOWS]: resolveWorkspaceRoomWorkspace,
   // A file-doc room is addressed by file id; resolve it to its workspace.
   [ROOM_TYPES.WORKSPACE_FILE_DOC]: resolveFileDocWorkspace,
   // A table room is addressed by table id; resolve it to its workspace.
@@ -103,9 +105,9 @@ export interface RoomAuthorizationResult {
 
 /**
  * Authorizes a user against a workspace-scoped realtime room (workspace-files,
- * file-doc, table). Mirrors `authorizeWorkflowByWorkspacePermission` (the
- * exemplary workflow authorizer) but generalized over room type: resolve the
- * room's workspace, then gate on the user's effective workspace permission under
+ * workspace-tables, workspace-workflows, file-doc, table). Mirrors
+ * `authorizeWorkflowByWorkspacePermission` (the exemplary workflow authorizer) but generalized
+ * over room type: resolve the room's workspace, then gate on the user's effective permission under
  * the read < write < admin ordering. Workflow rooms use their own authorizer and
  * do not pass through here (see {@link ROOM_WORKSPACE_RESOLVERS}).
  *
