@@ -25,6 +25,10 @@ export const credentialGroupEnrollmentOperations = {
     id: 'credential_groups.enrollment.oauth.complete',
     principalKind: 'credential_group_enrollment',
   }),
+  submitApiKey: defineCredentialGroupEnrollmentOperation({
+    id: 'credential_groups.enrollment.api_key.submit',
+    principalKind: 'credential_group_enrollment',
+  }),
   complete: defineCredentialGroupEnrollmentOperation({
     id: 'credential_groups.enrollment.complete',
     principalKind: 'credential_group_enrollment',

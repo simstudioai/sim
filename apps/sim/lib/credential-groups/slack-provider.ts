@@ -1,5 +1,6 @@
 import { normalizeEmail } from '@sim/utils/string'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { requireCredentialGroupOAuthOptionConfig } from '@/lib/credential-groups/option-config'
 import type {
   CredentialGroupProviderAdapter,
   CredentialGroupProviderPolicy,
@@ -123,7 +124,8 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
     const currentPolicy = await getSlackPolicy({
       workspaceId: context.workspaceId,
       credentialGroupId: context.credentialGroupId,
-      slackBotCredentialId: context.option.slackBotCredentialId,
+      slackBotCredentialId: requireCredentialGroupOAuthOptionConfig(context.option)
+        .slackBotCredentialId,
     })
     if (currentPolicy.authorizationAppId !== policy.authorizationAppId) {
       throw new CredentialGroupOAuthError(
@@ -149,7 +151,8 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
     const currentPolicy = await getSlackPolicy({
       workspaceId: context.workspaceId,
       credentialGroupId: context.credentialGroupId,
-      slackBotCredentialId: context.option.slackBotCredentialId,
+      slackBotCredentialId: requireCredentialGroupOAuthOptionConfig(context.option)
+        .slackBotCredentialId,
     })
     const redirectUri = `${getBaseUrl()}${SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH}`
     if (

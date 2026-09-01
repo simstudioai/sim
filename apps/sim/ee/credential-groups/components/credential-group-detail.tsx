@@ -11,7 +11,7 @@ import type {
   CredentialGroupEnrollmentConnection,
 } from '@/lib/api/contracts/credential-groups'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
-import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
+import { getCredentialGroupProviderPresentation } from '@/lib/credential-groups/providers'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
@@ -69,7 +69,7 @@ interface CredentialProviderIconProps {
 }
 
 function CredentialProviderIcon({ provider }: CredentialProviderIconProps) {
-  const ProviderIcon = getCredentialGroupProviderService(provider).icon
+  const ProviderIcon = getCredentialGroupProviderPresentation(provider).icon
   return <ProviderIcon className='size-[14px]' aria-hidden />
 }
 
@@ -270,16 +270,6 @@ export function CredentialGroupDetail({
         title={credentialGroup?.name ?? 'Credential group'}
         description={credentialGroup?.description ?? undefined}
         actions={actions}
-        search={
-          activeTab === 'details'
-            ? {
-                value: providerSearch,
-                onChange: setProviderSearch,
-                placeholder: 'Search account types...',
-                disabled: detail.isPending,
-              }
-            : undefined
-        }
       >
         {detail.error ? (
           <SettingsEmptyState tone='error'>
@@ -299,6 +289,7 @@ export function CredentialGroupDetail({
                 workspaceId={workspaceId}
                 credentialGroup={credentialGroup}
                 providerSearch={providerSearch}
+                onProviderSearchChange={setProviderSearch}
                 name={name}
                 onNameChange={setDraftName}
                 description={description}

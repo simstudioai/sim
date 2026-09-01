@@ -37,6 +37,7 @@ type PublicCredentialGroupRateLimitScope =
   | 'oauth-start'
   | 'oauth-callback'
   | 'complete'
+  | 'api-key-submit'
 
 function rateLimitResponse(retryAfterMs: number | undefined, fallbackMs: number): NextResponse {
   const retryAfterSeconds = Math.ceil((retryAfterMs ?? fallbackMs) / 1000)
@@ -54,7 +55,11 @@ function rateLimitResponse(retryAfterMs: number | undefined, fallbackMs: number)
 
 function configForPublicScope(scope: PublicCredentialGroupRateLimitScope): TokenBucketConfig {
   if (scope === 'metadata') return PUBLIC_ENROLLMENT_METADATA_RATE_LIMIT
-  if (scope === 'oauth-start' || scope === 'complete') return PUBLIC_OAUTH_START_RATE_LIMIT
+  // An API-key submit carries a secret and is guessable, so it shares the tight
+  // authorization-start bucket rather than the permissive metadata one.
+  if (scope === 'oauth-start' || scope === 'complete' || scope === 'api-key-submit') {
+    return PUBLIC_OAUTH_START_RATE_LIMIT
+  }
   return PUBLIC_OAUTH_CALLBACK_RATE_LIMIT
 }
 

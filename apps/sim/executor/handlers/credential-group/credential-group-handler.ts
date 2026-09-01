@@ -11,6 +11,7 @@ import { sendCredentialGroupInvite } from '@/lib/credential-groups/application/s
 import { MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE } from '@/lib/credential-groups/credentials'
 import type { CredentialGroupEnrollmentStatus } from '@/lib/credential-groups/enrollments'
 import { enforceCredentialGroupInvitationExecutionRateLimit } from '@/lib/credential-groups/rate-limit'
+import { resolveManagedApiKeyCredential } from '@/lib/credentials/application/resolve-managed-api-key'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
@@ -21,6 +22,7 @@ const logger = createLogger('CredentialGroupBlockHandler')
 
 const CREDENTIAL_GROUP_OPERATION_IDS = [
   'list_credentials',
+  'get_api_key',
   'send_invite',
   'get_invite_link',
   'list_people',
@@ -173,6 +175,58 @@ export class CredentialGroupBlockHandler implements BlockHandler {
           invitedAt: result.enrollment.invitedAt,
           expiresAt: result.enrollment.expiresAt,
           invitationLink: result.invitationLink,
+        }
+      }
+      case 'get_api_key': {
+        const credentialId = requireString(inputs.credentialId, 'Credential')
+        const resolved = await resolveManagedApiKeyCredential.execute({
+          principal,
+          input: { credentialId, credentialGroupId: credentialGroupId! },
+        })
+
+        /**
+         * Register the key with the run's redaction catalog before returning it.
+         *
+         * This is the whole reason the value may be handed to a workflow at all: the trace
+         * registry substitutes known secret literals out of logs, model-visible content, and
+         * stored snapshots. A run without a registry cannot do that, so the block fails
+         * rather than emitting a secret nothing can redact.
+         */
+        if (!ctx.resolvedSecretTraceRegistry) {
+          throw new Error(
+            'Credential Group API keys cannot be read without resolved-secret provenance for this run'
+          )
+        }
+        const scope = ctx.resolvedSecretTraceRegistry.exportProvenance().scope
+        const imported = await ctx.resolvedSecretTraceRegistry.importProvenance(
+          {
+            version: 1,
+            complete: true,
+            // One entry per secret field: the matcher substitutes exact literals, so a
+            // credential carrying two secrets needs both catalogued or one goes out in clear.
+            entries: resolved.provenanceEntries.map((entry) => ({
+              encryptedValue: entry.encryptedValue,
+              name: `${credentialId}:${entry.name}`,
+            })),
+            ...(scope ? { scope } : {}),
+          },
+          { trusted: true, origin: 'credentialGroup.getApiKey' }
+        )
+        if (!imported) {
+          throw new Error('Credential Group API key could not be registered for redaction')
+        }
+
+        logger.info('Resolved Credential Group API key', {
+          credentialGroupId,
+          credentialId,
+          providerId: resolved.providerId,
+        })
+        return {
+          fields: resolved.fields,
+          credentialId: resolved.credentialId,
+          providerId: resolved.providerId,
+          displayName: resolved.displayName,
+          email: resolved.email,
         }
       }
       case 'list_people': {

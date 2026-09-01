@@ -8,6 +8,7 @@ import {
   credentialGroupSchema,
   inviteCredentialGroupEnrollmentsBodySchema,
   sharedCredentialGroupOAuthCallbackContract,
+  submitCredentialGroupApiKeyContract,
   updateCredentialGroupAccessBodySchema,
   updateCredentialGroupBodySchema,
 } from '@/lib/api/contracts/credential-groups'
@@ -15,6 +16,10 @@ import {
   CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT,
   CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT,
 } from '@/lib/credential-groups/workflow-access-limits'
+import {
+  MAX_MANAGED_API_KEY_LENGTH,
+  MIN_MANAGED_API_KEY_LENGTH,
+} from '@/lib/credentials/managed-api-key'
 
 describe('credential group contracts', () => {
   it('describes the shared managed OAuth callback as a redirect', () => {
@@ -287,5 +292,76 @@ describe('credential group contracts', () => {
         document: { version: 1, resource: { type: 'credential_group', id: 'group-1' } },
       }).success
     ).toBe(false)
+  })
+})
+
+describe('API-key credential group options', () => {
+  it('accepts an API-key option at create time, unlike Slack', () => {
+    expect(
+      createCredentialGroupBodySchema.safeParse({
+        name: 'Recorders',
+        options: [{ provider: 'fireflies', label: 'Fireflies', required: false }],
+      }).success
+    ).toBe(true)
+  })
+
+  it('rejects OAuth configuration smuggled onto an API-key option', () => {
+    expect(
+      createCredentialGroupBodySchema.safeParse({
+        name: 'Recorders',
+        options: [
+          {
+            provider: 'fireflies',
+            label: 'Fireflies',
+            required: false,
+            slackBotCredentialId: '00000000-0000-4000-8000-000000000000',
+          },
+        ],
+      }).success
+    ).toBe(false)
+  })
+
+  it('still rejects two options for the same API-key provider', () => {
+    expect(
+      createCredentialGroupBodySchema.safeParse({
+        name: 'Recorders',
+        options: [
+          { provider: 'fireflies', label: 'Mine', required: false },
+          { provider: 'fireflies', label: 'Theirs', required: false },
+        ],
+      }).success
+    ).toBe(false)
+  })
+
+  it('rejects an unregistered provider', () => {
+    expect(
+      createCredentialGroupBodySchema.safeParse({
+        name: 'Recorders',
+        options: [{ provider: 'zoho-desk', label: 'Zoho Desk', required: false }],
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts a multi-field credential and bounds the envelope', () => {
+    const body = submitCredentialGroupApiKeyContract.body
+    expect(
+      body?.safeParse({ fields: { accessKey: 'key-value', accessKeySecret: 'secret-value' } })
+        .success
+    ).toBe(true)
+    expect(body?.safeParse({ fields: {} }).success).toBe(false)
+    expect(
+      body?.safeParse({ fields: { apiKey: 'a'.repeat(MAX_MANAGED_API_KEY_LENGTH + 1) } }).success
+    ).toBe(false)
+  })
+
+  /**
+   * Per-field length rules live in the provider registry, not the wire: a non-secret field has
+   * no floor, so the boundary must not impose one it cannot know about.
+   */
+  it('leaves the per-secret length floor to the application layer', () => {
+    const body = submitCredentialGroupApiKeyContract.body
+    expect(
+      body?.safeParse({ fields: { apiKey: 'a'.repeat(MIN_MANAGED_API_KEY_LENGTH - 1) } }).success
+    ).toBe(true)
   })
 })

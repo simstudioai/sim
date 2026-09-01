@@ -3,6 +3,8 @@ import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
 import type { OperationUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { persistCredentialGroupApiKey } from '@/lib/credential-groups/api-key'
+import { getCredentialGroupApiKeyVerifier } from '@/lib/credential-groups/api-key-providers/registry'
 import { credentialGroupEnrollmentOperations } from '@/lib/credential-groups/application/enrollment-operations'
 import {
   completeAuthorizedCredentialGroupEnrollment,
@@ -15,6 +17,12 @@ import {
   startCredentialGroupOAuth,
 } from '@/lib/credential-groups/oauth'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
+import {
+  getCredentialGroupApiKeyFields,
+  isCredentialGroupApiKeyProvider,
+  isCredentialGroupProvider,
+} from '@/lib/credential-groups/providers'
+import { requireStorableManagedApiKeyFields } from '@/lib/credentials/managed-api-key'
 
 interface AuthorizedCredentialGroupEnrollmentUseCaseDefinition<O, I, C, R> {
   operation: O
@@ -183,6 +191,54 @@ export const completePublicCredentialGroupOAuth = defineAuthorizedCredentialGrou
   async execute({ principal, input, context }) {
     requireInvitationToken(principal, input.attempt.invitationToken)
     await completeCredentialGroupOAuth(context.oauth, input.attempt, input.code)
+    return { connectedOptionId: context.oauth.option.id }
+  },
+})
+
+interface SubmitPublicCredentialGroupApiKeyInput {
+  invitationToken: string
+  optionId: string
+  /** Every value the provider declares, keyed by field id. */
+  fields: Record<string, string>
+}
+
+/**
+ * Accepts one API key for one enrollment option.
+ *
+ * Reuses the OAuth context resolver because the shape it loads — the enrollment, the group,
+ * and the single option being satisfied — is identical; only the way that option is
+ * satisfied differs. The verifier runs before anything is written, so an unusable key is
+ * refused while the person is still on the page rather than surfacing later as a workflow
+ * that cannot authenticate.
+ */
+export const submitPublicCredentialGroupApiKey = defineAuthorizedCredentialGroupEnrollmentUseCase({
+  operation: credentialGroupEnrollmentOperations.submitApiKey,
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: CredentialGroupEnrollmentPrincipal
+    input: SubmitPublicCredentialGroupApiKeyInput
+  }) => resolvePublicOAuthContext(principal, input.optionId),
+  async execute({ principal, input, context }) {
+    requireInvitationToken(principal, input.invitationToken)
+
+    const provider = context.oauth.option.provider
+    if (!isCredentialGroupProvider(provider) || !isCredentialGroupApiKeyProvider(provider)) {
+      throw new OrchestrationError('validation', 'This account is not connected with an API key')
+    }
+
+    const fields = requireStorableManagedApiKeyFields(
+      getCredentialGroupApiKeyFields(provider),
+      input.fields
+    )
+    const verification = await getCredentialGroupApiKeyVerifier(provider).verify(fields)
+    await persistCredentialGroupApiKey({
+      context: context.oauth,
+      provider,
+      fields,
+      verification,
+    })
     return { connectedOptionId: context.oauth.option.id }
   },
 })

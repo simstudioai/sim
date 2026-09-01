@@ -4,6 +4,7 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  isCredentialGroupApiKeyOptionConfig,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, desc, eq, inArray } from 'drizzle-orm'
@@ -11,10 +12,14 @@ import {
   credentialGroupWorkflowAccessPolicyCodec,
   requireDefaultCredentialGroupWorkflowAccessPolicy,
 } from '@/lib/credential-groups/application/workflow-access-policy'
+import { requireCredentialGroupOAuthOptionConfig } from '@/lib/credential-groups/option-config'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import { decryptCredentialGroupProviderConfiguration } from '@/lib/credential-groups/provider-configuration'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
-import { isCredentialGroupProvider } from '@/lib/credential-groups/providers'
+import {
+  isCredentialGroupApiKeyProvider,
+  isCredentialGroupProvider,
+} from '@/lib/credential-groups/providers'
 import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
 import type {
   CreateCredentialGroupInput,
@@ -43,6 +48,16 @@ async function buildOption(
   credentialGroupId?: string,
   executor: DbOrTx = db
 ): Promise<CredentialGroupOptionConfig> {
+  if (isCredentialGroupApiKeyProvider(option.provider)) {
+    return {
+      kind: 'api_key',
+      id: generateId(),
+      provider: option.provider,
+      label: option.label,
+      required: option.required,
+      status: 'active',
+    }
+  }
   const providerConfig = await getCredentialGroupProviderAdapter(option.provider).getPolicy(
     option,
     { workspaceId, credentialGroupId, executor }
@@ -75,6 +90,17 @@ async function updateOptions(
       if (!existing) throw new Error(`Credential group option ${input.id} does not exist`)
       if (input.provider !== existing.provider) {
         throw new Error('A credential option provider cannot be changed; add a new option instead')
+      }
+
+      if (isCredentialGroupApiKeyProvider(input.provider)) {
+        return {
+          kind: 'api_key' as const,
+          id: existing.id,
+          provider: existing.provider,
+          label: input.label,
+          required: input.required,
+          status: existing.status,
+        }
       }
 
       const providerConfig = await getCredentialGroupProviderAdapter(input.provider).getPolicy(
@@ -120,18 +146,19 @@ async function toCredentialGroup(
       if (option.provider !== 'slack') {
         return { ...common, provider: option.provider, configurationStatus: 'ready' as const }
       }
-      if (!option.slackBotCredentialId) {
+      const slackOption = requireCredentialGroupOAuthOptionConfig(option)
+      if (!slackOption.slackBotCredentialId) {
         throw new Error(`Slack credential option ${option.id} has no custom bot`)
       }
       return {
         ...common,
         provider: 'slack' as const,
-        slackBotCredentialId: option.slackBotCredentialId,
+        slackBotCredentialId: slackOption.slackBotCredentialId,
         configurationStatus:
           !providerConfiguration.slack ||
-          providerConfiguration.slack.slackBotCredentialId !== option.slackBotCredentialId
+          providerConfiguration.slack.slackBotCredentialId !== slackOption.slackBotCredentialId
             ? ('not_configured' as const)
-            : option.scopeVersion !==
+            : slackOption.scopeVersion !==
                   credentialGroupScopePolicyVersion([...SLACK_MANAGED_USER_SCOPES]) ||
                 !SLACK_MANAGED_USER_SCOPES.every((scope) =>
                   providerConfiguration.slack?.scopes.includes(scope)
@@ -262,12 +289,15 @@ export async function updateCredentialGroup(
     const invalidatedOptionIds = existing.options
       .filter((option) => {
         const next = nextOptionById.get(option.id)
+        if (!next || body.status === 'disabled') return true
+        // An API-key option carries no scope policy, so nothing about editing it can
+        // invalidate a key its owner already pasted. Only removal or disabling does.
+        if (isCredentialGroupApiKeyOptionConfig(option)) return false
+        if (isCredentialGroupApiKeyOptionConfig(next)) return true
         return (
-          !next ||
           next.authorizationAppId !== option.authorizationAppId ||
           next.scopeVersion !== option.scopeVersion ||
-          !scopesEqual(next.requiredScopes, option.requiredScopes) ||
-          body.status === 'disabled'
+          !scopesEqual(next.requiredScopes, option.requiredScopes)
         )
       })
       .map((option) => option.id)

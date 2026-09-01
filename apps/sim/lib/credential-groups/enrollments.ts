@@ -4,6 +4,7 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  isCredentialGroupApiKeyOptionConfig,
   user,
   workspace,
 } from '@sim/db/schema'
@@ -17,6 +18,7 @@ import { getCredentialGroupInvitationSubject } from '@/components/emails/subject
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
+import { requireCredentialGroupOAuthOptionConfig } from '@/lib/credential-groups/option-config'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import {
@@ -30,6 +32,7 @@ import type {
   CredentialGroupEnrollmentRecord,
   InviteCredentialGroupEnrollmentsInput,
 } from '@/lib/credential-groups/types'
+import { MANAGED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
 import type { DbOrTx } from '@/lib/db/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
@@ -565,7 +568,7 @@ export async function listCredentialGroupEnrollments(
           .from(credential)
           .where(
             and(
-              eq(credential.type, 'managed_oauth'),
+              inArray(credential.type, MANAGED_CREDENTIAL_TYPES),
               inArray(credential.credentialGroupEnrollmentId, enrollmentIds),
               inArray(credential.credentialGroupOptionId, activeOptionIds)
             )
@@ -788,7 +791,7 @@ async function buildPublicCredentialGroupEnrollment(
     .from(credential)
     .where(
       and(
-        eq(credential.type, 'managed_oauth'),
+        inArray(credential.type, MANAGED_CREDENTIAL_TYPES),
         eq(credential.credentialGroupEnrollmentId, row.enrollment.id)
       )
     )
@@ -802,14 +805,27 @@ async function buildPublicCredentialGroupEnrollment(
         if (!isCredentialGroupProvider(option.provider)) {
           throw new Error(`Unsupported Credential Group provider: ${option.provider}`)
         }
-        const adapter = getCredentialGroupProviderAdapter(option.provider)
-        const policy = await adapter.getPolicy(option, {
-          workspaceId: row.workspaceId,
-          credentialGroupId: row.groupId,
-        })
+        const provider = option.provider
+        /**
+         * An API-key option has no scope policy, so a stored key is either usable or
+         * revoked. The drift checks below exist to catch an OAuth grant whose authorization
+         * app or scopes changed underneath it, and there is no equivalent to drift against.
+         */
+        const oauthPolicy = isCredentialGroupApiKeyOptionConfig(option)
+          ? null
+          : await (async () => {
+              const adapter = getCredentialGroupProviderAdapter(provider)
+              return {
+                adapter,
+                policy: await adapter.getPolicy(requireCredentialGroupOAuthOptionConfig(option), {
+                  workspaceId: row.workspaceId,
+                  credentialGroupId: row.groupId,
+                }),
+              }
+            })()
         return {
           id: option.id,
-          provider: option.provider,
+          provider,
           label: option.label,
           required: option.required,
           status: option.status,
@@ -820,15 +836,17 @@ async function buildPublicCredentialGroupEnrollment(
               const status =
                 connection.status === 'revoked'
                   ? ('revoked' as const)
-                  : connection.status !== 'active' ||
-                      connection.authorizationAppId !== policy.authorizationAppId ||
-                      connection.scopeVersion !== policy.scopeVersion ||
-                      !adapter.hasRequiredScopes(
-                        connection.grantedScopes ?? [],
-                        policy.requiredScopes
-                      )
+                  : connection.status !== 'active'
                     ? ('needs_reauth' as const)
-                    : ('connected' as const)
+                    : oauthPolicy &&
+                        (connection.authorizationAppId !== oauthPolicy.policy.authorizationAppId ||
+                          connection.scopeVersion !== oauthPolicy.policy.scopeVersion ||
+                          !oauthPolicy.adapter.hasRequiredScopes(
+                            connection.grantedScopes ?? [],
+                            oauthPolicy.policy.requiredScopes
+                          ))
+                      ? ('needs_reauth' as const)
+                      : ('connected' as const)
               return {
                 email,
                 displayName:

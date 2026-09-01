@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Chip, ChipConfirmModal, ChipInput, ChipTag, ChipTextarea, toast } from '@sim/emcn'
+import { Search } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { WorkspaceCredential } from '@/lib/api/contracts'
 import type {
@@ -11,10 +12,12 @@ import type {
 } from '@/lib/api/contracts/credential-groups'
 import {
   CREDENTIAL_GROUP_PROVIDER_IDS,
+  type CredentialGroupApiKeyProvider,
   type CredentialGroupProvider,
   type CredentialGroupStandardOAuthProvider,
-  getCredentialGroupProviderService,
+  getCredentialGroupProviderPresentation,
   getCredentialGroupProviderSupport,
+  isCredentialGroupApiKeyProvider,
   isCredentialGroupStandardOAuthProvider,
 } from '@/lib/credential-groups/providers'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -38,6 +41,7 @@ interface CredentialGroupDetailsProps {
   workspaceId: string
   /** Filters the account types offered below; owned by the panel header's search field. */
   providerSearch: string
+  onProviderSearchChange: (value: string) => void
   /** Edited name; committed by the panel header's Save action, which owns the dirty state. */
   name: string
   onNameChange: (name: string) => void
@@ -50,7 +54,7 @@ function toOptionUpdateInput(
 ): NonNullable<UpdateCredentialGroupBody['options']>[number] {
   const common = {
     id: option.id,
-    label: getCredentialGroupProviderService(option.provider).name,
+    label: getCredentialGroupProviderPresentation(option.provider).name,
     required: false,
   }
   if (option.provider !== 'slack') return { ...common, provider: option.provider }
@@ -65,6 +69,7 @@ export function CredentialGroupDetails({
   credentialGroup,
   workspaceId,
   providerSearch,
+  onProviderSearchChange,
   name,
   onNameChange,
   description,
@@ -105,8 +110,10 @@ export function CredentialGroupDetails({
     }
   }
 
-  const addProvider = async (provider: CredentialGroupStandardOAuthProvider) => {
-    const service = getCredentialGroupProviderService(provider)
+  const addProvider = async (
+    provider: CredentialGroupStandardOAuthProvider | CredentialGroupApiKeyProvider
+  ) => {
+    const service = getCredentialGroupProviderPresentation(provider)
     const existing = credentialGroup.options.map(toOptionUpdateInput)
     const nextOption: NonNullable<UpdateCredentialGroupBody['options']>[number] = {
       provider,
@@ -122,7 +129,10 @@ export function CredentialGroupDetails({
 
   const handleProviderAction = (provider: CredentialGroupProvider) => {
     const support = getCredentialGroupProviderSupport(provider)
-    if (isCredentialGroupStandardOAuthProvider(provider)) {
+    if (
+      isCredentialGroupStandardOAuthProvider(provider) ||
+      isCredentialGroupApiKeyProvider(provider)
+    ) {
       void addProvider(provider)
       return
     }
@@ -135,7 +145,7 @@ export function CredentialGroupDetails({
 
   const handleRemoveProvider = async () => {
     if (!removingProvider) return
-    const service = getCredentialGroupProviderService(removingProvider)
+    const service = getCredentialGroupProviderPresentation(removingProvider)
     const options = credentialGroup.options
       .filter((option) => option.provider !== removingProvider)
       .map(toOptionUpdateInput)
@@ -159,7 +169,9 @@ export function CredentialGroupDetails({
       return false
     }
     if (!providerQuery) return true
-    return getCredentialGroupProviderService(provider).name.toLowerCase().includes(providerQuery)
+    return getCredentialGroupProviderPresentation(provider)
+      .name.toLowerCase()
+      .includes(providerQuery)
   })
 
   return (
@@ -191,6 +203,14 @@ export function CredentialGroupDetails({
       </SettingsSection>
 
       <SettingsSection label='Accounts people can connect'>
+        <ChipInput
+          icon={Search}
+          className='mb-3 w-full'
+          placeholder='Search account types...'
+          aria-label='Search account types'
+          value={providerSearch}
+          onChange={(event) => onProviderSearchChange(event.target.value)}
+        />
         {shownProviders.length === 0 ? (
           <SettingsEmptyState variant='inline'>
             {providerSearch.trim()
@@ -200,7 +220,7 @@ export function CredentialGroupDetails({
         ) : null}
         <div className={RESOURCE_LIST_STACK}>
           {shownProviders.map((provider) => {
-            const service = getCredentialGroupProviderService(provider)
+            const service = getCredentialGroupProviderPresentation(provider)
             const support = getCredentialGroupProviderSupport(provider)
             const option = credentialGroup.options.find(
               (candidate) => candidate.provider === provider
@@ -273,7 +293,10 @@ export function CredentialGroupDetails({
                       onClick={() => handleProviderAction(provider)}
                       disabled={isUpdating || (provider === 'slack' && slackBots.isPending)}
                     >
-                      {support.configuration === 'oauth' ? 'Add' : 'Set up'}
+                      {/* Only Slack configures anything here — it collects a custom bot's
+                          credentials before anyone can enroll. Every other kind, OAuth and
+                          API key alike, is just added to the group. */}
+                      {support.configuration === 'slack_custom_bot' ? 'Set up' : 'Add'}
                     </Chip>
                   )
                 }
@@ -301,7 +324,9 @@ export function CredentialGroupDetails({
         onOpenChange={(open) => !open && !isUpdating && setRemovingProvider(null)}
         srTitle='Remove account type'
         title={`Remove ${
-          removingProvider ? getCredentialGroupProviderService(removingProvider).name : 'account'
+          removingProvider
+            ? getCredentialGroupProviderPresentation(removingProvider).name
+            : 'account'
         }`}
         defaultAction='confirm'
         text='People will no longer be asked to connect this account. Existing credentials are retained but will no longer be returned by this group.'

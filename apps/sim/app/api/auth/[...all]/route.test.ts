@@ -37,8 +37,17 @@ vi.mock('@/lib/credential-groups/oauth-state', () => ({
 }))
 
 vi.mock('@/lib/credential-groups/providers', () => ({
-  CREDENTIAL_GROUP_PROVIDER_IDS: ['gmail', 'google-calendar', 'confluence', 'jira', 'slack'],
+  CREDENTIAL_GROUP_PROVIDER_IDS: [
+    'gmail',
+    'google-calendar',
+    'confluence',
+    'jira',
+    'slack',
+    'fireflies',
+  ],
   CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS: ['gmail', 'google-calendar', 'confluence', 'jira'],
+  CREDENTIAL_GROUP_API_KEY_PROVIDER_IDS: ['fireflies'],
+  isCredentialGroupApiKeyProvider: (provider: string) => provider === 'fireflies',
   getCredentialGroupStandardOAuthProviderFromProviderId: (providerId: string) => {
     const providers: Record<string, string> = {
       'google-email': 'gmail',

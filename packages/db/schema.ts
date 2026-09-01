@@ -4135,6 +4135,7 @@ export const usageLog = pgTable(
 export const credentialTypeEnum = pgEnum('credential_type', [
   'oauth',
   'managed_oauth',
+  'managed_api_key',
   'env_workspace',
   'env_personal',
   'service_account',
@@ -4146,12 +4147,35 @@ export const managedOauthCredentialStatusEnum = pgEnum('managed_oauth_credential
   'revoked',
 ])
 
-export interface ManagedOAuthProviderMetadata {
-  email: string
+/**
+ * Identity a managed credential's provider reported at grant time.
+ *
+ * `email` is optional because only some grants can prove one. An OAuth grant always
+ * carries the consenting account's address, which the enrollment flow matches against the
+ * invitation. An API key is verified through whatever identity endpoint the service
+ * offers, and not every service names the key's owner — see
+ * `CredentialGroupApiKeyVerification`, which makes that distinction explicit rather than
+ * letting a missing address pass unremarked.
+ */
+export interface ManagedCredentialProviderMetadata {
+  email?: string
   displayName?: string
   avatarUrl?: string
   username?: string
   tenantDisplayName?: string
+}
+
+/**
+ * Plaintext shape behind `credential.encryptedApiKey`.
+ *
+ * `fields` is keyed by the field ids the provider declares, so a service authenticating with
+ * more than one value (Gong's access key and secret) needs no separate shape. Versioned so a
+ * future change to that contract can be told apart from a corrupt payload.
+ */
+export interface ManagedApiKeyEnvelope {
+  type: 'managed-api-key'
+  version: 1
+  fields: Record<string, string>
 }
 
 export const credential = pgTable(
@@ -4187,8 +4211,23 @@ export const credential = pgTable(
     providerTenantId: text('provider_tenant_id'),
     managedOauthStatus: managedOauthCredentialStatusEnum('managed_oauth_status'),
     grantedScopes: text('granted_scopes').array(),
-    providerMetadata: jsonb('provider_metadata').$type<ManagedOAuthProviderMetadata>(),
+    providerMetadata: jsonb('provider_metadata').$type<ManagedCredentialProviderMetadata>(),
     encryptedOauthTokenSet: text('encrypted_oauth_token_set'),
+    /**
+     * `encryptSecret` of a {@link ManagedApiKeyEnvelope} JSON document, for
+     * `type = 'managed_api_key'`.
+     *
+     * Read it only through `openManagedApiKeySecret`. The resolved-secret trace registry
+     * catalogs whatever a ciphertext decrypts to and redacts exactly that literal, so the
+     * envelope ciphertext must never reach `importProvenance` — it would catalog the JSON
+     * document and leave the key itself unredacted. That helper returns the bare-key
+     * ciphertext the registry needs alongside the plaintext.
+     *
+     * Encrypted with `encryptSecret` (`ENCRYPTION_KEY`), never `encryptApiKey`
+     * (`API_ENCRYPTION_KEY`): the registry decrypts with `decryptSecret`, and `encryptApiKey`
+     * silently stores plaintext when its key is unset.
+     */
+    encryptedApiKey: text('encrypted_api_key'),
     grantedAt: timestamp('granted_at'),
     revokedAt: timestamp('revoked_at'),
     accessTokenExpiresAt: timestamp('access_token_expires_at'),
@@ -4211,7 +4250,7 @@ export const credential = pgTable(
     ),
     credentialGroupOptionUnique: uniqueIndex('credential_group_option_unique')
       .on(table.credentialGroupEnrollmentId, table.credentialGroupOptionId)
-      .where(sql`${table.type} = 'managed_oauth'`),
+      .where(sql`${table.type} IN ('managed_oauth', 'managed_api_key')`),
     workspaceAccountUnique: uniqueIndex('credential_workspace_account_unique')
       .on(table.workspaceId, table.accountId)
       .where(sql`account_id IS NOT NULL`),
@@ -4248,6 +4287,30 @@ export const credential = pgTable(
         AND managed_oauth_scope_version > 0
       )`
     ),
+    managedApiKeySourceConstraint: check(
+      'credential_managed_api_key_source_check',
+      sql`(type::text <> 'managed_api_key') OR (
+        encrypted_api_key IS NOT NULL
+        AND credential_group_enrollment_id IS NOT NULL
+        AND credential_group_option_id IS NOT NULL
+        AND provider_id IS NOT NULL
+        AND provider_subject_id IS NOT NULL
+        AND managed_oauth_status IS NOT NULL
+        AND granted_at IS NOT NULL
+        AND account_id IS NULL
+        AND encrypted_oauth_token_set IS NULL
+        AND encrypted_service_account_key IS NULL
+        AND granted_scopes IS NULL
+        AND authorization_app_id IS NULL
+        AND managed_oauth_scope_version IS NULL
+        AND access_token_expires_at IS NULL
+        AND refresh_token_expires_at IS NULL
+        AND last_refreshed_at IS NULL
+        AND env_key IS NULL
+        AND env_owner_user_id IS NULL
+        AND unredacted = false
+      )`
+    ),
     workspaceEnvSourceConstraint: check(
       'credential_workspace_env_source_check',
       sql`(type <> 'env_workspace') OR (env_key IS NOT NULL AND env_owner_user_id IS NULL)`
@@ -4261,16 +4324,42 @@ export const credential = pgTable(
 
 export const credentialGroupStatusEnum = pgEnum('credential_group_status', ['active', 'disabled'])
 
-export interface CredentialGroupOptionConfig {
+interface CredentialGroupOptionConfigBase {
   id: string
   provider: string
   label: string
+  required: boolean
+  status: 'active' | 'disabled'
+}
+
+/** An option enrolled through an OAuth adapter, carrying that adapter's scope policy. */
+export interface CredentialGroupOAuthOptionConfig extends CredentialGroupOptionConfigBase {
+  kind?: undefined
   slackBotCredentialId?: string
   authorizationAppId: string
   requiredScopes: string[]
   scopeVersion: number
-  required: boolean
-  status: 'active' | 'disabled'
+}
+
+/**
+ * An option enrolled by pasting an API key.
+ *
+ * Discriminated by an explicit `kind` rather than by the absence of the OAuth fields, so a
+ * malformed row is a parse failure instead of silently reading as the other member. Existing
+ * OAuth options predate the field and leave it undefined.
+ */
+export interface CredentialGroupApiKeyOptionConfig extends CredentialGroupOptionConfigBase {
+  kind: 'api_key'
+}
+
+export type CredentialGroupOptionConfig =
+  | CredentialGroupOAuthOptionConfig
+  | CredentialGroupApiKeyOptionConfig
+
+export function isCredentialGroupApiKeyOptionConfig(
+  option: CredentialGroupOptionConfig
+): option is CredentialGroupApiKeyOptionConfig {
+  return option.kind === 'api_key'
 }
 
 /** Workspace-owned configuration for collecting several managed OAuth credentials. */

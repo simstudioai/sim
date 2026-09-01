@@ -5,10 +5,14 @@ import { headers } from 'next/headers'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { authenticateCredentialGroupEnrollment } from '@/lib/credential-groups/application/enrollment-auth'
 import { readPublicCredentialGroupEnrollment } from '@/lib/credential-groups/application/public-enrollment'
-import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
+import {
+  getCredentialGroupProviderPresentation,
+  isCredentialGroupApiKeyProvider,
+} from '@/lib/credential-groups/providers'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
 import { SupportFooter } from '@/app/(auth)/components'
 import { LogoShell } from '@/app/(landing)/components'
+import { ApiKeyConnectModal } from '@/app/credential-groups/enroll/[token]/api-key-connect-modal'
 import { OAuthConnectLink } from '@/app/credential-groups/enroll/[token]/oauth-reconnect-link'
 import { CredentialGroupOAuthToast } from '@/app/credential-groups/enroll/[token]/oauth-toast'
 import {
@@ -116,7 +120,7 @@ export default async function CredentialGroupEnrollmentPage({
     : undefined
   const notification = connectedOptionId
     ? {
-        message: `${connectedOption ? getCredentialGroupProviderService(connectedOption.provider).name : 'Account'} connected successfully.`,
+        message: `${connectedOption ? getCredentialGroupProviderPresentation(connectedOption.provider).name : 'Account'} connected successfully.`,
         variant: 'success' as const,
       }
     : oauthMessage
@@ -151,8 +155,31 @@ export default async function CredentialGroupEnrollmentPage({
         <SettingsSection label='Accounts'>
           <div className={RESOURCE_LIST_STACK}>
             {activeOptions.map((option) => {
-              const ProviderIcon = getCredentialGroupProviderService(option.provider).icon
+              const ProviderIcon = getCredentialGroupProviderPresentation(option.provider).icon
               const connection = option.connections[0]
+              if (isCredentialGroupApiKeyProvider(option.provider)) {
+                const provider = option.provider
+                return (
+                  <SettingsResourceRow
+                    key={option.id}
+                    icon={<ProviderIcon />}
+                    title={option.label}
+                    description={
+                      connection
+                        ? `Connected${connection.email ? ` as ${connection.email}` : ''}`
+                        : 'Not connected'
+                    }
+                    trailing={
+                      <ApiKeyConnectModal
+                        token={token}
+                        optionId={option.id}
+                        provider={provider}
+                        connected={Boolean(connection)}
+                      />
+                    }
+                  />
+                )
+              }
               return (
                 <SettingsResourceRow
                   key={option.id}

@@ -9,6 +9,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { requireCredentialGroupOAuthOptionConfig } from '@/lib/credential-groups/option-config'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import {
   decryptCredentialGroupProviderConfiguration,
@@ -689,8 +690,9 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
     if (!updated) throw new Error('Credential Group Slack configuration update returned no row')
     if (
       existingOption &&
-      (existingOption.authorizationAppId !== authorizationAppId ||
-        existingOption.scopeVersion !== scopeVersion)
+      (requireCredentialGroupOAuthOptionConfig(existingOption).authorizationAppId !==
+        authorizationAppId ||
+        requireCredentialGroupOAuthOptionConfig(existingOption).scopeVersion !== scopeVersion)
     ) {
       const enrollmentIds = tx
         .select({ id: credentialGroupEnrollment.id })

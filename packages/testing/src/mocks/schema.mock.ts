@@ -1189,11 +1189,13 @@ export const schemaMock = {
     enumValues: [
       'oauth',
       'managed_oauth',
+      'managed_api_key',
       'env_workspace',
       'env_personal',
       'service_account',
     ] as const,
   },
+  isCredentialGroupApiKeyOptionConfig: (option: { kind?: string }) => option.kind === 'api_key',
   managedOauthCredentialStatusEnum: {
     enumValues: ['active', 'needs_reauth', 'revoked'] as const,
   },

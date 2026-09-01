@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  CREDENTIAL_GROUP_API_KEY_PROVIDER_IDS,
   CREDENTIAL_GROUP_PROVIDER_IDS,
   CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS,
 } from '@/lib/credential-groups/providers'
@@ -10,6 +11,7 @@ import {
   CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT,
   CREDENTIAL_GROUP_WORKFLOW_NAME_MAX_LENGTH,
 } from '@/lib/credential-groups/workflow-access-limits'
+import { MAX_MANAGED_API_KEY_LENGTH } from '@/lib/credentials/managed-api-key'
 
 export const credentialGroupProviderSchema = z.enum(CREDENTIAL_GROUP_PROVIDER_IDS)
 export const credentialGroupStatusSchema = z.enum(['active', 'disabled'])
@@ -46,9 +48,22 @@ const slackCredentialGroupOptionInputSchema = z
   })
   .strict()
 
+/**
+ * An API-key option carries no authorization configuration of its own: there is no OAuth app
+ * to register, no scopes to request, and nothing for an admin to set up before inviting
+ * people. It is the base option fields and a provider, nothing more.
+ */
+const apiKeyCredentialGroupOptionInputSchema = z
+  .object({
+    provider: z.enum(CREDENTIAL_GROUP_API_KEY_PROVIDER_IDS),
+    ...credentialGroupOptionFields,
+  })
+  .strict()
+
 export const credentialGroupOptionInputSchema = z.discriminatedUnion('provider', [
   standardOAuthCredentialGroupOptionInputSchema,
   slackCredentialGroupOptionInputSchema,
+  apiKeyCredentialGroupOptionInputSchema,
 ])
 
 export const credentialGroupOptionSchema = z.discriminatedUnion('provider', [
@@ -62,6 +77,11 @@ export const credentialGroupOptionSchema = z.discriminatedUnion('provider', [
     status: z.enum(['active', 'disabled']),
     configurationStatus: credentialGroupOptionConfigurationStatusSchema,
   }),
+  apiKeyCredentialGroupOptionInputSchema.extend({
+    id: z.string().min(1),
+    status: z.enum(['active', 'disabled']),
+    configurationStatus: credentialGroupOptionConfigurationStatusSchema,
+  }),
 ])
 
 export const credentialGroupOptionUpdateInputSchema = z.discriminatedUnion('provider', [
@@ -69,6 +89,7 @@ export const credentialGroupOptionUpdateInputSchema = z.discriminatedUnion('prov
     id: z.string().min(1).max(128).optional(),
   }),
   slackCredentialGroupOptionInputSchema.extend({ id: z.string().min(1).max(128).optional() }),
+  apiKeyCredentialGroupOptionInputSchema.extend({ id: z.string().min(1).max(128).optional() }),
 ])
 
 export const credentialGroupSchema = z.object({
@@ -506,6 +527,30 @@ export const completeCredentialGroupEnrollmentContract = defineRouteContract({
   path: '/api/credential-groups/enroll/[token]/complete',
   params: publicCredentialGroupEnrollmentParamsSchema,
   response: { mode: 'empty' },
+})
+
+export const submitCredentialGroupApiKeyContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/credential-groups/enroll/[token]/api-key/[optionId]',
+  params: startCredentialGroupOAuthParamsSchema,
+  /**
+   * Field ids and per-field length rules belong to the provider registry, not the wire: a
+   * non-secret field (a subdomain) has no length floor, and the set of fields differs by
+   * provider. The boundary bounds the envelope; the application layer validates it against the
+   * provider's declared fields.
+   */
+  body: z
+    .object({
+      fields: z
+        .record(
+          z.string().min(1).max(64),
+          z.string().min(1).max(MAX_MANAGED_API_KEY_LENGTH, 'Value is too long')
+        )
+        .refine((value) => Object.keys(value).length > 0, 'At least one field is required')
+        .refine((value) => Object.keys(value).length <= 8, 'Too many fields'),
+    })
+    .strict(),
+  response: { mode: 'json', schema: z.object({ connectedOptionId: z.string() }) },
 })
 
 export const credentialGroupOAuthCallbackContract = defineRouteContract({

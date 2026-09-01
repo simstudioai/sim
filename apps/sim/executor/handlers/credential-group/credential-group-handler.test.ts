@@ -15,6 +15,11 @@ const mocks = vi.hoisted(() => ({
   listGroups: vi.fn(),
   listPeople: vi.fn(),
   sendInvite: vi.fn(),
+  resolveApiKey: vi.fn(),
+}))
+
+vi.mock('@/lib/credentials/application/resolve-managed-api-key', () => ({
+  resolveManagedApiKeyCredential: { execute: mocks.resolveApiKey },
 }))
 
 vi.mock('@/lib/credential-groups/application/create-invite-link', () => ({
@@ -309,5 +314,103 @@ describe('CredentialGroupBlockHandler', () => {
       new CredentialGroupBlockHandler().execute(context, block, { operation: 'unknown' })
     ).rejects.toThrow('Unsupported Credential Group operation: unknown')
     expect(mocks.createPrincipal).not.toHaveBeenCalled()
+  })
+})
+
+describe('get_api_key', () => {
+  const resolved = {
+    fields: { accessKey: 'gong-access-key', accessKeySecret: 'gong-access-secret' },
+    provenanceEntries: [
+      { name: 'accessKey', encryptedValue: 'enc(gong-access-key)' },
+      { name: 'accessKeySecret', encryptedValue: 'enc(gong-access-secret)' },
+    ],
+    credentialId: 'credential-1',
+    providerId: 'fireflies',
+    displayName: 'Ada',
+    email: 'ada@example.com',
+  }
+
+  function contextWithRegistry(registry: unknown) {
+    return { ...context, resolvedSecretTraceRegistry: registry } as ExecutionContext
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.createPrincipal.mockResolvedValue(principal)
+    mocks.resolveApiKey.mockResolvedValue(resolved)
+  })
+
+  it('registers one catalog entry per secret field before returning them', async () => {
+    const importProvenance = vi.fn().mockResolvedValue(true)
+    const registry = {
+      importProvenance,
+      exportProvenance: () => ({ scope: { userId: 'user-1', workspaceId: 'workspace-1' } }),
+    }
+
+    const result = await new CredentialGroupBlockHandler().execute(
+      contextWithRegistry(registry),
+      block,
+      { operation: 'get_api_key', credentialGroupId: 'group-1', credentialId: 'credential-1' }
+    )
+
+    expect(importProvenance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        version: 1,
+        complete: true,
+        entries: [
+          { encryptedValue: 'enc(gong-access-key)', name: 'credential-1:accessKey' },
+          { encryptedValue: 'enc(gong-access-secret)', name: 'credential-1:accessKeySecret' },
+        ],
+      }),
+      expect.objectContaining({ trusted: true })
+    )
+    expect(result).toMatchObject({
+      fields: { accessKey: 'gong-access-key', accessKeySecret: 'gong-access-secret' },
+      credentialId: 'credential-1',
+    })
+  })
+
+  /**
+   * The key is only safe to hand a workflow because the run can redact it. A run with no
+   * registry cannot, so the block must fail rather than emit an unredactable secret.
+   */
+  it('fails instead of returning a key when the run has no trace registry', async () => {
+    await expect(
+      new CredentialGroupBlockHandler().execute(context, block, {
+        operation: 'get_api_key',
+        credentialGroupId: 'group-1',
+        credentialId: 'credential-1',
+      })
+    ).rejects.toThrow(/resolved-secret provenance/)
+  })
+
+  it('fails when the registry refuses the entry', async () => {
+    const registry = {
+      importProvenance: vi.fn().mockResolvedValue(false),
+      exportProvenance: () => ({ scope: undefined }),
+    }
+
+    await expect(
+      new CredentialGroupBlockHandler().execute(contextWithRegistry(registry), block, {
+        operation: 'get_api_key',
+        credentialGroupId: 'group-1',
+        credentialId: 'credential-1',
+      })
+    ).rejects.toThrow(/registered for redaction/)
+  })
+
+  it('requires a credential id', async () => {
+    const registry = {
+      importProvenance: vi.fn().mockResolvedValue(true),
+      exportProvenance: () => ({ scope: undefined }),
+    }
+
+    await expect(
+      new CredentialGroupBlockHandler().execute(contextWithRegistry(registry), block, {
+        operation: 'get_api_key',
+        credentialGroupId: 'group-1',
+      })
+    ).rejects.toThrow()
+    expect(mocks.resolveApiKey).not.toHaveBeenCalled()
   })
 })

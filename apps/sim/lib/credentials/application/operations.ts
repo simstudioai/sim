@@ -143,6 +143,17 @@ export const credentialOperations = {
     workspaceApiKey: 'deny',
     principalKinds: ['session'],
   }),
+  useManagedApiKey: defineWorkspaceOperation({
+    id: 'credentials.managed_api_key.use',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: ['delegated'],
+    delegatedServices: ['executor'],
+    resourcePolicy: {
+      resourceType: 'credential_group',
+      action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
+    },
+  }),
   useManagedOAuth: defineWorkspaceOperation({
     id: 'credentials.managed_oauth.use',
     minimumRole: 'read',

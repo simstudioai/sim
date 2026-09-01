@@ -12,6 +12,7 @@ import {
   getCredentialGroupProviderId,
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'
+import { MANAGED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
 
 export const MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE = 100
 
@@ -99,7 +100,7 @@ export async function loadCredentialGroupEnrollmentAccessForSubject(
       and(
         eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
         inArray(credentialGroupEnrollment.status, ['in_progress', 'completed']),
-        eq(credential.type, 'managed_oauth'),
+        inArray(credential.type, MANAGED_CREDENTIAL_TYPES),
         eq(credential.managedOauthStatus, 'active'),
         eq(credential.providerId, providerId),
         eq(credential.providerTenantId, subject.tenantId),
@@ -162,7 +163,7 @@ export async function listCredentialGroupCredentialReferences({
         and(
           eq(credential.id, cursor),
           eq(credential.workspaceId, workspaceId),
-          eq(credential.type, 'managed_oauth'),
+          inArray(credential.type, MANAGED_CREDENTIAL_TYPES),
           eq(credential.managedOauthStatus, 'active'),
           eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
           email ? eq(credentialGroupEnrollment.email, email) : undefined,
@@ -196,7 +197,7 @@ export async function listCredentialGroupCredentialReferences({
     .where(
       and(
         eq(credential.workspaceId, workspaceId),
-        eq(credential.type, 'managed_oauth'),
+        inArray(credential.type, MANAGED_CREDENTIAL_TYPES),
         eq(credential.managedOauthStatus, 'active'),
         eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
         email ? eq(credentialGroupEnrollment.email, email) : undefined,

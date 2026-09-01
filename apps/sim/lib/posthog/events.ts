@@ -337,6 +337,7 @@ export interface PostHogEventMap {
     credential_type:
       | 'oauth'
       | 'managed_oauth'
+      | 'managed_api_key'
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
@@ -348,6 +349,7 @@ export interface PostHogEventMap {
     credential_type:
       | 'oauth'
       | 'managed_oauth'
+      | 'managed_api_key'
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
@@ -359,6 +361,7 @@ export interface PostHogEventMap {
     credential_type:
       | 'oauth'
       | 'managed_oauth'
+      | 'managed_api_key'
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
@@ -370,6 +373,7 @@ export interface PostHogEventMap {
     credential_type:
       | 'oauth'
       | 'managed_oauth'
+      | 'managed_api_key'
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
@@ -794,6 +798,7 @@ export interface PostHogEventMap {
     credential_type:
       | 'oauth'
       | 'managed_oauth'
+      | 'managed_api_key'
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'

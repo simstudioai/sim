@@ -10,6 +10,7 @@ import {
   type CredentialGroupOAuthAttempt,
   createCredentialGroupOAuthAttempt,
 } from '@/lib/credential-groups/oauth-state'
+import { requireCredentialGroupOAuthOptionConfig } from '@/lib/credential-groups/option-config'
 import type {
   CredentialGroupProviderAdapter,
   CredentialGroupProviderPolicy,
@@ -63,7 +64,7 @@ async function assertCurrentPolicy(
   adapter: CredentialGroupProviderAdapter,
   attempt?: CredentialGroupOAuthAttempt
 ): Promise<CredentialGroupProviderPolicy> {
-  const policy = await adapter.getPolicy(context.option, {
+  const policy = await adapter.getPolicy(requireCredentialGroupOAuthOptionConfig(context.option), {
     workspaceId: context.workspaceId,
     credentialGroupId: context.credentialGroupId,
   })
@@ -154,11 +155,14 @@ async function persistGrant(
         409
       )
     }
-    const currentPolicy = await adapter.getPolicy(currentOption, {
-      workspaceId: context.workspaceId,
-      credentialGroupId: context.credentialGroupId,
-      executor: tx,
-    })
+    const currentPolicy = await adapter.getPolicy(
+      requireCredentialGroupOAuthOptionConfig(currentOption),
+      {
+        workspaceId: context.workspaceId,
+        credentialGroupId: context.credentialGroupId,
+        executor: tx,
+      }
+    )
     if (!policiesEqual(currentPolicy, policy)) {
       throw new CredentialGroupOAuthError(
         'This credential option changed. Reload the invitation and try again.',

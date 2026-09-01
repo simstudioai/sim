@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto'
-import type { CredentialGroupOptionConfig, ManagedOAuthProviderMetadata } from '@sim/db/schema'
+import type {
+  CredentialGroupOAuthOptionConfig,
+  ManagedCredentialProviderMetadata,
+} from '@sim/db/schema'
 import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
@@ -27,7 +30,7 @@ export interface VerifiedCredentialGroupGrant {
   providerSubjectId: string
   providerTenantId: string | null
   displayName: string
-  metadata: ManagedOAuthProviderMetadata
+  metadata: ManagedCredentialProviderMetadata
   accessToken: string
   refreshToken?: string
   grantedScopes: string[]
@@ -45,7 +48,7 @@ export interface CredentialGroupProviderAdapter {
   provider: CredentialGroupProvider
   requiresRefreshToken: boolean
   getPolicy(
-    option: Pick<CredentialGroupOptionConfig, 'provider' | 'slackBotCredentialId'> | undefined,
+    option: Pick<CredentialGroupOAuthOptionConfig, 'provider' | 'slackBotCredentialId'> | undefined,
     context: {
       workspaceId: string
       credentialGroupId?: string

@@ -54,6 +54,8 @@ function resolveCredentialGroupIdForBlock(blockId: string): string | null {
 interface CredentialGroupBlockOutput {
   success: boolean
   output: {
+    fields: Record<string, string>
+    credentialId: string
     credentials: Array<{
       credentialId: string
       email: string
@@ -92,7 +94,12 @@ interface CredentialGroupBlockOutput {
 }
 
 const INVITE_OPERATIONS = ['send_invite', 'get_invite_link'] as const
-const GROUP_OPERATIONS = ['list_credentials', ...INVITE_OPERATIONS, 'list_people'] as const
+const GROUP_OPERATIONS = [
+  'list_credentials',
+  'get_api_key',
+  ...INVITE_OPERATIONS,
+  'list_people',
+] as const
 const LIST_OPERATIONS = ['list_credentials', 'list_people', 'list_groups'] as const
 
 export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
@@ -109,6 +116,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
   - "List Credentials" returns active, usable credentials only. Reconnect-needed and revoked credentials are excluded.
   - Use "List People" to inspect invitation and connection progress without exposing credential secrets.
   - "Send Invite" sends one email. Use a loop when invitations should come from a dynamic list.
+  - "Get API Key" returns one enrolled person's credential values under "fields" — reference them as <block.fields.apiKey>, or <block.fields.accessKey> and <block.fields.accessKeySecret> for Gong. Pass the credentialId from "List Credentials".
   - "Get Invite Link" issues a fresh seven-day bearer link without sending email. It invalidates the previous link for that email, so treat the output as a secret.
   `,
   docsLink: 'https://docs.sim.ai/workflows/blocks/credential-group',
@@ -153,6 +161,14 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
           { text: ', matching', field: 'email' },
           { text: ', with status', field: 'peopleStatuses' },
         ],
+        get_api_key: [
+          { text: 'Get API key for', field: 'credentialId', core: true },
+          {
+            text: 'in',
+            field: ['credentialGroup', 'manualCredentialGroup'],
+            core: true,
+          },
+        ],
         list_groups: ['List Credential Groups', { text: ', up to', field: 'limit' }],
       },
     },
@@ -165,6 +181,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
       type: 'dropdown',
       options: [
         { label: 'List Credentials', id: 'list_credentials' },
+        { label: 'Get API Key', id: 'get_api_key' },
         { label: 'Send Invite', id: 'send_invite' },
         { label: 'Get Invite Link', id: 'get_invite_link' },
         { label: 'List People', id: 'list_people' },
@@ -199,6 +216,14 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
       required: { field: 'operation', value: [...INVITE_OPERATIONS] },
       placeholder: 'person@example.com',
       condition: { field: 'operation', value: [...GROUP_OPERATIONS] },
+    },
+    {
+      id: 'credentialId',
+      title: 'Credential ID',
+      type: 'short-input',
+      required: { field: 'operation', value: 'get_api_key' },
+      placeholder: 'credentialId from List Credentials',
+      condition: { field: 'operation', value: 'get_api_key' },
     },
     {
       id: 'providerFilter',
@@ -262,9 +287,13 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
     operation: {
       type: 'string',
       description:
-        "'list_credentials', 'send_invite', 'get_invite_link', 'list_people', or 'list_groups'",
+        "'list_credentials', 'get_api_key', 'send_invite', 'get_invite_link', 'list_people', or 'list_groups'",
     },
     credentialGroupId: { type: 'string', description: 'Credential Group ID' },
+    credentialId: {
+      type: 'string',
+      description: 'Credential ID to read an API key for, from List Credentials',
+    },
     email: {
       type: 'string',
       description: 'Recipient email for invites or an optional credential/people-list filter',
@@ -286,6 +315,27 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
       description:
         'Usable credential references (credentialId, email, displayName, providerId, providerSubjectId, providerTenantId)',
       condition: { field: 'operation', value: 'list_credentials' },
+    },
+    fields: {
+      type: 'json',
+      description:
+        'Credential values the invited person provided, keyed by field id — `apiKey` for most services, `accessKey` and `accessKeySecret` for Gong. Secret values are redacted from logs and model-visible content.',
+      condition: { field: 'operation', value: 'get_api_key' },
+    },
+    credentialId: {
+      type: 'string',
+      description: 'Credential the API key belongs to',
+      condition: { field: 'operation', value: 'get_api_key' },
+    },
+    displayName: {
+      type: 'string',
+      description: 'Account name reported by the provider',
+      condition: { field: 'operation', value: 'get_api_key' },
+    },
+    providerId: {
+      type: 'string',
+      description: 'Provider the credential belongs to',
+      condition: { field: 'operation', value: 'get_api_key' },
     },
     credentialGroups: {
       type: 'json',
