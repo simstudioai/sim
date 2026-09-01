@@ -1,6 +1,9 @@
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { flattenWorkflowOutputs } from '@/lib/workflows/blocks/flatten-outputs'
-import { scopeOutputBlockId } from '@/lib/workflows/streaming/output-selector'
+import {
+  formatInternalOutputSelector,
+  formatPublicOutputSelector,
+} from '@/lib/workflows/streaming/output-selector'
 import { normalizeName } from '@/executor/constants'
 
 const WORKFLOW_BLOCK_TYPES = new Set(['workflow', 'workflow_input'])
@@ -8,6 +11,7 @@ const WORKFLOW_BLOCK_TYPES = new Set(['workflow', 'workflow_input'])
 export interface WorkflowOutputOption {
   id: string
   label: string
+  workflowId?: string
   blockId: string
   blockName: string
   blockType: string
@@ -94,29 +98,29 @@ export function buildWorkflowOutputOptions({
   ): void => {
     const flattened = flattenWorkflowOutputs(Object.values(state.blocks), state.edges)
     for (const output of flattened) {
-      const parentBlockId = invocationPath.at(-1)?.blockId
-      const blockId = parentBlockId
-        ? scopeOutputBlockId(parentBlockId, output.blockId)
-        : output.blockId
+      const selectedWorkflowId = workflowId === rootWorkflowId ? undefined : workflowId
       const displayBlockName = normalizeName(output.blockName || `block-${output.blockId}`)
       const invocationNames = invocationPath.map((segment) => segment.blockName)
+      const menuParentId = invocationPath.at(-1)?.blockId
+      const menuBlockId = menuParentId ? `${menuParentId}/${output.blockId}` : output.blockId
       const groupLabel =
         invocationNames.length > 0
           ? `${invocationNames.join(' / ')} / ${output.blockName}`
           : output.blockName
       options.push({
-        id: `${blockId}_${output.path}`,
-        label: `${[...invocationNames.map(normalizeName), displayBlockName, output.path].join('.')}`,
-        blockId,
+        id: formatInternalOutputSelector(output.blockId, output.path, selectedWorkflowId),
+        label: formatPublicOutputSelector(displayBlockName, output.path, selectedWorkflowId),
+        workflowId: selectedWorkflowId,
+        blockId: output.blockId,
         blockName: output.blockName,
         blockType: output.blockType,
-        groupKey: blockId,
+        groupKey: menuBlockId,
         groupLabel,
         path: output.path,
         menuPath: [
           ...invocationPath,
           {
-            blockId,
+            blockId: menuBlockId,
             blockName: output.blockName,
             blockType: output.blockType,
           },
@@ -132,7 +136,7 @@ export function buildWorkflowOutputOptions({
       const childState = workflowStates.get(childWorkflowId)
       if (!childState) continue
       const parentBlockId = invocationPath.at(-1)?.blockId
-      const blockId = parentBlockId ? scopeOutputBlockId(parentBlockId, block.id) : block.id
+      const blockId = parentBlockId ? `${parentBlockId}/${block.id}` : block.id
       visit(
         childWorkflowId,
         childState,

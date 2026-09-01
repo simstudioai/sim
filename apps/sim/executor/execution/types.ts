@@ -197,7 +197,7 @@ export interface BlockCompletionCallbackData {
   endedAt: string
   /** Per-invocation unique ID linking this workflow block execution to its child block events. */
   childWorkflowInstanceId?: string
-  /** Invocation-scoped block ID used only to match externally selected outputs. */
+  /** Root or child-workflow-scoped block identity used to match externally selected outputs. */
   outputBlockId?: string
 }
 

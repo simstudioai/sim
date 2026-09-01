@@ -219,17 +219,17 @@ describe('createStreamingResponse', () => {
     expect(rawError.message).toBe(message)
   })
 
-  it('emits invocation-scoped block IDs for a nested agent stream', async () => {
+  it('emits workflow-scoped block IDs for a nested agent stream', async () => {
     const stream = await createStreamingResponse({
       requestId: 'request-nested-agent',
       executionId: 'execution-1',
       streamConfig: {
-        selectedOutputs: ['workflow-block/agent-1_content'],
+        selectedOutputs: ['child-workflow.agent-1_content'],
         includeFileBase64: false,
       },
       executeFn: async ({ onStream }) => {
         await onStream({
-          blockId: 'workflow-block/agent-1',
+          blockId: 'child-workflow.agent-1',
           stream: new ReadableStream({
             start(controller) {
               controller.enqueue(new TextEncoder().encode('Nested answer'))
@@ -254,7 +254,7 @@ describe('createStreamingResponse', () => {
 
     const events = await collectSSEEvents(stream)
     expect(events).toContainEqual({
-      blockId: 'workflow-block/agent-1',
+      blockId: 'child-workflow.agent-1',
       chunk: 'Nested answer',
     })
   })

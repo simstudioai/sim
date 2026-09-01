@@ -125,9 +125,10 @@ vi.mock('@/lib/workflows/streaming/nested-output-options', () => {
     menuPath: [],
   }
   const nestedOutput = {
-    id: 'workflow/agent_answer',
-    label: 'Research.Writer.answer',
-    blockId: 'workflow/agent',
+    id: 'child-workflow.agent_answer',
+    label: 'child-workflow.writer.answer',
+    workflowId: 'child-workflow',
+    blockId: 'agent',
     blockName: 'Writer',
     blockType: 'agent',
     groupKey: 'workflow/agent',
@@ -254,23 +255,23 @@ describe('OutputSelect nested workflow menu', () => {
     expect(document.body.textContent).not.toContain('Summarizer')
   })
 
-  it('keeps invocation-scoped values when toggling nested outputs', () => {
+  it('keeps workflow-scoped values when toggling nested outputs', () => {
     const onOutputSelect = renderOutputSelect([])
     clickOption('Outputs')
     clickOption('answer')
 
-    expect(onOutputSelect).toHaveBeenCalledWith(['workflow/agent_answer'])
+    expect(onOutputSelect).toHaveBeenCalledWith(['child-workflow.agent_answer'])
   })
 
   it('emits public dot selectors for trigger authoring', () => {
     const onOutputSelect = renderOutputSelect([], vi.fn(), 'public')
 
     clickOption('content')
-    expect(onOutputSelect).toHaveBeenCalledWith(['summary.content'])
+    expect(onOutputSelect).toHaveBeenCalledWith(['summarizer.content'])
 
     clickOption('Outputs')
     clickOption('answer')
-    expect(onOutputSelect).toHaveBeenCalledWith(['workflow/agent.answer'])
+    expect(onOutputSelect).toHaveBeenCalledWith(['child-workflow.writer.answer'])
   })
 
   it('returns to the root menu when the owning workflow changes', () => {

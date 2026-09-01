@@ -42,18 +42,20 @@ export const chatIdentifierParamsSchema = z.object({
 
 export const chatOutputConfigSchema = z
   .object({
+    workflowId: z.string().min(1).optional(),
     blockId: z.string().min(1),
     path: z.string().min(1),
   })
   .superRefine((config, ctx) => {
     try {
-      formatInternalOutputSelector(config.blockId, config.path)
+      formatInternalOutputSelector(config.blockId, config.path, config.workflowId)
     } catch (error) {
       ctx.addIssue({ code: 'custom', message: getErrorMessage(error, 'Invalid output config') })
     }
   })
 
 export const deployedChatOutputConfigSchema = z.object({
+  workflowId: z.string().optional(),
   blockId: z.string(),
   path: z.string().optional(),
 })

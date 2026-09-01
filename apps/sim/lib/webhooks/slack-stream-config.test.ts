@@ -8,25 +8,29 @@ import {
   replaceSlackStreamAuthoringConfig,
 } from '@/lib/webhooks/slack-stream-config'
 
+const CHILD_WORKFLOW_ID = '11111111-1111-4111-8111-111111111111'
+
 describe('Slack stream response config', () => {
   it('normalizes selected outputs and replaces authoring fields', () => {
     const providerConfig: Record<string, unknown> = {
       eventType: 'app_mention',
       streamResponse: true,
-      streamOutputs: ['block-1.content', 'workflow-block/block-2.result.value'],
+      streamOutputs: ['rootagent.content', `${CHILD_WORKFLOW_ID}.writer.result.value`],
       streamIncludeThinking: true,
       streamIncludeToolCalls: false,
       streamTaskTitle: '  Working  ',
       streamTaskDisplayMode: 'plan',
     }
-    const normalized = normalizeSlackStreamResponseConfig(providerConfig)
+    const normalized = normalizeSlackStreamResponseConfig(providerConfig, {
+      'block-1': { id: 'block-1', name: 'Root Agent' },
+    })
     replaceSlackStreamAuthoringConfig(providerConfig, normalized)
 
     expect(normalized).toEqual({
       enabled: true,
       outputConfigs: [
         { blockId: 'block-1', path: 'content' },
-        { blockId: 'workflow-block/block-2', path: 'result.value' },
+        { workflowId: CHILD_WORKFLOW_ID, blockId: 'writer', path: 'result.value' },
       ],
       includeThinking: true,
       includeToolCalls: false,
@@ -41,19 +45,25 @@ describe('Slack stream response config', () => {
 
   it('defaults omitted or blank response status labels to Running', () => {
     expect(
-      normalizeSlackStreamResponseConfig({
-        eventType: 'message',
-        streamResponse: true,
-        streamOutputs: ['block.content'],
-      })?.taskTitle
+      normalizeSlackStreamResponseConfig(
+        {
+          eventType: 'message',
+          streamResponse: true,
+          streamOutputs: ['block.content'],
+        },
+        { block: { id: 'block', name: 'Block' } }
+      )?.taskTitle
     ).toBe('Running')
     expect(
-      normalizeSlackStreamResponseConfig({
-        eventType: 'message',
-        streamResponse: true,
-        streamOutputs: ['block.content'],
-        streamTaskTitle: '   ',
-      })?.taskTitle
+      normalizeSlackStreamResponseConfig(
+        {
+          eventType: 'message',
+          streamResponse: true,
+          streamOutputs: ['block.content'],
+          streamTaskTitle: '   ',
+        },
+        { block: { id: 'block', name: 'Block' } }
+      )?.taskTitle
     ).toBe('Running')
   })
 
@@ -85,18 +95,24 @@ describe('Slack stream response config', () => {
 
   it('rejects non-reply events and malformed output selectors', () => {
     expect(() =>
-      normalizeSlackStreamResponseConfig({
-        eventType: 'reaction_added',
-        streamResponse: true,
-        streamOutputs: ['block.content'],
-      })
+      normalizeSlackStreamResponseConfig(
+        {
+          eventType: 'reaction_added',
+          streamResponse: true,
+          streamOutputs: ['block.content'],
+        },
+        {}
+      )
     ).toThrow('reply-capable')
     expect(() =>
-      normalizeSlackStreamResponseConfig({
-        eventType: 'message',
-        streamResponse: true,
-        streamOutputs: ['block_content'],
-      })
+      normalizeSlackStreamResponseConfig(
+        {
+          eventType: 'message',
+          streamResponse: true,
+          streamOutputs: ['block_content'],
+        },
+        {}
+      )
     ).toThrow('Invalid Slack stream output selector')
   })
 
@@ -107,7 +123,7 @@ describe('Slack stream response config', () => {
     }
     replaceSlackStreamAuthoringConfig(
       providerConfig,
-      normalizeSlackStreamResponseConfig(providerConfig)
+      normalizeSlackStreamResponseConfig(providerConfig, {})
     )
     expect(providerConfig.streamResponseConfig).toBeUndefined()
   })

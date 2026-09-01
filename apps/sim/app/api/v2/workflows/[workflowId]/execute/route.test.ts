@@ -597,8 +597,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       ok: false,
       failure: {
         kind: 'input',
-        message:
-          'Invalid selectedOutputs: Invalid scoped output selector block ID: workflow//agent',
+        message: 'Invalid selectedOutputs: Invalid output selector: workflow//agent.content',
         statusCode: 400,
       },
     })

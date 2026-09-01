@@ -214,7 +214,11 @@ export const POST = withRouteHandler(
         const selectedOutputs: string[] = []
         if (deployment.outputConfigs && Array.isArray(deployment.outputConfigs)) {
           for (const config of deployment.outputConfigs) {
-            const outputId = formatOutputSelector(config.blockId, config.path || 'content')
+            const outputId = formatOutputSelector(
+              config.blockId,
+              config.path || 'content',
+              config.workflowId
+            )
             selectedOutputs.push(outputId)
           }
         }

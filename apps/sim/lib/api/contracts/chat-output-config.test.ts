@@ -8,9 +8,13 @@ import { v2ChatDeploymentOutputConfigSchema } from '@/lib/api/contracts/v2/chat-
 const OUTPUT_CONFIG_SCHEMAS = [chatOutputConfigSchema, v2ChatDeploymentOutputConfigSchema]
 
 describe('chat output config contracts', () => {
-  it.each(OUTPUT_CONFIG_SCHEMAS)('accepts invocation-scoped output selectors', (schema) => {
+  it.each(OUTPUT_CONFIG_SCHEMAS)('accepts child-workflow output selectors', (schema) => {
     expect(
-      schema.safeParse({ blockId: 'workflow-block/agent-block', path: 'content.text' }).success
+      schema.safeParse({
+        workflowId: 'child-workflow',
+        blockId: 'agent-block',
+        path: 'content.text',
+      }).success
     ).toBe(true)
   })
 
@@ -19,7 +23,7 @@ describe('chat output config contracts', () => {
     (schema) => {
       for (const config of [
         { blockId: '/agent-block', path: 'content' },
-        { blockId: 'workflow-block/', path: 'content' },
+        { workflowId: 'workflow/child', blockId: 'agent-block', path: 'content' },
         { blockId: 'agent-block', path: '.content' },
         { blockId: 'agent-block', path: 'content.' },
         { blockId: 'agent-block', path: 'content..text' },

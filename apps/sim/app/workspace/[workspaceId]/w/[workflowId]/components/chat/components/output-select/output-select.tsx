@@ -20,7 +20,7 @@ import {
 } from '@/lib/workflows/streaming/nested-output-options'
 import { formatPublicOutputSelector } from '@/lib/workflows/streaming/output-selector'
 import { BlockTile } from '@/blocks/block-tile'
-import { DEFAULTS } from '@/executor/constants'
+import { DEFAULTS, normalizeName } from '@/executor/constants'
 import { useWorkflowStates } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -77,9 +77,13 @@ function getOutputValue(
   valueMode: 'id' | 'label' | 'public'
 ): string {
   if (valueMode === 'public') {
-    return formatPublicOutputSelector(output.blockId, output.path)
+    return formatPublicOutputSelector(
+      normalizeName(output.blockName),
+      output.path,
+      output.workflowId
+    )
   }
-  return valueMode === 'label' && !output.blockId.includes('/') ? output.label : output.id
+  return valueMode === 'label' ? output.label : output.id
 }
 
 function resolveOutputMenuNode(
@@ -206,7 +210,10 @@ function OutputSelectContent({
   const outputMenu = buildWorkflowOutputMenu(workflowOutputs)
   const outputMenuRevision = JSON.stringify([
     workflowId,
-    ...workflowOutputs.map((output) => output.id),
+    ...workflowOutputs.map((output) => [
+      output.id,
+      ...output.menuPath.map((segment) => segment.blockId),
+    ]),
   ])
 
   return (

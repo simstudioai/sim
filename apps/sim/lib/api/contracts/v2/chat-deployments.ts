@@ -112,6 +112,11 @@ export const v2StoredChatDeploymentCustomizationsSchema = z
 
 export const v2ChatDeploymentOutputConfigSchema = z
   .object({
+    workflowId: z
+      .string()
+      .min(1, 'outputConfigs[].workflowId cannot be empty')
+      .optional()
+      .describe('Child workflow containing the selected block. Omit for the deployed workflow.'),
     blockId: z
       .string()
       .min(1, 'outputConfigs[].blockId cannot be empty')
@@ -124,7 +129,7 @@ export const v2ChatDeploymentOutputConfigSchema = z
   .strict()
   .superRefine((config, ctx) => {
     try {
-      formatInternalOutputSelector(config.blockId, config.path)
+      formatInternalOutputSelector(config.blockId, config.path, config.workflowId)
     } catch (error) {
       ctx.addIssue({ code: 'custom', message: getErrorMessage(error, 'Invalid output config') })
     }
@@ -145,6 +150,10 @@ export const v2ChatDeploymentOutputConfigSchema = z
  */
 export const v2StoredChatDeploymentOutputConfigSchema = z
   .object({
+    workflowId: z
+      .string()
+      .optional()
+      .describe('Child workflow containing the selected block. Omitted for the deployed workflow.'),
     blockId: z.string().describe('Block whose output the chat streams.'),
     path: z.string().describe('Path within that block output. Empty means the whole output.'),
   })

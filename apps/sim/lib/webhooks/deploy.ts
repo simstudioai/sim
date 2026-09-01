@@ -340,6 +340,7 @@ export async function resolveTriggerCredentialId(
  */
 export async function resolveWebhookConfigForBlock(input: {
   block: BlockState
+  blocks: Record<string, BlockState>
   workflow: Record<string, unknown>
   userId: string
   requestId: string
@@ -448,7 +449,7 @@ export async function resolveWebhookConfigForBlock(input: {
       try {
         replaceSlackStreamAuthoringConfig(
           providerConfig,
-          normalizeSlackStreamResponseConfig(providerConfig)
+          normalizeSlackStreamResponseConfig(providerConfig, input.blocks)
         )
       } catch (error) {
         return {
@@ -749,6 +750,7 @@ export async function prepareStableTriggerWebhooksForDeploy({
     signal?.throwIfAborted()
     const resolved = await resolveWebhookConfigForBlock({
       block,
+      blocks,
       workflow,
       userId,
       requestId,
@@ -858,6 +860,7 @@ export async function saveTriggerWebhooksForDeploy({
   for (const block of triggerBlocks) {
     const resolved = await resolveWebhookConfigForBlock({
       block,
+      blocks,
       workflow,
       userId,
       requestId,

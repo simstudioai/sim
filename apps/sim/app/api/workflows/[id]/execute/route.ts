@@ -4,7 +4,8 @@ import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { generateId, isValidUuid } from '@sim/utils/id'
+import { generateId } from '@sim/utils/id'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -141,10 +142,7 @@ import {
   forwardAgentStreamToExecutionEvents,
   shouldForwardAnswerTextFromSink,
 } from '@/lib/workflows/streaming/forward-agent-stream-events'
-import {
-  formatOutputSelector,
-  parseStoredOutputSelector,
-} from '@/lib/workflows/streaming/output-selector'
+import { resolveOutputSelectors } from '@/lib/workflows/streaming/resolve-output-selectors'
 import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
@@ -156,7 +154,6 @@ import {
   PublicApiNotAllowedError,
   validatePublicApiAllowed,
 } from '@/ee/access-control/utils/permission-check'
-import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
   BlockCompletionCallbackData,
@@ -302,61 +299,13 @@ function payloadTooLargeResponse(message = 'Workflow execution response exceeds 
   )
 }
 
-function resolveOutputIds(
+async function resolveOutputIds(
   selectedOutputs: string[] | undefined,
-  blocks: Record<string, any>
-): string[] | undefined {
-  if (!selectedOutputs || selectedOutputs.length === 0) {
-    return selectedOutputs
-  }
-
-  return selectedOutputs.map((outputId) => {
-    if (outputId.includes('/')) {
-      const parsed = parseStoredOutputSelector(outputId)
-      return formatOutputSelector(parsed.blockId, parsed.path)
-    }
-
-    const underscoreIndex = outputId.indexOf('_')
-    const dotIndex = outputId.indexOf('.')
-    if (underscoreIndex > 0) {
-      const maybeUuid = outputId.substring(0, underscoreIndex)
-      if (isValidUuid(maybeUuid)) {
-        return outputId
-      }
-    }
-
-    if (dotIndex > 0) {
-      const maybeUuid = outputId.substring(0, dotIndex)
-      if (isValidUuid(maybeUuid)) {
-        return `${outputId.substring(0, dotIndex)}_${outputId.substring(dotIndex + 1)}`
-      }
-    }
-
-    if (isValidUuid(outputId)) {
-      return outputId
-    }
-
-    if (dotIndex === -1) {
-      logger.warn(`Invalid output ID format (missing dot): ${outputId}`)
-      return outputId
-    }
-
-    const blockName = outputId.substring(0, dotIndex)
-    const path = outputId.substring(dotIndex + 1)
-
-    const normalizedBlockName = normalizeName(blockName)
-    const block = Object.values(blocks).find((b: any) => {
-      return normalizeName(b.name || '') === normalizedBlockName
-    })
-
-    if (!block) {
-      logger.warn(`Block not found for name: ${blockName} (from output ID: ${outputId})`)
-      return outputId
-    }
-
-    const resolvedId = `${block.id}_${path}`
-    logger.debug(`Resolved output ID: ${outputId} -> ${resolvedId}`)
-    return resolvedId
+  blocks: Record<string, BlockState>
+): Promise<string[] | undefined> {
+  return resolveOutputSelectors({
+    selectedOutputs,
+    currentBlocks: blocks,
   })
 }
 
@@ -1680,10 +1629,19 @@ async function handleExecutePost(
     } else {
       reqLogger.info('Using streaming API response')
 
-      const resolvedSelectedOutputs = resolveOutputIds(
-        selectedOutputs,
-        cachedWorkflowData?.blocks || {}
-      )
+      let resolvedSelectedOutputs: string[] | undefined
+      try {
+        resolvedSelectedOutputs = await resolveOutputIds(
+          selectedOutputs,
+          cachedWorkflowData?.blocks || {}
+        )
+      } catch (error) {
+        await releaseExecutionSlot(executionId)
+        return NextResponse.json(
+          { error: `Invalid selectedOutputs: ${getErrorMessage(error)}` },
+          { status: 400 }
+        )
+      }
       const streamVariables = cachedWorkflowData?.variables ?? (workflow as any).variables
       const streamWorkflow = {
         id: workflow.id,

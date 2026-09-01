@@ -1,5 +1,10 @@
 import { isRecordLike } from '@sim/utils/object'
-import { parsePublicOutputSelector } from '@/lib/workflows/streaming/output-selector'
+import {
+  formatInternalOutputSelector,
+  parsePublicOutputSelector,
+  resolveOutputBlockRef,
+} from '@/lib/workflows/streaming/output-selector'
+import { normalizeName } from '@/executor/constants'
 
 export const SLACK_STREAM_RESPONSE_EVENTS = [
   'message',
@@ -8,6 +13,7 @@ export const SLACK_STREAM_RESPONSE_EVENTS = [
 ] as const
 
 export interface SlackStreamOutputConfig {
+  workflowId?: string
   blockId: string
   path: string
 }
@@ -23,17 +29,25 @@ export interface SlackStreamResponseConfig {
 
 const SLACK_TASK_TITLE_LIMIT = 256
 
-function parseSlackOutputSelector(selector: string): SlackStreamOutputConfig {
-  const parsed = parsePublicOutputSelector(selector)
+function parseSlackOutputSelector(
+  selector: string,
+  currentBlocks: Record<string, { id: string; name?: string }>,
+  currentBlockRefs: ReadonlySet<string>
+): SlackStreamOutputConfig {
+  const parsed = parsePublicOutputSelector(selector, { currentBlockRefs })
   if (!parsed.path) {
     throw new Error(`Invalid Slack stream output selector: ${selector}`)
   }
-  return parsed
+  const blockId = parsed.workflowId
+    ? parsed.blockId
+    : resolveOutputBlockRef(parsed.blockId, currentBlocks)
+  return { ...parsed, blockId }
 }
 
 /** Converts trigger authoring fields into the durable Slack streaming contract. */
 export function normalizeSlackStreamResponseConfig(
-  providerConfig: Record<string, unknown>
+  providerConfig: Record<string, unknown>,
+  blocks: Record<string, { id: string; name?: string }>
 ): SlackStreamResponseConfig | null {
   if (providerConfig.streamResponse !== true) return null
 
@@ -68,10 +82,17 @@ export function normalizeSlackStreamResponseConfig(
       `Slack stream response status label must be ${SLACK_TASK_TITLE_LIMIT} characters or fewer`
     )
   }
+  const currentBlockRefs = new Set<string>()
+  for (const block of Object.values(blocks)) {
+    currentBlockRefs.add(block.id)
+    if (block.name) currentBlockRefs.add(normalizeName(block.name))
+  }
 
   return {
     enabled: true,
-    outputConfigs: selectors.map(parseSlackOutputSelector),
+    outputConfigs: selectors.map((selector) =>
+      parseSlackOutputSelector(selector, blocks, currentBlockRefs)
+    ),
     includeThinking: providerConfig.streamIncludeThinking === true,
     includeToolCalls: providerConfig.streamIncludeToolCalls !== false,
     taskTitle,
@@ -98,7 +119,22 @@ export function readSlackStreamResponseConfig(
     if (typeof output.path !== 'string' || !output.path) {
       throw new Error('Persisted Slack stream output is missing an output path')
     }
-    return { blockId: output.blockId, path: output.path }
+    if (
+      output.workflowId !== undefined &&
+      (typeof output.workflowId !== 'string' || !output.workflowId)
+    ) {
+      throw new Error('Persisted Slack stream output has an invalid workflow ID')
+    }
+    formatInternalOutputSelector(
+      output.blockId,
+      output.path,
+      typeof output.workflowId === 'string' ? output.workflowId : undefined
+    )
+    return {
+      ...(typeof output.workflowId === 'string' ? { workflowId: output.workflowId } : {}),
+      blockId: output.blockId,
+      path: output.path,
+    }
   })
   if (typeof value.includeThinking !== 'boolean' || typeof value.includeToolCalls !== 'boolean') {
     throw new Error('Persisted Slack stream visibility settings are invalid')

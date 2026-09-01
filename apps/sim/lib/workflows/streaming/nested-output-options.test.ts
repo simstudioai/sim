@@ -48,7 +48,7 @@ describe('nested workflow output options', () => {
     expect(getWorkflowInvocationTarget(workflowBlock)).toBe('advanced-workflow')
   })
 
-  it('builds invocation-scoped selectors and stops cycles', () => {
+  it('builds workflow-scoped selectors and stops cycles', () => {
     const root = {
       blocks: {
         invoke: block('invoke', 'workflow_input', 'Research', {
@@ -78,8 +78,14 @@ describe('nested workflow output options', () => {
       maxChildDepth: 3,
     })
 
-    expect(options.some((option) => option.id === 'invoke/agent_content')).toBe(true)
-    expect(options.some((option) => option.id.startsWith('invoke/cycle/invoke/'))).toBe(false)
+    expect(
+      options.some(
+        (option) =>
+          option.id === 'child-workflow.agent_content' &&
+          option.label === 'child-workflow.writer.content'
+      )
+    ).toBe(true)
+    expect(options.some((option) => option.menuPath.length > 2)).toBe(false)
 
     expect(buildWorkflowOutputMenu(options)).toMatchObject([
       {
@@ -92,7 +98,7 @@ describe('nested workflow output options', () => {
             blockId: 'invoke/agent',
             blockName: 'Writer',
             blockType: 'agent',
-            outputs: [{ id: 'invoke/agent_content', path: 'content' }],
+            outputs: [{ id: 'child-workflow.agent_content', path: 'content' }],
             children: [],
           },
         ],

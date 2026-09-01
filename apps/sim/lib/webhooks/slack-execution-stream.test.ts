@@ -369,7 +369,7 @@ describe('SlackExecutionStreamController', () => {
   it('sends a selected nested non-streaming output after block completion', async () => {
     const config: SlackStreamResponseConfig = {
       ...BASE_CONFIG,
-      outputConfigs: [{ blockId: 'workflow-block/lookup', path: 'result.name' }],
+      outputConfigs: [{ workflowId: 'child-workflow', blockId: 'lookup', path: 'result.name' }],
     }
     const { controller } = await createController(config, {
       event: { channel: 'D123', timestamp: '1700000000.000001', user: 'U123' },
@@ -381,7 +381,8 @@ describe('SlackExecutionStreamController', () => {
       startedAt: '2026-08-31T00:00:00.000Z',
       executionOrder: 7,
       endedAt: '2026-08-31T00:00:00.010Z',
-      outputBlockId: 'workflow-block/lookup',
+      outputBlockId: 'child-workflow.lookup',
+      childWorkflowInstanceId: 'child-instance-1',
     })
 
     expect(mockStartSlackAgentStream).toHaveBeenCalledWith(
@@ -402,6 +403,29 @@ describe('SlackExecutionStreamController', () => {
       [{ type: 'markdown_text', text: 'Ada' }],
       undefined
     )
+  })
+
+  it('keeps repeated invocations of the same child workflow distinct', async () => {
+    const config: SlackStreamResponseConfig = {
+      ...BASE_CONFIG,
+      outputConfigs: [{ workflowId: 'child-workflow', blockId: 'agent', path: 'content' }],
+    }
+    const { controller } = await createController(config, {
+      event: { channel: 'D123', timestamp: '1700000000.000001', user: 'U123' },
+    })
+
+    for (const childWorkflowInstanceId of ['child-instance-1', 'child-instance-2']) {
+      await controller.callbacks.onStream?.({
+        blockId: 'child-workflow.agent',
+        childWorkflowInstanceId,
+        executionOrder: 1,
+        stream: createByteStream(childWorkflowInstanceId),
+        execution: { success: true, output: {} },
+      })
+    }
+
+    expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(2)
+    expect(() => controller.assertSucceeded()).not.toThrow()
   })
 
   it('rejects credentials that do not belong to the workflow workspace', async () => {
