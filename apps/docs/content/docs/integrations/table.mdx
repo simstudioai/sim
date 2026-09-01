@@ -296,7 +296,16 @@ A filter is a predicate. One condition is an object naming a column, an operator
 | `isNull` / `isNotNull` | Cell is (not) null | `{"field": "phone", "op": "isNull"}` |
 | `isEmpty` / `isNotEmpty` | Cell is (not) empty | `{"field": "phone", "op": "isEmpty"}` |
 
-Columns are scalar (string, number, boolean, date) or opaque JSON. There are no array columns, so use `ilike` with `*value*` for substring matching.
+Most columns are scalar (string, number, boolean, date) or opaque JSON; use `ilike` with `*value*` for substring matching on text.
+
+**Select columns accept only a subset of these operators**, and a query using any other operator on one is rejected rather than returning no rows:
+
+| Column | Allowed operators |
+|--------|-------------------|
+| Single-select | `eq`, `ne`, `in`, `nin`, `isEmpty`, `isNotEmpty` |
+| Multi-select | `contains`, `ncontains`, `isEmpty`, `isNotEmpty` |
+
+A multi-select cell holds a list of options, so match it with `contains` (by option name) rather than `ilike`.
 
 ### Combining Filters
 
