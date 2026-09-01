@@ -57,6 +57,20 @@ interface OutputSelectProps {
   className?: string
 }
 
+interface OutputSelectMenuProps {
+  outputMenu: readonly WorkflowOutputMenuNode[]
+  workflowOutputs: readonly WorkflowOutputOption[]
+  selectedOutputs: string[]
+  onOutputSelect: (outputIds: string[]) => void
+  disabled: boolean
+  placeholder: string
+  valueMode: 'id' | 'label'
+  align: 'start' | 'end' | 'center'
+  maxHeight: number
+  size: 'sm' | 'md'
+  className?: string
+}
+
 function getOutputValue(output: WorkflowOutputOption, valueMode: 'id' | 'label'): string {
   return valueMode === 'label' && !output.blockId.includes('/') ? output.label : output.id
 }
@@ -88,7 +102,7 @@ function resolveOutputMenuNode(
  * @returns The OutputSelect component
  */
 export function OutputSelect(props: OutputSelectProps) {
-  return <OutputSelectContent key={props.workflowId ?? 'no-workflow'} {...props} />
+  return <OutputSelectContent {...props} />
 }
 
 function OutputSelectContent({
@@ -103,7 +117,6 @@ function OutputSelectContent({
   size = 'sm',
   className,
 }: OutputSelectProps) {
-  const [menuPath, setMenuPath] = useState<string[]>([])
   const blocks = useWorkflowStore((state) => state.blocks)
   const edges = useWorkflowStore((state) => state.edges)
   const { isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore(
@@ -184,6 +197,43 @@ function OutputSelectContent({
       })
     : []
   const outputMenu = buildWorkflowOutputMenu(workflowOutputs)
+  const outputMenuRevision = JSON.stringify([
+    workflowId,
+    ...workflowOutputs.map((output) => output.id),
+  ])
+
+  return (
+    <OutputSelectMenu
+      key={outputMenuRevision}
+      outputMenu={outputMenu}
+      workflowOutputs={workflowOutputs}
+      selectedOutputs={selectedOutputs}
+      onOutputSelect={onOutputSelect}
+      disabled={disabled}
+      placeholder={placeholder}
+      valueMode={valueMode}
+      align={align}
+      maxHeight={maxHeight}
+      size={size}
+      className={className}
+    />
+  )
+}
+
+function OutputSelectMenu({
+  outputMenu,
+  workflowOutputs,
+  selectedOutputs,
+  onOutputSelect,
+  disabled,
+  placeholder,
+  valueMode,
+  align,
+  maxHeight,
+  size,
+  className,
+}: OutputSelectMenuProps) {
+  const [menuPath, setMenuPath] = useState<string[]>([])
   const activeMenuNode = resolveOutputMenuNode(outputMenu, menuPath)
 
   const validOutputCount = selectedOutputs.filter((val) =>

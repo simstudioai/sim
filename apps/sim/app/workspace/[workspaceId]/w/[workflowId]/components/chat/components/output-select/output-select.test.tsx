@@ -3,7 +3,11 @@
  */
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { outputMenuState } = vi.hoisted(() => ({
+  outputMenuState: { includeNestedWorkflow: true },
+}))
 
 vi.mock('@sim/emcn', () => ({
   cn: (...values: unknown[]) => values.flat().filter(Boolean).join(' '),
@@ -134,31 +138,37 @@ vi.mock('@/lib/workflows/streaming/nested-output-options', () => {
 
   return {
     collectReferencedWorkflowIds: () => [],
-    buildWorkflowOutputOptions: () => [rootOutput, nestedOutput],
-    buildWorkflowOutputMenu: () => [
-      {
+    buildWorkflowOutputOptions: () =>
+      outputMenuState.includeNestedWorkflow ? [rootOutput, nestedOutput] : [rootOutput],
+    buildWorkflowOutputMenu: () => {
+      const rootNode = {
         blockId: 'summary',
         blockName: 'Summarizer',
         blockType: 'agent',
         outputs: [rootOutput],
         children: [],
-      },
-      {
-        blockId: 'workflow',
-        blockName: 'Research',
-        blockType: 'workflow_input',
-        outputs: [],
-        children: [
-          {
-            blockId: 'workflow/agent',
-            blockName: 'Writer',
-            blockType: 'agent',
-            outputs: [nestedOutput],
-            children: [],
-          },
-        ],
-      },
-    ],
+      }
+      return outputMenuState.includeNestedWorkflow
+        ? [
+            rootNode,
+            {
+              blockId: 'workflow',
+              blockName: 'Research',
+              blockType: 'workflow_input',
+              outputs: [],
+              children: [
+                {
+                  blockId: 'workflow/agent',
+                  blockName: 'Writer',
+                  blockType: 'agent',
+                  outputs: [nestedOutput],
+                  children: [],
+                },
+              ],
+            },
+          ]
+        : [rootNode]
+    },
   }
 })
 
@@ -166,6 +176,10 @@ import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/compo
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
+
+beforeEach(() => {
+  outputMenuState.includeNestedWorkflow = true
+})
 
 function outputSelect(
   workflowId: string,
@@ -247,6 +261,17 @@ describe('OutputSelect nested workflow menu', () => {
     clickOption('Outputs')
 
     rerenderOutputSelect('replacement', [], onOutputSelect)
+
+    expect(document.body.textContent).toContain('Summarizer')
+    expect(document.body.textContent).not.toContain('Back')
+  })
+
+  it('returns to the root menu when a workflow edit invalidates the active path', () => {
+    const onOutputSelect = renderOutputSelect([])
+    clickOption('Outputs')
+
+    outputMenuState.includeNestedWorkflow = false
+    rerenderOutputSelect('root', [], onOutputSelect)
 
     expect(document.body.textContent).toContain('Summarizer')
     expect(document.body.textContent).not.toContain('Back')

@@ -9,6 +9,7 @@ import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
 } from '@/lib/workflows/streaming/streaming'
+import type { AgentStreamSink } from '@/providers/stream-events'
 
 const workflowStreamingLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'WorkflowStreaming'
@@ -1207,7 +1208,7 @@ describe('createStreamingResponse agent-events-v1', () => {
       },
       executeFn: async ({ onStream }) => {
         let textController!: ReadableStreamDefaultController<Uint8Array>
-        let sink: { onEvent: (event: unknown) => void | Promise<void> } | undefined
+        let sink: AgentStreamSink | undefined
         const textStream = new ReadableStream<Uint8Array>({
           start(controller) {
             textController = controller
@@ -1218,7 +1219,7 @@ describe('createStreamingResponse agent-events-v1', () => {
           blockId: 'agent-1',
           stream: textStream,
           streamFormat: 'text',
-          subscribe: (nextSink: { onEvent: (event: unknown) => void | Promise<void> }) => {
+          subscribe: (nextSink: AgentStreamSink) => {
             sink = nextSink
             return () => {}
           },
@@ -1297,7 +1298,7 @@ describe('createStreamingResponse agent-events-v1', () => {
       },
       executeFn: async ({ onStream }) => {
         let textController!: ReadableStreamDefaultController<Uint8Array>
-        let sink: { onEvent: (event: unknown) => void | Promise<void> } | undefined
+        let sink: AgentStreamSink | undefined
         const textStream = new ReadableStream<Uint8Array>({
           start(controller) {
             textController = controller
@@ -1308,7 +1309,7 @@ describe('createStreamingResponse agent-events-v1', () => {
           blockId: 'agent-1',
           stream: textStream,
           streamFormat: 'text',
-          subscribe: (nextSink: { onEvent: (event: unknown) => void | Promise<void> }) => {
+          subscribe: (nextSink: AgentStreamSink) => {
             sink = nextSink
             return () => {}
           },
@@ -1543,7 +1544,7 @@ describe('createStreamingResponse agent-events-v1', () => {
       },
       executeFn: async ({ onStream }) => {
         let textController!: ReadableStreamDefaultController<Uint8Array>
-        let sink: { onEvent: (event: unknown) => void | Promise<void> } | undefined
+        let sink: AgentStreamSink | undefined
         const textStream = new ReadableStream<Uint8Array>({
           start(controller) {
             textController = controller
@@ -1554,7 +1555,7 @@ describe('createStreamingResponse agent-events-v1', () => {
           blockId: 'agent-1',
           stream: textStream,
           streamFormat: 'text',
-          subscribe: (nextSink: any) => {
+          subscribe: (nextSink: AgentStreamSink) => {
             sink = nextSink
             return () => {
               sink = undefined
