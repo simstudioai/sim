@@ -57,7 +57,6 @@ const {
   mockRunWorkflowTool,
   mockReadAvailableCustomToolByIdOrTitleAsCopilot,
   mockReadAvailableCustomToolByIdOrTitleAsExecutor,
-  mockGenerateInternalDelegationToken,
   mockGenerateInternalToken,
   mockResolveWorkspaceFileReference,
   mockAssertPermissionsAllowed,
@@ -78,7 +77,6 @@ const {
   mockRunWorkflowTool: vi.fn(),
   mockReadAvailableCustomToolByIdOrTitleAsCopilot: vi.fn(),
   mockReadAvailableCustomToolByIdOrTitleAsExecutor: vi.fn(),
-  mockGenerateInternalDelegationToken: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
   mockAssertPermissionsAllowed: vi.fn(),
@@ -98,8 +96,6 @@ vi.mock('@/lib/api-key/byok', () => ({
 }))
 
 vi.mock('@/lib/auth/internal', () => ({
-  generateInternalDelegationToken: (...args: unknown[]) =>
-    mockGenerateInternalDelegationToken(...args),
   generateInternalToken: (...args: unknown[]) => mockGenerateInternalToken(...args),
 }))
 
@@ -474,7 +470,6 @@ vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQu
 beforeEach(() => {
   vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
   mockAssertPermissionsAllowed.mockResolvedValue(undefined)
-  mockGenerateInternalDelegationToken.mockResolvedValue('executor-token')
   mockRunWorkflowTool.mockResolvedValue({ success: true, output: {} })
   mockGetInternalToolOperationHandler.mockResolvedValue(mockExecuteInternalToolOperation)
   mockExecuteInternalToolOperation.mockImplementation(async (request: InternalToolOperationCall) =>
@@ -4478,7 +4473,6 @@ describe('Managed OAuth Credential Delegation', () => {
   })
 
   it('fails before transport when managed credential delegation lacks current workflow authority', async () => {
-    mockGenerateInternalDelegationToken.mockClear()
     mockResolveExecutorCredentialToken.mockRejectedValueOnce(
       new Error('Managed credential delegation is missing current workflow authority')
     )
@@ -4516,7 +4510,6 @@ describe('Managed OAuth Credential Delegation', () => {
       success: false,
       error: 'Managed credential delegation is missing current workflow authority',
     })
-    expect(mockGenerateInternalDelegationToken).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
