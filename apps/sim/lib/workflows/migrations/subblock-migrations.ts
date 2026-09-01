@@ -140,6 +140,14 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
     { from: 'folderId', to: 'folderSelector' },
     { from: 'listId', to: 'listSelector' },
   ],
+  confluence_v2: [
+    {
+      from: 'spaceSelector',
+      to: 'spaceKeySelector',
+      whenOperation: ['search_in_space'],
+    },
+    { from: 'spaceId', to: 'manualSpaceKey', whenOperation: ['search_in_space'] },
+  ],
   apollo: [
     { from: 'contact_ids_bulk', to: 'contacts' },
     { from: 'account_ids_bulk', to: 'accounts' },
