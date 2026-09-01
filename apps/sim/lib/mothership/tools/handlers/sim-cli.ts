@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { createEmbeddedClient, type EmbeddedCliIdentity, runEmbeddedCli } from 'sim/embed'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import {
+  readSessionSandboxFile,
+  writeSessionSandboxFile,
+} from '@/lib/execution/remote-sandbox/session-files'
 import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
 import type {
   ToolExecutionContext,
@@ -44,9 +48,29 @@ export async function executeSimCli(
   if (!context.workspaceId) {
     return { success: false, error: 'sim_cli requires a workspace-scoped execution context.' }
   }
-  const { cliArgs: args, stages } = splitPipeline(rawArgs)
-  if (args.length === 0) {
+  const { cliArgs: rawCliArgs, stages } = splitPipeline(rawArgs)
+  if (rawCliArgs.length === 0) {
     return { success: false, error: 'A pipe needs a sim CLI invocation before the first |.' }
+  }
+
+  const args = rawCliArgs
+
+  // The chat's workbench sandbox is the agent's filesystem: every @-shaped token
+  // is pre-read from it into a map the embedded CLI's OWN argument resolver
+  // consults — so only genuinely file-aware flags get file semantics (a literal
+  // `--text @channel` stays literal), and the server's filesystem is never
+  // readable from model argv. A token that names no sandbox file is simply
+  // absent from the map; the resolver's refusal then says so.
+  const sessionKey = context.chatId ? `mothership-chat:${context.chatId}` : null
+  const fileArguments: Record<string, string> = {}
+  if (sessionKey) {
+    for (const token of args) {
+      if (!token.startsWith('@') || token.startsWith('@@') || token === '@-') continue
+      const path = token.slice(1)
+      if (fileArguments[path] !== undefined) continue
+      const read = await readSessionSandboxFile(sessionKey, path)
+      if (read.outcome === 'read') fileArguments[path] = read.content
+    }
   }
 
   // Stages are validated before the CLI runs: a mutating command must never
@@ -77,13 +101,31 @@ export async function executeSimCli(
         workspaceId: context.workspaceId,
         userId: context.userId,
       })
-    : await runEmbeddedCli(args, identity)
+    : await runEmbeddedCli(args, identity, { fileArguments })
   if (!agentMatch && isRootHelpInvocation(args) && result.exitCode === 0) {
     result.stdout += agentCliHelpSection()
   }
   if (result.exitCode === 0 && stages.length > 0) {
     const piped = applyPipeline(result.stdout, stages)
     if (piped.ok) result.stdout = piped.stdout
+  }
+
+  // outputFile: land large stdout directly on the agent's machine instead of
+  // returning it through the model window — the other half of the file bridge.
+  const outputFile = typeof params.outputFile === 'string' ? params.outputFile.trim() : ''
+  if (outputFile && result.exitCode === 0) {
+    if (!sessionKey) {
+      result.stdout +=
+        '\n[outputFile not written: no chat-scoped machine — output returned inline instead]'
+    } else {
+      const written = await writeSessionSandboxFile(sessionKey, outputFile, result.stdout)
+      if (written.outcome === 'written') {
+        result.stdout = `[stdout written to ${outputFile} on your machine: ${result.stdout.length} chars. Read or process it with run_code, or pass it back as @${outputFile}.]`
+      } else {
+        result.stdout +=
+          '\n[outputFile not written: your machine is not booted yet — run any run_code first. Output returned inline instead]'
+      }
+    }
   }
 
   logger.info('CLI invocation finished', {
