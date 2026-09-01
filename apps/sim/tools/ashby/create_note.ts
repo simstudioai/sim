@@ -1,5 +1,5 @@
 import type { AshbyCreateNoteParams, AshbyCreateNoteResponse } from '@/tools/ashby/types'
-import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
+import { ASHBY_ON_BEHALF_OF_PARAM, ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteResponse> = {
@@ -16,6 +16,7 @@ export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteRe
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    ...ASHBY_ON_BEHALF_OF_PARAM,
     candidateId: {
       type: 'string',
       required: true,
@@ -59,7 +60,7 @@ export const createNoteTool: ToolConfig<AshbyCreateNoteParams, AshbyCreateNoteRe
   request: {
     url: 'https://api.ashbyhq.com/candidate.createNote',
     method: 'POST',
-    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    headers: (params) => ashbyAuthHeaders(params.apiKey, params.onBehalfOfUserId),
     body: (params) => {
       const body: Record<string, unknown> = {
         candidateId: params.candidateId.trim(),

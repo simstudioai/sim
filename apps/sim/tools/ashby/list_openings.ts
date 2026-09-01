@@ -2,6 +2,8 @@ import type { AshbyOpening } from '@/tools/ashby/types'
 import {
   ashbyAuthHeaders,
   ashbyErrorMessage,
+  ashbyLimit,
+  ashbyTimestamp,
   mapOpenings,
   OPENINGS_OUTPUT,
 } from '@/tools/ashby/utils'
@@ -12,6 +14,7 @@ interface AshbyListOpeningsParams {
   cursor?: string
   perPage?: number
   createdAfter?: string
+  syncToken?: string
 }
 
 interface AshbyListOpeningsResponse extends ToolResponse {
@@ -19,6 +22,7 @@ interface AshbyListOpeningsResponse extends ToolResponse {
     openings: AshbyOpening[]
     moreDataAvailable: boolean
     nextCursor: string | null
+    nextSyncCursor: string | null
   }
 }
 
@@ -54,6 +58,12 @@ export const listOpeningsTool: ToolConfig<AshbyListOpeningsParams, AshbyListOpen
       description:
         'Only return openings created after this ISO 8601 timestamp (e.g. 2024-01-01T00:00:00Z)',
     },
+    syncToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Opaque token from a completed prior sync run',
+    },
   },
 
   request: {
@@ -63,11 +73,11 @@ export const listOpeningsTool: ToolConfig<AshbyListOpeningsParams, AshbyListOpen
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.cursor) body.cursor = params.cursor
-      if (params.perPage) body.limit = params.perPage
-      if (params.createdAfter) {
-        const ms = new Date(params.createdAfter).getTime()
-        if (!Number.isNaN(ms)) body.createdAfter = ms
-      }
+      const limit = ashbyLimit(params.perPage)
+      if (limit) body.limit = limit
+      if (params.createdAfter)
+        body.createdAfter = ashbyTimestamp(params.createdAfter, 'createdAfter')
+      if (params.syncToken) body.syncToken = params.syncToken
       return body
     },
   },
@@ -85,6 +95,7 @@ export const listOpeningsTool: ToolConfig<AshbyListOpeningsParams, AshbyListOpen
         openings: mapOpenings(data.results),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
+        nextSyncCursor: data.syncToken ?? null,
       },
     }
   },
@@ -98,6 +109,11 @@ export const listOpeningsTool: ToolConfig<AshbyListOpeningsParams, AshbyListOpen
     nextCursor: {
       type: 'string',
       description: 'Opaque cursor for fetching the next page',
+      optional: true,
+    },
+    nextSyncCursor: {
+      type: 'string',
+      description: 'Opaque token for the next incremental sync',
       optional: true,
     },
   },

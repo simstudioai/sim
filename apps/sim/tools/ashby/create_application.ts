@@ -1,6 +1,7 @@
 import type { AshbyApplication } from '@/tools/ashby/types'
 import {
   APPLICATION_OUTPUTS,
+  ASHBY_ON_BEHALF_OF_PARAM,
   ashbyAuthHeaders,
   ashbyErrorMessage,
   mapApplication,
@@ -9,6 +10,7 @@ import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyCreateApplicationParams {
   apiKey: string
+  onBehalfOfUserId?: string
   candidateId: string
   jobId: string
   interviewPlanId?: string
@@ -16,6 +18,7 @@ interface AshbyCreateApplicationParams {
   sourceId?: string
   creditedToUserId?: string
   createdAt?: string
+  applicationHistory?: unknown[]
 }
 
 interface AshbyCreateApplicationResponse extends ToolResponse {
@@ -39,6 +42,7 @@ export const createApplicationTool: ToolConfig<
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    ...ASHBY_ON_BEHALF_OF_PARAM,
     candidateId: {
       type: 'string',
       required: true,
@@ -62,7 +66,7 @@ export const createApplicationTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'UUID of the interview stage to place the application in (defaults to first Lead stage)',
+        'UUID of the interview stage to place the application in, or FirstPreInterviewScreen (defaults to the first Lead stage)',
     },
     sourceId: {
       type: 'string',
@@ -82,12 +86,18 @@ export const createApplicationTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'ISO 8601 timestamp to set as the application creation date (defaults to now)',
     },
+    applicationHistory: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional documented application history entries to create with the application',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/application.create',
     method: 'POST',
-    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    headers: (params) => ashbyAuthHeaders(params.apiKey, params.onBehalfOfUserId),
     body: (params) => {
       const body: Record<string, unknown> = {
         candidateId: params.candidateId.trim(),
@@ -98,6 +108,8 @@ export const createApplicationTool: ToolConfig<
       if (params.sourceId) body.sourceId = params.sourceId.trim()
       if (params.creditedToUserId) body.creditedToUserId = params.creditedToUserId.trim()
       if (params.createdAt) body.createdAt = params.createdAt
+      if (Array.isArray(params.applicationHistory) && params.applicationHistory.length > 0)
+        body.applicationHistory = params.applicationHistory
       return body
     },
   },

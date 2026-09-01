@@ -6,6 +6,8 @@ import {
   APPLICATION_OUTPUTS,
   ashbyAuthHeaders,
   ashbyErrorMessage,
+  ashbyLimit,
+  ashbyTimestamp,
   mapApplication,
 } from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -43,7 +45,7 @@ export const listApplicationsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by application status: Active, Hired, Archived, or Lead',
+      description: 'Application status to include: Active, Hired, Archived, or Lead',
     },
     jobId: {
       type: 'string',
@@ -58,6 +60,24 @@ export const listApplicationsTool: ToolConfig<
       description:
         'Filter to applications created after this ISO 8601 timestamp (e.g. 2024-01-01T00:00:00Z)',
     },
+    createdBefore: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter to applications created before this ISO 8601 timestamp',
+    },
+    syncToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Opaque token from a completed prior sync run',
+    },
+    expand: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Ashby-supported application expansions to request',
+    },
   },
 
   request: {
@@ -67,13 +87,18 @@ export const listApplicationsTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.cursor) body.cursor = params.cursor
-      if (params.perPage) body.limit = params.perPage
-      if (params.status) body.status = params.status
-      if (params.jobId) body.jobId = params.jobId.trim()
-      if (params.createdAfter) {
-        const ms = new Date(params.createdAfter).getTime()
-        if (!Number.isNaN(ms)) body.createdAfter = ms
+      const limit = ashbyLimit(params.perPage)
+      if (limit) body.limit = limit
+      if (typeof params.status === 'string' && params.status.trim()) {
+        body.status = params.status.trim()
       }
+      if (params.jobId) body.jobId = params.jobId.trim()
+      if (params.syncToken) body.syncToken = params.syncToken
+      if (params.createdAfter)
+        body.createdAfter = ashbyTimestamp(params.createdAfter, 'createdAfter')
+      if (params.createdBefore)
+        body.createdBefore = ashbyTimestamp(params.createdBefore, 'createdBefore')
+      if (Array.isArray(params.expand) && params.expand.length > 0) body.expand = params.expand
       return body
     },
   },
@@ -91,6 +116,7 @@ export const listApplicationsTool: ToolConfig<
         applications: (data.results ?? []).map(mapApplication),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
+        nextSyncCursor: data.syncToken ?? null,
       },
     }
   },
@@ -111,6 +137,11 @@ export const listApplicationsTool: ToolConfig<
     nextCursor: {
       type: 'string',
       description: 'Opaque cursor for fetching the next page',
+      optional: true,
+    },
+    nextSyncCursor: {
+      type: 'string',
+      description: 'Opaque token for the next incremental sync, returned on the final page',
       optional: true,
     },
   },

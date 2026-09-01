@@ -1,5 +1,6 @@
 import type { AshbyCreateCandidateParams, AshbyCreateCandidateResponse } from '@/tools/ashby/types'
 import {
+  ASHBY_ON_BEHALF_OF_PARAM,
   ashbyAuthHeaders,
   ashbyErrorMessage,
   CANDIDATE_OUTPUTS,
@@ -23,6 +24,7 @@ export const createCandidateTool: ToolConfig<
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    ...ASHBY_ON_BEHALF_OF_PARAM,
     name: {
       type: 'string',
       required: true,
@@ -85,12 +87,18 @@ export const createCandidateTool: ToolConfig<
       description:
         'Array of additional email address strings to add to the candidate, e.g. ["a@x.com","b@y.com"]',
     },
+    location: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Candidate location object with optional city, region, and country',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/candidate.create',
     method: 'POST',
-    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    headers: (params) => ashbyAuthHeaders(params.apiKey, params.onBehalfOfUserId),
     body: (params) => {
       const body: Record<string, unknown> = {
         name: params.name,
@@ -108,6 +116,7 @@ export const createCandidateTool: ToolConfig<
         params.alternateEmailAddresses.length > 0
       )
         body.alternateEmailAddresses = params.alternateEmailAddresses
+      if (params.location && typeof params.location === 'object') body.location = params.location
       return body
     },
   },

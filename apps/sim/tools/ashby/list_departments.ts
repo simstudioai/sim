@@ -1,4 +1,4 @@
-import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
+import { ashbyAuthHeaders, ashbyErrorMessage, ashbyLimit } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListDepartmentsParams {
@@ -25,7 +25,7 @@ interface AshbyListDepartmentsResponse extends ToolResponse {
     departments: AshbyDepartment[]
     moreDataAvailable: boolean
     nextCursor: string | null
-    syncToken: string | null
+    nextSyncCursor: string | null
   }
 }
 
@@ -78,7 +78,8 @@ export const listDepartmentsTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.cursor) body.cursor = params.cursor
-      if (params.perPage) body.limit = params.perPage
+      const limit = ashbyLimit(params.perPage)
+      if (limit) body.limit = limit
       if (params.syncToken) body.syncToken = params.syncToken
       if (params.includeArchived !== undefined) body.includeArchived = params.includeArchived
       return body
@@ -107,7 +108,7 @@ export const listDepartmentsTool: ToolConfig<
         })),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
-        syncToken: data.syncToken ?? null,
+        nextSyncCursor: data.syncToken ?? null,
       },
     }
   },
@@ -159,7 +160,7 @@ export const listDepartmentsTool: ToolConfig<
       description: 'Opaque cursor for fetching the next page',
       optional: true,
     },
-    syncToken: {
+    nextSyncCursor: {
       type: 'string',
       description: 'Opaque sync token returned after the last page; pass on next sync',
       optional: true,

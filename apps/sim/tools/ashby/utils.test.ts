@@ -2,7 +2,29 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { ashbyErrorMessage } from '@/tools/ashby/utils'
+import { ashbyErrorMessage, ashbyIsoDateTime, ashbyLimit } from '@/tools/ashby/utils'
+
+describe('ashbyLimit', () => {
+  it('omits unresolved optional values while preserving strict numeric validation', () => {
+    expect(ashbyLimit(undefined)).toBeUndefined()
+    expect(ashbyLimit(null)).toBeUndefined()
+    expect(ashbyLimit('')).toBeUndefined()
+    expect(ashbyLimit('   ')).toBeUndefined()
+    expect(ashbyLimit(25)).toBe(25)
+    expect(() => ashbyLimit(0)).toThrow(/integer from 1 to 100/)
+    expect(() => ashbyLimit('25')).toThrow(/integer from 1 to 100/)
+  })
+})
+
+describe('ashbyIsoDateTime', () => {
+  it('preserves a valid provider date-time and rejects invalid input', () => {
+    expect(ashbyIsoDateTime('2026-09-02T16:32:00Z', 'sendAt')).toBe('2026-09-02T16:32:00Z')
+    expect(ashbyIsoDateTime('2026-09-02T16:32', 'sendAt')).toBe('2026-09-02T16:32')
+    expect(() => ashbyIsoDateTime('tomorrow-ish', 'sendAt')).toThrow(/ISO 8601/)
+    expect(() => ashbyIsoDateTime('2026-09-02', 'sendAt')).toThrow(/ISO 8601/)
+    expect(() => ashbyIsoDateTime('2026-02-30T16:32:00Z', 'sendAt')).toThrow(/ISO 8601/)
+  })
+})
 
 describe('ashbyErrorMessage', () => {
   it('reads the message out of the documented { message, parameter } entries', () => {

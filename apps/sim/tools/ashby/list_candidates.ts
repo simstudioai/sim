@@ -2,6 +2,8 @@ import type { AshbyListCandidatesParams, AshbyListCandidatesResponse } from '@/t
 import {
   ashbyAuthHeaders,
   ashbyErrorMessage,
+  ashbyLimit,
+  ashbyTimestamp,
   CANDIDATE_OUTPUTS,
   mapCandidate,
 } from '@/tools/ashby/utils'
@@ -42,6 +44,18 @@ export const listCandidatesTool: ToolConfig<
       description:
         'Only return candidates created after this ISO 8601 timestamp (e.g. 2024-01-01T00:00:00Z)',
     },
+    createdBefore: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only return candidates created before this ISO 8601 timestamp',
+    },
+    syncToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Opaque token from a completed prior sync run',
+    },
   },
 
   request: {
@@ -51,11 +65,13 @@ export const listCandidatesTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.cursor) body.cursor = params.cursor
-      if (params.perPage) body.limit = params.perPage
-      if (params.createdAfter) {
-        const ms = new Date(params.createdAfter).getTime()
-        if (!Number.isNaN(ms)) body.createdAfter = ms
-      }
+      const limit = ashbyLimit(params.perPage)
+      if (limit) body.limit = limit
+      if (params.syncToken) body.syncToken = params.syncToken
+      if (params.createdAfter)
+        body.createdAfter = ashbyTimestamp(params.createdAfter, 'createdAfter')
+      if (params.createdBefore)
+        body.createdBefore = ashbyTimestamp(params.createdBefore, 'createdBefore')
       return body
     },
   },
@@ -73,6 +89,7 @@ export const listCandidatesTool: ToolConfig<
         candidates: (data.results ?? []).map(mapCandidate),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
+        nextSyncCursor: data.syncToken ?? null,
       },
     }
   },
@@ -93,6 +110,11 @@ export const listCandidatesTool: ToolConfig<
     nextCursor: {
       type: 'string',
       description: 'Opaque cursor for fetching the next page',
+      optional: true,
+    },
+    nextSyncCursor: {
+      type: 'string',
+      description: 'Opaque token for the next incremental sync, returned on the final page',
       optional: true,
     },
   },
