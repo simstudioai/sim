@@ -1,5 +1,5 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
+import type { MothershipResourceUpdate } from '@/lib/copilot/resources/types'
 import type { SecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -84,7 +84,7 @@ export interface ToolExecutionResult {
   success: boolean
   output?: unknown
   error?: string
-  resources?: MothershipResource[]
+  resources?: MothershipResourceUpdate[]
   /**
    * Declared by tools whose failure a caller cannot otherwise act on. Consumed by
    * the egress projection and never returned to the model as-is — on a withheld
