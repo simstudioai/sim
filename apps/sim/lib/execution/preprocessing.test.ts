@@ -500,29 +500,41 @@ describe('preprocessExecution ban gate', () => {
     expect(mockCheckRateLimit).toHaveBeenCalledTimes(1)
   })
 
-  /** An authenticated caller becomes the actor, so one candidate covers them. */
-  it('checks the authenticated caller as the actor', async () => {
-    const result = await preprocessExecution({ ...baseOptions, useAuthenticatedUserAsActor: true })
+  /** The default is the blocking one: an undeclared `userId` stays a candidate. */
+  it('checks the actor and the caller-provided userId by default', async () => {
+    const result = await preprocessExecution(baseOptions)
 
     expect(result.success).toBe(true)
     expect(mockGetActivelyBannedUserIds).toHaveBeenCalledTimes(1)
-    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['owner-1'])
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['billed-account-1', 'owner-1'])
   })
 
   /**
-   * The one shape where the two genuinely differ: an upstream boundary captured
-   * the attribution, so the actor comes from there while `userId` still names
-   * the authenticated caller. Both are identities the run acts as.
+   * Resume is the shape that must keep blocking: it passes the live
+   * authenticated resumer as `userId` while attribution stays pinned to the
+   * original actor across the pause, and deliberately leaves
+   * `useAuthenticatedUserAsActor` false. Keying the gate on that flag excluded
+   * exactly the person who just acted.
    */
-  it('checks both when a captured attribution names a different actor', async () => {
+  it('checks a live resumer whose captured attribution names a different actor', async () => {
+    mockGetActivelyBannedUserIds.mockImplementation(async (ids: string[]) =>
+      ids.filter((id) => id === 'suspended-resumer')
+    )
+
     const result = await preprocessExecution({
       ...baseOptions,
-      useAuthenticatedUserAsActor: true,
-      billingAttribution: { ...ORGANIZATION_ATTRIBUTION, actorUserId: 'delegated-actor-1' } as any,
+      userId: 'suspended-resumer',
+      billingAttribution: { ...ORGANIZATION_ATTRIBUTION, actorUserId: 'original-actor-1' } as any,
     })
 
-    expect(result.success).toBe(true)
-    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['delegated-actor-1', 'owner-1'])
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith([
+      'original-actor-1',
+      'suspended-resumer',
+    ])
+    expect(result).toMatchObject({
+      success: false,
+      error: { statusCode: 403, message: 'Account suspended' },
+    })
   })
 
   it('excludes the "unknown" sentinel userId', async () => {
@@ -533,34 +545,25 @@ describe('preprocessExecution ban gate', () => {
   })
 
   /**
-   * Callers overload `userId`: an authenticated caller on a manual run, but a
-   * stored pointer on a system-triggered one — the workflow owner from
-   * `checkWebhookPreprocessing`, the chat's creator from the deployed-chat
-   * route. Without `useAuthenticatedUserAsActor` gating it, the same ban
-   * suspended a webhook while the schedule beside it kept running.
+   * The webhook and deployed-chat shape: `userId` names the workflow owner or
+   * the chat's creator, so a ban on them must not take down automation their
+   * teammates depend on. Those call sites declare it explicitly rather than the
+   * gate inferring it.
    */
-  it('ignores a stored-pointer userId when it is not the authenticated caller', async () => {
-    const result = await preprocessExecution({ ...baseOptions, userId: 'creator-1' })
-
-    expect(result.success).toBe(true)
-    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['billed-account-1'])
-    expect(mockGetActivelyBannedUserIds.mock.calls[0][0]).not.toContain('creator-1')
-  })
-
-  /**
-   * The webhook shape specifically: `checkWebhookPreprocessing` passes the
-   * workflow owner as `userId` with no `useAuthenticatedUserAsActor`, so a
-   * banned owner must not take the webhook down.
-   */
-  it('does not block a system-triggered run because the workflow owner is banned', async () => {
+  it('skips a userId the caller declares a stored reference', async () => {
     mockGetActivelyBannedUserIds.mockImplementation(async (ids: string[]) =>
       ids.filter((id) => id === 'creator-1')
     )
 
-    const result = await preprocessExecution({ ...baseOptions, userId: 'creator-1' })
+    const result = await preprocessExecution({
+      ...baseOptions,
+      userId: 'creator-1',
+      userIdIsStoredReference: true,
+    })
 
     expect(result.success).toBe(true)
     expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['billed-account-1'])
+    expect(mockGetActivelyBannedUserIds.mock.calls[0][0]).not.toContain('creator-1')
   })
 
   it('fails closed with 500 when the ban check errors', async () => {

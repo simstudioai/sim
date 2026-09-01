@@ -180,6 +180,8 @@ export const POST = withRouteHandler(
       const preprocessResult = await preprocessExecution({
         workflowId: deployment.workflowId,
         userId: deployment.userId,
+        // Whoever deployed this chat, not whoever is talking to it.
+        userIdIsStoredReference: true,
         triggerType: 'chat',
         executionId,
         requestId,
