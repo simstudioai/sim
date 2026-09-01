@@ -25304,7 +25304,7 @@
       "operations": [
         {
           "name": "List Items",
-          "description": "List all items from a Webflow CMS collection"
+          "description": "List items from a Webflow CMS collection"
         },
         {
           "name": "Get Item",

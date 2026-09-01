@@ -113,9 +113,14 @@ export const getPublicLog = defineAuthorizedWorkspaceUseCase({
         userId: principal.kind === 'personal_api_key' ? principal.userId : undefined,
       }
     )
-    if (log.workflowUserId && !log.workflowOwnerEmail) {
-      throw new Error(`Unable to resolve workflow owner email for ${log.workflowUserId}`)
-    }
+    /**
+     * No assertion on `executedByEmail`. The owner-email version of this field
+     * could reasonably insist a non-null user id resolve to an email, because
+     * the workflow row's owner was expected to exist. The executing identity is
+     * read from attribution the run captured for itself, and a run that failed
+     * before resolving one legitimately has none — so null is an answer here,
+     * not a missing join.
+     */
     const costLedger = await buildCostLedger(log.executionId)
     return {
       log: { ...log, workflowState: sanitizeExecutionSnapshotState(log.workflowState) },

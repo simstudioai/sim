@@ -51,7 +51,6 @@ export const GET = withRouteHandler(
         name: log.workflowName || 'Deleted Workflow',
         description: log.workflowDescription,
         folderId: log.workflowFolderId,
-        userId: log.workflowUserId,
         workspaceId: log.workflowWorkspaceId,
         createdAt: log.workflowCreatedAt,
         updatedAt: log.workflowUpdatedAt,

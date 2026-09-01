@@ -593,6 +593,30 @@ export function toUsageLimitSubscription(attribution: BillingAttributionSnapshot
 }
 
 /**
+ * Reads only the identity an unauthenticated run acts as: the workspace's
+ * billing account.
+ *
+ * The same identity {@link resolveSystemBillingAttribution} elects as
+ * `actorUserId`, exposed on its own for gates that must name that identity
+ * before execution and have no use for the payer's subscription. Surfaces with
+ * no identifiable caller — a public API URL, a schedule, a webhook — must
+ * authorize against this rather than against the workflow owner, which is a
+ * stored pointer whose access can lapse without the workspace changing.
+ *
+ * Returns `null` when the workspace has no billing account or does not exist,
+ * so a gate can fail closed without distinguishing the two.
+ */
+export async function getWorkspaceBilledAccountUserId(workspaceId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ billedAccountUserId: workspace.billedAccountUserId })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1)
+
+  return row?.billedAccountUserId ?? null
+}
+
+/**
  * Resolves the workspace-selected payer and its exact subscription without
  * consulting an actor's organization memberships.
  */

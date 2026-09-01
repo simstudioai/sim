@@ -307,11 +307,23 @@ export async function getCustomBlockManageContext(id: string): Promise<{
  * executor to run the bound workflow under the invocation-boundary model: the
  * consumer needs no permission on the source workflow. Returns the authoritative
  * `workflowId` from the DB (never trust a serialized value) plus the source
- * workflow's **owner** (`workflow.userId`) — the same identity a normal deployed
- * API/schedule/webhook run executes as. Using the owner (not the publisher) means
- * the owner always has read on their own workflow, and owner deletion cascade-
- * deletes the workflow → the custom_block row, so there is never an orphaned block.
- * `null` when no enabled block matches the type.
+ * workflow's **owner** (`workflow.userId`). Using the owner (not the publisher)
+ * means the owner always has read on their own workflow, and owner deletion
+ * cascade-deletes the workflow → the custom_block row, so there is never an
+ * orphaned block. `null` when no enabled block matches the type.
+ *
+ * `ownerUserId` carries further than the owner does on any other trigger. It is
+ * the child run's actor, the personal-variable identity, and the subject of its
+ * delegated tool calls, because a custom block publishes a fixed behavior to
+ * consumers who can see none of its internals and the publisher's own
+ * integrations and personal keys are part of that behavior.
+ *
+ * It is NOT the identity for the two things a workspace owns. Workspace
+ * variables authorize against the source workspace's billing account, and that
+ * account is the payer, exactly as they would for a schedule on the same
+ * workflow — see the environment resolution in `workflow-handler`. Reading those
+ * as the owner too gave a published block a narrower workspace-secret selection
+ * than the workflow got on every other trigger, which no consumer could see.
  */
 export async function getCustomBlockAuthority(
   type: string,
