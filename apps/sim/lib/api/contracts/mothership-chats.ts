@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { addCopilotChatResourceBodySchema } from '@/lib/api/contracts/copilot'
 import { scheduleContextSchema } from '@/lib/api/contracts/schedules'
 import {
   mountedSecretNamesSchema,
@@ -210,10 +211,8 @@ const mothershipChatResourcesResponseSchema = z.object({
   resources: z.array(mothershipChatResourceItemSchema),
 })
 
-const addMothershipChatResourceBodySchema = z.object({
-  chatId: z.string().min(1),
-  resource: mothershipChatResourceItemSchema,
-})
+export const addMothershipChatResourceBodySchema = addCopilotChatResourceBodySchema
+export type AddMothershipChatResourceBody = z.input<typeof addMothershipChatResourceBodySchema>
 
 const reorderMothershipChatResourcesBodySchema = z.object({
   chatId: z.string().min(1),
