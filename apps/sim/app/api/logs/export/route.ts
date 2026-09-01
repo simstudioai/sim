@@ -110,6 +110,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
      * Checked here rather than in an application use case because this route
      * queries directly and predates that boundary; migrating it is worth doing,
      * and is not a reason to leave the export ungoverned meanwhile.
+     *
+     * No admin exemption, unlike `organization.member_directory`. That one is
+     * organization-scoped: it reads the org *default* group, which governs the
+     * admins too, and the page it withholds is the roster an admin needs open to
+     * change the setting — an exemption there breaks a bootstrap loop. This
+     * capability has neither half. It resolves the caller's own workspace group,
+     * so an admin who wants the export edits the group that withheld it, on a
+     * settings page this refusal does not touch. Exempting admins would instead
+     * make `disableLogExport` unable to say what it says — that nobody in this
+     * group downloads the whole workspace's execution payloads — for exactly the
+     * accounts whose export is widest.
      */
     const permissionConfig = await resolvePermissionGroupConfig(
       userId,
