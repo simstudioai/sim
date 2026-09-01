@@ -1436,6 +1436,63 @@ describe('createStreamingResponse agent-events-v1', () => {
     expect(events.some((event) => event.event === 'chunk_reset')).toBe(false)
   })
 
+  it('streams projected sink text live when it matches the transformed byte stream', async () => {
+    const headers = new Headers({
+      'x-sim-stream-protocol': 'agent-events-v1',
+    })
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      requestHeaders: headers,
+      streamConfig: {
+        includeThinking: false,
+        includeToolCalls: false,
+        selectedOutputs: ['agent-1_answer'],
+      },
+      executeFn: async ({ onStream }) => {
+        let sink: { onEvent: (event: unknown) => void | Promise<void> } | undefined
+        const onStreamPromise = onStream({
+          blockId: 'agent-1',
+          stream: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('fallback bytes'))
+              controller.close()
+            },
+          }),
+          streamFormat: 'text',
+          subscribe: (nextSink: { onEvent: (event: unknown) => void | Promise<void> }) => {
+            sink = nextSink
+            return () => {}
+          },
+          clientStreamTransformed: true,
+          clientSinkTransformed: true,
+          execution: {
+            blockId: 'agent-1',
+            success: true,
+            output: { answer: 'Live answer' },
+            logs: [],
+            metadata: {},
+          },
+        } as any)
+
+        await sink?.onEvent({ type: 'text_delta', text: 'Live ', turn: 'pending' })
+        await sink?.onEvent({ type: 'text_delta', text: 'answer', turn: 'pending' })
+        await sink?.onEvent({ type: 'turn_end', turn: 'final' })
+        await onStreamPromise
+
+        return {
+          success: true,
+          output: { answer: 'Live answer' },
+          logs: [],
+        } as any
+      },
+    })
+
+    const events = await collectSSEEvents(stream)
+    expect(events.filter((event) => event.chunk !== undefined).map((event) => event.chunk)).toEqual(
+      ['Live ', 'answer']
+    )
+  })
+
   it('includeThinking without includeToolCalls does not emit tool frames', async () => {
     const headers = new Headers({
       'x-sim-stream-protocol': 'agent-events-v1',

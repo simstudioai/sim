@@ -37,6 +37,7 @@ import {
   type ChatStreamToolFrame,
   clientAcceptsAgentStreamProtocol,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
+import { shouldForwardAnswerTextFromSink } from '@/lib/workflows/streaming/forward-agent-stream-events'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
@@ -614,9 +615,7 @@ export async function createStreamingResponse(
          * the byte stream as the frame source either way.
          */
         const sinkAnswerText =
-          clientAcceptsProtocol &&
-          Boolean(streamingExec.subscribe) &&
-          streamingExec.clientStreamTransformed !== true
+          clientAcceptsProtocol && shouldForwardAnswerTextFromSink(streamingExec)
 
         /** False until the first chunk since block start or since a reset. */
         let emittedSinceReset = false

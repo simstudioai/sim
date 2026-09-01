@@ -24,8 +24,8 @@ export interface ForwardAgentStreamEventsOptions {
    * When true, answer text deltas forward live as `stream:chunk` events and an
    * intermediate `turn_end` forwards as `stream:chunk_reset`. The caller MUST
    * then stop emitting `stream:chunk` from the block's byte stream, or clients
-   * receive the final turn's text twice. Never enable for response-format
-   * projected streams ({@link StreamingExecution.clientStreamTransformed}).
+   * receive the final turn's text twice. Response-format projected streams may
+   * enable this only when their sink text is projected too.
    */
   forwardAnswerText?: boolean
   /** Builds the safe display copy without exposing provenance to the stream bridge. */
@@ -51,7 +51,10 @@ async function projectDisplayValue(
  * `forwardAnswerText`) instead of the block's byte stream.
  */
 export function shouldForwardAnswerTextFromSink(streamingExec: StreamingExecution): boolean {
-  return Boolean(streamingExec.subscribe) && streamingExec.clientStreamTransformed !== true
+  return (
+    Boolean(streamingExec.subscribe) &&
+    (streamingExec.clientStreamTransformed !== true || streamingExec.clientSinkTransformed === true)
+  )
 }
 
 /**

@@ -225,7 +225,7 @@ describe('forwardAgentStreamToExecutionEvents', () => {
 })
 
 describe('shouldForwardAnswerTextFromSink', () => {
-  it('requires a sink and an untransformed client stream', () => {
+  it('requires sink text that matches the client stream', () => {
     const base = {
       stream: new ReadableStream(),
       execution: { success: true, output: {} },
@@ -237,5 +237,13 @@ describe('shouldForwardAnswerTextFromSink', () => {
     expect(
       shouldForwardAnswerTextFromSink({ ...base, subscribe, clientStreamTransformed: true })
     ).toBe(false)
+    expect(
+      shouldForwardAnswerTextFromSink({
+        ...base,
+        subscribe,
+        clientStreamTransformed: true,
+        clientSinkTransformed: true,
+      })
+    ).toBe(true)
   })
 })

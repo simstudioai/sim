@@ -1197,6 +1197,15 @@ export class BlockExecutor {
         selectedOutputs,
         responseFormat
       )
+      const clientStreamTransformed = processedClientStream !== pump.textStream
+      const projectedSubscribe = clientStreamTransformed
+        ? streamingResponseFormatProcessor.processEventSubscription(
+            pump.subscribe,
+            blockId,
+            selectedOutputs,
+            responseFormat
+          )
+        : undefined
 
       // Start onStream without awaiting so a sync `subscribe(sink)` can run before
       // the first provider pull, then read the projected text stream concurrently
@@ -1208,10 +1217,11 @@ export class BlockExecutor {
           ...(executionOrder !== undefined ? { executionOrder } : {}),
           stream: processedClientStream,
           streamFormat: 'text',
-          subscribe: pump.subscribe,
+          subscribe: projectedSubscribe ?? pump.subscribe,
           // processStream returns the input stream identity when no
           // response-format extraction applies.
-          clientStreamTransformed: processedClientStream !== pump.textStream,
+          clientStreamTransformed,
+          clientSinkTransformed: Boolean(projectedSubscribe),
           displayResolvedSecretTraceProvenance:
             ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(resolvedInputs),
         })

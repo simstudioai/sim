@@ -2233,6 +2233,9 @@ describe('WorkflowBlockHandler', () => {
       const childStream = {
         blockId: 'agent-1',
         stream: new ReadableStream(),
+        subscribe: vi.fn(),
+        clientStreamTransformed: true,
+        clientSinkTransformed: true,
         execution: { success: true, output: {} },
       }
       await extensions.onStream(childStream)

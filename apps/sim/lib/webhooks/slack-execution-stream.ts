@@ -22,6 +22,7 @@ import {
   type SlackStreamSessionTarget,
   unregisterSlackStreamSession,
 } from '@/lib/webhooks/slack-stream-sessions'
+import { shouldForwardAnswerTextFromSink } from '@/lib/workflows/streaming/forward-agent-stream-events'
 import { formatOutputSelector, scopeOutputBlockId } from '@/lib/workflows/streaming/output-selector'
 import type { BlockCompletionCallbackData, ExecutionCallbacks } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
@@ -409,7 +410,7 @@ export class SlackExecutionStreamController {
       )
       this.invocations.set(key, invocation)
 
-      const answerFromEventSink = Boolean(stream.subscribe) && !stream.clientStreamTransformed
+      const answerFromEventSink = shouldForwardAnswerTextFromSink(stream)
       const unsubscribe = stream.subscribe?.({
         onEvent: async (event) => {
           if (!answerFromEventSink && event.type === 'text_delta') return

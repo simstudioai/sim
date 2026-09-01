@@ -1352,6 +1352,47 @@ describe('BlockExecutor streaming pump', () => {
     )
   })
 
+  it('projects a selected structured string into live sink deltas', async () => {
+    const handler = createAgentEventsStreamingHandler({
+      events: [
+        { type: 'text_delta', text: '{"answer":"Hello ', turn: 'pending' },
+        { type: 'text_delta', text: 'world","score":1}', turn: 'pending' },
+        { type: 'turn_end', turn: 'final' },
+      ],
+    })
+    const { executor, block, state } = createExecutor(handler)
+    block.config.params = {
+      responseFormat: {
+        schema: {
+          type: 'object',
+          properties: { answer: { type: 'string' }, score: { type: 'number' } },
+        },
+      },
+    }
+    const ctx = createContext(state)
+    ctx.stream = true
+    ctx.selectedOutputs = [`${block.id}_answer`]
+    const sinkText: string[] = []
+    let forwardedText = ''
+
+    ctx.onStream = async (streamingExec) => {
+      expect(streamingExec.clientStreamTransformed).toBe(true)
+      expect(streamingExec.clientSinkTransformed).toBe(true)
+      streamingExec.subscribe?.({
+        onEvent: (event) => {
+          if (event.type === 'text_delta') sinkText.push(event.text)
+        },
+      })
+      forwardedText = await new Response(streamingExec.stream).text()
+    }
+
+    await executor.execute(ctx, createNode(block), block)
+
+    expect(sinkText).toEqual(['Hello ', 'world'])
+    expect(forwardedText).toBe('Hello world')
+    expect(state.getBlockOutput(block.id)?.answer).toBe('Hello world')
+  })
+
   it('forwards the stable block ID for streams from expanded branch nodes', async () => {
     const handler = createAgentEventsStreamingHandler({
       events: [{ type: 'text_delta', text: 'branch answer', turn: 'final' }],

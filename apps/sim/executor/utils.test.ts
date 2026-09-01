@@ -3,6 +3,7 @@ import {
   StreamingResponseFormatProcessor,
   streamingResponseFormatProcessor,
 } from '@/executor/utils'
+import type { AgentStreamEvent, AgentStreamSink } from '@/providers/stream-events'
 
 describe('StreamingResponseFormatProcessor', () => {
   let processor: StreamingResponseFormatProcessor
@@ -168,6 +169,91 @@ describe('StreamingResponseFormatProcessor', () => {
       }
 
       expect(result).toBe('charlie')
+    })
+
+    it('projects a selected string field from live event deltas', async () => {
+      let sourceSink: AgentStreamSink | undefined
+      const projectedEvents: AgentStreamEvent[] = []
+      const subscribe = processor.processEventSubscription(
+        (sink) => {
+          sourceSink = sink
+          return () => {}
+        },
+        'block-1',
+        ['block-1_answer'],
+        JSON.stringify({
+          type: 'object',
+          properties: {
+            meta: { type: 'object' },
+            answer: { type: 'string' },
+            score: { type: 'number' },
+          },
+        })
+      )
+
+      expect(subscribe).toBeDefined()
+      subscribe?.({
+        onEvent: async (event) => {
+          projectedEvents.push(event)
+        },
+      })
+
+      await sourceSink?.onEvent({
+        type: 'text_delta',
+        text: '{"meta":{"source":"test"},"answer":"Hello ',
+        turn: 'pending',
+      })
+      expect(projectedEvents).toEqual([{ type: 'text_delta', text: 'Hello ', turn: 'pending' }])
+
+      await sourceSink?.onEvent({
+        type: 'text_delta',
+        text: 'world","score":1}',
+        turn: 'pending',
+      })
+      await sourceSink?.onEvent({ type: 'thinking_delta', text: 'done' })
+      await sourceSink?.onEvent({ type: 'turn_end', turn: 'final' })
+
+      expect(projectedEvents).toEqual([
+        { type: 'text_delta', text: 'Hello ', turn: 'pending' },
+        { type: 'text_delta', text: 'world', turn: 'pending' },
+        { type: 'thinking_delta', text: 'done' },
+        { type: 'turn_end', turn: 'final' },
+      ])
+    })
+
+    it('holds incomplete JSON escapes until they can be decoded', async () => {
+      let sourceSink: AgentStreamSink | undefined
+      const projectedText: string[] = []
+      const subscribe = processor.processEventSubscription(
+        (sink) => {
+          sourceSink = sink
+          return () => {}
+        },
+        'block-1',
+        ['block-1_answer'],
+        { schema: { properties: { answer: { type: 'string' } } } }
+      )
+
+      subscribe?.({
+        onEvent: (event) => {
+          if (event.type === 'text_delta') projectedText.push(event.text)
+        },
+      })
+      await sourceSink?.onEvent({ type: 'text_delta', text: '{"answer":"line\\', turn: 'final' })
+      await sourceSink?.onEvent({ type: 'text_delta', text: 'nnext"}', turn: 'final' })
+
+      expect(projectedText).toEqual(['line', '\nnext'])
+    })
+
+    it('does not claim live sink projection for non-string fields', () => {
+      const subscribe = processor.processEventSubscription(
+        () => () => {},
+        'block-1',
+        ['block-1_score'],
+        { schema: { properties: { score: { type: 'number' } } } }
+      )
+
+      expect(subscribe).toBeUndefined()
     })
 
     it.concurrent('should handle missing fields gracefully', async () => {

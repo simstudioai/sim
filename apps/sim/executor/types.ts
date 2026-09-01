@@ -666,10 +666,11 @@ export interface StreamingExecution {
   /**
    * True when {@link stream} is a response-format projection (selected JSON
    * fields extracted from structured output) rather than raw answer text. Sink
-   * `text_delta` events then do NOT match the byte stream, so consumers must
-   * keep sourcing answer text from {@link stream} instead of the sink.
+   * `text_delta` events match it only when {@link clientSinkTransformed} is true.
    */
   clientStreamTransformed?: boolean
+  /** True when sink text deltas are projected to match a transformed client stream. */
+  clientSinkTransformed?: boolean
   /** Internal provenance for the exact block input that initiated this live stream. */
   displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   /** Internal source registry retained only for sanitizing failures while the stream drains. */

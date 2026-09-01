@@ -366,6 +366,33 @@ describe('SlackExecutionStreamController', () => {
     })
   })
 
+  it('streams projected structured text from a matching transformed event sink', async () => {
+    const { controller } = await createController()
+    const subscribe = vi.fn(({ onEvent }) => {
+      void onEvent({ type: 'text_delta', text: 'Live ', turn: 'pending' })
+      void onEvent({ type: 'text_delta', text: 'answer', turn: 'pending' })
+      void onEvent({ type: 'turn_end', turn: 'final' })
+      return vi.fn()
+    })
+
+    await controller.callbacks.onStream?.({
+      blockId: 'agent',
+      executionOrder: 6,
+      stream: createByteStream('fallback bytes'),
+      streamFormat: 'text',
+      clientStreamTransformed: true,
+      clientSinkTransformed: true,
+      subscribe,
+    })
+
+    const answerText = mockAppendSlackAgentStream.mock.calls
+      .flatMap((call) => call[3])
+      .filter((chunk) => chunk.type === 'markdown_text')
+      .map((chunk) => chunk.text)
+      .join('')
+    expect(answerText).toBe('Live answer')
+  })
+
   it('sends a selected nested non-streaming output after block completion', async () => {
     const config: SlackStreamResponseConfig = {
       ...BASE_CONFIG,
