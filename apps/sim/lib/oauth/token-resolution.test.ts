@@ -107,7 +107,10 @@ describe('resolveCredentialToken', () => {
       workflowId: 'wf-1',
     })
 
-    expect(result).toEqual({ ok: true, token: { accessToken: 'fresh', idToken: 'id-token' } })
+    expect(result).toEqual({
+      ok: true,
+      token: { accessToken: 'fresh', credentialType: 'oauth', idToken: 'id-token' },
+    })
     expect(mockGetCredential).toHaveBeenCalledWith('req-1', 'account-1', 'owner-1')
     expect(mockRefreshTokenIfNeeded).toHaveBeenCalled()
     expect(mockRecordAudit).toHaveBeenCalledWith(
@@ -160,6 +163,7 @@ describe('resolveCredentialToken', () => {
       ok: true,
       token: {
         accessToken: 'fresh',
+        credentialType: 'oauth',
         idToken: undefined,
         instanceUrl: 'https://contoso.api.crm.dynamics.com',
       },
@@ -187,7 +191,7 @@ describe('resolveCredentialToken', () => {
       })
     ).resolves.toEqual({
       ok: true,
-      token: { accessToken: 'fresh', idToken: undefined },
+      token: { accessToken: 'fresh', credentialType: 'oauth', idToken: undefined },
     })
     expect(mockRefreshTokenIfNeeded).toHaveBeenCalled()
   })

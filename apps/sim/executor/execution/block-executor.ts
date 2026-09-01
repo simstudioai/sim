@@ -293,7 +293,8 @@ export class BlockExecutor {
             block,
             streamingExec,
             resolvedInputs,
-            normalizeStringArray(blockCtx.selectedOutputs)
+            normalizeStringArray(blockCtx.selectedOutputs),
+            blockLog?.executionOrder
           )
         } catch (streamError) {
           const resultRegistry = blockCtx.resolvedSecretTraceRegistry
@@ -1151,7 +1152,8 @@ export class BlockExecutor {
     block: SerializedBlock,
     streamingExec: StreamingExecution,
     resolvedInputs: Record<string, any>,
-    selectedOutputs: string[]
+    selectedOutputs: string[],
+    executionOrder?: number
   ): Promise<void> {
     const blockId = node.id
     const piiEnabled = Boolean(ctx.piiBlockOutputRedaction?.enabled)
@@ -1203,6 +1205,8 @@ export class BlockExecutor {
       onStreamPromise = ctx
         .onStream({
           ...streamingExecutionForConsumer,
+          blockId,
+          ...(executionOrder !== undefined ? { executionOrder } : {}),
           stream: processedClientStream,
           streamFormat: 'text',
           subscribe: pump.subscribe,

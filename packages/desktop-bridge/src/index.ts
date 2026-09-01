@@ -140,6 +140,11 @@ export interface SimDesktopBrowserAgentApi {
   /** New shells can atomically force-hide a native page before renderer effects paint. */
   readonly supportsAtomicPanelOcclusion?: true
   /**
+   * Confirms that this renderer can present and answer site-origin prompts.
+   * Optional for compatibility with installed shells that predate site consent.
+   */
+  registerSitePermissionPromptSupport?(): void
+  /**
    * Execute one browser tool. Resolves with the tool's outcome; never
    * rejects for tool-level failures (those ride `ok: false`).
    */
@@ -160,6 +165,8 @@ export interface SimDesktopBrowserAgentApi {
    * Optional for compatibility with installed shells that predate acknowledged tab creation.
    */
   openTab?(scopeId: string): Promise<BrowserTabsState>
+  /** Atomically creates a user-owned tab and grants/navigates its exact destination origin. */
+  openUrl?(url: string, scopeId: string): Promise<BrowserTabsState>
   /** Makes a chat's browser tab set the renderer-visible set. */
   activateScope(scopeId: string): Promise<BrowserTabsState>
   /** Materializes a lazily activated chat's persisted tabs without showing its panel. */

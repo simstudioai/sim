@@ -27,6 +27,11 @@ import {
   type StableDesiredWebhookRegistration,
 } from '@/lib/webhooks/registration-service'
 import { LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE } from '@/lib/webhooks/slack-custom-ingress-constants'
+import {
+  isSlackStreamResponseRequested,
+  normalizeSlackStreamResponseConfig,
+  replaceSlackStreamAuthoringConfig,
+} from '@/lib/webhooks/slack-stream-config'
 import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
 import {
   buildCanonicalIndex,
@@ -440,6 +445,20 @@ export async function resolveWebhookConfigForBlock(input: {
           },
         }
       }
+      try {
+        replaceSlackStreamAuthoringConfig(
+          providerConfig,
+          normalizeSlackStreamResponseConfig(providerConfig)
+        )
+      } catch (error) {
+        return {
+          success: false,
+          error: {
+            message: getErrorMessage(error, 'Invalid Slack stream configuration.'),
+            status: 400,
+          },
+        }
+      }
       effectiveProvider = 'slack'
       effectivePath = null
       routingKey = slackCredentialId
@@ -488,6 +507,15 @@ export async function resolveWebhookConfigForBlock(input: {
           error: {
             message:
               'The Sim Slack app trigger is disabled for this deployment. Select a custom bot.',
+            status: 400,
+          },
+        }
+      }
+      if (isSlackStreamResponseRequested(providerConfig)) {
+        return {
+          success: false,
+          error: {
+            message: 'Streaming Slack trigger responses require a custom bot.',
             status: 400,
           },
         }

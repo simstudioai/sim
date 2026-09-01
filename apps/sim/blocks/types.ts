@@ -417,8 +417,9 @@ export interface SubBlockConfig {
    * `watchFields` is treated as a credential ID and fetched via the credentials
    * API. The subblock is hidden unless `credential.type` matches `requiredType`.
    *
-   * Only one subblock per block may use this. The serializer ignores it —
-   * the field is always serialized when it has a value.
+   * Every reactive subblock on a block must watch the same credential fields.
+   * The serializer ignores this — the field is always serialized when it has
+   * a value, so server-side validation must reject unsupported credentials.
    */
   reactiveCondition?: {
     watchFields: string[]

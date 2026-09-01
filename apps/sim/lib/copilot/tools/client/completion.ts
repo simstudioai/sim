@@ -11,11 +11,24 @@ import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { traceparentHeader } from '@/lib/copilot/tools/client/trace-context'
 
 const logger = createLogger('CopilotClientToolCompletion')
+const COMPLETION_REPORT_ATTEMPT_TIMEOUT_MS = 15_000
 
 export class CompletionReportError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'CompletionReportError'
+  }
+}
+
+async function fetchCompletion(input: RequestInfo | URL, init: RequestInit): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => {
+    controller.abort(new DOMException('Completion report timed out', 'TimeoutError'))
+  }, COMPLETION_REPORT_ATTEMPT_TIMEOUT_MS)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -38,7 +51,7 @@ export async function reportClientToolCompletion(
     ...(data !== undefined ? { data } : {}),
   }
   const send = async (body: string) =>
-    fetch(COPILOT_CONFIRM_API_PATH, {
+    fetchCompletion(COPILOT_CONFIRM_API_PATH, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...traceparentHeader() },
       body,
@@ -51,9 +64,9 @@ export async function reportClientToolCompletion(
 
   // A lost confirmation strands the server-side waiter forever (the turn shows
   // the tool as running indefinitely), so ride out multi-second network blips:
-  // 5 attempts with jittered exponential backoff (~15s total) instead of a
-  // sub-second give-up. The confirm endpoint claims each resume exactly once,
-  // so duplicate deliveries from retries are discarded server-side.
+  // five bounded 15-second attempts with jittered exponential backoff. The
+  // confirm endpoint claims each resume exactly once, so duplicate deliveries
+  // from retries are discarded server-side.
   const maxAttempts = 5
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -108,7 +121,7 @@ export async function reportClientToolCompletionOnPageExit(
   data?: AsyncCompletionData
 ): Promise<void> {
   // boundary-raw-fetch: keepalive is required so a terminal desktop result survives page unload
-  const response = await fetch(COPILOT_CONFIRM_API_PATH, {
+  const response = await fetchCompletion(COPILOT_CONFIRM_API_PATH, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...traceparentHeader() },
     body: JSON.stringify({

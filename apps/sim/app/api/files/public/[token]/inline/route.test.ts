@@ -3,6 +3,8 @@
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 const { mockResolveShare, mockRateLimit, mockValidateAuth, mockDownloadFile, mockResolveImage } =
   vi.hoisted(() => ({
@@ -121,5 +123,38 @@ describe('GET /api/files/public/[token]/inline', () => {
     const res = await GET(req(`fileId=${FILE_ID}`), params)
     expect(res.status).toBe(404)
     expect(mockDownloadFile).not.toHaveBeenCalled()
+  })
+
+  it('bounds both reads: the doc scan tightly, the served image at the transfer ceiling', async () => {
+    await GET(req(`fileId=${FILE_ID}`), params)
+
+    const [docRead, imageRead] = mockDownloadFile.mock.calls.map(([args]) => args)
+    // The doc is scanned and discarded (and decoded to UTF-16 on top of the buffer),
+    // so it must not inherit the ceiling of a file this route actually serves.
+    expect(docRead.key).toBe(DOC_KEY)
+    expect(docRead.maxBytes).toBeGreaterThan(0)
+    expect(docRead.maxBytes).toBeLessThan(MAX_BUFFERED_TRANSFER_BYTES)
+    expect(imageRead.key).toBe(IMG_KEY)
+    expect(imageRead.maxBytes).toBe(MAX_BUFFERED_TRANSFER_BYTES)
+  })
+
+  it('fails the referenced-by-doc gate closed when the document is too large to scan', async () => {
+    mockDownloadFile.mockImplementation(({ key }: { key: string }) =>
+      key === DOC_KEY
+        ? Promise.reject(
+            new PayloadSizeLimitError({
+              label: 'storage download',
+              maxBytes: 10 * 1024 * 1024,
+              observedBytes: 5 * 1024 * 1024 * 1024,
+            })
+          )
+        : Promise.resolve(PNG)
+    )
+
+    const res = await GET(req(`fileId=${FILE_ID}`), params)
+
+    expect(res.status).toBe(404)
+    // The gate could not be verified, so the image must never be read at all.
+    expect(mockDownloadFile).toHaveBeenCalledTimes(1)
   })
 })

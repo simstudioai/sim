@@ -118,6 +118,7 @@ function buildOAuthTokenPayload(
 
   return {
     accessToken,
+    credentialType: 'oauth',
     idToken: credential.idToken || undefined,
     ...(instanceUrl && { instanceUrl }),
     ...(apiDomain && { apiDomain }),
@@ -233,6 +234,7 @@ export async function resolveCredentialToken(
           ok: true,
           token: {
             accessToken: result.accessToken,
+            credentialType: 'service_account',
             cloudId: result.cloudId,
             domain: result.domain,
             instanceUrl: result.instanceUrl,

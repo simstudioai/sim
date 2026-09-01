@@ -48,6 +48,7 @@ import {
   ToolInput,
   VariablesInput,
   WorkflowInputMapper,
+  WorkflowOutputSelector,
   WorkflowSelectorInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
 import { MODAL_REGISTRY } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/modal-registry'
@@ -1107,6 +1108,18 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as string | null}
+          />
+        )
+
+      case 'workflow-output-selector':
+        return (
+          <WorkflowOutputSelector
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue as string[] | null | undefined}
+            disabled={isDisabled}
+            placeholder={config.placeholder}
           />
         )
 

@@ -139,6 +139,15 @@ import { findCachedTerminalThemeProfile, listTerminalThemeProfiles } from '@/mai
 const APP = 'https://sim.ai'
 const ESC = '\u001b'
 const BEL = '\u0007'
+const CANONICAL_BROWSER_URL_INPUT =
+  'HTTPS://B\u00dcCHER.Example:443/docs/../private?query=sim#result'
+const CANONICAL_BROWSER_URL = 'https://xn--bcher-kva.example/private?query=sim#result'
+const INVALID_BROWSER_URLS = [
+  'https://[',
+  'file:///tmp/private',
+  `https://docs.example/${'a'.repeat(8_192)}`,
+  `https://docs.example/${'\u00e9'.repeat(1_400)}`,
+] as const
 
 const DEFAULT_DESKTOP_PREFERENCES: DesktopPreferences = {
   notificationsEnabled: true,
@@ -289,6 +298,7 @@ describe('registerIpcHandlers', () => {
       scopeEvents: {
         activateBrowser: vi.fn(),
         activateTerminal: vi.fn(),
+        registerBrowserSitePermissionPromptSupport: vi.fn(),
         sendBrowser: vi.fn(),
         sendTerminal: vi.fn(),
       },
@@ -780,6 +790,43 @@ describe('registerIpcHandlers', () => {
     )
   })
 
+  it('rejects malformed browser execution envelopes before admission or authorization', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('browser-agent:execute-tool')
+    const fetchAuthorization = vi.fn(async () =>
+      Response.json({ chatId: 'chat-1', toolName: 'browser_snapshot', args: {} })
+    )
+    const malformedEvent = {
+      senderFrame: { url: `${APP}/workspace/ws1` },
+      sender: { session: { fetch: fetchAuthorization } },
+    }
+    const captureBoundary = vi.spyOn(browserDriver, 'captureBrowserToolQueueBoundary')
+    const invalidScopeFlood = Array.from(
+      { length: browserDriver.BROWSER_TOOL_ADMISSION_LIMITS.process * 2 },
+      (_, index) =>
+        handler?.(malformedEvent, `tool-${index}`, 'browser_snapshot', {}, `invalid scope ${index}`)
+    )
+
+    const results = await Promise.all([
+      ...invalidScopeFlood,
+      handler?.(malformedEvent, '', 'browser_snapshot', {}, 'chat-1'),
+      handler?.(malformedEvent, 'x'.repeat(257), 'browser_snapshot', {}, 'chat-1'),
+      handler?.(malformedEvent, 'tool-retired', 'browser_request_takeover', {}, 'chat-1'),
+      handler?.(malformedEvent, 'tool-non-string', 42, {}, 'chat-1'),
+    ])
+
+    expect(results).toHaveLength(browserDriver.BROWSER_TOOL_ADMISSION_LIMITS.process * 2 + 4)
+    expect(results).toEqual(
+      results.map(() => ({
+        ok: false,
+        error: 'This browser action is not an authorized pending Copilot tool call.',
+      }))
+    )
+    expect(captureBoundary).not.toHaveBeenCalled()
+    expect(fetchAuthorization).not.toHaveBeenCalled()
+    captureBoundary.mockRestore()
+  })
+
   it('routes exact browser-tool cancellation without waiting for authorization', async () => {
     const { invoke } = collectHandlers()
     const cancel = vi.spyOn(browserDriver, 'cancelTool').mockReturnValue(true)
@@ -996,6 +1043,97 @@ describe('registerIpcHandlers', () => {
       requestId: 'request-2',
       allowed: true,
     })
+    panelAction.mockRestore()
+  })
+
+  it('requires trusted input for site grants and user-origin navigation', async () => {
+    const { invoke, on } = collectHandlers()
+    const panelAction = vi.spyOn(browserDriver, 'handlePanelAction').mockResolvedValue()
+    const handler = on.get('browser-agent:panel-action')
+
+    await invoke.get('browser-agent:activate-scope')?.(inactiveAppEvent, 'chat-sites')
+    handler?.(
+      inactiveAppEvent,
+      { action: 'respond-site-permission', requestId: 'request-1', allowed: true },
+      'chat-sites'
+    )
+    handler?.(
+      inactiveAppEvent,
+      { action: 'respond-site-permission', requestId: 'request-1', allowed: false },
+      'chat-sites'
+    )
+    handler?.(
+      inactiveAppEvent,
+      { action: 'navigate', url: 'https://docs.example/private' },
+      'chat-sites'
+    )
+
+    expect(panelAction).toHaveBeenCalledOnce()
+    expect(panelAction).toHaveBeenCalledWith('chat-sites', {
+      action: 'respond-site-permission',
+      requestId: 'request-1',
+      allowed: false,
+    })
+
+    await invoke.get('browser-agent:activate-scope')?.(activeAppEvent, 'chat-sites')
+    handler?.(
+      activeAppEvent,
+      { action: 'respond-site-permission', requestId: 'request-2', allowed: true },
+      'chat-sites'
+    )
+    handler?.(
+      activeAppEvent,
+      { action: 'navigate', url: 'https://docs.example/private' },
+      'chat-sites'
+    )
+
+    expect(panelAction).toHaveBeenNthCalledWith(2, 'chat-sites', {
+      action: 'respond-site-permission',
+      requestId: 'request-2',
+      allowed: true,
+    })
+    expect(panelAction).toHaveBeenNthCalledWith(3, 'chat-sites', {
+      action: 'navigate',
+      url: 'https://docs.example/private',
+    })
+    panelAction.mockRestore()
+  })
+
+  it('canonicalizes and validates panel navigation URLs before they reach the driver', async () => {
+    const { invoke, on } = collectHandlers()
+    const panelAction = vi.spyOn(browserDriver, 'handlePanelAction').mockResolvedValue()
+    const handler = on.get('browser-agent:panel-action')
+
+    await invoke.get('browser-agent:activate-scope')?.(activeAppEvent, 'chat-navigation')
+    handler?.(
+      activeAppEvent,
+      { action: 'navigate', url: CANONICAL_BROWSER_URL_INPUT },
+      'chat-navigation'
+    )
+    for (const url of INVALID_BROWSER_URLS) {
+      handler?.(activeAppEvent, { action: 'navigate', url }, 'chat-navigation')
+    }
+
+    expect(panelAction).toHaveBeenCalledOnce()
+    expect(panelAction).toHaveBeenCalledWith('chat-navigation', {
+      action: 'navigate',
+      url: CANONICAL_BROWSER_URL,
+    })
+    panelAction.mockRestore()
+  })
+
+  it('accepts site permission prompt support only from the app renderer', () => {
+    const { on } = collectHandlers()
+    const register = on.get('browser-agent:register-site-permission-prompt-support')
+
+    register?.(evilEvent)
+    expect(deps.scopeEvents.registerBrowserSitePermissionPromptSupport).not.toHaveBeenCalled()
+
+    register?.(appEvent)
+    expect(deps.scopeEvents.registerBrowserSitePermissionPromptSupport).toHaveBeenCalledOnce()
+    expect(deps.scopeEvents.registerBrowserSitePermissionPromptSupport).toHaveBeenCalledWith(
+      appSender
+    )
   })
 
   it('ignores browser-agent panel actions from outside the app origin', () => {
@@ -1253,6 +1391,51 @@ describe('registerIpcHandlers', () => {
     expect(add).toHaveBeenCalledOnce()
     expect(peek).toHaveBeenCalledOnce()
     add.mockRestore()
+    peek.mockRestore()
+  })
+
+  it('atomically creates and navigates a canonical user URL only from trusted input', async () => {
+    const tabsState = { scopeId: 'chat-links', tabs: [], activeTabId: '2' }
+    const tabContents = { loadURL: vi.fn(async () => {}) }
+    const add = vi.spyOn(browserSession, 'addTab').mockReturnValue({
+      view: { webContents: tabContents },
+    } as never)
+    const grant = vi.spyOn(browserSession, 'grantSiteOriginForUserNavigation').mockReturnValue(true)
+    const peek = vi.spyOn(browserSession, 'peekTabsState').mockReturnValue(tabsState)
+    const { invoke } = collectHandlers()
+
+    await invoke.get('browser-agent:activate-scope')?.(activeAppEvent, 'chat-links')
+    await expect(
+      invoke.get('browser-agent:open-url')?.(
+        activeAppEvent,
+        CANONICAL_BROWSER_URL_INPUT,
+        'chat-links'
+      )
+    ).resolves.toEqual(tabsState)
+
+    expect(add).toHaveBeenCalledOnce()
+    expect(grant).toHaveBeenCalledWith(tabContents, CANONICAL_BROWSER_URL)
+    expect(tabContents.loadURL).toHaveBeenCalledWith(CANONICAL_BROWSER_URL)
+
+    for (const url of INVALID_BROWSER_URLS) {
+      await expect(
+        invoke.get('browser-agent:open-url')?.(activeAppEvent, url, 'chat-links')
+      ).resolves.toEqual({ scopeId: '', tabs: [], activeTabId: null })
+    }
+    expect(add).toHaveBeenCalledOnce()
+
+    await invoke.get('browser-agent:activate-scope')?.(inactiveAppEvent, 'chat-inactive-links')
+    await expect(
+      invoke.get('browser-agent:open-url')?.(
+        inactiveAppEvent,
+        'https://docs.example/',
+        'chat-inactive-links'
+      )
+    ).resolves.toEqual({ scopeId: '', tabs: [], activeTabId: null })
+    expect(add).toHaveBeenCalledOnce()
+
+    add.mockRestore()
+    grant.mockRestore()
     peek.mockRestore()
   })
 

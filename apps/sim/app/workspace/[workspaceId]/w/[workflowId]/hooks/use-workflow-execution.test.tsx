@@ -414,151 +414,26 @@ describe('useWorkflowExecution cancellation', () => {
   })
 })
 
-describe('useWorkflowExecution attachment uploads', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockEndScopedExecution.mockReset().mockReturnValue(true)
-    terminalStoreState._hasHydrated = false
-    executionStoreState.workflowExecutions.set('workflow-1', idleExecution)
-    executionStoreState.getWorkflowExecution.mockReturnValue(idleExecution)
-    executionStoreState.getCurrentExecutionId.mockReturnValue(null)
-    mockAdoptScopedExecution.mockReturnValue(undefined)
-    mockLoadExecutionPointer.mockResolvedValue(null)
-    mockReconnect.mockResolvedValue(undefined)
-    mockResolveStartCandidates.mockReturnValue([])
-    mockSelectBestTrigger.mockReturnValue([])
-    vi.stubGlobal('fetch', mockFetch)
-    mockUploadInternalFileSession.mockRejectedValue(
-      new Error('Workspace file storage limit exceeded')
-    )
-    mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: 'Workspace file storage limit exceeded' }), {
-        status: 413,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
-    mockExecute.mockResolvedValue(undefined)
-    mockExecuteFromBlock.mockResolvedValue(undefined)
-    workflowStoreState.edges.length = 0
-  })
+function resetWorkflowExecutionTestState() {
+  vi.clearAllMocks()
+  mockBeginScopedExecution.mockReset().mockReturnValue({})
+  mockAdoptScopedExecution.mockReset().mockReturnValue(undefined)
+  mockEndScopedExecution.mockReset().mockReturnValue(true)
+  mockLoadExecutionPointer.mockReset().mockResolvedValue(null)
+  mockReconnect.mockReset().mockResolvedValue(undefined)
+  mockResolveStartCandidates.mockReset().mockReturnValue([])
+  mockSelectBestTrigger.mockReset().mockReturnValue([])
+  mockExecute.mockReset().mockResolvedValue(undefined)
+  mockExecuteFromBlock.mockReset().mockResolvedValue(undefined)
+  terminalStoreState._hasHydrated = false
+  executionStoreState.workflowExecutions.set('workflow-1', idleExecution)
+  executionStoreState.getWorkflowExecution.mockReturnValue(idleExecution)
+  executionStoreState.getCurrentExecutionId.mockReturnValue(null)
+  workflowStoreState.edges.length = 0
+}
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('does not execute and reports the exact server error when an explicit attachment fails', async () => {
-    const { result, unmount } = renderWorkflowExecutionHook()
-    const contextFile = new File(['context'], 'context.txt', { type: 'text/plain' })
-    const file = new File(['report'], 'report.pdf', { type: 'application/pdf' })
-    let uploadError: unknown
-
-    mockUploadInternalFileSession.mockResolvedValueOnce({
-      id: 'attachment-context',
-      key: 'executions/context.txt',
-      url: '/uploads/context.txt',
-      name: contextFile.name,
-      size: contextFile.size,
-      type: contextFile.type,
-      context: 'execution',
-    })
-
-    await act(async () => {
-      try {
-        await result().handleRunWorkflow({
-          input: 'Summarize this report',
-          conversationId: 'conversation-1',
-          files: [
-            {
-              name: contextFile.name,
-              size: contextFile.size,
-              type: contextFile.type,
-              file: contextFile,
-            },
-            {
-              name: file.name,
-              size: file.size,
-              type: file.type,
-              file,
-            },
-          ],
-        })
-      } catch (error) {
-        uploadError = error
-      }
-    })
-
-    expect(uploadError).toBeInstanceOf(WorkflowAttachmentUploadError)
-    expect((uploadError as Error).message).toBe(
-      'Failed to upload report.pdf: Workspace file storage limit exceeded'
-    )
-    expect(mockExecute).not.toHaveBeenCalled()
-
-    unmount()
-  })
-
-  it('returns uploaded metadata without mutating or leaking local input into execution', async () => {
-    const { result, unmount } = renderWorkflowExecutionHook()
-    const file = new File(['diagram'], 'diagram.png', { type: 'image/png' })
-    const workflowInput = {
-      input: 'Describe this diagram',
-      conversationId: 'conversation-1',
-      files: [
-        {
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          file,
-        },
-      ],
-    }
-    let runResult: unknown
-
-    mockUploadInternalFileSession.mockResolvedValueOnce({
-      id: 'attachment-diagram',
-      key: 'execution/diagram.png',
-      url: '/api/files/serve/execution%2Fdiagram.png',
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      context: 'execution',
-    })
-
-    await act(async () => {
-      runResult = await result().handleRunWorkflow(workflowInput)
-      await drainStream(runResult)
-    })
-
-    expect(isChatWorkflowRunResult(runResult)).toBe(true)
-    if (!isChatWorkflowRunResult(runResult)) {
-      throw new Error('Expected a chat workflow run result')
-    }
-    expect(runResult.uploadedAttachments).toEqual([
-      expect.objectContaining({
-        name: 'diagram.png',
-        url: '/api/files/serve/execution%2Fdiagram.png',
-        size: file.size,
-        type: 'image/png',
-        key: 'execution/diagram.png',
-      }),
-    ])
-    expect(workflowInput.files[0].file).toBe(file)
-    expect(mockExecute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          input: 'Describe this diagram',
-          conversationId: 'conversation-1',
-          files: [
-            expect.objectContaining({
-              name: 'diagram.png',
-              url: '/api/files/serve/execution%2Fdiagram.png',
-            }),
-          ],
-        }),
-      })
-    )
-
-    unmount()
-  })
+describe('useWorkflowExecution lifecycle ownership', () => {
+  beforeEach(resetWorkflowExecutionTestState)
 
   it('does not let an overlapping run without lifecycle ownership end the active run', async () => {
     const persistenceExecution = {}
@@ -773,6 +648,140 @@ describe('useWorkflowExecution attachment uploads', () => {
     expect(executionStoreState.setPendingBlocks).not.toHaveBeenCalledWith('workflow-1', [])
     expect(executionStoreState.setActiveBlocks).not.toHaveBeenCalled()
     expect(mockRequestJson).not.toHaveBeenCalled()
+
+    unmount()
+  })
+})
+
+describe('useWorkflowExecution attachment uploads', () => {
+  beforeEach(() => {
+    resetWorkflowExecutionTestState()
+    vi.stubGlobal('fetch', mockFetch)
+    mockUploadInternalFileSession.mockRejectedValue(
+      new Error('Workspace file storage limit exceeded')
+    )
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: 'Workspace file storage limit exceeded' }), {
+        status: 413,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('does not execute and reports the exact server error when an explicit attachment fails', async () => {
+    const { result, unmount } = renderWorkflowExecutionHook()
+    const contextFile = new File(['context'], 'context.txt', { type: 'text/plain' })
+    const file = new File(['report'], 'report.pdf', { type: 'application/pdf' })
+    let uploadError: unknown
+
+    mockUploadInternalFileSession.mockResolvedValueOnce({
+      id: 'attachment-context',
+      key: 'executions/context.txt',
+      url: '/uploads/context.txt',
+      name: contextFile.name,
+      size: contextFile.size,
+      type: contextFile.type,
+      context: 'execution',
+    })
+
+    await act(async () => {
+      try {
+        await result().handleRunWorkflow({
+          input: 'Summarize this report',
+          conversationId: 'conversation-1',
+          files: [
+            {
+              name: contextFile.name,
+              size: contextFile.size,
+              type: contextFile.type,
+              file: contextFile,
+            },
+            {
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              file,
+            },
+          ],
+        })
+      } catch (error) {
+        uploadError = error
+      }
+    })
+
+    expect(uploadError).toBeInstanceOf(WorkflowAttachmentUploadError)
+    expect((uploadError as Error).message).toBe(
+      'Failed to upload report.pdf: Workspace file storage limit exceeded'
+    )
+    expect(mockExecute).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('returns uploaded metadata without mutating or leaking local input into execution', async () => {
+    const { result, unmount } = renderWorkflowExecutionHook()
+    const file = new File(['diagram'], 'diagram.png', { type: 'image/png' })
+    const workflowInput = {
+      input: 'Describe this diagram',
+      conversationId: 'conversation-1',
+      files: [
+        {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          file,
+        },
+      ],
+    }
+    let runResult: unknown
+
+    mockUploadInternalFileSession.mockResolvedValueOnce({
+      id: 'attachment-diagram',
+      key: 'execution/diagram.png',
+      url: '/api/files/serve/execution%2Fdiagram.png',
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      context: 'execution',
+    })
+
+    await act(async () => {
+      runResult = await result().handleRunWorkflow(workflowInput)
+      await drainStream(runResult)
+    })
+
+    expect(isChatWorkflowRunResult(runResult)).toBe(true)
+    if (!isChatWorkflowRunResult(runResult)) {
+      throw new Error('Expected a chat workflow run result')
+    }
+    expect(runResult.uploadedAttachments).toEqual([
+      expect.objectContaining({
+        name: 'diagram.png',
+        url: '/api/files/serve/execution%2Fdiagram.png',
+        size: file.size,
+        type: 'image/png',
+        key: 'execution/diagram.png',
+      }),
+    ])
+    expect(workflowInput.files[0].file).toBe(file)
+    expect(mockExecute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          input: 'Describe this diagram',
+          conversationId: 'conversation-1',
+          files: [
+            expect.objectContaining({
+              name: 'diagram.png',
+              url: '/api/files/serve/execution%2Fdiagram.png',
+            }),
+          ],
+        }),
+      })
+    )
 
     unmount()
   })

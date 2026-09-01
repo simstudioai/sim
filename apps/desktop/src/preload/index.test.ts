@@ -1,9 +1,10 @@
 import type { SimDesktopApi } from '@sim/desktop-bridge'
 import { describe, expect, it, vi } from 'vitest'
 
-const { exposeInMainWorld, invoke } = vi.hoisted(() => ({
+const { exposeInMainWorld, invoke, send } = vi.hoisted(() => ({
   exposeInMainWorld: vi.fn(),
   invoke: vi.fn(() => Promise.resolve(true)),
+  send: vi.fn(),
 }))
 
 vi.mock('electron', () => ({
@@ -12,7 +13,7 @@ vi.mock('electron', () => ({
     invoke,
     on: vi.fn(),
     removeListener: vi.fn(),
-    send: vi.fn(),
+    send,
   },
 }))
 
@@ -27,6 +28,7 @@ describe('desktop preload bridge', () => {
     if (!exposed) throw new Error('Expected the desktop preload API to be exposed')
     expect(exposed.browserAgent.supportsAtomicPanelOcclusion).toBe(true)
 
+    exposed.browserAgent.registerSitePermissionPromptSupport?.()
     await exposed.browserAgent.cancelTool?.('tool-1', 'chat-default')
     await exposed.browserAgent.cancelActiveTool?.('chat-reloaded')
     await exposed.browserAgent.setPanelOccluded(true, 'chat-default')
@@ -44,6 +46,7 @@ describe('desktop preload bridge', () => {
       ['browser-agent:search-suggestions', 'sim ai'],
       ['desktop:settings:set-browser-search-suggestions', false],
     ])
+    expect(send).toHaveBeenCalledWith('browser-agent:register-site-permission-prompt-support')
   })
 
   it('exposes native microphone settings only on supported platforms', async () => {

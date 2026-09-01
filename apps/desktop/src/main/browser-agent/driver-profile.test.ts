@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/main/browser-agent/session', () => ({
   clearProfileStorage: mocks.clearProfileStorage,
   initSession: vi.fn(),
+  isBrowserScopeSuspended: vi.fn(() => false),
+  resolveBrowserScopeId: vi.fn((scopeId: string) => scopeId),
 }))
 
 vi.mock('@/main/browser-credentials', () => ({
@@ -18,7 +20,12 @@ vi.mock('@/main/browser-credentials', () => ({
   initFillCoordinator: vi.fn(),
 }))
 
-import { clearBrowserProfile, initDriver } from '@/main/browser-agent/driver'
+import {
+  captureBrowserToolQueueBoundary,
+  clearBrowserProfile,
+  executeTool,
+  initDriver,
+} from '@/main/browser-agent/driver'
 import type { ConfigStore } from '@/main/config'
 
 describe('clearBrowserProfile', () => {
@@ -51,5 +58,36 @@ describe('clearBrowserProfile', () => {
     expect(mocks.clearProfileStorage).toHaveBeenCalledTimes(2)
     expect(mocks.clearCredentials).toHaveBeenCalledTimes(2)
     expect(config.flush).toHaveBeenCalledTimes(2)
+  })
+
+  it('invalidates pre-wipe authorization and retires live work before profile teardown', async () => {
+    initDriver(
+      {
+        onPageState: vi.fn(),
+        onTabsState: vi.fn(),
+        onSessionStatus: vi.fn(),
+        onFillAvailability: vi.fn(),
+      },
+      () => null
+    )
+    const boundary = captureBrowserToolQueueBoundary('chat-before-wipe')
+    expect(boundary).not.toBeNull()
+    if (!boundary) throw new Error('Expected browser tool authorization admission')
+
+    await clearBrowserProfile()
+    const staleExecution = await executeTool(
+      'chat-before-wipe',
+      'browser_list_sessions',
+      {},
+      'tool-authorized-before-wipe',
+      boundary
+    )
+
+    expect(mocks.clearProfileStorage).toHaveBeenCalledOnce()
+    expect(mocks.clearCredentials).toHaveBeenCalledOnce()
+    expect(staleExecution).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
   })
 })

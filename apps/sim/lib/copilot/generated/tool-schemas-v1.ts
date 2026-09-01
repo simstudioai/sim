@@ -5613,7 +5613,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             data: {
               type: 'object',
               description:
-                'Row data as column → value pairs (required for insert_row, update_row; the patch object for update_rows_by_filter). Select (enum) cells take the option NAME. TTL cells take an absolute whole Unix epoch timestamp in seconds, never JavaScript milliseconds; missing or null TTL means no expiration.',
+                'Row data as column → value pairs (required for insert_row, update_row; the patch object for update_rows_by_filter). Select (enum) cells take the option NAME. TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds. On insert_row, a missing or null TTL means no expiration. On update_row and update_rows_by_filter, omit the TTL to preserve its current value or set it to null to clear the expiration.',
             },
             filter: {
               type: 'object',
@@ -5649,7 +5649,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             rows: {
               type: 'array',
               description:
-                'Array of row data objects (required for batch_insert_rows). TTL cells take absolute whole Unix epoch timestamps in seconds, never JavaScript milliseconds.',
+                'Array of row data objects (required for batch_insert_rows). TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds; a missing or null TTL means no expiration.',
             },
             tableId: {
               type: 'string',
@@ -5658,12 +5658,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             updates: {
               type: 'array',
               description:
-                'Array of per-row updates: [{ rowId, data: { col: val } }] (batch_update_rows format a)',
+                "Array of per-row updates: [{ rowId, data: { col: val } }] (batch_update_rows format a). TTL values are absolute whole Unix epoch seconds, never JavaScript milliseconds; omit a row's TTL key to preserve it or set it to null to clear the expiration.",
             },
             values: {
               type: 'object',
               description:
-                'Map of rowId → value for single-column batch update (batch_update_rows format b, with columnName)',
+                "Map of rowId → value for single-column batch update (batch_update_rows format b, with columnName). For a TTL column, values are absolute whole Unix epoch seconds, never JavaScript milliseconds; set a row's value to null to clear its expiration, and omit the row from the map to leave it unchanged.",
             },
           },
           required: ['tableId'],
@@ -6013,7 +6013,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             data: {
               type: 'object',
               description:
-                'Row data as key-value pairs (required for insert_row, update_row). TTL cells take an absolute whole Unix epoch timestamp in seconds, never JavaScript milliseconds; missing or null TTL means no expiration.',
+                'Row data as key-value pairs (required for insert_row, update_row). TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds. On insert_row, a missing or null TTL means no expiration. On update_row, omit the TTL to preserve its current value or set it to null to clear the expiration.',
             },
             dependencies: {
               type: 'object',
@@ -6233,7 +6233,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             rows: {
               type: 'array',
               description:
-                'Array of row data objects (required for batch_insert_rows). TTL cells take absolute whole Unix epoch timestamps in seconds, never JavaScript milliseconds.',
+                'Array of row data objects (required for batch_insert_rows). TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds; a missing or null TTL means no expiration.',
             },
             runMode: {
               type: 'string',
@@ -6271,12 +6271,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             updates: {
               type: 'array',
               description:
-                'Array of per-row updates: [{ rowId, data: { col: val } }] (for batch_update_rows)',
+                "Array of per-row updates: [{ rowId, data: { col: val } }] (for batch_update_rows). TTL values are absolute whole Unix epoch seconds, never JavaScript milliseconds; omit a row's TTL key to preserve it or set it to null to clear the expiration.",
             },
             values: {
               type: 'object',
               description:
-                'Map of rowId to value for single-column batch update: { "rowId1": val1, "rowId2": val2 } (for batch_update_rows with columnName)',
+                'Map of rowId to value for single-column batch update: { "rowId1": val1, "rowId2": val2 } (for batch_update_rows with columnName). For a TTL column, values are absolute whole Unix epoch seconds, never JavaScript milliseconds; set a row\'s value to null to clear its expiration, and omit the row from the map to leave it unchanged.',
             },
             workflowId: {
               type: 'string',
