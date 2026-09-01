@@ -127,3 +127,78 @@ describe('assertion A — the name the audit is written in terms of', () => {
     ).toEqual([])
   })
 })
+
+describe('assertion C — a fallback welded to the governed subject', () => {
+  /**
+   * The verified evasion. `capabilityGovernedUserId(rateLimit) ?? …` is what a
+   * reviewer writes when the governed subject's `null` reads as a gap rather
+   * than an answer: it satisfies the prefix match, it reintroduces the
+   * key-creator substitution verbatim, and before this assertion it INCREMENTED
+   * the liveness counter — the audit reported itself more alive for the evasion.
+   */
+  it('reports a nullish fallback on an inline governed call, and does not count it', () => {
+    const { findings, sinks } = auditSource(
+      ROUTE,
+      'const withheld = await isWorkspaceCapabilityWithheld(\n' +
+        '  capabilityGovernedUserId(rateLimit) ?? requireRateLimitUserId(rateLimit),\n' +
+        "  workspaceId,\n  'tables.use'\n)\n"
+    )
+
+    expect(sinks).toBe(0)
+    expect(findings).toHaveLength(1)
+    expect(findings[0].message).toContain('falls back when')
+  })
+
+  it('reports a logical-or fallback the same way', () => {
+    const { findings, sinks } = auditSource(
+      ROUTE,
+      "const withheld = await isWorkspaceCapabilityWithheld(capabilityGovernedUserId(rateLimit) || rateLimit.userId, workspaceId, 'tables.use')\n"
+    )
+
+    expect(sinks).toBe(0)
+    expect(findings).toHaveLength(1)
+  })
+
+  /**
+   * The bound-local form of the same evasion. The local is refused rather than
+   * registered: registering it would make every sink taking it read as governed.
+   */
+  it('reports a fallback on the binding, and refuses the local it binds', () => {
+    const { findings, sinks } = auditSource(
+      ROUTE,
+      'const subject = capabilityGovernedUserId(rateLimit) ?? rateLimit.userId\n' +
+        "await assertWorkspaceCapability(subject, workspaceId, 'tables.use')\n"
+    )
+
+    expect(sinks).toBe(0)
+    expect(findings).toHaveLength(2)
+    expect(findings[0].message).toContain('falls back when')
+    expect(findings[1].message).toContain('did not come from')
+  })
+
+  it('leaves an un-welded governed call alone, inline and through a local', () => {
+    const { findings, sinks } = auditSource(
+      ROUTE,
+      'const subject = capabilityGovernedUserId(rateLimit)\n' +
+        "await assertWorkspaceCapability(subject, workspaceId, 'tables.use')\n" +
+        "await isWorkspaceCapabilityWithheld(capabilityGovernedUserId(rateLimit), workspaceId, 'tables.use')\n"
+    )
+
+    expect(findings).toEqual([])
+    expect(sinks).toBe(2)
+  })
+
+  /**
+   * A `??` inside a nested argument list is not a fallback applied to the
+   * subject, so the depth tracking has to survive one.
+   */
+  it('does not mistake a nested ?? inside the governed call for a fallback', () => {
+    const { findings, sinks } = auditSource(
+      ROUTE,
+      "await isWorkspaceCapabilityWithheld(capabilityGovernedUserId(rateLimit ?? auth), workspaceId, 'tables.use')\n"
+    )
+
+    expect(findings).toEqual([])
+    expect(sinks).toBe(1)
+  })
+})
