@@ -80,6 +80,19 @@ describe('measureYamlExpansion', () => {
     expect(measureYamlExpansion(longNumbers, byteCap).within).toBe(false)
   })
 
+  it('charges a Date its quoted ISO length, not the flat allowance', () => {
+    // The default js-yaml schema turns `!!timestamp` into a Date, and JSON.stringify
+    // emits it as a 26-character quoted string — an aliased list of them would
+    // otherwise be charged 16 apiece and slip past the byte cap.
+    const dates = Array.from({ length: 200 }, () => new Date('2026-08-31T00:00:00.000Z'))
+    const booleans = Array.from({ length: 200 }, () => true)
+
+    const byteCap = limits({ maxSerializedBytes: 5000 })
+
+    expect(measureYamlExpansion(booleans, byteCap).within).toBe(true)
+    expect(measureYamlExpansion(dates, byteCap).within).toBe(false)
+  })
+
   it('charges object keys, so an aliased object with long keys cannot bypass the cap', () => {
     const key = 'k'.repeat(500)
     const shared = { [key]: 1 }

@@ -19,6 +19,8 @@ import {
   loadPublishedCompiledDoc,
   storeCompiledDoc,
 } from '@/lib/copilot/tools/server/files/doc-compiled-store'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { MAX_RENDERED_DOCUMENT_BYTES } from '@/lib/uploads/utils/file-utils'
 
 describe('compiled document publication', () => {
   beforeEach(() => {
@@ -64,6 +66,54 @@ describe('compiled document publication', () => {
     expect(mockDownloadFile).toHaveBeenCalledTimes(2)
     expect(mockDownloadFile.mock.calls[1]?.[0]).toEqual(
       expect.objectContaining({ context: 'copilot' })
+    )
+  })
+
+  it('bounds the artifact read so an oversized artifact is never materialized', async () => {
+    mockHeadObject.mockResolvedValue({ size: 1 })
+    mockDownloadFile.mockResolvedValueOnce(
+      Buffer.from(JSON.stringify({ version: 1, referencedInputIdentity: 'dependency-identity' }))
+    )
+    mockDownloadFile.mockResolvedValueOnce(Buffer.from('%PDF-artifact'))
+
+    await loadPublishedCompiledDoc('workspace-1', 'source', 'pdf')
+
+    // The artifact is fetched separately from the source that names it, so a source
+    // that cleared its own ceiling says nothing about how large this is.
+    expect(mockDownloadFile.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({ maxBytes: MAX_RENDERED_DOCUMENT_BYTES })
+    )
+  })
+
+  it('surfaces an oversized artifact instead of reporting it as not yet built', async () => {
+    // `null` means "still compiling", which callers answer with a retry — an artifact
+    // that is too large would sit behind that answer forever.
+    mockHeadObject.mockResolvedValue({ size: 1 })
+    mockDownloadFile.mockResolvedValueOnce(
+      Buffer.from(JSON.stringify({ version: 1, referencedInputIdentity: 'dependency-identity' }))
+    )
+    mockDownloadFile.mockRejectedValueOnce(
+      new PayloadSizeLimitError({
+        label: 'storage download',
+        maxBytes: MAX_RENDERED_DOCUMENT_BYTES,
+        observedBytes: MAX_RENDERED_DOCUMENT_BYTES + 1,
+      })
+    )
+
+    await expect(loadPublishedCompiledDoc('workspace-1', 'source', 'pdf')).rejects.toThrow(
+      PayloadSizeLimitError
+    )
+  })
+
+  it('still reports a missing artifact as not yet built', async () => {
+    mockHeadObject.mockResolvedValue({ size: 1 })
+    mockDownloadFile.mockResolvedValueOnce(
+      Buffer.from(JSON.stringify({ version: 1, referencedInputIdentity: 'dependency-identity' }))
+    )
+    mockDownloadFile.mockRejectedValueOnce(new Error('NoSuchKey'))
+
+    await expect(loadPublishedCompiledDoc('workspace-1', 'source', 'pdf')).rejects.toThrow(
+      'Published compiled document artifact is missing'
     )
   })
 

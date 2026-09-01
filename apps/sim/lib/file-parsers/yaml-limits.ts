@@ -91,6 +91,9 @@ function serializedStringLength(value: string): number {
  */
 const NON_STRING_NODE_BYTES = 16
 
+/** `"2026-08-31T00:00:00.000Z"` — 24 characters of ISO 8601 plus its two quotes. */
+const SERIALIZED_DATE_BYTES = 26
+
 /**
  * Estimate the pretty-printed (`JSON.stringify(value, null, 2)`) size a single
  * value node contributes, including the indentation/newline overhead that
@@ -99,12 +102,17 @@ const NON_STRING_NODE_BYTES = 16
 function estimateNodeBytes(value: unknown, depth: number): number {
   const indentOverhead = depth * 2 + 4
   if (typeof value === 'string') return indentOverhead + serializedStringLength(value)
-  // A double can serialize to 24 characters (`-1.2345678901234567e-308`), so a
-  // number is the one non-string value that outgrows the flat allowance — charging
-  // it the allowance would let a document of them exceed the byte cap by half again.
-  // Taking the larger of the two never charges less than before.
+  // Two non-string values outgrow the flat allowance, and charging them the allowance
+  // would let a document of them exceed the byte cap by half again: a double serializes
+  // to as many as 24 characters (`-1.2345678901234567e-308`), and a `Date` — which the
+  // default js-yaml schema produces for a `!!timestamp`, so the file parser sees them —
+  // serializes to a 26-character quoted ISO string. Taking the larger of the two never
+  // charges less than the flat allowance did.
   if (typeof value === 'number') {
     return indentOverhead + Math.max(NON_STRING_NODE_BYTES, String(value).length)
+  }
+  if (value instanceof Date) {
+    return indentOverhead + Math.max(NON_STRING_NODE_BYTES, SERIALIZED_DATE_BYTES)
   }
   return indentOverhead + NON_STRING_NODE_BYTES
 }

@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { downloadFile, headObject, uploadFile } from '@/lib/uploads/core/storage-service'
+import { MAX_RENDERED_DOCUMENT_BYTES } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('CopilotDocCompiledStore')
 
@@ -65,7 +67,18 @@ async function loadPublishedArtifactPointer(key: string): Promise<PublishedArtif
   return { version: 1, referencedInputIdentity: decoded.referencedInputIdentity }
 }
 
-/** Loads the compiled binary for the current source, or null if not yet built. */
+/**
+ * Loads the compiled binary for the current source, or null if not yet built.
+ *
+ * The artifact is what a download or a public share actually serves, and it is read
+ * separately from the source — so a source that cleared its own ceiling says nothing
+ * about the size of this. Bounding it here rather than on the finished response is
+ * what keeps an oversized artifact from being materialized before it is refused.
+ *
+ * A size breach is rethrown rather than folded into `null`: null means "not built
+ * yet", which callers answer with "still being prepared, try again", and an artifact
+ * that is too large would retry forever behind that.
+ */
 export async function loadCompiledDoc(
   workspaceId: string,
   source: string,
@@ -74,8 +87,9 @@ export async function loadCompiledDoc(
 ): Promise<Buffer | null> {
   const key = compiledArtifactKey(workspaceId, source, ext, referencedInputIdentity)
   try {
-    return await downloadFile({ key, context: 'copilot' })
-  } catch {
+    return await downloadFile({ key, context: 'copilot', maxBytes: MAX_RENDERED_DOCUMENT_BYTES })
+  } catch (error) {
+    if (isPayloadSizeLimitError(error)) throw error
     return null
   }
 }
