@@ -49,6 +49,27 @@ export interface TableViewRevision {
   updatedAt: number | null
 }
 
+export interface TableViewPinTransition {
+  nextViewId: string | null
+  pendingCreatedViewId: string | null
+}
+
+/**
+ * Resolves an external saved-view pin without leaving a locally created view
+ * waiting for a URL selection that the pin is about to replace.
+ */
+export function resolveTableViewPinTransition(
+  activeViewId: string | null,
+  appliedViewId: string | null,
+  pinnedViewId: string,
+  pendingCreatedViewId: string | null
+): TableViewPinTransition {
+  if (activeViewId === pinnedViewId || appliedViewId === pinnedViewId) {
+    return { nextViewId: null, pendingCreatedViewId }
+  }
+  return { nextViewId: pinnedViewId, pendingCreatedViewId: null }
+}
+
 export function getTableViewRevision(
   view: Pick<TableViewWire, 'id' | 'updatedAt'> | null
 ): TableViewRevision {

@@ -44,6 +44,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import {
   getTableViewRevision,
   resolveTableViewConfig,
+  resolveTableViewPinTransition,
   resolveTableViewSelection,
   shouldApplyTableViewRevision,
   type TableViewRevision,
@@ -719,11 +720,16 @@ export function Table({
     if (appliedViewRevisionRef.current === undefined) return
     if (!views.some((view) => view.id === viewPin.viewId)) return
     consumeViewPin(tableId, viewPin.seq)
-    if (activeViewId === viewPin.viewId || appliedViewRevisionRef.current.id === viewPin.viewId) {
-      return
-    }
+    const transition = resolveTableViewPinTransition(
+      activeViewId,
+      appliedViewRevisionRef.current.id,
+      viewPin.viewId,
+      pendingCreatedViewIdRef.current
+    )
+    if (!transition.nextViewId) return
+    pendingCreatedViewIdRef.current = transition.pendingCreatedViewId
     preservedViewStateRef.current = null
-    setTableParams({ view: viewPin.viewId })
+    setTableParams({ view: transition.nextViewId })
   }, [embedded, viewPin, views, activeViewId, tableId, consumeViewPin, setTableParams])
 
   /**

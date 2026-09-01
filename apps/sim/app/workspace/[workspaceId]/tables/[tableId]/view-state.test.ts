@@ -7,6 +7,7 @@ import { ALL_VIEW_PARAM } from '@/app/workspace/[workspaceId]/tables/[tableId]/s
 import {
   getTableViewRevision,
   resolveTableViewConfig,
+  resolveTableViewPinTransition,
   resolveTableViewSelection,
   shouldApplyTableViewRevision,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/view-state'
@@ -76,6 +77,20 @@ describe('resolveTableViewSelection', () => {
 
   it('upgrades the legacy All sentinel when a persisted default exists', () => {
     expect(resolveTableViewSelection([DEFAULT_VIEW], ALL_VIEW_PARAM).activeView).toBe(DEFAULT_VIEW)
+  })
+})
+
+describe('resolveTableViewPinTransition', () => {
+  it('abandons a pending local creation when an external pin replaces its URL selection', () => {
+    expect(
+      resolveTableViewPinTransition('view-old', 'view-created', 'view-pinned', 'view-created')
+    ).toEqual({ nextViewId: 'view-pinned', pendingCreatedViewId: null })
+  })
+
+  it('keeps the pending creation when the pin is already represented locally', () => {
+    expect(
+      resolveTableViewPinTransition('view-pinned', 'view-created', 'view-pinned', 'view-created')
+    ).toEqual({ nextViewId: null, pendingCreatedViewId: 'view-created' })
   })
 })
 
