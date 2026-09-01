@@ -1435,7 +1435,7 @@ export const CLI_CONTRACT: CliContract = {
         name: 'select-output',
         list: true,
         describe:
-          'Return blockName.field values from the streamed result (e.g. agent_1.content), requires --follow; missing fields are omitted',
+          'Return streamed outputs as blockName.path or childWorkflowId.blockName.path; selecting a child workflow applies to every invocation, requires --follow',
       },
       // SSE, not JSON — the generic client cannot consume it, so the response
       // encoding is chosen by `--follow`, which `workflow-run-follow.ts` adds to

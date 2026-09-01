@@ -1971,7 +1971,7 @@ Trigger from Slack events, interactions, and slash commands
 | `manualChannelFilter` | string | No | Comma-separated channel IDs to restrict to. Set IDs directly here. |
 | `threads` | string | No | Include thread replies, exclude them \(top-level only\), or fire only on thread replies. |
 | `streamResponse` | boolean | No | Create a Slack agent session and stream selected workflow outputs into the conversation that started this run. Custom bots only. |
-| `streamOutputs` | workflow-output-selector | No | Each selected block invocation creates its own Slack response. Agent outputs stream live; other outputs are sent when the block completes. |
+| `streamOutputs` | workflow-output-selector | No | Use `&lt;blockName&gt;.&lt;outputPath&gt;` for this workflow or `&lt;childWorkflowId&gt;.&lt;blockName&gt;.&lt;outputPath&gt;` for a child workflow. Selecting a child workflow applies to every invocation of it. Agent outputs stream live; other outputs are sent when the block completes. |
 | `streamTaskTitle` | string | No | Optional status Slack shows while each selected response is being produced. Leave empty to use Running. |
 | `streamTaskDisplayMode` | string | No | Choose how Slack displays thinking and tool progress. |
 | `streamIncludeThinking` | boolean | No | Show agent thinking as Slack task updates while the response is generated. |

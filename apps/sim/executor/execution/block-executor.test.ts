@@ -1352,6 +1352,33 @@ describe('BlockExecutor streaming pump', () => {
     )
   })
 
+  it('forwards the stable block ID for streams from expanded branch nodes', async () => {
+    const handler = createAgentEventsStreamingHandler({
+      events: [{ type: 'text_delta', text: 'branch answer', turn: 'final' }],
+    })
+    const { executor, block, state } = createExecutor(handler)
+    const ctx = createContext(state)
+    const node = createNode(block)
+    node.id = `${block.id}₍0₎`
+    node.metadata = {
+      isParallelBranch: true,
+      subflowId: 'parallel-1',
+      subflowType: 'parallel',
+      originalBlockId: block.id,
+      branchIndex: 0,
+    }
+    let streamedBlockId: string | undefined
+
+    ctx.onStream = async (streamingExec) => {
+      streamedBlockId = streamingExec.blockId
+      await new Response(streamingExec.stream).text()
+    }
+
+    await executor.execute(ctx, node, block)
+
+    expect(streamedBlockId).toBe(block.id)
+  })
+
   it('drains without onStream and still persists answer content', async () => {
     const handler = createAgentEventsStreamingHandler({
       events: [{ type: 'text_delta', text: 'offline answer', turn: 'final' }],

@@ -267,6 +267,7 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     ;(getTrigger as unknown as Mock).mockReturnValue(slackTriggerDef)
     return resolveWebhookConfigForBlock({
       block: makeBlock('slack_oauth', values),
+      blocks: {},
       workflow,
       userId: 'deployer-1',
       requestId: 'req-1',
@@ -528,6 +529,7 @@ describe('resolveWebhookConfigForBlock — migrated slack_webhook routing', () =
     ;(getTrigger as unknown as Mock).mockReturnValue(legacySlackTriggerDef)
     return resolveWebhookConfigForBlock({
       block: makeBlock('slack_webhook', values),
+      blocks: {},
       workflow: { workspaceId: 'ws-1' },
       userId: 'deployer-1',
       requestId: 'req-1',
@@ -592,6 +594,7 @@ describe('resolveWebhookConfigForBlock — TikTok routing', () => {
     ;(getTrigger as unknown as Mock).mockReturnValue(tiktokTriggerDef)
     return resolveWebhookConfigForBlock({
       block: makeBlock('tiktok', { triggerCredentials: credentialReference }),
+      blocks: {},
       workflow,
       userId: 'deployer-1',
       requestId: 'req-1',

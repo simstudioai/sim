@@ -2131,7 +2131,7 @@ describe('WorkflowBlockHandler', () => {
       expect(mockExecutorExecute).not.toHaveBeenCalled()
     })
 
-    it('leaves regular workflow blocks entirely alone', async () => {
+    it('does not stream an unselected regular child workflow', async () => {
       const registry = new ResolvedSecretTraceRegistry()
       const ctx = {
         ...mockContext,
@@ -2177,8 +2177,91 @@ describe('WorkflowBlockHandler', () => {
           },
         })
       )
-      expect(extensions.onStream).toBe(ctx.onStream)
+      expect(extensions.stream).toBe(false)
+      expect(extensions.selectedOutputs).toEqual([])
+      expect(extensions.onStream).toBeUndefined()
       expect(extensions.childWorkflowContext).toBeDefined()
+    })
+
+    it('scopes a selected regular child output through its child workflow', async () => {
+      const onStream = vi.fn()
+      const onBlockComplete = vi.fn()
+      const ctx = {
+        ...mockContext,
+        workspaceId: 'workspace-1',
+        stream: true,
+        selectedOutputs: ['child-workflow-id.agent-1_content'],
+        onStream,
+        onBlockComplete,
+      } as unknown as ExecutionContext
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-1',
+              state: {
+                blocks: [
+                  {
+                    id: 'agent-1',
+                    type: 'agent',
+                    name: 'Agent',
+                    metadata: { id: 'agent', name: 'Agent' },
+                    position: { x: 0, y: 0 },
+                    config: { tool: 'agent', params: {} },
+                    inputs: {},
+                    outputs: {},
+                    subBlocks: {},
+                    enabled: true,
+                  },
+                ],
+                edges: [],
+                loops: {},
+                parallels: {},
+              },
+            },
+          }),
+      })
+
+      await handler.execute(ctx, mockBlock, { workflowId: 'child-workflow-id' })
+
+      const extensions = executorOptions[0].contextExtensions
+      expect(extensions.stream).toBe(true)
+      expect(extensions.selectedOutputs).toEqual(['agent-1_content'])
+
+      const childStream = {
+        blockId: 'agent-1',
+        stream: new ReadableStream(),
+        execution: { success: true, output: {} },
+      }
+      await extensions.onStream(childStream)
+      expect(onStream).toHaveBeenCalledWith({
+        ...childStream,
+        blockId: 'child-workflow-id.agent-1',
+        childWorkflowInstanceId: expect.any(String),
+      })
+
+      const completion = {
+        output: { content: 'done' },
+        executionTime: 1,
+        startedAt: '2026-01-01T00:00:00.000Z',
+        executionOrder: 1,
+        endedAt: '2026-01-01T00:00:00.001Z',
+      }
+      await extensions.onBlockComplete('agent-1', 'Agent', 'agent', completion)
+      expect(onBlockComplete).toHaveBeenCalledWith(
+        'agent-1',
+        'Agent',
+        'agent',
+        {
+          ...completion,
+          outputBlockId: 'child-workflow-id.agent-1',
+          childWorkflowInstanceId: expect.any(String),
+        },
+        undefined,
+        undefined
+      )
     })
 
     it('preserves the canonical parent origin through deeper regular children', async () => {

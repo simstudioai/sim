@@ -43,14 +43,6 @@ import { navigatePathAsync } from '@/executor/variables/resolvers/reference-asyn
 import type { ToolCallEndStatus } from '@/providers/stream-events'
 import { DEFAULT_MAX_THINKING_CHARS } from '@/providers/stream-pump'
 
-/**
- * Extended streaming execution type that includes blockId on the execution.
- * The runtime passes blockId but the base StreamingExecution type doesn't declare it.
- */
-interface StreamingExecutionWithBlockId extends Omit<StreamingExecution, 'execution'> {
-  execution?: StreamingExecution['execution'] & { blockId?: string }
-}
-
 const logger = createLogger('WorkflowStreaming')
 
 const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype']
@@ -88,7 +80,7 @@ interface StreamingConfig {
 
 export type StreamingExecutorFn = (callbacks: {
   onStream: (streamingExec: StreamingExecution) => Promise<void>
-  onBlockComplete: (blockId: string, output: unknown) => Promise<void>
+  onBlockComplete: (blockId: string, output: unknown, outputBlockId?: string) => Promise<void>
   abortSignal: AbortSignal
 }) => Promise<ExecutionResult>
 
@@ -602,8 +594,8 @@ export async function createStreamingResponse(
        * Subscribe synchronously before the first await so the executor pump
        * can attach sinks before pulling provider chunks.
        */
-      const onStreamCallback = async (streamingExec: StreamingExecutionWithBlockId) => {
-        const blockId = streamingExec.execution?.blockId
+      const onStreamCallback = async (streamingExec: StreamingExecution) => {
+        const blockId = streamingExec.blockId
         if (!blockId) {
           logger.warn(`[${requestId}] Streaming execution missing blockId`)
           return
@@ -708,19 +700,24 @@ export async function createStreamingResponse(
       const includeFileBase64 = streamConfig.includeFileBase64 ?? true
       const base64MaxBytes = streamConfig.base64MaxBytes
 
-      const onBlockCompleteCallback = async (blockId: string, output: unknown) => {
-        state.completedBlockIds.add(blockId)
+      const onBlockCompleteCallback = async (
+        blockId: string,
+        output: unknown,
+        outputBlockId?: string
+      ) => {
+        const selectedOutputBlockId = outputBlockId ?? blockId
+        state.completedBlockIds.add(selectedOutputBlockId)
 
         if (!streamConfig.selectedOutputs?.length) {
           return
         }
 
-        if (state.streamedChunks.has(blockId)) {
+        if (state.streamedChunks.has(selectedOutputBlockId)) {
           return
         }
 
         const matchingOutputs = getSelectedOutputDescriptors(streamConfig.selectedOutputs).filter(
-          (descriptor) => descriptor.blockId === blockId
+          (descriptor) => descriptor.blockId === selectedOutputBlockId
         )
 
         /**
@@ -792,14 +789,14 @@ export async function createStreamingResponse(
                 getInlineJsonByteLength(hydratedOutput) ?? 0,
                 Buffer.byteLength(formattedOutput, 'utf8')
               )
-              sendChunk(blockId, formattedOutput, {
+              sendChunk(selectedOutputBlockId, formattedOutput, {
                 selectedOutputKey: descriptor.key,
                 selectedOutputBytes,
               })
             }
           } catch (error) {
             logger.warn(`[${requestId}] Failed to materialize selected output`, {
-              blockId,
+              blockId: selectedOutputBlockId,
               outputId: descriptor.outputId,
               ...projectResolvedSecretDiagnosticError(error, undefined),
             })
@@ -807,7 +804,7 @@ export async function createStreamingResponse(
             state.selectedOutputError ??= errorMessage
             const frame: ChatStreamErrorFrame = {
               event: 'error',
-              blockId,
+              blockId: selectedOutputBlockId,
               error: errorMessage,
             }
             controller.enqueue(encodeSSE(frame))

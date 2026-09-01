@@ -22,6 +22,7 @@ import {
   type SlackStreamSessionTarget,
   unregisterSlackStreamSession,
 } from '@/lib/webhooks/slack-stream-sessions'
+import { formatOutputSelector, scopeOutputBlockId } from '@/lib/workflows/streaming/output-selector'
 import type { BlockCompletionCallbackData, ExecutionCallbacks } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 import type { AgentStreamEvent } from '@/providers/stream-events'
@@ -294,8 +295,8 @@ export class SlackExecutionStreamController {
   ) {
     this.token = token
     this.target = target
-    this.selectedOutputs = options.config.outputConfigs.map(
-      (output) => `${output.blockId}_${output.path}`
+    this.selectedOutputs = options.config.outputConfigs.map((output) =>
+      formatOutputSelector(output.blockId, output.path, output.workflowId)
     )
     this.callbacks = {
       onStream: (stream) => this.onStream(stream),
@@ -334,11 +335,24 @@ export class SlackExecutionStreamController {
   }
 
   private selectedForBlock(blockId: string): SlackStreamOutputConfig[] {
-    return this.options.config.outputConfigs.filter((output) => output.blockId === blockId)
+    return this.options.config.outputConfigs.filter((output) => {
+      const selectedBlockId = output.workflowId
+        ? scopeOutputBlockId(output.workflowId, output.blockId)
+        : output.blockId
+      return selectedBlockId === blockId
+    })
   }
 
-  private invocationKey(blockId: string, executionOrder: number): string {
-    return `${blockId}:${executionOrder}`
+  private invocationKey(
+    blockId: string,
+    executionOrder: number,
+    childWorkflowInstanceId?: string
+  ): string {
+    return `${blockId}:${childWorkflowInstanceId ?? executionOrder}`
+  }
+
+  private taskId(executionOrder: number, childWorkflowInstanceId?: string): string {
+    return `sim-${this.options.executionId}-${childWorkflowInstanceId ?? executionOrder}`
   }
 
   private recordFailure(error: unknown): Error {
@@ -375,7 +389,11 @@ export class SlackExecutionStreamController {
       if (this.selectedForBlock(stream.blockId).length === 0) {
         throw new Error(`Slack streaming received an unselected block: ${stream.blockId}`)
       }
-      const key = this.invocationKey(stream.blockId, stream.executionOrder)
+      const key = this.invocationKey(
+        stream.blockId,
+        stream.executionOrder,
+        stream.childWorkflowInstanceId
+      )
       if (this.invocations.has(key)) {
         throw new Error(`Duplicate Slack stream invocation: ${key}`)
       }
@@ -383,7 +401,7 @@ export class SlackExecutionStreamController {
         this.token,
         this.target,
         this.options.config,
-        `sim-${this.options.executionId}-${stream.executionOrder}`,
+        this.taskId(stream.executionOrder, stream.childWorkflowInstanceId),
         this.options.config.taskTitle,
         (text) => this.projectLiveText(text, stream.displayResolvedSecretTraceProvenance),
         (text) => this.projectFinalText(text, stream.displayResolvedSecretTraceProvenance),
@@ -391,21 +409,24 @@ export class SlackExecutionStreamController {
       )
       this.invocations.set(key, invocation)
 
-      const forwardFromSink = Boolean(stream.subscribe) && !stream.clientStreamTransformed
-      const unsubscribe = forwardFromSink
-        ? stream.subscribe?.({ onEvent: (event) => invocation.onEvent(event) })
-        : undefined
+      const answerFromEventSink = Boolean(stream.subscribe) && !stream.clientStreamTransformed
+      const unsubscribe = stream.subscribe?.({
+        onEvent: async (event) => {
+          if (!answerFromEventSink && event.type === 'text_delta') return
+          await invocation.onEvent(event)
+        },
+      })
       const reader = stream.stream.getReader()
       const decoder = new TextDecoder()
       try {
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
-          if (!forwardFromSink) {
+          if (!answerFromEventSink) {
             await invocation.appendProjectedBytes(decoder.decode(value, { stream: true }))
           }
         }
-        if (!forwardFromSink) {
+        if (!answerFromEventSink) {
           const remainder = decoder.decode()
           if (remainder) await invocation.appendProjectedBytes(remainder)
         }
@@ -420,9 +441,14 @@ export class SlackExecutionStreamController {
 
   private async onBlockComplete(blockId: string, data: BlockCompletionCallbackData): Promise<void> {
     try {
-      const selected = this.selectedForBlock(blockId)
+      const selectedOutputBlockId = data.outputBlockId ?? blockId
+      const selected = this.selectedForBlock(selectedOutputBlockId)
       if (selected.length === 0) return
-      const key = this.invocationKey(blockId, data.executionOrder)
+      const key = this.invocationKey(
+        selectedOutputBlockId,
+        data.executionOrder,
+        data.childWorkflowInstanceId
+      )
       if (this.invocations.has(key)) return
 
       const display = await this.options.loggingSession.projectDisplayContent(
@@ -443,7 +469,7 @@ export class SlackExecutionStreamController {
         this.token,
         this.target,
         this.options.config,
-        `sim-${this.options.executionId}-${data.executionOrder}`,
+        this.taskId(data.executionOrder, data.childWorkflowInstanceId),
         this.options.config.taskTitle,
         async (value) => value,
         async (value) => value,
