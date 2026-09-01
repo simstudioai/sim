@@ -18,9 +18,11 @@ import {
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
+  v1PersonalKeyCredential,
   v1RateLimitContextModuleMock,
   v1RateLimiterModuleMock,
   v1SubscriptionModuleMock,
+  v1WorkspaceKeyCredential,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -78,34 +80,6 @@ const TABLE = {
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
 }
 
-function personalKey() {
-  return {
-    authenticated: true,
-    userId: MEMBER_ID,
-    keyType: 'personal' as const,
-    principal: { kind: 'personal_api_key' as const, userId: MEMBER_ID, keyId: 'key-1' },
-  }
-}
-
-/**
- * A workspace key still reports a `userId` — the key's CREATOR. A gate keyed on
- * the presence of a user id rather than on the principal kind would apply that
- * bystander's group to every caller of the shared credential.
- */
-function workspaceKey() {
-  return {
-    authenticated: true,
-    userId: 'key-creator',
-    workspaceId: WORKSPACE_ID,
-    keyType: 'workspace' as const,
-    principal: {
-      kind: 'workspace_api_key' as const,
-      workspaceId: WORKSPACE_ID,
-      keyId: 'key-2',
-    },
-  }
-}
-
 function governedBy(overrides: Partial<typeof DEFAULT_PERMISSION_GROUP_CONFIG>) {
   permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
     ...DEFAULT_PERMISSION_GROUP_CONFIG,
@@ -128,7 +102,7 @@ const REFUSAL = /is not available under your organization's permission group/
 beforeEach(() => {
   vi.clearAllMocks()
   resetPermissionGroupScopeMock()
-  mockAuthenticateV1Request.mockResolvedValue(personalKey())
+  mockAuthenticateV1Request.mockResolvedValue(v1PersonalKeyCredential(MEMBER_ID))
   mockGetUserEntityPermissions.mockResolvedValue('admin')
   mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: true })
   mockGetTableById.mockResolvedValue(TABLE)
@@ -136,7 +110,7 @@ beforeEach(() => {
 
 describe('tables.use gate on /api/v1/tables/[tableId]', () => {
   it('lets a workspace API key through even when its CREATOR is denied Tables', async () => {
-    mockAuthenticateV1Request.mockResolvedValue(workspaceKey())
+    mockAuthenticateV1Request.mockResolvedValue(v1WorkspaceKeyCredential(WORKSPACE_ID))
     governedBy({ hideTablesTab: true })
 
     const response = await readTable()
@@ -147,7 +121,7 @@ describe('tables.use gate on /api/v1/tables/[tableId]', () => {
   })
 
   it('never resolves a group for a workspace API key at all', async () => {
-    mockAuthenticateV1Request.mockResolvedValue(workspaceKey())
+    mockAuthenticateV1Request.mockResolvedValue(v1WorkspaceKeyCredential(WORKSPACE_ID))
     governedBy({ hideTablesTab: true })
 
     await readTable()

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getTableById: vi.fn(),
@@ -48,6 +48,22 @@ const DISPATCH = {
 }
 
 describe('the dispatcher pre-stamp', () => {
+  /**
+   * `buildEnqueueItems` resolves the cell task with a dynamic import of
+   * `@/background/workflow-column-execution` — the largest graph this step
+   * touches, and one none of this file's mocks intercept. Under a loaded
+   * parallel run that first resolution costs whole seconds, which is why the
+   * only test here needed a 20s budget to hold. Warm it once, outside any
+   * per-test budget, so the test measures the pre-stamp rather than a module
+   * load.
+   */
+  beforeAll(async () => {
+    await Promise.all([
+      import('@/background/workflow-column-execution'),
+      import('@/lib/table/workflow-columns'),
+    ])
+  }, 60_000)
+
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -81,5 +97,5 @@ describe('the dispatcher pre-stamp', () => {
         }),
       })
     )
-  }, 20_000)
+  })
 })

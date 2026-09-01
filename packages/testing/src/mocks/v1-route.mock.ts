@@ -40,3 +40,50 @@ export const v1RateLimitContextModuleMock = {
   recordRateLimitSnapshot: vi.fn(),
   getRateLimitHeaders: () => null,
 }
+
+/**
+ * The credential `authenticateV1Request` resolves for a personal API key.
+ *
+ * The gate and projection suites steer this deliberately — it is the caller a
+ * permission group governs — so it is a factory rather than a module mock.
+ *
+ * @example
+ * ```ts
+ * mockAuthenticateV1Request.mockResolvedValue(v1PersonalKeyCredential(USER_ID))
+ * ```
+ */
+export function v1PersonalKeyCredential(userId: string, keyId = 'key-1') {
+  return {
+    authenticated: true,
+    userId,
+    keyType: 'personal' as const,
+    principal: { kind: 'personal_api_key' as const, userId, keyId },
+  }
+}
+
+/**
+ * The credential `authenticateV1Request` resolves for a workspace API key.
+ *
+ * It still reports a `userId` — the key's CREATOR — which is the trap every
+ * caller of this factory exists to pin: a gate keyed on the presence of a user
+ * id rather than on the principal kind applies that bystander's permission
+ * group to every caller of a shared credential.
+ *
+ * @example
+ * ```ts
+ * mockAuthenticateV1Request.mockResolvedValue(v1WorkspaceKeyCredential(WORKSPACE_ID))
+ * ```
+ */
+export function v1WorkspaceKeyCredential(
+  workspaceId: string,
+  creatorUserId = 'key-creator',
+  keyId = 'key-2'
+) {
+  return {
+    authenticated: true,
+    userId: creatorUserId,
+    workspaceId,
+    keyType: 'workspace' as const,
+    principal: { kind: 'workspace_api_key' as const, workspaceId, keyId },
+  }
+}

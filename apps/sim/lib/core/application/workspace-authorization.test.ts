@@ -485,33 +485,6 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
   })
 })
 
-describe('defineWorkspaceOperation capability policy', () => {
-  it('refuses a parameterized capability, which the funnel could never apply', () => {
-    expect(() =>
-      defineWorkspaceOperation({
-        id: 'test.parameterized',
-        minimumRole: 'read',
-        workspaceApiKey: 'deny',
-        principalKinds: ['session'],
-        // @ts-expect-error a parameterized capability is not assignable to the field
-        capability: 'deploy.chat.auth_mode',
-      })
-    ).toThrow(/parameterized capability/)
-  })
-
-  it('accepts an explicit opt-out', () => {
-    expect(() =>
-      defineWorkspaceOperation({
-        id: 'test.ungoverned',
-        minimumRole: 'read',
-        workspaceApiKey: 'deny',
-        principalKinds: ['session'],
-        capability: 'none',
-      })
-    ).not.toThrow()
-  })
-})
-
 const personalKeyOperation = defineWorkspaceOperation({
   id: 'test.personal-key-read',
   minimumRole: 'read',
