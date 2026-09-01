@@ -601,7 +601,12 @@ If creating V2 versions (API-aligned outputs):
 3. **V1 Block** - Add `(Legacy)` to name, set `hideFromToolbar: true`, and add
    `sunset: { status: 'legacy', replacedBy: '{service}_v2' }` — `check-block-registry`
    fails a legacy block with no `replacedBy`, and the amber legacy badge plus its
-   click-to-upgrade action read from that field
+   click-to-upgrade action read from that field.
+
+   **Only add `replacedBy` once the target is GA.** The same check also fails when
+   the target is unregistered, itself sunset, or still `preview: true`. If v2 is
+   preview-gated, leave v1 alone until GA and drop `preview` in the *same commit*
+   that adds the sunset — splitting them breaks the build in between.
 4. **Registry** - Register both versions
 
 ```typescript
