@@ -21,9 +21,11 @@ describe('workflow-run cancellation tool routing', () => {
     expect(toolRequiresApproval('cancel_workflow_run')).toBe(true)
   })
 
-  it('registers the Sim cancellation handler', () => {
-    ensureHandlersRegistered()
+  // Registration loads the whole handler map on first use, which is most of
+  // `lib/` — well past the default 10s under a fully parallel run.
+  it('registers the Sim cancellation handler', async () => {
+    await ensureHandlersRegistered()
 
     expect(hasHandler('cancel_workflow_run')).toBe(true)
-  })
+  }, 90_000)
 })

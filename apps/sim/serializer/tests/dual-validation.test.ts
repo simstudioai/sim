@@ -12,6 +12,13 @@ import { afterAll, describe, expect, it, vi } from 'vitest'
 import * as subblockVisibility from '@/lib/workflows/subblocks/visibility'
 import { Serializer } from '@/serializer/index'
 
+/**
+ * Asserts real tool params and outputs, which the global `@/tools/metadata`
+ * and `@/tools/metadata-outputs` mocks in vitest.setup.ts empty.
+ */
+vi.unmock('@/tools/metadata')
+vi.unmock('@/tools/metadata-outputs')
+
 vi.mock('@/blocks', () => blocksMock)
 
 /**

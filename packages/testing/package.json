@@ -32,6 +32,10 @@
       "types": "./src/mocks/executor.mock.ts",
       "default": "./src/mocks/executor.mock.ts"
     },
+    "./mocks/*": {
+      "types": "./src/mocks/*.ts",
+      "default": "./src/mocks/*.ts"
+    },
     "./assertions": {
       "types": "./src/assertions/index.ts",
       "default": "./src/assertions/index.ts"

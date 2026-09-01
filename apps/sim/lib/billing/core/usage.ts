@@ -4,14 +4,6 @@ import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
-import {
-  getEmailSubject,
-  getLimitEmailSubject,
-  renderCreditsExhaustedEmail,
-  renderFreeTierUpgradeEmail,
-  renderUsageLimitReachedEmail,
-  renderUsageThresholdEmail,
-} from '@/components/emails'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
@@ -45,10 +37,22 @@ import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { DbClient } from '@/lib/db/types'
-import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getEmailPreferences } from '@/lib/messaging/email/unsubscribe'
 
 const logger = createLogger('UsageManagement')
+
+/**
+ * Email rendering pulls the React templates and every mail provider into the
+ * module graph, which is ~1.2s of imports on every route that reaches billing
+ * attribution. Load it only when a threshold email is actually being sent.
+ */
+async function loadEmailDelivery() {
+  const [emails, mailer] = await Promise.all([
+    import('@/components/emails'),
+    import('@/lib/messaging/email/mailer'),
+  ])
+  return { ...emails, sendEmail: mailer.sendEmail }
+}
 
 export interface OrgUsageLimitResult {
   limit: number
@@ -773,6 +777,7 @@ export async function maybeSendUsageThresholdEmail(params: {
         const prefs = await getEmailPreferences(email)
         if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return
 
+        const { renderUsageThresholdEmail, getEmailSubject, sendEmail } = await loadEmailDelivery()
         const html = await renderUsageThresholdEmail({
           userName: name,
           planName: params.planName,
@@ -798,6 +803,7 @@ export async function maybeSendUsageThresholdEmail(params: {
         const prefs = await getEmailPreferences(email)
         if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return
 
+        const { renderFreeTierUpgradeEmail, getEmailSubject, sendEmail } = await loadEmailDelivery()
         const html = await renderFreeTierUpgradeEmail({
           userName: name,
           percentUsed: Math.min(100, Math.round(params.percentAfter)),
@@ -830,6 +836,13 @@ export async function maybeSendUsageThresholdEmail(params: {
         const prefs = await getEmailPreferences(email)
         if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return
 
+        const {
+          renderCreditsExhaustedEmail,
+          renderUsageLimitReachedEmail,
+          getEmailSubject,
+          getLimitEmailSubject,
+          sendEmail,
+        } = await loadEmailDelivery()
         const html = useFreeCopy
           ? await renderCreditsExhaustedEmail({
               userName: name,

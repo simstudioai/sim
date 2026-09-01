@@ -1,15 +1,18 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { tools as toolRegistry } from '@/tools/registry'
 import { OutlookBlock } from './outlook'
 
 /**
- * Uses the real tool registry: these assertions are about tool registration and
- * params, which the global `@/tools/registry` mock in vitest.setup.ts empties.
+ * Only this service's configs are needed; the full registry is ~6,000 modules.
+ * Registration is asserted through the generated `@/tools/tool-ids`.
  */
-vi.unmock('@/tools/registry')
+vi.mock('@/tools/registry', async () => {
+  const { partialToolRegistry } = await import('@sim/testing/mocks/tool-registry.mock')
+  return { tools: partialToolRegistry(await import('@/tools/outlook')) }
+})
 
 const block = OutlookBlock
 

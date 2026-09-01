@@ -10,7 +10,14 @@ import {
 } from '@/tools/github/update_branch_protection'
 import { getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
 
-vi.unmock('@/tools/registry')
+/**
+ * Only this service's configs are needed; the full registry is ~6,000 modules.
+ * Registration is asserted through the generated `@/tools/tool-ids`.
+ */
+vi.mock('@/tools/registry', async () => {
+  const { partialToolRegistry } = await import('@sim/testing/mocks/tool-registry.mock')
+  return { tools: partialToolRegistry(await import('@/tools/github')) }
+})
 
 const BASE_PROTECTION_PARAMS = {
   owner: 'sim',
