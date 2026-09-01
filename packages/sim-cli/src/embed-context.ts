@@ -24,6 +24,20 @@ export interface EmbedContext {
    * filesystem.
    */
   fileArguments?: Record<string, string>
+  /**
+   * Soft-fail exit code (a failed run outcome, `runs wait` timeout). Embedded
+   * commands write here INSTEAD of process.exitCode: that global is shared, so
+   * two parallel embedded invocations raced on it — one run could observe and
+   * clear another's failure.
+   */
+  softExitCode?: number
+}
+
+/** The embedded-vs-standalone seam for soft-fail codes: context when embedded, global otherwise. */
+export function setSoftExitCode(code: number): void {
+  const ctx = embedStore.getStore()
+  if (ctx) ctx.softExitCode = code
+  else process.exitCode = code
 }
 
 export const embedStore = new AsyncLocalStorage<EmbedContext>()

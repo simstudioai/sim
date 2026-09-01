@@ -84,12 +84,10 @@ export async function runEmbeddedCli(
       const program = buildProgram()
       program.exitOverride()
       await program.parseAsync(argv, { from: 'user' })
-      if (typeof process.exitCode === 'number' && process.exitCode !== 0) {
-        // Commands that soft-fail (e.g. a failed run outcome) set process.exitCode
-        // rather than exiting; surface it, then clear so the host server is untouched.
-        exitCode = process.exitCode
-        process.exitCode = 0
-      }
+      // Commands that soft-fail (a failed run outcome, wait timeout) report through the
+      // context via setSoftExitCode — never process.exitCode, which is shared and raced
+      // between parallel embedded invocations.
+      if (ctx.softExitCode !== undefined && ctx.softExitCode !== 0) exitCode = ctx.softExitCode
     } catch (error) {
       exitCode = renderEmbeddedError(ctx, error)
     }

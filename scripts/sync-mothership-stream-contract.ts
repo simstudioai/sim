@@ -11,11 +11,6 @@ const DEFAULT_CONTRACT_PATH = resolve(
   '../copilot/copilot/contracts/mothership-stream-v1.schema.json'
 )
 const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/mothership/generated/mothership-stream-v1.ts')
-const RUNTIME_SCHEMA_OUTPUT_PATH = resolve(
-  ROOT,
-  'apps/sim/lib/mothership/generated/mothership-stream-v1-schema.ts'
-)
-
 function generateRuntimeConstants(schema: Record<string, unknown>, existingTypes: string): string {
   const defs = (schema.$defs ?? schema.definitions ?? {}) as Record<string, unknown>
   const lines: string[] = []
@@ -42,19 +37,6 @@ function generateRuntimeConstants(schema: Record<string, unknown>, existingTypes
   return lines.join('\n')
 }
 
-function renderRuntimeSchemaModule(schema: unknown): string {
-  return [
-    '// AUTO-GENERATED FILE. DO NOT EDIT.',
-    '// Generated from copilot/contracts/mothership-stream-v1.schema.json',
-    '//',
-    '',
-    'export type JsonSchema = unknown',
-    '',
-    `export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = ${JSON.stringify(schema, null, 2)}`,
-    '',
-  ].join('\n')
-}
-
 async function main() {
   const checkOnly = process.argv.includes('--check')
   const inputPathArg = process.argv.find((arg) => arg.startsWith('--input='))
@@ -76,18 +58,9 @@ async function main() {
     OUTPUT_PATH,
     ROOT
   )
-  const renderedSchemaModule = formatGeneratedSource(
-    renderRuntimeSchemaModule(schema),
-    RUNTIME_SCHEMA_OUTPUT_PATH,
-    ROOT
-  )
-
   if (checkOnly) {
     const existing = await readFile(OUTPUT_PATH, 'utf8').catch(() => null)
-    const existingSchemaModule = await readFile(RUNTIME_SCHEMA_OUTPUT_PATH, 'utf8').catch(
-      () => null
-    )
-    if (existing !== rendered || existingSchemaModule !== renderedSchemaModule) {
+    if (existing !== rendered) {
       throw new Error(
         `Generated mothership stream contract is stale. Run: bun run mship-contracts:generate`
       )
@@ -97,7 +70,6 @@ async function main() {
 
   await mkdir(dirname(OUTPUT_PATH), { recursive: true })
   await writeFile(OUTPUT_PATH, rendered, 'utf8')
-  await writeFile(RUNTIME_SCHEMA_OUTPUT_PATH, renderedSchemaModule, 'utf8')
 }
 
 await main()

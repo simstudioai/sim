@@ -115,8 +115,10 @@ describe('toolWatchdogTimeoutMs', () => {
     expect(toolWatchdogTimeoutMs('read')).toBe(TOOL_WATCHDOG_DEFAULT_MS)
   })
 
-  it.each(['deploy_as_api', 'deploy_as_chat', 'deploy_as_mcp', 'redeploy', 'promote_to_live'])(
-    'does not undercut deployment tool %s with the default watchdog',
+  // The Go-era deploy_* tools left the live surface with the TS worker (deploys go
+  // through the CLI now); the long-running set tracks tools that can actually execute.
+  it.each(['run_workflow', 'run_code', 'generate_video', 'apply_file_edit'])(
+    'does not undercut long-running live tool %s with the default watchdog',
     (toolName) => {
       expect(toolWatchdogTimeoutMs(toolName)).toBe(TOOL_WATCHDOG_LONG_RUNNING_MS)
     }

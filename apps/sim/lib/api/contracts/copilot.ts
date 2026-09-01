@@ -586,25 +586,6 @@ export const copilotChatStopContract = defineRouteContract({
   response: { mode: 'json', schema: successFlagSchema },
 })
 
-export const copilotChatGetContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/copilot/chat',
-  query: copilotChatGetQuerySchema,
-  response: {
-    mode: 'json',
-    schema: z.union([
-      z.object({
-        success: z.literal(true),
-        chat: copilotChatGetChatSchema,
-      }),
-      z.object({
-        success: z.literal(true),
-        chats: z.array(copilotChatGetListItemSchema),
-      }),
-    ]),
-  },
-})
-
 export const deleteCopilotChatContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/copilot/chat/delete',
