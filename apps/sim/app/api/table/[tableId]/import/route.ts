@@ -21,9 +21,11 @@ import { performTableCsvImport } from '@/lib/table/orchestration'
 import { getUserSettings } from '@/lib/users/queries'
 import {
   accessError,
+  capabilityGovernedUserId,
   checkAccess,
   csvProxyBodyCapResponse,
   multipartErrorResponse,
+  type TableAccessPrincipal,
 } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSVExisting')
@@ -96,11 +98,8 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       )
     }
 
-    const accessResult = await checkAccess(
-      tableId,
-      { kind: 'user', userId: authResult.userId },
-      'write'
-    )
+    const principal: TableAccessPrincipal = { kind: 'user', userId: authResult.userId }
+    const accessResult = await checkAccess(tableId, principal, 'write')
     if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
     const { table } = accessResult
@@ -160,6 +159,13 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       createColumns,
       timezone,
       requestId,
+      /**
+       * An append starts the table's workflow columns on every row it lands, so
+       * those cells are governed by the same person `checkAccess` just gated —
+       * not left ungoverned, which would let an import run tools this member's
+       * permission group withholds.
+       */
+      capabilityGovernedUserId: capabilityGovernedUserId(principal),
     })
 
     if (!outcome.success) {

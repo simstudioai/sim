@@ -131,6 +131,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       folderId,
       timezone,
       requestId,
+      /**
+       * The session or internal-JWT person this route already gated
+       * `tables.create` against. A table created here has no workflow columns
+       * yet, so nothing auto-fires today; naming the subject anyway keeps the
+       * rule "the id the surface gated is the id the write dispatches under"
+       * with no producer-specific exception to re-argue.
+       */
+      capabilityGovernedUserId: userId,
     })
 
     if (!outcome.success) {

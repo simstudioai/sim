@@ -268,8 +268,14 @@ function roleSubjectUserId(principal: TableAccessPrincipal): string {
 /**
  * The id whose permission group governs the request, or `null` when no group
  * does. Only a `user` principal has one — see {@link TableAccessPrincipal}.
+ *
+ * Exported because the gate is not the only thing that needs the subject: a
+ * write that lands rows auto-fires the table's workflow and enrichment cells,
+ * and those cells must run under the same person this check just gated, not
+ * under whatever id the surface had nearest. One statement of the rule, so a
+ * route cannot gate one subject and dispatch another.
  */
-function capabilityGovernedUserId(principal: TableAccessPrincipal): string | null {
+export function capabilityGovernedUserId(principal: TableAccessPrincipal): string | null {
   return principal.kind === 'user' ? principal.userId : null
 }
 
