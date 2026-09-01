@@ -375,21 +375,30 @@ async function rollbackPausedCancellationAfterAbort(args: {
 }): Promise<boolean> {
   if (!args.abortSignal?.aborted) return false
 
-  if (args.stage.kind === 'active_resume') {
-    const rolledBack = await PauseResumeManager.rollbackActiveResumeCancellation(
-      args.executionId,
-      args.workflowId,
-      args.stage.target.resumeEntryId
-    )
-    if (!rolledBack) {
-      logger.warn('Aborted cancellation could not be rolled back; completing cancellation', {
-        executionId: args.executionId,
-        activeResumeEntryId: args.stage.target.resumeEntryId,
-      })
-      return false
+  try {
+    if (args.stage.kind === 'active_resume') {
+      const rolledBack = await PauseResumeManager.rollbackActiveResumeCancellation(
+        args.executionId,
+        args.workflowId,
+        args.stage.target.resumeEntryId
+      )
+      if (!rolledBack) {
+        logger.warn('Aborted cancellation could not be rolled back; completing cancellation', {
+          executionId: args.executionId,
+          activeResumeEntryId: args.stage.target.resumeEntryId,
+        })
+        return false
+      }
+    } else if (args.stage.kind === 'idle') {
+      await PauseResumeManager.clearPausedCancellationIntent(args.executionId, args.workflowId)
     }
-  } else if (args.stage.kind === 'idle') {
-    await PauseResumeManager.clearPausedCancellationIntent(args.executionId, args.workflowId)
+  } catch (error) {
+    logger.warn('Failed to roll back aborted cancellation; completing cancellation', {
+      executionId: args.executionId,
+      stageKind: args.stage.kind,
+      error: toError(error).message,
+    })
+    return false
   }
 
   return true

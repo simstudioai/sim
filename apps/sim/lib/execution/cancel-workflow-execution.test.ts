@@ -1149,6 +1149,30 @@ describe('cancelWorkflowExecution', () => {
     expect(mockCancelByExecution).not.toHaveBeenCalled()
   })
 
+  it('finishes cancellation when an aborted idle-pause rollback fails', async () => {
+    const controller = new AbortController()
+    mockStagePausedCancellation.mockImplementationOnce(async () => {
+      controller.abort()
+      return { kind: 'idle' }
+    })
+    mockClearPausedCancellationIntent.mockRejectedValueOnce(new Error('database unavailable'))
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await cancelAsResponse({
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      pausedCancelled: true,
+      reason: 'recorded',
+    })
+    expect(mockClearPausedCancellationIntent).toHaveBeenCalledWith('ex-1', 'wf-1')
+    expect(mockWriteTerminalEvent).toHaveBeenCalledOnce()
+    expect(mockCompletePausedCancellation).toHaveBeenCalledWith('ex-1', 'wf-1')
+  })
+
   it('rolls back an active resume staged while cancellation is aborted', async () => {
     const controller = new AbortController()
     mockStagePausedCancellation.mockImplementationOnce(async () => {
