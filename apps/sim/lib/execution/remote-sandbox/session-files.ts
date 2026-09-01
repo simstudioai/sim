@@ -58,7 +58,10 @@ export async function readSessionSandboxFile(
   }
 }
 
-export type SessionFileWrite = { outcome: 'written'; path: string } | { outcome: 'no-session' }
+export type SessionFileWrite =
+  | { outcome: 'written'; path: string }
+  | { outcome: 'no-session' }
+  | { outcome: 'error'; detail: string }
 
 export async function writeSessionSandboxFile(
   sessionKey: string,
@@ -79,6 +82,18 @@ export async function writeSessionSandboxFile(
   }
   if (!sandbox) return { outcome: 'no-session' }
   const resolved = resolveSessionPath(path)
-  await sandbox.writeFile(resolved, content)
+  try {
+    await sandbox.writeFile(resolved, content)
+  } catch (error) {
+    // A failed write must degrade, never throw: the CLI invocation it follows
+    // already ran — possibly a mutation — and an escaping error here would
+    // report that successful call as failed and invite a repeating retry.
+    logger.warn('Session sandbox file write failed', {
+      sessionKey,
+      path: resolved,
+      error: getErrorMessage(error),
+    })
+    return { outcome: 'error', detail: getErrorMessage(error) }
+  }
   return { outcome: 'written', path: resolved }
 }

@@ -121,9 +121,11 @@ export async function executeSimCli(
       const written = await writeSessionSandboxFile(sessionKey, outputFile, result.stdout)
       if (written.outcome === 'written') {
         result.stdout = `[stdout written to ${outputFile} on your machine: ${result.stdout.length} chars. Read or process it with run_code, or pass it back as @${outputFile}.]`
-      } else {
+      } else if (written.outcome === 'no-session') {
         result.stdout +=
           '\n[outputFile not written: your machine is not booted yet — run any run_code first. Output returned inline instead]'
+      } else {
+        result.stdout += '\n[outputFile write failed — output returned inline instead]'
       }
     }
   }

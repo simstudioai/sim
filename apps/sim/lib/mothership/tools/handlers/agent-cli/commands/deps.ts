@@ -5,6 +5,7 @@ import {
   agentCliOk,
 } from '@/lib/mothership/tools/handlers/agent-cli/types'
 import { normalizeName, SPECIAL_REFERENCE_PREFIXES } from '@/executor/constants'
+import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 
 /**
  * `workflow deps <workflowId> <blockId>` — everything one block consumes, so the
@@ -15,8 +16,10 @@ import { normalizeName, SPECIAL_REFERENCE_PREFIXES } from '@/executor/constants'
  * never re-invent resolution semantics.
  */
 
-const TEMPLATE_REF = /<([^<>]+)>/g
-const ENV_REF = /\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g
+// The executor's own token grammars — this command must classify exactly what
+// the runtime resolves, never a private re-invention of the syntax.
+const TEMPLATE_REF = createReferencePattern()
+const ENV_REF = createEnvVarPattern()
 
 interface DepView {
   token: string
@@ -93,7 +96,8 @@ export const workflowDepsCommand: AgentCliCommand = {
         }
       }
       for (const match of leaf.matchAll(ENV_REF)) {
-        if (match[1]) envs.add(match[1])
+        const key = match[1]?.trim()
+        if (key) envs.add(key)
       }
     }
 
