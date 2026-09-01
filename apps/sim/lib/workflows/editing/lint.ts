@@ -1,5 +1,5 @@
 import { getBlock } from '@/blocks'
-import { isTriggerBlockType } from '@/executor/constants'
+import { isTriggerBlockType, normalizeName, SPECIAL_REFERENCE_PREFIXES } from '@/executor/constants'
 import {
   collectBlockFieldIssues,
   extractBlockParams,
@@ -69,7 +69,7 @@ export interface WorkflowLintFieldIssue extends WorkflowLintBlockRef {
 export interface WorkflowLintUnresolvedReference extends WorkflowLintBlockRef {
   field: string
   value: string | string[]
-  kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill'
+  kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
   reason: string
 }
 
@@ -374,4 +374,64 @@ export function formatWorkflowLintMessage(lint: WorkflowLintIssueView) {
   }
 
   return `Workflow lint found issues. Fix these before continuing: ${parts.join('; ')}`
+}
+
+/**
+ * A `<block.path>` template whose head names no block in the graph. The runtime
+ * behavior diverges by surface — function code fails loudly, but API bodies and
+ * agent prompts pass the literal text through and the run reports completed —
+ * so the dangling reference has to be caught at lint time, where every surface
+ * gets the same finding. Code fields are skipped: comparisons and generics in
+ * real JavaScript look like templates, and the runtime already fails those
+ * loudly. Heads are matched with the executor's own name normalization.
+ */
+const BLOCK_REF_TOKEN = /<([^<>]+)>/g
+const REF_TOKEN_SHAPE = /^[A-Za-z_][\w-]*(?:[\w\s-]*[\w-])?\.[A-Za-z0-9_.[\]]+$/
+
+function stringLeavesForLint(value: unknown, out: string[]): void {
+  if (typeof value === 'string') out.push(value)
+  else if (Array.isArray(value)) for (const item of value) stringLeavesForLint(item, out)
+  else if (typeof value === 'object' && value !== null)
+    for (const item of Object.values(value)) stringLeavesForLint(item, out)
+}
+
+export function collectDanglingBlockOutputReferences(
+  workflowState: Pick<WorkflowState, 'blocks'>
+): WorkflowLintUnresolvedReference[] {
+  const blocks = (workflowState.blocks || {}) as Record<string, BlockState>
+  const resolvable = new Set<string>()
+  for (const [id, block] of Object.entries(blocks)) {
+    resolvable.add(id)
+    if (block.name) resolvable.add(normalizeName(block.name))
+  }
+  const findings: WorkflowLintUnresolvedReference[] = []
+  for (const [blockId, block] of Object.entries(blocks)) {
+    for (const [subBlockId, subBlock] of Object.entries(block.subBlocks ?? {})) {
+      if (subBlockId === 'code') continue
+      const leaves: string[] = []
+      stringLeavesForLint((subBlock as { value?: unknown })?.value, leaves)
+      const dangling = new Set<string>()
+      for (const leaf of leaves) {
+        for (const match of leaf.matchAll(BLOCK_REF_TOKEN)) {
+          const token = match[1]
+          if (!token || !REF_TOKEN_SHAPE.test(token)) continue
+          const head = token.split('.')[0] ?? ''
+          if ((SPECIAL_REFERENCE_PREFIXES as readonly string[]).includes(head)) continue
+          if (resolvable.has(head) || resolvable.has(normalizeName(head))) continue
+          dangling.add(`<${token}>`)
+        }
+      }
+      if (dangling.size > 0) {
+        findings.push({
+          ...blockRef(blockId, block),
+          field: subBlockId,
+          value: [...dangling],
+          kind: 'block-output',
+          reason:
+            'References a block that does not exist in this workflow — at run time the literal text is passed through (or the block fails), never the intended value.',
+        })
+      }
+    }
+  }
+  return findings
 }
