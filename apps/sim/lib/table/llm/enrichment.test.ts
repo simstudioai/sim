@@ -80,6 +80,24 @@ describe('enrichTableToolDescription for table_query_rows_v2', () => {
     expect(enriched).not.toContain('{"field":"name"')
   })
 
+  /**
+   * `buildPatternClause` ESCAPES `%` before translating `*`, so a model that
+   * sends `%` gets a literal-percent match and silently wrong rows rather than
+   * an error. All four pattern operators share that translation.
+   */
+  it('covers every pattern operator in the wildcard rule and warns off %', () => {
+    expect(enriched).toContain('like, ilike, nlike and nilike all use * as the wildcard - never %')
+  })
+
+  /**
+   * A question with no condition ("the 5 most recent rows") is answered with
+   * order and limit; the model must not invent a predicate to satisfy it.
+   */
+  it('tells the model a filter is optional when no condition was asked for', () => {
+    expect(enriched).toContain('omit filter entirely and use order and limit')
+    expect(enriched).toContain('omit it whenever the question carries no condition')
+  })
+
   it('drops the wildcard example when the table has no text column', () => {
     const numeric = enrichTableToolDescription(
       'Query rows.',
