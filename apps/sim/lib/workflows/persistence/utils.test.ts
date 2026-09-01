@@ -293,6 +293,13 @@ const mockWorkflowState = createWorkflowState({
   },
 })
 
+/**
+ * The ungoverned write every characterization here performs: these exercise the
+ * table mechanics, not the permission-group gate, and a `null` subject is how a
+ * caller declares the write is not a member's authoring action.
+ */
+const UNGOVERNED = { workspaceId: null, subjectUserId: null }
+
 describe('Database Helpers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -510,7 +517,8 @@ describe('Database Helpers', () => {
     it('should successfully save workflow data to normalized tables', async () => {
       const result = await dbHelpers.saveWorkflowToNormalizedTables(
         mockWorkflowId,
-        asAppState(mockWorkflowState)
+        asAppState(mockWorkflowState),
+        UNGOVERNED
       )
 
       expect(result.success).toBe(true)
@@ -523,7 +531,8 @@ describe('Database Helpers', () => {
 
       const result = await dbHelpers.saveWorkflowToNormalizedTables(
         mockWorkflowId,
-        asAppState(emptyWorkflowState)
+        asAppState(emptyWorkflowState),
+        UNGOVERNED
       )
 
       expect(result.success).toBe(true)
@@ -534,7 +543,8 @@ describe('Database Helpers', () => {
 
       const result = await dbHelpers.saveWorkflowToNormalizedTables(
         mockWorkflowId,
-        asAppState(mockWorkflowState)
+        asAppState(mockWorkflowState),
+        UNGOVERNED
       )
 
       expect(result.success).toBe(false)
@@ -549,7 +559,8 @@ describe('Database Helpers', () => {
 
       const result = await dbHelpers.saveWorkflowToNormalizedTables(
         mockWorkflowId,
-        asAppState(mockWorkflowState)
+        asAppState(mockWorkflowState),
+        UNGOVERNED
       )
 
       expect(result.success).toBe(false)
@@ -557,7 +568,11 @@ describe('Database Helpers', () => {
     })
 
     it('should properly format block data for database insertion', async () => {
-      await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, asAppState(mockWorkflowState))
+      await dbHelpers.saveWorkflowToNormalizedTables(
+        mockWorkflowId,
+        asAppState(mockWorkflowState),
+        UNGOVERNED
+      )
 
       const [capturedBlockInserts = []] = insertedRowsFor(schemaMock.workflowBlocks)
       const [capturedEdgeInserts = []] = insertedRowsFor(schemaMock.workflowEdges)
@@ -631,7 +646,11 @@ describe('Database Helpers', () => {
       staleWorkflowState.loops = {}
       staleWorkflowState.parallels = {}
 
-      await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, asAppState(staleWorkflowState))
+      await dbHelpers.saveWorkflowToNormalizedTables(
+        mockWorkflowId,
+        asAppState(staleWorkflowState),
+        UNGOVERNED
+      )
 
       const [capturedSubflowInserts = []] = insertedRowsFor(schemaMock.workflowSubflows)
 
@@ -737,7 +756,8 @@ describe('Database Helpers', () => {
 
       const result = await dbHelpers.saveWorkflowToNormalizedTables(
         mockWorkflowId,
-        asAppState(largeWorkflowState)
+        asAppState(largeWorkflowState),
+        UNGOVERNED
       )
 
       expect(result.success).toBe(true)
@@ -869,7 +889,8 @@ describe('Database Helpers', () => {
 
       const saveResult = await dbHelpers.saveWorkflowToNormalizedTables(
         mockWorkflowId,
-        workflowState
+        workflowState,
+        UNGOVERNED
       )
       expect(saveResult.success).toBe(true)
 
@@ -940,7 +961,8 @@ describe('Database Helpers', () => {
 
       const saveResult = await dbHelpers.saveWorkflowToNormalizedTables(
         mockWorkflowId,
-        asAppState(testWorkflowState)
+        asAppState(testWorkflowState),
+        UNGOVERNED
       )
       expect(saveResult.success).toBe(true)
 

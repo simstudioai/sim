@@ -421,6 +421,12 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
       attributedUserId: subjectUserId,
+      /**
+       * The same id line 287 already resolves the permission config against.
+       * This operation denies workspace API keys, so the attribution and the
+       * governed subject are the same human and cannot diverge here.
+       */
+      subjectUserId,
       state: { blocks: graph.blocks, edges: graph.edges },
     })
 

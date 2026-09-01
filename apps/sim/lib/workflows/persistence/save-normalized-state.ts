@@ -17,10 +17,6 @@ import {
 } from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import {
-  findWithheldBlockType,
-  withheldBlockTypeMessage,
-} from '@/lib/workflows/persistence/block-access-guard'
-import {
   replaceWorkflowNormalizedState,
   WorkflowStatePersistenceError,
 } from '@/lib/workflows/persistence/replace-normalized-state'
@@ -98,28 +94,6 @@ export async function saveWorkflowNormalizedState(params: {
     throw error
   }
 
-  /**
-   * A whole-graph replace does not go through the editing operations, so this
-   * is the only point at which the blocks it carries meet the workspace's
-   * integration allowlist. Checking before the write keeps a withheld
-   * integration out of the stored workflow rather than leaving it for the
-   * executor to refuse mid-run. A workflow with no workspace has no permission
-   * group to resolve.
-   */
-  if (workflowData.workspaceId) {
-    const withheldBlockType = await findWithheldBlockType({
-      userId,
-      workspaceId: workflowData.workspaceId,
-      blocks: Object.values(state.blocks),
-    })
-    if (withheldBlockType) {
-      logger.warn(
-        `[${requestId}] User ${userId} attempted to save workflow ${workflowId} with withheld block type ${withheldBlockType}`
-      )
-      return { success: false, status: 403, error: withheldBlockTypeMessage(withheldBlockType) }
-    }
-  }
-
   let warnings: string[]
   try {
     const saved = await replaceWorkflowNormalizedState({
@@ -127,6 +101,15 @@ export async function saveWorkflowNormalizedState(params: {
       workflowId,
       workspaceId: workflowData.workspaceId ?? null,
       attributedUserId: userId,
+      /**
+       * This door authorizes by bare `userId`, so the writer and the governed
+       * subject are the same person. The integration allowlist that used to be
+       * checked inline here now lives on the shared write, which refuses a
+       * withheld block type as a `forbidden` `OrchestrationError` — read below
+       * by the same `asOrchestrationError` branch that classifies the rest, and
+       * rendered as the identical 403 and message.
+       */
+      subjectUserId: userId,
       state: {
         blocks: state.blocks as Record<string, BlockState>,
         edges: state.edges as WorkflowState['edges'],
