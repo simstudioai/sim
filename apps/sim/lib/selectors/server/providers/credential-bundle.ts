@@ -1,5 +1,5 @@
 import {
-  resolveCredentialAccessToken,
+  resolveCredentialTokenBundle,
   type ServiceAccountTokenResult,
 } from '@/lib/oauth/credential-service'
 import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
@@ -35,7 +35,7 @@ export async function resolveSelectorCredentialBundle(input: {
 
   let bundle: ServiceAccountTokenResult | null
   try {
-    bundle = await resolveCredentialAccessToken(
+    bundle = await resolveCredentialTokenBundle(
       credential.suppliedId,
       ownerUserId,
       'selector-execution',

@@ -299,16 +299,6 @@ export interface TableRow {
   }
 }
 
-export interface OAuthTokenPayload {
-  credentialId?: string
-  credentialAccountUserId?: string
-  providerId?: string
-  toolId?: string
-  workflowId?: string
-  impersonateEmail?: string
-  scopes?: string[]
-}
-
 /**
  * File data that tools can return for file-typed outputs
  */

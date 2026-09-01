@@ -7,12 +7,12 @@ const {
   mockGetCredentialActorContext,
   mockGetServiceAccountToken,
   mockRefreshTokenIfNeeded,
-  mockFetchCredentialAccessToken,
+  mockResolveExecutorCredentialToken,
 } = vi.hoisted(() => ({
   mockGetCredentialActorContext: vi.fn(),
   mockGetServiceAccountToken: vi.fn(),
   mockRefreshTokenIfNeeded: vi.fn(),
-  mockFetchCredentialAccessToken: vi.fn(),
+  mockResolveExecutorCredentialToken: vi.fn(),
 }))
 
 vi.mock('@/lib/credentials/access', () => ({
@@ -25,7 +25,7 @@ vi.mock('@/lib/oauth/credential-service', () => ({
   refreshTokenIfNeeded: mockRefreshTokenIfNeeded,
 }))
 vi.mock('@/executor/utils/credential-token', () => ({
-  fetchCredentialAccessToken: mockFetchCredentialAccessToken,
+  resolveExecutorCredentialToken: mockResolveExecutorCredentialToken,
 }))
 
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
@@ -104,10 +104,6 @@ describe('resolveVertexCredential workspace binding', () => {
   })
 })
 
-/**
- * This resolver runs inside the Trigger.dev worker, whose environment carries no OAuth
- * client config — an in-process refresh throws there once the stored token expires.
- */
 describe('resolveVertexCredential OAuth branch', () => {
   const oauthContext = {
     credential: { id: 'cred-o', workspaceId: 'workspace-a', type: 'oauth', accountId: 'acct-1' },
@@ -120,10 +116,10 @@ describe('resolveVertexCredential OAuth branch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetCredentialActorContext.mockResolvedValue(oauthContext)
-    mockFetchCredentialAccessToken.mockResolvedValue('oauth-access-token')
+    mockResolveExecutorCredentialToken.mockResolvedValue({ accessToken: 'oauth-access-token' })
   })
 
-  it('fetches the token from the app instead of refreshing in-process', async () => {
+  it('resolves the token through the shared in-process resolver', async () => {
     await expect(
       resolveVertexCredential({
         credentialId: 'cred-o',
@@ -134,7 +130,7 @@ describe('resolveVertexCredential OAuth branch', () => {
     ).resolves.toBe('oauth-access-token')
 
     expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
-    expect(mockFetchCredentialAccessToken).toHaveBeenCalledWith(
+    expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
       expect.objectContaining({ credentialId: 'cred-o', userId: 'user-1', workflowId: 'wf-1' })
     )
   })
@@ -153,6 +149,6 @@ describe('resolveVertexCredential OAuth branch', () => {
       })
     ).rejects.toThrow()
 
-    expect(mockFetchCredentialAccessToken).not.toHaveBeenCalled()
+    expect(mockResolveExecutorCredentialToken).not.toHaveBeenCalled()
   })
 })

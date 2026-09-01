@@ -17,7 +17,7 @@ vi.mock('@/lib/auth/credential-access', () => ({
 }))
 
 vi.mock('@/lib/oauth/credential-service', () => ({
-  resolveCredentialAccessToken: vi.fn(),
+  resolveCredentialTokenBundle: vi.fn(),
 }))
 
 vi.mock('@/lib/oauth/utils', () => ({
