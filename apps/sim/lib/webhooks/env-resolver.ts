@@ -20,25 +20,26 @@ export interface WebhookEnvResolutionOptions {
  * because every caller here treats an unresolvable secret as a rejected request
  * rather than an error.
  *
- * Falls back to owner-as-both when the workspace has no billing account or no
- * workspace is involved at all, which is exactly the previous behavior.
+ * Every case goes through {@link getExecutionEnvironment}, including the two
+ * that have no second identity to split against — a legacy workspaceless
+ * webhook, and a workspace with no billing account. Returning
+ * `getEffectiveDecryptedEnv` directly for those read the owner's variables
+ * without passing the resolver's suspension check, so the one arrangement that
+ * still lent a suspended account's secrets was the one with the least going on.
+ * Naming the owner as both identities keeps the resolution identical to what
+ * those cases produced before while putting them behind the same gate.
  */
 export async function resolveBackgroundWebhookEnv(
   workflowOwnerUserId: string,
   workspaceId?: string
 ): Promise<Record<string, string>> {
-  if (!workspaceId) {
-    return getEffectiveDecryptedEnv(workflowOwnerUserId)
-  }
-
-  const billedAccountUserId = await getWorkspaceBilledAccountUserId(workspaceId)
-  if (!billedAccountUserId) {
-    return getEffectiveDecryptedEnv(workflowOwnerUserId, workspaceId)
-  }
+  const billedAccountUserId = workspaceId
+    ? await getWorkspaceBilledAccountUserId(workspaceId)
+    : null
 
   const snapshot = await getExecutionEnvironment(
     workflowOwnerUserId,
-    billedAccountUserId,
+    billedAccountUserId ?? workflowOwnerUserId,
     workspaceId
   )
   return { ...snapshot.personalDecrypted, ...snapshot.workspaceDecrypted }

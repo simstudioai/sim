@@ -153,21 +153,44 @@ describe('resolveBackgroundWebhookEnv', () => {
     expect(env).toEqual({ SHARED: 'workspace' })
   })
 
-  it('falls back to the single identity when the workspace has no billing account', async () => {
+  /**
+   * Both degenerate cases still go through the resolver, naming the owner as
+   * both identities. Short-circuiting them to `getEffectiveDecryptedEnv` read the
+   * owner's variables without passing the resolver's suspension check.
+   */
+  it('names the owner as both identities when the workspace has no billing account', async () => {
     mockGetWorkspaceBilledAccountUserId.mockResolvedValue(null)
 
     const env = await resolveBackgroundWebhookEnv('owner-1', 'workspace-1')
 
-    expect(mockGetExecutionEnvironment).not.toHaveBeenCalled()
-    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('owner-1', 'workspace-1')
-    expect(env).toEqual({ FROM_SINGLE_IDENTITY: 'single' })
+    expect(mockGetExecutionEnvironment).toHaveBeenCalledWith('owner-1', 'owner-1', 'workspace-1')
+    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(env).toEqual({ OWNER_KEY: 'owner-value', WORKSPACE_KEY: 'workspace-value' })
   })
 
-  it('resolves a workspaceless webhook against the owner alone', async () => {
+  it('routes a workspaceless webhook through the resolver too', async () => {
     const env = await resolveBackgroundWebhookEnv('owner-1')
 
     expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
-    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('owner-1')
-    expect(env).toEqual({ FROM_SINGLE_IDENTITY: 'single' })
+    expect(mockGetExecutionEnvironment).toHaveBeenCalledWith('owner-1', 'owner-1', undefined)
+    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(env).toEqual({ OWNER_KEY: 'owner-value', WORKSPACE_KEY: 'workspace-value' })
+  })
+
+  /** A suspended owner contributes nothing, including on the workspaceless path. */
+  it('yields no personal variables for a suspended owner with no workspace', async () => {
+    mockGetExecutionEnvironment.mockResolvedValue({
+      personalDecrypted: {},
+      workspaceDecrypted: {},
+    })
+
+    const env = await resolveBackgroundWebhookEnv('suspended-owner')
+
+    expect(mockGetExecutionEnvironment).toHaveBeenCalledWith(
+      'suspended-owner',
+      'suspended-owner',
+      undefined
+    )
+    expect(env).toEqual({})
   })
 })
