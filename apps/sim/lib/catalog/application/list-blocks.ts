@@ -17,6 +17,7 @@ import {
   type CatalogBlockSummary,
   projectBlockSummary,
 } from '@/lib/catalog/projection/block-summary'
+import { CONTAINER_BLOCK_SUMMARIES } from '@/lib/catalog/projection/container-blocks'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { getAllBlocks } from '@/blocks/registry'
 
@@ -70,11 +71,14 @@ export const listCatalogBlocks = defineAuthorizedWorkspaceUseCase({
     const search = normalizeCatalogSearch(input.search)
     const gate = await resolveCatalogGate(principal, context)
 
-    const summaries = await withCatalogBlockScope(gate, async () =>
-      getAllBlocks()
+    const summaries = await withCatalogBlockScope(gate, async () => [
+      ...getAllBlocks()
         .filter((block) => isBlockVisibleToCaller(block, gate))
-        .map(projectBlockSummary)
-    )
+        .map(projectBlockSummary),
+      // Containers are authorable types (add_block accepts them) that live outside
+      // the registry — the catalog speaks the same vocabulary as authoring.
+      ...CONTAINER_BLOCK_SUMMARIES,
+    ])
 
     const filtered = summaries.filter(
       (block) =>

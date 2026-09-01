@@ -286,7 +286,9 @@ describe('catalog block and tool reads', () => {
 
     expect(result.entries.map((entry) => entry.id)).toEqual([
       'custom_block_reports',
+      'loop',
       'notion',
+      'parallel',
       'slack',
     ])
     expect(result.hasMore).toBe(false)
@@ -296,7 +298,7 @@ describe('catalog block and tool reads', () => {
   it('accepts a workspace API key, which has no user for permission groups to key on', async () => {
     const result = await listCatalogBlocks.execute({ principal: workspaceKey, input: listInput })
 
-    expect(result.entries).toHaveLength(3)
+    expect(result.entries).toHaveLength(5)
     expect(mocks.allowedIntegrationTypes).toHaveBeenCalledWith(workspaceKey, WORKSPACE_ID)
     expect(mocks.getBlockVisibility).toHaveBeenCalledWith({ orgId: 'org-1' })
   })
@@ -313,7 +315,9 @@ describe('catalog block and tool reads', () => {
     const sources = Object.fromEntries(result.entries.map((entry) => [entry.id, entry.source]))
     expect(sources).toEqual({
       custom_block_reports: 'custom',
+      loop: 'builtin',
       notion: 'builtin',
+      parallel: 'builtin',
       slack: 'builtin',
     })
   })
@@ -338,7 +342,7 @@ describe('catalog block and tool reads', () => {
     mocks.getAllBlocks.mockReturnValue([slackBlock, previewBlock])
 
     const result = await listCatalogBlocks.execute({ principal: session, input: listInput })
-    expect(result.entries.map((entry) => entry.id)).toEqual(['slack'])
+    expect(result.entries.map((entry) => entry.id)).toEqual(['loop', 'parallel', 'slack'])
 
     await expect(
       getCatalogBlock.execute({
@@ -382,7 +386,7 @@ describe('catalog block and tool reads', () => {
     mocks.allowedIntegrationTypes.mockResolvedValue(new Set(['slack']))
 
     const result = await listCatalogBlocks.execute({ principal: session, input: listInput })
-    expect(result.entries.map((entry) => entry.id)).toEqual(['slack'])
+    expect(result.entries.map((entry) => entry.id)).toEqual(['loop', 'parallel', 'slack'])
 
     await expect(
       getCatalogBlock.execute({
@@ -396,7 +400,12 @@ describe('catalog block and tool reads', () => {
     mocks.isDeploymentAvailable.mockImplementation((type: string) => type !== 'notion')
 
     const result = await listCatalogBlocks.execute({ principal: session, input: listInput })
-    expect(result.entries.map((entry) => entry.id)).toEqual(['custom_block_reports', 'slack'])
+    expect(result.entries.map((entry) => entry.id)).toEqual([
+      'custom_block_reports',
+      'loop',
+      'parallel',
+      'slack',
+    ])
   })
 
   it('narrows to trigger-capable blocks without a second endpoint', async () => {
@@ -419,15 +428,35 @@ describe('catalog block and tool reads', () => {
       principal: session,
       input: { ...listInput, limit: 2 },
     })
-    expect(first.entries.map((entry) => entry.id)).toEqual(['custom_block_reports', 'notion'])
+    expect(first.entries.map((entry) => entry.id)).toEqual(['custom_block_reports', 'loop'])
     expect(first.hasMore).toBe(true)
 
     const second = await listCatalogBlocks.execute({
       principal: session,
       input: { ...listInput, limit: 2, offset: 2 },
     })
-    expect(second.entries.map((entry) => entry.id)).toEqual(['slack'])
-    expect(second.hasMore).toBe(false)
+    expect(second.entries.map((entry) => entry.id)).toEqual(['notion', 'parallel'])
+    expect(second.hasMore).toBe(true)
+  })
+
+  it('answers for the loop and parallel containers with their authoring shape', async () => {
+    const { block: loop } = await getCatalogBlock.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID, blockId: 'loop' },
+    })
+    expect(loop.id).toBe('loop')
+    expect(
+      loop.inputSchema.find((field) => field.id === 'loopType')?.options?.map((o) => o.id)
+    ).toEqual(['for', 'forEach', 'while', 'doWhile'])
+    expect(Object.keys(loop.outputs)).toContain('results')
+
+    const { block: parallel } = await getCatalogBlock.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID, blockId: 'parallel' },
+    })
+    expect(
+      parallel.inputSchema.find((field) => field.id === 'parallelType')?.options?.map((o) => o.id)
+    ).toEqual(['count', 'collection'])
   })
 
   it('reads one block with its operations and tools resolved from metadata', async () => {
@@ -561,7 +590,12 @@ describe('catalog block and tool reads', () => {
      * positive by code unit. Pinning the code-unit answer is what makes an
      * offset cursor name the same row on every instance, whatever its `LANG`.
      */
-    expect(result.entries.map((entry) => entry.name)).toEqual(['Banana', 'apple'])
+    expect(result.entries.map((entry) => entry.name)).toEqual([
+      'Banana',
+      'Loop',
+      'Parallel',
+      'apple',
+    ])
   })
 
   it('reports no hosted key on a deployment that supplies none', async () => {
