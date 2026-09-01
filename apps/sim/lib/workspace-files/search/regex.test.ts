@@ -90,7 +90,9 @@ describe('analyzeFileSearchRegex', () => {
       ['(?<name>foo)', /Named group/],
       ['(?i)foo', /Inline flag/],
       ['(foo)\\1bar', /Backreference/],
-      ['[[:alpha:]]foo', /POSIX class/],
+      ['[[:alpha:]]foo', /POSIX character class/],
+      ['[[=a=]]foo', /POSIX equivalence class/],
+      ['[[.hyphen.]]foo', /POSIX collating element/],
       ['\\p{Lu}foo', /Unicode property/],
       ['\\yfoo\\y', /"\\y" is not supported — write "\\b" instead/],
       ['\\Afoo\\Z', /"\\A" is not supported — write "\^" instead/],
@@ -132,6 +134,8 @@ describe('analyzeFileSearchRegex', () => {
       'user_id=\\w+ token',
       'error a{3,}bcd',
       'error a{3,10}bcd',
+      'needle[.]txt',
+      'needle[a.b]txt',
     ])('accepts %s', (source) => {
       expect(() => analyzeFileSearchRegex(source)).not.toThrow()
     })

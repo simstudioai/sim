@@ -62,6 +62,13 @@ const OPAQUE: LiteralGuarantee = {
   zeroWidth: false,
 }
 
+/** PostgreSQL bracket expressions, by the character that opens them after `[`. */
+const POSIX_BRACKETS: Record<string, string | undefined> = {
+  ':': 'character class',
+  '=': 'equivalence class',
+  '.': 'collating element',
+}
+
 /** Escapes whose meaning and spelling are identical in PostgreSQL ARE and JavaScript. */
 const SHARED_ESCAPE_LETTERS = new Set(['d', 'D', 'w', 'W', 's', 'S', 't', 'n', 'r', 'f', 'v'])
 
@@ -401,9 +408,17 @@ class FileSearchRegexParser {
         this.index += 1
         return OPAQUE
       }
-      if (character === '[' && this.source[this.index + 1] === ':') {
+      /**
+       * `[:class:]`, `[=equivalence=]` and `[.collating.]` are all PostgreSQL
+       * bracket expressions with no JavaScript counterpart — JavaScript reads
+       * them as an ordinary set of characters. Only the first was rejected, so
+       * the other two passed an allowlist whose whole point is to close.
+       */
+      const posixBracket =
+        character === '[' ? POSIX_BRACKETS[this.source[this.index + 1]] : undefined
+      if (posixBracket) {
         throw new FileSearchPatternError(
-          `POSIX class at position ${this.index + 1} is not supported — write the range directly, such as "[a-z]" or "\\w"`
+          `POSIX ${posixBracket} at position ${this.index + 1} is not supported — write the characters directly, such as "[a-z]" or "\\w"`
         )
       }
       if (character === '\\') {
