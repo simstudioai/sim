@@ -51,8 +51,11 @@ All three must hold:
 1. The latest Greptile summary comment reports **Confidence Score: 5/5**
 2. `reviewThreads` (GraphQL, see below) has **zero threads with `isResolved: false`**, from
    either bot
-3. Required checks are passing — `gh pr checks <n>` shows no `fail` (a red CI run is not clean
-   no matter what the reviewers say, and lint/audit jobs routinely catch what local runs miss)
+3. Every check has **finished and passed** — `gh pr checks <n>` shows no `fail` *and* no
+   `pending`. A red run is not clean no matter what the reviewers say, and the lint/audit jobs
+   routinely catch what a local run misses. A `pending` one is not clean either: it has not
+   reported yet, and treating "not failing" as "passing" reports the PR clean before CI has
+   had its say. Wait for it — the step-10 stop condition covers a check that never settles.
 
 Do not stop early on "no new comments this round" alone — a thread can be open from an earlier
 round, and cubic often lands its first threads a round after Greptile's. Always check all three
@@ -78,12 +81,14 @@ conditions freshly after every push.
    stop yet: re-run the same query with `after: "<endCursor>"` and keep paging until
    `hasNextPage` is `false` before evaluating "clean." A PR with more than 50 threads is rare but
    stopping on a partial page would silently miss unresolved ones past the cutoff.
-   The thread query returns both bots' threads — check `author.login` per thread, don't assume
-   they're all Greptile's.
+   The query returns both bots' threads. A `ReviewThread` has no author of its own — identity
+   lives on its comments, so read the opener's at `comments.nodes[0].author.login` and do not
+   add an `author` field at the thread level, which makes the query fail to compile.
    If `mergeable` is `CONFLICTING`, fix that first (step 2). If a check is failing, fix that too
-   — treat it exactly like a review finding. Otherwise, if Greptile is 5/5, every thread across
-   all pages has `isResolved: true`, and no check is failing, stop — report the outcome (see
-   "Reporting" below) and skip the rest of this list.
+   — treat it exactly like a review finding. If a check is still `pending`, do not evaluate
+   "clean" at all: go to step 9 and wait for it. Otherwise, if Greptile is 5/5, every thread
+   across all pages has `isResolved: true`, and every check has finished and passed, stop —
+   report the outcome (see "Reporting" below) and skip the rest of this list.
 
 2. **If the PR has a merge conflict**, merge `origin/staging`, resolve the conflicts, run the
    usual pre-push checks, push, and go to step 8 to re-trigger review.
@@ -167,7 +172,7 @@ conditions freshly after every push.
 
 When the loop ends, summarize: how many rounds it took, what was actually fixed (one line each),
 what was pushed back on as a false positive and why, and the final state — Greptile score, open
-thread count across both bots, and CI status.
+thread count across both bots, and whether every check finished and passed.
 
 ## Public-repo hygiene
 
