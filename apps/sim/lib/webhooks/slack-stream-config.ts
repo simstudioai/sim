@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { parseOutputSelector } from '@/lib/workflows/streaming/output-selector'
 
 export const SLACK_STREAM_RESPONSE_EVENTS = [
   'message',
@@ -22,15 +23,12 @@ export interface SlackStreamResponseConfig {
 
 const SLACK_TASK_TITLE_LIMIT = 256
 
-function parseOutputSelector(selector: string): SlackStreamOutputConfig {
-  const separatorIndex = selector.indexOf('_')
-  if (separatorIndex <= 0 || separatorIndex === selector.length - 1) {
+function parseSlackOutputSelector(selector: string): SlackStreamOutputConfig {
+  const parsed = parseOutputSelector(selector)
+  if (!parsed.path) {
     throw new Error(`Invalid Slack stream output selector: ${selector}`)
   }
-  return {
-    blockId: selector.slice(0, separatorIndex),
-    path: selector.slice(separatorIndex + 1),
-  }
+  return parsed
 }
 
 /** Converts trigger authoring fields into the durable Slack streaming contract. */
@@ -73,7 +71,7 @@ export function normalizeSlackStreamResponseConfig(
 
   return {
     enabled: true,
-    outputConfigs: selectors.map(parseOutputSelector),
+    outputConfigs: selectors.map(parseSlackOutputSelector),
     includeThinking: providerConfig.streamIncludeThinking === true,
     includeToolCalls: providerConfig.streamIncludeToolCalls !== false,
     taskTitle,

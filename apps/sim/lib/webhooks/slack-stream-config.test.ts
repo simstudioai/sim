@@ -13,7 +13,7 @@ describe('Slack stream response config', () => {
     const providerConfig: Record<string, unknown> = {
       eventType: 'app_mention',
       streamResponse: true,
-      streamOutputs: ['block-1_content', 'block-2_result.value'],
+      streamOutputs: ['block-1_content', 'workflow-block/block-2_result.value'],
       streamIncludeThinking: true,
       streamIncludeToolCalls: false,
       streamTaskTitle: '  Working  ',
@@ -26,7 +26,7 @@ describe('Slack stream response config', () => {
       enabled: true,
       outputConfigs: [
         { blockId: 'block-1', path: 'content' },
-        { blockId: 'block-2', path: 'result.value' },
+        { blockId: 'workflow-block/block-2', path: 'result.value' },
       ],
       includeThinking: true,
       includeToolCalls: false,

@@ -34,6 +34,10 @@ import {
 } from '@/lib/workflows/persistence/utils'
 import { shouldEmitAgentStreamEvents } from '@/lib/workflows/streaming/agent-stream-protocol'
 import {
+  formatOutputSelector,
+  parseOutputSelector,
+} from '@/lib/workflows/streaming/output-selector'
+import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
 } from '@/lib/workflows/streaming/streaming'
@@ -842,6 +846,11 @@ export function resolveOutputIds(
   }
 
   return selectedOutputs.map((outputId) => {
+    if (outputId.includes('/')) {
+      const parsed = parseOutputSelector(outputId)
+      return formatOutputSelector(parsed.blockId, parsed.path)
+    }
+
     const underscoreIndex = outputId.indexOf('_')
     const dotIndex = outputId.indexOf('.')
     if (underscoreIndex > 0) {

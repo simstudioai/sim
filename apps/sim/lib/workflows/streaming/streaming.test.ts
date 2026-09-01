@@ -180,6 +180,7 @@ describe('createStreamingResponse', () => {
       streamConfig: {},
       executeFn: async ({ onStream }) => {
         await onStream({
+          blockId: 'agent-1',
           stream: new ReadableStream({
             start(controller) {
               controller.error(rawError)
@@ -215,6 +216,46 @@ describe('createStreamingResponse', () => {
     expect(loggerPayload).not.toContain('__var_')
     expect(loggerPayload).not.toContain('__sim_')
     expect(rawError.message).toBe(message)
+  })
+
+  it('emits invocation-scoped block IDs for a nested agent stream', async () => {
+    const stream = await createStreamingResponse({
+      requestId: 'request-nested-agent',
+      executionId: 'execution-1',
+      streamConfig: {
+        selectedOutputs: ['workflow-block/agent-1_content'],
+        includeFileBase64: false,
+      },
+      executeFn: async ({ onStream }) => {
+        await onStream({
+          blockId: 'workflow-block/agent-1',
+          stream: new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('Nested answer'))
+              controller.close()
+            },
+          }),
+          execution: {
+            success: true,
+            output: { content: 'Nested answer' },
+            logs: [],
+            metadata: {},
+          },
+        })
+        return {
+          success: true,
+          output: {},
+          logs: [],
+          metadata: { duration: 1 },
+        }
+      },
+    })
+
+    const events = await collectSSEEvents(stream)
+    expect(events).toContainEqual({
+      blockId: 'workflow-block/agent-1',
+      chunk: 'Nested answer',
+    })
   })
 
   it('extracts block-level selected outputs from JSON content payloads', async () => {
@@ -944,6 +985,7 @@ describe('createStreamingResponse agent-events-v1', () => {
       })
 
       const onStreamPromise = onStream({
+        blockId: 'agent-1',
         stream: textStream,
         streamFormat: 'text',
         subscribe: (nextSink: { onEvent: (event: unknown) => void | Promise<void> }) => {
@@ -1173,6 +1215,7 @@ describe('createStreamingResponse agent-events-v1', () => {
         })
 
         const onStreamPromise = onStream({
+          blockId: 'agent-1',
           stream: textStream,
           streamFormat: 'text',
           subscribe: (nextSink: { onEvent: (event: unknown) => void | Promise<void> }) => {
@@ -1262,6 +1305,7 @@ describe('createStreamingResponse agent-events-v1', () => {
         })
 
         const onStreamPromise = onStream({
+          blockId: 'agent-1',
           stream: textStream,
           streamFormat: 'text',
           subscribe: (nextSink: { onEvent: (event: unknown) => void | Promise<void> }) => {
@@ -1342,6 +1386,7 @@ describe('createStreamingResponse agent-events-v1', () => {
         })
 
         const onStreamPromise = onStream({
+          blockId: 'agent-1',
           stream: textStream,
           streamFormat: 'text',
           subscribe: (nextSink: { onEvent: (event: unknown) => void | Promise<void> }) => {
@@ -1506,6 +1551,7 @@ describe('createStreamingResponse agent-events-v1', () => {
         })
 
         const onStreamPromise = onStream({
+          blockId: 'agent-1',
           stream: textStream,
           streamFormat: 'text',
           subscribe: (nextSink: any) => {

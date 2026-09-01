@@ -1,0 +1,254 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act, type ReactNode } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@sim/emcn', () => ({
+  cn: (...values: unknown[]) => values.flat().filter(Boolean).join(' '),
+  Combobox: ({
+    groups,
+    multiSelectValues = [],
+    onMultiSelectChange,
+  }: {
+    groups: Array<{
+      section?: string
+      sectionElement?: ReactNode
+      items: Array<{
+        label: string
+        value: string
+        iconElement?: ReactNode
+        suffixElement?: ReactNode
+        onSelect?: () => void
+      }>
+    }>
+    multiSelectValues?: string[]
+    onMultiSelectChange?: (values: string[]) => void
+  }) => (
+    <div>
+      {groups.map((group, groupIndex) => (
+        <div key={group.section ?? groupIndex}>
+          {group.sectionElement}
+          {group.section ? <span data-section>{group.section}</span> : null}
+          {group.items.map((option) => (
+            <button
+              key={option.value}
+              type='button'
+              onClick={() => {
+                if (option.onSelect) {
+                  option.onSelect()
+                  return
+                }
+                onMultiSelectChange?.(
+                  multiSelectValues.includes(option.value)
+                    ? multiSelectValues.filter((value) => value !== option.value)
+                    : [...multiSelectValues, option.value]
+                )
+              }}
+            >
+              {option.iconElement}
+              {option.label}
+              {option.suffixElement}
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  ),
+  ChipCombobox: ({
+    groups,
+    multiSelectValues,
+    onMultiSelectChange,
+  }: {
+    groups: Array<{ section?: string; items: Array<{ label: string; value: string }> }>
+    multiSelectValues?: string[]
+    onMultiSelectChange?: (values: string[]) => void
+  }) => (
+    <div data-chip-combobox>
+      {groups.flatMap((group) =>
+        group.items.map((option) => (
+          <button
+            key={option.value}
+            type='button'
+            onClick={() => onMultiSelectChange?.([...(multiSelectValues ?? []), option.value])}
+          >
+            {option.label}
+          </button>
+        ))
+      )}
+    </div>
+  ),
+}))
+
+vi.mock('zustand/react/shallow', () => ({ useShallow: (selector: unknown) => selector }))
+
+vi.mock('@/blocks/block-tile', () => ({
+  BlockTile: ({ blockType }: { blockType: string }) => <span data-block-type={blockType} />,
+}))
+
+vi.mock('@/hooks/queries/workflows', () => ({ useWorkflowStates: () => new Map() }))
+
+vi.mock('@/stores/workflow-diff/store', () => ({
+  useWorkflowDiffStore: (selector: (state: object) => unknown) =>
+    selector({
+      isShowingDiff: false,
+      isDiffReady: false,
+      hasActiveDiff: false,
+      baselineWorkflow: null,
+    }),
+}))
+
+vi.mock('@/stores/workflows/subblock/store', () => ({
+  useSubBlockStore: (selector: (state: object) => unknown) =>
+    selector({ workflowValues: { root: {} } }),
+}))
+
+vi.mock('@/stores/workflows/workflow/store', () => ({
+  useWorkflowStore: (selector: (state: object) => unknown) => selector({ blocks: {}, edges: [] }),
+}))
+
+vi.mock('@/lib/workflows/streaming/nested-output-options', () => {
+  const rootOutput = {
+    id: 'summary_content',
+    label: 'Summarizer.content',
+    blockId: 'summary',
+    blockName: 'Summarizer',
+    blockType: 'agent',
+    groupKey: 'summary',
+    groupLabel: 'Summarizer',
+    path: 'content',
+    menuPath: [],
+  }
+  const nestedOutput = {
+    id: 'workflow/agent_answer',
+    label: 'Research.Writer.answer',
+    blockId: 'workflow/agent',
+    blockName: 'Writer',
+    blockType: 'agent',
+    groupKey: 'workflow/agent',
+    groupLabel: 'Research / Writer',
+    path: 'answer',
+    menuPath: [],
+  }
+
+  return {
+    collectReferencedWorkflowIds: () => [],
+    buildWorkflowOutputOptions: () => [rootOutput, nestedOutput],
+    buildWorkflowOutputMenu: () => [
+      {
+        blockId: 'summary',
+        blockName: 'Summarizer',
+        blockType: 'agent',
+        outputs: [rootOutput],
+        children: [],
+      },
+      {
+        blockId: 'workflow',
+        blockName: 'Research',
+        blockType: 'workflow_input',
+        outputs: [],
+        children: [
+          {
+            blockId: 'workflow/agent',
+            blockName: 'Writer',
+            blockType: 'agent',
+            outputs: [nestedOutput],
+            children: [],
+          },
+        ],
+      },
+    ],
+  }
+})
+
+import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
+
+let root: Root | null = null
+let container: HTMLDivElement | null = null
+
+function outputSelect(
+  workflowId: string,
+  selectedOutputs: string[],
+  onOutputSelect: (outputIds: string[]) => void
+) {
+  return (
+    <OutputSelect
+      workflowId={workflowId}
+      selectedOutputs={selectedOutputs}
+      onOutputSelect={onOutputSelect}
+    />
+  )
+}
+
+function renderOutputSelect(selectedOutputs: string[], onOutputSelect = vi.fn()) {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+  act(() => {
+    root?.render(outputSelect('root', selectedOutputs, onOutputSelect))
+  })
+  return onOutputSelect
+}
+
+function rerenderOutputSelect(
+  workflowId: string,
+  selectedOutputs: string[],
+  onOutputSelect: (outputIds: string[]) => void
+) {
+  act(() => {
+    root?.render(outputSelect(workflowId, selectedOutputs, onOutputSelect))
+  })
+}
+
+afterEach(() => {
+  if (root) act(() => root?.unmount())
+  container?.remove()
+  root = null
+  container = null
+})
+
+describe('OutputSelect nested workflow menu', () => {
+  const clickOption = (label: string) => {
+    const option = [...document.querySelectorAll('button')].find(
+      (candidate) => candidate.textContent === label
+    )
+    if (!(option instanceof HTMLButtonElement))
+      throw new Error(`Output option did not render: ${label}`)
+    act(() => option.click())
+  }
+
+  it('keeps root outputs visible and drills into workflow block outputs', () => {
+    renderOutputSelect([])
+
+    expect(document.body.textContent).toContain('Summarizer')
+    expect(document.body.textContent).toContain('content')
+    expect(document.body.textContent).toContain('Research')
+    expect(document.body.textContent).not.toContain('Writer')
+
+    clickOption('Outputs')
+    expect(document.body.textContent).toContain('Back')
+    expect(document.body.textContent).toContain('Writer')
+    expect(document.body.textContent).toContain('answer')
+    expect(document.body.textContent).not.toContain('Summarizer')
+  })
+
+  it('keeps invocation-scoped values when toggling nested outputs', () => {
+    const onOutputSelect = renderOutputSelect([])
+    clickOption('Outputs')
+    clickOption('answer')
+
+    expect(onOutputSelect).toHaveBeenCalledWith(['workflow/agent_answer'])
+  })
+
+  it('returns to the root menu when the owning workflow changes', () => {
+    const onOutputSelect = renderOutputSelect([])
+    clickOption('Outputs')
+
+    rerenderOutputSelect('replacement', [], onOutputSelect)
+
+    expect(document.body.textContent).toContain('Summarizer')
+    expect(document.body.textContent).not.toContain('Back')
+  })
+})

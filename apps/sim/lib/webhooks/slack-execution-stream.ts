@@ -22,6 +22,7 @@ import {
   type SlackStreamSessionTarget,
   unregisterSlackStreamSession,
 } from '@/lib/webhooks/slack-stream-sessions'
+import { formatOutputSelector } from '@/lib/workflows/streaming/output-selector'
 import type { BlockCompletionCallbackData, ExecutionCallbacks } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 import type { AgentStreamEvent } from '@/providers/stream-events'
@@ -294,8 +295,8 @@ export class SlackExecutionStreamController {
   ) {
     this.token = token
     this.target = target
-    this.selectedOutputs = options.config.outputConfigs.map(
-      (output) => `${output.blockId}_${output.path}`
+    this.selectedOutputs = options.config.outputConfigs.map((output) =>
+      formatOutputSelector(output.blockId, output.path)
     )
     this.callbacks = {
       onStream: (stream) => this.onStream(stream),
@@ -391,21 +392,24 @@ export class SlackExecutionStreamController {
       )
       this.invocations.set(key, invocation)
 
-      const forwardFromSink = Boolean(stream.subscribe) && !stream.clientStreamTransformed
-      const unsubscribe = forwardFromSink
-        ? stream.subscribe?.({ onEvent: (event) => invocation.onEvent(event) })
-        : undefined
+      const answerFromEventSink = Boolean(stream.subscribe) && !stream.clientStreamTransformed
+      const unsubscribe = stream.subscribe?.({
+        onEvent: async (event) => {
+          if (!answerFromEventSink && event.type === 'text_delta') return
+          await invocation.onEvent(event)
+        },
+      })
       const reader = stream.stream.getReader()
       const decoder = new TextDecoder()
       try {
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
-          if (!forwardFromSink) {
+          if (!answerFromEventSink) {
             await invocation.appendProjectedBytes(decoder.decode(value, { stream: true }))
           }
         }
-        if (!forwardFromSink) {
+        if (!answerFromEventSink) {
           const remainder = decoder.decode()
           if (remainder) await invocation.appendProjectedBytes(remainder)
         }
@@ -420,9 +424,10 @@ export class SlackExecutionStreamController {
 
   private async onBlockComplete(blockId: string, data: BlockCompletionCallbackData): Promise<void> {
     try {
-      const selected = this.selectedForBlock(blockId)
+      const selectedOutputBlockId = data.outputBlockId ?? blockId
+      const selected = this.selectedForBlock(selectedOutputBlockId)
       if (selected.length === 0) return
-      const key = this.invocationKey(blockId, data.executionOrder)
+      const key = this.invocationKey(selectedOutputBlockId, data.executionOrder)
       if (this.invocations.has(key)) return
 
       const display = await this.options.loggingSession.projectDisplayContent(

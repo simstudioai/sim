@@ -14,6 +14,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { ChatFiles } from '@/lib/uploads'
+import { formatOutputSelector } from '@/lib/workflows/streaming/output-selector'
 import { setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -213,9 +214,7 @@ export const POST = withRouteHandler(
         const selectedOutputs: string[] = []
         if (deployment.outputConfigs && Array.isArray(deployment.outputConfigs)) {
           for (const config of deployment.outputConfigs) {
-            const outputId = config.path
-              ? `${config.blockId}_${config.path}`
-              : `${config.blockId}_content`
+            const outputId = formatOutputSelector(config.blockId, config.path || 'content')
             selectedOutputs.push(outputId)
           }
         }
