@@ -61,6 +61,41 @@ const {
   releaseChatSendClaim: vi.fn(),
 }))
 
+/**
+ * The root span, captured so a test can assert what a refused turn exported.
+ * `withCopilotSpan` is a pass-through here — the nesting it provides is not
+ * under test and a real tracer would need an exporter to observe.
+ */
+const { setInputMessages, setUserMessagePreview, startCopilotOtelRoot } = vi.hoisted(() => ({
+  setInputMessages: vi.fn(),
+  setUserMessagePreview: vi.fn(),
+  startCopilotOtelRoot: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/request/otel', async () => {
+  const { ROOT_CONTEXT, trace } = await import('@opentelemetry/api')
+  const span = () => trace.getTracer('post-test').startSpan('post-test')
+  startCopilotOtelRoot.mockImplementation(() => ({
+    span: span(),
+    context: ROOT_CONTEXT,
+    requestId: 'req-1',
+    finish: vi.fn(),
+    setUserMessagePreview,
+    setInputMessages,
+    setOutputMessages: vi.fn(),
+    setRequestShape: vi.fn(),
+  }))
+  return {
+    startCopilotOtelRoot,
+    withCopilotSpan: (
+      _name: string,
+      _attrs: Record<string, unknown> | undefined,
+      fn: (child: ReturnType<typeof span>) => unknown,
+      _context?: unknown
+    ) => fn(span()),
+  }
+})
+
 const resolvePermissionGroupConfig = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
 const getSession = authMockFns.mockGetSession
@@ -1066,6 +1101,38 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
 
     expect(response.status).toBe(200)
     expect(createSSEStream).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * Prompt content is exported only once the turn is going to run. GenAI
+   * message capture is gated on whether capture is enabled at all, not on
+   * whether this caller may send, so capturing at span start exported the
+   * message of every turn the gate then refused.
+   */
+  it('exports no part of the prompt when the send is refused', async () => {
+    resolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideCopilot: true,
+    })
+
+    const response = await handleUnifiedChatPost(chatRequest({ createNewChat: true }))
+
+    expect(response.status).toBe(403)
+    expect(setInputMessages).not.toHaveBeenCalled()
+    expect(setUserMessagePreview).not.toHaveBeenCalled()
+    expect(startCopilotOtelRoot).toHaveBeenCalledWith(
+      expect.not.objectContaining({ userMessagePreview: expect.anything() })
+    )
+  })
+
+  it('captures the prompt once the send is allowed to run', async () => {
+    resolvePermissionGroupConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+
+    const response = await handleUnifiedChatPost(chatRequest({ createNewChat: true }))
+
+    expect(response.status).toBe(200)
+    expect(setUserMessagePreview).toHaveBeenCalledWith('Hello')
+    expect(setInputMessages).toHaveBeenCalledWith({ userMessage: 'Hello' })
   })
 
   /** A branch that lands in no workspace at all is governed by no group. */

@@ -1073,7 +1073,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       executionId,
       runId,
       transport: CopilotTransport.Stream,
-      userMessagePreview: body.message,
     })
     if (otelRoot.requestId) {
       requestId = otelRoot.requestId
@@ -1088,10 +1087,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     if (authenticatedUserEmail) {
       otelRoot.span.setAttribute(TraceAttr.UserEmail, authenticatedUserEmail)
     }
-    // `setInputMessages` is internally gated on
-    // OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT; safe to call.
-    otelRoot.setInputMessages({ userMessage: body.message })
-
     // Wrap the rest of the handler so nested spans attach to the
     // root via AsyncLocalStorage (otherwise they orphan into new traces).
     const activeOtelRoot = otelRoot
@@ -1159,6 +1154,17 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.finish('error')
         return capabilityRefusalResponse(chatCapability)
       }
+
+      /* Prompt content is captured only once the turn is going to run. Both
+         calls are internally gated on
+         OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT, but the gate is on
+         whether capture is enabled at all, not on whether this caller may send
+         — so stamping them at span start exported the message of every turn the
+         capability check above then refused. Every refusal ahead of this point
+         (a rejected branch, a withheld `copilot.use`) now records the shape of
+         the request and none of its content. */
+      activeOtelRoot.setUserMessagePreview(body.message)
+      activeOtelRoot.setInputMessages({ userMessage: body.message })
 
       let currentChat: ChatLoadResult['chat'] = null
       let conversationHistory: unknown[] = []
