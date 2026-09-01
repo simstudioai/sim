@@ -48,6 +48,10 @@ describe('perceivedBackgroundBrightness', () => {
     expect(
       perceivedBackgroundBrightness('linear-gradient(45deg, currentColor, transparent)')
     ).toBeNull()
+    expect(
+      perceivedBackgroundBrightness('linear-gradient(45deg, #fff, rebeccapurple, #000)')
+    ).toBeNull()
+    expect(perceivedBackgroundBrightness('linear-gradient(rebeccapurple, #fff, #000)')).toBeNull()
     expect(perceivedBackgroundBrightness('currentColor')).toBeNull()
   })
 })
