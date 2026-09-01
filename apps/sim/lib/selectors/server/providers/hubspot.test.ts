@@ -170,13 +170,13 @@ describe('HubSpot server selector adapter', () => {
 
     await expect(
       hubspotSelectorAttachments['hubspot.owners'].execute(
-        args({ kind: 'detail', id: '777' }, 'hubspot.owners')
+        args({ kind: 'detail', id: '000777' }, 'hubspot.owners')
       )
     ).resolves.toEqual({
       kind: 'detail',
-      item: { id: '777', label: 'Katherine Johnson' },
+      item: { id: '000777', label: 'Katherine Johnson' },
     })
-    expect(String(mockFetch.mock.calls[0]?.[0])).toBe('https://api.hubapi.com/crm/v3/owners/777')
+    expect(String(mockFetch.mock.calls[0]?.[0])).toBe('https://api.hubapi.com/crm/v3/owners/000777')
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 })

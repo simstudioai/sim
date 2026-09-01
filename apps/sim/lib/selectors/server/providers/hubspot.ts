@@ -220,7 +220,9 @@ async function executeOwners(args: ExecuteServerSelectorArgs) {
         signal: args.signal,
       }
     )
-    return detailSelectorResult(owner.archived || !owner.id ? null : hubspotOwnerOption(owner))
+    return detailSelectorResult(
+      owner.archived || !owner.id ? null : { ...hubspotOwnerOption(owner), id: ownerId }
+    )
   }
 
   requireListRequest(args.selectorKey, args.request)
