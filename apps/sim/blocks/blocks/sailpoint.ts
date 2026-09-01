@@ -13,13 +13,16 @@ const SAILPOINT_OPERATIONS = [
   'sailpoint_decide_certification_review_items',
   'sailpoint_get_access_profile',
   'sailpoint_get_access_profile_entitlements',
+  'sailpoint_get_access_request_config',
   'sailpoint_get_access_request_status',
   'sailpoint_get_account',
   'sailpoint_get_account_activity',
   'sailpoint_get_account_entitlements',
+  'sailpoint_get_account_selections',
   'sailpoint_get_campaign',
   'sailpoint_get_certification',
   'sailpoint_get_entitlement',
+  'sailpoint_get_entitlement_request_config',
   'sailpoint_get_identity',
   'sailpoint_get_role',
   'sailpoint_get_role_entitlements',
@@ -56,6 +59,7 @@ const ID_OPERATIONS = [
   'sailpoint_get_account',
   'sailpoint_get_account_entitlements',
   'sailpoint_get_entitlement',
+  'sailpoint_get_entitlement_request_config',
   'sailpoint_list_identity_entitlements',
   'sailpoint_get_role',
   'sailpoint_get_role_entitlements',
@@ -102,7 +106,11 @@ const LIMIT_OPERATIONS = [
   'sailpoint_search_aggregate',
   'sailpoint_get_account_entitlements',
   'sailpoint_list_identity_entitlements',
-  'sailpoint_list_pending_access_request_approvals',
+]
+
+const ACCESS_REQUEST_BODY_OPERATIONS = [
+  'sailpoint_request_access',
+  'sailpoint_get_account_selections',
 ]
 
 /** Operations that scope by an identity (`requested-for` / `requested-by` / `regarding-identity`). */
@@ -129,7 +137,7 @@ export const SailPointBlock: BlockConfig = {
   name: 'SailPoint',
   description: 'Govern identities and access in SailPoint Identity Security Cloud',
   longDescription:
-    "Read and act on identity-governance data in SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT) exchanged through OAuth2 client credentials at https://TENANT.api.identitynow.com/oauth/token. SailPoint versions each service independently, so the integration uses the current service paths such as /search/v1, /identities/v1, and /access-requests/v1; there is no shared annual API-version setting. Use a PAT whose owner has the ISC user level required by each endpoint because many identity, role, access-profile, certification, approval, and access-request operations require user context in addition to scopes. Common read scopes are sp:search:read, idn:identity:read, idn:accounts:read, idn:entitlement:read, idn:role-unchecked:read or idn:role-checked:read, idn:access-profile:read, idn:sources:read, idn:campaign:read, idn:access-request-status:read, idn:task-management:read, and idn:access-request-approvals:read. Mutations additionally require idn:sources:manage for account aggregation, idn:entitlement:manage for entitlement aggregation, idn:campaign:manage for certification decisions and sign-off, idn:access-request:manage or idn:access-request-self:manage for access requests as permitted, and idn:access-request-approvals:manage for approval actions. A scope alone does not grant authority beyond the PAT owner's ISC permissions, and authorization failures may be returned as provider errors or filtered visibility depending on the endpoint and tenant policy.",
+    "Read and act on identity-governance data in SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT) exchanged through OAuth2 client credentials at https://TENANT.api.identitynow.com/oauth/token. SailPoint versions each service independently, so the integration uses current service paths such as /search/v1, /identities/v1, and /access-requests/v1; there is no shared annual API-version setting. Use a PAT whose owner has the ISC user level required by each endpoint because many identity, role, access-profile, certification, approval, and access-request operations require user context in addition to scopes. Common read scopes include sp:search:read, idn:identity:read, idn:accounts:read, idn:entitlement:read, idn:role-unchecked:read or idn:role-checked:read, idn:access-profile:read, idn:sources:read, idn:campaign:read, idn:access-request-status:read, idn:access-request-config:read, idn:task-management:read, and idn:access-request-approvals:read. Mutations additionally use idn:sources:manage for account aggregation, idn:entitlement:manage for entitlement aggregation and entitlement request configuration, idn:campaign:manage for certification decisions and sign-off, the access-request scopes listed by SailPoint for request submission, idn:access-request:create for account-selection discovery, and idn:access-request-approvals:manage for approval actions. A scope alone does not grant authority beyond the PAT owner's ISC permissions, and authorization failures may be returned as provider errors or filtered visibility depending on the endpoint and tenant policy.",
   docsLink: 'https://docs.sim.ai/integrations/sailpoint',
   category: 'tools',
   integrationType: IntegrationType.Security,
@@ -148,8 +156,12 @@ export const SailPointBlock: BlockConfig = {
         sailpoint_list_accounts: ['List SailPoint accounts'],
         sailpoint_get_account: ['Read a SailPoint account'],
         sailpoint_get_account_entitlements: ['List entitlements on a SailPoint account'],
+        sailpoint_get_account_selections: ['Resolve eligible SailPoint accounts for a request'],
         sailpoint_list_entitlements: ['List SailPoint entitlements'],
         sailpoint_get_entitlement: ['Read a SailPoint entitlement'],
+        sailpoint_get_entitlement_request_config: [
+          'Read SailPoint entitlement request configuration',
+        ],
         sailpoint_list_identity_entitlements: ['List entitlements held by an identity'],
         sailpoint_list_roles: ['List SailPoint roles'],
         sailpoint_get_role: ['Read a SailPoint role'],
@@ -159,6 +171,7 @@ export const SailPointBlock: BlockConfig = {
         sailpoint_get_access_profile_entitlements: [
           'List entitlements granted by an access profile',
         ],
+        sailpoint_get_access_request_config: ['Read SailPoint access-request configuration'],
         sailpoint_list_sources: ['List SailPoint sources'],
         sailpoint_get_source: ['Read a SailPoint source'],
         sailpoint_list_account_activities: ['List SailPoint account activities'],
@@ -197,8 +210,13 @@ export const SailPointBlock: BlockConfig = {
         { label: 'List Accounts', id: 'sailpoint_list_accounts' },
         { label: 'Get Account', id: 'sailpoint_get_account' },
         { label: 'Get Account Entitlements', id: 'sailpoint_get_account_entitlements' },
+        { label: 'Get Account Selections', id: 'sailpoint_get_account_selections' },
         { label: 'List Entitlements', id: 'sailpoint_list_entitlements' },
         { label: 'Get Entitlement', id: 'sailpoint_get_entitlement' },
+        {
+          label: 'Get Entitlement Request Config',
+          id: 'sailpoint_get_entitlement_request_config',
+        },
         { label: 'List Identity Entitlements', id: 'sailpoint_list_identity_entitlements' },
         { label: 'List Roles', id: 'sailpoint_list_roles' },
         { label: 'Get Role', id: 'sailpoint_get_role' },
@@ -209,6 +227,7 @@ export const SailPointBlock: BlockConfig = {
           label: 'Get Access Profile Entitlements',
           id: 'sailpoint_get_access_profile_entitlements',
         },
+        { label: 'Get Access Request Config', id: 'sailpoint_get_access_request_config' },
         { label: 'List Sources', id: 'sailpoint_list_sources' },
         { label: 'Get Source', id: 'sailpoint_get_source' },
         { label: 'List Account Activities', id: 'sailpoint_list_account_activities' },
@@ -510,7 +529,12 @@ export const SailPointBlock: BlockConfig = {
         value: SEARCH_OPERATIONS,
         and: { field: 'aggregationType', value: 'DSL' },
       },
-      mode: 'advanced',
+      required: {
+        field: 'operation',
+        value: 'sailpoint_search_aggregate',
+        and: { field: 'aggregationType', value: 'DSL' },
+      },
+      mode: 'basic',
       wandConfig: {
         enabled: true,
         prompt:
@@ -530,7 +554,12 @@ export const SailPointBlock: BlockConfig = {
         value: SEARCH_OPERATIONS,
         and: { field: 'aggregationType', value: 'SAILPOINT' },
       },
-      mode: 'advanced',
+      required: {
+        field: 'operation',
+        value: 'sailpoint_search_aggregate',
+        and: { field: 'aggregationType', value: 'SAILPOINT' },
+      },
+      mode: 'basic',
       wandConfig: {
         enabled: true,
         prompt:
@@ -644,6 +673,7 @@ export const SailPointBlock: BlockConfig = {
         { label: 'No segmentation filter', id: '' },
         { label: 'Visible to an identity', id: 'identity' },
         { label: 'Assigned to segment IDs', id: 'segments' },
+        { label: 'Visible to an identity and assigned to segment IDs', id: 'identityAndSegments' },
       ],
       value: () => '',
       condition: { field: 'operation', value: 'sailpoint_list_entitlements' },
@@ -657,7 +687,10 @@ export const SailPointBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: 'sailpoint_list_entitlements',
-        and: { field: 'entitlementSegmentationMode', value: 'identity' },
+        and: {
+          field: 'entitlementSegmentationMode',
+          value: ['identity', 'identityAndSegments'],
+        },
       },
       mode: 'advanced',
     },
@@ -669,7 +702,10 @@ export const SailPointBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: 'sailpoint_list_entitlements',
-        and: { field: 'entitlementSegmentationMode', value: 'segments' },
+        and: {
+          field: 'entitlementSegmentationMode',
+          value: ['segments', 'identityAndSegments'],
+        },
       },
       mode: 'advanced',
     },
@@ -686,7 +722,10 @@ export const SailPointBlock: BlockConfig = {
       condition: {
         field: 'operation',
         value: 'sailpoint_list_entitlements',
-        and: { field: 'entitlementSegmentationMode', value: ['identity', 'segments'] },
+        and: {
+          field: 'entitlementSegmentationMode',
+          value: ['identity', 'segments', 'identityAndSegments'],
+        },
       },
       mode: 'advanced',
     },
@@ -923,7 +962,7 @@ export const SailPointBlock: BlockConfig = {
         { label: 'Per-identity items or machine identities', id: 'structured' },
       ],
       value: () => 'flat',
-      condition: { field: 'operation', value: 'sailpoint_request_access' },
+      condition: { field: 'operation', value: ACCESS_REQUEST_BODY_OPERATIONS },
     },
     {
       id: 'requestedIdentities',
@@ -933,12 +972,12 @@ export const SailPointBlock: BlockConfig = {
       placeholder: '["2c9180857c1a...","2c9180857c1b..."]',
       condition: {
         field: 'operation',
-        value: 'sailpoint_request_access',
+        value: ACCESS_REQUEST_BODY_OPERATIONS,
         and: { field: 'requestPayloadShape', value: 'flat' },
       },
       required: {
         field: 'operation',
-        value: 'sailpoint_request_access',
+        value: ACCESS_REQUEST_BODY_OPERATIONS,
         and: { field: 'requestPayloadShape', value: 'flat' },
       },
       wandConfig: {
@@ -956,12 +995,12 @@ export const SailPointBlock: BlockConfig = {
       placeholder: '[{ "type": "ENTITLEMENT", "id": "2c918...", "comment": "New hire" }]',
       condition: {
         field: 'operation',
-        value: 'sailpoint_request_access',
+        value: ACCESS_REQUEST_BODY_OPERATIONS,
         and: { field: 'requestPayloadShape', value: 'flat' },
       },
       required: {
         field: 'operation',
-        value: 'sailpoint_request_access',
+        value: ACCESS_REQUEST_BODY_OPERATIONS,
         and: { field: 'requestPayloadShape', value: 'flat' },
       },
       wandConfig: {
@@ -980,18 +1019,18 @@ export const SailPointBlock: BlockConfig = {
         '[{ "identityId": "2c918...", "identityType": "HUMAN", "requestedItems": [{ "type": "ENTITLEMENT", "id": "2c918...", "accountSelection": [] }] }]',
       condition: {
         field: 'operation',
-        value: 'sailpoint_request_access',
+        value: ACCESS_REQUEST_BODY_OPERATIONS,
         and: { field: 'requestPayloadShape', value: 'structured' },
       },
       required: {
         field: 'operation',
-        value: 'sailpoint_request_access',
+        value: ACCESS_REQUEST_BODY_OPERATIONS,
         and: { field: 'requestPayloadShape', value: 'structured' },
       },
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate the requestedForWithRequestedItems JSON array for SailPoint. Each entry requires identityId and requestedItems and may set identityType HUMAN or MACHINE. Machine requests must use MACHINE for every entry, support ENTITLEMENT items only, require accountSelection for grants or modifications, and use nativeIdentity without accountSelection for revokes. Human revoke requests must use the flat payload instead. Items may include comment, startDate, removeDate, accountSelection, nativeIdentity, formInstanceId, and clientMetadata where supported. Return ONLY the JSON array - no explanations, no extra text.',
+          'Generate the requestedForWithRequestedItems JSON array for SailPoint. Each entry requires identityId and requestedItems and may set identityType HUMAN or MACHINE. Machine requests must use MACHINE for every entry and support ENTITLEMENT items only. For Request Access, machine grants or modifications require the exact accountSelection returned by Get Account Selections; omit accountSelection when running Get Account Selections itself. Machine revokes use nativeIdentity without accountSelection. Human revoke requests must use the flat payload instead. Items may include comment, startDate, removeDate, accountSelection, nativeIdentity, formInstanceId, and clientMetadata where supported. Return ONLY the JSON array - no explanations, no extra text.',
         placeholder: 'Describe recipients, items, and account selections...',
       },
     },
@@ -1005,7 +1044,7 @@ export const SailPointBlock: BlockConfig = {
         { label: 'Modify Access', id: 'MODIFY_ACCESS' },
       ],
       value: () => 'GRANT_ACCESS',
-      condition: { field: 'operation', value: 'sailpoint_request_access' },
+      condition: { field: 'operation', value: ACCESS_REQUEST_BODY_OPERATIONS },
     },
     {
       id: 'clientMetadata',
@@ -1013,7 +1052,7 @@ export const SailPointBlock: BlockConfig = {
       type: 'code',
       language: 'json',
       placeholder: '{ "requestedByEmail": "manager@acme.com" }',
-      condition: { field: 'operation', value: 'sailpoint_request_access' },
+      condition: { field: 'operation', value: ACCESS_REQUEST_BODY_OPERATIONS },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -1151,13 +1190,16 @@ export const SailPointBlock: BlockConfig = {
       'sailpoint_decide_certification_review_items',
       'sailpoint_get_access_profile',
       'sailpoint_get_access_profile_entitlements',
+      'sailpoint_get_access_request_config',
       'sailpoint_get_access_request_status',
       'sailpoint_get_account',
       'sailpoint_get_account_activity',
       'sailpoint_get_account_entitlements',
+      'sailpoint_get_account_selections',
       'sailpoint_get_campaign',
       'sailpoint_get_certification',
       'sailpoint_get_entitlement',
+      'sailpoint_get_entitlement_request_config',
       'sailpoint_get_identity',
       'sailpoint_get_role',
       'sailpoint_get_role_entitlements',
@@ -1283,15 +1325,22 @@ export const SailPointBlock: BlockConfig = {
             break
           case 'sailpoint_list_entitlements':
             applyFilters()
-            if (params.entitlementSegmentationMode === 'identity') {
+            if (
+              params.entitlementSegmentationMode === 'identity' ||
+              params.entitlementSegmentationMode === 'identityAndSegments'
+            ) {
               setStr('segmentedForIdentity', params.segmentedForIdentity)
             }
-            if (params.entitlementSegmentationMode === 'segments') {
+            if (
+              params.entitlementSegmentationMode === 'segments' ||
+              params.entitlementSegmentationMode === 'identityAndSegments'
+            ) {
               setStr('forSegmentIds', params.entitlementForSegmentIds)
             }
             if (
               params.entitlementSegmentationMode === 'identity' ||
-              params.entitlementSegmentationMode === 'segments'
+              params.entitlementSegmentationMode === 'segments' ||
+              params.entitlementSegmentationMode === 'identityAndSegments'
             ) {
               setBoolean('includeUnsegmented', params.entitlementIncludeUnsegmented)
             }
@@ -1359,6 +1408,7 @@ export const SailPointBlock: BlockConfig = {
           case 'sailpoint_get_identity':
           case 'sailpoint_get_account':
           case 'sailpoint_get_entitlement':
+          case 'sailpoint_get_entitlement_request_config':
           case 'sailpoint_get_role':
           case 'sailpoint_get_access_profile':
           case 'sailpoint_get_source':
@@ -1379,7 +1429,8 @@ export const SailPointBlock: BlockConfig = {
             applyFilters()
             applyPagination()
             break
-          case 'sailpoint_request_access': {
+          case 'sailpoint_request_access':
+          case 'sailpoint_get_account_selections': {
             if (params.requestPayloadShape === 'structured') {
               setJson(
                 'requestedForWithRequestedItems',
@@ -1394,6 +1445,8 @@ export const SailPointBlock: BlockConfig = {
             setJson('clientMetadata', params.clientMetadata)
             break
           }
+          case 'sailpoint_get_access_request_config':
+            break
           case 'sailpoint_cancel_access_request':
             setStr('accountActivityId', params.accountActivityId)
             setStr('comment', params.comment)
@@ -1576,14 +1629,13 @@ export const SailPointBlock: BlockConfig = {
     },
     identity: {
       type: 'json',
-      description:
-        'Identity resource (id, name, alias, email, attributes, manager, access, accounts)',
+      description: 'Identity resource (id, name, alias, email, attributes, and manager)',
       condition: { field: 'operation', value: 'sailpoint_get_identity' },
     },
     account: {
       type: 'json',
       description:
-        'Account resource (id, name, nativeIdentity, sourceId, identityId, attributes, entitlements)',
+        'Account resource (id, name, nativeIdentity, sourceId, identityId, and attributes)',
       condition: { field: 'operation', value: 'sailpoint_get_account' },
     },
     entitlement: {
@@ -1601,7 +1653,7 @@ export const SailPointBlock: BlockConfig = {
     accessProfile: {
       type: 'json',
       description:
-        'Access profile resource (id, name, description, owner, source, entitlements, requestConfig)',
+        'Access profile resource (id, name, description, owner, source, entitlements, accessRequestConfig, and revocationRequestConfig)',
       condition: { field: 'operation', value: 'sailpoint_get_access_profile' },
     },
     source: {
@@ -1613,19 +1665,19 @@ export const SailPointBlock: BlockConfig = {
     accountActivity: {
       type: 'json',
       description:
-        'Account activity resource (id, name, type, created, modified, requester, target, stages)',
+        'Account activity resource (id, name, type, created, modified, requesterIdentitySummary, targetIdentitySummary, and items)',
       condition: { field: 'operation', value: 'sailpoint_get_account_activity' },
     },
     campaign: {
       type: 'json',
       description:
-        'Campaign resource (id, name, description, status, type, dates, owner, completion statistics)',
+        'Campaign resource (id, name, description, status, type, dates, and completion statistics)',
       condition: { field: 'operation', value: 'sailpoint_get_campaign' },
     },
     certification: {
       type: 'json',
       description:
-        'Identity certification (id, name, status, reviewer, decisions, completed review items)',
+        'Identity certification (id, name, reviewer, decisionsMade, decisionsTotal, completed, and signed)',
       condition: {
         field: 'operation',
         value: [
@@ -1639,6 +1691,21 @@ export const SailPointBlock: BlockConfig = {
       type: 'number',
       description: 'Total documents matching the search body',
       condition: { field: 'operation', value: 'sailpoint_search_count' },
+    },
+    accountSelections: {
+      type: 'json',
+      description: 'Eligible source accounts grouped by requested identity and access item',
+      condition: { field: 'operation', value: 'sailpoint_get_account_selections' },
+    },
+    accessRequestConfig: {
+      type: 'json',
+      description: 'Tenant access-request and machine-identity configuration',
+      condition: { field: 'operation', value: 'sailpoint_get_access_request_config' },
+    },
+    entitlementRequestConfig: {
+      type: 'json',
+      description: 'Grant, revocation, duration, approval, and form settings for an entitlement',
+      condition: { field: 'operation', value: 'sailpoint_get_entitlement_request_config' },
     },
     aggregations: {
       type: 'json',

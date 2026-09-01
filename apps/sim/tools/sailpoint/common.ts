@@ -47,6 +47,18 @@ export const sailpointPaginationParams = {
   },
 } as const satisfies ToolConfig['params']
 
+/** Search supports a provider-specific page size of up to 10,000 documents. */
+export const sailpointSearchPaginationParams = {
+  limit: {
+    type: 'number',
+    required: false,
+    visibility: 'user-or-llm',
+    description: 'Maximum search documents for this page (0-10,000; default 250)',
+  },
+  offset: sailpointPaginationParams.offset,
+  count: sailpointPaginationParams.count,
+} as const satisfies ToolConfig['params']
+
 /** Role collections have a provider-specific page limit of 50. */
 export const sailpointRolePaginationParams = {
   limit: {
