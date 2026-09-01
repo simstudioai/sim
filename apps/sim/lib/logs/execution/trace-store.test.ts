@@ -25,6 +25,7 @@ vi.mock('@/lib/execution/payloads/store', () => ({
 }))
 
 import {
+  copyTraceSpansWithoutCosts,
   externalizeExecutionData,
   materializeExecutionData,
   materializeExecutionDataForDisplayWithBlockOutputs,
@@ -35,6 +36,7 @@ import {
   stripSpanCosts,
   TRACE_STORE_REF_KEY,
 } from '@/lib/logs/execution/trace-store'
+import type { TraceSpan } from '@/lib/logs/types'
 
 const CONTEXT = {
   workspaceId: 'workspace-1',
@@ -884,5 +886,61 @@ describe('stripSpanCosts', () => {
     expect(
       (spans[0].children[0].providerTiming.segments as Array<Record<string, unknown>>)[0].tokens
     ).toEqual({ total: 400 })
+  })
+})
+
+/**
+ * The COMPLETION write. `stripSpanCosts` only ever ran over legacy rows the
+ * backfill touched; every normal run went through this copy, which used to drop
+ * the span's own `cost` and leave the same dollars itemized underneath it in
+ * `providerTiming.segments`. Both writers now share one removal rule, so the
+ * two cannot answer differently about what a persisted span may carry.
+ */
+describe('copyTraceSpansWithoutCosts', () => {
+  it('clears the segment dollars the completion write used to persist', () => {
+    const spans = spanWithSpend() as unknown as TraceSpan[]
+
+    const persisted = copyTraceSpansWithoutCosts(spans)
+
+    const [span] = persisted as Array<Record<string, any>>
+    expect(span.cost).toBeUndefined()
+    expect(span.providerTiming.segments[0].cost).toBeUndefined()
+    expect(span.children[0].cost).toBeUndefined()
+    expect(span.children[0].providerTiming.segments[0].cost).toBeUndefined()
+  })
+
+  it('keeps the token counts and the segment identity a trace is read for', () => {
+    const spans = spanWithSpend() as unknown as TraceSpan[]
+
+    const [span] = copyTraceSpansWithoutCosts(spans) as unknown as Array<Record<string, any>>
+
+    expect(span.tokens).toEqual({ total: 900 })
+    expect(span.children[0].tokens).toEqual({ total: 400 })
+    expect(span.providerTiming.segments[0]).toMatchObject({
+      type: 'model',
+      name: 'gpt-4',
+      tokens: { total: 900 },
+    })
+    expect(span.providerTiming.duration).toBe(5)
+  })
+
+  /**
+   * The strip runs in place, so the copy has to reach every node it writes to.
+   * Sharing the `providerTiming` with the caller would blank the segments of the
+   * spans the rest of the run still holds in memory.
+   */
+  it('leaves the caller’s in-memory spans untouched', () => {
+    const spans = spanWithSpend() as unknown as TraceSpan[]
+
+    copyTraceSpansWithoutCosts(spans)
+
+    const [span] = spans as unknown as Array<Record<string, any>>
+    expect(span.cost).toEqual({ total: 0.5 })
+    expect(span.providerTiming.segments[0].cost).toEqual({ total: 0.5 })
+    expect(span.children[0].cost).toEqual({ total: 0.2 })
+  })
+
+  it('returns undefined for no spans', () => {
+    expect(copyTraceSpansWithoutCosts(undefined)).toBeUndefined()
   })
 })

@@ -176,12 +176,51 @@ function stripProviderTimingSegmentSpend(
   }
 }
 
-/** Creates a persistence-owned span tree with per-span cost fields removed. */
+/**
+ * Copies exactly the nodes {@link stripSpanSpendFields} writes to — each span,
+ * its children, its `providerTiming`, and that timing's segments — and shares
+ * every other value with the caller's tree. Enough isolation for the strip to
+ * run in place without reaching the in-memory spans the rest of the run still
+ * holds, and no deep clone of the payloads hanging off a span.
+ */
+function copySpanTreeForStrip(spans: TraceSpan[]): TraceSpan[] {
+  return spans.map((span) => {
+    const copy: TraceSpan = { ...span }
+    if (Array.isArray(copy.children)) copy.children = copySpanTreeForStrip(copy.children)
+    if (copy.providerTiming && typeof copy.providerTiming === 'object') {
+      const { segments } = copy.providerTiming
+      copy.providerTiming = {
+        ...copy.providerTiming,
+        ...(Array.isArray(segments)
+          ? {
+              segments: segments.map((segment) =>
+                segment && typeof segment === 'object' ? { ...segment } : segment
+              ),
+            }
+          : {}),
+      }
+    }
+    return copy
+  })
+}
+
+/**
+ * Creates a persistence-owned span tree with spend removed, for the COMPLETION
+ * write.
+ *
+ * Runs the same {@link stripSpanCosts} the legacy backfill does, over a copy —
+ * one removal rule for both writers, which is the point: this used to drop the
+ * span's own `cost` and nothing else, so every completed run persisted the
+ * itemized dollars underneath it in `providerTiming.segments`, which the backfill
+ * had already learned to clear. Tokens survive, on both paths: the ledger owns
+ * the dollars, and a span's token counts are trace detail the reader is entitled
+ * to.
+ */
 export function copyTraceSpansWithoutCosts(spans?: TraceSpan[]): TraceSpan[] | undefined {
-  return spans?.map(({ cost: _cost, children, ...span }) => ({
-    ...span,
-    ...(children ? { children: copyTraceSpansWithoutCosts(children) } : {}),
-  }))
+  if (!spans) return undefined
+  const copy = copySpanTreeForStrip(spans)
+  stripSpanCosts(copy)
+  return copy
 }
 
 /**
