@@ -1,7 +1,7 @@
 import { defineWorkspaceOperation } from '@/lib/core/application'
 
 export const selectorOperations = {
-  // permission-group-exempt: no static capability names selector browsing — credential access is authorized per credential, and per-integration denial is the parameterized allowedIntegrations key, enforced today at workflow save and execution. Gating the picker itself needs a selector-key-to-block-type mapping and is tracked as a follow-up, not silently covered here.
+  // permission-group-exempt: no static capability names selector browsing — credential access is authorized per credential, and per-integration denial is the parameterized allowedIntegrations key, which the funnel cannot apply because it never sees which integration a selector reaches. That decision is now enforced from the use case by assertSelectorIntegrationAllowed, against the resolved credential's provider, ahead of the provider call.
   execute: defineWorkspaceOperation({
     id: 'selectors.execute',
     minimumRole: 'read',

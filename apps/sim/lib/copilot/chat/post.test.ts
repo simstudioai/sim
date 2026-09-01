@@ -911,6 +911,15 @@ describe('handleUnifiedChatPost', () => {
 
 describe('handleUnifiedChatPost copilot.use capability gate', () => {
   const REFUSAL = "Chat is not available under your organization's permission group"
+  /**
+   * The body every raw capability refusal renders, detail code included. This
+   * route builds it through the shared `capabilityRefusalResponse`, so a client
+   * cannot tell a group refusal here apart from one raised by the funnel.
+   */
+  const REFUSAL_BODY = {
+    error: REFUSAL,
+    details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
+  }
 
   function chatRequest(body: Record<string, unknown> = {}) {
     return new NextRequest('http://localhost/api/copilot/chat', {
@@ -978,7 +987,7 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
     const response = await handleUnifiedChatPost(chatRequest({ createNewChat: true }))
 
     expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({ error: REFUSAL })
+    await expect(response.json()).resolves.toEqual(REFUSAL_BODY)
     expect(resolveOrCreateChat).not.toHaveBeenCalled()
     expect(createSSEStream).not.toHaveBeenCalled()
     expect(releaseChatSendClaim).toHaveBeenCalledTimes(1)
@@ -1003,7 +1012,7 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
     )
 
     expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({ error: REFUSAL })
+    await expect(response.json()).resolves.toEqual(REFUSAL_BODY)
     expect(resolvePermissionGroupConfig).toHaveBeenCalledWith('user-1', 'ws-1', undefined)
     expect(createSSEStream).not.toHaveBeenCalled()
   })
@@ -1021,7 +1030,7 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
     )
 
     expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({ error: REFUSAL })
+    await expect(response.json()).resolves.toEqual(REFUSAL_BODY)
     expect(resolvePermissionGroupConfig).not.toHaveBeenCalledWith(
       'user-1',
       'ws-unrestricted',

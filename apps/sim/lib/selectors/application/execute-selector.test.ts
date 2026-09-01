@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -61,7 +62,13 @@ vi.mock('@/lib/selectors/server/sanitize', () => ({
   sanitizeSelectorResult: mocks.sanitize,
 }))
 
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+
+const mockResolvePermissionGroupConfig =
+  permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
+
 import { selectorScopeSchema } from '@/lib/api/contracts/selectors/execute'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { executeSelector } from '@/lib/selectors/application/execute-selector'
 import { getSelectorManifestEntry } from '@/lib/selectors/manifest'
 import {
@@ -69,6 +76,7 @@ import {
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+import { IntegrationNotAllowedError } from '@/ee/access-control/utils/permission-check'
 
 const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
 const scope = { kind: 'workspace' as const, workspaceId: 'workspace-1' }
@@ -130,6 +138,7 @@ describe('executeSelector', () => {
       mocks.events.push('sanitization')
       return result
     })
+    mockResolvePermissionGroupConfig.mockResolvedValue(null)
   })
 
   it('authorizes canonical scope before references, credentials, and provider execution', async () => {
@@ -146,6 +155,118 @@ describe('executeSelector', () => {
       'provider-execution',
       'sanitization',
     ])
+  })
+
+  /**
+   * The picker is a use of the integration, not a neutral list: it reaches the
+   * provider's API with the caller's credential. The authorization funnel never
+   * sees which integration a selector key stands for, so the allowlist decision
+   * is asserted from the use case instead.
+   */
+  it('refuses a selector whose integration the permission group excludes', async () => {
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['slack_v2'],
+    })
+
+    await expect(execute()).rejects.toBeInstanceOf(IntegrationNotAllowedError)
+
+    expect(mocks.events).toEqual([
+      'canonical-scope',
+      'workspace-authorization',
+      'reference-resolution',
+      'credential-authorization',
+    ])
+  })
+
+  it('executes a selector whose integration the permission group names', async () => {
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['gmail_v2'],
+    })
+
+    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
+    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * A selector accepting two services would pass a check that asks whether ANY
+   * declared service is allowed. The resolved credential's provider id is the
+   * server-trusted narrowing, so the pair is judged as the half the caller is
+   * really reaching.
+   */
+  it('narrows a two-service selector to the resolved credential provider', async () => {
+    mocks.authorizeCredential.mockImplementation(async () => {
+      mocks.events.push('credential-authorization')
+      return { suppliedId: 'credential-1', providerId: 'sharepoint' }
+    })
+    mocks.getAttachment.mockReturnValue({
+      destination: 'fixed',
+      credential: {
+        kind: 'stored',
+        field: 'oauthCredential',
+        serviceIds: ['sharepoint', 'microsoft-excel'],
+      },
+      execute: mocks.executeAttachment,
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['microsoft_excel_v2'],
+    })
+
+    await expect(execute()).rejects.toBeInstanceOf(IntegrationNotAllowedError)
+    expect(mocks.executeAttachment).not.toHaveBeenCalled()
+  })
+
+  /** The same pair, reached through the credential the allowlist does name. */
+  it('allows a two-service selector reached through the permitted provider', async () => {
+    mocks.authorizeCredential.mockImplementation(async () => {
+      mocks.events.push('credential-authorization')
+      return { suppliedId: 'credential-1', providerId: 'microsoft-excel' }
+    })
+    mocks.getAttachment.mockReturnValue({
+      destination: 'fixed',
+      credential: {
+        kind: 'stored',
+        field: 'oauthCredential',
+        serviceIds: ['sharepoint', 'microsoft-excel'],
+      },
+      execute: mocks.executeAttachment,
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: ['microsoft_excel_v2'],
+    })
+
+    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
+    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * A selector with no integration identity is not an integration: an internal
+   * selector declares no credential policy at all, so an allowlist that names
+   * nothing still leaves workspace files and knowledge bases pickable.
+   */
+  it('passes through a selector that carries no credential policy', async () => {
+    mocks.getAttachment.mockReturnValue({
+      destination: 'fixed',
+      execute: mocks.executeAttachment,
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      allowedIntegrations: [],
+    })
+
+    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
+    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
+  })
+
+  /** No group governs the caller, so nothing narrows the allowlist. */
+  it('executes when no permission group governs the caller', async () => {
+    mockResolvePermissionGroupConfig.mockResolvedValue(null)
+
+    await expect(execute()).resolves.toMatchObject({ kind: 'list' })
+    expect(mocks.executeAttachment).toHaveBeenCalledTimes(1)
   })
 
   it('prepares non-fixed destinations after credential authorization and before provider execution', async () => {

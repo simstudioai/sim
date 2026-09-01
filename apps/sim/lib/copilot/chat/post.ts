@@ -46,11 +46,7 @@ import {
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
-import {
-  createBadRequestResponse,
-  createForbiddenResponse,
-  createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
+import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/copilot/request/http'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/lifecycle/start'
 import { startCopilotOtelRoot, withCopilotSpan } from '@/lib/copilot/request/otel'
 import {
@@ -68,10 +64,8 @@ import {
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import type { AtomicClaimResult } from '@/lib/core/idempotency'
 import { chatSendIdempotency } from '@/lib/core/idempotency'
-import {
-  capabilityRefusal,
-  isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import {
@@ -1156,7 +1150,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       ) {
         activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, 403)
         activeOtelRoot.finish('error')
-        return createForbiddenResponse(capabilityRefusal('copilot.use'))
+        return capabilityRefusalResponse('copilot.use')
       }
 
       let currentChat: ChatLoadResult['chat'] = null
