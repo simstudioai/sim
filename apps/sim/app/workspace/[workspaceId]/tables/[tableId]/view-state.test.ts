@@ -87,10 +87,16 @@ describe('resolveTableViewPinTransition', () => {
     ).toEqual({ nextViewId: 'view-pinned', pendingCreatedViewId: null })
   })
 
-  it('keeps the pending creation when the pin is already represented locally', () => {
+  it('clears a different pending creation when the pin is already represented in the URL', () => {
     expect(
       resolveTableViewPinTransition('view-pinned', 'view-created', 'view-pinned', 'view-created')
-    ).toEqual({ nextViewId: null, pendingCreatedViewId: 'view-created' })
+    ).toEqual({ nextViewId: null, pendingCreatedViewId: null })
+  })
+
+  it('keeps a pending creation when it created the pinned view', () => {
+    expect(
+      resolveTableViewPinTransition('view-pinned', 'view-pinned', 'view-pinned', 'view-pinned')
+    ).toEqual({ nextViewId: null, pendingCreatedViewId: 'view-pinned' })
   })
 
   it('replaces a different active URL even if the pin was applied previously', () => {

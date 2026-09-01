@@ -3,7 +3,10 @@
  */
 import { databaseMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { persistChatResources } from '@/lib/copilot/resources/persistence'
+import {
+  persistChatResources,
+  serializeChatResourceWrite,
+} from '@/lib/copilot/resources/persistence'
 
 function deferred() {
   let resolve: () => void = () => {}
@@ -44,5 +47,18 @@ describe('persistChatResources ordering', () => {
     first.resolve()
     second.resolve()
     await Promise.all([firstWrite, secondWrite])
+  })
+
+  it('serializes tool writes behind other resource mutations for the same chat', async () => {
+    const apiMutation = deferred()
+    const firstWrite = serializeChatResourceWrite('chat-1', () => apiMutation.promise)
+    const secondWrite = persistChatResources('chat-1', [TABLE_RESOURCE])
+
+    await Promise.resolve()
+    expect(transaction).not.toHaveBeenCalled()
+    apiMutation.resolve()
+    await Promise.all([firstWrite, secondWrite])
+
+    expect(transaction).toHaveBeenCalledOnce()
   })
 })

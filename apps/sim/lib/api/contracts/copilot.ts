@@ -90,15 +90,21 @@ export type CreateWorkflowCopilotChatBody = z.input<typeof createWorkflowCopilot
 
 const copilotResourceTypeSchema = z.enum(PERSISTED_RESOURCE_TYPES)
 
-const copilotChatResourceItemSchema = z.object({
-  type: copilotResourceTypeSchema,
-  // Matches the bound the chat-send path enforces.
-  id: requiredFieldSchema('resource.id cannot be empty'),
-  title: z.string(),
-  // Saved view a table tab is pinned to (type "table" only). One schema for
-  // add and reorder, so a reorder round-trip can never strip the pin.
-  viewId: z.string().min(1).optional(),
-})
+const copilotChatResourceItemSchema = z
+  .object({
+    type: copilotResourceTypeSchema,
+    id: requiredFieldSchema('resource.id cannot be empty'),
+    title: z.string(),
+    viewId: z.string().min(1).optional(),
+  })
+  .superRefine((resource, ctx) => {
+    if (resource.viewId === undefined || resource.type === 'table') return
+    ctx.addIssue({
+      code: 'custom',
+      path: ['viewId'],
+      message: 'viewId is only valid for table resources',
+    })
+  })
 
 export const addCopilotChatResourceBodySchema = z
   .object({

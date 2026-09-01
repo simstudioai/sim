@@ -49,4 +49,13 @@ describe('addMothershipChatResourceBodySchema', () => {
       }).success
     ).toBe(false)
   })
+
+  it('rejects a saved-view pin for a non-table resource', () => {
+    expect(
+      addMothershipChatResourceBodySchema.safeParse({
+        chatId: 'chat-1',
+        resource: { type: 'file', id: 'file-1', title: 'Accounts.csv', viewId: 'view-1' },
+      }).success
+    ).toBe(false)
+  })
 })

@@ -1848,26 +1848,23 @@ export function useChat(
       // Ephemeral panels were never persisted; nothing to delete server-side.
       if (isEphemeralResource({ type: resourceType, id: resourceId, title: '' })) return
 
-      const { inFlight: inFlightAdd, wasPending } = resourcePersistenceQueue.remove(
-        resourceType,
-        resourceId
-      )
-      if (wasPending && !inFlightAdd) return
+      const {
+        inFlight: inFlightAdd,
+        scheduleDelete,
+        wasPending,
+        wasPersisted,
+      } = resourcePersistenceQueue.remove(resourceType, resourceId)
+      if (wasPending && !inFlightAdd && !wasPersisted) return
 
       const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
       if (!persistChatId) return
-      const fireDelete = () => {
+      scheduleDelete(persistChatId, () =>
         requestJson(removeMothershipChatResourceContract, {
           body: { chatId: persistChatId, resourceType, resourceId },
         }).catch((err) => {
           logger.warn('Failed to persist resource removal', err)
         })
-      }
-      if (inFlightAdd) {
-        inFlightAdd.finally(fireDelete)
-      } else {
-        fireDelete()
-      }
+      )
     },
     [resourcePersistenceQueue]
   )
@@ -2279,11 +2276,16 @@ export function useChat(
               useMothershipQueueStore.getState().migrate(pendingChatKey, resolvedChatId)
             }
             await Promise.allSettled(
-              pendingResources.map((resource) =>
-                requestJson(addMothershipChatResourceContract, {
-                  body: { chatId: resolvedChatId, resource },
+              pendingResources.map((update) => {
+                const { clearViewId, ...resource } = update
+                return requestJson(addMothershipChatResourceContract, {
+                  body: {
+                    chatId: resolvedChatId,
+                    resource,
+                    ...(clearViewId === true ? { clearViewId: true as const } : {}),
+                  },
                 })
-              )
+              })
             )
             queryClient.invalidateQueries({
               queryKey: mothershipChatKeys.detail(resolvedChatId),

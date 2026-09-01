@@ -78,17 +78,81 @@ describe('ResourcePersistenceQueue', () => {
       .fn<(chatId: string, update: MothershipResourceUpdate) => Promise<unknown>>()
       .mockReturnValueOnce(stale.promise)
       .mockReturnValueOnce(fresh.promise)
+    const remove = vi.fn().mockResolvedValue({ success: true })
     const queue = new ResourcePersistenceQueue({ persist, onError })
 
     queue.enqueue({ ...TABLE_RESOURCE, viewId: 'view-a' }, 'chat-1')
-    queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id)
+    const removal = queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id)
+    removal.scheduleDelete('chat-1', remove)
     queue.enqueue({ ...TABLE_RESOURCE, viewId: 'view-b' }, 'chat-1')
-    stale.resolve({ success: true })
     await Promise.resolve()
+
+    expect(persist).toHaveBeenCalledTimes(1)
+    expect(remove).not.toHaveBeenCalled()
+    stale.resolve({ success: true })
+    await vi.waitFor(() => expect(persist).toHaveBeenCalledTimes(2))
 
     expect(queue.inFlight.size).toBe(1)
     fresh.resolve({ success: true })
     await Promise.allSettled(Array.from(queue.inFlight.values()))
     expect(queue.inFlight.size).toBe(0)
+  })
+
+  it('deletes a stored resource after its pending update fails', async () => {
+    const failed = deferred<unknown>()
+    const persist = vi
+      .fn<(chatId: string, update: MothershipResourceUpdate) => Promise<unknown>>()
+      .mockReturnValueOnce(failed.promise)
+    const queue = new ResourcePersistenceQueue({ persist, onError })
+
+    queue.enqueue({ ...TABLE_RESOURCE, viewId: 'view-a' }, 'chat-1', TABLE_RESOURCE)
+    failed.reject(new Error('offline'))
+    await Promise.allSettled(Array.from(queue.inFlight.values()))
+
+    const removal = queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id)
+    expect(removal.wasPending).toBe(true)
+    expect(removal.wasPersisted).toBe(true)
+    const remove = vi.fn().mockResolvedValue({ success: true })
+    removal.scheduleDelete('chat-1', remove)
+    await vi.waitFor(() => expect(remove).toHaveBeenCalledOnce())
+  })
+
+  it('skips deletion after an initial add fails', async () => {
+    const failed = deferred<unknown>()
+    const persist = vi
+      .fn<(chatId: string, update: MothershipResourceUpdate) => Promise<unknown>>()
+      .mockReturnValueOnce(failed.promise)
+    const queue = new ResourcePersistenceQueue({ persist, onError })
+
+    queue.enqueue(TABLE_RESOURCE, 'chat-1')
+    failed.reject(new Error('offline'))
+    await Promise.allSettled(Array.from(queue.inFlight.values()))
+
+    const removal = queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id)
+    expect(removal.wasPending).toBe(true)
+    expect(removal.wasPersisted).toBe(false)
+  })
+
+  it('persists a re-add after an already-started deletion settles', async () => {
+    const deletion = deferred<unknown>()
+    const persist = vi
+      .fn<(chatId: string, update: MothershipResourceUpdate) => Promise<unknown>>()
+      .mockResolvedValue({ success: true })
+    const remove = vi.fn().mockReturnValue(deletion.promise)
+    const queue = new ResourcePersistenceQueue({ persist, onError })
+
+    queue.enqueue({ ...TABLE_RESOURCE, viewId: 'view-a' }, 'chat-1', TABLE_RESOURCE)
+    await Promise.allSettled(Array.from(queue.inFlight.values()))
+    const removal = queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id)
+    removal.scheduleDelete('chat-1', remove)
+    await vi.waitFor(() => expect(remove).toHaveBeenCalledOnce())
+
+    queue.enqueue({ ...TABLE_RESOURCE, viewId: 'view-b' }, 'chat-1')
+    await Promise.resolve()
+    expect(persist).toHaveBeenCalledOnce()
+
+    deletion.resolve({ success: true })
+    await vi.waitFor(() => expect(persist).toHaveBeenCalledTimes(2))
+    expect(persist.mock.calls[1]).toEqual(['chat-1', { ...TABLE_RESOURCE, viewId: 'view-b' }])
   })
 })

@@ -8,6 +8,8 @@ interface ResourcePersistenceQueueOptions {
 
 export interface RemovedResourcePersistence {
   inFlight: Promise<unknown> | undefined
+  scheduleDelete: (chatId: string, remove: () => Promise<unknown>) => void
+  wasPersisted: boolean
   wasPending: boolean
 }
 
@@ -23,6 +25,8 @@ export class ResourcePersistenceQueue {
 
   private readonly desiredUpdates = new Map<string, MothershipResourceUpdate>()
   private readonly failedKeys = new Set<string>()
+  private readonly persistedKeys = new Set<string>()
+  private readonly removalTokens = new Map<string, symbol>()
   private readonly writeTokens = new Map<string, symbol>()
   private readonly persist: ResourcePersistenceQueueOptions['persist']
   private readonly onError: ResourcePersistenceQueueOptions['onError']
@@ -38,6 +42,10 @@ export class ResourcePersistenceQueue {
     base?: MothershipResource
   ): void {
     const key = this.getKey(update)
+    const trackedLocally =
+      this.desiredUpdates.has(key) || this.pendingKeys.has(key) || this.inFlight.has(key)
+    if (base && !trackedLocally) this.persistedKeys.add(key)
+    this.removalTokens.delete(key)
     const previous = this.desiredUpdates.get(key) ?? base
     this.desiredUpdates.set(key, mergePendingChatResourceUpdate(previous, update))
     this.failedKeys.delete(key)
@@ -63,11 +71,24 @@ export class ResourcePersistenceQueue {
     const key = `${type}:${id}`
     const wasPending = this.pendingKeys.delete(key)
     const inFlight = this.inFlight.get(key)
-    this.inFlight.delete(key)
-    this.writeTokens.delete(key)
+    const wasPersisted = this.persistedKeys.delete(key)
+    const removalToken = Symbol(key)
+    this.removalTokens.set(key, removalToken)
     this.desiredUpdates.delete(key)
     this.failedKeys.delete(key)
-    return { inFlight, wasPending }
+    return {
+      inFlight,
+      scheduleDelete: (chatId, remove) => {
+        const startRemoval = () => this.startRemoval(key, chatId, removalToken, remove)
+        if (inFlight) {
+          void inFlight.then(startRemoval, startRemoval)
+          return
+        }
+        startRemoval()
+      },
+      wasPending,
+      wasPersisted,
+    }
   }
 
   getPendingUpdates(): MothershipResourceUpdate[] {
@@ -82,6 +103,8 @@ export class ResourcePersistenceQueue {
     this.inFlight.clear()
     this.desiredUpdates.clear()
     this.failedKeys.clear()
+    this.persistedKeys.clear()
+    this.removalTokens.clear()
     this.writeTokens.clear()
   }
 
@@ -89,6 +112,35 @@ export class ResourcePersistenceQueue {
     for (const key of this.pendingKeys) {
       if (!this.failedKeys.has(key) && !this.inFlight.has(key)) this.start(key, chatId)
     }
+  }
+
+  private startRemoval(
+    key: string,
+    chatId: string,
+    removalToken: symbol,
+    remove: () => Promise<unknown>
+  ): void {
+    if (this.removalTokens.get(key) !== removalToken) return
+
+    const writeToken = Symbol(key)
+    const tracked = Promise.resolve()
+      .then(() => {
+        if (this.removalTokens.get(key) !== removalToken) return
+        return remove()
+      })
+      .catch(this.onError)
+      .finally(() => {
+        if (this.writeTokens.get(key) !== writeToken) return
+        this.writeTokens.delete(key)
+        this.inFlight.delete(key)
+        if (this.removalTokens.get(key) === removalToken) {
+          this.removalTokens.delete(key)
+          this.persistedKeys.delete(key)
+        }
+        if (this.pendingKeys.has(key)) this.start(key, chatId)
+      })
+    this.writeTokens.set(key, writeToken)
+    this.inFlight.set(key, tracked)
   }
 
   private start(key: string, chatId: string): void {
@@ -105,10 +157,12 @@ export class ResourcePersistenceQueue {
       .then(() => this.persist(chatId, update))
       .then((result) => {
         succeeded = true
+        this.persistedKeys.add(key)
         return result
       })
       .catch((error) => {
         if (this.writeTokens.get(key) !== token) return
+        if (!this.desiredUpdates.has(key)) return
         this.pendingKeys.add(key)
         this.failedKeys.add(key)
         this.onError(error)

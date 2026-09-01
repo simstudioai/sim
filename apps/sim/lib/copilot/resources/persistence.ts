@@ -25,17 +25,17 @@ const logger = createLogger('CopilotResources')
 
 type ChatResource = MothershipResource
 
-const chatResourceWriteChain = new Map<string, Promise<void>>()
+const chatResourceWriteChain = new Map<string, Promise<unknown>>()
 
-async function serializeChatResourceWrite(
+export async function serializeChatResourceWrite<T>(
   chatId: string,
-  write: () => Promise<void>
-): Promise<void> {
+  write: () => Promise<T>
+): Promise<T> {
   const tail = chatResourceWriteChain.get(chatId) ?? Promise.resolve()
   const run = tail.catch(() => {}).then(write)
   chatResourceWriteChain.set(chatId, run)
   try {
-    await run
+    return await run
   } finally {
     if (chatResourceWriteChain.get(chatId) === run) chatResourceWriteChain.delete(chatId)
   }
