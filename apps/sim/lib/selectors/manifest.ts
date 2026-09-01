@@ -96,10 +96,12 @@ export const selectorManifest = {
   'attio.objects': providerSelector([], { detail: true }),
   'bigquery.datasets': providerSelector(['projectId', 'impersonateUserEmail'], {
     readiness: { all: ['oauthCredential', 'projectId'] },
+    listMode: 'paginated',
     detail: true,
   }),
   'bigquery.tables': providerSelector(['projectId', 'datasetId', 'impersonateUserEmail'], {
     readiness: { all: ['oauthCredential', 'projectId', 'datasetId'] },
+    listMode: 'paginated',
     detail: true,
   }),
   'bitbucket.workspaces': providerSelector([], { listMode: 'paginated', detail: true }),

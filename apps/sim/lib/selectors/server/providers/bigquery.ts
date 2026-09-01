@@ -7,29 +7,55 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
-import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
-import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
-import type {
-  ExecuteServerSelectorArgs,
-  ServerSelectorAttachmentMap,
+import {
+  fetchProviderJson,
+  fetchProviderJsonWithStatus,
+} from '@/lib/selectors/server/providers/provider-http'
+import {
+  detailSelectorResult,
+  type ExecuteServerSelectorArgs,
+  listSelectorResult,
+  requireListRequest,
+  type ServerSelectorAttachmentMap,
+  type ServerSelectorExecutionResult,
 } from '@/lib/selectors/server/types'
 
 type BigQuerySelectorKey = Extract<ServerSelectorKey, 'bigquery.datasets' | 'bigquery.tables'>
 
-const BIGQUERY_MAX_PAGES = 20
 const BIGQUERY_PAGE_SIZE = 200
+const BIGQUERY_CURSOR_MAX_LENGTH = 4_096
 const BIGQUERY_SCOPES = getScopesForService('google-bigquery')
+/** Standard project IDs plus Google's legacy `domain.tld:project-id` form. */
+const PROJECT_ID_PATTERN = /^([a-z][a-z0-9.-]{0,61}[a-z0-9]:)?[a-z][a-z0-9-]{4,28}[a-z0-9]$/
+const DATASET_ID_PATTERN = /^[A-Za-z0-9_]{1,1024}$/
+const TABLE_ID_PATTERN = /^[\p{L}\p{M}\p{N}\p{Pc}\p{Pd}\p{Zs}]+$/u
+
+const projectIdSchema = z.string().regex(PROJECT_ID_PATTERN)
+const datasetIdSchema = z.string().regex(DATASET_ID_PATTERN)
+const tableIdSchema = z.string().superRefine((value, context) => {
+  if (
+    !value ||
+    new TextEncoder().encode(value).byteLength > 1_024 ||
+    !TABLE_ID_PATTERN.test(value)
+  ) {
+    context.addIssue({ code: 'custom', message: 'Invalid BigQuery table ID' })
+  }
+})
 
 const bigQueryDatasetSchema = z.object({
   datasetReference: z.object({
-    datasetId: z.string().min(1),
-    projectId: z.string().min(1),
+    datasetId: datasetIdSchema,
+    projectId: projectIdSchema,
   }),
   friendlyName: z.string().optional(),
 })
 
 const bigQueryTableSchema = z.object({
-  tableReference: z.object({ tableId: z.string().min(1) }),
+  tableReference: z.object({
+    datasetId: datasetIdSchema,
+    projectId: projectIdSchema,
+    tableId: tableIdSchema,
+  }),
   friendlyName: z.string().optional(),
 })
 
@@ -43,13 +69,36 @@ const tablesPageSchema = z.object({
   nextPageToken: z.string().min(1).max(4_096).optional(),
 })
 
-function requireCredential(args: ExecuteServerSelectorArgs) {
+function requireCredential(
+  args: ExecuteServerSelectorArgs
+): NonNullable<ExecuteServerSelectorArgs['credential']> {
   if (!args.credential) throw new SelectorConnectionUnavailableError()
   return args.credential
 }
 
-function requireContext(value: string | undefined): string {
-  if (!value) throw new SelectorContextUnavailableError()
+function requireProjectId(value: string | undefined): string {
+  const parsed = projectIdSchema.safeParse(value?.trim())
+  if (!parsed.success) throw new SelectorContextUnavailableError()
+  return parsed.data
+}
+
+function requireDatasetId(value: string | undefined): string {
+  const parsed = datasetIdSchema.safeParse(value?.trim())
+  if (!parsed.success) throw new SelectorContextUnavailableError()
+  return parsed.data
+}
+
+function requireTableId(value: string): string {
+  const parsed = tableIdSchema.safeParse(value)
+  if (!parsed.success) throw new SelectorContextUnavailableError()
+  return parsed.data
+}
+
+function requireCursor(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined
+  if (!value.trim() || value.length > BIGQUERY_CURSOR_MAX_LENGTH) {
+    throw new SelectorContextUnavailableError()
+  }
   return value
 }
 
@@ -63,85 +112,150 @@ async function getAccessToken(args: ExecuteServerSelectorArgs): Promise<string> 
   })
 }
 
-async function listDatasets(args: ExecuteServerSelectorArgs) {
-  const projectId = requireContext(args.context.projectId)
-  const accessToken = await getAccessToken(args)
-  const datasets: z.infer<typeof bigQueryDatasetSchema>[] = []
-  let pageToken: string | undefined
-  let truncated = false
-
-  for (let page = 0; page < BIGQUERY_MAX_PAGES; page++) {
-    const url = new URL(
-      `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(projectId)}/datasets`
-    )
-    url.searchParams.set('maxResults', String(BIGQUERY_PAGE_SIZE))
-    if (pageToken) url.searchParams.set('pageToken', pageToken)
-
-    const body = await fetchProviderJson<unknown>(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-      redirect: 'error',
-      signal: args.signal,
-    })
-    const parsed = datasetsPageSchema.safeParse(body)
-    if (!parsed.success) throw new SelectorOptionsUnavailableError()
-
-    datasets.push(...(parsed.data.datasets ?? []))
-    pageToken = parsed.data.nextPageToken
-    if (!pageToken) break
-    if (page === BIGQUERY_MAX_PAGES - 1) truncated = true
-  }
-
+function requestHeaders(accessToken: string): Record<string, string> {
   return {
-    items: datasets.map((dataset) => ({
-      id: dataset.datasetReference.datasetId,
-      label: dataset.friendlyName || dataset.datasetReference.datasetId,
-    })),
-    truncated,
+    Authorization: `Bearer ${accessToken}`,
+    Accept: 'application/json',
   }
 }
 
-async function listTables(args: ExecuteServerSelectorArgs) {
-  const projectId = requireContext(args.context.projectId)
-  const datasetId = requireContext(args.context.datasetId)
+async function listDatasets(
+  args: ExecuteServerSelectorArgs
+): Promise<ServerSelectorExecutionResult> {
+  const request = requireListRequest(args.selectorKey, args.request)
+  const projectId = requireProjectId(args.context.projectId)
+  const cursor = requireCursor(request.cursor)
   const accessToken = await getAccessToken(args)
-  const tables: z.infer<typeof bigQueryTableSchema>[] = []
-  let pageToken: string | undefined
-  let truncated = false
+  const url = new URL(
+    `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(projectId)}/datasets`
+  )
+  url.searchParams.set('maxResults', String(BIGQUERY_PAGE_SIZE))
+  if (cursor) url.searchParams.set('pageToken', cursor)
 
-  for (let page = 0; page < BIGQUERY_MAX_PAGES; page++) {
-    const url = new URL(
-      `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(projectId)}/datasets/${encodeURIComponent(datasetId)}/tables`
-    )
-    url.searchParams.set('maxResults', String(BIGQUERY_PAGE_SIZE))
-    if (pageToken) url.searchParams.set('pageToken', pageToken)
-
-    const body = await fetchProviderJson<unknown>(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-      redirect: 'error',
-      signal: args.signal,
-    })
-    const parsed = tablesPageSchema.safeParse(body)
-    if (!parsed.success) throw new SelectorOptionsUnavailableError()
-
-    tables.push(...(parsed.data.tables ?? []))
-    pageToken = parsed.data.nextPageToken
-    if (!pageToken) break
-    if (page === BIGQUERY_MAX_PAGES - 1) truncated = true
+  const body = await fetchProviderJson<unknown>(url, {
+    headers: requestHeaders(accessToken),
+    redirect: 'error',
+    signal: args.signal,
+  })
+  const parsed = datasetsPageSchema.safeParse(body)
+  if (!parsed.success) throw new SelectorOptionsUnavailableError()
+  if (parsed.data.datasets?.some((dataset) => dataset.datasetReference.projectId !== projectId)) {
+    throw new SelectorOptionsUnavailableError()
   }
 
-  return {
-    items: tables.map((table) => ({
+  return listSelectorResult(
+    (parsed.data.datasets ?? []).map((dataset) => ({
+      id: dataset.datasetReference.datasetId,
+      label: dataset.friendlyName || dataset.datasetReference.datasetId,
+    })),
+    parsed.data.nextPageToken
+  )
+}
+
+async function listTables(args: ExecuteServerSelectorArgs): Promise<ServerSelectorExecutionResult> {
+  const request = requireListRequest(args.selectorKey, args.request)
+  const projectId = requireProjectId(args.context.projectId)
+  const datasetId = requireDatasetId(args.context.datasetId)
+  const cursor = requireCursor(request.cursor)
+  const accessToken = await getAccessToken(args)
+  const url = new URL(
+    `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(projectId)}/datasets/${encodeURIComponent(datasetId)}/tables`
+  )
+  url.searchParams.set('maxResults', String(BIGQUERY_PAGE_SIZE))
+  if (cursor) url.searchParams.set('pageToken', cursor)
+
+  const body = await fetchProviderJson<unknown>(url, {
+    headers: requestHeaders(accessToken),
+    redirect: 'error',
+    signal: args.signal,
+  })
+  const parsed = tablesPageSchema.safeParse(body)
+  if (!parsed.success) throw new SelectorOptionsUnavailableError()
+  if (
+    parsed.data.tables?.some(
+      (table) =>
+        table.tableReference.projectId !== projectId || table.tableReference.datasetId !== datasetId
+    )
+  ) {
+    throw new SelectorOptionsUnavailableError()
+  }
+
+  return listSelectorResult(
+    (parsed.data.tables ?? []).map((table) => ({
       id: table.tableReference.tableId,
       label: table.friendlyName || table.tableReference.tableId,
     })),
-    truncated,
+    parsed.data.nextPageToken
+  )
+}
+
+async function getDataset(args: ExecuteServerSelectorArgs): Promise<ServerSelectorExecutionResult> {
+  if (args.request.kind !== 'detail') throw new SelectorOptionsUnavailableError()
+  const projectId = requireProjectId(args.context.projectId)
+  const datasetId = requireDatasetId(args.request.id)
+  const accessToken = await getAccessToken(args)
+  const url = new URL(
+    `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(projectId)}/datasets/${encodeURIComponent(datasetId)}`
+  )
+  url.searchParams.set('datasetView', 'METADATA')
+
+  const result = await fetchProviderJsonWithStatus<unknown>(
+    url,
+    {
+      headers: requestHeaders(accessToken),
+      redirect: 'error',
+      signal: args.signal,
+    },
+    { passthroughStatuses: [404] }
+  )
+  if (!result.ok) return detailSelectorResult(null)
+
+  const parsed = bigQueryDatasetSchema.safeParse(result.data)
+  if (
+    !parsed.success ||
+    parsed.data.datasetReference.projectId !== projectId ||
+    parsed.data.datasetReference.datasetId !== datasetId
+  ) {
+    throw new SelectorOptionsUnavailableError()
   }
+  return detailSelectorResult({
+    id: datasetId,
+    label: parsed.data.friendlyName || datasetId,
+  })
+}
+
+async function getTable(args: ExecuteServerSelectorArgs): Promise<ServerSelectorExecutionResult> {
+  if (args.request.kind !== 'detail') throw new SelectorOptionsUnavailableError()
+  const projectId = requireProjectId(args.context.projectId)
+  const datasetId = requireDatasetId(args.context.datasetId)
+  const tableId = requireTableId(args.request.id)
+  const accessToken = await getAccessToken(args)
+  const url = new URL(
+    `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(projectId)}/datasets/${encodeURIComponent(datasetId)}/tables/${encodeURIComponent(tableId)}`
+  )
+  url.searchParams.set('view', 'BASIC')
+
+  const result = await fetchProviderJsonWithStatus<unknown>(
+    url,
+    {
+      headers: requestHeaders(accessToken),
+      redirect: 'error',
+      signal: args.signal,
+    },
+    { passthroughStatuses: [404] }
+  )
+  if (!result.ok) return detailSelectorResult(null)
+
+  const parsed = bigQueryTableSchema.safeParse(result.data)
+  if (
+    !parsed.success ||
+    parsed.data.tableReference.projectId !== projectId ||
+    parsed.data.tableReference.datasetId !== datasetId ||
+    parsed.data.tableReference.tableId !== tableId
+  ) {
+    throw new SelectorOptionsUnavailableError()
+  }
+  return detailSelectorResult({ id: tableId, label: parsed.data.friendlyName || tableId })
 }
 
 const credential = {
@@ -155,30 +269,16 @@ export const bigQuerySelectorAttachments = {
     credential,
     destination: 'fixed',
     async execute(args) {
-      const result = await listDatasets(args)
-      return flatSelectorResult(
-        args.request,
-        result.items,
-        true,
-        result.truncated
-          ? { truncated: { reason: 'provider-cap', pages: BIGQUERY_MAX_PAGES } }
-          : undefined
-      )
+      if (args.request.kind === 'detail') return getDataset(args)
+      return listDatasets(args)
     },
   },
   'bigquery.tables': {
     credential,
     destination: 'fixed',
     async execute(args) {
-      const result = await listTables(args)
-      return flatSelectorResult(
-        args.request,
-        result.items,
-        true,
-        result.truncated
-          ? { truncated: { reason: 'provider-cap', pages: BIGQUERY_MAX_PAGES } }
-          : undefined
-      )
+      if (args.request.kind === 'detail') return getTable(args)
+      return listTables(args)
     },
   },
 } satisfies ServerSelectorAttachmentMap<BigQuerySelectorKey>
