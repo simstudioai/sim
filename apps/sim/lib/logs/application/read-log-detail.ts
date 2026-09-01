@@ -11,7 +11,7 @@ import {
 } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { readLogDetail } from '@/lib/logs/fetch-log-detail'
-import { resolveLogFieldProjection } from '@/lib/logs/log-projection'
+import { logProjectionSubjectUserId, resolveLogFieldProjection } from '@/lib/logs/log-projection'
 import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
@@ -88,7 +88,7 @@ const authorizedReadLogDetailUseCase = defineAuthorizedWorkspaceUseCase({
      * the v1 public API reads too — see {@link resolveLogFieldProjection}.
      */
     const projection = await resolveLogFieldProjection(
-      viewerUserId,
+      logProjectionSubjectUserId(principal),
       context.workspaceId,
       context.workspaceOrganizationId
     )

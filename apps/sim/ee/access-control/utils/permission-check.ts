@@ -203,12 +203,23 @@ function governedSubjectUserId(
  * Cache-aware wrapper around `getUserPermissionConfig`. When an
  * `ExecutionContext` is provided, the resolved config is memoized on the
  * context so repeated checks during a single workflow run share one DB hit.
+ *
+ * The subject is resolved HERE rather than by each caller, because the memo is
+ * keyed by nothing but the context. `validateModelProvider` and
+ * `validateBlockType` take the actor's id positionally, so a run declaring a
+ * different gate subject had the first model check fill the cache with the
+ * BILLING actor's group — and every later `assertPermissionsAllowed`, having
+ * correctly resolved the governed subject, was handed that stale entry. Doing
+ * the derivation at the one place the config is loaded makes the memo correct
+ * by construction: within a run `capabilityGovernedUserId` is fixed, so every
+ * path resolves and caches the same person.
  */
 async function getPermissionConfig(
-  userId: string | undefined,
+  actorUserId: string | undefined,
   workspaceId: string | undefined,
   ctx?: ExecutionContext
 ): Promise<PermissionGroupConfig | null> {
+  const userId = governedSubjectUserId(actorUserId, ctx)
   if (!userId || !workspaceId) {
     return mergeEnvAllowlist(null)
   }
@@ -335,7 +346,7 @@ export async function validateModelProvider(
     return
   }
 
-  assertModelAllowed(config, model, { userId, workspaceId })
+  assertModelAllowed(config, model, { userId: governedSubjectUserId(userId, ctx), workspaceId })
 }
 
 export async function validateBlockType(
@@ -357,7 +368,10 @@ export async function validateBlockType(
     return
   }
 
-  assertBlockTypeAllowed(config, blockType, { userId, workspaceId })
+  assertBlockTypeAllowed(config, blockType, {
+    userId: governedSubjectUserId(userId, ctx),
+    workspaceId,
+  })
 }
 
 const INVITATIONS_RULE = CAPABILITY_RULES['invitations.send']

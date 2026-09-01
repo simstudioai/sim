@@ -101,9 +101,7 @@ describe('readWorkflowRun projection subject', () => {
 
     await readWorkflowRun.execute({ principal: workspaceKey, input: input([]) })
 
-    expect(mocks.getStatus).toHaveBeenCalledWith(
-      expect.objectContaining({ viewerUserId: undefined })
-    )
+    expect(mocks.getStatus).toHaveBeenCalledWith(expect.objectContaining({ viewerUserId: null }))
   })
 })
 

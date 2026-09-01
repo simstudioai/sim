@@ -401,6 +401,7 @@ async function continueCascadeAfterResume(
   const { getTableById } = await import('@/lib/table/service')
   const { getRowById } = await import('@/lib/table/rows/service')
   const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
+  const { readStampedCapabilitySubject } = await import('@/lib/table/rows/executions')
   const { runRowCascadeLoop } = await import('@/background/workflow-column-execution')
 
   const freshTable = await getTableById(cellContext.tableId)
@@ -409,6 +410,8 @@ async function continueCascadeAfterResume(
   if (!freshRow) return
   const next = pickNextEligibleGroupForRow(freshTable, freshRow, cellContext.groupId)
   if (!next) return
+  const nextExec = freshRow.executions?.[next.id]
+  const isQueuedMarker = nextExec?.status === 'pending' && nextExec.executionId == null
   await runRowCascadeLoop(
     {
       tableId: cellContext.tableId,
@@ -424,8 +427,17 @@ async function continueCascadeAfterResume(
        * cascades into. Reconstructing this from the resume payload is not
        * possible — `payload.userId` is the resumer/attribution, not the gate —
        * so it rides the pause snapshot instead.
+       *
+       * Unless the next group carries another dispatch's unclaimed pre-stamp:
+       * that is an explicit request from someone else that this cascade happens
+       * to be draining, and it runs under the subject persisted with it. The
+       * same decision both drain points in `workflow-column-execution.ts` make;
+       * a resume that skipped it would hand a stranger's request the paused
+       * cell's gate.
        */
-      capabilityGovernedUserId: cellContext.capabilityGovernedUserId,
+      capabilityGovernedUserId: isQueuedMarker
+        ? await readStampedCapabilitySubject(cellContext.rowId, next.id)
+        : cellContext.capabilityGovernedUserId,
     },
     signal
   )

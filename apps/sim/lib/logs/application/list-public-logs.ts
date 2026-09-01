@@ -10,6 +10,7 @@ import { resolveLogFolderScope } from '@/lib/logs/folder-scope'
 import {
   assertLogCostQueryAllowed,
   type LogFieldProjection,
+  logProjectionSubjectUserId,
   projectExecutionData,
   resolveLogFieldProjection,
 } from '@/lib/logs/log-projection'
@@ -89,7 +90,7 @@ export const listPublicLogs = defineAuthorizedWorkspaceUseCase({
      * by a second surface reading the same list.
      */
     const projection = await resolveLogFieldProjection(
-      viewerUserId,
+      logProjectionSubjectUserId(principal),
       context.workspaceId,
       context.workspaceOrganizationId
     )

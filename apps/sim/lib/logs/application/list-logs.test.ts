@@ -127,4 +127,33 @@ describe('listLogsUseCase', () => {
     expect(resolveGroupConfigMock).not.toHaveBeenCalled()
     expect(mocks.readLogs).toHaveBeenCalledWith(expect.objectContaining({ hideCostInfo: false }))
   })
+
+  /**
+   * An executor delegation names the person who triggered the run, but carries
+   * their role and none of their capabilities — the exemption the authorization
+   * funnel already applied on the way in. Projecting on them here would be a
+   * second, contrary decision about the same principal, and a cost-sorted read
+   * would not merely lose a column: `assertLogCostQueryAllowed` would refuse the
+   * run's own listing outright.
+   */
+  it('reads whole for a run delegated by a member whose group withholds spend', async () => {
+    resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
+
+    await listLogsUseCase.execute({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'executor',
+        subjectUserId: 'user-1',
+        workspaceId: WORKSPACE_ID,
+        delegationId: 'delegation-1',
+        audience: 'sim:logs',
+        issuedAt: new Date('2026-01-01T00:00:00Z'),
+        expiresAt: new Date('2999-01-01T00:00:00Z'),
+      } as Principal,
+      input: { ...(INPUT as object), sortBy: 'cost' } as never,
+    })
+
+    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
+    expect(mocks.readLogs).toHaveBeenCalledWith(expect.objectContaining({ hideCostInfo: false }))
+  })
 })

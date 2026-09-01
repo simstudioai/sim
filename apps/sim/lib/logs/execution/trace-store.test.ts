@@ -31,6 +31,7 @@ import {
   projectExecutionDataForDisplay,
   RESOLVED_SECRET_PROVENANCE_KEY,
   SECRET_PROJECTION_VERSION,
+  stripJoinedChildTraceSpend,
   stripSpanCosts,
   TRACE_STORE_REF_KEY,
 } from '@/lib/logs/execution/trace-store'
@@ -775,43 +776,49 @@ describe('stored provenance display reporting', () => {
 })
 
 /**
- * `stripSpanCosts` is what stands between a joined cross-workspace child run and
- * the parent's reader: the child's spend is billed to the SOURCE workspace and
- * was never rolled into this run's total, so anything it leaves behind is spend
- * the reader was never meant to see.
+ * The two strips are not the same removal, and the difference is whether the
+ * result is written.
+ *
+ * `stripJoinedChildTraceSpend` is what stands between a joined cross-workspace
+ * child run and the parent's reader: the child's spend is billed to the SOURCE
+ * workspace and was never rolled into this run's total, so anything it leaves
+ * behind is spend the reader was never meant to see — and it never persists.
+ * `stripSpanCosts` runs inside `backfill-trace-spans.ts`, which stores what it
+ * returns, so anything IT clears is gone for every authorized reader of that run
+ * forever. Only the dollars belong in that set.
  */
-describe('stripSpanCosts', () => {
-  function spanWithSpend() {
-    return [
-      {
-        id: 'span-1',
-        name: 'agent',
-        cost: { total: 0.5 },
-        tokens: { total: 900 },
-        providerTiming: {
-          duration: 5,
-          segments: [
-            { type: 'model', name: 'gpt-4', tokens: { total: 900 }, cost: { total: 0.5 } },
-            { type: 'tool', name: 'search' },
-          ],
-        },
-        children: [
-          {
-            id: 'span-2',
-            name: 'model',
-            cost: { total: 0.2 },
-            tokens: { total: 400 },
-            providerTiming: { segments: [{ type: 'model', tokens: { total: 400 } }] },
-          },
+function spanWithSpend() {
+  return [
+    {
+      id: 'span-1',
+      name: 'agent',
+      cost: { total: 0.5 },
+      tokens: { total: 900 },
+      providerTiming: {
+        duration: 5,
+        segments: [
+          { type: 'model', name: 'gpt-4', tokens: { total: 900 }, cost: { total: 0.5 } },
+          { type: 'tool', name: 'search' },
         ],
       },
-    ]
-  }
+      children: [
+        {
+          id: 'span-2',
+          name: 'model',
+          cost: { total: 0.2 },
+          tokens: { total: 400 },
+          providerTiming: { segments: [{ type: 'model', tokens: { total: 400 } }] },
+        },
+      ],
+    },
+  ]
+}
 
+describe('stripJoinedChildTraceSpend', () => {
   it('clears the span roll-up and the provider-timing segments that itemize it', () => {
     const spans = spanWithSpend()
 
-    stripSpanCosts(spans)
+    stripJoinedChildTraceSpend(spans)
 
     expect(spans[0].cost).toBeUndefined()
     expect(spans[0].tokens).toBeUndefined()
@@ -828,7 +835,7 @@ describe('stripSpanCosts', () => {
   it('reaches the segments of nested children too', () => {
     const spans = spanWithSpend()
 
-    stripSpanCosts(spans)
+    stripJoinedChildTraceSpend(spans)
 
     const child = spans[0].children[0]
     expect(child.cost).toBeUndefined()
@@ -841,7 +848,41 @@ describe('stripSpanCosts', () => {
   it('leaves a span with no provider timing alone', () => {
     const spans = [{ id: 'span-1', name: 'api', cost: { total: 0.1 } }]
 
-    expect(() => stripSpanCosts(spans)).not.toThrow()
+    expect(() => stripJoinedChildTraceSpend(spans)).not.toThrow()
     expect(spans[0]).toMatchObject({ id: 'span-1', name: 'api' })
+  })
+})
+
+describe('stripSpanCosts', () => {
+  it('clears cost at both levels and through children', () => {
+    const spans = spanWithSpend()
+
+    stripSpanCosts(spans)
+
+    expect(spans[0].cost).toBeUndefined()
+    expect(spans[0].children[0].cost).toBeUndefined()
+    expect(
+      (spans[0].providerTiming.segments as Array<Record<string, unknown>>)[0].cost
+    ).toBeUndefined()
+  })
+
+  /**
+   * The migration stores what this returns. A legacy run's token counts are
+   * ordinary trace detail its authorized readers have always had, and the ledger
+   * — not the span — is where dollars live, so erasing them buys nothing and
+   * cannot be undone.
+   */
+  it('keeps the token counts the migration is about to persist', () => {
+    const spans = spanWithSpend()
+
+    stripSpanCosts(spans)
+
+    expect(spans[0].tokens).toEqual({ total: 900 })
+    expect(spans[0].children[0].tokens).toEqual({ total: 400 })
+    const segments = spans[0].providerTiming.segments as Array<Record<string, unknown>>
+    expect(segments[0].tokens).toEqual({ total: 900 })
+    expect(
+      (spans[0].children[0].providerTiming.segments as Array<Record<string, unknown>>)[0].tokens
+    ).toEqual({ total: 400 })
   })
 })

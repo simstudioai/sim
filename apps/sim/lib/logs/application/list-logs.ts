@@ -1,4 +1,3 @@
-import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import type { ListLogsResponse } from '@/lib/api/contracts/logs'
 import { defineAuthorizedWorkspaceUseCase, type OperationUseCase } from '@/lib/core/application'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
@@ -8,9 +7,11 @@ import {
 } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { type ListLogsParams, readLogs } from '@/lib/logs/list-logs'
-import { assertLogCostQueryAllowed } from '@/lib/logs/log-projection'
-import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+import {
+  assertLogCostQueryAllowed,
+  logProjectionSubjectUserId,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const authorizedListLogsUseCase = defineAuthorizedWorkspaceUseCase({
@@ -23,18 +24,14 @@ const authorizedListLogsUseCase = defineAuthorizedWorkspaceUseCase({
      * permission-group-enforced: logs.cost — the list carries the same run
      * total the detail does, so withholding it only on the detail would hide
      * nothing. A projection rather than a refusal, for the reason given in
-     * `read-log-detail.ts`.
+     * `read-log-detail.ts`, resolved through the shared helper every other log
+     * surface reads so the subject and the rule cannot drift apart here.
      */
-    const viewerUserId = resolvePrincipalSubjectUserId(principal)
-    const permissionConfig = viewerUserId
-      ? await resolvePermissionGroupConfig(
-          viewerUserId,
-          context.workspaceId,
-          context.workspaceOrganizationId
-        )
-      : null
-
-    const hideCostInfo = capabilityDeniedBy('logs.cost', permissionConfig)
+    const { hideCostInfo } = await resolveLogFieldProjection(
+      logProjectionSubjectUserId(principal),
+      context.workspaceId,
+      context.workspaceOrganizationId
+    )
     /**
      * The list's own `sortBy=cost` and `costOperator`/`costValue` select on the
      * very figure the row above blanks, so they have to be refused rather than

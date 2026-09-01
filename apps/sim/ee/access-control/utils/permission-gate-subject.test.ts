@@ -24,7 +24,11 @@ vi.mock('@/providers/utils', () => ({
 }))
 
 import type { ExecutionContext } from '@/executor/types'
-import { assertPermissionsAllowed, ToolNotAllowedError } from './permission-check'
+import {
+  assertPermissionsAllowed,
+  ToolNotAllowedError,
+  validateModelProvider,
+} from './permission-check'
 
 /**
  * A run's own metadata carries its gate subject. Only a trigger whose acting
@@ -99,5 +103,64 @@ describe('the subject a run’s permission gate is decided about', () => {
     ).rejects.toBeInstanceOf(ToolNotAllowedError)
 
     expect(mocks.getUserPermissionConfig).toHaveBeenCalledWith('user-123', 'workspace-1')
+  })
+})
+
+/**
+ * The run-scoped memo on `ExecutionContext` is keyed by nothing but the
+ * context, so whichever check loads first decides whose group every later check
+ * on that run reads. `validateModelProvider` takes the actor positionally, and
+ * the agent handler calls it before the skill gate — so a delegated run whose
+ * gate subject differs from its billing actor had the model check cache the
+ * bystander's group and hand it to `assertPermissionsAllowed`, which had
+ * correctly resolved the governed subject and then never used it.
+ */
+describe('the group a run’s later gates read from its cache', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getUserPermissionConfig.mockResolvedValue({
+      allowedModelProviders: ['openai'],
+      deniedTools: ['exa_search'],
+    })
+  })
+
+  it('is the governed subject’s, even when a model check loaded it first', async () => {
+    const ctx = runDeclaring('requesting-member')
+
+    await validateModelProvider('workspace-billing-owner', 'workspace-1', 'gpt-4', ctx)
+
+    expect(mocks.getUserPermissionConfig).toHaveBeenCalledExactlyOnceWith(
+      'requesting-member',
+      'workspace-1'
+    )
+
+    await expect(
+      assertPermissionsAllowed({
+        userId: 'workspace-billing-owner',
+        workspaceId: 'workspace-1',
+        toolId: 'exa_search',
+        ctx,
+      })
+    ).rejects.toBeInstanceOf(ToolNotAllowedError)
+
+    expect(mocks.getUserPermissionConfig).toHaveBeenCalledExactlyOnceWith(
+      'requesting-member',
+      'workspace-1'
+    )
+  })
+
+  /** An actorless run consults no group, whichever check runs first. */
+  it('is nobody’s when the run declares no acting person', async () => {
+    const ctx = runDeclaring(null)
+
+    await validateModelProvider('workspace-billing-owner', 'workspace-1', 'gpt-4', ctx)
+    await assertPermissionsAllowed({
+      userId: 'workspace-billing-owner',
+      workspaceId: 'workspace-1',
+      toolId: 'exa_search',
+      ctx,
+    })
+
+    expect(mocks.getUserPermissionConfig).not.toHaveBeenCalled()
   })
 })

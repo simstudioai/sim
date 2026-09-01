@@ -335,4 +335,48 @@ describe('serializePauseSnapshot', () => {
     expect(serialized.metadata.includeThinking).toBeUndefined()
     expect(serialized.metadata.includeToolCalls).toBeUndefined()
   })
+
+  /**
+   * A table cell dispatched by a workspace API key bills the workspace's
+   * billing owner and is gated on the member who asked. Losing the gate's
+   * subject on the way into the snapshot would resume the run against that
+   * bystander's group — `governedSubjectUserId` reads an absent field as "not
+   * declared" and falls back to the actor.
+   */
+  it('preserves a gate subject that differs from the billing actor', () => {
+    const context = createContext({
+      metadata: {
+        ...createContext().metadata,
+        userId: 'workspace-billing-owner',
+        capabilityGovernedUserId: 'requesting-member',
+      },
+    })
+
+    const snapshot = serializePauseSnapshot(context, ['next-block'])
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.metadata.userId).toBe('workspace-billing-owner')
+    expect(serialized.metadata.capabilityGovernedUserId).toBe('requesting-member')
+  })
+
+  /** A declared `null` is the actorless run, and is not the same as absence. */
+  it('preserves a declared actorless gate subject as null', () => {
+    const context = createContext({
+      metadata: {
+        ...createContext().metadata,
+        userId: 'workspace-billing-owner',
+        capabilityGovernedUserId: null,
+      },
+    })
+
+    const serialized = JSON.parse(serializePauseSnapshot(context, ['next-block']).snapshot)
+
+    expect(serialized.metadata.capabilityGovernedUserId).toBeNull()
+  })
+
+  it('declares nothing for a run whose caller is its only person', () => {
+    const serialized = JSON.parse(serializePauseSnapshot(createContext(), ['next-block']).snapshot)
+
+    expect(serialized.metadata.capabilityGovernedUserId).toBeUndefined()
+  })
 })

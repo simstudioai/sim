@@ -89,7 +89,15 @@ describe('backfill cascade governance', () => {
     )
   })
 
-  /** A change with no acting person still names one explicitly. */
+  /**
+   * The one payload that can omit the field is a large backfill enqueued before
+   * it existed and still running after the deploy. `actorUserId` is not a
+   * recovery: `attributedUserId` yields the workspace's billed account for a
+   * change made by a workspace API key, and nothing here tells that apart from
+   * a human — so borrowing it would apply a bystander's denylist, the exact
+   * substitution this field removes. Null for one deploy's worth of in-flight
+   * jobs is the least wrong of the available answers.
+   */
   it('keeps an absent subject null rather than borrowing the billing actor', async () => {
     queueOnePage()
 

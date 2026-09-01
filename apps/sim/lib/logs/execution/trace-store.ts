@@ -100,12 +100,18 @@ function workflowIdFromStorageKey(key: string | undefined): string | undefined {
 }
 
 /**
- * Recursively removes `cost` from trace spans before persistence. Cost lives in
- * exactly one place — the usage_log ledger — so persisted spans carry only
- * structure, timing, and tokens (KTD7). Must run AFTER `calculateCostSummary`
- * has consumed span costs in memory.
+ * Recursively removes spend from trace spans, in place.
+ *
+ * `tokens` is optional because the two callers withhold different things.
+ * Persistence withholds only dollars — cost lives in exactly one place, the
+ * usage_log ledger (KTD7), so a stored span carries structure, timing and
+ * tokens. A joined cross-workspace child run withholds the whole amount: its
+ * token counts are the same spend in another unit, recoverable by anyone who
+ * knows the model's rate.
+ *
+ * Must run AFTER `calculateCostSummary` has consumed span costs in memory.
  */
-export function stripSpanCosts(spans: unknown): void {
+function stripSpanSpendFields(spans: unknown, options: { tokens: boolean }): void {
   if (!Array.isArray(spans)) return
   for (const span of spans) {
     if (!span || typeof span !== 'object') continue
@@ -116,15 +122,35 @@ export function stripSpanCosts(spans: unknown): void {
       providerTiming?: unknown
     }
     if ('cost' in record) record.cost = undefined
-    /**
-     * Tokens as well as dollars: a span's token counts are the spend in another
-     * unit, so clearing only `cost` left the amount recoverable by anyone who
-     * knows the model's rate.
-     */
-    if ('tokens' in record) record.tokens = undefined
-    stripProviderTimingSegmentCosts(record.providerTiming)
-    if (Array.isArray(record.children)) stripSpanCosts(record.children)
+    if (options.tokens && 'tokens' in record) record.tokens = undefined
+    stripProviderTimingSegmentSpend(record.providerTiming, options)
+    if (Array.isArray(record.children)) stripSpanSpendFields(record.children, options)
   }
+}
+
+/**
+ * Removes per-span `cost` before persistence, leaving tokens in place.
+ *
+ * The one strip that WRITES: `backfill-trace-spans.ts` runs it over a legacy
+ * row's spans and stores the result, so anything it clears is gone for every
+ * authorized reader of that run, forever. Only cost belongs in that set — the
+ * ledger owns the dollars, and the spans have never been the place they live.
+ */
+export function stripSpanCosts(spans: unknown): void {
+  stripSpanSpendFields(spans, { tokens: false })
+}
+
+/**
+ * Removes cost AND token counts from a joined child run's spans, in memory.
+ *
+ * The child's spend is billed to the SOURCE workspace and was never rolled into
+ * the parent run's total, so leaving any of it would publish spend the reader
+ * was never meant to see and make the waterfall contradict the run cost above
+ * it. A read-time projection only: these spans are hydrated onto a response and
+ * never written back.
+ */
+export function stripJoinedChildTraceSpend(spans: unknown): void {
+  stripSpanSpendFields(spans, { tokens: true })
 }
 
 /**
@@ -135,7 +161,10 @@ export function stripSpanCosts(spans: unknown): void {
  * left the whole figure itemized underneath it, which is strictly more than the
  * span published in the first place.
  */
-function stripProviderTimingSegmentCosts(providerTiming: unknown): void {
+function stripProviderTimingSegmentSpend(
+  providerTiming: unknown,
+  options: { tokens: boolean }
+): void {
   if (!providerTiming || typeof providerTiming !== 'object') return
   const segments = (providerTiming as { segments?: unknown }).segments
   if (!Array.isArray(segments)) return
@@ -143,7 +172,7 @@ function stripProviderTimingSegmentCosts(providerTiming: unknown): void {
     if (!segment || typeof segment !== 'object') continue
     const record = segment as { cost?: unknown; tokens?: unknown }
     if ('cost' in record) record.cost = undefined
-    if ('tokens' in record) record.tokens = undefined
+    if (options.tokens && 'tokens' in record) record.tokens = undefined
   }
 }
 

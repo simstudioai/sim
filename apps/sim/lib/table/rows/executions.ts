@@ -416,6 +416,13 @@ export async function readStampedCapabilitySubject(
   return stamped?.capabilityGovernedUserId ?? null
 }
 
+/** One cell whose unclaimed marker {@link cancelPendingMarkersForGovernedSubject} stopped. */
+export interface CancelledCellMarker {
+  tableId: string
+  rowId: string
+  groupId: string
+}
+
 /**
  * Terminalizes every still-unstarted cell marker stamped with `userId`, in the
  * caller's transaction.
@@ -435,13 +442,18 @@ export async function readStampedCapabilitySubject(
  * match anyway. The written state is the canonical cancel
  * (`buildCancelledExecution`), which every drain path's `isExecCancelled` check
  * already refuses to run.
+ *
+ * Returns what it stopped so the caller can announce it: this write is not the
+ * cancel path the UI listens to, and a collaborator watching the table would
+ * otherwise keep the cells on their in-flight pill until something else touched
+ * the row.
  */
 export async function cancelPendingMarkersForGovernedSubject(
   trx: DbOrTx,
   userId: string
-): Promise<void> {
+): Promise<CancelledCellMarker[]> {
   const now = new Date()
-  await trx
+  return trx
     .update(tableRowExecutions)
     .set({
       status: 'cancelled',
@@ -457,6 +469,11 @@ export async function cancelPendingMarkersForGovernedSubject(
         inArray(tableRowExecutions.status, ['pending', 'queued'])
       )
     )
+    .returning({
+      tableId: tableRowExecutions.tableId,
+      rowId: tableRowExecutions.rowId,
+      groupId: tableRowExecutions.groupId,
+    })
 }
 
 /**
