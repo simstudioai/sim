@@ -1,8 +1,8 @@
 import type { SlackMessageParams, SlackMessageResponse } from '@/tools/slack/types'
 import { MESSAGE_OUTPUT_PROPERTIES } from '@/tools/slack/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageResponse> = {
+export const slackMessageTool: InternalToolConfig<SlackMessageParams, SlackMessageResponse> = {
   id: 'slack_message',
   name: 'Slack Message',
   description:
@@ -78,13 +78,8 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
     },
   },
 
-  request: {
-    url: '/api/tools/slack/send-message',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: SlackMessageParams) => {
+  operation: {
+    input: (params: SlackMessageParams) => {
       const isDM = params.destinationType === 'dm'
       return {
         accessToken: params.accessToken || params.botToken,

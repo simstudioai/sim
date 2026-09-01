@@ -757,9 +757,30 @@ export function isInternalFileUrl(fileUrl: string): boolean {
  * row — see `resolveStoredFileContext` — never this prefix.
  */
 export function inferContextFromKey(key: string): StorageContext {
-  if (!key) {
-    throw new Error('Cannot infer context from empty key')
+  const context = tryInferContextFromKey(key)
+  if (!context) {
+    throw new Error(
+      key
+        ? `File key must start with a context prefix (kb/, knowledge-base/, chat/, copilot/, execution/, workspace/, profile-pictures/, og-images/, workspace-logos/, or logs/). Got: ${key}`
+        : 'Cannot infer context from empty key'
+    )
   }
+  return context
+}
+
+/**
+ * {@link inferContextFromKey} for a key that came from a caller rather than from
+ * our own storage, answering `null` instead of throwing.
+ *
+ * The throwing form is right where an unclassifiable key means the platform
+ * built one wrong — that is a bug and should be loud. It is wrong where the key
+ * is request input being normalized, because there an unrecognized prefix just
+ * means "this is not a file we can use", and a throw turns a malformed request
+ * into a 500. Both share this one list so a new context cannot be added to only
+ * half of them.
+ */
+export function tryInferContextFromKey(key: string): StorageContext | null {
+  if (!key) return null
 
   if (key.startsWith('kb/') || key.startsWith('knowledge-base/')) return 'knowledge-base'
   if (key.startsWith('chat/')) return 'chat'
@@ -771,9 +792,7 @@ export function inferContextFromKey(key: string): StorageContext {
   if (key.startsWith('workspace-logos/')) return 'workspace-logos'
   if (key.startsWith('logs/')) return 'logs'
 
-  throw new Error(
-    `File key must start with a context prefix (kb/, knowledge-base/, chat/, copilot/, execution/, workspace/, profile-pictures/, og-images/, workspace-logos/, or logs/). Got: ${key}`
-  )
+  return null
 }
 
 /**
@@ -787,6 +806,11 @@ const PUBLIC_STORAGE_CONTEXTS = new Set<StorageContext>([
   'og-images',
   'workspace-logos',
 ])
+
+/** Whether a trusted storage context is world-readable. */
+export function isPublicStorageContext(context: StorageContext): boolean {
+  return PUBLIC_STORAGE_CONTEXTS.has(context)
+}
 
 /**
  * Resolve the storage context for a stored file from its trusted key prefix.
@@ -811,7 +835,7 @@ export function resolveTrustedFileContext(key: string, context?: string): Storag
   try {
     return inferContextFromKey(key)
   } catch (error) {
-    if (context && !PUBLIC_STORAGE_CONTEXTS.has(context as StorageContext)) {
+    if (context && !isPublicStorageContext(context as StorageContext)) {
       return context as StorageContext
     }
     throw error

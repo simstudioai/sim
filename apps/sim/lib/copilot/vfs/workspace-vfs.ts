@@ -142,10 +142,11 @@ import {
 } from '@/lib/knowledge/application/knowledge-bases'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { getActivePermissionGroupRestrictions } from '@/lib/permission-groups/features'
 import {
   intersectIntegrationAllowlists,
-  toAllowedIntegrationTypes,
+  toAccessControlAllowlist,
 } from '@/lib/permission-groups/integration-allowlist'
 import type { IsToolAllowed } from '@/lib/permission-groups/operation-access'
 import {
@@ -203,15 +204,12 @@ import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type { BlockConfig, BlockIcon } from '@/blocks/types'
 import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
-import {
-  getUserPermissionConfig,
-  resolveVerifiedUserAccessControlContext,
-} from '@/ee/access-control/utils/permission-check'
+import { resolveVerifiedUserAccessControlContext } from '@/ee/access-control/utils/permission-check'
 import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
 import { getForkChildren, getForkParent } from '@/ee/workspace-forking/lib/lineage/lineage'
 import { loadForkBlockMap } from '@/ee/workspace-forking/lib/mapping/block-map-store'
 import { getEdgeMappingRows } from '@/ee/workspace-forking/lib/mapping/mapping-store'
-import type { ToolConfig } from '@/tools/types'
+import type { ExecutableToolConfig } from '@/tools/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkspaceVFS')
@@ -441,11 +439,11 @@ function isBinaryDocBuffer(buffer: Buffer, ext: string): boolean {
  * process. Shared by the one-time static build and the per-viewer re-projection
  * of a block whose operations are partly denied.
  */
-let staticToolConfigs: ReadonlyMap<string, ToolConfig> | null = null
+let staticToolConfigs: ReadonlyMap<string, ExecutableToolConfig> | null = null
 
-function getStaticToolConfigs(): ReadonlyMap<string, ToolConfig> {
+function getStaticToolConfigs(): ReadonlyMap<string, ExecutableToolConfig> {
   if (staticToolConfigs) return staticToolConfigs
-  const configs = new Map<string, ToolConfig>()
+  const configs = new Map<string, ExecutableToolConfig>()
   for (const { toolId, config } of getExposedIntegrationTools()) {
     configs.set(toolId, config)
     configs.set(config.id, config)
@@ -941,7 +939,7 @@ export class WorkspaceVFS {
             const blockVisibility = overlayVisibility()
             const permissionConfigPromise = timed(
               'permissions',
-              getUserPermissionConfig(userId, workspaceId)
+              resolvePermissionGroupConfig(userId, workspaceId, undefined)
             )
             const sandboxEntitlementPromise = timed(
               'sandbox_entitlement',
@@ -3164,7 +3162,7 @@ export class WorkspaceVFS {
   private async materializeEnvironment(
     workspaceId: string,
     userId: string,
-    permissionConfigPromise: ReturnType<typeof getUserPermissionConfig>,
+    permissionConfigPromise: ReturnType<typeof resolvePermissionGroupConfig>,
     blockVisibility: BlockVisibilityState | null,
     secretMountPolicy?: SecretMountPolicy
   ): Promise<{
@@ -3182,7 +3180,7 @@ export class WorkspaceVFS {
           permissionConfigPromise,
         ])
       const credentialVisibility = createIntegrationCredentialVisibility({
-        allowedIntegrationTypes: toAllowedIntegrationTypes(
+        allowedIntegrationTypes: toAccessControlAllowlist(
           intersectIntegrationAllowlists(
             permissionConfig?.allowedIntegrations ?? null,
             getAllowedIntegrationsFromEnv()

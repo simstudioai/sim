@@ -38,26 +38,36 @@ import {
   decodeLogSortCursor,
   encodeLogSortCursor,
 } from '@/lib/logs/sort-cursor'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
-export type ListLogsParams = z.output<typeof listLogsQuerySchema>
+/** What a caller asks for: the contract's query, plus cancellation. */
+export type ListLogsParams = z.output<typeof listLogsQuerySchema> & {
+  signal?: AbortSignal
+}
+
+/**
+ * What the query actually runs with — the request, plus the viewer's spend
+ * projection.
+ *
+ * `hideCostInfo` is required and lives on this type rather than on
+ * {@link ListLogsParams} for two reasons that pull the same way. It is resolved
+ * by the application use case and never read off the query, so a client cannot
+ * ask for a row it is not entitled to; and being required rather than defaulted
+ * to `false`, a caller of this read that forgets it fails to compile instead of
+ * quietly disclosing every run's cost.
+ */
+export type ReadLogsParams = ListLogsParams & {
+  hideCostInfo: boolean
+}
 
 type SortBy = 'date' | 'duration' | 'cost' | 'status'
 type SortOrder = 'asc' | 'desc'
 
 /**
- * Shared logs list query used by the `/api/logs` route and the copilot `query_logs`
- * tool. Builds the workflow + job execution-log query (cursor pagination, sort,
- * level running/pending logic, job-log merge) from the shared filter params. The
- * caller is responsible for authenticating `userId`; this function enforces
- * workspace permission via the `permissions` join.
+ * Canonical logs list query after workspace authorization.
  */
-export async function listLogs(params: ListLogsParams, userId: string): Promise<ListLogsResponse> {
-  const access = await checkWorkspaceAccess(params.workspaceId, userId)
-  if (!access.hasAccess) {
-    return { data: [], nextCursor: null }
-  }
-
+export async function readLogs(params: ReadLogsParams): Promise<ListLogsResponse> {
+  params.signal?.throwIfAborted()
+  const { hideCostInfo } = params
   const sortBy = params.sortBy as SortBy
   const sortOrder = params.sortOrder as SortOrder
   const cursor = params.cursor ? decodeLogSortCursor(params.cursor) : null
@@ -67,7 +77,8 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
   const folderIds = params.folderIds
     ? await expandFolderIdsWithDescendants(params.workspaceId, params.folderIds)
     : params.folderIds
-  const p: ListLogsParams = { ...params, folderIds }
+  params.signal?.throwIfAborted()
+  const p: ReadLogsParams = { ...params, folderIds }
 
   const workflowSortExpr: SQL<unknown> = (() => {
     switch (sortBy) {
@@ -191,7 +202,6 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
       workflowName: workflow.name,
       workflowDescription: workflow.description,
       workflowFolderId: workflow.folderId,
-      workflowUserId: workflow.userId,
       workflowWorkspaceId: workflow.workspaceId,
       workflowCreatedAt: workflow.createdAt,
       workflowUpdatedAt: workflow.updatedAt,
@@ -315,6 +325,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
     : Promise.resolve([])
 
   const [workflowRows, jobRows] = await Promise.all([workflowQuery, jobQuery])
+  params.signal?.throwIfAborted()
 
   type RowWithSort = {
     id: string
@@ -348,7 +359,6 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
             name: log.workflowName,
             description: log.workflowDescription,
             folderId: log.workflowFolderId,
-            userId: log.workflowUserId,
             workspaceId: log.workflowWorkspaceId,
             createdAt: log.workflowCreatedAt?.toISOString() ?? null,
             updatedAt: log.workflowUpdatedAt?.toISOString() ?? null,
@@ -357,7 +367,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
       jobTitle: null,
       // List cost is the cost_total projection (faithful ledger sum). Null until
       // completion (running) or until the one-time legacy backfill populates it.
-      cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
+      cost: hideCostInfo || log.costTotal == null ? null : { total: Number(log.costTotal) },
       pauseSummary: {
         status: log.pausedStatus ?? null,
         total: totalPauseCount,
@@ -384,7 +394,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
       createdAt: log.startedAt.toISOString(),
       workflow: null,
       jobTitle: log.jobTitle ?? null,
-      cost: jobCostTotal(log.cost),
+      cost: hideCostInfo ? null : jobCostTotal(log.cost),
       pauseSummary: { status: null, total: 0, resumed: 0 },
       hasPendingPause: false,
     }
@@ -458,9 +468,11 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
           .where(and(...jobFilterConditions))
       : Promise.resolve([{ count: 0 }])
     const [workflowCount, jobCount] = await Promise.all([workflowCountQuery, jobCountQuery])
+    params.signal?.throwIfAborted()
     total = Number(workflowCount[0]?.count ?? 0) + Number(jobCount[0]?.count ?? 0)
   }
 
+  params.signal?.throwIfAborted()
   return {
     data: page.map((row) => row.summary),
     nextCursor,

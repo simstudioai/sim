@@ -72,7 +72,8 @@ interface IssuedInvitation {
 }
 
 export interface PublicCredentialGroupEnrollment {
-  inviterName: string
+  /** Null when the invitation was issued by a workflow or a since-deleted user. */
+  inviterName: string | null
   workspaceName: string
   credentialGroupName: string
   options: Array<
@@ -227,7 +228,8 @@ async function resolvePublicEnrollmentRowByIdentity(
   if (row.enrollment.invitationExpiresAt.getTime() <= Date.now()) return null
 
   const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(row.workspaceId)
-  if (!(await isCredentialGroupsAvailable(ownerBilling))) return null
+  if (!(await isCredentialGroupsAvailable({ workspaceId: row.workspaceId, ownerBilling })))
+    return null
   return row
 }
 
@@ -329,7 +331,14 @@ async function getInvitationContext(
 
 async function issueInvitation(
   context: InvitationContext,
-  userId: string,
+  /**
+   * Who to record as the issuer, when there is someone. Attribution only — the
+   * authority to invite comes from the delegation, so an actorless run (a schedule,
+   * or a webhook with no external subject) issues an unattributed invitation rather
+   * than none. `created_by` is nullable and `on delete set null`, so a row with no
+   * issuer is a shape the schema already carries.
+   */
+  userId: string | undefined,
   email: string,
   options: SendInvitationOptions
 ): Promise<IssuedInvitation> {
@@ -386,7 +395,7 @@ async function issueInvitation(
       completedAt: preservesProgress ? current.completedAt : null,
       revokedAt: null,
       lastDeliveryError: null,
-      createdBy: userId,
+      createdBy: userId ?? null,
       updatedAt: now,
     }
     const [next] = current
@@ -418,8 +427,10 @@ async function issueInvitation(
 
 async function sendInvitation(
   context: InvitationContext,
-  userId: string,
-  inviterName: string,
+  /** See {@link issueInvitation}: the issuer is attribution, never the authority. */
+  userId: string | undefined,
+  /** Absent when a workflow issued the invitation — the copy drops the inviter. */
+  inviterName: string | undefined,
   email: string,
   options: SendInvitationOptions
 ): Promise<CredentialGroupEnrollmentRecord> {
@@ -650,8 +661,10 @@ export async function loadCredentialGroupInviterIdentity(
 export async function inviteCredentialGroupEnrollment(
   workspaceId: string,
   groupId: string,
-  userId: string,
-  inviterName: string,
+  /** See {@link issueInvitation}: the issuer is attribution, never the authority. */
+  userId: string | undefined,
+  /** See {@link sendInvitation}: absent for a workflow-issued invitation. */
+  inviterName: string | undefined,
   email: string
 ): Promise<CredentialGroupEnrollmentRecord> {
   const context = await getInvitationContext(workspaceId, groupId)
@@ -663,7 +676,8 @@ export async function inviteCredentialGroupEnrollment(
 export async function createCredentialGroupInvitationLink(
   workspaceId: string,
   groupId: string,
-  userId: string,
+  /** See {@link issueInvitation}: the issuer is attribution, never the authority. */
+  userId: string | undefined,
   email: string
 ): Promise<CredentialGroupInvitationLink> {
   const context = await getInvitationContext(workspaceId, groupId)
@@ -780,7 +794,7 @@ async function buildPublicCredentialGroupEnrollment(
     )
 
   return {
-    inviterName: row.inviterName ?? 'A workspace admin',
+    inviterName: row.inviterName,
     workspaceName: row.workspaceName,
     credentialGroupName: row.groupName,
     options: await Promise.all(

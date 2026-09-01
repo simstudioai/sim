@@ -134,6 +134,7 @@ describe('sse-handlers tool lifecycle', () => {
       toolPermissions: {
         enabled: false,
         autoAllowed: new Set(),
+        autoAllowPermitted: true,
       },
     }
     execContext = {
@@ -238,6 +239,7 @@ describe('sse-handlers tool lifecycle', () => {
     context.toolPermissions = {
       enabled: true,
       autoAllowed: new Set(),
+      autoAllowPermitted: true,
     }
 
     const event = {
@@ -275,6 +277,7 @@ describe('sse-handlers tool lifecycle', () => {
     context.toolPermissions = {
       enabled: false,
       autoAllowed: new Set(),
+      autoAllowPermitted: true,
     }
 
     const event = {
@@ -302,6 +305,7 @@ describe('sse-handlers tool lifecycle', () => {
     context.toolPermissions = {
       enabled: true,
       autoAllowed: new Set(),
+      autoAllowPermitted: true,
     }
 
     const event = {
@@ -331,6 +335,7 @@ describe('sse-handlers tool lifecycle', () => {
     context.toolPermissions = {
       enabled: true,
       autoAllowed: new Set(['deploy_as_api']),
+      autoAllowPermitted: true,
     }
 
     const event = {
@@ -939,7 +944,7 @@ describe('sse-handlers tool lifecycle', () => {
     expect(executeTool).not.toHaveBeenCalled()
   })
 
-  it('waits for a browser takeover without a client-tool deadline', async () => {
+  it('bounds a retired browser takeover that can no longer execute in the client', async () => {
     isSimExecuted.mockReturnValue(false)
     waitForClientToolCompletion.mockResolvedValueOnce({
       status: 'success',
@@ -970,7 +975,7 @@ describe('sse-handlers tool lifecycle', () => {
       toolCallId: 'tool-browser-takeover',
       runId: context.runId,
       userId: 'user-1',
-      timeoutMs: null,
+      timeoutMs: 1000,
       abortSignal: undefined,
       registry: execContext.resolvedSecretTraceRegistry,
     })

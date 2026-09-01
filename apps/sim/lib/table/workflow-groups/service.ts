@@ -26,6 +26,7 @@ import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { assertValidSchema } from '@/lib/table/schema-invariants'
 import { getTableById, withLockedTable } from '@/lib/table/service'
+import { assertTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import type {
   AddWorkflowGroupData,
@@ -132,6 +133,10 @@ export async function addWorkflowGroup(
   data: AddWorkflowGroupData,
   requestId: string
 ): Promise<TableDefinition> {
+  if (data.outputColumns.some((column) => column.type === 'ttl')) {
+    await assertTableRowTtlEnabled()
+  }
+
   const updatedTable = await withLockedTable(
     data.tableId,
     async (table, trx) => {
@@ -241,6 +246,7 @@ export async function addWorkflowGroup(
       groupIds: [data.group.id],
       requestId,
       triggeredByUserId: data.actorUserId,
+      capabilityGovernedUserId: data.capabilityGovernedUserId,
     }).catch((err) => logger.error(`[${requestId}] auto-dispatch (addWorkflowGroup) failed:`, err))
   }
 
@@ -258,6 +264,10 @@ export async function updateWorkflowGroup(
   requestId: string
 ): Promise<TableDefinition> {
   const mappingUpdates = data.mappingUpdates ?? []
+  const introducesTtl =
+    data.newOutputColumns?.some((column) => column.type === 'ttl') === true ||
+    data.resolvedMappingTypes?.columns.some((column) => column.type === 'ttl') === true
+  if (introducesTtl) await assertTableRowTtlEnabled()
 
   // Phase 1 (no lock): consume the output types resolved and authorized by the
   // application command. Resolution stays outside the advisory-lock critical
@@ -561,6 +571,7 @@ export async function updateWorkflowGroup(
         overwrite: false,
         requestId,
         actorUserId: data.actorUserId,
+        capabilityGovernedUserId: data.capabilityGovernedUserId,
       })
     } catch (err) {
       logger.warn(
@@ -579,6 +590,7 @@ export async function updateWorkflowGroup(
         overwrite: true,
         requestId,
         actorUserId: data.actorUserId,
+        capabilityGovernedUserId: data.capabilityGovernedUserId,
       })
     } catch (err) {
       logger.warn(
@@ -600,6 +612,7 @@ export async function updateWorkflowGroup(
       groupIds: [data.groupId],
       requestId,
       triggeredByUserId: data.actorUserId,
+      capabilityGovernedUserId: data.capabilityGovernedUserId,
     }).catch((err) =>
       logger.error(`[${requestId}] auto-dispatch (updateWorkflowGroup autoRun=true) failed:`, err)
     )
@@ -625,8 +638,13 @@ export async function addWorkflowGroupOutput(
     path: string
     /** Optional override; defaults to a slug derived from `path`. */
     columnName?: string
-    /** The member adding the output — billed/gated for any backfill-triggered re-run. */
+    /** The member adding the output — the billing attribution for the backfill's
+     *  row writes. Not the gate: see `capabilityGovernedUserId`. */
     actorUserId?: string | null
+    /** Person whose permission group gates any cell the backfill's writes
+     *  cascade into; `null` when the change has no acting person. Required; see
+     *  {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`. */
+    capabilityGovernedUserId: string | null
     resolvedOutput: {
       workflowId: string
       columnType: ColumnDefinition['type']
@@ -640,6 +658,8 @@ export async function addWorkflowGroupOutput(
   },
   requestId: string
 ): Promise<TableDefinition> {
+  if (data.resolvedOutput.columnType === 'ttl') await assertTableRowTtlEnabled()
+
   // Phase 1 (no lock): validate the authorized workflow metadata against the
   // group's current workflow. Phase 2 re-validates the same binding under the
   // table lock before applying the mutation.
@@ -741,6 +761,15 @@ export async function addWorkflowGroupOutput(
         const [db, ib] = orderKey(b)
         return da !== db ? da - db : ia - ib
       })
+      const invalidOutput = allGroupOutputs.find(
+        (output) => !resolvedOrder.has(`${output.blockId}::${output.path}`)
+      )
+      if (invalidOutput) {
+        throw new OrchestrationError(
+          'conflict',
+          `Workflow group "${data.groupId}" mappings changed concurrently; retry the add.`
+        )
+      }
       const orderedGroupColIds = allGroupOutputs.map((o) => o.columnName)
       const updatedGroup: WorkflowGroup = {
         ...group,
@@ -847,6 +876,7 @@ export async function addWorkflowGroupOutput(
       overwrite: false,
       requestId,
       actorUserId: data.actorUserId,
+      capabilityGovernedUserId: data.capabilityGovernedUserId,
     })
   } catch (err) {
     logger.warn(

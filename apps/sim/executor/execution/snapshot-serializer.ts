@@ -257,6 +257,12 @@ export function serializePauseSnapshot(
       `Cannot serialize pause snapshot: missing workspaceId for workflow ${context.workflowId}`
     )
   }
+  const principal = metadataFromContext?.principal ?? context.principal
+  if (!principal) {
+    throw new Error(
+      `Cannot serialize pause snapshot: missing principal for workflow ${context.workflowId}`
+    )
+  }
 
   const executionMetadata: ExecutionMetadata = {
     requestId:
@@ -265,6 +271,16 @@ export function serializePauseSnapshot(
     workflowId: context.workflowId,
     workspaceId,
     userId: metadataFromContext?.userId ?? '',
+    /**
+     * The gate's subject, tri-state and carried verbatim. `userId` above is the
+     * billing/rate actor, and for a trigger with no acting person it names the
+     * workspace's billing owner — so a rebuild that dropped this would resume a
+     * paused run gating on that bystander (`governedSubjectUserId` reads an
+     * absent field as "not declared" and falls back to the actor). A declared
+     * `null` is the actorless run and must survive as `null`, not as absence.
+     */
+    capabilityGovernedUserId: metadataFromContext?.capabilityGovernedUserId,
+    principal,
     billingAttribution: metadataFromContext?.billingAttribution,
     sessionUserId: metadataFromContext?.sessionUserId,
     workflowUserId: metadataFromContext?.workflowUserId,

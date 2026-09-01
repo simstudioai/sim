@@ -8,11 +8,14 @@ import {
   createMockRequest,
   dbChainMock,
   dbChainMockFns,
+  permissionGroupScopeMock,
   resetDbChainMock,
+  resetPermissionGroupScopeMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockParseProvider, mockDecodeJwt, mockEq } = vi.hoisted(() => ({
+const { mockParseProvider, mockDecodeJwt, mockEq, mockGetUserOrganization } = vi.hoisted(() => ({
+  mockGetUserOrganization: vi.fn(),
   mockParseProvider: vi.fn(),
   mockDecodeJwt: vi.fn(),
   mockEq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
@@ -25,6 +28,8 @@ vi.mock('@sim/db', () => ({
   eq: mockEq,
 }))
 
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+
 vi.mock('jose', () => ({
   decodeJwt: mockDecodeJwt,
 }))
@@ -33,12 +38,18 @@ vi.mock('@/lib/oauth/utils', () => ({
   parseProvider: mockParseProvider,
 }))
 
+vi.mock('@/lib/billing/organizations/membership', () => ({
+  getUserOrganization: mockGetUserOrganization,
+}))
+
 import { GET } from '@/app/api/auth/oauth/connections/route'
 
 describe('OAuth Connections API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    resetPermissionGroupScopeMock()
+    mockGetUserOrganization.mockResolvedValue(null)
 
     mockParseProvider.mockImplementation((providerId: string) => ({
       baseProvider: providerId.split('-')[0] || providerId,

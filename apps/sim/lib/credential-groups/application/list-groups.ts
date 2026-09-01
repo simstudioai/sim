@@ -1,6 +1,9 @@
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { credentialGroupWorkspaceDelegationPolicy } from '@/lib/credential-groups/application/authorization'
+import {
+  credentialGroupWorkspaceDelegationPolicy,
+  requireCredentialGroupWorkflowActor,
+} from '@/lib/credential-groups/application/authorization'
 import {
   requireCredentialGroupsAvailable,
   resolveCredentialGroupWorkspaceContext,
@@ -31,6 +34,9 @@ export const listCredentialGroupsForWorkflow = defineAuthorizedWorkspaceUseCase(
   resolveContext: ({ input }: { input: ListCredentialGroupsInput }) =>
     resolveCredentialGroupWorkspaceContext(input.workspaceId),
   authorizationOptions: { delegation: credentialGroupWorkspaceDelegationPolicy },
+  authorizeResource({ principal }) {
+    requireCredentialGroupWorkflowActor(principal)
+  },
   execute: async ({ input, context }): Promise<ListCredentialGroupsResult> => {
     if (
       !Number.isInteger(input.limit) ||

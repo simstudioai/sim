@@ -8,12 +8,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   useCase: (id: string, execute: ReturnType<typeof vi.fn>) => ({ operation: { id }, execute }),
   listDocuments: vi.fn(),
-  createDocuments: vi.fn(),
   bulkDocuments: vi.fn(),
   readDocument: vi.fn(),
   updateDocument: vi.fn(),
   deleteDocument: vi.fn(),
-  upsertDocument: vi.fn(),
   listConnectors: vi.fn(),
   createConnector: vi.fn(),
   readConnector: vi.fn(),
@@ -22,15 +20,11 @@ const mocks = vi.hoisted(() => ({
   syncConnector: vi.fn(),
   listConnectorDocuments: vi.fn(),
   updateConnectorDocuments: vi.fn(),
-  search: vi.fn(),
   createUpload: vi.fn(),
   issueParts: vi.fn(),
   completeUpload: vi.fn(),
   cancelUpload: vi.fn(),
   persistedResponse: vi.fn(),
-  provenanceResponse: vi.fn(),
-  registryResponse: vi.fn(),
-  resolveDocumentProvenance: vi.fn(),
   readKnowledgeBase: vi.fn(),
   updateKnowledgeBase: vi.fn(),
   deleteKnowledgeBase: vi.fn(),
@@ -41,12 +35,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/knowledge/application/documents', () => ({
   listKnowledgeDocuments: mocks.useCase('knowledge.documents.list', mocks.listDocuments),
-  createKnowledgeDocuments: mocks.useCase('knowledge.documents.upload', mocks.createDocuments),
   bulkUpdateKnowledgeDocuments: mocks.useCase('knowledge.documents.bulk', mocks.bulkDocuments),
   readKnowledgeDocument: mocks.useCase('knowledge.documents.read', mocks.readDocument),
   updateKnowledgeDocument: mocks.useCase('knowledge.documents.update', mocks.updateDocument),
   deleteKnowledgeDocument: mocks.useCase('knowledge.documents.delete', mocks.deleteDocument),
-  upsertKnowledgeDocument: mocks.useCase('knowledge.documents.upload', mocks.upsertDocument),
 }))
 
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
@@ -78,7 +70,6 @@ vi.mock('@/lib/knowledge/application/connectors', () => ({
 
 vi.mock('@/lib/knowledge/application/search', () => ({
   KnowledgeSearchProvenanceUnavailableError: class extends Error {},
-  searchKnowledge: mocks.useCase('knowledge.search', mocks.search),
 }))
 
 vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
@@ -101,11 +92,8 @@ vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
   ),
 }))
 
-vi.mock('@/app/api/knowledge/secret-provenance', () => ({
+vi.mock('@/lib/knowledge/api/secret-provenance', () => ({
   finalizeKnowledgePersistedResponse: mocks.persistedResponse,
-  finalizeKnowledgeProvenanceResponse: mocks.provenanceResponse,
-  finalizeKnowledgeRegistryResponse: mocks.registryResponse,
-  resolveKnowledgeDocumentWriteSecretProvenance: mocks.resolveDocumentProvenance,
 }))
 
 vi.mock('@/lib/core/telemetry', () => ({
@@ -115,7 +103,6 @@ vi.mock('@/lib/core/telemetry', () => ({
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import {
   GET as listConnectorDocuments,
   PATCH as updateConnectorDocuments,
@@ -123,18 +110,15 @@ import {
 import { PUT as updateDocument } from '@/app/api/knowledge/[id]/documents/[documentId]/route'
 import {
   PATCH as bulkDocuments,
-  POST as createDocuments,
   GET as listDocuments,
 } from '@/app/api/knowledge/[id]/documents/route'
 import { POST as completeUpload } from '@/app/api/knowledge/[id]/documents/uploads/[uploadId]/complete/route'
-import { POST as upsertDocument } from '@/app/api/knowledge/[id]/documents/upsert/route'
 import { POST as restoreKnowledgeBase } from '@/app/api/knowledge/[id]/restore/route'
 import {
   DELETE as deleteKnowledgeBase,
   GET as readKnowledgeBase,
   PUT as updateKnowledgeBase,
 } from '@/app/api/knowledge/[id]/route'
-import { POST as search } from '@/app/api/knowledge/search/route'
 
 const session = {
   user: { id: 'user-1', email: 'user@example.com', name: 'User' },
@@ -179,25 +163,6 @@ describe('migrated internal Knowledge routes', () => {
     vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue(session)
     mocks.persistedResponse.mockResolvedValue({})
-    mocks.provenanceResponse.mockResolvedValue({})
-    mocks.registryResponse.mockReturnValue({})
-    mocks.resolveDocumentProvenance.mockReturnValue({ success: true })
-  })
-
-  it('authenticates before parsing malformed document JSON', async () => {
-    authMockFns.mockGetSession.mockResolvedValueOnce(null)
-    const request = new NextRequest('http://localhost/api/knowledge/knowledge-1/documents', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: '{',
-    })
-
-    const response = await createDocuments(request, {
-      params: Promise.resolve({ id: 'knowledge-1' }),
-    })
-
-    expect(response.status).toBe(401)
-    expect(mocks.createDocuments).not.toHaveBeenCalled()
   })
 
   it('authenticates before parsing malformed knowledge base JSON', async () => {
@@ -301,93 +266,6 @@ describe('migrated internal Knowledge routes', () => {
     })
   })
 
-  it('keeps document upsert admission behind auth and preserves its response', async () => {
-    mocks.upsertDocument.mockResolvedValue({
-      document: { documentId: 'document-2', filename: 'new.txt' },
-      knowledgeBaseId: 'knowledge-1',
-      isUpdate: false,
-      previousDocumentId: null,
-      processingConfig: { maxConcurrentDocuments: 5, batchSize: 10 },
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-    })
-    const response = await upsertDocument(
-      createMockRequest('POST', {
-        filename: 'new.txt',
-        fileUrl: 'data:text/plain;base64,aGVsbG8=',
-        fileSize: 5,
-        mimeType: 'text/plain',
-      }),
-      { params: Promise.resolve({ id: 'knowledge-1' }) }
-    )
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      success: true,
-      data: expect.objectContaining({
-        documentsCreated: [{ documentId: 'document-2', filename: 'new.txt', status: 'pending' }],
-        isUpdate: false,
-        previousDocumentId: null,
-        processingMethod: 'background',
-      }),
-    })
-    expect(mocks.platformUpload).toHaveBeenCalledWith(
-      expect.objectContaining({ knowledgeBaseId: 'knowledge-1', documentsCount: 1 })
-    )
-  })
-
-  it('runs internal document analytics only after application success', async () => {
-    mocks.createDocuments.mockResolvedValue({
-      kind: 'single',
-      data: document,
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-    })
-    const request = createMockRequest('POST', {
-      bulk: false,
-      filename: document.filename,
-      fileUrl: document.fileUrl,
-      fileSize: document.fileSize,
-      mimeType: document.mimeType,
-    })
-
-    const response = await createDocuments(request, {
-      params: Promise.resolve({ id: 'knowledge-1' }),
-    })
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
-      success: true,
-      data: { processingStatus: 'pending' },
-    })
-    expect(mocks.platformUpload).toHaveBeenCalledOnce()
-    expect(mocks.capture).toHaveBeenCalledOnce()
-    expect(mocks.createDocuments.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.platformUpload.mock.invocationCallOrder[0]
-    )
-  })
-
-  it('preserves payment-required for document usage admission', async () => {
-    mocks.createDocuments.mockRejectedValueOnce(
-      new KnowledgeUsageLimitExceededError('Usage limit exceeded')
-    )
-
-    const response = await createDocuments(
-      createMockRequest('POST', {
-        bulk: false,
-        filename: document.filename,
-        fileUrl: document.fileUrl,
-        fileSize: document.fileSize,
-        mimeType: document.mimeType,
-      }),
-      { params: Promise.resolve({ id: 'knowledge-1' }) }
-    )
-
-    expect(response.status).toBe(402)
-    await expect(response.json()).resolves.toEqual({ error: 'Usage limit exceeded' })
-    expect(mocks.capture).not.toHaveBeenCalled()
-  })
-
   it('returns not found when a bulk document selection has no active matches', async () => {
     mocks.bulkDocuments.mockRejectedValueOnce(
       new OrchestrationError('not_found', 'No valid documents found to update')
@@ -405,24 +283,6 @@ describe('migrated internal Knowledge routes', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'No valid documents found to update',
     })
-  })
-
-  it('rejects oversized document-create arrays at the contract boundary', async () => {
-    const response = await createDocuments(
-      createMockRequest('POST', {
-        bulk: true,
-        documents: Array.from({ length: 101 }, (_, index) => ({
-          filename: `document-${index}.txt`,
-          fileUrl: `https://example.com/document-${index}.txt`,
-          fileSize: 1,
-          mimeType: 'text/plain',
-        })),
-      }),
-      { params: Promise.resolve({ id: 'knowledge-1' }) }
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.createDocuments).not.toHaveBeenCalled()
   })
 
   it('preserves connector-document list and mutation envelopes', async () => {
@@ -502,56 +362,6 @@ describe('migrated internal Knowledge routes', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.updateConnectorDocuments).not.toHaveBeenCalled()
-  })
-
-  it('preserves search cost shape and sanitizes infrastructure errors', async () => {
-    const registry = {}
-    mocks.search.mockResolvedValue({
-      results: [
-        {
-          embeddingId: 'embedding-1',
-          documentId: 'document-1',
-          documentName: 'Guide',
-          sourceUrl: null,
-          content: 'hello',
-          chunkIndex: 0,
-          metadata: {},
-          similarity: 0.9,
-        },
-      ],
-      query: 'hello',
-      knowledgeBaseIds: ['knowledge-1'],
-      knowledgeBaseId: 'knowledge-1',
-      topK: 10,
-      totalResults: 1,
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-      resultSecretRegistry: registry,
-      cost: {
-        input: 0.1,
-        output: 0,
-        total: 0.1,
-        tokens: { prompt: 1, completion: 0, total: 1 },
-        model: 'text-embedding-3-small',
-        pricing: { input: 0.1, output: 0 },
-      },
-    })
-    const response = await search(
-      createMockRequest('POST', {
-        knowledgeBaseIds: ['knowledge-1'],
-        query: 'hello',
-      })
-    )
-    const body = await response.json()
-    expect(body.data.results[0]).not.toHaveProperty('embeddingId')
-    expect(body.data.cost).toEqual(expect.objectContaining({ total: 0.1 }))
-
-    mocks.search.mockRejectedValueOnce(new Error('database host secret.internal'))
-    const failure = await search(
-      createMockRequest('POST', { knowledgeBaseIds: ['knowledge-1'], query: 'hello' })
-    )
-    expect(failure.status).toBe(500)
-    await expect(failure.json()).resolves.toEqual({ error: 'Failed to perform vector search' })
   })
 
   it('runs upload analytics only after a newly-created completion', async () => {

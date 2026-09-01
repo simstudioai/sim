@@ -51,7 +51,7 @@ export const listRevisionsTool: ToolConfig<
     pageToken: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: 'The page token to use for pagination',
     },
   },
@@ -120,7 +120,8 @@ export const listRevisionsTool: ToolConfig<
     },
     nextPageToken: {
       type: 'string',
-      description: 'Token for fetching the next page of revisions',
+      description:
+        'Page token for the next page of revisions; absent from the response when the end of the revisions list has been reached',
     },
   },
 }

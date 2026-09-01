@@ -6,7 +6,7 @@ import { inArray } from 'drizzle-orm'
 import { flattenWorkflowChildren } from '@/lib/logs/execution/trace-spans/span-factory'
 import {
   materializeExecutionDataForDisplay,
-  stripSpanCosts,
+  stripJoinedChildTraceSpend,
 } from '@/lib/logs/execution/trace-store'
 import type { TraceSpan } from '@/lib/logs/types'
 
@@ -37,11 +37,13 @@ export interface ChildTraceDropCounts {
 
 export interface HydrateChildTracesOptions {
   /**
-   * The user reading the log. NOT an authorization input — the only policy is the
-   * publisher's, and it is the same answer for every reader. Carried so large-value
-   * materialization and secret projection have an owner to attribute their reads to.
+   * The user reading the log, when there is one. NOT an authorization input — the
+   * only policy is the publisher's, and it is the same answer for every reader.
+   * Carried so large-value materialization and secret projection have an owner to
+   * attribute their reads to; an actorless run has none, and needs none, because
+   * the display path only ever reads.
    */
-  viewerUserId: string
+  viewerUserId?: string
   maxDepth?: number
   maxRows?: number
 }
@@ -259,10 +261,11 @@ export async function hydrateChildTraces(
         // The same flattening the in-process workflow-in-workflow path uses, so a
         // cross-workspace child nests identically to a local one.
         const children = flattenWorkflowChildren(childSpans)
-        // The child's spend is billed to the SOURCE workspace and was never rolled
-        // into this run's total, so leaving per-span cost here would make the
-        // waterfall's numbers contradict the run cost shown above it.
-        stripSpanCosts(children)
+        // The child's spend is billed to the SOURCE workspace and was never
+        // rolled into this run's total, so leaving any of it here would make the
+        // waterfall's numbers contradict the run cost shown above it. Tokens go
+        // with the dollars — see {@link stripJoinedChildTraceSpend}.
+        stripJoinedChildTraceSpend(children)
 
         span.children = children
         span.childTraceAccess = 'granted'

@@ -1,10 +1,10 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type {
   WorkdayAssignOnboardingParams,
   WorkdayAssignOnboardingResponse,
 } from '@/tools/workday/types'
 
-export const assignOnboardingTool: ToolConfig<
+export const assignOnboardingTool: InternalToolConfig<
   WorkdayAssignOnboardingParams,
   WorkdayAssignOnboardingResponse
 > = {
@@ -59,13 +59,8 @@ export const assignOnboardingTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/workday/assign-onboarding',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => params,
+  operation: {
+    input: (params) => params,
   },
 
   transformResponse: async (response: Response) => {

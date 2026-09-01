@@ -1,7 +1,10 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type { WhatsAppUploadMediaParams, WhatsAppUploadMediaResponse } from '@/tools/whatsapp/types'
 
-export const uploadMediaTool: ToolConfig<WhatsAppUploadMediaParams, WhatsAppUploadMediaResponse> = {
+export const uploadMediaTool: InternalToolConfig<
+  WhatsAppUploadMediaParams,
+  WhatsAppUploadMediaResponse
+> = {
   id: 'whatsapp_upload_media',
   name: 'WhatsApp Upload Media',
   description:
@@ -30,11 +33,8 @@ export const uploadMediaTool: ToolConfig<WhatsAppUploadMediaParams, WhatsAppUplo
     },
   },
 
-  request: {
-    url: '/api/tools/whatsapp/upload-media',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       phoneNumberId: params.phoneNumberId,
       file: params.file,

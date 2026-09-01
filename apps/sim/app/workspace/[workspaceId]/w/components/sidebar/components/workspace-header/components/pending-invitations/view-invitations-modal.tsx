@@ -1,6 +1,14 @@
 'use client'
 
-import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader, toast } from '@sim/emcn'
+import {
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
+  OverflowText,
+  toast,
+} from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
@@ -100,10 +108,14 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
           invitations.map((inv) => (
             <div key={inv.id} className='flex items-center gap-2 px-2'>
               <div className='min-w-0 flex-1'>
-                <p className='truncate text-[var(--text-body)] text-sm'>{invitationLabel(inv)}</p>
-                <p className='truncate text-[var(--text-muted)] text-caption'>
-                  {invitationSubLabel(inv)}
-                </p>
+                <OverflowText
+                  label={invitationLabel(inv)}
+                  className='block text-[var(--text-body)] text-sm'
+                />
+                <OverflowText
+                  label={invitationSubLabel(inv)}
+                  className='block text-[var(--text-muted)] text-caption'
+                />
               </div>
               <Chip
                 variant='primary'

@@ -92,8 +92,6 @@ const nextConfig: NextConfig = {
   output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
   serverExternalPackages: [
     '@1password/sdk',
-    'unpdf',
-    'fluent-ffmpeg',
     'ws',
     'isolated-vm',
     '@e2b/code-interpreter',
@@ -101,6 +99,10 @@ const nextConfig: NextConfig = {
     '@daytona/sdk',
     '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
+    // pdf.js resolves its worker via a runtime-relative dynamic import
+    // (`webpackIgnore: true`); bundling pdf.mjs breaks that resolution, so it
+    // must load from node_modules like `unpdf` did before it.
+    'pdfjs-dist',
     // The collab-doc seed converter lazily `require`s jsdom for a headless TipTap editor. Keep it
     // external so webpack doesn't try to bundle jsdom's dynamic internal requires.
     'jsdom',
@@ -128,7 +130,6 @@ const nextConfig: NextConfig = {
     '@tiptap/extension-highlight',
   ],
   outputFileTracingIncludes: {
-    '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
     // The seed, merge, and persist endpoints all lazily `require('jsdom')` (via the collab-doc
     // converter), which is invisible to the standalone file tracer, so force jsdom (and its transitive
     // deps, followed from its static requires) into the trace — otherwise a Docker/standalone build
@@ -142,7 +143,7 @@ const nextConfig: NextConfig = {
      * No `sharp`/`@img` entries: these globs resolve against apps/sim while both hoist to the
      * monorepo root, so they matched nothing. docker/app.Dockerfile copies them instead.
      */
-    '/*': ['./lib/execution/sandbox/bundles/*.cjs'],
+    '/*': ['./lib/execution/sandbox/bundles/*.cjs', './node_modules/ws/**/*'],
   },
   experimental: {
     /**
@@ -210,7 +211,7 @@ const nextConfig: NextConfig = {
      */
     optimizePackageImports: [
       'framer-motion',
-      'reactflow',
+      '@xyflow/react',
       '@radix-ui/react-dialog',
       '@radix-ui/react-dropdown-menu',
       '@radix-ui/react-popover',
@@ -242,8 +243,7 @@ const nextConfig: NextConfig = {
     ],
   }),
   transpilePackages: [
-    '@react-email/components',
-    '@react-email/render',
+    'react-email',
     '@t3-oss/env-nextjs',
     '@t3-oss/env-core',
     '@sim/db',

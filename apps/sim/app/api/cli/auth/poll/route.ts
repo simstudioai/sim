@@ -66,7 +66,10 @@ async function mintForGrant(
   }
 
   // `workspaceId` alone only names the terminal's default workspace; binding the
-  // key to it is a separate, admin-gated decision made at approval.
+  // key to it is a separate decision made at approval, where the session exists
+  // to check workspace-admin permission and the `api_keys.manage` capability.
+  // Nothing in the poll body can set it, so this branch can only be reached by
+  // an approval that already passed both.
   const result =
     grant.workspaceBound && grant.workspaceId
       ? await performCreateWorkspaceApiKey({

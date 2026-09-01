@@ -1,7 +1,7 @@
 import type { SSHMoveRenameParams, SSHResponse } from '@/tools/ssh/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const moveRenameTool: ToolConfig<SSHMoveRenameParams, SSHResponse> = {
+export const moveRenameTool: InternalToolConfig<SSHMoveRenameParams, SSHResponse> = {
   id: 'ssh_move_rename',
   name: 'SSH Move/Rename',
   description: 'Move or rename a file or directory on the remote SSH server',
@@ -64,13 +64,8 @@ export const moveRenameTool: ToolConfig<SSHMoveRenameParams, SSHResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/ssh/move-rename',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

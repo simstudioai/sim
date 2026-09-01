@@ -21,6 +21,7 @@ import {
   isChatThinkingFrame,
   isChatToolFrame,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
+import { scopeOutputBlockId } from '@/lib/workflows/streaming/output-selector'
 import type {
   ChatFile,
   ChatMessage,
@@ -70,7 +71,7 @@ function extractFilesFromData(
 }
 
 export interface StreamingOptions {
-  outputConfigs?: Array<{ blockId: string; path?: string }>
+  outputConfigs?: Array<{ workflowId?: string; blockId: string; path?: string }>
   /**
    * Shared AbortController for fetch + SSE body reads. When provided (preferred),
    * Stop aborts the in-flight request server-side as well as the reader.
@@ -430,7 +431,10 @@ export function useChatStreaming() {
 
             if (outputConfigs?.length && finalData.output) {
               for (const config of outputConfigs) {
-                const blockOutputs = finalData.output[config.blockId]
+                const outputBlockId = config.workflowId
+                  ? scopeOutputBlockId(config.workflowId, config.blockId)
+                  : config.blockId
+                const blockOutputs = finalData.output[outputBlockId]
                 if (!blockOutputs) continue
 
                 const value = getOutputValue(blockOutputs, config.path)

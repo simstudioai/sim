@@ -1,0 +1,2093 @@
+---
+title: Affinity
+description: Read and write companies, people, lists, notes, and relationships in Affinity
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="affinity"
+  color="#1B1C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Affinity](https://www.affinity.co/) is the CRM private capital firms run on — venture capital, private equity, private credit, investment banking, and family offices. It captures every email and calendar event across the firm automatically, turns that history into scored relationships, and organizes deals as rows on Lists whose columns each firm defines for itself.
+
+**Why Affinity?**
+- **Relationship intelligence, not just records:** Every pair of people carries an interaction score derived from real communication, so "who here can introduce me" is a query rather than a Slack thread.
+- **No manual entry:** Emails, meetings, calls, and chat messages are captured and attributed on their own. The API reads that history as first-class objects.
+- **Lists are the data model:** A deal lives as a row on a List, and the List's columns are the fields the firm actually tracks. Field IDs are discoverable at runtime, so a workflow adapts to a firm's schema instead of hardcoding it.
+- **A change feed built for sync:** Field value changes are exposed as an ordered, cursor-paged stream, which is what makes an incremental mirror possible without re-reading the whole workspace.
+
+**Using Affinity in Sim**
+
+Sim's Affinity integration covers the v2 API end to end with an API key — 70 operations across companies, people, opportunities, lists, list entries, saved views, fields, notes, reminders, merges, interactions, transcripts, and users. Field values are readable and writable one at a time or a hundred per request, and the discovery operations (**List Field Metadata**, **List List Fields**, and the dropdown-option operations) exist so an agent can learn a workspace's schema before it writes to it.
+
+**Key benefits of using Affinity in Sim:**
+- **Pipeline reporting:** Page a List or a Saved View with exactly the columns a report needs, then summarize what moved, what stalled, and what is closing.
+- **Writing back:** Move a deal's stage, fill an enriched field, or update a hundred columns on one row in a single call — with the dropdown option resolved by name first, so nothing is written blind.
+- **Warm introductions:** Combine relationship scores with the inferred-connection operations, which surface paths through shared employment history and through investors who backed a company a target once led.
+- **Meeting capture:** Read a transcript fragment by fragment and write the summary back as a note anchored to that meeting, attached to the companies and people it concerns.
+- **Natural-language sourcing:** **Semantic Search** takes an investment thesis in plain language and returns scored companies; **Search Notes** and **Search Files** answer diligence questions from what the firm already wrote down.
+- **Incremental sync:** Follow the field-value change feed from a stored cursor to keep a table or warehouse in step without a full reload.
+
+**Before you start**
+
+Generate an API key from the **Manage Apps** page in your Affinity settings; it authenticates as a bearer token. Two things gate what you will actually see:
+
+- **License.** The Affinity APIs are only available on select license types. Monthly call limits follow the plan tier — 100k on Scale and Advanced, unlimited on Enterprise — alongside a per-user limit of 900 calls per minute shared with the v1 API. Exceeding either returns a 429.
+- **Permissions.** The API respects in-product sharing, so it never returns a list, note, or interaction the key's user cannot already see. Several operations additionally require a role-based permission an Affinity admin grants: *Export All Organizations directory* for listing and searching companies, *Export All People directory* for listing and searching people, *Export data from Lists* for opportunities and for reading or writing list entries, *Manage duplicates* plus an admin role for merges, and *Manage Users* for user email addresses and roles.
+
+Some Affinity endpoints are still marked BETA — company, person, and list-entry search, the per-entity field-value reads, the inferred-connection operations, and the user operations. Affinity may change those without notice or versioning.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrates the Affinity v2 API into the workflow. Read and search companies, people, and opportunities, page the rows of any list or saved view, read and write field values one at a time or a hundred at once, write and reply to notes, create reminders, follow logged calls, emails, meetings, and transcripts, find warm introductions through shared work and investment history, search notes and files by keyword, find companies from a description in plain language, and follow the field-value change feed for delta sync. What each operation can reach depends on the permissions granted to the API key.
+
+
+
+## Actions
+
+### Affinity Batch Update Entity Fields
+
+Write up to 100 non-list field values on one company or person in a single request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | Which entity to write the fields on: companies or persons |
+| `entityId` | string | Yes | ID of that company or person |
+| `updates` | json | Yes | Up to 100 field updates as \[\{"id":"&lt;fieldId&gt;","value":\{"type":"…","data":…\}\}\], using the same value shapes as a single field update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | The batch operation Affinity performed |
+
+### Affinity Batch Update List Entry Fields
+
+Write up to 100 field values on one list row in a single request. Requires the "Export data from Lists" permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `listEntryId` | string | Yes | The list entry ID |
+| `updates` | json | Yes | Up to 100 field updates as \[\{"id":"&lt;fieldId&gt;","value":\{"type":"…","data":…\}\}\], using the same value shapes as a single field update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | The batch operation Affinity performed |
+
+### Affinity Create List
+
+Create a list. Its type fixes which entities it can hold, and the API key holder becomes its creator and owner.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `name` | string | Yes | Name of the new list |
+| `type` | string | Yes | Entity kind the list holds: company, opportunity, or person |
+| `isPublic` | boolean | No | Whether everyone in the organization can see the list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The list's unique identifier |
+| `name` | string | The list name |
+| `creatorId` | number | User who created the list |
+| `ownerId` | number | User who owns the list |
+| `isPublic` | boolean | Whether the list is visible to the organization |
+| `createdAt` | string | When the list was created |
+| `type` | string | company, opportunity, or person — the entity kind the list holds |
+
+### Affinity Create List Field Dropdown Option
+
+Add a selectable option to a dropdown field on a list. A ranked or status option also needs a rank and a color.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `fieldId` | string | Yes | The dropdown field ID on that list |
+| `type` | string | Yes | Kind of option to create, matching the field. dropdown takes only a label; ranked-dropdown also requires rank and color; status-dropdown additionally requires a status category. Sending a field the kind does not accept is rejected |
+| `text` | string | Yes | The option label |
+| `rank` | number | No | Sort order. Required on a ranked-dropdown or status-dropdown option |
+| `color` | string | No | Option color: white, gray, blue, green, purple, orange, or red. Required on a ranked-dropdown or status-dropdown option |
+| `statusCategory` | string | No | Pipeline meaning of the option: open, won, lost, or on-hold. Status-dropdown options only |
+| `winRate` | number | No | Expected win rate of the status. Status-dropdown options only |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The dropdown option's unique identifier |
+| `text` | string | The option label |
+| `type` | string | dropdown, ranked-dropdown, or status-dropdown |
+| `rank` | number | Sort order, on ranked and status options |
+| `color` | string | white, gray, blue, green, purple, orange, or red |
+| `statusCategory` | string | open, won, lost, or on-hold, on status options |
+| `winRate` | number | Win rate of a status option |
+
+### Affinity Create Merge
+
+Fold a duplicate company or person into the record you are keeping. The merge runs asynchronously — poll the returned task to see it finish. Requires the "Manage duplicates" permission and an admin role.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | What to merge: companies or persons |
+| `primaryId` | string | Yes | ID of the record to keep |
+| `duplicateId` | string | Yes | ID of the duplicate record to fold in |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskUrl` | string | URL of the merge task to poll for completion |
+
+### Affinity Create Note
+
+Write a note — attached to companies, persons, and opportunities, anchored to a meeting, call, or chat message, or posted as a reply to an existing note.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `type` | string | Yes | Note shape: entities to attach it to records, interaction to anchor it to a meeting, call, or chat message, or user-reply to reply to a note |
+| `html` | string | Yes | The note body as HTML |
+| `companyIds` | json | No | Companies to attach the note to, e.g. \[1, 2\]. Not used on a reply |
+| `personIds` | json | No | Persons to attach the note to, e.g. \[1, 2\]. Not used on a reply |
+| `opportunityIds` | json | No | Opportunities to attach the note to, e.g. \[1, 2\]. Not used on a reply |
+| `interactionId` | string | No | The interaction to anchor the note to. Required for an interaction note |
+| `interactionType` | string | No | Kind of the anchoring interaction: meeting, call, or chat-message. Required for an interaction note |
+| `parentId` | string | No | The note being replied to. Required for a user-reply note |
+| `creatorId` | string | No | Attribute the note to another internal person. Defaults to the API key holder |
+| `createdAt` | string | No | Backdate the note to this ISO 8601 timestamp |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The note's unique identifier |
+| `type` | string | entities, interaction, ai-notetaker, user-reply, or ai-notetaker-reply |
+| `content` | json | The note body as \{html\} |
+| `creator` | object | Person who authored the note |
+|   ↳ `id` | number | The person's unique identifier |
+|   ↳ `firstName` | string | The person's first name |
+|   ↳ `lastName` | string | The person's last name |
+|   ↳ `primaryEmailAddress` | string | The person's primary email address |
+|   ↳ `type` | string | Whether the person is internal, a collaborator, or external |
+| `mentions` | array | Persons mentioned in the note body |
+| `createdAt` | string | When the note was created |
+| `updatedAt` | string | When the note was last updated |
+| `repliesCount` | number | Number of replies, on root notes only |
+| `parent` | json | The note being replied to, on reply notes only |
+| `interaction` | json | The meeting, call, chat message, or email the note is anchored to |
+| `transcriptId` | number | Transcript behind an AI Notetaker note |
+| `personsPreview` | json | Attached persons, with a count |
+| `companiesPreview` | json | Attached companies, with a count |
+| `opportunitiesPreview` | json | Attached opportunities, with a count |
+
+### Affinity Create Reminder
+
+Create a reminder on one company, person, or opportunity. A recurring reminder resets whenever the chosen signal happens instead of firing once.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `type` | string | Yes | one-time to fire once, or recurring to reset on a signal |
+| `entityType` | string | Yes | What the reminder is about: company, person, or opportunity |
+| `entityId` | string | Yes | ID of that company, person, or opportunity |
+| `dueDate` | string | No | When the reminder is due, as an ISO 8601 timestamp. Required for a one-time reminder; on a recurring one Affinity computes it from the period when omitted |
+| `content` | string | No | What the reminder says |
+| `ownerId` | string | Yes | User the reminder is assigned to. Must be an internal user. The API key holder is recorded as the creator, which is a separate field |
+| `resetTrigger` | string | No | What restarts a recurring reminder: interaction, email, or event. Required when the type is recurring |
+| `periodDays` | number | No | Days between firings of a recurring reminder. Required when the type is recurring |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The reminder's unique identifier |
+| `type` | string | one-time or recurring |
+| `status` | string | active, overdue, or completed |
+| `content` | string | The reminder text |
+| `dueDate` | string | When the reminder is due |
+| `creator` | json | User who created the reminder, as \{id\} |
+| `owner` | json | User the reminder is assigned to, as \{id\} |
+| `completer` | json | User who completed it, as \{id\} |
+| `company` | json | Tagged company, as \{id\} |
+| `person` | json | Tagged person, as \{id\} |
+| `opportunity` | json | Tagged opportunity, as \{id\} |
+| `completedAt` | string | When the reminder was completed |
+| `recurrence` | json | Recurrence as \{resetTrigger, periodDays\}, null on a one-time reminder |
+| `createdAt` | string | When the reminder was created |
+| `updatedAt` | string | When the reminder was last updated |
+
+### Affinity Delete List Field Dropdown Option
+
+Permanently delete a dropdown option on a list field. Every list entry currently set to it is cleared, and those values cannot be recovered.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `fieldId` | string | Yes | The dropdown field ID on that list |
+| `dropdownOptionId` | string | Yes | The dropdown option ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether Affinity accepted the change |
+| `id` | string | Identifier of the resource that was changed |
+
+### Affinity Delete Note
+
+Delete a note you created. Deleting a root note also deletes its replies; deleting a reply removes only that reply.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `noteId` | string | Yes | The note ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether Affinity accepted the change |
+| `id` | string | Identifier of the resource that was changed |
+
+### Affinity Get Company
+
+Look up one company by ID. Field data is returned only for the Field IDs or Field Types asked for.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `companyId` | string | Yes | The company ID |
+| `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
+| `fieldTypes` | json | No | Field categories to return values for: enriched, global, or relationship-intelligence. Mutually exclusive with Field IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The company's unique identifier |
+| `name` | string | The company name |
+| `domain` | string | The primary domain |
+| `domains` | array | Every domain associated with the company |
+| `isGlobal` | boolean | Whether this is an Affinity Data global company profile |
+| `fields` | array | Requested field values. Absent unless Field IDs or Field Types was supplied |
+|   ↳ `id` | string | The field's unique identifier |
+|   ↳ `name` | string | The field name |
+|   ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
+|   ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|   ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
+
+### Affinity Get Current User
+
+Verify an Affinity API key and return the tenant, the user behind the key, and the scopes the grant carries.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tenant` | object | The Affinity organization the key belongs to |
+|   ↳ `id` | number | The tenant's unique identifier |
+|   ↳ `name` | string | The organization name |
+|   ↳ `subdomain` | string | The subdomain under affinity.co |
+| `user` | object | The user the key authenticates as |
+|   ↳ `id` | number | The user's unique identifier |
+|   ↳ `firstName` | string | The user's first name |
+|   ↳ `lastName` | string | The user's last name |
+|   ↳ `emailAddress` | string | The user's email address |
+| `grant` | object | How the request is authenticated and what it may reach |
+|   ↳ `type` | string | api-key or access-token |
+|   ↳ `scopes` | array | Scopes available to the grant |
+|   ↳ `createdAt` | string | When the grant was created |
+
+### Affinity Get Entity Field Value
+
+Read one non-list field value from a company or person.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | Which entity to read the field from: companies or persons |
+| `entityId` | string | Yes | ID of that company or person |
+| `fieldId` | string | Yes | The field ID to read |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The field's unique identifier |
+| `name` | string | The field name |
+| `type` | string | enriched, global, list, relationship-intelligence, or hidden |
+| `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+| `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
+
+### Affinity Get List
+
+Read one list — its name, type, owner, and privacy setting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The list's unique identifier |
+| `name` | string | The list name |
+| `creatorId` | number | User who created the list |
+| `ownerId` | number | User who owns the list |
+| `isPublic` | boolean | Whether the list is visible to the organization |
+| `createdAt` | string | When the list was created |
+| `type` | string | company, opportunity, or person — the entity kind the list holds |
+
+### Affinity Get List Entry
+
+Read one row of a list with its entity. Field data is returned only for the Field IDs or Field Types asked for.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `listEntryId` | string | Yes | The list entry ID |
+| `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
+| `fieldTypes` | json | No | Field categories to return values for: enriched, global, list, or relationship-intelligence. Mutually exclusive with Field IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The list entry's unique identifier |
+| `type` | string | company, person, or opportunity |
+| `listId` | number | The list the entry belongs to |
+| `createdAt` | string | When the entity was added to the list |
+| `creatorId` | number | User who added the entity |
+| `entity` | json | The company, person, or opportunity on the row, including its field values |
+
+### Affinity Get List Entry Field
+
+Read one field value on a list row.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `listEntryId` | string | Yes | The list entry ID |
+| `fieldId` | string | Yes | The field ID to read |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The field's unique identifier |
+| `name` | string | The field name |
+| `type` | string | enriched, global, list, relationship-intelligence, or hidden |
+| `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+| `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
+
+### Affinity Get List Field Dropdown Option
+
+Read one dropdown option on a list field.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `fieldId` | string | Yes | The dropdown field ID on that list |
+| `dropdownOptionId` | string | Yes | The dropdown option ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The dropdown option's unique identifier |
+| `text` | string | The option label |
+| `type` | string | dropdown, ranked-dropdown, or status-dropdown |
+| `rank` | number | Sort order, on ranked and status options |
+| `color` | string | white, gray, blue, green, purple, orange, or red |
+| `statusCategory` | string | open, won, lost, or on-hold, on status options |
+| `winRate` | number | Win rate of a status option |
+
+### Affinity Get Merge
+
+Read the status of one company or person merge, including why it failed if it did.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | Which merge to read: companies or persons |
+| `mergeId` | string | Yes | The merge ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The merge's unique identifier |
+| `status` | string | in-progress, success, or failed |
+| `taskId` | string | Task that groups this merge with its siblings |
+| `startedAt` | string | When the merge started |
+| `completedAt` | string | When the merge finished |
+| `errorMessage` | string | Why the merge failed |
+| `primaryCompanyId` | number | Company kept by a company merge |
+| `duplicateCompanyId` | number | Company folded in by a company merge |
+| `primaryPersonId` | number | Person kept by a person merge |
+| `duplicatePersonId` | number | Person folded in by a person merge |
+
+### Affinity Get Merge Task
+
+Read one merge task and how its merges are progressing. Poll this after starting a merge.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | Which merge task to read: companies or persons |
+| `taskId` | string | Yes | The merge task ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The task's unique identifier |
+| `status` | string | in-progress, success, or failed |
+| `resultsSummary` | json | Counts of the grouped merges as \{total, inProgress, success, failed\} |
+
+### Affinity Get Note
+
+Read one note with its body, author, mentions, and attached records.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `noteId` | string | Yes | The note ID |
+| `includes` | json | No | Extra properties to return, e.g. \["repliesCount","personsPreview","companiesPreview","opportunitiesPreview"\]. Those four fields are omitted unless requested here |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The note's unique identifier |
+| `type` | string | entities, interaction, ai-notetaker, user-reply, or ai-notetaker-reply |
+| `content` | json | The note body as \{html\} |
+| `creator` | object | Person who authored the note |
+|   ↳ `id` | number | The person's unique identifier |
+|   ↳ `firstName` | string | The person's first name |
+|   ↳ `lastName` | string | The person's last name |
+|   ↳ `primaryEmailAddress` | string | The person's primary email address |
+|   ↳ `type` | string | Whether the person is internal, a collaborator, or external |
+| `mentions` | array | Persons mentioned in the note body |
+| `createdAt` | string | When the note was created |
+| `updatedAt` | string | When the note was last updated |
+| `repliesCount` | number | Number of replies, on root notes only |
+| `parent` | json | The note being replied to, on reply notes only |
+| `interaction` | json | The meeting, call, chat message, or email the note is anchored to |
+| `transcriptId` | number | Transcript behind an AI Notetaker note |
+| `personsPreview` | json | Attached persons, with a count |
+| `companiesPreview` | json | Attached companies, with a count |
+| `opportunitiesPreview` | json | Attached opportunities, with a count |
+
+### Affinity Get Opportunity
+
+Read one opportunity and the list it belongs to. Its field data lives on the list entry.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `opportunityId` | string | Yes | The opportunity ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The opportunity's unique identifier |
+| `name` | string | The opportunity name |
+| `listId` | number | The list the opportunity belongs to |
+| `listName` | string | Name of that list |
+| `isRestricted` | boolean | Whether list permissions restrict access to the opportunity |
+| `isRedacted` | boolean | Whether the opportunity fields were redacted |
+
+### Affinity Get Person
+
+Look up one person by ID. Field data is returned only for the Field IDs or Field Types asked for.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `personId` | string | Yes | The person ID |
+| `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
+| `fieldTypes` | json | No | Field categories to return values for: enriched, global, or relationship-intelligence. Mutually exclusive with Field IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The person's unique identifier |
+| `firstName` | string | The person's first name |
+| `lastName` | string | The person's last name |
+| `primaryEmailAddress` | string | The person's primary email address |
+| `emailAddresses` | array | Every email address on the person |
+| `type` | string | Whether the person is internal or external |
+| `fields` | array | Requested field values. Absent unless Field IDs or Field Types was supplied |
+|   ↳ `id` | string | The field's unique identifier |
+|   ↳ `name` | string | The field name |
+|   ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
+|   ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|   ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
+
+### Affinity Get Saved View
+
+Read one saved view — its name, kind, and creation date.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `viewId` | string | Yes | The saved view ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The saved view's unique identifier |
+| `name` | string | The saved view name |
+| `type` | string | sheet, board, or dashboard |
+| `createdAt` | string | When the saved view was created |
+
+### Affinity Get Transcript
+
+Read one transcript with its first 100 fragments. Page the fragments endpoint for a longer meeting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `transcriptId` | string | Yes | The transcript ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The transcript's unique identifier |
+| `note` | json | The AI Notetaker note the transcript belongs to |
+| `createdAt` | string | When the transcript was created |
+| `languageCode` | string | Language the meeting was held in |
+| `fragmentsPreview` | json | The first 100 fragments, with a total count |
+
+### Affinity Get User
+
+Read one internal user. A user and their person record share the same numeric ID, so a person ID works here.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `userId` | string | Yes | The user ID, which is also their person ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The user's unique identifier, shared with their person ID |
+| `firstName` | string | The user's first name |
+| `lastName` | string | The user's last name |
+| `primaryEmailAddress` | string | The user's primary email address |
+| `emailAddresses` | array | Every email address, for callers with the Manage Users permission |
+| `photoUrl` | string | URL of the user's photo |
+| `status` | string | active, invited, or deactivated |
+| `role` | string | Account role, for callers with the Manage Users permission |
+
+### Affinity List Calls
+
+Page through logged calls and their participants. Only calls the API key holder can see are returned.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `calls` | array | Logged calls, newest page first |
+|   ↳ `id` | number | The call's unique identifier |
+|   ↳ `loggingType` | string | How the call was logged |
+|   ↳ `title` | string | The call title |
+|   ↳ `startTime` | string | When the call started |
+|   ↳ `endTime` | string | When the call ended |
+|   ↳ `allDay` | boolean | Whether the call spans the whole day |
+|   ↳ `creator` | json | Who logged the call |
+|   ↳ `createdAt` | string | When the record was created |
+|   ↳ `updatedAt` | string | When the record was last updated |
+|   ↳ `attendeesPreview` | json | Attendees, with a total count |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Chat Messages
+
+Page through logged chat messages and their participants. Only messages the API key holder can see are returned.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chatMessages` | array | Logged chat messages |
+|   ↳ `id` | number | The chat message's unique identifier |
+|   ↳ `sentAt` | string | When the message was sent |
+|   ↳ `loggingType` | string | How the message was logged |
+|   ↳ `direction` | string | sent or received |
+|   ↳ `creator` | object | Person who sent the message |
+|     ↳ `id` | number | The person's unique identifier |
+|     ↳ `firstName` | string | The person's first name |
+|     ↳ `lastName` | string | The person's last name |
+|     ↳ `primaryEmailAddress` | string | The person's primary email address |
+|     ↳ `type` | string | Whether the person is internal, a collaborator, or external |
+|   ↳ `createdAt` | string | When the record was created |
+|   ↳ `updatedAt` | string | When the record was last updated |
+|   ↳ `participantsPreview` | json | Participants, with a total count |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Companies
+
+Page through companies. Companies come back without field data unless Field IDs or Field Types asks for it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `ids` | json | No | Restrict the page to these company IDs, e.g. \[1, 2, 3\] |
+| `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
+| `fieldTypes` | json | No | Field categories to return values for: enriched, global, or relationship-intelligence. Mutually exclusive with Field IDs |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companies` | array | Companies with any requested field values |
+|   ↳ `id` | number | The company's unique identifier |
+|   ↳ `name` | string | The company name |
+|   ↳ `domain` | string | The primary domain |
+|   ↳ `domains` | array | Every domain associated with the company |
+|   ↳ `isGlobal` | boolean | Whether this is an Affinity Data global company profile |
+|   ↳ `fields` | array | Requested field values. Absent unless Field IDs or Field Types was supplied |
+|     ↳ `id` | string | The field's unique identifier |
+|     ↳ `name` | string | The field name |
+|     ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
+|     ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|     ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Coworker Connections
+
+Find warm paths into a company through shared work history: who in your Affinity data once worked alongside the people you want to reach. Grouped by target, strongest first.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `filter` | string | Yes | Required scope. The only supported filter is target.currentCompany.id, e.g. "target.currentCompany.id=123" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of targets to return per page, 1-50. Defaults to 20 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `connections` | array | Targets and the coworkers who might introduce you |
+|   ↳ `target` | json | The person to reach, as \{fullName, title, linkedinUrl, currentCompany\} |
+|   ↳ `connections` | array | People in your Affinity data who might know the target, each with the inference that links them |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity List Emails
+
+Page through email metadata — subject, participants, and timestamps. Affinity never exposes email bodies through the API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `emails` | array | Email metadata. Subjects are omitted when the caller lacks permission to see them |
+|   ↳ `id` | number | The email's unique identifier |
+|   ↳ `sentAt` | string | When the email was sent |
+|   ↳ `loggingType` | string | How the email was logged |
+|   ↳ `direction` | string | sent or received |
+|   ↳ `subject` | string | The subject line |
+|   ↳ `createdAt` | string | When the record was created |
+|   ↳ `updatedAt` | string | When the record was last updated |
+|   ↳ `from` | json | Sender, as \{emailAddress, person\} |
+|   ↳ `toParticipantsPreview` | json | To recipients, with a total count |
+|   ↳ `ccParticipantsPreview` | json | Cc recipients, with a total count |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Entity Field Values
+
+Page through a company's or person's non-list field values. List fields are not returned here — read those through the list entry.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | Which entity to read field values from: companies or persons |
+| `entityId` | string | Yes | ID of that company or person |
+| `ids` | json | No | Restrict to these field IDs. Mutually exclusive with Field Types |
+| `types` | json | No | Restrict to these field categories: enriched, global, relationship-intelligence. Mutually exclusive with Field IDs |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 20 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fields` | array | Field values on the entity |
+|   ↳ `id` | string | The field's unique identifier |
+|   ↳ `name` | string | The field name |
+|   ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
+|   ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|   ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Entity List Entries
+
+Page through a company's or person's rows across every list, each carrying that list's field values and when the entity was added.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | Which entity to look up the rows of: companies or persons |
+| `entityId` | string | Yes | ID of that company or person |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `listEntries` | array | List rows holding the entity, one per list it appears on |
+|   ↳ `id` | number | The list entry's unique identifier |
+|   ↳ `listId` | number | The list the entry belongs to |
+|   ↳ `listName` | string | Name of that list |
+|   ↳ `createdAt` | string | When the entity was added to the list |
+|   ↳ `creatorId` | number | User who added the entity |
+|   ↳ `fields` | array | Field values on the row, including list-specific fields |
+|     ↳ `id` | string | The field's unique identifier |
+|     ↳ `name` | string | The field name |
+|     ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
+|     ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|     ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Entity Lists
+
+List every list a company or person appears on that the caller can view.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | Which entity to look up the lists of: companies or persons |
+| `entityId` | string | Yes | ID of that company or person |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lists` | array | Lists the entity appears on |
+|   ↳ `id` | number | The list's unique identifier |
+|   ↳ `name` | string | The list name |
+|   ↳ `creatorId` | number | User who created the list |
+|   ↳ `ownerId` | number | User who owns the list |
+|   ↳ `isPublic` | boolean | Whether the list is visible to the organization |
+|   ↳ `createdAt` | string | When the list was created |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Entity Notes
+
+List the notes relevant to one company, person, or opportunity — directly attached notes plus notes reaching it through its people and meetings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | Which entity the notes hang off: companies, persons, or opportunities |
+| `entityId` | string | Yes | ID of that company, person, or opportunity |
+| `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notes` | array | Notes relevant to the entity |
+|   ↳ `id` | number | The note's unique identifier |
+|   ↳ `type` | string | entities, interaction, ai-notetaker, user-reply, or ai-notetaker-reply |
+|   ↳ `content` | json | The note body as \{html\} |
+|   ↳ `creator` | object | Person who authored the note |
+|     ↳ `id` | number | The person's unique identifier |
+|     ↳ `firstName` | string | The person's first name |
+|     ↳ `lastName` | string | The person's last name |
+|     ↳ `primaryEmailAddress` | string | The person's primary email address |
+|     ↳ `type` | string | Whether the person is internal, a collaborator, or external |
+|   ↳ `mentions` | array | Persons mentioned in the note body |
+|   ↳ `createdAt` | string | When the note was created |
+|   ↳ `updatedAt` | string | When the note was last updated |
+|   ↳ `repliesCount` | number | Number of replies, on root notes only |
+|   ↳ `parent` | json | The note being replied to, on reply notes only |
+|   ↳ `interaction` | json | The meeting, call, chat message, or email the note is anchored to |
+|   ↳ `transcriptId` | number | Transcript behind an AI Notetaker note |
+|   ↳ `personsPreview` | json | Attached persons, with a count |
+|   ↳ `companiesPreview` | json | Attached companies, with a count |
+|   ↳ `opportunitiesPreview` | json | Attached opportunities, with a count |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity List Entity Relationships
+
+List who knows a company or person, scored 0.0 to 1.0 by how much the two actually interact. Strongest first by default.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | Which entity to look up relationships for: companies or persons |
+| `entityId` | string | Yes | ID of that company or person |
+| `filter` | string | No | Affinity Filtering Language expression. This endpoint filters on interactionScore only, e.g. "interactionScore&gt;=0.5" |
+| `orderBy` | json | No | Sort order: \["interactionScore"\] for weakest first, \["-interactionScore"\] for strongest first \(the default\) |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `relationships` | array | Scored relationships involving the entity |
+|   ↳ `person1` | object | One side of the relationship |
+|     ↳ `id` | number | The person's unique identifier |
+|     ↳ `firstName` | string | The person's first name |
+|     ↳ `lastName` | string | The person's last name |
+|     ↳ `primaryEmailAddress` | string | The person's primary email address |
+|     ↳ `type` | string | Whether the person is internal, a collaborator, or external |
+|   ↳ `person2` | object | The other side of the relationship |
+|     ↳ `id` | number | The person's unique identifier |
+|     ↳ `firstName` | string | The person's first name |
+|     ↳ `lastName` | string | The person's last name |
+|     ↳ `primaryEmailAddress` | string | The person's primary email address |
+|     ↳ `type` | string | Whether the person is internal, a collaborator, or external |
+|   ↳ `interactionScore` | number | Strength of the relationship, between 0.0 and 1.0 |
+|   ↳ `linkedIn` | json | When the two connected on LinkedIn, as \{connectedOn\} |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity List Field Dropdown Options
+
+List the selectable options on a dropdown or ranked-dropdown company or person field. Writing such a field needs the option ID, not its text.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | Which field family the field belongs to: companies or persons |
+| `fieldId` | string | Yes | The dropdown or ranked-dropdown field ID |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `options` | array | Selectable options on the field |
+|   ↳ `id` | number | The dropdown option's unique identifier |
+|   ↳ `text` | string | The option label |
+|   ↳ `type` | string | dropdown, ranked-dropdown, or status-dropdown |
+|   ↳ `rank` | number | Sort order, on ranked and status options |
+|   ↳ `color` | string | white, gray, blue, green, purple, orange, or red |
+|   ↳ `statusCategory` | string | open, won, lost, or on-hold, on status options |
+|   ↳ `winRate` | number | Win rate of a status option |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Field Metadata
+
+List the non-list company or person fields, with the value type, filter operators, and sort support of each. Start here to find the Field IDs the read and write tools take.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | Which fields to describe: companies or persons |
+| `includes` | json | No | Extra properties to return: \["filterability","sortability"\]. Both are omitted unless requested here |
+| `filter` | string | No | Affinity Filtering Language expression. This endpoint filters on name only, e.g. "name=~Status" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fields` | array | Field definitions available on the entity |
+|   ↳ `id` | string | The field's unique identifier |
+|   ↳ `name` | string | The field name |
+|   ↳ `type` | string | enriched, global, list, or relationship-intelligence |
+|   ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|   ↳ `valueType` | string | The value shape: person, person-multi, company, company-multi, filterable-text, filterable-text-multi, number, number-multi, datetime, location, location-multi, text, ranked-dropdown, dropdown, dropdown-multi, formula-number, or interaction |
+|   ↳ `createdAt` | string | When the field was created |
+|   ↳ `filterability` | json | Supported filter operators, or the attributes that can be filtered on. Only present when requested through Includes |
+|   ↳ `sortability` | json | Whether the field can be sorted on, and by which attributes. Only present when requested through Includes |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Field Value Changes
+
+Page through field value changes across the whole workspace. Built for delta sync: follow nextCursor to the end of a run, then resume from the last cursor next time.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `filter` | string | No | Affinity Filtering Language expression over field.id, listEntry.id, changer.id, changedAt, or actionType. Resume a sync with e.g. "changedAt&gt;2026-06-01T12:00:00Z" |
+| `orderBy` | json | No | Sort order: \["changedAt"\] for oldest first \(the default\), \["-changedAt"\] for newest first |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `changes` | array | Field value changes across the workspace |
+|   ↳ `id` | number | The change's unique identifier |
+|   ↳ `type` | string | The value type the change applies to |
+|   ↳ `field` | json | The changed field as \{id, entityType, name, type\} |
+|   ↳ `entity` | json | The entity whose field changed, as \{id\} |
+|   ↳ `listEntry` | json | The list entry the change happened on, for list fields |
+|   ↳ `changer` | json | User who made the change |
+|   ↳ `changedAt` | string | When the change happened |
+|   ↳ `actionType` | string | add, update, or delete |
+|   ↳ `value` | json | The value that was added, set, or removed |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Investor Executive Connections
+
+Find warm paths into a company through investment history: which investors in your Affinity data backed a company the people you want to reach once led. Grouped by target, strongest first.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `filter` | string | Yes | Required scope. The only supported filter is target.currentCompany.id, e.g. "target.currentCompany.id=123" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of targets to return per page, 1-50. Defaults to 20 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `connections` | array | Targets and the investors who might introduce you |
+|   ↳ `target` | json | The person to reach, as \{fullName, title, linkedinUrl, currentCompany\} |
+|   ↳ `connections` | array | People in your Affinity data who might know the target, each with the inference that links them |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity List List Entries
+
+Page through the rows of a list. Rows come back without field data unless Field IDs or Field Types asks for it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
+| `fieldTypes` | json | No | Field categories to return values for: enriched, global, list, or relationship-intelligence. Mutually exclusive with Field IDs |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `listEntries` | array | Rows on the list, each with its entity inlined |
+|   ↳ `id` | number | The list entry's unique identifier |
+|   ↳ `type` | string | company, person, or opportunity |
+|   ↳ `listId` | number | The list the entry belongs to |
+|   ↳ `createdAt` | string | When the entity was added to the list |
+|   ↳ `creatorId` | number | User who added the entity |
+|   ↳ `entity` | json | The company, person, or opportunity on the row, including its field values |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List List Entry Field Value Changes
+
+Page through the history of one list row — who changed which field, when, and to what.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `listEntryId` | string | Yes | The list entry ID |
+| `filter` | string | No | Affinity Filtering Language expression over field.id, changer.id, changedAt, or actionType, e.g. "field.id=field-1234" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `changes` | array | Field value changes on the row |
+|   ↳ `id` | number | The change's unique identifier |
+|   ↳ `type` | string | The value type the change applies to |
+|   ↳ `field` | json | The changed field as \{id, entityType, name, type\} |
+|   ↳ `entity` | json | The entity whose field changed, as \{id\} |
+|   ↳ `listEntry` | json | The list entry the change happened on, for list fields |
+|   ↳ `changer` | json | User who made the change |
+|   ↳ `changedAt` | string | When the change happened |
+|   ↳ `actionType` | string | add, update, or delete |
+|   ↳ `value` | json | The value that was added, set, or removed |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List List Entry Fields
+
+Page through every field value on one list row, including the list-specific columns. All fields are returned unless narrowed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `listEntryId` | string | Yes | The list entry ID |
+| `ids` | json | No | Restrict to these field IDs. Mutually exclusive with Field Types |
+| `types` | json | No | Restrict to these field categories: enriched, global, list, relationship-intelligence. Mutually exclusive with Field IDs |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 20 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fields` | array | Field values on the list row |
+|   ↳ `id` | string | The field's unique identifier |
+|   ↳ `name` | string | The field name |
+|   ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
+|   ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|   ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List List Field Dropdown Options
+
+List the selectable options on a dropdown, ranked-dropdown, or status-dropdown field of a list.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `fieldId` | string | Yes | The dropdown field ID on that list |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `options` | array | Selectable options on the list field |
+|   ↳ `id` | number | The dropdown option's unique identifier |
+|   ↳ `text` | string | The option label |
+|   ↳ `type` | string | dropdown, ranked-dropdown, or status-dropdown |
+|   ↳ `rank` | number | Sort order, on ranked and status options |
+|   ↳ `color` | string | white, gray, blue, green, purple, orange, or red |
+|   ↳ `statusCategory` | string | open, won, lost, or on-hold, on status options |
+|   ↳ `winRate` | number | Win rate of a status option |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List List Fields
+
+List the fields available on one list, including its list-specific columns. Use these Field IDs when reading or writing list entries.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `includes` | json | No | Extra properties to return: \["filterability","sortability"\]. Both are omitted unless requested here |
+| `filter` | string | No | Affinity Filtering Language expression. This endpoint filters on name only, e.g. "name=~Stage" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fields` | array | Field definitions available on the list |
+|   ↳ `id` | string | The field's unique identifier |
+|   ↳ `name` | string | The field name |
+|   ↳ `type` | string | enriched, global, list, or relationship-intelligence |
+|   ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|   ↳ `valueType` | string | The value shape: person, person-multi, company, company-multi, filterable-text, filterable-text-multi, number, number-multi, datetime, location, location-multi, text, ranked-dropdown, dropdown, dropdown-multi, formula-number, or interaction |
+|   ↳ `createdAt` | string | When the field was created |
+|   ↳ `filterability` | json | Supported filter operators, or the attributes that can be filtered on. Only present when requested through Includes |
+|   ↳ `sortability` | json | Whether the field can be sorted on, and by which attributes. Only present when requested through Includes |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Lists
+
+Page through the lists in the organization that the caller can view.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `term` | string | No | Case-insensitive substring match on the list name |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lists` | array | Lists the caller can view |
+|   ↳ `id` | number | The list's unique identifier |
+|   ↳ `name` | string | The list name |
+|   ↳ `creatorId` | number | User who created the list |
+|   ↳ `ownerId` | number | User who owns the list |
+|   ↳ `isPublic` | boolean | Whether the list is visible to the organization |
+|   ↳ `createdAt` | string | When the list was created |
+|   ↳ `type` | string | company, opportunity, or person — the entity kind the list holds |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Meetings
+
+Page through past and upcoming meetings with their organizer and attendees.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meetings` | array | Meetings with their attendees |
+|   ↳ `id` | number | The call's unique identifier |
+|   ↳ `loggingType` | string | automated or manual |
+|   ↳ `title` | string | The call title |
+|   ↳ `startTime` | string | When the call started |
+|   ↳ `endTime` | string | When the call ended |
+|   ↳ `allDay` | boolean | Whether the call spans the whole day |
+|   ↳ `creator` | json | Who logged the call |
+|   ↳ `createdAt` | string | When the record was created |
+|   ↳ `updatedAt` | string | When the record was last updated |
+|   ↳ `attendeesPreview` | json | Attendees, with a total count |
+|   ↳ `organizer` | json | Who organized the meeting |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Merge Tasks
+
+Page through merge tasks, each summarizing how many of its merges are in progress, succeeded, or failed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | Which merge tasks to list: companies or persons |
+| `filter` | string | No | Affinity Filtering Language expression. This endpoint filters on status only, e.g. "status=in-progress" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tasks` | array | Merge tasks and their result summaries |
+|   ↳ `id` | string | The task's unique identifier |
+|   ↳ `status` | string | in-progress, success, or failed |
+|   ↳ `resultsSummary` | json | Counts of the grouped merges as \{total, inProgress, success, failed\} |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Merges
+
+Page through the company or person merges the organization has run, with the status and the records involved in each.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | Which merges to list: companies or persons |
+| `filter` | string | No | Affinity Filtering Language expression over status or taskId, e.g. "status=failed" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `merges` | array | Merges the organization has run |
+|   ↳ `id` | number | The merge's unique identifier |
+|   ↳ `status` | string | in-progress, success, or failed |
+|   ↳ `taskId` | string | Task that groups this merge with its siblings |
+|   ↳ `startedAt` | string | When the merge started |
+|   ↳ `completedAt` | string | When the merge finished |
+|   ↳ `errorMessage` | string | Why the merge failed |
+|   ↳ `primaryCompanyId` | number | Company kept by a company merge |
+|   ↳ `duplicateCompanyId` | number | Company folded in by a company merge |
+|   ↳ `primaryPersonId` | number | Person kept by a person merge |
+|   ↳ `duplicatePersonId` | number | Person folded in by a person merge |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Note Attached Companies
+
+List the companies directly attached to one note.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `noteId` | string | Yes | The note ID |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companies` | array | Companies attached to the note |
+|   ↳ `id` | number | The company's unique identifier |
+|   ↳ `name` | string | The company name |
+|   ↳ `domain` | string | The company's primary domain |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity List Note Attached Opportunities
+
+List the opportunities directly attached to one note.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `noteId` | string | Yes | The note ID |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opportunities` | array | Opportunities attached to the note |
+|   ↳ `id` | number | The opportunity's unique identifier |
+|   ↳ `name` | string | The opportunity name |
+|   ↳ `listId` | number | The list the opportunity belongs to |
+|   ↳ `listName` | string | Name of that list |
+|   ↳ `isRestricted` | boolean | Whether list permissions restrict access to the opportunity |
+|   ↳ `isRedacted` | boolean | Whether the opportunity fields were redacted |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity List Note Attached Persons
+
+List the persons directly attached to one note.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `noteId` | string | Yes | The note ID |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `persons` | array | Persons attached to the note |
+|   ↳ `id` | number | The person's unique identifier |
+|   ↳ `firstName` | string | The person's first name |
+|   ↳ `lastName` | string | The person's last name |
+|   ↳ `primaryEmailAddress` | string | The person's primary email address |
+|   ↳ `type` | string | Whether the person is internal, a collaborator, or external |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity List Note Replies
+
+Page through the replies on one note, including AI Notetaker replies.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `noteId` | string | Yes | The note ID whose replies to read |
+| `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `replies` | array | Replies to the note |
+|   ↳ `id` | number | The note's unique identifier |
+|   ↳ `type` | string | entities, interaction, ai-notetaker, user-reply, or ai-notetaker-reply |
+|   ↳ `content` | json | The note body as \{html\} |
+|   ↳ `creator` | object | Person who authored the note |
+|     ↳ `id` | number | The person's unique identifier |
+|     ↳ `firstName` | string | The person's first name |
+|     ↳ `lastName` | string | The person's last name |
+|     ↳ `primaryEmailAddress` | string | The person's primary email address |
+|     ↳ `type` | string | Whether the person is internal, a collaborator, or external |
+|   ↳ `mentions` | array | Persons mentioned in the note body |
+|   ↳ `createdAt` | string | When the note was created |
+|   ↳ `updatedAt` | string | When the note was last updated |
+|   ↳ `repliesCount` | number | Number of replies, on root notes only |
+|   ↳ `parent` | json | The note being replied to, on reply notes only |
+|   ↳ `interaction` | json | The meeting, call, chat message, or email the note is anchored to |
+|   ↳ `transcriptId` | number | Transcript behind an AI Notetaker note |
+|   ↳ `personsPreview` | json | Attached persons, with a count |
+|   ↳ `companiesPreview` | json | Attached companies, with a count |
+|   ↳ `opportunitiesPreview` | json | Attached opportunities, with a count |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity List Notes
+
+Page through every note the caller can see. Replies are excluded.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `includes` | json | No | Extra properties to return, e.g. \["repliesCount","personsPreview","companiesPreview","opportunitiesPreview"\]. Those four fields are omitted unless requested here |
+| `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notes` | array | Root notes, excluding replies |
+|   ↳ `id` | number | The note's unique identifier |
+|   ↳ `type` | string | entities, interaction, ai-notetaker, user-reply, or ai-notetaker-reply |
+|   ↳ `content` | json | The note body as \{html\} |
+|   ↳ `creator` | object | Person who authored the note |
+|     ↳ `id` | number | The person's unique identifier |
+|     ↳ `firstName` | string | The person's first name |
+|     ↳ `lastName` | string | The person's last name |
+|     ↳ `primaryEmailAddress` | string | The person's primary email address |
+|     ↳ `type` | string | Whether the person is internal, a collaborator, or external |
+|   ↳ `mentions` | array | Persons mentioned in the note body |
+|   ↳ `createdAt` | string | When the note was created |
+|   ↳ `updatedAt` | string | When the note was last updated |
+|   ↳ `repliesCount` | number | Number of replies, on root notes only |
+|   ↳ `parent` | json | The note being replied to, on reply notes only |
+|   ↳ `interaction` | json | The meeting, call, chat message, or email the note is anchored to |
+|   ↳ `transcriptId` | number | Transcript behind an AI Notetaker note |
+|   ↳ `personsPreview` | json | Attached persons, with a count |
+|   ↳ `companiesPreview` | json | Attached companies, with a count |
+|   ↳ `opportunitiesPreview` | json | Attached opportunities, with a count |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity List Opportunities
+
+Page through opportunities. Field data lives on the list entry, not here — read it through the list or saved view the opportunity belongs to.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `ids` | json | No | Restrict the page to these opportunity IDs, e.g. \[1, 2, 3\] |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opportunities` | array | Opportunities the caller can view |
+|   ↳ `id` | number | The opportunity's unique identifier |
+|   ↳ `name` | string | The opportunity name |
+|   ↳ `listId` | number | The list the opportunity belongs to |
+|   ↳ `listName` | string | Name of that list |
+|   ↳ `isRestricted` | boolean | Whether list permissions restrict access to the opportunity |
+|   ↳ `isRedacted` | boolean | Whether the opportunity fields were redacted |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Persons
+
+Page through persons. Persons come back without field data unless Field IDs or Field Types asks for it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `ids` | json | No | Restrict the page to these person IDs, e.g. \[1, 2, 3\] |
+| `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
+| `fieldTypes` | json | No | Field categories to return values for: enriched, global, or relationship-intelligence. Mutually exclusive with Field IDs |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `persons` | array | Persons with any requested field values |
+|   ↳ `id` | number | The person's unique identifier |
+|   ↳ `firstName` | string | The person's first name |
+|   ↳ `lastName` | string | The person's last name |
+|   ↳ `primaryEmailAddress` | string | The person's primary email address |
+|   ↳ `emailAddresses` | array | Every email address on the person |
+|   ↳ `type` | string | Whether the person is internal or external |
+|   ↳ `fields` | array | Requested field values. Absent unless Field IDs or Field Types was supplied |
+|     ↳ `id` | string | The field's unique identifier |
+|     ↳ `name` | string | The field name |
+|     ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
+|     ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|     ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Reminders
+
+Page through the reminders the caller can see. Filter by status to surface what is overdue.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reminders` | array | Reminders visible to the caller |
+|   ↳ `id` | number | The reminder's unique identifier |
+|   ↳ `type` | string | one-time or recurring |
+|   ↳ `status` | string | active, overdue, or completed |
+|   ↳ `content` | string | The reminder text |
+|   ↳ `dueDate` | string | When the reminder is due |
+|   ↳ `creator` | json | User who created the reminder, as \{id\} |
+|   ↳ `owner` | json | User the reminder is assigned to, as \{id\} |
+|   ↳ `completer` | json | User who completed it, as \{id\} |
+|   ↳ `company` | json | Tagged company, as \{id\} |
+|   ↳ `person` | json | Tagged person, as \{id\} |
+|   ↳ `opportunity` | json | Tagged opportunity, as \{id\} |
+|   ↳ `completedAt` | string | When the reminder was completed |
+|   ↳ `recurrence` | json | Recurrence as \{resetTrigger, periodDays\}, null on a one-time reminder |
+|   ↳ `createdAt` | string | When the reminder was created |
+|   ↳ `updatedAt` | string | When the reminder was last updated |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity List Saved View Entries
+
+Page through the rows of a saved view. The view's own filters and columns decide which rows and which field data come back.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `viewId` | string | Yes | The saved view ID |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `listEntries` | array | Rows the saved view exposes |
+|   ↳ `id` | number | The list entry's unique identifier |
+|   ↳ `type` | string | company, person, or opportunity |
+|   ↳ `listId` | number | The list the entry belongs to |
+|   ↳ `createdAt` | string | When the entity was added to the list |
+|   ↳ `creatorId` | number | User who added the entity |
+|   ↳ `entity` | json | The company, person, or opportunity on the row, including its field values |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Saved Views
+
+List the saved views on a list that the caller can view.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `savedViews` | array | Saved views on the list |
+|   ↳ `id` | number | The saved view's unique identifier |
+|   ↳ `name` | string | The saved view name |
+|   ↳ `type` | string | sheet, board, or dashboard |
+|   ↳ `createdAt` | string | When the saved view was created |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity List Transcript Fragments
+
+Page through everything said in a meeting, segment by segment with the speaker.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `transcriptId` | string | Yes | The transcript ID |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fragments` | array | Spoken segments in order |
+|   ↳ `content` | string | What was said |
+|   ↳ `speaker` | string | Who said it |
+|   ↳ `startTimestamp` | string | When the segment starts |
+|   ↳ `endTimestamp` | string | When the segment ends |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity List Transcripts
+
+Page through meeting transcript metadata. Read one transcript to get what was actually said.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transcripts` | array | Transcript metadata, without the spoken content |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity List Users
+
+Page through the internal users in the organization. Email addresses and roles are returned only to callers with the "Manage Users" permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `term` | string | No | Case-insensitive match across first name, last name, and primary email |
+| `filter` | string | No | Affinity Filtering Language expression over id or status, e.g. "status=active" |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Internal users in the organization |
+|   ↳ `id` | number | The user's unique identifier, shared with their person ID |
+|   ↳ `firstName` | string | The user's first name |
+|   ↳ `lastName` | string | The user's last name |
+|   ↳ `primaryEmailAddress` | string | The user's primary email address |
+|   ↳ `emailAddresses` | array | Every email address, for callers with the Manage Users permission |
+|   ↳ `photoUrl` | string | URL of the user's photo |
+|   ↳ `status` | string | active, invited, or deactivated |
+|   ↳ `role` | string | Account role, for callers with the Manage Users permission |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+
+### Affinity Search Companies
+
+Search companies by filters, sorts, and a free-text term. Requires the "Export All Organizations directory" permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `filters` | json | No | Filter group as \{operator: "and"\|"or", filters: \[...\]\}, at most 50 leaves. Each leaf is \{valueType, fieldId, operator, value\}, and a leaf may itself be a nested group |
+| `searchTerm` | string | No | Free-text term matched against the searchable fields. At least 3 characters |
+| `searchFieldIds` | json | No | Field IDs the search term is matched against. Defaults to the searchable fields |
+| `sorts` | json | No | Sort order as \[\{fieldId, direction: "asc"\|"desc", attributeId?\}\], up to 5, applied in order |
+| `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
+| `fieldTypes` | json | No | Field categories to return values for: enriched, global, or relationship-intelligence. Mutually exclusive with Field IDs |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companies` | array | Matching companies with any requested field values |
+|   ↳ `id` | number | The company's unique identifier |
+|   ↳ `name` | string | The company name |
+|   ↳ `domain` | string | The primary domain |
+|   ↳ `domains` | array | Every domain associated with the company |
+|   ↳ `isGlobal` | boolean | Whether this is an Affinity Data global company profile |
+|   ↳ `fields` | array | Requested field values. Absent unless Field IDs or Field Types was supplied |
+|     ↳ `id` | string | The field's unique identifier |
+|     ↳ `name` | string | The field name |
+|     ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
+|     ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|     ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity Search Files
+
+Search files by keyword, ordered by relevance. Narrow to specific files or to one company, or leave both unset to search the whole account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `prompt` | string | Yes | What to search for. Between 3 and 500 characters |
+| `ids` | json | No | Restrict the search to these file IDs. Cannot be combined with Company ID |
+| `companyId` | string | No | Restrict the search to one company's files. Cannot be combined with file IDs |
+| `limit` | number | No | Maximum number of files to return, 1-100. Defaults to 20 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Matching files, most relevant first |
+|   ↳ `file` | json | The matched file as \{id, name\} |
+|   ↳ `pageNumber` | number | Page the match was found on, for paginated documents |
+|   ↳ `preview` | string | Snippet of the file around the match |
+| `count` | number | Number of matches returned |
+
+### Affinity Search List Entries
+
+Search the rows of one list by filters, sorts, and a free-text term. Requires the "Export data from Lists" permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID to search |
+| `filters` | json | No | Filter group as \{operator: "and"\|"or", filters: \[...\]\}, at most 50 leaves. Each leaf is \{valueType, fieldId, operator, value\}, and a leaf may itself be a nested group |
+| `searchTerm` | string | No | Free-text term matched against the searchable fields. At least 3 characters |
+| `searchFieldIds` | json | No | Field IDs the search term is matched against. Defaults to the searchable fields |
+| `sorts` | json | No | Sort order as \[\{fieldId, direction: "asc"\|"desc", attributeId?\}\], up to 5, applied in order |
+| `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
+| `fieldTypes` | json | No | Field categories to return values for: enriched, global, list, or relationship-intelligence. Mutually exclusive with Field IDs |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `listEntries` | array | Matching rows on the list |
+|   ↳ `id` | number | The list entry's unique identifier |
+|   ↳ `type` | string | company, person, or opportunity |
+|   ↳ `listId` | number | The list the entry belongs to |
+|   ↳ `createdAt` | string | When the entity was added to the list |
+|   ↳ `creatorId` | number | User who added the entity |
+|   ↳ `entity` | json | The company, person, or opportunity on the row, including its field values |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity Search Notes
+
+Search notes by keyword, ordered by relevance. Narrow to specific notes or to one company, or leave both unset to search the whole account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `prompt` | string | Yes | What to search for. Between 3 and 500 characters |
+| `ids` | json | No | Restrict the search to these note IDs. Cannot be combined with Company ID |
+| `companyId` | string | No | Restrict the search to one company's notes. Cannot be combined with note IDs |
+| `limit` | number | No | Maximum number of notes to return, 1-100. Defaults to 20 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Matching notes, most relevant first |
+|   ↳ `note` | json | The matched note as \{id, kind\} |
+|   ↳ `preview` | string | Snippet of the note around the match |
+| `count` | number | Number of matches returned |
+
+### Affinity Search Persons
+
+Search persons by filters, sorts, and a free-text term. Requires the "Export All People directory" permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `filters` | json | No | Filter group as \{operator: "and"\|"or", filters: \[...\]\}, at most 50 leaves. Each leaf is \{valueType, fieldId, operator, value\}, and a leaf may itself be a nested group |
+| `searchTerm` | string | No | Free-text term matched against the searchable fields. At least 3 characters |
+| `searchFieldIds` | json | No | Field IDs the search term is matched against. Defaults to the searchable fields |
+| `sorts` | json | No | Sort order as \[\{fieldId, direction: "asc"\|"desc", attributeId?\}\], up to 5, applied in order |
+| `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
+| `fieldTypes` | json | No | Field categories to return values for: enriched, global, or relationship-intelligence. Mutually exclusive with Field IDs |
+| `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
+| `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
+| `totalCount` | boolean | No | Include the total size of the collection. Costs an extra query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `persons` | array | Matching persons with any requested field values |
+|   ↳ `id` | number | The person's unique identifier |
+|   ↳ `firstName` | string | The person's first name |
+|   ↳ `lastName` | string | The person's last name |
+|   ↳ `primaryEmailAddress` | string | The person's primary email address |
+|   ↳ `emailAddresses` | array | Every email address on the person |
+|   ↳ `type` | string | Whether the person is internal or external |
+|   ↳ `fields` | array | Requested field values. Absent unless Field IDs or Field Types was supplied |
+|     ↳ `id` | string | The field's unique identifier |
+|     ↳ `name` | string | The field name |
+|     ↳ `type` | string | enriched, global, list, relationship-intelligence, or hidden |
+|     ↳ `enrichmentSource` | string | affinity-data, dealroom, eventbrite, or mailchimp for an enriched field |
+|     ↳ `value` | json | The typed value as \{type, data\}, where type names the value type \(person, company, dropdown, number, location, datetime, text, interaction, …\) and data carries the value or null |
+| `count` | number | Number of rows on this page |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `prevCursor` | string | Cursor for the previous page, or null on the first page |
+| `totalCount` | number | Total size of the collection, only when Total Count was requested |
+
+### Affinity Semantic Search
+
+Find companies from a description in plain language — industry, technology, stage, or business model. Currently searches companies only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `prompt` | string | Yes | What to look for, in plain language, e.g. "climate tech companies in our pipeline". Up to 500 characters |
+| `listIds` | json | No | Restrict the search to companies on these lists, e.g. \[1, 2\] |
+| `limit` | number | No | Maximum number of companies to return, 1-100. Defaults to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companies` | array | Matching companies, best match first |
+|   ↳ `id` | number | The company's unique identifier |
+|   ↳ `name` | string | The company name |
+|   ↳ `domain` | string | The company's primary domain |
+|   ↳ `domains` | array | Every domain associated with the company |
+|   ↳ `isGlobal` | boolean | Whether this is an Affinity Data global company profile |
+|   ↳ `score` | string | How well the company matched the prompt |
+| `count` | number | Number of companies returned |
+| `entityType` | string | The entity kind that was searched |
+| `explanation` | string | How the search read the prompt |
+
+### Affinity Update Entity Field Value
+
+Write one non-list field value on a company or person. The value type must match how the field is defined.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `entityType` | string | Yes | Which entity to write the field on: companies or persons |
+| `entityId` | string | Yes | ID of that company or person |
+| `fieldId` | string | Yes | The field ID to write |
+| `value` | json | Yes | The new value as \{type, data\}, where type matches the field's value type. Examples: \{"type":"text","data":"Series B"\}, \{"type":"number","data":42\}, \{"type":"dropdown","data":\{"dropdownOptionId":7\}\}, \{"type":"person","data":\{"id":123\}\}, \{"type":"person-multi","data":\[\{"id":123\}\]\}. Pass data as null to clear the field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether Affinity accepted the change |
+| `id` | string | Identifier of the resource that was changed |
+
+### Affinity Update List Entry Field
+
+Write one field value on a list row. Requires the "Export data from Lists" permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `listEntryId` | string | Yes | The list entry ID |
+| `fieldId` | string | Yes | The field ID to write |
+| `value` | json | Yes | The new value as \{type, data\}, where type matches the field's value type. Examples: \{"type":"text","data":"Series B"\}, \{"type":"number","data":42\}, \{"type":"dropdown","data":\{"dropdownOptionId":7\}\}, \{"type":"person","data":\{"id":123\}\}, \{"type":"person-multi","data":\[\{"id":123\}\]\}. Pass data as null to clear the field |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether Affinity accepted the change |
+| `id` | string | Identifier of the resource that was changed |
+
+### Affinity Update List Field Dropdown Option
+
+Change a dropdown option on a list field. Every field is optional — supply only what should change, and only fields the option's kind actually has.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `listId` | string | Yes | The list ID |
+| `fieldId` | string | Yes | The dropdown field ID on that list |
+| `dropdownOptionId` | string | Yes | The dropdown option ID to update |
+| `text` | string | No | Replacement option label. Supply at least one field to change |
+| `rank` | number | No | Sort order. Required on a ranked-dropdown or status-dropdown option |
+| `color` | string | No | Option color: white, gray, blue, green, purple, orange, or red. Required on a ranked-dropdown or status-dropdown option |
+| `statusCategory` | string | No | Pipeline meaning of the option: open, won, lost, or on-hold. Status-dropdown options only |
+| `winRate` | number | No | Expected win rate of the status. Status-dropdown options only |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether Affinity accepted the change |
+| `id` | string | Identifier of the resource that was changed |
+
+### Affinity Update Note
+
+Rewrite a note's body or replace which records it is attached to. Each list of IDs replaces that association wholesale, an empty list clears it, and omitting one leaves it untouched. A note's type cannot be changed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
+| `noteId` | string | Yes | The note ID to update |
+| `html` | string | No | Replacement note body as HTML |
+| `companyIds` | json | No | Replacement set of attached companies, e.g. \[1, 2\]. Send \[\] to detach every company; omit to leave them unchanged |
+| `personIds` | json | No | Replacement set of attached persons, e.g. \[1, 2\]. Send \[\] to detach every person; omit to leave them unchanged |
+| `opportunityIds` | json | No | Replacement set of attached opportunities, e.g. \[1, 2\]. Send \[\] to detach every opportunity; omit to leave them unchanged |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether Affinity accepted the change |
+| `id` | string | Identifier of the resource that was changed |
+
+

@@ -7,6 +7,7 @@ import { apportionCredits } from '@/lib/billing/credits/conversion'
 
 const { mockGetUserUsageLogs, mockGetUsageCreditsByLogId } = vi.hoisted(() => ({
   mockGetUserUsageLogs: vi.fn(),
+  /** Still mocked because the module exports it; the export route must never call it. */
   mockGetUsageCreditsByLogId: vi.fn(),
 }))
 
@@ -47,7 +48,6 @@ describe('GET /api/users/me/usage-logs/export', () => {
       summary: { totalCost: 0.5, bySource: { copilot: 0.5 } },
       pagination: { hasMore: false },
     })
-    mockGetUsageCreditsByLogId.mockResolvedValue(apportionCredits([{ key: 'log-1', dollars: 0.5 }]))
 
     const response = await GET(createMockRequest('GET'))
     const csv = await response.text()
@@ -105,10 +105,6 @@ describe('GET /api/users/me/usage-logs/export', () => {
 
     expect(response.status).toBe(200)
     expect(mockGetUserUsageLogs).toHaveBeenCalledWith(
-      'user-1',
-      expect.objectContaining({ source: ['copilot', 'workspace-chat'] })
-    )
-    expect(mockGetUsageCreditsByLogId).toHaveBeenCalledWith(
       'user-1',
       expect.objectContaining({ source: ['copilot', 'workspace-chat'] })
     )
@@ -208,7 +204,9 @@ describe('GET /api/users/me/usage-logs/export', () => {
     expect(csv.split('\n')).toHaveLength(3)
   })
 
-  it('apportions credits once over the whole filtered set, not per page', async () => {
+  it('apportions across pages so the printed rows reconcile to the printed total', async () => {
+    // 0.002 + 0.002 = 0.004 -> 0.8 credits -> 1 credit for the whole file. Rounding each
+    // row alone would print 0 and 0; the largest-remainder split prints 1 and 0.
     mockGetUserUsageLogs
       .mockResolvedValueOnce({
         logs: [
@@ -224,16 +222,35 @@ describe('GET /api/users/me/usage-logs/export', () => {
         summary: { totalCost: 0, bySource: {} },
         pagination: { hasMore: false },
       })
-    mockGetUsageCreditsByLogId.mockResolvedValue(
-      apportionCredits([
-        { key: 'log-1', dollars: 0.002 },
-        { key: 'log-2', dollars: 0.002 },
-      ])
+
+    const csv = await (await GET(createMockRequest('GET'))).text()
+    const printed = csv
+      .split('\n')
+      .slice(1)
+      .map((line) => Number(line.split(',')[2]))
+
+    expect(printed.reduce((sum, credits) => sum + credits, 0)).toBe(
+      Object.values(
+        apportionCredits([
+          { key: 'log-1', dollars: 0.002 },
+          { key: 'log-2', dollars: 0.002 },
+        ])
+      ).reduce((sum, credits) => sum + credits, 0)
     )
+  })
+
+  it('never issues the whole-filter apportionment read, so the safety cap actually bounds it', async () => {
+    // The cap stops the paging loop; a second unbounded read beside it would make that
+    // cap meaningless, and with `period=all` it is a full lifetime scan.
+    mockGetUserUsageLogs.mockResolvedValueOnce({
+      logs: [{ id: 'log-1', createdAt: '2026-07-01T00:00:00.000Z', source: 'copilot', cost: 0.5 }],
+      summary: { totalCost: 0, bySource: {} },
+      pagination: { hasMore: false },
+    })
 
     await GET(createMockRequest('GET'))
 
-    expect(mockGetUsageCreditsByLogId).toHaveBeenCalledTimes(1)
+    expect(mockGetUsageCreditsByLogId).not.toHaveBeenCalled()
   })
 
   it('stops at exactly the safety cap without an extra wasted page fetch', async () => {

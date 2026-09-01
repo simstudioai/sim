@@ -96,7 +96,7 @@ vi.mock('@/stores/workflows/registry/store', () => ({
 
 vi.mock('@/stores/terminal', () => ({
   consolePersistence: {
-    executionStarted: vi.fn(),
+    executionStarted: vi.fn(() => ({})),
     executionEnded: vi.fn(),
     persist: vi.fn(),
   },

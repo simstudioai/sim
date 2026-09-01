@@ -3,19 +3,22 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
+import type { CancelWorkflowRunParams } from '@/lib/copilot/tools/handlers/param-types'
+import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     apiKey: vi.fn(),
     executeWorkflowUseCase: vi.fn(),
     hasExecutionResult: vi.fn(),
+    readAttemptedExecutionId: vi.fn(),
   },
 }))
 
 vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
   executeCopilotWorkflowUseCase: mocks.executeWorkflowUseCase,
-  messageForCopilotWorkflowError: (_error: unknown, fallback = 'Workflow operation failed') =>
-    fallback,
+  messageForCopilotWorkflowError: (error: unknown, fallback = 'Workflow operation failed') =>
+    error instanceof Error && 'code' in error ? error.message : fallback,
 }))
 
 vi.mock('@/lib/copilot/application/execute-api-key-use-case', () => ({
@@ -28,6 +31,7 @@ vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
 
 vi.mock('@/executor/utils/errors', () => ({
   hasExecutionResult: mocks.hasExecutionResult,
+  readAttemptedExecutionId: mocks.readAttemptedExecutionId,
 }))
 
 vi.mock('@/lib/core/telemetry', () => ({
@@ -35,6 +39,7 @@ vi.mock('@/lib/core/telemetry', () => ({
 }))
 
 import {
+  executeCancelWorkflowRun,
   executeCreateWorkflow,
   executeGenerateApiKey,
   executeMoveWorkflow,
@@ -50,6 +55,7 @@ const context = {
   workspaceId: 'workspace-1',
   workflowId: 'workflow-1',
   toolCallId: 'tool-call-1',
+  copilotToolExecution: true,
   billingAttribution: { workspaceId: 'workspace-1' },
 } as ExecutionContext
 
@@ -57,6 +63,7 @@ describe('workflow mutation Copilot adapters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.hasExecutionResult.mockReturnValue(false)
+    mocks.readAttemptedExecutionId.mockReturnValue(undefined)
   })
 
   it('maps encoded folder aliases into one create application command', async () => {
@@ -156,6 +163,68 @@ describe('workflow mutation Copilot adapters', () => {
         lifecycle: expect.objectContaining({ billingAttribution: context.billingAttribution }),
       })
     )
+  })
+
+  it('cancels a workflow run through the canonical application use case', async () => {
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      redisAvailable: true,
+      durablyRecorded: true,
+      locallyAborted: false,
+      pausedCancelled: false,
+      reason: 'recorded',
+    })
+
+    const result = await executeCancelWorkflowRun({ executionId: 'execution-1' }, context)
+
+    expect(result).toEqual({
+      success: true,
+      output: {
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        durablyRecorded: true,
+        locallyAborted: false,
+        pausedCancelled: false,
+        reason: 'recorded',
+      },
+    })
+    expect(mocks.executeWorkflowUseCase).toHaveBeenCalledWith(
+      context,
+      expect.objectContaining({
+        operation: expect.objectContaining({ id: 'workflows.runs.cancel' }),
+      }),
+      {
+        runId: 'execution-1',
+      }
+    )
+  })
+
+  it('returns a cancellation application error to the Run agent', async () => {
+    mocks.executeWorkflowUseCase.mockRejectedValue(
+      new WorkflowRunAlreadyTerminalError({
+        executionId: 'execution-1',
+        executionStatus: 'completed',
+        redisAvailable: true,
+        locallyAborted: false,
+      })
+    )
+
+    const result = await executeCancelWorkflowRun({ executionId: 'execution-1' }, context)
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Execution cannot be cancelled while completed',
+    })
+  })
+
+  it('requires an execution ID before attempting workflow-run cancellation', async () => {
+    const result = await executeCancelWorkflowRun({} as CancelWorkflowRunParams, context)
+
+    expect(result).toEqual({ success: false, error: 'executionId is required' })
+    expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -259,6 +328,66 @@ describe('workflow mutation Copilot adapters', () => {
 
     const result = await executeRunWorkflow({ workflowId: 'workflow-1' }, context)
 
-    expect(result).toEqual({ success: false, error: 'Workflow execution failed' })
+    expect(result).toEqual({
+      success: false,
+      error: 'Workflow execution failed',
+      effect: { phase: 'not_attempted' },
+    })
+  })
+
+  /**
+   * How far the run got is the only thing a caller can act on once the egress boundary
+   * withholds the payload, so each of these must reach the projection distinguishable.
+   */
+  it.each([
+    {
+      label: 'refused on its own arguments',
+      arrange: () => {},
+      run: () => executeRunWorkflow({}, { ...context, workflowId: undefined }),
+      effect: { phase: 'not_attempted' },
+    },
+    {
+      label: 'failed before dispatch',
+      arrange: () => mocks.executeWorkflowUseCase.mockRejectedValueOnce(new Error('denied')),
+      run: () => executeRunWorkflow({ workflowId: 'workflow-1' }, context),
+      effect: { phase: 'not_attempted' },
+    },
+    {
+      label: 'failed after dispatch',
+      arrange: () => {
+        mocks.executeWorkflowUseCase.mockRejectedValueOnce(new Error('crashed'))
+        mocks.readAttemptedExecutionId.mockReturnValue('execution-1')
+      },
+      run: () => executeRunWorkflow({ workflowId: 'workflow-1' }, context),
+      effect: { phase: 'attempted', ids: { executionId: 'execution-1' } },
+    },
+    {
+      label: 'cancelled before it could finish',
+      arrange: () =>
+        mocks.executeWorkflowUseCase.mockResolvedValueOnce({
+          success: false,
+          output: {},
+          logs: [],
+          status: 'cancelled',
+          metadata: { executionId: 'execution-1' },
+        }),
+      run: () => executeRunWorkflow({ workflowId: 'workflow-1' }, context),
+      effect: { phase: 'attempted', ids: { executionId: 'execution-1' } },
+    },
+    {
+      label: 'completed',
+      arrange: () =>
+        mocks.executeWorkflowUseCase.mockResolvedValueOnce({
+          success: true,
+          output: {},
+          logs: [],
+          metadata: { executionId: 'execution-1' },
+        }),
+      run: () => executeRunWorkflow({ workflowId: 'workflow-1' }, context),
+      effect: { phase: 'performed', ids: { executionId: 'execution-1' } },
+    },
+  ])('states that a run $label', async ({ arrange, run, effect }) => {
+    arrange()
+    expect((await run()).effect).toEqual(effect)
   })
 })

@@ -1,24 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
-import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
-import {
-  RESOLVED_SECRET_PROVENANCE_FIELD,
-  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
-} from '@/lib/execution/private-tool-metadata'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { requestTool } from '@/tools/http/request'
 import { webhookRequestTool } from '@/tools/http/webhook_request'
 import { tools } from '@/tools/registry'
 import { prepareToolRequest } from '@/tools/request-transport'
-import type { ToolConfig } from '@/tools/types'
+import { isInternalToolConfig, type ToolConfig } from '@/tools/types'
 
 vi.unmock('@/tools/registry')
 
-const privateProvenanceTools = Object.entries(tools).filter(
-  ([, tool]) => tool.request.modelInput?.mode === 'private-provenance'
+const requestTools = Object.entries(tools).filter(
+  (entry): entry is [string, ToolConfig] => !isInternalToolConfig(entry[1])
 )
-const dynamicRouteTools = Object.entries(tools).filter(
-  ([, tool]) => typeof tool.request.url === 'function' && !tool.directExecution
-)
+const dynamicRouteTools = requestTools.filter(([, tool]) => typeof tool.request.url === 'function')
 const PROBE_CONTEXT = {
   workflowId: 'workflow-probe',
   workspaceId: 'workspace-probe',
@@ -78,8 +70,7 @@ function isAbsoluteHttpUrl(url: string): boolean {
 }
 
 function createRequestTool(
-  url: string | ((params: Record<string, unknown>) => string),
-  internal?: true | ((params: Record<string, unknown>) => boolean)
+  url: string | ((params: Record<string, unknown>) => string)
 ): ToolConfig {
   return {
     id: 'request_transport_probe',
@@ -91,68 +82,15 @@ function createRequestTool(
       url,
       method: 'GET',
       headers: () => ({}),
-      ...(internal ? { internal } : {}),
     },
   }
 }
 
-describe('request URL trust', () => {
-  it('keeps literal Sim API routes internal', () => {
-    const request = prepareToolRequest(createRequestTool('/api/tools/probe'), {})
-
-    expect(request.isInternalRoute).toBe(true)
-  })
-
-  it('requires dynamic Sim API routes to opt in', () => {
-    const untrustedTool = createRequestTool(() => '/api/tools/probe')
-    const internalTool = createRequestTool(() => '/api/tools/probe', true)
-
-    expect(() => prepareToolRequest(untrustedTool, {})).toThrow(
+describe('external request transport', () => {
+  it('rejects relative Sim API routes', () => {
+    expect(() => prepareToolRequest(createRequestTool('/api/tools/probe'), {})).toThrow(
       'External tool requests require an absolute HTTP(S) URL'
     )
-    expect(prepareToolRequest(internalTool, {}).isInternalRoute).toBe(true)
-  })
-
-  it('rejects an internal definition that resolves outside the Sim API', () => {
-    const tool = createRequestTool(() => 'https://example.com', true)
-
-    expect(() => prepareToolRequest(tool, {})).toThrow(
-      'Internal tool requests must target a Sim API route'
-    )
-  })
-
-  it.each([
-    '/api/tools/probe/../auth/oauth/token',
-    '/api/tools/probe/%2e%2e/auth/oauth/token',
-    '/api/tools/probe\\..\\auth/oauth/token',
-    '/api/tools/probe value',
-    '/api/tools/probe?next=/auth/oauth/token',
-  ])('rejects a non-canonical internal route: %s', (url) => {
-    expect(() =>
-      prepareToolRequest(
-        createRequestTool(() => url, true),
-        {}
-      )
-    ).toThrow('Internal tool requests must target a Sim API route')
-  })
-
-  it('allows encoded path segments and query values on internal routes', () => {
-    const request = prepareToolRequest(
-      createRequestTool(() => '/api/tools/probe/probe%20value?next=..%2Fsafe', true),
-      {}
-    )
-
-    expect(request.isInternalRoute).toBe(true)
-  })
-
-  it('supports definition-owned trust for a conditional URL builder', () => {
-    const tool = createRequestTool(
-      (params) => (params.useInternal === true ? '/api/tools/probe' : 'https://example.com/probe'),
-      (params) => params.useInternal === true
-    )
-
-    expect(prepareToolRequest(tool, { useInternal: true }).isInternalRoute).toBe(true)
-    expect(prepareToolRequest(tool, { useInternal: false }).isInternalRoute).toBe(false)
   })
 
   it.each(['relative/path', 'ftp://example.com/file', 'javascript:alert(1)'])(
@@ -171,14 +109,14 @@ describe('request URL trust', () => {
       prepareToolRequest(
         createRequestTool(() => 'http://example.com'),
         {}
-      ).isInternalRoute
-    ).toBe(false)
+      ).url
+    ).toBe('http://example.com')
     expect(
       prepareToolRequest(
         createRequestTool(() => 'https://example.com'),
         {}
-      ).isInternalRoute
-    ).toBe(false)
+      ).url
+    ).toBe('https://example.com')
   })
 
   it.each([
@@ -191,19 +129,18 @@ describe('request URL trust', () => {
   })
 })
 
-describe('dynamic internal route registry invariant', () => {
-  it('covers every dynamic registry URL, with explicit declarations as the trust policy', () => {
+describe('dynamic external request registry invariant', () => {
+  it('covers every dynamic external request URL', () => {
     expect(dynamicRouteTools.length).toBeGreaterThan(0)
   })
 
-  it('probes every dynamic registry URL against its declared trust policy', () => {
+  it('probes every dynamic request URL as an absolute HTTP(S) URL', () => {
     let exercisedTools = 0
 
     for (const [toolId, tool] of dynamicRouteTools) {
       const urlBuilder = tool.request.url
       if (typeof urlBuilder !== 'function') throw new Error(`${toolId} must have a dynamic URL`)
-      const policy = tool.request.internal
-      const observations: Array<{ internal: boolean; url: string }> = []
+      const observations: string[] = []
       const scenarios = [
         createSchemaProbeParams(tool, false),
         createSchemaProbeParams(tool, true),
@@ -212,109 +149,30 @@ describe('dynamic internal route registry invariant', () => {
 
       for (const params of scenarios) {
         let url: string
-        let internal: boolean
         try {
           url = urlBuilder(params as never)
-          internal = typeof policy === 'function' ? policy(params as never) : policy === true
         } catch {
           continue
         }
 
-        if (!url && policy === undefined) continue
-        observations.push({ internal, url })
+        if (!url) continue
+        observations.push(url)
         expect(
-          internal ? url.startsWith('/api/') : isAbsoluteHttpUrl(url),
-          `${toolId} resolved ${url} outside its declared request trust`
+          isAbsoluteHttpUrl(url),
+          `${toolId} resolved ${url} outside the external HTTP transport`
         ).toBe(true)
         expect(() =>
           prepareToolRequest(
-            createRequestTool(() => url, internal ? true : undefined),
+            createRequestTool(() => url),
             {}
           )
         ).not.toThrow()
       }
 
-      if (observations.length === 0) {
-        expect(
-          policy,
-          `${toolId} declares internal trust but could not be exercised by the route probe`
-        ).toBeUndefined()
-        continue
-      }
+      if (observations.length === 0) continue
       exercisedTools += 1
-      if (policy !== undefined) {
-        expect(
-          observations.some((observation) => observation.internal),
-          `${toolId} did not exercise its internal route`
-        ).toBe(true)
-      }
-      if (typeof policy === 'function') {
-        expect(
-          observations.some((observation) => !observation.internal),
-          `${toolId} did not exercise its external route`
-        ).toBe(true)
-      }
     }
 
     expect(exercisedTools).toBeGreaterThan(0)
   })
-
-  it('validates every literal internal registry route', () => {
-    const literalInternalRoutes = Object.entries(tools).filter(
-      ([, tool]) => typeof tool.request.url === 'string' && tool.request.url.startsWith('/api/')
-    )
-
-    expect(literalInternalRoutes.length).toBeGreaterThan(0)
-    for (const [toolId, tool] of literalInternalRoutes) {
-      expect(
-        () => prepareToolRequest(createRequestTool(tool.request.url as string), {}),
-        `${toolId} has a non-canonical literal internal route`
-      ).not.toThrow()
-    }
-  })
-})
-
-describe('private-provenance tool registry invariant', () => {
-  it('covers at least one registered tool', () => {
-    expect(privateProvenanceTools.length).toBeGreaterThan(0)
-  })
-
-  it.each(privateProvenanceTools)(
-    '%s is internal and receives the private provenance header and body envelope',
-    (registryId, tool) => {
-      const url = typeof tool.request.url === 'function' ? tool.request.url({}) : tool.request.url
-
-      expect(url, `${registryId} must use an authenticated internal route`).toMatch(/^\/api\//)
-      expect(
-        tool.request.body,
-        `${registryId} must have a JSON body for its private provenance envelope`
-      ).toBeTypeOf('function')
-
-      const transportProbe: ToolConfig = {
-        ...tool,
-        request: {
-          ...tool.request,
-          url,
-          method: 'POST',
-          headers: () => ({ 'Content-Type': 'application/json' }),
-          body: () => ({ probe: true }),
-          modelInput: {
-            mode: 'private-provenance',
-            inputPaths: () => [],
-          },
-        },
-      }
-      const prepared = prepareToolRequest(transportProbe, {}, new ResolvedSecretTraceRegistry())
-      const body = JSON.parse(prepared.body ?? '{}') as Record<string, unknown>
-
-      expect(prepared.headers.get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBe(
-        RESOLVED_SECRET_PROVENANCE_METADATA_V1
-      )
-      expect(body[RESOLVED_SECRET_PROVENANCE_FIELD]).toEqual({
-        version: 1,
-        complete: true,
-        entries: [],
-      })
-    }
-  )
 })

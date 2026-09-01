@@ -13,7 +13,7 @@ import {
   resolveBlockReference,
   resolveBlockReferenceAsync,
 } from '@/executor/utils/block-reference'
-import { formatLiteralForCode } from '@/executor/utils/code-formatting'
+import { formatInertStringLiteral, formatLiteralForCode } from '@/executor/utils/code-formatting'
 import { buildClonedSubflowId, extractOuterBranchIndex } from '@/executor/utils/subflow-utils'
 import {
   type AsyncPathNavigator,
@@ -414,12 +414,7 @@ export class BlockResolver implements Resolver {
 
   private stringifyForCondition(value: any): string {
     if (typeof value === 'string') {
-      const sanitized = value
-        .replace(/\\/g, '\\\\')
-        .replace(/"/g, '\\"')
-        .replace(/\n/g, '\\n')
-        .replace(/\r/g, '\\r')
-      return `"${sanitized}"`
+      return formatInertStringLiteral(value, '"')
     }
     if (value === null) {
       return 'null'

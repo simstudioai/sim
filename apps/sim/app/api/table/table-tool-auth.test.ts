@@ -1,17 +1,11 @@
 /**
  * @vitest-environment node
  *
- * The executor reaches the internal table row routes through the Table block's
- * tools, and those routes now authenticate with the delegation policy rather
- * than the legacy internal token. Two things have to line up for that to work,
- * and neither is visible to a route test that mocks the auth policy:
+ * Table block tools execute through the in-process operation boundary. Two
+ * things have to line up for that to work:
  *
- *  1. the tool must ask the executor to mint a delegation token, and
+ *  1. the tool must declare an in-process operation, and
  *  2. the operation's policy must admit the `executor` delegated service.
- *
- * Both are pinned here because getting either wrong fails every workflow call
- * to these endpoints — the first as a 401, the second as a 403 — while every
- * route-level test keeps passing.
  */
 import { describe, expect, it } from 'vitest'
 import { tableOperations } from '@/lib/table/application/operations'
@@ -29,10 +23,9 @@ const EXECUTOR_ROW_TOOLS = [
 ] as const
 
 describe('executor access to the migrated table row routes', () => {
-  it.each(EXECUTOR_ROW_TOOLS)('%s asks the executor for a delegation token', (_name, tool) => {
-    // Without this the executor mints a legacy internal token, which the
-    // delegation policy rejects outright.
-    expect(tool.request.internalAuth).toBe('executor_delegation')
+  it.each(EXECUTOR_ROW_TOOLS)('%s declares an in-process operation', (_name, tool) => {
+    expect(tool.request).toBeUndefined()
+    expect(tool.operation.input).toBeTypeOf('function')
   })
 
   it.each(EXECUTOR_ROW_TOOLS)(

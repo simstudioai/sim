@@ -15,8 +15,8 @@ import { generateId } from '@sim/utils/id'
 import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
 import { filterAcyclicEdges, getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
 import { useQueryClient } from '@tanstack/react-query'
+import type { Edge } from '@xyflow/react'
 import { isEqual } from 'es-toolkit'
-import type { Edge } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts'
@@ -865,8 +865,13 @@ export function useCollaborativeWorkflow() {
           workflowId,
         })
         diffStore.markExternalUpdatePending(workflowId)
-        void operationQueue.waitForWorkflowOperations(workflowId).then((ready) => {
-          if (!ready) {
+        void operationQueue.waitForWorkflowOperations(workflowId).then((result) => {
+          if (result === 'cancelled') {
+            useWorkflowDiffStore.getState().clearExternalUpdatePending(workflowId)
+            return
+          }
+
+          if (result === 'failed') {
             const latestQueue = useOperationQueueStore.getState()
             if (latestQueue.hasPendingOperations(workflowId) && !latestQueue.hasOperationError) {
               return
@@ -879,6 +884,7 @@ export function useCollaborativeWorkflow() {
             )
             return
           }
+
           void replayPendingExternalUpdate(workflowId, 'deferred external update after local save')
         })
         return

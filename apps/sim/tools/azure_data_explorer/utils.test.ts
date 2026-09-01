@@ -27,6 +27,10 @@ describe('renderEntityName', () => {
     expect(renderEntityName('prod.logs')).toBe('["prod.logs"]')
     expect(renderEntityName('1day')).toBe('["1day"]')
   })
+
+  it('rejects characters that could terminate a quoted identifier', () => {
+    expect(() => renderEntityName('Logs"] | drop table Users //')).toThrow(/Invalid entity name/)
+  })
 })
 
 describe('buildWithClause', () => {

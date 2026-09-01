@@ -8,10 +8,12 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull, ne, sql } from 'drizzle-orm'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { isBillingEnabled, isCustomBlocksEnabled } from '@/lib/core/config/env-flags'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import type { DbOrTx } from '@/lib/db/types'
 import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
@@ -305,11 +307,23 @@ export async function getCustomBlockManageContext(id: string): Promise<{
  * executor to run the bound workflow under the invocation-boundary model: the
  * consumer needs no permission on the source workflow. Returns the authoritative
  * `workflowId` from the DB (never trust a serialized value) plus the source
- * workflow's **owner** (`workflow.userId`) — the same identity a normal deployed
- * API/schedule/webhook run executes as. Using the owner (not the publisher) means
- * the owner always has read on their own workflow, and owner deletion cascade-
- * deletes the workflow → the custom_block row, so there is never an orphaned block.
- * `null` when no enabled block matches the type.
+ * workflow's **owner** (`workflow.userId`). Using the owner (not the publisher)
+ * means the owner always has read on their own workflow, and owner deletion
+ * cascade-deletes the workflow → the custom_block row, so there is never an
+ * orphaned block. `null` when no enabled block matches the type.
+ *
+ * `ownerUserId` carries further than the owner does on any other trigger. It is
+ * the child run's actor, the personal-variable identity, and the subject of its
+ * delegated tool calls, because a custom block publishes a fixed behavior to
+ * consumers who can see none of its internals and the publisher's own
+ * integrations and personal keys are part of that behavior.
+ *
+ * It is NOT the identity for the two things a workspace owns. Workspace
+ * variables authorize against the source workspace's billing account, and that
+ * account is the payer, exactly as they would for a schedule on the same
+ * workflow — see the environment resolution in `workflow-handler`. Reading those
+ * as the owner too gave a published block a narrower workspace-secret selection
+ * than the workflow got on every other trigger, which no consumer could see.
  */
 export async function getCustomBlockAuthority(
   type: string,
@@ -495,41 +509,59 @@ export async function publishCustomBlock(params: {
     throw new CustomBlockValidationError('You can only publish a workflow from its own workspace')
   }
 
-  const ws = wf.workspaceId ? await getWorkspaceWithOwner(wf.workspaceId) : null
-  if (!ws?.organizationId || ws.organizationId !== organizationId) {
-    throw new CustomBlockValidationError('Workflow does not belong to this organization')
-  }
-
-  // One block per workflow: the (org, type) unique index doesn't prevent the same
-  // workflow being published under a fresh `custom_block_*` type, so guard here.
-  const [existing] = await db
-    .select({ id: customBlock.id })
-    .from(customBlock)
-    .where(eq(customBlock.workflowId, workflowId))
-    .limit(1)
-  if (existing) {
-    throw new CustomBlockValidationError('This workflow is already published as a block')
-  }
-
   const id = generateId()
   const type = `${CUSTOM_BLOCK_TYPE_PREFIX}${generateShortId(10).toLowerCase()}`
   const now = new Date()
 
-  await db.insert(customBlock).values({
-    id,
-    organizationId,
-    workflowId,
-    type,
-    name,
-    description,
-    iconUrl: iconUrl ?? null,
-    inputs: inputs ?? [],
-    outputs: exposedOutputs ?? [],
-    enabled: true,
-    traceChildRuns,
-    createdBy: userId,
-    createdAt: now,
-    updatedAt: now,
+  /**
+   * The org-belongs check and the insert run under the organization mutation
+   * lock, together, because an admin workspace move holds that same lock while
+   * it re-homes a workspace and unpublishes the blocks bound to its workflows.
+   * Reading the workspace's organization outside the lock lets a publish that
+   * validated against the OLD organization commit after the move's cleanup
+   * scan, leaving a source-organization block bound to a workflow that now
+   * lives in another tenant — which `getCustomBlockAuthority` would resolve and
+   * execute under the wrong owner's credentials and billing.
+   */
+  const ws = await db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, organizationId)
+
+    const workspaceRow = wf.workspaceId
+      ? await getWorkspaceWithOwner(wf.workspaceId, { executor: tx })
+      : null
+    if (!workspaceRow?.organizationId || workspaceRow.organizationId !== organizationId) {
+      throw new CustomBlockValidationError('Workflow does not belong to this organization')
+    }
+
+    // One block per workflow: the (org, type) unique index doesn't prevent the same
+    // workflow being published under a fresh `custom_block_*` type, so guard here.
+    const [existing] = await tx
+      .select({ id: customBlock.id })
+      .from(customBlock)
+      .where(eq(customBlock.workflowId, workflowId))
+      .limit(1)
+    if (existing) {
+      throw new CustomBlockValidationError('This workflow is already published as a block')
+    }
+
+    await tx.insert(customBlock).values({
+      id,
+      organizationId,
+      workflowId,
+      type,
+      name,
+      description,
+      iconUrl: iconUrl ?? null,
+      inputs: inputs ?? [],
+      outputs: exposedOutputs ?? [],
+      enabled: true,
+      traceChildRuns,
+      createdBy: userId,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    return workspaceRow
   })
 
   logger.info('Published custom block', { id, type, organizationId, workflowId })
@@ -588,9 +620,16 @@ export async function updateCustomBlock(
   await db.update(customBlock).set(patch).where(eq(customBlock.id, id))
 }
 
-/** Unpublish (hard-delete) a custom block. */
-export async function deleteCustomBlock(id: string): Promise<void> {
-  await db.delete(customBlock).where(eq(customBlock.id, id))
+/**
+ * Unpublish (hard-delete) a custom block.
+ *
+ * Accepts an executor so a caller that must unpublish atomically with something
+ * else can enlist it — the admin workspace move unpublishes blocks in the same
+ * transaction that re-homes their bound workflow, keeping a block and its
+ * workflow from ever being visible in two different organizations.
+ */
+export async function deleteCustomBlock(id: string, executor: DbOrTx = db): Promise<void> {
+  await executor.delete(customBlock).where(eq(customBlock.id, id))
 }
 
 /**
@@ -603,11 +642,14 @@ export async function deleteCustomBlock(id: string): Promise<void> {
  */
 export async function getCustomBlockUsageCounts(
   organizationId: string,
-  blockType: string
+  blockType: string,
+  scope?: { onlyWorkspaceId?: string; excludeWorkspaceId?: string }
 ): Promise<{ usageCount: number; deployedUsageCount: number }> {
   const orgActiveWorkflow = and(
     eq(workspace.organizationId, organizationId),
-    isNull(workflow.archivedAt)
+    isNull(workflow.archivedAt),
+    scope?.onlyWorkspaceId ? eq(workflow.workspaceId, scope.onlyWorkspaceId) : undefined,
+    scope?.excludeWorkspaceId ? ne(workflow.workspaceId, scope.excludeWorkspaceId) : undefined
   )
   // Escape LIKE wildcards — the `_`s in `custom_block_<id>` would otherwise match
   // any character and let unrelated states through to the jsonb parse.

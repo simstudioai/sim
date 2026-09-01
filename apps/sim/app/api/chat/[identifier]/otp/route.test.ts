@@ -29,6 +29,7 @@ const {
   mockSendEmail,
   mockRenderOTPEmail,
   mockSetChatAuthCookie,
+  mockIsEmailAllowed,
   mockGetStorageMethod,
   mockZodParse,
   mockAfterResponse,
@@ -48,6 +49,11 @@ const {
   const mockSendEmail = vi.fn()
   const mockRenderOTPEmail = vi.fn()
   const mockSetChatAuthCookie = vi.fn()
+  const mockIsEmailAllowed = vi.fn((email: string, allowedEmails: string[]) => {
+    if (allowedEmails.includes(email)) return true
+    const domain = email.slice(email.indexOf('@') + 1)
+    return allowedEmails.includes(`@${domain}`)
+  })
   const mockGetStorageMethod = vi.fn()
   const mockZodParse = vi.fn()
   const mockAfterResponse = vi.fn()
@@ -62,6 +68,7 @@ const {
     mockSendEmail,
     mockRenderOTPEmail,
     mockSetChatAuthCookie,
+    mockIsEmailAllowed,
     mockGetStorageMethod,
     mockZodParse,
     mockAfterResponse,
@@ -101,15 +108,7 @@ vi.mock('@/components/emails', () => ({
 }))
 
 vi.mock('@/lib/core/security/deployment', () => ({
-  isEmailAllowed: (email: string, allowedEmails: string[]) => {
-    if (allowedEmails.includes(email)) return true
-    const atIndex = email.indexOf('@')
-    if (atIndex > 0) {
-      const domain = email.substring(atIndex + 1)
-      if (domain && allowedEmails.some((allowed: string) => allowed === `@${domain}`)) return true
-    }
-    return false
-  },
+  isEmailAllowed: mockIsEmailAllowed,
 }))
 
 vi.mock('@/app/api/chat/utils', () => ({
@@ -173,7 +172,7 @@ describe('Chat OTP API Route', () => {
 
   /** Queues the chat-deployment row the route reads before touching OTP storage. */
   const queueDeployment = (row: Record<string, unknown>) => {
-    queueTableRows(schemaMock.chat, [row])
+    queueTableRows(schemaMock.chat, [{ allowedEmails: [mockEmail], ...row }])
   }
 
   const emailDeployment = {
@@ -483,6 +482,15 @@ describe('Chat OTP API Route', () => {
 
       expect(mockRedisGet).toHaveBeenCalledWith(`otp:${mockEmail}:${mockChatId}`)
       expect(mockRedisDel).toHaveBeenCalledWith(`otp:${mockEmail}:${mockChatId}`)
+      expect(mockSetChatAuthCookie).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          id: mockChatId,
+          authType: 'email',
+          allowedEmails: [mockEmail],
+        }),
+        mockEmail
+      )
       expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
     })
   })
@@ -511,6 +519,22 @@ describe('Chat OTP API Route', () => {
         'This chat does not use email authentication',
         400
       )
+      expect(mockRedisGet).not.toHaveBeenCalled()
+      expect(mockSetChatAuthCookie).not.toHaveBeenCalled()
+    })
+
+    it('rejects verification when the email is no longer allowed', async () => {
+      mockIsEmailAllowed.mockReturnValueOnce(false)
+      queueDeployment({ id: mockChatId, authType: 'email' })
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'PUT',
+        body: JSON.stringify({ email: mockEmail, otp: mockOTP }),
+      })
+
+      await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Email not authorized', 403)
       expect(mockRedisGet).not.toHaveBeenCalled()
       expect(mockSetChatAuthCookie).not.toHaveBeenCalled()
     })

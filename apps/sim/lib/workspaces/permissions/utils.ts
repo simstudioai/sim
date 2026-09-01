@@ -78,6 +78,13 @@ export async function getWorkspaceById(
   return exists ? { id: workspaceId } : null
 }
 
+/**
+ * Reads one workspace row, optionally locking it. The lock is `FOR NO KEY
+ * UPDATE`: the workspace row is a foreign-key parent, and `FOR UPDATE` would
+ * both block every concurrent insert into its child tables and deadlock
+ * against callers that write a child row first. See the module header of
+ * `lib/billing/storage/tracking.ts`.
+ */
 async function selectWorkspaceWithOwner(
   workspaceId: string,
   includeArchived: boolean,
@@ -101,7 +108,7 @@ async function selectWorkspaceWithOwner(
         ? eq(workspace.id, workspaceId)
         : and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt))
     )
-  const [ws] = forUpdate ? await query.for('update').limit(1) : await query.limit(1)
+  const [ws] = forUpdate ? await query.for('no key update').limit(1) : await query.limit(1)
 
   return ws || null
 }

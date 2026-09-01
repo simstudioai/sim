@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceListPagePropertiesParams {
   accessToken: string
@@ -29,7 +29,7 @@ export interface ConfluenceListPagePropertiesResponse {
   }
 }
 
-export const confluenceListPagePropertiesTool: ToolConfig<
+export const confluenceListPagePropertiesTool: InternalToolConfig<
   ConfluenceListPagePropertiesParams,
   ConfluenceListPagePropertiesResponse
 > = {
@@ -77,15 +77,14 @@ export const confluenceListPagePropertiesTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    internal: true,
-    url: (params: ConfluenceListPagePropertiesParams) => {
+  operation: {
+    input: (params: ConfluenceListPagePropertiesParams) => {
       const query = new URLSearchParams({
         domain: params.domain,
         accessToken: params.accessToken,
@@ -98,13 +97,8 @@ export const confluenceListPagePropertiesTool: ToolConfig<
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
-      return `/api/tools/confluence/page-properties?${query.toString()}`
+      return Object.fromEntries(query)
     },
-    method: 'GET',
-    headers: (params: ConfluenceListPagePropertiesParams) => ({
-      Accept: 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
   },
 
   transformResponse: async (response: Response) => {

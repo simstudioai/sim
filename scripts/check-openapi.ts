@@ -1,16 +1,17 @@
 #!/usr/bin/env bun
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
+import { localBin } from './local-bin'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const CHECKS = [
-  ['run', 'scripts/generate-openapi.ts', '--check'],
-  ['x', 'vitest', 'run', '--config', 'scripts/openapi/vitest.config.ts'],
-  ['run', 'scripts/check-openapi-specs.ts'],
+  [process.execPath, 'run', 'scripts/generate-openapi.ts', '--check'],
+  [localBin('vitest'), 'run', '--config', 'scripts/openapi/vitest.config.ts'],
+  [process.execPath, 'run', 'scripts/check-openapi-specs.ts'],
 ] as const
 
-for (const args of CHECKS) {
-  const result = spawnSync(process.execPath, args, {
+for (const [command, ...args] of CHECKS) {
+  const result = spawnSync(command, args, {
     cwd: ROOT,
     stdio: 'inherit',
   })

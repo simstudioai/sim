@@ -5,7 +5,6 @@ interface StructuredDataProps {
   title: string
   description: string
   url: string
-  lang: string
   dateModified?: string
   breadcrumb?: Array<{ name: string; url: string }>
 }
@@ -14,7 +13,6 @@ export function StructuredData({
   title,
   description,
   url,
-  lang,
   dateModified,
   breadcrumb,
 }: StructuredDataProps) {
@@ -47,7 +45,7 @@ export function StructuredData({
       '@type': 'WebPage',
       '@id': url,
     },
-    inLanguage: lang,
+    inLanguage: 'en',
     isPartOf: {
       '@type': 'WebSite',
       name: 'Sim Documentation',

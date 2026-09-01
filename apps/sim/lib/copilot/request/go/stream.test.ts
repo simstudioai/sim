@@ -143,6 +143,7 @@ function createStreamingContext(): StreamingContext {
     toolPermissions: {
       enabled: false,
       autoAllowed: new Set(),
+      autoAllowPermitted: true,
     },
   }
 }

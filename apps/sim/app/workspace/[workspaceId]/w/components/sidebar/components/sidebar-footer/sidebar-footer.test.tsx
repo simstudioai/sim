@@ -51,7 +51,10 @@ import { SidebarFooter } from '@/app/workspace/[workspaceId]/w/components/sideba
 let container: HTMLDivElement
 let root: Root
 
-async function renderFooter(initialState: Record<string, unknown>) {
+async function renderFooter(
+  initialState: Record<string, unknown>,
+  overrides: Partial<Parameters<typeof SidebarFooter>[0]> = {}
+) {
   desktopMocks.getState.mockResolvedValue(initialState)
   await act(async () => {
     root.render(
@@ -64,6 +67,7 @@ async function renderFooter(initialState: Record<string, unknown>) {
         onOpenDocs={() => {}}
         onJoinSlack={() => {}}
         onContactSupport={() => {}}
+        {...overrides}
       />
     )
   })
@@ -123,7 +127,23 @@ afterEach(() => {
   container.remove()
 })
 
-describe('SidebarFooter desktop update affordance', () => {
+describe('SidebarFooter', () => {
+  it('keeps the overflow tooltip disabled while the collapsed tooltip still owns the trigger', async () => {
+    await renderFooter({ status: 'idle' }, { isCollapsed: false, showCollapsedTooltips: true })
+    const label = profileTrigger().querySelector<HTMLElement>('[data-overflow-text]')
+    if (!label) throw new Error('Profile label was not rendered')
+    Object.defineProperties(label, {
+      clientWidth: { configurable: true, value: 40 },
+      scrollWidth: { configurable: true, value: 80 },
+    })
+
+    act(() => {
+      label.dispatchEvent(new MouseEvent('pointerover', { bubbles: true }))
+    })
+
+    expect(document.querySelector('[data-native-surface-overlay]')).toBeNull()
+  })
+
   it('renders profile settings destinations with native link semantics', async () => {
     await renderFooter({ status: 'idle' })
 

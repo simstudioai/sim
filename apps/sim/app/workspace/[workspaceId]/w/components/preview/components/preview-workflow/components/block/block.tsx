@@ -1,6 +1,7 @@
 'use client'
 
 import { type CSSProperties, memo, useMemo } from 'react'
+import { OverflowText } from '@sim/emcn'
 import {
   CanvasSentenceView,
   HANDLE_POSITIONS,
@@ -9,7 +10,7 @@ import {
   WorkflowTypeTag,
 } from '@sim/workflow-renderer'
 import { WORKFLOW_SOURCE_HANDLE_ID, WORKFLOW_TARGET_HANDLE_ID } from '@sim/workflow-types/workflow'
-import { Handle, type NodeProps, Position } from 'reactflow'
+import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
 import { resolveCanvasBlockPresentation } from '@/lib/workflows/blocks/canvas-presentation'
 import {
   type CardSelector,
@@ -71,7 +72,7 @@ const ERROR_HANDLE_STYLE: CSSProperties = {
   transform: 'translateX(-50%)',
 }
 
-interface WorkflowPreviewBlockData {
+interface WorkflowPreviewBlockData extends Record<string, unknown> {
   type: string
   name: string
   workflowMap?: Record<string, WorkflowMetadata>
@@ -197,19 +198,12 @@ const SubBlockRow = memo(function SubBlockRow({
 
   return (
     <div className='flex h-5 items-center gap-2'>
-      <span
-        className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
-        title={title}
-      >
-        {title}
-      </span>
+      <OverflowText label={title} className='text-[var(--text-tertiary)] text-sm capitalize' />
       {displayValue !== undefined && (
-        <span
-          className='flex-1 truncate text-right text-[var(--text-primary)] text-sm'
-          title={displayValue}
-        >
-          {displayValue}
-        </span>
+        <OverflowText
+          label={displayValue}
+          className='flex-1 text-right text-[var(--text-primary)] text-sm'
+        />
       )}
     </div>
   )
@@ -221,7 +215,9 @@ const SubBlockRow = memo(function SubBlockRow({
  * hooks, store subscriptions, or interactive features.
  * Matches the visual structure of WorkflowBlock exactly.
  */
-function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>) {
+type WorkflowPreviewBlockNode = Node<WorkflowPreviewBlockData, 'workflowBlock' | 'noteBlock'>
+
+function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockNode>) {
   const {
     type,
     name,
@@ -509,12 +505,10 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       {/* Header - matches WorkflowBlock structure */}
       <div className='flex h-[40px] items-center justify-between px-2'>
         <div className='relative z-10 flex min-w-0 flex-1 items-center'>
-          <span
-            className={`truncate text-[17px] ${!enabled ? 'text-[var(--text-muted)]' : ''}`}
-            title={canvasPresentation.title}
-          >
-            {humanizeBlockName(canvasPresentation.title)}
-          </span>
+          <OverflowText
+            label={humanizeBlockName(canvasPresentation.title)}
+            className={!enabled ? 'text-[17px] text-[var(--text-muted)]' : 'text-[17px]'}
+          />
         </div>
         {!isNoteBlock && (
           <WorkflowTypeTag
@@ -689,8 +683,8 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
  * @returns True if render should be skipped (props are equal)
  */
 function shouldSkipPreviewBlockRender(
-  prevProps: NodeProps<WorkflowPreviewBlockData>,
-  nextProps: NodeProps<WorkflowPreviewBlockData>
+  prevProps: NodeProps<WorkflowPreviewBlockNode>,
+  nextProps: NodeProps<WorkflowPreviewBlockNode>
 ): boolean {
   if (
     prevProps.id !== nextProps.id ||

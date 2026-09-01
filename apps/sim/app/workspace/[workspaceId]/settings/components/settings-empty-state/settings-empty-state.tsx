@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { Chip, cn } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
 
 interface SettingsEmptyStateProps {
   children: ReactNode
@@ -11,6 +12,14 @@ interface SettingsEmptyStateProps {
   variant?: 'fill' | 'inline'
   /** Renders the message in the error tone, for a failed load. */
   tone?: 'muted' | 'error'
+}
+
+interface SettingsQueryErrorStateProps {
+  error: unknown
+  fallback: string
+  isRetrying: boolean
+  onRetry: () => void
+  variant?: 'fill' | 'inline'
 }
 
 /**
@@ -33,5 +42,24 @@ export function SettingsEmptyState({
     >
       {children}
     </div>
+  )
+}
+
+export function SettingsQueryErrorState({
+  error,
+  fallback,
+  isRetrying,
+  onRetry,
+  variant,
+}: SettingsQueryErrorStateProps) {
+  return (
+    <SettingsEmptyState variant={variant} tone='error'>
+      <div className='flex flex-col items-center gap-2'>
+        <span>{getErrorMessage(error, fallback)}</span>
+        <Chip variant='border' disabled={isRetrying} onClick={onRetry}>
+          {isRetrying ? 'Retrying…' : 'Try again'}
+        </Chip>
+      </div>
+    </SettingsEmptyState>
   )
 }

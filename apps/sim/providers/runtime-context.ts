@@ -19,6 +19,8 @@ export interface ProviderRuntimeContext {
   executionContext?: ExecutionContext
   /** Request-scoped provider wire ids mapped back to canonical tool registry ids. */
   toolIdByWireId?: ReadonlyMap<string, string>
+  /** Failed canonical Function cost omitted from provider tool-result collections. */
+  failedFunctionToolCost?: { total: number }
 }
 
 export type ExecuteProviderToolOptions = ExecuteToolOptions
@@ -43,7 +45,17 @@ function toProviderModelResponse(
   rawResponse: ToolResponse,
   projectedResponse: ToolExecutionResult
 ): ToolResponse {
-  const { output: _output, error: _error, ...functionalFields } = rawResponse
+  /**
+   * `effect` is an input to the egress projection, not content — it reaches the model only as
+   * the disclosure record that replaces withheld output. This split spreads every other field
+   * through verbatim, so dropping it here is what keeps that true on the provider path too.
+   */
+  const {
+    output: _output,
+    error: _error,
+    effect: _effect,
+    ...functionalFields
+  } = rawResponse as ToolResponse & { effect?: unknown }
   return {
     ...functionalFields,
     output: Object.hasOwn(projectedResponse, 'output')
@@ -75,6 +87,20 @@ function withoutChildTraceHandle(response: ToolResponse): ToolResponse {
   return {
     ...response,
     output: omit(output, [CHILD_EXECUTION_ID_OUTPUT_KEY, CHILD_TRACE_DISABLED_OUTPUT_KEY]),
+  }
+}
+
+function accumulateFailedFunctionToolCost(
+  toolId: string,
+  result: ToolResponse,
+  accumulator: ProviderRuntimeContext['failedFunctionToolCost']
+): void {
+  if (toolId !== 'function_execute' || result.success || !accumulator) return
+  if (!isRecordLike(result.output) || !isRecordLike(result.output.cost)) return
+
+  const total = result.output.cost.total
+  if (typeof total === 'number' && Number.isFinite(total) && total > 0) {
+    accumulator.total += total
   }
 }
 
@@ -110,6 +136,11 @@ export async function executeProviderTool(
       ...(executionContext ? { executionContext } : {}),
       resolvedSecretTraceRegistry: toolCallRegistry,
     })
+    accumulateFailedFunctionToolCost(
+      executionToolId,
+      result,
+      runtimeContext?.failedFunctionToolCost
+    )
     if (!registry || !toolCallRegistry) {
       return { rawResponse: result, modelResponse: withoutChildTraceHandle(result) }
     }

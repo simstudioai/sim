@@ -113,12 +113,21 @@ function createPausedExecution(overrides: PausedExecutionOverrides = {}) {
     executionId: overrides.executionId ?? EXECUTION_ID,
     executionSnapshot: {
       snapshot: JSON.stringify({
+        version: 1,
         metadata: {
           requestId: 'request-original',
           workflowId: overrides.snapshotWorkflowId ?? WORKFLOW_ID,
           executionId: overrides.snapshotExecutionId ?? EXECUTION_ID,
           workspaceId: overrides.snapshotWorkspaceId ?? WORKSPACE_ID,
           userId: overrides.snapshotActorUserId ?? PERSISTED_ACTOR_ID,
+          principal: {
+            version: 1,
+            principal: {
+              kind: 'session',
+              userId: overrides.snapshotActorUserId ?? PERSISTED_ACTOR_ID,
+              sessionId: 'session-original',
+            },
+          },
           billingAttribution,
           triggerType: 'manual',
           useDraftState: false,

@@ -21,6 +21,7 @@ import {
   v2RateLimits,
 } from '@/lib/api/server/routes'
 import type { V2ApiKeyPrincipal } from '@/lib/api/server/routes/v2-api-key-auth'
+import { getWorkspaceBilledAccountUserId } from '@/lib/billing/core/billing-attribution'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
 import type { ForbiddenDetailCode } from '@/lib/core/application'
@@ -173,7 +174,6 @@ export const POST = withRouteHandler(
         .select({
           isPublicApi: workflowTable.isPublicApi,
           isDeployed: workflowTable.isDeployed,
-          userId: workflowTable.userId,
           workspaceId: workflowTable.workspaceId,
         })
         .from(workflowTable)
@@ -183,15 +183,27 @@ export const POST = withRouteHandler(
       if (!wf?.isPublicApi || !wf.isDeployed || !wf.workspaceId) {
         return v2Error('UNAUTHORIZED', 'Unauthorized')
       }
+      /**
+       * An anonymous public-API call has no caller, so it acts as the workspace
+       * billing account — the identity preprocessing elects for exactly this
+       * case. The workflow owner is only the personal-variable fallback, and a
+       * public run resolves no personal variables at all, so gating on the
+       * owner's governance config and workspace read would fail a public
+       * endpoint the moment that stored pointer's access lapsed.
+       */
+      const billedAccountUserId = await getWorkspaceBilledAccountUserId(wf.workspaceId)
+      if (!billedAccountUserId) {
+        return v2Error('UNAUTHORIZED', 'Unauthorized')
+      }
       try {
-        await validatePublicApiAllowed(wf.userId, wf.workspaceId)
+        await validatePublicApiAllowed(billedAccountUserId, wf.workspaceId)
       } catch (err) {
         if (err instanceof PublicApiNotAllowedError) {
           return v2Error('UNAUTHORIZED', 'Unauthorized')
         }
         throw err
       }
-      publicApiUserId = wf.userId
+      publicApiUserId = billedAccountUserId
       isPublicApiAccess = true
     }
 
@@ -343,7 +355,7 @@ export const POST = withRouteHandler(
         }
       } else {
         if (!publicApiUserId) {
-          throw new Error('Public workflow execution is missing its owner')
+          throw new Error('Public workflow execution is missing its workspace billing account')
         }
         const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
           workflowId,
@@ -363,8 +375,17 @@ export const POST = withRouteHandler(
             `Unexpected workflow authorization status: ${workflowAuthorization.status}`
           )
         }
+        if (!workflowAuthorization.workflow.workspaceId) {
+          throw new Error(`Workflow ${workflowId} has no workspace`)
+        }
         result = await executeWorkflowService({
           workflowId,
+          principal: {
+            kind: 'system',
+            serviceId: 'public_api',
+            workspaceId: workflowAuthorization.workflow.workspaceId,
+            workflowId,
+          },
           userId: publicApiUserId,
           isPublicApiAccess,
           input: body.input ?? {},

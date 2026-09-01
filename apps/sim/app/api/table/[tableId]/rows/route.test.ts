@@ -1,390 +1,237 @@
 /**
  * @vitest-environment node
  */
-import {
-  createTableDefinition,
-  hybridAuthMockFns,
-  type TableDefinitionFactoryOptions,
-} from '@sim/testing'
+
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckAccess,
-  mockInsertRow,
-  mockValidateRowData,
-  mockQueryRows,
-  mockUpdateRowsByFilter,
-  mockDeleteRowsByFilter,
-} = vi.hoisted(() => ({
-  mockCheckAccess: vi.fn(),
-  mockInsertRow: vi.fn(),
-  mockValidateRowData: vi.fn(),
-  mockQueryRows: vi.fn(),
-  mockUpdateRowsByFilter: vi.fn(),
-  mockDeleteRowsByFilter: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  authenticate: vi.fn(),
+  createRows: vi.fn(),
+  queryRows: vi.fn(),
+  updateRows: vi.fn(),
+  batchUpdateRows: vi.fn(),
+  deleteRows: vi.fn(),
 }))
 
-vi.mock('@/app/api/table/utils', async () => {
-  const { NextResponse } = await import('next/server')
-  return {
-    checkAccess: mockCheckAccess,
-    accessError: (result: { status: number }) =>
-      NextResponse.json({ error: 'Access denied' }, { status: result.status }),
-  }
-})
-
-vi.mock('@/lib/table', async () => {
-  // Real column-keys translation functions; the row-wire helper under test
-  // imports them from this barrel.
-  const columnKeys = await import('@/lib/table/column-keys')
-  return {
-    ...columnKeys,
-    insertRow: mockInsertRow,
-    batchInsertRows: vi.fn(),
-    batchUpdateRows: vi.fn(),
-    deleteRowsByFilter: mockDeleteRowsByFilter,
-    deleteRowsByIds: vi.fn(),
-    updateRowsByFilter: mockUpdateRowsByFilter,
-    validateBatchRows: vi.fn(),
-    validateRowData: mockValidateRowData,
-    validateRowSize: vi.fn(() => ({ valid: true })),
-  }
-})
-
-vi.mock('@/lib/table/rows/service', () => ({
-  queryRows: mockQueryRows,
+vi.mock('@/lib/table/api', () => ({
+  internalTableSessionOrExecutorAuth: { authenticate: mocks.authenticate },
 }))
 
-vi.mock('@/lib/table/sql', () => ({
-  TableQueryValidationError: class TableQueryValidationError extends Error {},
+vi.mock('@/lib/table/api/row-route-policies', () => ({
+  internalTableRowsErrorPolicy: { project: () => null },
 }))
 
-import { DELETE, GET, POST, PUT } from '@/app/api/table/[tableId]/rows/route'
+vi.mock('@/lib/table/application/rows', () => ({
+  createTableRows: { operation: { id: 'tables.rows.create' }, execute: mocks.createRows },
+  queryTableRows: { operation: { id: 'tables.rows.query' }, execute: mocks.queryRows },
+  updateTableRows: { operation: { id: 'tables.rows.update_many' }, execute: mocks.updateRows },
+  batchUpdateTableRows: {
+    operation: { id: 'tables.rows.update_many' },
+    execute: mocks.batchUpdateRows,
+  },
+  deleteTableRows: { operation: { id: 'tables.rows.delete_many' }, execute: mocks.deleteRows },
+}))
 
-const TABLE_FIXTURE: TableDefinitionFactoryOptions = {
-  columns: [
-    { id: 'col_aaa', name: 'Name', type: 'string' },
-    { id: 'col_bbb', name: 'Age', type: 'number' },
-  ],
-  maxRows: 100,
-  createdAt: new Date('2024-01-01'),
-  updatedAt: new Date('2024-01-01'),
+import { DELETE, GET, PATCH, POST, PUT } from '@/app/api/table/[tableId]/rows/route'
+
+const TABLE = {
+  id: 'table-1',
+  workspaceId: 'workspace-1',
+  schema: {
+    columns: [
+      { id: 'column-name', name: 'Name', type: 'string' as const },
+      { id: 'column-age', name: 'Age', type: 'number' as const },
+    ],
+  },
 }
 
-function authAs(authType: 'session' | 'internal_jwt') {
-  hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
-    success: true,
+const ROW = {
+  id: 'row-1',
+  data: { 'column-name': 'Ada', 'column-age': 36 },
+  executions: {},
+  position: 0,
+  orderKey: 'a0',
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+}
+
+const routeContext = { params: Promise.resolve({ tableId: 'table-1' }) }
+
+function sessionPrincipal() {
+  mocks.authenticate.mockResolvedValue({
+    kind: 'session',
     userId: 'user-1',
-    authType,
+    sessionId: 'session-1',
   })
 }
 
-function callPost(body: Record<string, unknown>) {
-  const req = new NextRequest('http://localhost:3000/api/table/tbl_1/rows', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+function executorPrincipal() {
+  mocks.authenticate.mockResolvedValue({
+    kind: 'delegated',
+    serviceId: 'executor',
+    subjectUserId: 'user-1',
+    workspaceId: 'workspace-canonical',
+    delegationId: 'delegation-1',
+    audience: 'sim:tables',
+    issuedAt: new Date('2026-01-01'),
+    expiresAt: new Date('2026-01-02'),
   })
-  return POST(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
 }
 
-function callGet(query: Record<string, string>) {
-  const params = new URLSearchParams(query)
-  const req = new NextRequest(`http://localhost:3000/api/table/tbl_1/rows?${params}`, {
-    method: 'GET',
+function request(method: string, body?: unknown, query = '') {
+  return new NextRequest(`http://localhost/api/table/table-1/rows${query}`, {
+    method,
+    ...(body
+      ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
+      : {}),
   })
-  return GET(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
 }
 
-describe('POST /api/table/[tableId]/rows', () => {
+describe('/api/table/[tableId]/rows application adapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckAccess.mockResolvedValue({ ok: true, table: createTableDefinition(TABLE_FIXTURE) })
-    mockValidateRowData.mockResolvedValue({ valid: true })
-    mockInsertRow.mockResolvedValue({
-      id: 'row_1',
-      data: { col_aaa: 'Ada', col_bbb: 36 },
-      position: 1,
-      orderKey: 'a0',
-      createdAt: new Date('2024-01-01'),
-      updatedAt: new Date('2024-01-01'),
-    })
-  })
-
-  it('translates name-keyed data to column ids for internal-JWT (workflow tool) callers', async () => {
-    authAs('internal_jwt')
-
-    const res = await callPost({
-      workspaceId: 'workspace-1',
-      data: { Name: 'Ada', Age: 36 },
-    })
-
-    expect(res.status).toBe(200)
-    expect(mockValidateRowData).toHaveBeenCalledWith(
-      expect.objectContaining({ rowData: { col_aaa: 'Ada', col_bbb: 36 } })
-    )
-    expect(mockInsertRow).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { col_aaa: 'Ada', col_bbb: 36 } }),
-      expect.anything(),
-      expect.any(String)
-    )
-
-    const body = await res.json()
-    expect(body.data.row.data).toEqual({ Name: 'Ada', Age: 36 })
-  })
-
-  it('passes id-keyed data through untouched for session (UI) callers', async () => {
-    authAs('session')
-
-    const res = await callPost({
-      workspaceId: 'workspace-1',
-      data: { col_aaa: 'Ada', col_bbb: 36 },
-    })
-
-    expect(res.status).toBe(200)
-    expect(mockInsertRow).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { col_aaa: 'Ada', col_bbb: 36 } }),
-      expect.anything(),
-      expect.any(String)
-    )
-
-    const body = await res.json()
-    expect(body.data.row.data).toEqual({ col_aaa: 'Ada', col_bbb: 36 })
-  })
-})
-
-describe('GET /api/table/[tableId]/rows', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckAccess.mockResolvedValue({ ok: true, table: createTableDefinition(TABLE_FIXTURE) })
-    mockQueryRows.mockResolvedValue({
-      rows: [
-        {
-          id: 'row_1',
-          data: { col_aaa: 'Ada', col_bbb: 36 },
-          position: 1,
-          orderKey: 'a0',
-          createdAt: new Date('2024-01-01'),
-          updatedAt: new Date('2024-01-01'),
-        },
-      ],
+    sessionPrincipal()
+    mocks.createRows.mockResolvedValue({ kind: 'single', table: TABLE, row: ROW })
+    mocks.queryRows.mockResolvedValue({
+      table: TABLE,
+      rows: [ROW],
       rowCount: 1,
       totalCount: 1,
-      limit: 100,
+      limit: 10,
       offset: 0,
+      nextCursor: null,
+    })
+    mocks.updateRows.mockResolvedValue({
+      table: TABLE,
+      affectedCount: 1,
+      affectedRowIds: ['row-1'],
+    })
+    mocks.batchUpdateRows.mockResolvedValue({
+      table: TABLE,
+      affectedCount: 1,
+      affectedRowIds: ['row-1'],
+    })
+    mocks.deleteRows.mockResolvedValue({
+      kind: 'filter',
+      table: TABLE,
+      affectedCount: 1,
+      affectedRowIds: ['row-1'],
     })
   })
 
-  it('translates name-keyed filter/sort and returns name-keyed rows for internal-JWT callers', async () => {
-    authAs('internal_jwt')
-
-    const res = await callGet({
-      workspaceId: 'workspace-1',
-      filter: JSON.stringify({ Name: { $eq: 'Ada' } }),
-      sort: JSON.stringify({ Age: 'desc' }),
-    })
-
-    expect(res.status).toBe(200)
-    expect(mockQueryRows).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'tbl_1' }),
-      expect.objectContaining({
-        filter: { col_aaa: { $eq: 'Ada' } },
-        sort: { col_bbb: 'desc' },
+  it('maps session inserts as id-keyed writes and preserves the row response', async () => {
+    const response = await POST(
+      request('POST', {
+        workspaceId: 'workspace-1',
+        data: { 'column-name': 'Ada' },
       }),
-      expect.any(String)
+      routeContext
     )
 
-    const body = await res.json()
-    expect(body.data.rows[0].data).toEqual({ Name: 'Ada', Age: 36 })
+    expect(response.status).toBe(200)
+    expect(mocks.createRows.mock.calls[0][0].input).toMatchObject({
+      assertedWorkspaceId: 'workspace-1',
+      dataKeying: 'ids',
+      secretProvenanceEnvelope: { kind: 'none' },
+    })
+    expect((await response.json()).data.row.data).toEqual({
+      'column-name': 'Ada',
+      'column-age': 36,
+    })
   })
 
-  it('keeps counts but skips execution metadata for an omitted or expanded limit', async () => {
-    authAs('internal_jwt')
-
-    const omitted = await callGet({ workspaceId: 'workspace-1' })
-    expect(omitted.status).toBe(200)
-    expect(mockQueryRows.mock.calls[0][1]).toEqual(
-      expect.objectContaining({ limit: undefined, includeTotal: true, withExecutions: false })
+  it('maps executor inserts as name-keyed and uses canonical delegated workspace', async () => {
+    executorPrincipal()
+    await POST(
+      request('POST', {
+        workspaceId: 'workspace-forged',
+        data: { Name: 'Ada' },
+      }),
+      routeContext
     )
 
-    const expanded = await callGet({ workspaceId: 'workspace-1', limit: '1000000' })
-    expect(expanded.status).toBe(200)
-    expect(mockQueryRows.mock.calls[1][1]).toEqual(
-      expect.objectContaining({ limit: 1000000, includeTotal: true, withExecutions: false })
-    )
-  })
-
-  it('retains metadata loading within the former query limit', async () => {
-    authAs('internal_jwt')
-
-    const res = await callGet({ workspaceId: 'workspace-1', limit: '1000' })
-
-    expect(res.status).toBe(200)
-    expect(mockQueryRows.mock.calls[0][1]).toEqual(
-      expect.objectContaining({ limit: 1000, includeTotal: true, withExecutions: true })
-    )
-  })
-
-  it('passes id-keyed filter and rows through untouched for session callers', async () => {
-    authAs('session')
-
-    const res = await callGet({
-      workspaceId: 'workspace-1',
-      filter: JSON.stringify({ col_aaa: { $eq: 'Ada' } }),
+    expect(mocks.createRows.mock.calls[0][0].input).toMatchObject({
+      assertedWorkspaceId: 'workspace-canonical',
+      dataKeying: 'names',
     })
+  })
 
-    expect(res.status).toBe(200)
-    expect(mockQueryRows).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'tbl_1' }),
-      expect.objectContaining({ filter: { col_aaa: { $eq: 'Ada' } } }),
-      expect.any(String)
+  it('preserves legacy query filters, sorts, counts, and expanded-limit policy', async () => {
+    const filter = encodeURIComponent(JSON.stringify({ 'column-name': { $eq: 'Ada' } }))
+    const sort = encodeURIComponent(JSON.stringify({ 'column-age': 'desc' }))
+    const response = await GET(
+      request(
+        'GET',
+        undefined,
+        `?workspaceId=workspace-1&filter=${filter}&sort=${sort}&limit=10&offset=2`
+      ),
+      routeContext
     )
 
-    const body = await res.json()
-    expect(body.data.rows[0].data).toEqual({ col_aaa: 'Ada', col_bbb: 36 })
+    expect(response.status).toBe(200)
+    expect(mocks.queryRows.mock.calls[0][0].input).toMatchObject({
+      legacyFilter: { 'column-name': { $eq: 'Ada' } },
+      legacySort: { 'column-age': 'desc' },
+      legacyKeying: 'ids',
+      includeTotal: true,
+      allowExpandedLimit: true,
+      offset: 2,
+    })
   })
 
-  /**
-   * The grid now speaks the v2 grammar on this route: a predicate-shaped filter
-   * takes the NATIVE predicate path into queryRows (not a downgrade), and an
-   * ordered sort spec compiles to the record the engine's sort builder takes.
-   */
-  it('routes a predicate filter + spec sort natively for session callers', async () => {
-    authAs('session')
+  it('hands unresolved provenance and caller keying to filter updates', async () => {
+    const response = await PUT(
+      request('PUT', {
+        workspaceId: 'workspace-1',
+        filter: { all: [{ field: 'column-name', op: 'eq', value: 'Ada' }] },
+        data: { 'column-name': 'Grace' },
+      }),
+      routeContext
+    )
 
-    const res = await callGet({
-      workspaceId: 'workspace-1',
-      filter: JSON.stringify({ all: [{ field: 'col_aaa', op: 'eq', value: 'Ada' }] }),
-      sort: JSON.stringify([{ field: 'col_bbb', direction: 'desc' }]),
+    expect(response.status).toBe(200)
+    expect(mocks.updateRows.mock.calls[0][0].input).toMatchObject({
+      filterKeying: 'ids',
+      dataKeying: 'ids',
+      secretProvenanceEnvelope: { kind: 'none' },
     })
-
-    expect(res.status).toBe(200)
-    const options = mockQueryRows.mock.calls[0][1]
-    expect(options.predicate).toEqual({ all: [{ field: 'col_aaa', op: 'eq', value: 'Ada' }] })
-    expect(options.filter).toBeUndefined()
-    expect(options.sort).toEqual({ col_bbb: 'desc' })
   })
 
-  it('translates a name-keyed predicate for internal-JWT callers', async () => {
-    authAs('internal_jwt')
+  it('routes filter deletes through the shared authorized use case', async () => {
+    const response = await DELETE(
+      request('DELETE', {
+        workspaceId: 'workspace-1',
+        filter: { all: [{ field: 'column-name', op: 'eq', value: 'Ada' }] },
+      }),
+      routeContext
+    )
 
-    const res = await callGet({
-      workspaceId: 'workspace-1',
-      filter: JSON.stringify({ all: [{ field: 'Name', op: 'eq', value: 'Ada' }] }),
-      sort: JSON.stringify([{ field: 'Age', direction: 'asc' }]),
+    expect(response.status).toBe(200)
+    expect(mocks.deleteRows.mock.calls[0][0].input).toMatchObject({
+      kind: 'filter',
+      filterKeying: 'ids',
     })
-
-    expect(res.status).toBe(200)
-    const options = mockQueryRows.mock.calls[0][1]
-    expect(options.predicate).toEqual({ all: [{ field: 'col_aaa', op: 'eq', value: 'Ada' }] })
-    expect(options.sort).toEqual({ col_bbb: 'asc' })
   })
 
-  /**
-   * Storage validation runs post-translation, mirroring bulk PUT/DELETE: a
-   * typo'd field must 400, not compile to a clause that matches nothing and
-   * read back as a plausible empty page.
-   */
-  it('400s a predicate naming an unknown column instead of returning an empty page', async () => {
-    authAs('session')
+  it('routes heterogeneous batch patches through one authorized application operation', async () => {
+    executorPrincipal()
+    const response = await PATCH(
+      request('PATCH', {
+        workspaceId: 'workspace-forged',
+        updates: [{ rowId: 'row-1', data: { Name: 'Grace' } }],
+      }),
+      routeContext
+    )
 
-    const res = await callGet({
-      workspaceId: 'workspace-1',
-      filter: JSON.stringify({ all: [{ field: 'col_nope', op: 'eq', value: 'Ada' }] }),
+    expect(response.status).toBe(200)
+    expect(mocks.batchUpdateRows.mock.calls[0][0].input).toMatchObject({
+      tableId: 'table-1',
+      assertedWorkspaceId: 'workspace-canonical',
+      dataKeying: 'names',
+      strictWrite: false,
+      updates: [{ rowId: 'row-1', data: { Name: 'Grace' } }],
+      secretProvenanceEnvelope: { kind: 'none' },
     })
-
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toMatch(/Unknown filter column "col_nope"/)
-    expect(mockQueryRows).not.toHaveBeenCalled()
-  })
-})
-
-describe('PUT/DELETE /api/table/[tableId]/rows — predicate filters', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckAccess.mockResolvedValue({ ok: true, table: createTableDefinition(TABLE_FIXTURE) })
-    mockUpdateRowsByFilter.mockResolvedValue({ affectedCount: 1, affectedRowIds: ['row_1'] })
-    mockDeleteRowsByFilter.mockResolvedValue({ affectedCount: 1, affectedRowIds: ['row_1'] })
-  })
-
-  function callPut(body: Record<string, unknown>) {
-    const req = new NextRequest('http://localhost:3000/api/table/tbl_1/rows', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    return PUT(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
-  }
-
-  function callDelete(body: Record<string, unknown>) {
-    const req = new NextRequest('http://localhost:3000/api/table/tbl_1/rows', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    return DELETE(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
-  }
-
-  /**
-   * Keying follows the caller (PR #6067 review): the grid authors ID-keyed
-   * predicates and the session wire is identity, so ids pass through — and a
-   * NAME under session auth is just an unknown storage key, rejected like any
-   * other typo rather than half-translated.
-   */
-  it('PUT passes an id-keyed predicate through untouched under SESSION auth', async () => {
-    authAs('session')
-    const res = await callPut({
-      workspaceId: 'workspace-1',
-      filter: { all: [{ field: 'col_aaa', op: 'eq', value: 'Ada' }] },
-      data: { col_aaa: 'Grace' },
-    })
-
-    expect(res.status).toBe(200)
-    const args = mockUpdateRowsByFilter.mock.calls[0][1]
-    expect(args.filter).toEqual({ $and: [{ col_aaa: 'Ada' }] })
-  })
-
-  it('PUT rejects an unknown storage key under SESSION auth with 400', async () => {
-    authAs('session')
-    const res = await callPut({
-      workspaceId: 'workspace-1',
-      filter: { all: [{ field: 'Name', op: 'eq', value: 'Ada' }] },
-      data: { col_aaa: 'Grace' },
-    })
-    expect(res.status).toBe(400)
-    expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
-  })
-
-  it('PUT translates a name-keyed predicate for INTERNAL_JWT callers', async () => {
-    authAs('internal_jwt')
-    const res = await callPut({
-      workspaceId: 'workspace-1',
-      filter: { all: [{ field: 'Name', op: 'eq', value: 'Ada' }] },
-      data: { Name: 'Grace' },
-    })
-
-    expect(res.status).toBe(200)
-    const args = mockUpdateRowsByFilter.mock.calls[0][1]
-    expect(args.filter).toEqual({ $and: [{ col_aaa: 'Ada' }] })
-  })
-
-  it('DELETE accepts the predicate and rejects an unknown column with 400', async () => {
-    authAs('internal_jwt')
-    const ok = await callDelete({
-      workspaceId: 'workspace-1',
-      filter: { all: [{ field: 'Age', op: 'gte', value: 30 }] },
-    })
-    expect(ok.status).toBe(200)
-    const args = mockDeleteRowsByFilter.mock.calls[0][1]
-    expect(args.filter).toEqual({ $and: [{ col_bbb: { $gte: 30 } }] })
-
-    const bad = await callDelete({
-      workspaceId: 'workspace-1',
-      filter: { all: [{ field: 'Nope', op: 'eq', value: 1 }] },
-    })
-    expect(bad.status).toBe(400)
-    expect((await bad.json()).error).toMatch(/Unknown filter column/)
   })
 })

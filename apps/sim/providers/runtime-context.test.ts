@@ -89,23 +89,49 @@ describe('provider runtime context', () => {
     expect(toolCall?.[2]?.resolvedSecretTraceRegistry).not.toBe(registry)
   })
 
-  it('passes the trusted execution context to provider-emitted tool calls', async () => {
+  it('passes Function inputs and the complete trusted execution context to provider-emitted calls', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    const executionContext = createExecutionContext({
-      workflowId: 'workflow-parent',
-      environmentVariables: {},
-    })
+    const abortController = new AbortController()
+    const executionContext = {
+      ...createExecutionContext({
+        workflowId: 'workflow-parent',
+        environmentVariables: {},
+      }),
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      executionId: 'execution-1',
+      largeValueExecutionIds: ['execution-1'],
+      largeValueKeys: ['lv_ABCDEFGHIJKL'],
+      fileKeys: ['file-1'],
+      allowLargeValueWorkflowScope: true,
+      abortSignal: abortController.signal,
+    }
+    const params = {
+      code: 'return [{{API_KEY}}, __blockRef_0.field, workflowVariables.customer]',
+      envVars: { API_KEY: 'resolved-secret' },
+      workflowVariables: { customer: 'Ada' },
+      contextVariables: { __blockRef_0: { field: 'resolved-output' } },
+    }
+    const rawResponse = {
+      success: true,
+      output: { result: ['resolved-secret', 'resolved-output', 'Ada'] },
+      largeValueKeys: ['lv_RESULTVALUE1'],
+      fileKeys: ['file-result'],
+    }
+    mockExecuteTool.mockResolvedValueOnce(rawResponse)
 
-    await runWithProviderRuntimeContext(
+    const result = await runWithProviderRuntimeContext(
       { executionContext, resolvedSecretTraceRegistry: registry },
-      () => executeProviderTool('protected-tool', {})
+      () => executeProviderToolWithInput('function_execute', params)
     )
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
-      'protected-tool',
-      {},
+      'function_execute',
+      params,
       expect.objectContaining({ executionContext })
     )
+    expect(result.rawResponse).toBe(rawResponse)
+    expect(result.modelResponse).toEqual(rawResponse)
   })
 
   it('resolves a provider-only alias before executing the canonical tool', async () => {
@@ -119,6 +145,35 @@ describe('provider runtime context', () => {
       { oauthCredential: 'credential-b' },
       expect.any(Object)
     )
+  })
+
+  it('accumulates cost only for failed canonical Function results', async () => {
+    const failedFunctionToolCost = { total: 0 }
+    const context = {
+      failedFunctionToolCost,
+      toolIdByWireId: new Map([['function_execute__sim_2', 'function_execute']]),
+    }
+
+    mockExecuteTool
+      .mockResolvedValueOnce({
+        success: false,
+        output: { cost: { total: 0.125 } },
+        error: 'execution failed',
+      })
+      .mockResolvedValueOnce({ success: true, output: { cost: { total: 4 } } })
+      .mockResolvedValueOnce({
+        success: false,
+        output: { cost: { total: 8 } },
+        error: 'other tool failed',
+      })
+
+    await runWithProviderRuntimeContext(context, () =>
+      executeProviderTool('function_execute__sim_2', {})
+    )
+    await runWithProviderRuntimeContext(context, () => executeProviderTool('function_execute', {}))
+    await runWithProviderRuntimeContext(context, () => executeProviderTool('exa_search', {}))
+
+    expect(failedFunctionToolCost.total).toBe(0.125)
   })
 
   it('rebinds a prompt-exposed environment placeholder for the exact tool call', async () => {

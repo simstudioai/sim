@@ -57,6 +57,7 @@ import {
   mutateTableRowsWithSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
 import { assertValidSchema } from '@/lib/table/schema-invariants'
+import { assertTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
   type CreateTableData,
@@ -506,7 +507,7 @@ function workspaceTableLimitReached(maxTables: number): ForbiddenOperationError 
  * Advisory table-quota check for a caller that is about to make the user pay
  * for work before {@link createTable} would run.
  *
- * The authoritative check is the `FOR UPDATE` count inside `createTable`'s
+ * The authoritative check is the `FOR NO KEY UPDATE` count inside `createTable`'s
  * transaction and stays there — this one races, by construction, because the
  * ceiling can be reached (or cleared) during whatever the caller does next. It
  * exists so that "next" is not a multi-gigabyte upload: the CSV import used to
@@ -558,6 +559,10 @@ export async function createTable(
       'validation',
       `Invalid schema: ${schemaValidation.errors.join(', ')}`
     )
+  }
+
+  if (data.schema.columns.some((column) => column.type === 'ttl')) {
+    await assertTableRowTtlEnabled()
   }
 
   const tableId = `tbl_${generateId().replace(/-/g, '')}`
@@ -613,12 +618,16 @@ export async function createTable(
     })
   }
 
-  // Wrap count check, duplicate check, and insert in a transaction with FOR UPDATE
-  // to prevent TOCTOU race on the table count limit
+  // Wrap count check, duplicate check, and insert in a transaction with FOR NO KEY UPDATE
+  // to prevent TOCTOU race on the table count limit. The weaker lock still conflicts with
+  // itself, so table creations stay serialized, but it does not block unrelated inserts
+  // into the workspace's other child tables. See lib/billing/storage/tracking.ts.
   try {
     await db.transaction(async (trx) => {
       await setTableTxTimeouts(trx)
-      await trx.execute(sql`SELECT 1 FROM workspace WHERE id = ${data.workspaceId} FOR UPDATE`)
+      await trx.execute(
+        sql`SELECT 1 FROM workspace WHERE id = ${data.workspaceId} FOR NO KEY UPDATE`
+      )
 
       const [{ count: existingCount }] = await trx
         .select({ count: count() })
@@ -824,6 +833,7 @@ export async function addTableColumnsWithTx(
     ...table.schema,
     columns: [...table.schema.columns, ...additions],
   }
+  assertValidSchema(updatedSchema, table.metadata?.columnOrder)
   const now = new Date()
 
   await trx

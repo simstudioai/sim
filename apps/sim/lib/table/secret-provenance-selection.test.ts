@@ -1,11 +1,15 @@
 /**
  * @vitest-environment node
  */
+import { filterUndefined } from '@sim/utils/object'
 import { describe, expect, it } from 'vitest'
+import {
+  addModelInputProvenanceToRequest,
+  createPrivateSecretProvenanceRequestMetadata,
+} from '@/lib/execution/model-input-provenance'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import { prepareToolRequest } from '@/tools/request-transport'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 
 interface TableWriteRequestBody {
@@ -34,19 +38,26 @@ describe('selectTableRowSecretProvenance', () => {
   })
 
   it('keeps selection keys aligned with the serialized request body', () => {
-    const request = prepareToolRequest(
-      tableBatchInsertRowsTool,
-      {
-        tableId: 'table-1',
-        rows: [{ email: 'user@example.com', status: 'queued', processed_at: undefined }],
-        _context: { workspaceId: 'workspace-1' },
-      },
-      new ResolvedSecretTraceRegistry([], {
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-      })
+    const params = {
+      tableId: 'table-1',
+      rows: [{ email: 'user@example.com', status: 'queued', processed_at: undefined }],
+      _context: { workspaceId: 'workspace-1' },
+    }
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+    const input = tableBatchInsertRowsTool.operation.input(params)
+    const selections = tableBatchInsertRowsTool.operation.secretProvenance?.request?.(params) ?? []
+    const payload = addModelInputProvenanceToRequest(
+      input,
+      new Headers(),
+      createPrivateSecretProvenanceRequestMetadata(registry, selections)
     )
-    const body = JSON.parse(request.body ?? '') as TableWriteRequestBody
+    const body: TableWriteRequestBody = {
+      ...payload,
+      rows: payload.rows.map((row) => filterUndefined(row)),
+    }
     const wireSelectionKeys = body.rows.flatMap((row, rowIndex) =>
       Object.keys(row).map((columnKey) => JSON.stringify([rowIndex, columnKey]))
     )

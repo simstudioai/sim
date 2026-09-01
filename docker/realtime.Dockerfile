@@ -11,11 +11,10 @@ RUN apk add --no-cache libc6-compat curl
 FROM base AS pruner
 WORKDIR /app
 
-RUN bun add -g turbo
-
 COPY . .
 
-RUN turbo prune @sim/realtime --docker
+RUN TURBO_VERSION="$(bun -e "console.log(require('./package.json').devDependencies.turbo)")" && \
+    bunx --bun "turbo@${TURBO_VERSION}" prune @sim/realtime --docker
 
 # ========================================
 # Dependencies Stage: Install Dependencies
@@ -26,6 +25,10 @@ WORKDIR /app
 COPY --from=pruner /app/out/json/ ./
 COPY --from=pruner /app/out/bun.lock ./bun.lock
 
+# turbo prune emits a bun.lock that bun 1.3.x rejects under --frozen-lockfile
+# ("Failed to resolve prod dependency"). Bun must be allowed to normalize that
+# lockfile to the pruned graph; the full-repository CI install owns
+# frozen-lockfile validation.
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     bun install --linker=hoisted --omit=dev --ignore-scripts
 

@@ -1,4 +1,4 @@
-import { perceivedBrightness } from '@sim/utils/color'
+import { perceivedBackgroundBrightness } from '@sim/utils/color'
 
 /**
  * Foreground class for a brand icon rendered inside its colored block tile.
@@ -18,6 +18,6 @@ const LIGHT_TILE_THRESHOLD = 0.75
 
 /** Whether a provider tile needs dark foreground content for legibility. */
 export function isLightTileColor(bgColor: string | null | undefined): boolean {
-  const brightness = bgColor ? perceivedBrightness(bgColor) : null
+  const brightness = bgColor ? perceivedBackgroundBrightness(bgColor) : null
   return brightness !== null && brightness > LIGHT_TILE_THRESHOLD
 }

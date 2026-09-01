@@ -27,6 +27,7 @@ export const GET = defineInternalJsonRoute({
       action: query.action,
       resourceType: query.resourceType,
       actorId: query.actorId,
+      workspaceId: query.workspaceId,
       startDate: query.startDate,
       endDate: query.endDate,
     },

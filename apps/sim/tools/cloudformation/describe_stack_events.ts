@@ -2,9 +2,9 @@ import type {
   CloudFormationDescribeStackEventsParams,
   CloudFormationDescribeStackEventsResponse,
 } from '@/tools/cloudformation/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const describeStackEventsTool: ToolConfig<
+export const describeStackEventsTool: InternalToolConfig<
   CloudFormationDescribeStackEventsParams,
   CloudFormationDescribeStackEventsResponse
 > = {
@@ -46,13 +46,8 @@ export const describeStackEventsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudformation/describe-stack-events',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

@@ -10,8 +10,8 @@ import {
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
 } from '@sim/workflow-types/workflow'
+import { type Edge, ReactFlowProvider, useStoreApi as useReactFlowStoreApi } from '@xyflow/react'
 import { createRoot, type Root } from 'react-dom/client'
-import { type Edge, ReactFlowProvider, useStoreApi as useReactFlowStoreApi } from 'reactflow'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { CONTAINER_DIMENSIONS } from '../dimensions'
 import {

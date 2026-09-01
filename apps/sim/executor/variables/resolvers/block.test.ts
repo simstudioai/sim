@@ -711,6 +711,17 @@ describe('BlockResolver', () => {
       expect(resolver.formatValueForBlock('tab\there', 'condition')).toBe('"tab\there"')
     })
 
+    it.concurrent('should escape the quotes it does not open for condition block', () => {
+      // The author's quoting decides which literal this lands in, so escaping only the
+      // double quote this wrapper opens leaves the other contexts breakable.
+      const resolver = new BlockResolver(createTestWorkflow())
+      expect(resolver.formatValueForBlock("' + evil() + '", 'condition')).toBe(
+        '"\\\' + evil() + \\\'"'
+      )
+      expect(resolver.formatValueForBlock(`\${evil()}`, 'condition')).toBe(`"\\\${evil()}"`)
+      expect(resolver.formatValueForBlock('`evil()`', 'condition')).toBe('"\\`evil()\\`"')
+    })
+
     it.concurrent('should format object for condition block', () => {
       const resolver = new BlockResolver(createTestWorkflow())
       const result = resolver.formatValueForBlock({ key: 'value' }, 'condition')

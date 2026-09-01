@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { workspace } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -125,6 +126,12 @@ describe('createFork storage headroom gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    /**
+     * The fork transaction re-reads the parent's organization under the lock to
+     * confirm it has not moved since `assertCanFork` captured the policy.
+     * Matches POLICY.organizationId, so the fork proceeds.
+     */
+    queueTableRows(workspace, [{ organizationId: null }])
     mockSumForkCopyBytes.mockResolvedValue(0)
     mockAssertForkStorageHeadroom.mockResolvedValue(undefined)
     mockLoadSourceDeployedStates.mockResolvedValue({
@@ -184,6 +191,24 @@ describe('createFork storage headroom gate', () => {
     expect(mockLoadSourceDeployedStates).not.toHaveBeenCalled()
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(mockStartBackgroundWork).not.toHaveBeenCalled()
+  })
+
+  it('refuses when the parent changed organizations after the policy was captured', async () => {
+    resetDbChainMock()
+    /**
+     * `assertCanFork` captures `policy.organizationId` before this transaction,
+     * so an admin workspace move committing in between would otherwise leave
+     * the fork locking the organization the parent has already left and
+     * inserting the child there — the cross-organization edge the lock exists
+     * to prevent. The parent is re-read under the lock to catch exactly this.
+     */
+    queueTableRows(workspace, [{ organizationId: 'org-moved-away' }])
+    mockSumForkCopyBytes.mockResolvedValue(0)
+
+    await expect(createFork(forkParams())).rejects.toThrow(
+      'changed organizations while this fork was being created'
+    )
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
   it('proceeds under quota, summing exactly the selected files + knowledge bases', async () => {

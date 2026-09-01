@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, knowledgeConnector, knowledgeConnectorSyncLog } from '@sim/db/schema'
 import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm'
@@ -41,6 +42,8 @@ import type {
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
+import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 
 interface KnowledgeConnectorApplicationInput {
   assertedWorkspaceId?: string
@@ -100,6 +103,43 @@ export interface ListKnowledgeConnectorDocumentsInput extends ReadKnowledgeConne
 export interface UpdateKnowledgeConnectorDocumentsInput extends ReadKnowledgeConnectorInput {
   operation: 'restore' | 'exclude'
   documentIds: string[]
+}
+
+const CONNECTOR_ALLOWLIST_RULE = CAPABILITY_RULES['knowledge.connectors']
+
+/**
+ * Refuses a connector the caller's permission group has not sanctioned.
+ *
+ * A connector pulls a whole external corpus into the workspace, so which source
+ * a member may attach is a per-request decision — the authorization funnel
+ * applies an operation's capability knowing only the principal, the workspace
+ * and the operation, and never sees `connectorType`. Hence the assertion here,
+ * ahead of the write, rather than a `capability` on `knowledge.connectors.create`.
+ *
+ * No-op when no permission group governs the caller, which is what keeps
+ * non-enterprise and ungoverned organizations unaffected.
+ *
+ * A permission group is a membership of users, so an actorless caller — a
+ * schedule, or a webhook with no external subject — resolves no group and
+ * passes through, exactly as the authorization funnel treats one. Requiring a
+ * subject here would turn every scheduled connector sync into a 500 rather than
+ * a refusal anyone could act on.
+ *
+ * Refused through {@link refuseCapability} so the sentence reads exactly like
+ * every other capability refusal. The error it throws is a
+ * `ForbiddenOperationError` carrying this rule's own detail code, so the status
+ * and error contract are the ones this already raised.
+ */
+async function assertConnectorTypeAllowed(
+  userId: string | undefined,
+  workspaceId: string,
+  connectorType: string
+): Promise<void> {
+  if (!userId) return
+  const config = await resolvePermissionGroupConfig(userId, workspaceId, undefined)
+  if (!config || !CONNECTOR_ALLOWLIST_RULE.deniedBy(config, connectorType)) return
+
+  refuseCapability('knowledge.connectors')
 }
 
 function requireSuccessfulOutcome<T extends object>(
@@ -293,6 +333,12 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
     const requestId = generateRequestId()
     const workspaceId = requireConnectorWorkspaceId(context)
     const actingUserId = resolveKnowledgeAttributedUserId(principal, context)
+    // permission-group-enforced: knowledge.connectors — needs the request's connector id, which the funnel never sees
+    await assertConnectorTypeAllowed(
+      resolvePrincipalSubjectUserId(principal),
+      workspaceId,
+      input.connectorType
+    )
     const outcome = await performCreateKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
       connectorType: input.connectorType,
@@ -337,6 +383,13 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   }),
 })
 
+/**
+ * Deliberately not gated by `knowledge.connectors`: an update may change the
+ * source config, sync interval or status, never the connector type. The
+ * sanctioned-source decision was made when the connector was created, and
+ * re-asserting it here would strand an existing connector — including the
+ * ability to pause it — the moment an admin narrowed the allowlist.
+ */
 export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.updateConnector,
   resolveContext: ({ input }: { input: UpdateKnowledgeConnectorInput }) =>
@@ -440,12 +493,33 @@ export const deleteKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   }),
 })
 
+/**
+ * Gated by `knowledge.connectors` on the *persisted* type, unlike
+ * {@link updateKnowledgeConnector}: a manual sync is a fresh act by a person
+ * pulling the external corpus in again, so an admin who has since removed the
+ * source from the allowlist has withdrawn it. Pausing and deleting stay
+ * available for the reason recorded on the update use case — nothing here
+ * strands a connector, it only stops a member re-running the pull by hand.
+ *
+ * Only the manual path passes through this use case. The scheduled continuation
+ * of an existing connector runs `executeSync` from the sync engine directly
+ * (`background/knowledge-connector-sync.ts`) and is untouched, matching the
+ * webhook precedent: passive continuation keeps running, a person re-initiating
+ * it is gated. An actorless caller resolves no group and passes through, as
+ * {@link assertConnectorTypeAllowed} documents.
+ */
 export const syncKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.syncConnector,
   resolveContext: ({ input }: { input: SyncKnowledgeConnectorInput }) =>
     resolveActiveKnowledgeConnectorContext(input),
   async execute({ principal, input, context, request }) {
     const workspaceId = requireConnectorWorkspaceId(context)
+    // permission-group-enforced: knowledge.connectors — needs the persisted connector type, which the funnel never sees
+    await assertConnectorTypeAllowed(
+      resolvePrincipalSubjectUserId(principal),
+      workspaceId,
+      context.connector.connectorType
+    )
     const outcome = await performSyncKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
       connectorId: context.connectorId,

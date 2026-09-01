@@ -8,7 +8,7 @@ import type { BlockConfig } from '@/blocks/types'
 import {
   CREDENTIAL_GROUP_LIST_STALE_TIME,
   credentialGroupKeys,
-  fetchCredentialGroupList,
+  fetchCredentialGroupSettings,
 } from '@/hooks/queries/utils/credential-group-queries'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -30,11 +30,12 @@ async function fetchCachedCredentialGroups() {
   const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
   if (!workspaceId) return []
 
-  return getQueryClient().fetchQuery({
+  const settings = await getQueryClient().fetchQuery({
     queryKey: credentialGroupKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchCredentialGroupList(workspaceId, signal),
+    queryFn: ({ signal }) => fetchCredentialGroupSettings(workspaceId, signal),
     staleTime: CREDENTIAL_GROUP_LIST_STALE_TIME,
   })
+  return settings.credentialGroups
 }
 
 function resolveCredentialGroupIdForBlock(blockId: string): string | null {
@@ -101,8 +102,9 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
   longDescription:
     'List usable managed credentials, inspect invited people, send or generate an account-connection invitation, or discover Credential Groups in the current workspace. The block returns credential IDs and account metadata without exposing OAuth tokens.',
   bestPractices: `
-  - Use "List Credentials" with a ForEach loop to run a provider block once for every connected account.
-  - Filter by email to select credentials belonging to one invited person, by provider to select one account type, or by both for an exact match.
+  - "List Credentials" returns every active credential. Filter by email to select one enrolled person, by provider to select one account type, or by both for an exact match.
+  - Provider blocks can use the current actor's enrolled credential by default. Using another enrollment requires an explicit workflow access grant.
+  - With a workflow access grant, use "List Credentials" with a ForEach loop to run a provider block once for every connected account.
   - Continue with nextCursor until hasMore is false when a list operation returns multiple pages.
   - "List Credentials" returns active, usable credentials only. Reconnect-needed and revoked credentials are excluded.
   - Use "List People" to inspect invitation and connection progress without exposing credential secrets.
@@ -265,7 +267,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
     credentialGroupId: { type: 'string', description: 'Credential Group ID' },
     email: {
       type: 'string',
-      description: 'Recipient email for invites or exact email filter for list operations',
+      description: 'Recipient email for invites or an optional credential/people-list filter',
     },
     credentialProviderIds: {
       type: 'json',

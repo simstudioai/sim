@@ -186,6 +186,12 @@ export interface StreamingContext {
   toolPermissions: {
     enabled: boolean
     autoAllowed: Set<string>
+    /**
+     * Whether this user may silence a confirmation at all. False when the
+     * permission group withholds `copilot.tool_auto_approval`, in which case
+     * every gated call prompts however the stored list reads.
+     */
+    autoAllowPermitted: boolean
   }
 }
 

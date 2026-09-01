@@ -1,4 +1,8 @@
-import { BlockType, isMetadataOnlyBlockType, isSentinelBlockType } from '@/executor/constants'
+import {
+  isHumanInTheLoopBlock,
+  isMetadataOnlyBlockType,
+  isSentinelBlockType,
+} from '@/executor/constants'
 
 interface RetryEligibilityInput {
   blockType: string | undefined
@@ -26,7 +30,7 @@ export function isRetryEligibleBlock({
   triggerMode,
 }: RetryEligibilityInput): boolean {
   if (!blockType) return false
-  if (blockType === BlockType.HUMAN_IN_THE_LOOP) return false
+  if (isHumanInTheLoopBlock(blockType)) return false
   if (triggerMode === true || category === 'triggers') return false
   return !isSentinelBlockType(blockType) && !isMetadataOnlyBlockType(blockType)
 }

@@ -1,7 +1,7 @@
 import type { OneDriveDownloadResponse, OneDriveToolParams } from '@/tools/onedrive/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const downloadTool: ToolConfig<OneDriveToolParams, OneDriveDownloadResponse> = {
+export const downloadTool: InternalToolConfig<OneDriveToolParams, OneDriveDownloadResponse> = {
   id: 'onedrive_download',
   name: 'Download File from OneDrive',
   description: 'Download a file from OneDrive',
@@ -33,13 +33,8 @@ export const downloadTool: ToolConfig<OneDriveToolParams, OneDriveDownloadRespon
     },
   },
 
-  request: {
-    url: '/api/tools/onedrive/download',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       fileId: params.fileId,
       fileName: params.fileName,

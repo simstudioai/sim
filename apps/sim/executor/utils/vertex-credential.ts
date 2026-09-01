@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
 import { getServiceAccountToken } from '@/lib/oauth/credential-service'
-import { fetchCredentialAccessToken } from '@/executor/utils/credential-token'
+import { resolveExecutorCredentialToken } from '@/executor/utils/credential-token'
 
 const logger = createLogger('VertexCredential')
 
@@ -65,17 +65,12 @@ export async function resolveVertexCredential({
     throw new Error(`Vertex AI credential is not a valid OAuth credential: ${credentialId}`)
   }
 
-  /**
-   * Fetched from the app rather than refreshed here: this runs inside the Trigger.dev
-   * worker, whose environment carries no OAuth client config, so an in-process refresh
-   * throws once the stored access token expires. The service-account branch above needs
-   * no such config and stays in-process.
-   */
-  const accessToken = await fetchCredentialAccessToken({
+  const { accessToken } = await resolveExecutorCredentialToken({
     requestId,
     credentialId,
     userId: actingUserId,
     workflowId,
+    toolLabel: 'Vertex AI',
   })
 
   if (!accessToken) {

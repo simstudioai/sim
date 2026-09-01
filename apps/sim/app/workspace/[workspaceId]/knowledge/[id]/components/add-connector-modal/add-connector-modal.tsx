@@ -18,6 +18,7 @@ import {
   type ComboboxOption,
   cn,
   handleKeyboardActivation,
+  OverflowText,
   Search,
 } from '@sim/emcn'
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
@@ -508,8 +509,11 @@ function ConnectorTypeCard({ type, config, onClick }: ConnectorTypeCardProps) {
         </div>
       </div>
       <div className='flex min-w-0 flex-1 flex-col'>
-        <span className='truncate text-[var(--text-body)] text-sm'>{config.name}</span>
-        <span className='truncate text-[var(--text-muted)] text-caption'>{config.description}</span>
+        <OverflowText label={config.name} className='text-[var(--text-body)] text-sm' />
+        <OverflowText
+          label={config.description}
+          className='text-[var(--text-muted)] text-caption'
+        />
       </div>
       <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
     </button>

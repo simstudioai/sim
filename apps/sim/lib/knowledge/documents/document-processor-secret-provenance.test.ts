@@ -7,11 +7,13 @@ const {
   mockDownloadFileFromUrl,
   mockGenerateInternalToken,
   mockGetInternalApiBaseUrl,
+  mockExecuteMistralParse,
   mockParseBuffer,
 } = vi.hoisted(() => ({
   mockDownloadFileFromUrl: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
   mockGetInternalApiBaseUrl: vi.fn(),
+  mockExecuteMistralParse: vi.fn(),
   mockParseBuffer: vi.fn(),
 }))
 
@@ -27,6 +29,10 @@ vi.mock('@/lib/core/utils/urls', async (importOriginal) => ({
 vi.mock('@/lib/file-parsers', () => ({
   parseBuffer: mockParseBuffer,
   isSupportedFileType: (extension: string) => ['pdf', 'docx', 'txt', 'csv'].includes(extension),
+}))
+
+vi.mock('@/lib/internal/mistral/operations', () => ({
+  executeMistralParse: mockExecuteMistralParse,
 }))
 
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
@@ -51,6 +57,13 @@ describe('knowledge document model-input provenance', () => {
     })
     mockGenerateInternalToken.mockResolvedValue('internal-token')
     mockGetInternalApiBaseUrl.mockReturnValue('http://sim.local')
+    mockExecuteMistralParse.mockResolvedValue({
+      success: true,
+      output: {
+        pages: [{ markdown: 'Extracted document text' }],
+        usage_info: { pages_processed: 1 },
+      },
+    })
   })
 
   afterEach(() => {
@@ -128,17 +141,6 @@ describe('knowledge document model-input provenance', () => {
       MISTRAL_API_KEY: 'mistral-key',
     })
     mockDownloadFileFromUrl.mockResolvedValue(Buffer.from('not-a-real-pdf'))
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          pages: [{ markdown: 'Extracted document text' }],
-          usage_info: { pages_processed: 1 },
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      )
-    )
-    vi.stubGlobal('fetch', fetchMock)
-
     const processed = await runWithKnowledgeModelInputProvenance(
       undefined,
       () =>
@@ -155,15 +157,15 @@ describe('knowledge document model-input provenance', () => {
     )
 
     expect(processed.metadata.processingMethod).toBe('mistral-ocr')
-    expect(fetchMock).toHaveBeenCalledOnce()
-    const [endpoint, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(endpoint).toBe('http://sim.local/api/tools/mistral/parse')
-    const headers = new Headers(init.headers)
-    expect(headers.get('authorization')).toBe('Bearer internal-token')
+    expect(mockExecuteMistralParse).toHaveBeenCalledOnce()
+    const [requestBody, context] = mockExecuteMistralParse.mock.calls[0] as [
+      Record<string, unknown>,
+      { headers: Headers },
+    ]
+    const headers = context.headers
     expect(headers.get('x-sim-private-model-input-provenance')).toBe(
       'resolved-secret-provenance-v1'
     )
-    const requestBody = JSON.parse(String(init.body)) as Record<string, unknown>
     expect(requestBody[RESOLVED_SECRET_PROVENANCE_FIELD]).toEqual({
       version: 1,
       complete: true,

@@ -1,18 +1,14 @@
-import { getErrorMessage } from '@sim/utils/errors'
-import { sendCustomToolResults } from '@/lib/managed-agents/session-client'
-import { isTruthyAck } from '@/tools/managed_agent/normalizers'
 import {
   ACCESS_TOKEN_PARAM,
   CREDENTIAL_PARAM,
-  resolveSessionTarget,
   SESSION_ID_PARAM,
-  UNUSED_REQUEST,
 } from '@/tools/managed_agent/shared'
 import type {
   ManagedAgentCustomToolResultParams,
   ManagedAgentCustomToolResultResponse,
 } from '@/tools/managed_agent/types'
-import type { ToolConfig } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
 /**
  * Returns the result of a client-side custom tool the agent invoked.
@@ -28,7 +24,8 @@ import type { ToolConfig } from '@/tools/types'
  * share a single result — silently wrong whenever more than one is pending.
  * Answer several by iterating this operation over `pendingTools`.
  */
-export const managedAgentRespondCustomToolTool: ToolConfig<
+
+export const managedAgentRespondCustomToolTool: InternalToolConfig<
   ManagedAgentCustomToolResultParams,
   ManagedAgentCustomToolResultResponse
 > = {
@@ -63,54 +60,12 @@ export const managedAgentRespondCustomToolTool: ToolConfig<
     },
   },
 
-  request: {
-    ...UNUSED_REQUEST,
+  operation: {
+    input: createInternalToolOperationInput,
     modelInput: {
       mode: 'project',
       select: (params) => ({ result: params.result }),
     },
-  },
-
-  directExecution: async (params, signal): Promise<ManagedAgentCustomToolResultResponse> => {
-    const emptyOutput = { sessionId: '', answeredToolUseId: '' }
-    const target = resolveSessionTarget(params)
-    if (!target.ok) {
-      return { success: false, output: emptyOutput, error: target.error }
-    }
-
-    const customToolUseId = params.customToolUseId?.trim()
-    if (!customToolUseId) {
-      return {
-        success: false,
-        output: { ...emptyOutput, sessionId: target.sessionId },
-        error:
-          'A custom tool-use event id is required. Read it from Get Session pendingTools[].id.',
-      }
-    }
-
-    // The result may legitimately be empty (a tool that returns nothing), so
-    // only the id is required — an absent result is sent as an empty string.
-    const result = (params.result ?? '').toString()
-    const isError = isTruthyAck(params.isError)
-
-    try {
-      await sendCustomToolResults({
-        apiKey: target.apiKey,
-        sessionId: target.sessionId,
-        results: [{ customToolUseId, content: result, isError }],
-        ...(signal ? { signal } : {}),
-      })
-      return {
-        success: true,
-        output: { sessionId: target.sessionId, answeredToolUseId: customToolUseId },
-      }
-    } catch (error) {
-      return {
-        success: false,
-        output: { ...emptyOutput, sessionId: target.sessionId },
-        error: getErrorMessage(error, 'Failed to send custom tool result'),
-      }
-    }
   },
 
   outputs: {

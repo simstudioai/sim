@@ -26,7 +26,7 @@ let buildContext: ReturnType<typeof vi.fn>
  * textarea, and its find widget is a real input nested in the same container.
  */
 function Host() {
-  useSelectionCopyBridge(containerRef, buildContext as () => ChatContext | null)
+  useSelectionCopyBridge(containerRef, buildContext as () => ChatContext | null, 'ws-1')
   return (
     <div ref={containerRef}>
       <textarea id='editor-surface' />
@@ -74,7 +74,10 @@ describe('useSelectionCopyBridge', () => {
     const written = dispatchCopy('editor-surface')
 
     expect(buildContext).toHaveBeenCalled()
-    expect(written[SIM_SELECTION_MIME]).toContain('file_selection')
+    expect(JSON.parse(written[SIM_SELECTION_MIME])).toMatchObject({
+      sourceWorkspaceId: 'ws-1',
+      context: selection,
+    })
   })
 
   it('ignores a copy from a nested input such as the find box', () => {

@@ -1,11 +1,18 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { cancelWorkflowExecution } from '@/lib/execution/cancel-workflow-execution'
 import { getSlackBotCredential } from '@/lib/oauth/credential-service'
 import { findWebhooksByRoutingKey, type WebhookDispatchResult } from '@/lib/webhooks/processor'
 import { verifySlackRequestSignature } from '@/lib/webhooks/providers/slack'
+import { setSlackAgentSessionStatus } from '@/lib/webhooks/slack-agent-api'
 import { LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE } from '@/lib/webhooks/slack-custom-ingress-constants'
 import { dispatchSlackWebhooks } from '@/lib/webhooks/slack-dispatch'
+import {
+  listSlackStreamSessions,
+  resolveStoppedSlackSession,
+  unregisterSlackStreamSession,
+} from '@/lib/webhooks/slack-stream-sessions'
 
 const logger = createLogger('SlackCustomBotIngress')
 
@@ -109,4 +116,33 @@ export async function dispatchSlackCustomBotCredential({
   }
 
   return dispatchSlackWebhooks(webhooks, { body, request, requestId, receivedAt })
+}
+
+/** Cancels every workflow currently associated with Slack's stopped agent session. */
+export async function handleSlackAgentSessionStopped(
+  credentialId: string,
+  body: unknown
+): Promise<void> {
+  const target = resolveStoppedSlackSession(body)
+  if (!target) return
+
+  const executions = await listSlackStreamSessions(credentialId, target)
+  if (executions.length === 0) return
+  await Promise.all(
+    executions.map(async (execution) => {
+      await cancelWorkflowExecution({
+        executionId: execution.executionId,
+        workflowId: execution.workflowId,
+        attributedUserId: execution.userId,
+        workspaceId: execution.workspaceId,
+      })
+      await unregisterSlackStreamSession(credentialId, target, execution.executionId)
+    })
+  )
+
+  const credential = await getSlackBotCredential(credentialId)
+  if (!credential) {
+    throw new Error('Slack agent session stop credential is unavailable')
+  }
+  await setSlackAgentSessionStatus(credential.botToken, target, 'active')
 }

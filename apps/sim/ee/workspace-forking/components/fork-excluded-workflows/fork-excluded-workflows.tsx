@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useMemo, useState } from 'react'
-import { Checkbox, ChevronDown, cn, toast } from '@sim/emcn'
+import { Checkbox, ChevronDown, cn, OverflowText, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { useUpdateForkExcludedWorkflows } from '@/ee/workspace-forking/hooks/workspace-fork'
@@ -205,12 +205,14 @@ function ExcludedFolderRow({
           className='flex min-w-0 items-center gap-1.5 text-left hover:text-[var(--text-primary)]'
           onClick={() => setExpanded((value) => !value)}
         >
-          <span className='min-w-0 truncate'>
+          <OverflowText
+            label={`${folder.name} (${selectedCount > 0 ? `${selectedCount}/${total}` : total})`}
+          >
             {folder.name}{' '}
             <span className='text-[var(--text-muted)]'>
               ({selectedCount > 0 ? `${selectedCount}/${total}` : total})
             </span>
-          </span>
+          </OverflowText>
           <ChevronDown
             className={cn(
               'size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
@@ -288,7 +290,7 @@ function ExcludedWorkflowRow({
         onCheckedChange={(value) => onToggle([workflow.id], value === true)}
         disabled={disabled}
       />
-      <span className='min-w-0 truncate'>{workflow.name}</span>
+      <OverflowText label={workflow.name} />
     </label>
   )
 }

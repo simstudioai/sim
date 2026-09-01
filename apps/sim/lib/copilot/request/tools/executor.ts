@@ -1,3 +1,7 @@
+import {
+  BROWSER_WAIT_FOR_RENDERER_GRACE_MS,
+  normalizeBrowserWaitForTimeoutMs,
+} from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
@@ -61,7 +65,10 @@ import {
   setTerminalToolCallState,
 } from '@/lib/copilot/request/tool-call-state'
 import { maybeWriteOutputToFile } from '@/lib/copilot/request/tools/files'
-import { inspectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import {
+  describeWithholdingCause,
+  inspectToolResultForCopilot,
+} from '@/lib/copilot/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources'
 import {
   maybeWriteOutputToTable,
@@ -77,7 +84,6 @@ import {
   type ToolCallState,
 } from '@/lib/copilot/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
-import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { isMcpTool } from '@/executor/constants'
 
 export { waitForToolCompletion } from '@/lib/copilot/request/tools/client'
@@ -248,21 +254,22 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
 }
 
 /**
- * How long the resume gate may wait on one pending tool call. Null means the
- * tool is durably waiting on a person and has no deadline.
- *
- * A call sitting on a permission prompt is waiting on a person, not on the
- * executor, so the tool's own watchdog is the wrong bound — the 60s default
- * would force-fail the prompt while the user was still reading it. Such a call
- * gets the long-running budget, which matches the gate's own wait timeout.
+ * How long the resume gate may wait on one pending tool call. Permission
+ * prompts receive the long-running budget, while `browser_wait_for` receives
+ * its normalized requested timeout plus renderer delivery grace.
  */
 export function pendingToolWaitBudgetMs(
-  toolCall: Pick<ToolCallState, 'name' | 'status'> | undefined
-): number | null {
-  if (toolCall?.name === RETIRED_BROWSER_REQUEST_TAKEOVER_ID && toolCall?.status === 'executing') {
-    return null
-  }
+  toolCall:
+    | (Pick<ToolCallState, 'name' | 'status'> & Partial<Pick<ToolCallState, 'params'>>)
+    | undefined
+): number {
   if (toolCall?.status === 'awaiting_approval') return TOOL_WATCHDOG_LONG_RUNNING_MS
+  if (toolCall?.name === 'browser_wait_for') {
+    return (
+      normalizeBrowserWaitForTimeoutMs(toolCall.params?.timeoutMs) +
+      BROWSER_WAIT_FOR_RENDERER_GRACE_MS
+    )
+  }
   return toolWatchdogTimeoutMs(toolCall?.name)
 }
 
@@ -498,6 +505,8 @@ async function executeToolAndReportInner(
     })
   }
 
+  // Loads the handler map on first use; the abort check below covers that wait.
+  await ensureHandlersRegistered()
   if (abortRequested(context, execContext, options)) {
     markToolCallCancelled('Request aborted before tool execution')
     markToolResultSeen(toolCall.id)
@@ -601,7 +610,6 @@ async function executeToolAndReportInner(
   }
 
   try {
-    ensureHandlersRegistered()
     let result = await executeToolWithWatchdog(toolCall, toolExecutionContext)
     if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
       endToolSpanFromTerminalState()
@@ -737,15 +745,20 @@ async function executeToolAndReportInner(
     toolSpan.attributes = {
       ...toolSpan.attributes,
       ...summarizeToolResultForSpan(copilotResult),
-      ...(projection.safe ? {} : { resultWithheld: true }),
+      ...(projection.safe
+        ? {}
+        : { resultWithheld: true, ...describeWithholdingCause(projection.cause) }),
     }
     if (!projection.safe) {
       // A withheld SUCCESS otherwise leaves no trace anywhere: the span reads
       // ok and the model just sees a bare `{success: true}` with no output.
+      // The cause is what says whether a guard latched, no catalog was built,
+      // or the payload itself was unprojectable — three different fixes.
       logger.warn('Tool result withheld by egress projection', {
         toolCallId: toolCall.id,
         toolName: toolCall.name,
         runtimeSucceeded: result.success,
+        ...describeWithholdingCause(projection.cause),
       })
     }
 

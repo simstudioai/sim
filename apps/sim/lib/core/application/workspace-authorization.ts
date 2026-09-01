@@ -1,4 +1,8 @@
-import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import {
+  type DelegatedPrincipal,
+  type Principal,
+  resolvePrincipalSubject,
+} from '@sim/auth/principal'
 import type { db } from '@sim/db'
 import {
   type PermissionType,
@@ -11,6 +15,44 @@ import type {
   WorkspaceOperation,
 } from '@/lib/core/application/workspace-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  assertWorkspaceCapability,
+  capabilityDeniedBy,
+} from '@/lib/permission-groups/capability-assertions'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+
+/**
+ * The person whose permission group governs `principal`, or `null` when no
+ * group applies to it.
+ *
+ * THE one statement of that rule, for the checks that cannot ride on an
+ * operation's `capability` because they need the resource in hand — an import's
+ * block allowlist, a bulk download's item count. Those sites otherwise reach for
+ * whatever user id is nearest, and the nearest one is usually a bystander: a
+ * workspace key's creator, or the billing owner an attribution helper
+ * substituted. Both would apply a stranger's group to a caller the funnel
+ * deliberately passes ungated.
+ *
+ * Mirrors {@link authorizeWorkspaceOperation} exactly, including its executor
+ * exemption: a run carries the role of whoever triggered it but not their
+ * capabilities.
+ */
+export function capabilityGovernedPrincipalUserId(principal: Principal): string | null {
+  switch (principal.kind) {
+    case 'session':
+    case 'personal_api_key':
+      return principal.userId
+    case 'workspace_api_key':
+    case 'system':
+    case 'credential_group_enrollment':
+      return null
+    case 'delegated': {
+      if (principal.serviceId === 'executor') return null
+      const subject = resolvePrincipalSubject(principal)
+      return subject?.kind === 'sim_user' ? subject.userId : null
+    }
+  }
+}
 
 export interface WorkspaceAuthorizationContext {
   workspaceId: string
@@ -145,7 +187,68 @@ function requirePermission(permission: PermissionType | null, required: Permissi
   }
 }
 
-async function requireCurrentHumanPermission<C extends WorkspaceAuthorizationContext>(
+/**
+ * Refuses an operation whose capability the caller's permission group withholds.
+ *
+ * Runs only for a principal that stands for a person, because a permission
+ * group is a membership of users — see {@link authorizeWorkspaceOperation} for
+ * why an actorless caller passes through rather than being denied.
+ */
+async function requireCapability(
+  userId: string,
+  context: WorkspaceAuthorizationContext,
+  operation: WorkspaceOperation
+): Promise<void> {
+  const capability = operation.capability
+  if (capability === 'none') return
+  if (context.workspaceOrganizationId === null) return
+
+  await assertWorkspaceCapability(
+    userId,
+    context.workspaceId,
+    capability,
+    context.workspaceOrganizationId
+  )
+}
+
+/**
+ * Refuses a personal API key the caller's permission group withholds.
+ *
+ * Separate from {@link requireCapability} because it is not a property of the
+ * operation: no operation opts into it, and every operation a personal key can
+ * reach is subject to it.
+ *
+ * Exported for the one authorization path that does not run through
+ * {@link authorizeWorkspaceOperation} — the billing reads, which resolve their
+ * own workspace scope. One copy, or the same key the funnel refuses keeps
+ * working somewhere.
+ */
+export async function requirePersonalApiKeysAllowed(
+  userId: string,
+  context: WorkspaceAuthorizationContext
+): Promise<void> {
+  if (context.workspaceOrganizationId === null) return
+
+  const config = await resolvePermissionGroupConfig(
+    userId,
+    context.workspaceId,
+    context.workspaceOrganizationId
+  )
+  if (capabilityDeniedBy('personal_api_key.use', config)) throw new PersonalApiKeysDisabledError()
+}
+
+/**
+ * The workspace role check, then the permission-group capability check.
+ *
+ * Capability comes second on purpose. `requirePermission` throws
+ * {@link NoWorkspaceAccessError}, which the v2 surface conceals as a `404` so a
+ * non-member cannot learn the resource exists; refusing on capability first
+ * would tell a complete outsider which capabilities the organization withholds.
+ * It is also the cheaper check, and it names the remedy a caller can act on —
+ * raising a role, rather than chasing an admin about a group setting that is
+ * not why they were refused.
+ */
+async function requireCurrentHumanRole<C extends WorkspaceAuthorizationContext>(
   userId: string,
   context: C,
   required: PermissionType,
@@ -161,6 +264,16 @@ async function requireCurrentHumanPermission<C extends WorkspaceAuthorizationCon
   requirePermission(permission, required)
 }
 
+async function requireCurrentHumanAccess<C extends WorkspaceAuthorizationContext>(
+  userId: string,
+  context: C,
+  operation: WorkspaceOperation,
+  options?: WorkspaceAuthorizationOptions<C>
+): Promise<void> {
+  await requireCurrentHumanRole(userId, context, operation.minimumRole, options)
+  await requireCapability(userId, context, operation)
+}
+
 export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizationContext>(
   principal: Principal,
   operation: WorkspaceOperation,
@@ -171,14 +284,48 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
 
   switch (principal.kind) {
     case 'session':
-      await requireCurrentHumanPermission(principal.userId, context, operation.minimumRole, options)
+      await requireCurrentHumanAccess(principal.userId, context, operation, options)
       return
     case 'personal_api_key':
+      /**
+       * permission-group-enforced: personal_api_key.use — refuses a principal
+       * kind rather than a capability of the resource, so it cannot ride on an
+       * operation's `capability` the way the others do.
+       *
+       * The workspace column and the group key combine with AND, not override.
+       * The column is the coarse switch every workspace has; the group key
+       * narrows it further for one cohort inside an enterprise organization.
+       * Either one saying no is a no.
+       *
+       * The column is checked before the role, deliberately: it is a property of
+       * the workspace rather than of any group, it needs no query, and refusing
+       * a key the workspace has switched off is the answer whatever the caller's
+       * role turns out to be. The group key is not — it runs AFTER the role
+       * check, for the reason {@link requireCurrentHumanRole} gives: it answers
+       * with a `403` naming how an organization configured one cohort, and
+       * running it ahead of the concealed {@link NoWorkspaceAccessError} would
+       * hand that to a caller with no reach into the workspace at all.
+       *
+       * `requireCurrentHumanAccess` is unrolled below so the group's
+       * personal-key refusal sits between the role check and the operation's own
+       * capability: the remedies differ, and the narrower one is worth naming
+       * first.
+       */
       if (!context.allowPersonalApiKeys) {
         throw new PersonalApiKeysDisabledError()
       }
-      await requireCurrentHumanPermission(principal.userId, context, operation.minimumRole, options)
+      await requireCurrentHumanRole(principal.userId, context, operation.minimumRole, options)
+      await requirePersonalApiKeysAllowed(principal.userId, context)
+      await requireCapability(principal.userId, context, operation)
       return
+    /**
+     * A workspace API key authorizes as the workspace, so there is no user and
+     * therefore no permission group to resolve — the operation's `capability`
+     * does not apply. Substituting the key's creator would apply a bystander's
+     * group to every caller of a shared key, and would break the key outright
+     * once that person left the organization. The escape is closed at the door
+     * instead: minting a workspace key is itself capability-gated.
+     */
     case 'workspace_api_key':
       if (principal.workspaceId !== context.workspaceId) {
         throw new WorkspaceApiKeyScopeAuthorizationError()
@@ -203,12 +350,55 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
       ) {
         throw new DelegatedWorkspaceAuthorizationError()
       }
-      await requireCurrentHumanPermission(
-        principal.subjectUserId,
-        context,
-        operation.minimumRole,
-        options
-      )
+      const subject = resolvePrincipalSubject(principal)
+      if (subject?.kind === 'sim_user') {
+        /**
+         * A workflow run carries the role of whoever triggered it but not their
+         * capabilities. A capability names what a *person* may reach in the
+         * product — the Tables module, the Files module — while a run reaches
+         * those same resources because a block in the graph does, and what a run
+         * may do is governed separately by `assertPermissionsAllowed`, which
+         * gates every block, tool and model against the group of whoever the run
+         * resolved as its actor — for a manually triggered run, the triggering
+         * member.
+         *
+         * Applying capabilities here would mean an admin ticking "hide Tables
+         * from the sidebar" silently broke every workflow with a Table block for
+         * that cohort — a runtime kill-switch behind a checkbox that promises to
+         * hide a nav item. Copilot is deliberately not exempt: it acts as the
+         * person, so it must not reach what the person may not.
+         */
+        if (principal.serviceId === 'executor') {
+          await requireCurrentHumanRole(subject.userId, context, operation.minimumRole, options)
+          return
+        }
+        await requireCurrentHumanAccess(subject.userId, context, operation, options)
+        return
+      }
+      if (
+        principal.serviceId !== 'executor' ||
+        principal.delegationContext?.currentWorkflow?.mode !== 'deployment'
+      ) {
+        throw new DelegatedWorkspaceAuthorizationError()
+      }
+      /**
+       * The same reasoning with no subject at all: a deployed workflow acts on
+       * the workspace's behalf rather than any one member's.
+       *
+       * Be careful what this does *not* say. The block, tool and model gate
+       * still runs, but for an actorless run — a schedule, a webhook, a
+       * workspace-key call — `useAuthenticatedUserAsActor` is false, so
+       * `preprocessing.ts` falls back to `resolveSystemBillingAttribution` and
+       * the actor becomes the workspace's billing owner. Those gates therefore
+       * resolve the *payer's* permission group, not the workspace's and not
+       * nobody's. That predates this change and is not a capability the funnel
+       * can reach, but it means a member denied a tool can still reach it by
+       * putting the workflow on a schedule, and a billing owner who happens to
+       * sit in a restrictive group narrows every unattended run in the
+       * workspace. Fixing it means deciding what a workspace itself is allowed
+       * to do, which is a policy question this exemption deliberately leaves
+       * open.
+       */
       return
     }
   }

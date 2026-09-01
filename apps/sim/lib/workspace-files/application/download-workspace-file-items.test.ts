@@ -14,6 +14,7 @@ const {
   mockIsGenerated,
   mockIsRenderable,
   mockIsDocNotReady,
+  mockGetUserPermissionConfig,
 } = vi.hoisted(() => ({
   events: [] as string[],
   mockLoadContext: vi.fn(),
@@ -25,6 +26,15 @@ const {
   mockIsGenerated: vi.fn(),
   mockIsRenderable: vi.fn(),
   mockIsDocNotReady: vi.fn(),
+  mockGetUserPermissionConfig: vi.fn(),
+}))
+
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfig: mockGetUserPermissionConfig,
+  /** The use case passes the organization the authorized context already loaded. */
+  resolveVerifiedUserAccessControlContext: async (userId: string, workspaceId: string) => ({
+    config: await mockGetUserPermissionConfig(userId, workspaceId),
+  }),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
@@ -60,6 +70,7 @@ vi.mock('@sim/audit', () => ({
   recordAudit: mockRecordAudit,
 }))
 
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
 
 const principal = { kind: 'session' as const, userId: 'u1', sessionId: 's1' }
@@ -105,6 +116,7 @@ describe('downloadWorkspaceFileItems', () => {
     mockIsGenerated.mockReturnValue(false)
     mockIsRenderable.mockReturnValue(false)
     mockIsDocNotReady.mockReturnValue(false)
+    mockGetUserPermissionConfig.mockResolvedValue(null)
   })
 
   it('authorizes the workspace once and returns the bounded selection', async () => {
@@ -263,5 +275,67 @@ describe('downloadWorkspaceFileItems', () => {
     })
 
     expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
+  })
+
+  describe('permission-group capability', () => {
+    beforeEach(() => {
+      mockGetUserPermissionConfig.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        disableBulkFileDownload: true,
+      })
+      mockListFolders.mockResolvedValue([{ id: 'folder-1', parentId: null, name: 'Reports' }])
+      mockListFiles.mockImplementation(async () => {
+        events.push('execute')
+        return [file('f1', 'clip.mp4'), file('f2', 'notes.txt', 'folder-1')]
+      })
+    })
+
+    it('refuses a folder archive when the group withholds files.bulk_download', async () => {
+      await expect(
+        downloadWorkspaceFileItems.execute({
+          principal,
+          input: { workspaceId: 'ws-1', fileIds: [], folderIds: ['folder-1'] },
+        })
+      ).rejects.toMatchObject({ capability: 'files.bulk_download' })
+
+      expect(events).not.toContain('execute')
+    })
+
+    it('refuses a multi-file archive, which is the same bulk extraction', async () => {
+      await expect(
+        downloadWorkspaceFileItems.execute({
+          principal,
+          input: { workspaceId: 'ws-1', fileIds: ['f1', 'f2'], folderIds: [] },
+        })
+      ).rejects.toMatchObject({ capability: 'files.bulk_download' })
+    })
+
+    /**
+     * A run carries the role of whoever triggered it but not their capabilities
+     * — `authorizeWorkspaceOperation` exempts a subject-bearing executor — and
+     * an assertion that read the subject straight off the principal re-applied
+     * here exactly what the funnel exempts.
+     */
+    it('does not apply the capability to a delegated executor carrying a subject', async () => {
+      await expect(
+        downloadWorkspaceFileItems.execute({
+          principal: {
+            ...delegatedPrincipal,
+            serviceId: 'executor' as const,
+            resourceScope: {},
+          },
+          input: { workspaceId: 'ws-1', fileIds: [], folderIds: ['folder-1'] },
+        })
+      ).resolves.toMatchObject({ filesToZip: [expect.objectContaining({ id: 'f2' })] })
+    })
+
+    it('still allows downloading a single named file, which the key does not withhold', async () => {
+      await expect(
+        downloadWorkspaceFileItems.execute({
+          principal,
+          input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
+        })
+      ).resolves.toMatchObject({ filesToZip: [expect.objectContaining({ id: 'f1' })] })
+    })
   })
 })

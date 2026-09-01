@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
-import { sendToProfound } from './lib/analytics/profound'
 import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
@@ -316,40 +315,40 @@ export async function proxy(request: NextRequest) {
   const hasActiveSession = isAuthDisabled || !!sessionCookie
 
   const redirect = handleRootPathRedirects(request, hasActiveSession)
-  if (redirect) return track(request, redirect)
+  if (redirect) return applyIndexingPolicy(request, redirect)
 
   if (url.pathname === '/login' || url.pathname === '/signup') {
     if (hasActiveSession) {
-      return track(request, NextResponse.redirect(new URL('/workspace', request.url)))
+      return applyIndexingPolicy(request, NextResponse.redirect(new URL('/workspace', request.url)))
     }
     const response = NextResponse.next()
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
     response.headers.set('X-Content-Type-Options', 'nosniff')
     response.headers.set('X-Frame-Options', 'SAMEORIGIN')
-    return track(request, response)
+    return applyIndexingPolicy(request, response)
   }
 
   // Chat pages are publicly accessible embeds — CSP is set in next.config.ts headers
   if (url.pathname.startsWith('/chat/')) {
-    return track(request, NextResponse.next())
+    return applyIndexingPolicy(request, NextResponse.next())
   }
 
   if (url.pathname.startsWith('/workspace')) {
     if (!hasActiveSession) {
-      return track(request, NextResponse.redirect(new URL('/login', request.url)))
+      return applyIndexingPolicy(request, NextResponse.redirect(new URL('/login', request.url)))
     }
     const response = NextResponse.next()
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
     response.headers.set('X-Content-Type-Options', 'nosniff')
     response.headers.set('X-Frame-Options', 'SAMEORIGIN')
-    return track(request, response)
+    return applyIndexingPolicy(request, response)
   }
 
   const invitationRedirect = handleInvitationRedirects(request, hasActiveSession)
-  if (invitationRedirect) return track(request, invitationRedirect)
+  if (invitationRedirect) return applyIndexingPolicy(request, invitationRedirect)
 
   const securityBlock = handleSecurityFiltering(request)
-  if (securityBlock) return track(request, securityBlock)
+  if (securityBlock) return applyIndexingPolicy(request, securityBlock)
 
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
@@ -358,7 +357,7 @@ export async function proxy(request: NextRequest) {
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'SAMEORIGIN')
 
-  return track(request, response)
+  return applyIndexingPolicy(request, response)
 }
 
 /**
@@ -370,7 +369,7 @@ export async function proxy(request: NextRequest) {
  * the index. robots.txt is excluded from this proxy's matcher so it keeps
  * serving the crawlable rules this header depends on.
  */
-function applyIndexingPolicy(request: NextRequest, response: NextResponse): void {
+function applyIndexingPolicy(request: NextRequest, response: NextResponse): NextResponse {
   const host =
     request.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
     request.headers.get('host') ||
@@ -379,14 +378,7 @@ function applyIndexingPolicy(request: NextRequest, response: NextResponse): void
   if (isNonCanonicalSimHost(host)) {
     response.headers.set('X-Robots-Tag', 'noindex, nofollow')
   }
-}
 
-/**
- * Sends request data to Profound analytics (fire-and-forget) and returns the response.
- */
-function track(request: NextRequest, response: NextResponse): NextResponse {
-  applyIndexingPolicy(request, response)
-  sendToProfound(request, response.status)
   return response
 }
 

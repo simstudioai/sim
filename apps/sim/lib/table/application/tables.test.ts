@@ -8,9 +8,12 @@ import type { TableDefinition } from '@/lib/table/types'
 const mocks = vi.hoisted(() => ({
   audit: vi.fn(),
   getTableById: vi.fn(),
+  getLimits: vi.fn(),
+  listDefinitions: vi.fn(),
   loadFolderIndex: vi.fn(),
   queryTables: vi.fn(),
   resolveArchivedContext: vi.fn(),
+  resolveActiveContext: vi.fn(),
   resolveFolderPathFilter: vi.fn(),
   resolvePermission: vi.fn(),
   resolveWorkspaceContext: vi.fn(),
@@ -45,7 +48,8 @@ vi.mock('@/lib/table', () => ({
   createTable: vi.fn(),
   deleteTable: vi.fn(),
   getTableById: mocks.getTableById,
-  getWorkspaceTableLimits: vi.fn(),
+  getWorkspaceTableLimits: mocks.getLimits,
+  listTables: mocks.listDefinitions,
   moveTableToFolder: vi.fn(),
   queryTables: mocks.queryTables,
   renameTable: vi.fn(),
@@ -54,7 +58,7 @@ vi.mock('@/lib/table', () => ({
 }))
 
 vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: vi.fn(),
+  resolveActiveTableContext: mocks.resolveActiveContext,
   resolveArchivedTableContext: mocks.resolveArchivedContext,
   resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
 }))
@@ -76,7 +80,13 @@ vi.mock('@/lib/table/application/folder-paths', () => ({
 
 vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal }))
 
-import { listTablesUseCase, restoreTableUseCase } from '@/lib/table/application/tables'
+import {
+  listTableDefinitionsUseCase,
+  listTablesUseCase,
+  readTableDefinitionUseCase,
+  readTableDetailsUseCase,
+  restoreTableUseCase,
+} from '@/lib/table/application/tables'
 
 const WORKSPACE = {
   workspaceId: 'workspace-1',
@@ -194,6 +204,55 @@ describe('table list scope', () => {
       'workspace-1',
       expect.objectContaining({ scope: 'archived' })
     )
+  })
+})
+
+describe('internal table compatibility reads', () => {
+  const active = { ...ARCHIVED, archivedAt: null }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolvePermission.mockResolvedValue('read')
+    mocks.resolveWorkspaceContext.mockResolvedValue(WORKSPACE)
+    mocks.resolveActiveContext.mockResolvedValue({
+      ...WORKSPACE,
+      tableId: active.id,
+      table: active,
+    })
+    mocks.listDefinitions.mockResolvedValue([active])
+    mocks.getLimits.mockResolvedValue({ maxRowsPerTable: 2500 })
+  })
+
+  it('lists definitions without materializing the workspace folder index', async () => {
+    const result = await listTableDefinitionsUseCase.execute({
+      principal: PRINCIPAL,
+      input: { workspaceId: WORKSPACE.workspaceId, scope: 'all' },
+    })
+
+    expect(mocks.listDefinitions).toHaveBeenCalledWith(WORKSPACE.workspaceId, { scope: 'all' })
+    expect(result.tables).toEqual([active])
+    expect(mocks.loadFolderIndex).not.toHaveBeenCalled()
+  })
+
+  it('reads schema-only metadata without loading folders or plan limits', async () => {
+    const result = await readTableDefinitionUseCase.execute({
+      principal: PRINCIPAL,
+      input: { tableId: active.id, workspaceId: WORKSPACE.workspaceId },
+    })
+
+    expect(result.table).toBe(active)
+    expect(mocks.loadFolderIndex).not.toHaveBeenCalled()
+    expect(mocks.getLimits).not.toHaveBeenCalled()
+  })
+
+  it('reads the live row limit without loading unrelated folder state', async () => {
+    const result = await readTableDetailsUseCase.execute({
+      principal: PRINCIPAL,
+      input: { tableId: active.id, workspaceId: WORKSPACE.workspaceId },
+    })
+
+    expect(result).toEqual({ table: active, maxRows: 2500 })
+    expect(mocks.loadFolderIndex).not.toHaveBeenCalled()
   })
 })
 

@@ -69,6 +69,7 @@ import {
   hasPaidSubscription,
   hasWorkspaceLiveSyncAccess,
   hasWorkspaceSandboxAccess,
+  isOrganizationOnEnterprisePlan,
   isWorkspaceOnEnterprisePlan,
   resolveOrganizationPlan,
   syncSubscriptionPlan,
@@ -470,6 +471,63 @@ describe('resolveOrganizationPlan', () => {
 
     await expect(resolveOrganizationPlan(ORGANIZATION_ID)).resolves.toBe(false)
     await expect(resolveOrganizationPlan(ORGANIZATION_ID, { onError: 'throw' })).rejects.toThrow(
+      'userStats unavailable'
+    )
+  })
+})
+
+describe('isOrganizationOnEnterprisePlan', () => {
+  const ORGANIZATION_ID = 'org-1'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    /** An earlier describe leaves billing disabled, which short-circuits this gate to true. */
+    setEnvFlags({ isBillingEnabled: true, isHosted: true })
+    mockIsOrganizationBillingBlocked.mockResolvedValue(false)
+    mockCheckEnterprisePlan.mockReturnValue(true)
+  })
+
+  it('accepts an organization holding a usable enterprise plan', async () => {
+    dbChainMockFns.limit.mockResolvedValue([{ plan: 'enterprise', status: 'active' }])
+
+    await expect(isOrganizationOnEnterprisePlan(ORGANIZATION_ID)).resolves.toBe(true)
+  })
+
+  /**
+   * The lenient default is what every feature gate reads — a hidden button is
+   * the worst outcome there — so a read failure must keep resolving `false`
+   * rather than starting to reject through those callers.
+   */
+  it('keeps failing closed to false for the default policy', async () => {
+    dbChainMockFns.limit.mockRejectedValue(new Error('billing database unavailable'))
+
+    await expect(isOrganizationOnEnterprisePlan(ORGANIZATION_ID)).resolves.toBe(false)
+    await expect(isOrganizationOnEnterprisePlan(ORGANIZATION_ID, 'return-false')).resolves.toBe(
+      false
+    )
+  })
+
+  /**
+   * The subscription read soft-fails to `null` on its own, so without the
+   * policy threaded through it an outage arrives as an ordinary "no usable
+   * subscription" and returns a successful `false`. For Access Control that
+   * `false` means `config: null` — every capability allowed — so it has to
+   * propagate.
+   */
+  it('propagates a failed subscription read when the caller asked to throw', async () => {
+    dbChainMockFns.limit.mockRejectedValue(new Error('billing database unavailable'))
+
+    await expect(isOrganizationOnEnterprisePlan(ORGANIZATION_ID, 'throw')).rejects.toThrow(
+      'billing database unavailable'
+    )
+  })
+
+  it('propagates a failed block-state read the same way', async () => {
+    mockIsOrganizationBillingBlocked.mockRejectedValue(new Error('userStats unavailable'))
+    dbChainMockFns.limit.mockResolvedValue([{ plan: 'enterprise', status: 'active' }])
+
+    await expect(isOrganizationOnEnterprisePlan(ORGANIZATION_ID)).resolves.toBe(false)
+    await expect(isOrganizationOnEnterprisePlan(ORGANIZATION_ID, 'throw')).rejects.toThrow(
       'userStats unavailable'
     )
   })

@@ -1,13 +1,14 @@
 import { normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS,
   type BrowserPanelAction,
   type BrowserPanelAnchor,
   type BrowserPanelBounds,
   type BrowserPanelSnapshot,
   isBrowserDataKind,
   isBrowserTheme,
-  isBrowserToolName,
+  isCurrentBrowserToolName,
 } from '@sim/browser-protocol'
 import {
   type DesktopNotificationPayload,
@@ -43,6 +44,7 @@ import {
   getKnownSessions,
   handlePanelAction,
   migrateBrowserScope,
+  releaseBrowserToolQueueBoundary,
   restoreBrowserScope,
   showToolbarMenu,
   suspendBrowserScope,
@@ -52,6 +54,7 @@ import {
   addTab,
   findInActiveTab,
   getBrowserDownloadsState,
+  grantSiteOriginForUserNavigation,
   peekTabsState,
   reorderTab,
   setBrowserAppTheme,
@@ -148,6 +151,10 @@ export async function openMicrophoneSettings(
  */
 function parseDesktopScope(raw: unknown): string | null {
   return isDesktopScopeId(raw) ? raw : null
+}
+
+function isDesktopToolCallId(raw: unknown): raw is string {
+  return typeof raw === 'string' && raw.length >= 1 && raw.length <= 256
 }
 
 export interface OAuthConnectScope {
@@ -332,7 +339,11 @@ export interface IpcDeps {
   terminal: TerminalRegistry
   scopeEvents: Pick<
     ScopedEventRouter,
-    'activateBrowser' | 'activateTerminal' | 'sendBrowser' | 'sendTerminal'
+    | 'activateBrowser'
+    | 'activateTerminal'
+    | 'registerBrowserSitePermissionPromptSupport'
+    | 'sendBrowser'
+    | 'sendTerminal'
   >
   settings: DesktopSettingsService
   getWindowState: (sender: WebContents) => DesktopWindowState
@@ -488,6 +499,18 @@ const PTY_REPLY = new RegExp(
 )
 const MAX_TERMINAL_WRITE_CHARS = 256_000
 const MAX_PTY_REPLY_CHARS = 8_192
+const MAX_BROWSER_NAVIGATION_URL_CHARS = 8_192
+
+function canonicalHttpNavigationUrl(rawUrl: unknown): string | null {
+  if (typeof rawUrl !== 'string' || rawUrl.length > MAX_BROWSER_NAVIGATION_URL_CHARS) return null
+  try {
+    const url = new URL(rawUrl)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+    return url.href.length <= MAX_BROWSER_NAVIGATION_URL_CHARS ? url.href : null
+  } catch {
+    return null
+  }
+}
 
 interface DesktopToolAuthorization {
   chatId: string
@@ -500,9 +523,8 @@ async function fetchDesktopToolAuthorization(
   deps: IpcDeps,
   toolCallId: unknown
 ): Promise<DesktopToolAuthorization | null> {
-  if (typeof toolCallId !== 'string' || toolCallId.length < 1 || toolCallId.length > 256) {
-    return null
-  }
+  if (!isDesktopToolCallId(toolCallId)) return null
+  const startedAt = Date.now()
   try {
     const response = await event.sender.session.fetch(
       `${deps.appOrigin()}/api/desktop/tool/authorize`,
@@ -511,9 +533,17 @@ async function fetchDesktopToolAuthorization(
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolCallId }),
+        signal: AbortSignal.timeout(BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS),
       }
     )
-    if (!response.ok) return null
+    if (!response.ok) {
+      logger.warn('Desktop tool authorization was rejected', {
+        toolCallId,
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+      })
+      return null
+    }
     const authorization = (await response.json()) as {
       chatId?: unknown
       toolName?: unknown
@@ -527,6 +557,10 @@ async function fetchDesktopToolAuthorization(
       authorization.args === null ||
       Array.isArray(authorization.args)
     ) {
+      logger.warn('Desktop tool authorization returned a malformed response', {
+        toolCallId,
+        durationMs: Date.now() - startedAt,
+      })
       return null
     }
     return {
@@ -534,7 +568,12 @@ async function fetchDesktopToolAuthorization(
       toolName: authorization.toolName,
       args: authorization.args as Record<string, unknown>,
     }
-  } catch {
+  } catch (error) {
+    logger.warn('Desktop tool authorization failed', {
+      toolCallId,
+      durationMs: Date.now() - startedAt,
+      error: getErrorMessage(error),
+    })
     return null
   }
 }
@@ -825,7 +864,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           typeof scope !== 'string' ||
           typeof toolCallId !== 'string' ||
           typeof tool !== 'string' ||
-          !isBrowserToolName(tool)
+          !isCurrentBrowserToolName(tool)
         ) {
           return { ok: false, error: `Unknown browser tool: ${String(tool)}` }
         }
@@ -895,6 +934,39 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (!scope) return { scopeId: '', tabs: [], activeTabId: null }
         return withBrowserScope(scope, () => {
           addTab()
+          return peekTabsState()
+        })
+      },
+    },
+    'browser-agent:register-site-permission-prompt-support': {
+      kind: 'send',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      handler: (sender) => {
+        deps.scopeEvents.registerBrowserSitePermissionPromptSupport(sender as WebContents)
+      },
+    },
+    'browser-agent:open-url': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      needsUserActivation: true,
+      denied: { scopeId: '', tabs: [], activeTabId: null },
+      handler: (sender, rawUrl, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        const destination = canonicalHttpNavigationUrl(rawUrl)
+        if (!scope || !destination) {
+          return { scopeId: '', tabs: [], activeTabId: null }
+        }
+        return withBrowserScope(scope, () => {
+          const tab = addTab()
+          if (!grantSiteOriginForUserNavigation(tab.view.webContents, destination)) {
+            return peekTabsState()
+          }
+          void tab.view.webContents.loadURL(destination).catch(() => {})
           return peekTabsState()
         })
       },
@@ -1081,10 +1153,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'browser',
       passSender: true,
-      needsUserActivation: ([action]) =>
-        isRecordLike(action) &&
-        action.action === 'respond-media-permission' &&
-        action.allowed === true,
+      needsUserActivation: ([action]) => {
+        if (!isRecordLike(action)) return false
+        if (action.action === 'navigate') return true
+        return (
+          (action.action === 'respond-media-permission' ||
+            action.action === 'respond-site-permission') &&
+          action.allowed === true
+        )
+      },
       handler: (sender, action, rawScope) => {
         const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
         if (
@@ -1095,7 +1172,14 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         ) {
           return
         }
-        void handlePanelAction(scope, action as BrowserPanelAction).catch(() => {})
+        const panelAction = action as BrowserPanelAction
+        if (panelAction.action === 'navigate') {
+          const destination = canonicalHttpNavigationUrl(panelAction.url)
+          if (!destination) return
+          void handlePanelAction(scope, { ...panelAction, url: destination }).catch(() => {})
+          return
+        }
+        void handlePanelAction(scope, panelAction).catch(() => {})
       },
     },
     'browser-agent:set-tab-pinned': {
@@ -1881,20 +1965,35 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         }
         let handlerArgs = args
         if (channel === 'browser-agent:execute-tool') {
+          const toolCallId = args[0]
           const requestedTool = args[1]
           const requestedScope = parseDesktopScope(args[3])
-          const authorizationBoundary = requestedScope
-            ? captureBrowserToolQueueBoundary(requestedScope)
-            : undefined
-          const authorization = await fetchDesktopToolAuthorization(event, deps, args[0])
+          if (
+            !isDesktopToolCallId(toolCallId) ||
+            typeof requestedTool !== 'string' ||
+            !isCurrentBrowserToolName(requestedTool) ||
+            !requestedScope
+          ) {
+            return {
+              ok: false,
+              error: 'This browser action is not an authorized pending Copilot tool call.',
+            }
+          }
+          const authorizationBoundary = captureBrowserToolQueueBoundary(requestedScope)
+          if (!authorizationBoundary) {
+            return {
+              ok: false,
+              error:
+                'Sim already has too many browser actions queued. Wait for earlier actions to finish.',
+            }
+          }
+          const authorization = await fetchDesktopToolAuthorization(event, deps, toolCallId)
           if (
             !authorization ||
-            !requestedScope ||
             authorization.chatId !== requestedScope ||
-            typeof requestedTool !== 'string' ||
-            authorization.toolName !== requestedTool ||
-            !isBrowserToolName(authorization.toolName)
+            authorization.toolName !== requestedTool
           ) {
+            releaseBrowserToolQueueBoundary(authorizationBoundary)
             return {
               ok: false,
               error: 'This browser action is not an authorized pending Copilot tool call.',
@@ -1902,7 +2001,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           }
           handlerArgs = [
             authorization.chatId,
-            args[0],
+            toolCallId,
             authorization.toolName,
             authorization.args,
             authorizationBoundary,

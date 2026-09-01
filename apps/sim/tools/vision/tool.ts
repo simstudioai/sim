@@ -1,8 +1,8 @@
 import { selectPreferredModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type { VisionParams, VisionResponse, VisionV2Params } from '@/tools/vision/types'
 
-export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
+export const visionTool: InternalToolConfig<VisionParams, VisionResponse> = {
   id: 'vision_tool',
   name: 'Vision Tool',
   description:
@@ -42,7 +42,7 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({ prompt: params.prompt }),
@@ -56,12 +56,7 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
           includeInlineBase64: true,
         }),
     },
-    method: 'POST',
-    url: '/api/tools/vision/analyze',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => {
+    input: (params) => {
       return {
         apiKey: params.apiKey,
         imageUrl: params.imageUrl || null,
@@ -111,7 +106,7 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
   },
 }
 
-export const visionToolV2: ToolConfig<VisionV2Params, VisionResponse> = {
+export const visionToolV2: InternalToolConfig<VisionV2Params, VisionResponse> = {
   ...visionTool,
   id: 'vision_tool_v2',
   name: 'Vision Tool',
@@ -126,9 +121,9 @@ export const visionToolV2: ToolConfig<VisionV2Params, VisionResponse> = {
     model: visionTool.params.model,
     prompt: visionTool.params.prompt,
   },
-  request: {
-    ...visionTool.request,
-    body: (params: VisionV2Params) => ({
+  operation: {
+    ...visionTool.operation,
+    input: (params: VisionV2Params) => ({
       apiKey: params.apiKey,
       imageFile: params.imageFile,
       model: params.model || 'gpt-5.2',

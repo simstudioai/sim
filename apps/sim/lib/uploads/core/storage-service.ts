@@ -1,7 +1,7 @@
 import type { Readable } from 'node:stream'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
+import { readNodeStreamToBufferWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   getStorageConfig,
   USE_BLOB_STORAGE,
@@ -482,7 +482,8 @@ export async function createMultipartUpload(options: {
  * Download a file from the configured storage provider
  */
 export async function downloadFile(options: DownloadFileOptions): Promise<Buffer> {
-  const { key, context, maxBytes } = options
+  const { key, context, maxBytes, signal } = options
+  signal?.throwIfAborted()
 
   if (context) {
     const config = getStorageConfig(context)
@@ -490,29 +491,23 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
     if (USE_BLOB_STORAGE) {
       const { downloadFromBlob } = await import('@/lib/uploads/providers/blob/client')
       const blobConfig = createBlobConfig(config)
-      return maxBytes === undefined
-        ? downloadFromBlob(key, blobConfig)
-        : downloadFromBlob(key, blobConfig, maxBytes)
+      return downloadFromBlob(key, blobConfig, maxBytes, signal)
     }
 
     if (USE_S3_STORAGE) {
       const { downloadFromS3 } = await import('@/lib/uploads/providers/s3/client')
       const s3Config = createS3Config(config)
-      return maxBytes === undefined
-        ? downloadFromS3(key, s3Config)
-        : downloadFromS3(key, s3Config, maxBytes)
+      return downloadFromS3(key, s3Config, maxBytes, signal)
     }
 
     if (USE_GCS_STORAGE) {
       const { downloadFromGcs } = await import('@/lib/uploads/providers/gcs/client')
       const gcsConfig = createGcsConfig(config)
-      return maxBytes === undefined
-        ? downloadFromGcs(key, gcsConfig)
-        : downloadFromGcs(key, gcsConfig, maxBytes)
+      return downloadFromGcs(key, gcsConfig, maxBytes, signal)
     }
   }
 
-  const { readFile, stat } = await import('fs/promises')
+  const { readFile } = await import('fs/promises')
   const { join } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
 
@@ -520,11 +515,25 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
   const filePath = join(UPLOAD_DIR_SERVER, safeKey)
 
   if (maxBytes !== undefined) {
-    const fileStats = await stat(filePath)
-    assertKnownSizeWithinLimit(fileStats.size, maxBytes, 'storage download')
+    // Bounded as the bytes arrive, the way every cloud provider branch above reads.
+    // Checking `stat` and then calling `readFile` describes the file only as of the
+    // stat, so a caller that asked for a ceiling would still get whatever the file
+    // became in between — and on a self-hosted deployment this is the same anonymous
+    // share path the cloud branches serve.
+    const { createReadStream } = await import('fs')
+    const stream = createReadStream(filePath, signal ? { signal } : undefined)
+    try {
+      return await readNodeStreamToBufferWithLimit(stream, {
+        maxBytes,
+        label: 'storage download',
+        signal,
+      })
+    } finally {
+      stream.destroy()
+    }
   }
 
-  return readFile(filePath)
+  return readFile(filePath, signal ? { signal } : undefined)
 }
 
 /**

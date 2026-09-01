@@ -2,9 +2,9 @@ import type {
   CodePipelineStopExecutionParams,
   CodePipelineStopExecutionResponse,
 } from '@/tools/codepipeline/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const stopExecutionTool: ToolConfig<
+export const stopExecutionTool: InternalToolConfig<
   CodePipelineStopExecutionParams,
   CodePipelineStopExecutionResponse
 > = {
@@ -59,13 +59,8 @@ export const stopExecutionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/codepipeline/stop-execution',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

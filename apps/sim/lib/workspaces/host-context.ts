@@ -28,7 +28,7 @@ async function resolveWorkspaceHostContextForViewer(
       ? getOrganizationSettingsAccess(hostOrganizationId, userId)
       : Promise.resolve({ role: null, isMember: false, isAdmin: false }),
   ])
-  const credentialGroupsAvailable = await isCredentialGroupsAvailable(ownerBilling)
+  const credentialGroupsAvailable = await isCredentialGroupsAvailable({ workspaceId, ownerBilling })
 
   return {
     workspace: {
@@ -36,6 +36,7 @@ async function resolveWorkspaceHostContextForViewer(
       name: access.workspace.name,
       workspaceMode: access.workspace.workspaceMode,
       billedAccountUserId: access.workspace.billedAccountUserId,
+      allowPersonalApiKeys: access.workspace.allowPersonalApiKeys,
     },
     hostOrganizationId,
     ownerBilling,

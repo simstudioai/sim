@@ -17,8 +17,22 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExpireStaleInvitations } = vi.hoisted(() => ({
+const {
+  mockExpireStaleInvitations,
+  mockGetOrgPermissionConfig,
+  mockGetUserPermissionConfig,
+  mockResolveVerifiedContext,
+} = vi.hoisted(() => ({
   mockExpireStaleInvitations: vi.fn(),
+  mockGetOrgPermissionConfig: vi.fn(),
+  mockGetUserPermissionConfig: vi.fn(),
+  mockResolveVerifiedContext: vi.fn(),
+}))
+
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfig: mockGetUserPermissionConfig,
+  getUserPermissionConfigForOrganization: mockGetOrgPermissionConfig,
+  resolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -29,6 +43,7 @@ vi.mock('@/lib/invitations/core', () => ({
   expireStalePendingInvitationsForOrganization: mockExpireStaleInvitations,
 }))
 
+import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { GET } from '@/app/api/organizations/[id]/roster/route'
 
 const mockGetSession = authMockFns.mockGetSession
@@ -61,6 +76,23 @@ describe('GET /api/organizations/[id]/roster', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockExpireStaleInvitations.mockResolvedValue(undefined)
+    mockGetOrgPermissionConfig.mockResolvedValue(null)
+  })
+
+  it('refuses a member whose permission group hides the member directory', async () => {
+    mockGetSession.mockResolvedValue(createSession({ userId: 'user-reader' }))
+    mockGetOrgPermissionConfig.mockResolvedValue({ hideOrgMemberDirectory: true })
+    queueTableRows(member, [{ role: 'member' }])
+
+    const response = await GET(
+      createMockRequest('GET', undefined, {}, 'http://localhost/api/organizations/org-1/roster'),
+      { params: Promise.resolve({ id: 'org-1' }) }
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: capabilityRefusal('organization.member_directory'),
+    })
   })
 
   it('returns a redacted roster to a target-organization member', async () => {

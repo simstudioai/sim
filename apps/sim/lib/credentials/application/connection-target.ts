@@ -1,7 +1,9 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
+import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getCredentialActorContext } from '@/lib/credentials/access'
+import { requireCredentialExecutionUserId } from '@/lib/credentials/application/authorization'
 import {
   listCredentialProviderCatalog,
   type OAuthCredentialProviderCatalogEntry,
@@ -9,6 +11,7 @@ import {
 } from '@/lib/credentials/application/provider-catalog'
 import { getWorkspaceCredential } from '@/lib/credentials/queries'
 import { credentialProviderMatchesService } from '@/lib/oauth/utils'
+import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 export interface ResolvedCredentialConnectionTarget {
@@ -39,6 +42,28 @@ export async function resolveCredentialConnectionTarget(params: {
 
   const catalog = await listCredentialProviderCatalog(principal, context)
   if (providerId) {
+    /**
+     * permission-group-enforced: credentials.personal — scope is the request's
+     * target, not a property of the operation, exactly as it is for
+     * `credentials.create`.
+     *
+     * Only this branch connects a personal account. Reconnecting re-authorizes a
+     * credential the workspace already holds, which is the very thing
+     * `disablePersonalCredentials` leaves members ("leaving only workspace-shared
+     * ones"), so gating the reconnect on it would withhold the credentials that
+     * setting mandates. The operations declare `integrations.manage`, which
+     * governs both branches; this narrower one is asserted where the act
+     * actually is personal.
+     */
+    const governedUserId = capabilityGovernedPrincipalUserId(principal)
+    if (governedUserId) {
+      await assertWorkspaceCapability(
+        governedUserId,
+        context.workspaceId,
+        'credentials.personal',
+        context.workspaceOrganizationId
+      )
+    }
     return {
       provider: requireAvailableOAuthCredentialProvider(catalog, providerId),
       providerId,
@@ -46,7 +71,7 @@ export async function resolveCredentialConnectionTarget(params: {
   }
 
   if (!credentialId) throw new Error('Credential reconnect target is missing its credential ID')
-  const userId = requirePrincipalSubjectUserId(principal)
+  const userId = requireCredentialExecutionUserId(principal)
   const targetCredentialId = credentialId
   const credential = await getWorkspaceCredential({
     workspaceId: context.workspaceId,

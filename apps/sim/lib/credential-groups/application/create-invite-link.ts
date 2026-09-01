@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -39,7 +39,9 @@ export const createCredentialGroupInviteLink = defineAuthorizedWorkspaceUseCase(
       return await createCredentialGroupInvitationLink(
         context.workspaceId,
         context.credentialGroupId,
-        requirePrincipalSubjectUserId(principal),
+        // Attribution, not authority: the delegation's admin-scoped Credential Group
+        // grant is what permits this. An actorless run records no issuer.
+        resolvePrincipalSubjectUserId(principal),
         email
       )
     } catch (error) {

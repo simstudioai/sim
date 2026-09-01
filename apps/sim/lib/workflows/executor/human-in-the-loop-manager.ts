@@ -4,8 +4,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike, omit } from '@sim/utils/object'
+import type { Edge } from '@xyflow/react'
 import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
-import type { Edge } from 'reactflow'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import {
@@ -132,6 +132,34 @@ class ResumeAdmissionError extends Error {
     super(message)
     this.name = 'ResumeAdmissionError'
   }
+}
+
+/** Matches the paused execution mode to the deployment recorded on its durable root log. */
+export function requireResumeDeploymentVersion(
+  useDraftState: unknown,
+  deploymentVersionId: string | null
+): string | undefined {
+  if (typeof useDraftState !== 'boolean') {
+    throw new ResumeAdmissionError('Execution mode is missing from the paused run', 409, false)
+  }
+  if (useDraftState) {
+    if (deploymentVersionId !== null) {
+      throw new ResumeAdmissionError(
+        'Paused draft execution cannot resume from a deployment version',
+        409,
+        false
+      )
+    }
+    return undefined
+  }
+  if (!deploymentVersionId) {
+    throw new ResumeAdmissionError(
+      'Paused deployed execution is missing its deployment version',
+      409,
+      false
+    )
+  }
+  return deploymentVersionId
 }
 
 function isPausedOutputForContext(output: unknown, contextId: string): boolean {
@@ -1011,7 +1039,7 @@ export class PauseResumeManager {
     parentExecutionId: string
     workflowId: string
     executionDeadlineAt?: Date
-  }): Promise<void> {
+  }): Promise<{ deploymentVersionId: string | null }> {
     const { parentExecutionId, workflowId, executionDeadlineAt } = args
     const [claimedExecution] = await execDb
       .update(workflowExecutionLogs)
@@ -1023,11 +1051,15 @@ export class PauseResumeManager {
           inArray(workflowExecutionLogs.status, ['pending', 'paused'])
         )
       )
-      .returning({ id: workflowExecutionLogs.id })
+      .returning({
+        id: workflowExecutionLogs.id,
+        deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
+      })
 
     if (!claimedExecution) {
       throw new ResumeAdmissionError('Execution can no longer be resumed', 409, false)
     }
+    return { deploymentVersionId: claimedExecution.deploymentVersionId }
   }
 
   private static async runResumeExecution(args: {
@@ -1057,7 +1089,7 @@ export class PauseResumeManager {
     const parentExecutionId = pausedExecution.executionId
     const executionDeadlineAt = getExecutionDeadlineAt(externalAbortSignal)
 
-    await PauseResumeManager.claimResumeExecutionLog({
+    const claimedExecution = await PauseResumeManager.claimResumeExecutionLog({
       parentExecutionId,
       workflowId: pausedExecution.workflowId,
       executionDeadlineAt,
@@ -1072,6 +1104,10 @@ export class PauseResumeManager {
 
     const serializedSnapshot = pausedExecution.executionSnapshot as SerializedSnapshot
     const baseSnapshot = ExecutionSnapshot.fromJSON(serializedSnapshot.snapshot)
+    const resumeDeploymentVersionId = requireResumeDeploymentVersion(
+      baseSnapshot.metadata.useDraftState,
+      claimedExecution.deploymentVersionId
+    )
     const billingAttribution = assertBillingAttributionSnapshot(
       baseSnapshot.metadata.billingAttribution
     )
@@ -1281,7 +1317,9 @@ export class PauseResumeManager {
         )
         if (blockLogIndex !== -1) {
           // Filter output for logging using shared utility
-          // 'resume' is redundant with url/resumeEndpoint so we filter it out
+          // 'resume' is redundant with url/resumeEndpoint so we filter it out.
+          // The type is only used to read the block's `outputs` for `hiddenFromDisplay`,
+          // and v2 inherits that map from v1 verbatim — so both versions filter alike.
           const filteredOutput = filterOutputForLog('human_in_the_loop', mergedOutput, {
             additionalHiddenKeys: ['resume'],
           })
@@ -1805,6 +1843,7 @@ export class PauseResumeManager {
         includeFileBase64: true,
         base64MaxBytes: undefined,
         abortSignal: timeoutController.signal,
+        ...(resumeDeploymentVersionId ? { resumeDeploymentVersionId } : {}),
       })
 
       if (resumeSnapshot.metadata.resumeTerminalNoop === true && result.status !== 'cancelled') {
@@ -2695,6 +2734,109 @@ export class PauseResumeManager {
     return transition.cancelled
   }
 
+  /**
+   * Finalizes only pause and resume state when a non-cancellation terminal
+   * transition wins the parent execution race. The parent log is locked and
+   * inspected but never mutated, so a late claimed resume cannot revive it.
+   * Every claimed resume must be stopped before its queue row is finalized.
+   */
+  static async finalizePausedCancellationForTerminalRun(
+    executionId: string,
+    workflowId: string,
+    stoppedResumeEntryIds: string[]
+  ): Promise<boolean> {
+    const now = new Date()
+
+    const transition = await execDb.transaction(async (tx) => {
+      const executionLog = await tx
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (executionLog?.status === 'running' || executionLog?.status === 'pending') {
+        return { finalized: false, claimedResumeEntryIds: [] as string[] }
+      }
+
+      const pausedExecution = await tx
+        .select({ id: pausedExecutions.id, status: pausedExecutions.status })
+        .from(pausedExecutions)
+        .where(
+          and(
+            eq(pausedExecutions.executionId, executionId),
+            eq(pausedExecutions.workflowId, workflowId),
+            inArray(pausedExecutions.status, ['cancelling', 'cancelled'])
+          )
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (!pausedExecution) {
+        return { finalized: true, claimedResumeEntryIds: [] as string[] }
+      }
+
+      const claimedResumeEntries = await tx
+        .select({ id: resumeQueue.id })
+        .from(resumeQueue)
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            eq(resumeQueue.pausedExecutionId, pausedExecution.id),
+            eq(resumeQueue.status, 'claimed')
+          )
+        )
+        .for('update')
+
+      const stoppedResumeEntryIdSet = new Set(stoppedResumeEntryIds)
+      if (claimedResumeEntries.some((entry) => !stoppedResumeEntryIdSet.has(entry.id))) {
+        return { finalized: false, claimedResumeEntryIds: [] as string[] }
+      }
+
+      if (pausedExecution.status !== 'cancelled') {
+        await tx
+          .update(pausedExecutions)
+          .set({ status: 'cancelled', updatedAt: now, nextResumeAt: null })
+          .where(
+            and(
+              eq(pausedExecutions.id, pausedExecution.id),
+              eq(pausedExecutions.status, 'cancelling')
+            )
+          )
+      }
+
+      await tx
+        .update(resumeQueue)
+        .set({
+          status: 'failed',
+          completedAt: now,
+          failureReason: 'Paused execution cancelled',
+        })
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            eq(resumeQueue.pausedExecutionId, pausedExecution.id),
+            inArray(resumeQueue.status, ['pending', 'claimed'])
+          )
+        )
+
+      return {
+        finalized: true,
+        claimedResumeEntryIds: claimedResumeEntries.map((entry) => entry.id),
+      }
+    })
+
+    await releaseCancelledResumeReservations(transition.claimedResumeEntryIds)
+    return transition.finalized
+  }
+
   static async blockQueuedResumesForCancellation(
     executionId: string,
     workflowId: string
@@ -2753,7 +2895,18 @@ export class PauseResumeManager {
     executionId: string,
     workflowId: string
   ): Promise<ActiveResumeCancellationTarget | null> {
-    const activeResume = await execDb
+    const activeResumes = await PauseResumeManager.getActiveResumeCancellationTargets(
+      executionId,
+      workflowId
+    )
+    return activeResumes[0] ?? null
+  }
+
+  static async getActiveResumeCancellationTargets(
+    executionId: string,
+    workflowId: string
+  ): Promise<ActiveResumeCancellationTarget[]> {
+    return await execDb
       .select({
         resumeEntryId: resumeQueue.id,
         pausedExecutionId: resumeQueue.pausedExecutionId,
@@ -2771,10 +2924,6 @@ export class PauseResumeManager {
         )
       )
       .orderBy(desc(resumeQueue.claimedAt))
-      .limit(1)
-      .then((rows) => rows[0])
-
-    return activeResume ?? null
   }
 
   static async rollbackActiveResumeCancellation(

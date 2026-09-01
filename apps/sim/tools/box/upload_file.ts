@@ -1,8 +1,8 @@
-import type { ToolConfig } from '@/tools/types'
-import type { BoxUploadFileParams, BoxUploadFileResponse } from './types'
-import { UPLOAD_FILE_OUTPUT_PROPERTIES } from './types'
+import type { BoxUploadFileParams, BoxUploadFileResponse } from '@/tools/box/types'
+import { UPLOAD_FILE_OUTPUT_PROPERTIES } from '@/tools/box/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const boxUploadFileTool: ToolConfig<BoxUploadFileParams, BoxUploadFileResponse> = {
+export const boxUploadFileTool: InternalToolConfig<BoxUploadFileParams, BoxUploadFileResponse> = {
   id: 'box_upload_file',
   name: 'Box Upload File',
   description: 'Upload a file to a Box folder',
@@ -46,13 +46,16 @@ export const boxUploadFileTool: ToolConfig<BoxUploadFileParams, BoxUploadFileRes
     },
   },
 
-  request: {
-    url: '/api/tools/box/upload',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        parentFolderId: params.parentFolderId,
+        file: params.file,
+        fileName: params.fileName,
+      }),
+    },
+    input: (params) => ({
       accessToken: params.accessToken,
       parentFolderId: params.parentFolderId,
       file: params.file,

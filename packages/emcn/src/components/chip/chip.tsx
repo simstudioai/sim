@@ -10,6 +10,7 @@ import {
 import { cva, type VariantProps } from 'class-variance-authority'
 import Link, { type LinkProps } from 'next/link'
 import { cn } from '../../lib/cn'
+import { OverflowText, overflowTextClipClass } from '../overflow-text/overflow-text'
 import {
   chipActiveSurfaceClass,
   chipContentIconClass,
@@ -68,7 +69,7 @@ const chipVariants = cva(
         border: `shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] ${chipHoverSurfaceClass} dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)]`,
       },
       active: { true: '', false: '' },
-      fullWidth: { true: 'flex', false: 'inline-flex' },
+      fullWidth: { true: 'flex w-full', false: 'inline-flex' },
     },
     compoundVariants: [
       { variant: ['default', 'filled'], active: false, className: chipHoverSurfaceClass },
@@ -114,11 +115,15 @@ function ChipContent({
   const isInverse = variant === 'primary' || variant === 'destructive'
   const iconClass = cn(chipContentIconClass, isInverse && 'text-current')
   const labelClass = cn(chipContentLabelClass, 'flex-1', isInverse && 'text-current')
+  const textLabel =
+    typeof children === 'string' || typeof children === 'number' ? String(children) : null
   return (
     <>
       {leftAdornment ?? (LeftIcon ? <LeftIcon className={iconClass} /> : null)}
-      {children != null && children !== false ? (
-        <span className={labelClass}>{children}</span>
+      {textLabel != null ? (
+        <OverflowText label={textLabel} className={labelClass} focusTarget='nearest-interactive' />
+      ) : children != null && children !== false ? (
+        <span className={cn(overflowTextClipClass, labelClass)}>{children}</span>
       ) : null}
       {RightIcon ? <RightIcon className={iconClass} /> : null}
     </>

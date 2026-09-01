@@ -10,6 +10,7 @@ import {
   ChipConfirmModal,
   ChipInput,
   cn,
+  OverflowText,
   Search,
   Skeleton,
 } from '@sim/emcn'
@@ -182,18 +183,20 @@ export function TransferOwnershipDialog({
                           </Avatar>
                           <div className='min-w-0 flex-1'>
                             <div className='flex items-center gap-2'>
-                              <span className='truncate text-[var(--text-primary)] text-small'>
-                                {m.name}
-                              </span>
+                              <OverflowText
+                                label={m.name}
+                                className='text-[var(--text-primary)] text-small'
+                              />
                               {m.role === 'admin' && (
                                 <Badge variant='gray-secondary' size='sm'>
                                   Admin
                                 </Badge>
                               )}
                             </div>
-                            <div className='truncate text-[var(--text-muted)] text-caption'>
-                              {m.email}
-                            </div>
+                            <OverflowText
+                              label={m.email}
+                              className='block text-[var(--text-muted)] text-caption'
+                            />
                           </div>
                         </button>
                       </li>

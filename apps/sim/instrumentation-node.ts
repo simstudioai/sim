@@ -294,14 +294,14 @@ async function initializeOpenTelemetry() {
     // /v1/logs). Every @sim/logger line fans out through the global Logs API
     // (see packages/logger), which the NodeSDK wires to this processor — the
     // stdout JSON lines continue to CloudWatch unchanged.
-    const logRecordProcessor = new BatchLogRecordProcessor(
-      new OTLPLogExporter({
+    const logRecordProcessor = new BatchLogRecordProcessor({
+      exporter: new OTLPLogExporter({
         url: normalizeOtlpLogsUrl(telemetryConfig.endpoint),
         headers: otlpHeaders,
         timeoutMillis: Math.min(telemetryConfig.batchSettings.exportTimeoutMillis, 10000),
         keepAlive: false,
-      })
-    )
+      }),
+    })
 
     // Must be unique per process: replicas sharing one instance id collapse
     // into a single Prometheus series, so their independent cumulative
@@ -380,6 +380,12 @@ async function initializeOpenTelemetry() {
 }
 
 export async function register() {
+  // Builds the egress policies from EGRESS_ALLOWED_HOSTS and EGRESS_ALLOWED_IP_RANGES so a
+  // malformed entry stops the process here, naming the setting, rather than surfacing as a
+  // 500 on whichever request first happens to touch an outbound path.
+  const { resolveEgressPolicy } = await import('./lib/core/security/egress/profiles')
+  resolveEgressPolicy('requestTarget')
+
   await initializeOpenTelemetry()
 
   const shutdownPostHog = async () => {

@@ -692,9 +692,8 @@ export function Tables() {
             multiSelect
             multiSelectValues={rowCountFilter}
             onMultiSelectChange={setRowCountFilter}
-            overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{rowCountDisplayLabel}</span>
-            }
+            overlayLabel={rowCountDisplayLabel}
+            overlayContent={rowCountDisplayLabel}
             showAllOption
             allOptionLabel='All'
             className='w-full'
@@ -708,9 +707,8 @@ export function Tables() {
               multiSelect
               multiSelectValues={ownerFilter}
               onMultiSelectChange={setOwnerFilter}
-              overlayContent={
-                <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
-              }
+              overlayLabel={ownerDisplayLabel}
+              overlayContent={ownerDisplayLabel}
               searchable
               searchPlaceholder='Search members...'
               showAllOption

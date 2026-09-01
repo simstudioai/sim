@@ -23,6 +23,7 @@ import { GeneratedPasswordInput } from '@/components/ui'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
 import { validateAllowlistEntry } from '@/lib/messaging/email/validation'
+import { formatInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 import {
   type AuthType,
@@ -201,7 +202,8 @@ export function ChatDeploy({
           existingChat.customizations?.welcomeMessage || 'Hi there! How can I help you today?',
         selectedOutputBlocks: Array.isArray(existingChat.outputConfigs)
           ? existingChat.outputConfigs.map(
-              (config: { blockId: string; path: string }) => `${config.blockId}_${config.path}`
+              (config: { workflowId?: string; blockId: string; path: string }) =>
+                formatInternalOutputSelector(config.blockId, config.path, config.workflowId)
             )
           : [],
         includeThinking: existingChat.includeThinking ?? false,

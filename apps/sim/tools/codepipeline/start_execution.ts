@@ -2,9 +2,9 @@ import type {
   CodePipelineStartExecutionParams,
   CodePipelineStartExecutionResponse,
 } from '@/tools/codepipeline/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const startExecutionTool: ToolConfig<
+export const startExecutionTool: InternalToolConfig<
   CodePipelineStartExecutionParams,
   CodePipelineStartExecutionResponse
 > = {
@@ -52,13 +52,8 @@ export const startExecutionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/codepipeline/start-execution',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

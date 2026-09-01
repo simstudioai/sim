@@ -1,5 +1,4 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -11,20 +10,15 @@ import {
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { authenticateManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
+import { getCredential, getOAuthToken } from '@/lib/oauth/credential-service'
 import {
-  authenticateManagedOAuthDelegation,
-  InvalidManagedOAuthDelegationError,
-} from '@/lib/credentials/application/managed-oauth-delegation'
-import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/application/resolve-managed-oauth-token'
-import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
-import { getCredential, getOAuthToken, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
-import { completeOAuthCredentialToken, resolveCredentialToken } from '@/lib/oauth/token-resolution'
-import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+  completeOAuthCredentialToken,
+  resolveCredentialAccessToken,
+} from '@/lib/oauth/token-resolution'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { getToolMetadata } from '@/tools/metadata'
 
 export const dynamic = 'force-dynamic'
 
@@ -127,139 +121,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    const resolved = credentialId ? await resolveOAuthAccountId(credentialId) : null
-    if (resolved?.credentialType === 'managed_oauth' && resolved.credentialId) {
-      const managedOAuthDelegation = parsed.data.headers?.[MANAGED_OAUTH_DELEGATION_HEADER]
-      if (!managedOAuthDelegation) {
-        return NextResponse.json(
-          {
-            code: 'MANAGED_CREDENTIAL_DELEGATION_REQUIRED',
-            error: 'Managed credentials can only be used by an authenticated workflow execution',
-          },
-          { status: 403 }
-        )
-      }
-
-      let managedOAuthPrincipal: WorkflowExecutionDelegatedPrincipal
-      try {
-        managedOAuthPrincipal = await authenticateManagedOAuthDelegation(
-          managedOAuthDelegation,
-          resolved.credentialId
-        )
-      } catch (error) {
-        if (!(error instanceof InvalidManagedOAuthDelegationError)) throw error
-        return NextResponse.json(
-          {
-            code: 'MANAGED_CREDENTIAL_DELEGATION_INVALID',
-            error: error.message,
-          },
-          { status: 401 }
-        )
-      }
-      if (!toolId) {
-        return NextResponse.json(
-          {
-            code: 'MANAGED_CREDENTIAL_TOOL_REQUIRED',
-            error: 'A tool ID is required to use a managed credential',
-          },
-          { status: 400 }
-        )
-      }
-
-      const toolMetadata = getToolMetadata(toolId)
-      if (!toolMetadata?.oauth?.required) {
-        logger.error(`[${requestId}] Tool is not configured for managed OAuth`, { toolId })
-        return NextResponse.json(
-          {
-            code: 'MANAGED_CREDENTIAL_TOOL_UNSUPPORTED',
-            error: 'This tool is not configured to use managed credentials',
-          },
-          { status: 500 }
-        )
-      }
-      const requiredScopes =
-        toolMetadata.oauth.requiredScopes ??
-        getCanonicalScopesForProvider(toolMetadata.oauth.provider)
-      if (requiredScopes.length === 0) {
-        logger.error(`[${requestId}] Tool has no trusted OAuth scope policy`, {
-          toolId,
-          providerId: toolMetadata.oauth.provider,
-        })
-        return NextResponse.json(
-          {
-            code: 'MANAGED_CREDENTIAL_TOOL_UNSUPPORTED',
-            error: 'This tool is not configured to use managed credentials',
-          },
-          { status: 500 }
-        )
-      }
-
-      try {
-        const result = await resolveManagedOAuthCredentialToken.execute({
-          principal: managedOAuthPrincipal,
-          input: {
-            credentialId: resolved.credentialId,
-            expectedProviderId: toolMetadata.oauth.provider,
-            requiredScopes,
-            toolId,
-          },
-          request,
-        })
-
-        captureServerEvent(
-          managedOAuthPrincipal.subjectUserId,
-          'credential_used',
-          {
-            credential_type: 'managed_oauth',
-            provider_id: toolMetadata.oauth.provider,
-            workspace_id: managedOAuthPrincipal.workspaceId,
-          },
-          { groups: { workspace: managedOAuthPrincipal.workspaceId } }
-        )
-
-        return NextResponse.json(
-          {
-            accessToken: result.accessToken,
-            ...(result.idToken ? { idToken: result.idToken } : {}),
-          },
-          { status: 200 }
-        )
-      } catch (error) {
-        if (error instanceof ManagedOAuthCredentialError) {
-          logger.warn(`[${requestId}] Managed OAuth credential rejected`, {
-            credentialId: resolved.credentialId,
-            code: error.code,
-          })
-          return NextResponse.json(
-            { code: error.code, error: error.message },
-            { status: error.statusCode }
-          )
-        }
-
-        const orchestrationError = asOrchestrationError(error)
-        if (orchestrationError) {
-          return NextResponse.json(
-            {
-              code: 'MANAGED_CREDENTIAL_UNAUTHORIZED',
-              error: orchestrationError.message,
-            },
-            { status: statusForOrchestrationError(orchestrationError.code) }
-          )
-        }
-        throw error
-      }
-    }
-
-    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    const result = await resolveCredentialToken(auth, {
+    const managedOAuthDelegation = parsed.data.headers?.[MANAGED_OAUTH_DELEGATION_HEADER]
+    const result = await resolveCredentialAccessToken({
       requestId,
       credentialId,
       workflowId: workflowId ?? undefined,
+      toolId,
       scopes,
       impersonateEmail,
       callerUserId,
       auditRequest: request,
-      resolvedCredential: resolved,
+      authenticate: () => checkSessionOrInternalAuth(request, { requireWorkflowId: false }),
+      resolveManagedPrincipal: managedOAuthDelegation
+        ? (managedCredentialId: string) =>
+            authenticateManagedOAuthDelegation(managedOAuthDelegation, managedCredentialId)
+        : undefined,
     })
 
     if (!result.ok) {

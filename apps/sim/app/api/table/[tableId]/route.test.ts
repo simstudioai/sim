@@ -14,6 +14,8 @@ const {
   mockUpdateTableLocks,
   mockFindActiveFolder,
   mockGetLimits,
+  mockAuthenticate,
+  mockReadTable,
 } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockDeleteTable: vi.fn(),
@@ -23,6 +25,18 @@ const {
   mockUpdateTableLocks: vi.fn(),
   mockFindActiveFolder: vi.fn(),
   mockGetLimits: vi.fn(),
+  mockAuthenticate: vi.fn(),
+  mockReadTable: vi.fn(),
+}))
+
+vi.mock('@/lib/table/api', () => ({
+  internalTableSessionOrExecutorAuth: { authenticate: mockAuthenticate },
+  internalTableErrorPolicies: {
+    concealTableAuthorization: { project: () => null },
+  },
+}))
+vi.mock('@/lib/table/application/tables', () => ({
+  readTableDetailsUseCase: { operation: { id: 'tables.read' }, execute: mockReadTable },
 }))
 
 vi.mock('@/lib/table', () => ({
@@ -54,6 +68,7 @@ vi.mock('@/app/api/table/utils', () => ({
 }))
 vi.mock('@/lib/table/wire', () => ({
   normalizeColumn: (column: unknown) => column,
+  toWireTimestamp: (value: Date) => value.toISOString(),
 }))
 
 import { GET, PATCH } from '@/app/api/table/[tableId]/route'
@@ -164,46 +179,46 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
   })
 })
 
-/**
- * Pins which auth path this route hands a Bearer token to.
- *
- * `fetchTableSchema` in `@/tools/schema-enrichers` reaches this route with a legacy
- * `type: 'internal'` token from the deprecated `buildAuthHeaders`. Only
- * `checkSessionOrInternalAuth` accepts that token; the delegation policy the sibling
- * table routes use rejects it outright. Migrating this route without moving that caller
- * to `buildExecutorDelegationHeaders` in the same change breaks every table tool on an
- * Agent block, so this fails first and names the caller.
- *
- * Scope: this pins the *route's* choice of verifier. That the legacy token is actually
- * valid for that verifier — and rejected by the delegation one — is pinned separately in
- * `@/lib/auth/internal.test.ts`. Both halves are needed; neither implies the other.
- */
-describe('GET /api/table/[tableId] executor auth pairing', () => {
+describe('GET /api/table/[tableId] application adapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
-      success: true,
-      userId: 'user-1',
-      authType: 'internal_jwt',
+    mockAuthenticate.mockResolvedValue({
+      kind: 'delegated',
+      serviceId: 'executor',
+      subjectUserId: 'user-1',
+      workspaceId: 'workspace-canonical',
+      delegationId: 'delegation-1',
+      audience: 'sim:tables',
+      issuedAt: new Date('2026-01-01'),
+      expiresAt: new Date('2026-01-02'),
     })
-    mockCheckAccess.mockResolvedValue({ ok: true, table: TABLE })
-    mockGetLimits.mockResolvedValue({ maxRowsPerTable: 1000 })
+    mockReadTable.mockResolvedValue({
+      table: {
+        ...TABLE,
+        description: null,
+        metadata: null,
+        rowCount: 0,
+        createdBy: 'user-1',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+      maxRows: 1000,
+      folderPath: '/',
+    })
   })
 
-  it('routes a Bearer token to the legacy verifier fetchTableSchema mints for', async () => {
-    const request = new NextRequest('http://localhost:3000/api/table/tbl_1?workspaceId=workspace-1')
-    request.headers.set('authorization', 'Bearer legacy-internal-token')
+  it('uses the delegated principal workspace instead of the query assertion', async () => {
+    const request = new NextRequest(
+      'http://localhost:3000/api/table/tbl_1?workspaceId=workspace-forged'
+    )
 
     const response = await GET(request, routeContext)
 
+    expect(mockReadTable).toHaveBeenCalledOnce()
     expect(response.status).toBe(200)
-    expect(hybridAuthMockFns.mockCheckSessionOrInternalAuth).toHaveBeenCalledWith(
-      expect.objectContaining({
-        headers: expect.objectContaining({ get: expect.any(Function) }),
-      }),
-      expect.anything()
-    )
-    const [forwarded] = hybridAuthMockFns.mockCheckSessionOrInternalAuth.mock.calls[0]
-    expect(forwarded.headers.get('authorization')).toBe('Bearer legacy-internal-token')
+    expect(mockReadTable.mock.calls[0][0].input).toEqual({
+      tableId: 'tbl_1',
+      workspaceId: 'workspace-canonical',
+    })
   })
 })

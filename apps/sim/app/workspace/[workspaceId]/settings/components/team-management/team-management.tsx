@@ -9,7 +9,10 @@ import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateSlug, isAdminOrOwner, type Member } from '@/lib/workspaces/organization'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   NoOrganizationView,
@@ -35,18 +38,26 @@ const logger = createLogger('TeamManagement')
 
 interface TeamManagementProps {
   organizationId: string
-  billingHref?: string
+  /**
+   * Required: organization billing is reached only through a workspace, so the
+   * caller — which knows the workspace — is the only thing that can build it.
+   */
+  billingHref: string
 }
 
-export function TeamManagement({
-  organizationId,
-  billingHref = `/organization/${organizationId}/settings/billing`,
-}: TeamManagementProps) {
+export function TeamManagement({ organizationId, billingHref }: TeamManagementProps) {
   const { data: session } = useSession()
   const { isInvitationsDisabled } = usePermissionConfig()
   const [memberQuery, setMemberQuery] = useSettingsSearch()
 
-  const { data: organization, isLoading, error: orgError } = useOrganization(organizationId)
+  const {
+    data: organization,
+    isLoading,
+    error: orgError,
+    isFetchedAfterMount: isOrganizationFetchedAfterMount,
+    isFetching: isOrganizationFetching,
+    refetch: refetchOrganization,
+  } = useOrganization(organizationId)
   /**
    * Personal billing only supports the legacy missing-organization recovery view. A valid
    * organization page derives its plan from organization billing, so avoid that unrelated read
@@ -63,12 +74,23 @@ export function TeamManagement({
 
   const adminOrOwner = isAdminOrOwner(organization, session?.user?.email)
 
-  const { data: organizationBillingData, isLoading: isOrgBillingLoading } = useOrganizationBilling(
-    organizationId,
-    { enabled: adminOrOwner }
-  )
+  const {
+    data: organizationBillingData,
+    isLoading: isOrgBillingLoading,
+    error: organizationBillingError,
+    isFetchedAfterMount: isOrganizationBillingFetchedAfterMount,
+    isFetching: isOrganizationBillingFetching,
+    refetch: refetchOrganizationBilling,
+  } = useOrganizationBilling(organizationId, { enabled: adminOrOwner })
 
-  const { data: roster, isLoading: isLoadingRoster } = useOrganizationRoster(organizationId)
+  const {
+    data: roster,
+    isLoading: isLoadingRoster,
+    error: rosterError,
+    isFetchedAfterMount: isRosterFetchedAfterMount,
+    isFetching: isRosterFetching,
+    refetch: refetchRoster,
+  } = useOrganizationRoster(organizationId)
 
   const removeMemberMutation = useRemoveMember()
   const transferOwnershipMutation = useTransferOwnership()
@@ -283,16 +305,22 @@ export function TeamManagement({
 
   const displayOrganization = organization
 
-  if (isLoading && !displayOrganization) {
+  if (isLoading && !isOrganizationFetchedAfterMount && !displayOrganization) {
     return null
   }
 
-  if (orgError && !displayOrganization) {
+  if (
+    (orgError || (isOrganizationFetching && isOrganizationFetchedAfterMount)) &&
+    !displayOrganization
+  ) {
     return (
       <SettingsPanel>
-        <SettingsEmptyState tone='error'>
-          {getErrorMessage(orgError, 'Failed to load organization')}
-        </SettingsEmptyState>
+        <SettingsQueryErrorState
+          error={orgError}
+          fallback='Failed to load organization'
+          isRetrying={isOrganizationFetching}
+          onRetry={() => void refetchOrganization()}
+        />
       </SettingsPanel>
     )
   }
@@ -346,27 +374,51 @@ export function TeamManagement({
             : []
         }
       >
-        {adminOrOwner && (
-          <TeamSeatsOverview
-            billingHref={billingHref}
-            subscriptionData={orgSubscription}
-            isLoadingSubscription={isOrgBillingLoading}
-            totalSeats={totalSeats}
-            usedSeats={usedSeats}
-            pendingSeats={pendingSeats}
+        {adminOrOwner &&
+          ((organizationBillingError ||
+            (isOrganizationBillingFetching && isOrganizationBillingFetchedAfterMount)) &&
+          organizationBillingData === undefined ? (
+            <SettingsQueryErrorState
+              error={organizationBillingError}
+              fallback='Failed to load seat information'
+              isRetrying={isOrganizationBillingFetching}
+              onRetry={() => void refetchOrganizationBilling()}
+              variant='inline'
+            />
+          ) : (
+            <TeamSeatsOverview
+              billingHref={billingHref}
+              subscriptionData={orgSubscription}
+              isLoadingSubscription={isOrgBillingLoading}
+              totalSeats={totalSeats}
+              usedSeats={usedSeats}
+              pendingSeats={pendingSeats}
+            />
+          ))}
+
+        {isLoadingRoster && !isRosterFetchedAfterMount ? (
+          <SettingsEmptyState variant='inline'>Loading members…</SettingsEmptyState>
+        ) : (rosterError || (isRosterFetching && isRosterFetchedAfterMount)) &&
+          roster === undefined ? (
+          <SettingsQueryErrorState
+            error={rosterError}
+            fallback='Failed to load organization members'
+            isRetrying={isRosterFetching}
+            onRetry={() => void refetchRoster()}
+            variant='inline'
+          />
+        ) : (
+          <OrganizationMemberLists
+            canManage={adminOrOwner}
+            organizationId={displayOrganization.id}
+            roster={roster ?? null}
+            isLoadingRoster={false}
+            currentUserId={session?.user?.id ?? ''}
+            query={memberQuery}
+            onRemoveMember={handleRemoveMember}
+            onTransferOwnership={handleOpenTransferDialog}
           />
         )}
-
-        <OrganizationMemberLists
-          canManage={adminOrOwner}
-          organizationId={displayOrganization.id}
-          roster={roster ?? null}
-          isLoadingRoster={isLoadingRoster}
-          currentUserId={session?.user?.id ?? ''}
-          query={memberQuery}
-          onRemoveMember={handleRemoveMember}
-          onTransferOwnership={handleOpenTransferDialog}
-        />
       </SettingsPanel>
 
       {adminOrOwner && (

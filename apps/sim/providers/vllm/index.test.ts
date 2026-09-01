@@ -189,9 +189,11 @@ describe('vllmProvider', () => {
       expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
         'https://my-vllm.example.com',
         'vLLM endpoint',
-        { allowHttp: true }
+        'selfHostedService'
       )
-      expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
+      expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10', {
+        profile: 'selfHostedService',
+      })
       expect(openAIArgs[0].baseURL).toBe('https://my-vllm.example.com/v1')
       expect(openAIArgs[0].fetch).toBe(pinnedFetchFn)
     })
@@ -208,7 +210,7 @@ describe('vllmProvider', () => {
       expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
         'https://my-vllm.example.com/v1',
         'vLLM endpoint',
-        { allowHttp: true }
+        'selfHostedService'
       )
       expect(openAIArgs[0].baseURL).toBe('https://my-vllm.example.com/v1')
       expect(openAIArgs[0].fetch).toBe(pinnedFetchFn)
@@ -227,22 +229,6 @@ describe('vllmProvider', () => {
           azureEndpoint: 'http://169.254.169.254',
         })
       ).rejects.toThrow('Invalid vLLM endpoint')
-
-      expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
-      expect(openAIArgs).toHaveLength(0)
-      expect(mockCreate).not.toHaveBeenCalled()
-    })
-
-    it('rejects a validated endpoint that did not resolve to a pinnable IP', async () => {
-      mockValidateUrlWithDNS.mockResolvedValueOnce({ isValid: true })
-
-      await expect(
-        vllmProvider.executeRequest({
-          model: 'vllm/llama-3',
-          messages: [{ role: 'user', content: 'hi' }],
-          azureEndpoint: 'https://my-vllm.example.com',
-        })
-      ).rejects.toThrow('could not resolve a pinnable IP address')
 
       expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
       expect(openAIArgs).toHaveLength(0)

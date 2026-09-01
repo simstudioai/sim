@@ -1,7 +1,10 @@
 import type { AsanaCreateTaskParams, AsanaCreateTaskResponse } from '@/tools/asana/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const asanaCreateTaskTool: ToolConfig<AsanaCreateTaskParams, AsanaCreateTaskResponse> = {
+export const asanaCreateTaskTool: InternalToolConfig<
+  AsanaCreateTaskParams,
+  AsanaCreateTaskResponse
+> = {
   id: 'asana_create_task',
   name: 'Asana Create Task',
   description: 'Create a new task in Asana',
@@ -51,13 +54,8 @@ export const asanaCreateTaskTool: ToolConfig<AsanaCreateTaskParams, AsanaCreateT
     },
   },
 
-  request: {
-    url: '/api/tools/asana/create-task',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       workspace: params.workspace,
       name: params.name,

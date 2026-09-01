@@ -1,7 +1,7 @@
 import type { AgiloftAsyncStatusParams, AgiloftAsyncStatusResponse } from '@/tools/agiloft/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const agiloftAsyncStatusTool: ToolConfig<
+export const agiloftAsyncStatusTool: InternalToolConfig<
   AgiloftAsyncStatusParams,
   AgiloftAsyncStatusResponse
 > = {
@@ -50,12 +50,8 @@ export const agiloftAsyncStatusTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/agiloft/async_status',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       instanceUrl: params.instanceUrl,
       knowledgeBase: params.knowledgeBase,
       login: params.login,

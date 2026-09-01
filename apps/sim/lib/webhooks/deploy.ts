@@ -27,6 +27,11 @@ import {
   type StableDesiredWebhookRegistration,
 } from '@/lib/webhooks/registration-service'
 import { LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE } from '@/lib/webhooks/slack-custom-ingress-constants'
+import {
+  isSlackStreamResponseRequested,
+  normalizeSlackStreamResponseConfig,
+  replaceSlackStreamAuthoringConfig,
+} from '@/lib/webhooks/slack-stream-config'
 import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
 import {
   buildCanonicalIndex,
@@ -335,6 +340,7 @@ export async function resolveTriggerCredentialId(
  */
 export async function resolveWebhookConfigForBlock(input: {
   block: BlockState
+  blocks: Record<string, BlockState>
   workflow: Record<string, unknown>
   userId: string
   requestId: string
@@ -440,6 +446,20 @@ export async function resolveWebhookConfigForBlock(input: {
           },
         }
       }
+      try {
+        replaceSlackStreamAuthoringConfig(
+          providerConfig,
+          normalizeSlackStreamResponseConfig(providerConfig, input.blocks)
+        )
+      } catch (error) {
+        return {
+          success: false,
+          error: {
+            message: getErrorMessage(error, 'Invalid Slack stream configuration.'),
+            status: 400,
+          },
+        }
+      }
       effectiveProvider = 'slack'
       effectivePath = null
       routingKey = slackCredentialId
@@ -488,6 +508,15 @@ export async function resolveWebhookConfigForBlock(input: {
           error: {
             message:
               'The Sim Slack app trigger is disabled for this deployment. Select a custom bot.',
+            status: 400,
+          },
+        }
+      }
+      if (isSlackStreamResponseRequested(providerConfig)) {
+        return {
+          success: false,
+          error: {
+            message: 'Streaming Slack trigger responses require a custom bot.',
             status: 400,
           },
         }
@@ -660,14 +689,15 @@ export async function resolveWebhookConfigForBlock(input: {
 async function configurePollingIfNeeded(
   provider: string,
   savedWebhook: Record<string, unknown>,
-  requestId: string
+  requestId: string,
+  actor: { userId: string; workspaceId: string | null; deploymentVersionId?: string | null }
 ): Promise<TriggerSaveError | null> {
   const handler = getProviderHandler(provider)
   if (!handler.configurePolling) {
     return null
   }
 
-  const success = await handler.configurePolling({ webhook: savedWebhook, requestId })
+  const success = await handler.configurePolling({ webhook: savedWebhook, requestId, ...actor })
   if (!success) {
     await db.delete(webhook).where(eq(webhook.id, savedWebhook.id as string))
     return {
@@ -720,6 +750,7 @@ export async function prepareStableTriggerWebhooksForDeploy({
     signal?.throwIfAborted()
     const resolved = await resolveWebhookConfigForBlock({
       block,
+      blocks,
       workflow,
       userId,
       requestId,
@@ -829,6 +860,7 @@ export async function saveTriggerWebhooksForDeploy({
   for (const block of triggerBlocks) {
     const resolved = await resolveWebhookConfigForBlock({
       block,
+      blocks,
       workflow,
       userId,
       requestId,
@@ -1058,7 +1090,12 @@ export async function saveTriggerWebhooksForDeploy({
       const pollingError = await configurePollingIfNeeded(
         sub.provider,
         { id: sub.webhookId, path: sub.triggerPath, providerConfig: sub.updatedProviderConfig },
-        requestId
+        requestId,
+        {
+          userId,
+          workspaceId: typeof workflow.workspaceId === 'string' ? workflow.workspaceId : null,
+          deploymentVersionId,
+        }
       )
       if (pollingError) {
         logger.error(

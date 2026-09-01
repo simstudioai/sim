@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   isDeploymentAvailable: vi.fn(() => true),
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mocks.getUserPermissionConfig,
 }))
 
@@ -29,6 +29,13 @@ vi.mock('@/lib/integrations/availability.server', () => ({
 }))
 
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
+
+/**
+ * The projection under test reads real tool params and outputs, which the global
+ * `@/tools/metadata` and `@/tools/metadata-outputs` mocks in vitest.setup.ts empty.
+ */
+vi.unmock('@/tools/metadata')
+vi.unmock('@/tools/metadata-outputs')
 
 interface AgentBlockMetadata {
   blockType: string

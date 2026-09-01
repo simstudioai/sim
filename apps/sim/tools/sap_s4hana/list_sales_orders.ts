@@ -1,13 +1,8 @@
-import type { ListSalesOrdersParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
-import {
-  baseProxyBody,
-  buildOdataQuery,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
-} from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ListSalesOrdersParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
+import { buildOdataQuery, buildSapOperationBaseInput } from '@/tools/sap_s4hana/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listSalesOrdersTool: ToolConfig<ListSalesOrdersParams, SapProxyResponse> = {
+export const listSalesOrdersTool: InternalToolConfig<ListSalesOrdersParams, SapS4HanaResponse> = {
   id: 'sap_s4hana_list_sales_orders',
   name: 'SAP S/4HANA List Sales Orders',
   description:
@@ -112,19 +107,15 @@ export const listSalesOrdersTool: ToolConfig<ListSalesOrdersParams, SapProxyResp
       description: 'Comma-separated navigation properties to expand (e.g., "to_Item,to_Partner")',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...buildSapOperationBaseInput(params),
       service: 'API_SALES_ORDER_SRV',
       path: '/A_SalesOrder',
       method: 'GET',
       query: buildOdataQuery(params),
     }),
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {

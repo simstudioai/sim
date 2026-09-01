@@ -3,9 +3,9 @@ import type {
   OnePasswordUpdateItemResponse,
 } from '@/tools/onepassword/types'
 import { FULL_ITEM_OUTPUTS, transformFullItem } from '@/tools/onepassword/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateItemTool: ToolConfig<
+export const updateItemTool: InternalToolConfig<
   OnePasswordUpdateItemParams,
   OnePasswordUpdateItemResponse
 > = {
@@ -59,11 +59,8 @@ export const updateItemTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/onepassword/update-item',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       connectionMode: params.connectionMode,
       serviceAccountToken: params.serviceAccountToken,
       serverUrl: params.serverUrl,

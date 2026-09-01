@@ -134,7 +134,7 @@ vi.mock('@/lib/integrations/availability.server', () => ({
   isOAuthServiceDeploymentAvailable: mockIsOAuthServiceDeploymentAvailable,
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mockGetUserPermissionConfig,
 }))
 

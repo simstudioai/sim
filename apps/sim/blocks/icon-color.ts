@@ -4,7 +4,7 @@
  * these without pulling 282 block configs and the tool registry into its bundle.
  * Registry-backed icon styling lives in `@/blocks/brand-icon`.
  */
-import { isLightColor } from '@/lib/colors'
+import { perceivedBackgroundBrightness } from '@sim/utils/color'
 
 /**
  * Brightness above which a brand tile is "clearly light" and a white foreground
@@ -18,11 +18,12 @@ const LIGHT_TILE_THRESHOLD = 0.75
 
 /**
  * True when a block's {@link BlockConfig.bgColor} tile is light enough that a
- * white foreground icon would wash out. Gradients and unknown values are
- * treated as dark (the common case for brand tiles).
+ * white foreground icon would wash out. Gradients use the average brightness
+ * of their supported color stops; unknown values are treated as dark.
  */
 export function isLightTileColor(bgColor: string | null | undefined): boolean {
-  return Boolean(bgColor) && isLightColor(bgColor as string, LIGHT_TILE_THRESHOLD)
+  const brightness = bgColor ? perceivedBackgroundBrightness(bgColor) : null
+  return brightness !== null && brightness > LIGHT_TILE_THRESHOLD
 }
 
 /**

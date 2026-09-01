@@ -58,7 +58,7 @@ export function SubBlockRowView({
       <InlineChip>
         <OverflowSpan
           value={displayValue ?? title}
-          className={cn('min-w-0 truncate', isMonospace && 'font-mono')}
+          className={cn('min-w-0', isMonospace && 'font-mono')}
           codePreview={codePreview}
         />
       </InlineChip>
@@ -70,7 +70,7 @@ export function SubBlockRowView({
       <OverflowSpan
         value={displayValue ?? title}
         className={cn(
-          'min-w-0 truncate text-sm',
+          'min-w-0 text-sm',
           variant === 'statement-primary'
             ? 'font-medium text-[var(--text-primary)]'
             : 'text-[var(--text-muted)]'
@@ -86,7 +86,7 @@ export function SubBlockRowView({
         <OverflowSpan
           value={displayValue ?? '-'}
           className={cn(
-            'min-w-0 flex-1 truncate text-left text-[var(--text-primary)] text-sm',
+            'min-w-0 flex-1 text-left text-[var(--text-primary)] text-sm',
             isMonospace && 'font-mono'
           )}
         />
@@ -99,7 +99,7 @@ export function SubBlockRowView({
       <div className='flex items-center'>
         <OverflowSpan
           value={title}
-          className='min-w-0 truncate text-[var(--text-muted)] text-sm capitalize'
+          className='min-w-0 text-[var(--text-muted)] text-sm capitalize'
         />
       </div>
     )
@@ -109,17 +109,16 @@ export function SubBlockRowView({
     <div className='flex h-5 items-center gap-2'>
       <OverflowSpan
         value={title}
-        className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
+        className='min-w-0 text-[var(--text-tertiary)] text-sm capitalize'
       />
       {displayValue !== undefined && (
-        <span
+        <OverflowSpan
+          value={displayValue}
           className={cn(
-            'flex-1 truncate text-right text-[var(--text-primary)] text-sm',
+            'flex-1 text-right text-[var(--text-primary)] text-sm',
             isMonospace && 'font-mono'
           )}
-        >
-          {displayValue}
-        </span>
+        />
       )}
     </div>
   )

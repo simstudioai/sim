@@ -1,4 +1,4 @@
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import type { OutputFieldDefinition, SubBlockType } from './blocks'
 
 export const SUBFLOW_TYPES = {

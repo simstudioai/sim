@@ -26,8 +26,16 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getScopeDescription, getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import {
+  MicrosoftDataverseEnvironmentField,
+  useMicrosoftDataverseEnvironmentForm,
+} from '@/app/workspace/[workspaceId]/components/connect-oauth-modal/microsoft-dataverse-environment'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import { useCreateCredentialDraft, useWorkspaceCredentials } from '@/hooks/queries/credentials'
+import {
+  assertMicrosoftDataverseWebOAuthAvailable,
+  useConnectMicrosoftDataverseOAuthService,
+} from '@/hooks/queries/oauth/microsoft-dataverse-connections'
 import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
 
 const logger = createLogger('ConnectOAuthModal')
@@ -85,6 +93,10 @@ interface ConnectOAuthModalBaseProps {
   /** Used to resolve display metadata and the provider id when not supplied directly. */
   provider?: OAuthProvider
   serviceId?: string
+  /** Enables the environment-bound Dynamics 365 OAuth flow. Legacy Dataverse callers omit it. */
+  requireDataverseEnvironment?: boolean
+  /** Locks an environment-bound connection to the workflow or credential's selected environment. */
+  dataverseEnvironmentUrl?: string
 }
 
 /**
@@ -162,6 +174,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
 
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
   const providerId = selectedProviderId ?? declaredProviderId
+  const requiredScopes = props.requiredScopes ?? EMPTY_SCOPES
 
   const [displayName, setDisplayName] = useState('')
   const [description, setDescription] = useState('')
@@ -186,6 +199,14 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
   })
   const createDraft = useCreateCredentialDraft()
   const connectOAuthService = useConnectOAuthService()
+  const connectMicrosoftDataverseOAuthService = useConnectMicrosoftDataverseOAuthService()
+  const dataverseEnvironmentForm = useMicrosoftDataverseEnvironmentForm({
+    fallbackScopes: requiredScopes,
+    lockedEnvironmentUrl: props.dataverseEnvironmentUrl,
+    open,
+    providerId,
+    required: props.requireDataverseEnvironment === true,
+  })
 
   /**
    * Lowercased set of OAuth credential names already in the workspace. Drives
@@ -201,25 +222,22 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     [credentials]
   )
 
-  const requiredScopes = props.requiredScopes ?? EMPTY_SCOPES
   const newScopes = !isConnect ? (props.newScopes ?? EMPTY_SCOPES) : EMPTY_SCOPES
 
-  const newScopesSet = useMemo(
-    () => new Set([...newScopes].filter((scope) => !isHiddenScope(scope))),
-    [newScopes]
+  const newScopesSet = new Set(newScopes.filter((scope) => !isHiddenScope(scope)))
+  const displayScopes = [...dataverseEnvironmentForm.effectiveScopes].filter(
+    (scope) => !isHiddenScope(scope)
   )
 
-  const displayScopes = useMemo(() => {
-    const filtered = [...requiredScopes].filter((scope) => !isHiddenScope(scope))
-    if (isConnect) return filtered
-    return filtered.sort((a, b) => {
+  if (!isConnect) {
+    displayScopes.sort((a, b) => {
       const aIsNew = newScopesSet.has(a)
       const bIsNew = newScopesSet.has(b)
       if (aIsNew && !bIsNew) return -1
       if (!aIsNew && bIsNew) return 1
       return 0
     })
-  }, [isConnect, requiredScopes, newScopesSet])
+  }
 
   /**
    * Initialize the connect form once per open session, after credentials have
@@ -261,6 +279,10 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     setValidationError(null)
     setSubmitError(null)
     try {
+      const environmentUrl = dataverseEnvironmentForm.validate()
+      if (dataverseEnvironmentForm.enabled && !environmentUrl) return
+      if (environmentUrl) assertMicrosoftDataverseWebOAuthAvailable()
+
       let connectorType: string | undefined
       let draftId: string | undefined
 
@@ -343,11 +365,19 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
         callbackURL.searchParams.set(ADD_CONNECTOR_SEARCH_PARAM, connectorType)
       }
 
-      await connectOAuthService.mutateAsync({
-        providerId,
-        callbackURL: callbackURL.toString(),
-        draftId,
-      })
+      if (environmentUrl) {
+        await connectMicrosoftDataverseOAuthService.mutateAsync({
+          callbackURL: callbackURL.toString(),
+          draftId,
+          environmentUrl,
+        })
+      } else {
+        await connectOAuthService.mutateAsync({
+          providerId,
+          callbackURL: callbackURL.toString(),
+          draftId,
+        })
+      }
       handleClose()
     } catch (err: unknown) {
       const message = getErrorMessage(err, 'Failed to start OAuth connection')
@@ -357,10 +387,16 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
   }
 
   const createsDraft = isConnect || (!isConnect && Boolean(props.reconnectTarget))
-  const isPending = (createsDraft && createDraft.isPending) || connectOAuthService.isPending
+  const isPending =
+    (createsDraft && createDraft.isPending) ||
+    connectOAuthService.isPending ||
+    connectMicrosoftDataverseOAuthService.isPending
   const isDisabled = isConnect
-    ? !displayName.trim() || isPending || Boolean(existingCredential)
-    : isPending
+    ? !displayName.trim() ||
+      !dataverseEnvironmentForm.isComplete ||
+      isPending ||
+      Boolean(existingCredential)
+    : !dataverseEnvironmentForm.isComplete || isPending
 
   const displayNameError =
     validationError ??
@@ -412,6 +448,8 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
             error={displayNameError}
           />
         )}
+
+        <MicrosoftDataverseEnvironmentField form={dataverseEnvironmentForm} />
 
         {isConnect && (
           <ChipModalField

@@ -10,6 +10,10 @@ import { defineWorkspaceOperation } from '@/lib/core/application'
  * by its own id; the resource and its policy are the same either way, so the
  * operation is too.
  *
+ * Every one declares `deploy.chat`, the capability behind `hideDeployChatbot`.
+ * `list` takes it too: a group with the chat deployment surface withheld should
+ * not still be told which workflows are published on it.
+ *
  * `workflows.chat.deploy` and `workflows.chat.undeploy` remain the entry points
  * for the surfaces that name a workflow and ask for it to be published — the
  * internal deploy route and the Copilot tool. They converge on the same domain
@@ -42,30 +46,35 @@ export const chatDeploymentOperations = {
     id: 'chat_deployments.list',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
+    capability: 'deploy.chat',
     ...CHAT_DEPLOYMENT_LIST_POLICY,
   }),
   replace: defineWorkspaceOperation({
     id: 'chat_deployments.replace',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.chat',
     ...CHAT_DEPLOYMENT_ADMIN_POLICY,
   }),
   read: defineWorkspaceOperation({
     id: 'chat_deployments.read',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.chat',
     ...CHAT_DEPLOYMENT_ADMIN_POLICY,
   }),
   update: defineWorkspaceOperation({
     id: 'chat_deployments.update',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.chat',
     ...CHAT_DEPLOYMENT_ADMIN_POLICY,
   }),
   delete: defineWorkspaceOperation({
     id: 'chat_deployments.delete',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'deploy.chat',
     ...CHAT_DEPLOYMENT_ADMIN_POLICY,
   }),
 } as const

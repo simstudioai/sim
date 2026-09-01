@@ -6,6 +6,11 @@ import { getJobQueue } from '@/lib/core/async-jobs'
 import type { Job } from '@/lib/core/async-jobs/types'
 import { materializeExecutionDataForDisplayWithBlockOutputs } from '@/lib/logs/execution/trace-store'
 import {
+  type LogFieldProjection,
+  projectCostTotal,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
+import {
   RESUME_EXECUTION_JOB_ID_PREFIX,
   WORKFLOW_EXECUTION_JOB_ID_PREFIX,
 } from '@/lib/workflows/executor/execution-job-ids'
@@ -120,9 +125,100 @@ export interface GetWorkflowExecutionStatusInput {
   executionId: string
   includeOutput: boolean
   selectedOutputs: string[]
+  /**
+   * The workspace the caller already authorized against. Passed in rather than
+   * read off the log row because this resource also answers from the job queue,
+   * for a run that has no log row yet — and that branch must be projected too.
+   */
+  workspaceId: string
+  /**
+   * The user whose permission group governs the projection, or `null`/`undefined`
+   * when none does — a workspace API key (which authorizes as the workspace and
+   * whose reported user is only the key's creator) and an executor delegation
+   * (which carries a role but no capabilities) both read whole.
+   *
+   * Required rather than optional on purpose: a new consumer of this read has to
+   * name its subject to compile, instead of silently inheriting an unprojected
+   * response.
+   */
+  viewerUserId: string | null | undefined
+  /** The workspace's organization, when the caller already loaded it. */
+  workspaceOrganizationId?: string | null
 }
 
+/**
+ * Applies a viewer's log projection to a run-detail resource.
+ *
+ * `finalOutput` and `blockOutputs` are the run-shaped spellings of `finalOutput`
+ * and `blockExecutions` on the withheld list in `withheldExecutionData` — the
+ * same per-block execution detail the log-detail path strips — so
+ * `logs.trace_spans` withholds them here too. A caller that could still name a
+ * block in `selectedOutputs` and get its output back would read exactly what the
+ * detail surface refuses, one query parameter later.
+ *
+ * `status`, `error` and the timings stay: these are projections, not gates, and
+ * withholding whether a run failed is not what the two capabilities restrict.
+ *
+ * permission-group-enforced: logs.trace_spans
+ * permission-group-enforced: logs.cost
+ */
+function projectExecutionStatus(
+  status: WorkflowExecutionStatusResponse,
+  projection: LogFieldProjection
+): WorkflowExecutionStatusResponse {
+  if (!projection.hideCostInfo && !projection.hideTraceSpans) return status
+  return {
+    ...status,
+    cost: projectCostTotal(status.cost?.total ?? null, projection),
+    finalOutput: projection.hideTraceSpans ? null : status.finalOutput,
+    blockOutputs: projection.hideTraceSpans ? null : status.blockOutputs,
+  }
+}
+
+/** A projected status resource together with the projection that produced it. */
+export interface ProjectedWorkflowExecutionStatus {
+  status: WorkflowExecutionStatusResponse
+  projection: LogFieldProjection
+}
+
+/**
+ * Reads the execution status resource, projected for the viewer, and reports
+ * the projection alongside it.
+ *
+ * Projection lives in this shared read rather than in each of its route
+ * adapters so the rule has one copy and the next consumer inherits it, and it
+ * runs after the caller's authorization, on whichever branch answered.
+ *
+ * The projection is returned rather than kept private because a caller that
+ * appends more of the run's execution data to this resource has to withhold it
+ * on the same terms — a run's output *files* are the clearest case. Deriving
+ * that answer from the applied projection is what keeps the two from drifting;
+ * resolving the viewer's group a second time would be a second copy of the rule.
+ */
+export async function getProjectedWorkflowExecutionStatus(
+  input: GetWorkflowExecutionStatusInput
+): Promise<ProjectedWorkflowExecutionStatus | null> {
+  const status = await readWorkflowExecutionStatus(input)
+  if (!status) return null
+  const projection = await resolveLogFieldProjection(
+    input.viewerUserId,
+    input.workspaceId,
+    input.workspaceOrganizationId
+  )
+  return { status: projectExecutionStatus(status, projection), projection }
+}
+
+/**
+ * The projected status resource alone, for a caller that renders nothing beyond
+ * it.
+ */
 export async function getWorkflowExecutionStatus(
+  input: GetWorkflowExecutionStatusInput
+): Promise<WorkflowExecutionStatusResponse | null> {
+  return (await getProjectedWorkflowExecutionStatus(input))?.status ?? null
+}
+
+async function readWorkflowExecutionStatus(
   input: GetWorkflowExecutionStatusInput
 ): Promise<WorkflowExecutionStatusResponse | null> {
   const { workflowId, executionId, includeOutput, selectedOutputs } = input

@@ -1,8 +1,8 @@
 /**
  * Generate the static docs manifest the copilot's `docs/` VFS tree is built from.
  *
- * Source of truth: `apps/docs/content/docs/en/**\/*.mdx` — the English docs
- * corpus, whose folder structure mirrors the public docs.sim.ai URL structure.
+ * Source of truth: `apps/docs/content/docs/**\/*.mdx` — the docs corpus,
+ * whose folder structure mirrors the public docs.sim.ai URL structure.
  * The copilot never reads those files from disk (they are not deployed with
  * `apps/sim`); it globs this manifest for structure and fetches page content
  * from the live site on demand. That makes the manifest the one thing that can
@@ -16,9 +16,8 @@
  *                                     is a 404 on the site)
  *
  * Excluded, and intentionally absent from the VFS: every section in
- * `UNMOUNTED_DOCS_SECTIONS` (fetch those with the scrape tool if ever needed),
- * the root `index.mdx` (its URL is `/`, which redirects), and every non-`en`
- * locale.
+ * `UNMOUNTED_DOCS_SECTIONS` (fetch those with the scrape tool if ever needed)
+ * and the root `index.mdx` (its URL is `/`, which redirects).
  *
  * Usage:
  *   bun run docs-manifest:generate   # write the manifest
@@ -32,7 +31,7 @@ import { formatGeneratedSource } from './format-generated-source'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
-const DOCS_CONTENT_DIR = resolve(ROOT, 'apps/docs/content/docs/en')
+const DOCS_CONTENT_DIR = resolve(ROOT, 'apps/docs/content/docs')
 const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/docs-manifest.ts')
 
 /**
@@ -68,7 +67,7 @@ function render(paths: string[]): string {
   const entries = paths.map((path) => `  '${path}',`).join('\n')
   return `/**
  * AUTO-GENERATED FILE. DO NOT EDIT.
- * Generated from apps/docs/content/docs/en by scripts/sync-docs-manifest.ts.
+ * Generated from apps/docs/content/docs by scripts/sync-docs-manifest.ts.
  * Run: bun run docs-manifest:generate.
  *
  * Every page in the copilot's read-only \`docs/\` VFS tree, as a path that is

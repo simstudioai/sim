@@ -137,6 +137,7 @@ describe('replaceWorkflowState', () => {
     })
 
     expect(mocks.replace).toHaveBeenCalledWith({
+      subjectUserId: 'user-1',
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
       attributedUserId: 'user-1',

@@ -1,14 +1,15 @@
-import type { GetSupplierInvoiceParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
+import type { GetSupplierInvoiceParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
 import {
-  baseProxyBody,
   buildEntityQuery,
+  buildSapOperationBaseInput,
   quoteOdataKey,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
 } from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getSupplierInvoiceTool: ToolConfig<GetSupplierInvoiceParams, SapProxyResponse> = {
+export const getSupplierInvoiceTool: InternalToolConfig<
+  GetSupplierInvoiceParams,
+  SapS4HanaResponse
+> = {
   id: 'sap_s4hana_get_supplier_invoice',
   name: 'SAP S/4HANA Get Supplier Invoice',
   description:
@@ -101,19 +102,15 @@ export const getSupplierInvoiceTool: ToolConfig<GetSupplierInvoiceParams, SapPro
       description: 'Comma-separated navigation properties to expand ($expand)',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...buildSapOperationBaseInput(params),
       service: 'API_SUPPLIERINVOICE_PROCESS_SRV',
       path: `/A_SupplierInvoice(SupplierInvoice=${quoteOdataKey(params.supplierInvoice)},FiscalYear=${quoteOdataKey(params.fiscalYear)})`,
       method: 'GET',
       query: buildEntityQuery(params),
     }),
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {

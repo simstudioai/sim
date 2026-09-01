@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-27",
+  "updatedAt": "2026-09-01",
   "integrations": [
     {
       "type": "onepassword",
@@ -1392,7 +1392,7 @@
       "slug": "ashby",
       "name": "Ashby",
       "description": "Manage candidates, jobs, and applications in Ashby",
-      "longDescription": "Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag, anonymize), applications (list, get, create, delete, change stage, change source), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), custom field values (set one or many), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).",
+      "longDescription": "Integrate Ashby into the workflow. Manage and search candidates, applications, jobs, users, and openings; transfer applications; upload resumes and candidate files; read application history and interview feedback; manage offers, notes, tags, stages, sources, and custom fields; and react to hiring lifecycle webhooks.",
       "bgColor": "#5D4ED6",
       "iconName": "AshbyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/ashby",
@@ -1528,14 +1528,63 @@
         {
           "name": "List Interviews",
           "description": "Lists interview schedules in Ashby, optionally filtered by application or interview stage."
+        },
+        {
+          "name": "List Interview Plans",
+          "description": "Lists Ashby interview plans, including optional archived plans and incremental changes."
+        },
+        {
+          "name": "List Interview Stages",
+          "description": "Lists the ordered stages in an Ashby interview plan."
+        },
+        {
+          "name": "List Application Feedback",
+          "description": "Lists submitted interview feedback, optionally for one application, with pagination and incremental sync."
+        },
+        {
+          "name": "List Application History",
+          "description": "Lists the full stage history and allowed actions for an application."
+        },
+        {
+          "name": "Search Jobs",
+          "description": "Searches Ashby jobs by title and/or requisition ID. Provide at least one of these filters."
+        },
+        {
+          "name": "Search Users",
+          "description": "Searches Ashby users by exact email address."
+        },
+        {
+          "name": "Get Opening",
+          "description": "Retrieves one Ashby headcount opening by UUID."
+        },
+        {
+          "name": "Search Openings",
+          "description": "Searches Ashby headcount openings by human-readable identifier."
+        },
+        {
+          "name": "Transfer Application",
+          "description": "Transfers an application to another job, interview plan, and stage."
+        },
+        {
+          "name": "Upload Resume",
+          "description": "Securely uploads a resume and sets it as the Ashby candidate resume."
+        },
+        {
+          "name": "Upload Candidate File",
+          "description": "Securely uploads a file and attaches it to an Ashby candidate."
         }
       ],
-      "operationCount": 33,
+      "operationCount": 44,
       "triggers": [
         {
           "id": "ashby_application_submit",
           "name": "Ashby Application Submitted",
           "description": "Trigger workflow when a new application is submitted"
+        },
+        {
+          "id": "ashby_application_update",
+          "name": "Ashby Application Updated",
+          "description": "Trigger workflow when an application is updated"
         },
         {
           "id": "ashby_candidate_stage_change",
@@ -1553,17 +1602,67 @@
           "description": "Trigger workflow when a candidate is deleted"
         },
         {
+          "id": "ashby_candidate_merge",
+          "name": "Ashby Candidate Merged",
+          "description": "Trigger workflow when two candidate records are merged"
+        },
+        {
+          "id": "ashby_interview_schedule_create",
+          "name": "Ashby Interview Schedule Created",
+          "description": "Trigger workflow when an interview schedule is created"
+        },
+        {
+          "id": "ashby_interview_schedule_update",
+          "name": "Ashby Interview Schedule Updated",
+          "description": "Trigger workflow when an interview schedule is updated"
+        },
+        {
           "id": "ashby_job_create",
           "name": "Ashby Job Created",
           "description": "Trigger workflow when a new job is created"
         },
         {
+          "id": "ashby_job_update",
+          "name": "Ashby Job Updated",
+          "description": "Trigger workflow when a job is updated"
+        },
+        {
+          "id": "ashby_job_posting_update",
+          "name": "Ashby Job Posting Updated",
+          "description": "Trigger workflow when a job posting is updated"
+        },
+        {
+          "id": "ashby_job_posting_delete",
+          "name": "Ashby Job Posting Deleted",
+          "description": "Trigger workflow when a job posting is deleted"
+        },
+        {
           "id": "ashby_offer_create",
           "name": "Ashby Offer Created",
           "description": "Trigger workflow when a new offer is created"
+        },
+        {
+          "id": "ashby_offer_update",
+          "name": "Ashby Offer Updated",
+          "description": "Trigger workflow when an offer is updated"
+        },
+        {
+          "id": "ashby_offer_delete",
+          "name": "Ashby Offer Deleted",
+          "description": "Trigger workflow when an offer is deleted"
+        },
+        {
+          "id": "ashby_opening_create",
+          "name": "Ashby Opening Created",
+          "description": "Trigger workflow when a headcount opening is created"
+        },
+        {
+          "id": "ashby_signature_request_update",
+          "name": "Ashby Signature Request Updated",
+          "description": "Trigger workflow when an e-signature request changes state"
         }
       ],
-      "triggerCount": 6,
+      "triggerCount": 17,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "hr",
@@ -3804,6 +3903,121 @@
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "data-analytics"]
+    },
+    {
+      "type": "circleback",
+      "slug": "circleback",
+      "name": "Circleback",
+      "description": "AI-powered meeting notes, action items, and transcripts",
+      "longDescription": "Integrate Circleback into your workflow to read meetings, notes, transcripts, and insights, search across meetings, manage action items and tags, and browse the people and companies you meet with. Circleback can also trigger workflows when meetings are processed.",
+      "bgColor": "linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)",
+      "iconName": "CirclebackIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/circleback",
+      "operations": [
+        {
+          "name": "List Meetings",
+          "description": "Lists meetings from Circleback with optional ownership, status, tag, and attendee filters."
+        },
+        {
+          "name": "Get Meeting",
+          "description": "Gets a Circleback meeting by ID, including notes, attendees, action items, insights, and recording details."
+        },
+        {
+          "name": "Search Meetings",
+          "description": "Searches Circleback meetings by name and content, with optional filters for specific meetings, tags, and people."
+        },
+        {
+          "name": "Get Transcript",
+          "description": "Gets the full transcript for a Circleback meeting."
+        },
+        {
+          "name": "Update Meeting",
+          "description": "Updates the name, notes, or private notes of a Circleback meeting. The API returns only the fields that were updated."
+        },
+        {
+          "name": "Delete Meeting",
+          "description": "Deletes a Circleback meeting. Only the owner of the meeting can delete it. Returns the deleted meeting."
+        },
+        {
+          "name": "List Action Items",
+          "description": "Lists action items across the authenticated user meetings, filtered by assignee, status, tags, and attendees. Defaults to incomplete action items assigned to the API key owner."
+        },
+        {
+          "name": "Update Action Item",
+          "description": "Updates the title, description, status, or assignee of a Circleback action item. Returns the updated action item."
+        },
+        {
+          "name": "Delete Action Item",
+          "description": "Deletes a Circleback action item. Returns the deleted action item."
+        },
+        {
+          "name": "List Calendar Events",
+          "description": "Lists upcoming calendar events from the authenticated user connected calendars, with pagination and a configurable time window."
+        },
+        {
+          "name": "List Companies",
+          "description": "Lists the companies whose people attend the authenticated user meetings, with optional tag filters."
+        },
+        {
+          "name": "Get Company",
+          "description": "Gets a company by its domain from Circleback, including its people and external links."
+        },
+        {
+          "name": "List People",
+          "description": "Lists the people who attend the authenticated user meetings, ordered by most recent meeting, with optional company and tag filters."
+        },
+        {
+          "name": "Get Person",
+          "description": "Gets a person by their profile ID from Circleback, including their profile details and external links."
+        },
+        {
+          "name": "List Tags",
+          "description": "Lists every tag available to the authenticated Circleback user."
+        },
+        {
+          "name": "Create Tag",
+          "description": "Creates a new tag in Circleback. If a tag with the same name already exists, a conflict error is returned."
+        },
+        {
+          "name": "Update Tag",
+          "description": "Updates the name or description of a Circleback tag."
+        },
+        {
+          "name": "Delete Tag",
+          "description": "Permanently deletes a Circleback tag and removes it from every meeting it was applied to."
+        },
+        {
+          "name": "Add Tag to Meetings",
+          "description": "Applies an existing Circleback tag to one or more meetings and returns the updated meetings."
+        },
+        {
+          "name": "Remove Tag from Meetings",
+          "description": "Removes a Circleback tag from one or more meetings and returns the updated meetings."
+        }
+      ],
+      "operationCount": 20,
+      "triggers": [
+        {
+          "id": "circleback_meeting_completed",
+          "name": "Circleback Meeting Completed",
+          "description": "Trigger workflow when a meeting is processed and ready in Circleback"
+        },
+        {
+          "id": "circleback_meeting_notes",
+          "name": "Circleback Meeting Notes Ready",
+          "description": "Trigger workflow when meeting notes and action items are ready"
+        },
+        {
+          "id": "circleback_webhook",
+          "name": "Circleback Webhook",
+          "description": "Generic webhook trigger for all Circleback events"
+        }
+      ],
+      "triggerCount": 3,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "ai",
+      "tags": ["meeting", "note-taking"]
     },
     {
       "type": "managed_agent",
@@ -8013,7 +8227,7 @@
         },
         {
           "name": "List workflow runs",
-          "description": "List workflow runs for a repository. Supports filtering by actor, branch, event, and status. Returns run details including status, conclusion, and links."
+          "description": "List workflow runs for a repository, or for a single workflow when a workflow ID or filename is given. Supports filtering by actor, branch, event, and status. Returns run details including status, conclusion, and links."
         },
         {
           "name": "Get workflow run",
@@ -12620,6 +12834,225 @@
       "tags": ["identity"]
     },
     {
+      "type": "lambda",
+      "slug": "lambda",
+      "name": "Lambda",
+      "description": "Invoke, deploy, and manage AWS Lambda functions",
+      "longDescription": "Integrate AWS Lambda into workflows. Invoke functions and read their response payload, create and update functions from Amazon S3 packages or container images, publish versions and aliases, wire up event source mappings, manage concurrency, function URLs, layers, permissions, and tags. Requires an AWS access key and secret access key.",
+      "bgColor": "linear-gradient(45deg, #C8511B 0%, #FF9900 100%)",
+      "iconName": "LambdaIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/lambda",
+      "operations": [
+        {
+          "name": "Invoke Function",
+          "description": "Invoke a Lambda function synchronously or asynchronously and return its response"
+        },
+        {
+          "name": "List Functions",
+          "description": "List Lambda functions with the version-specific configuration of each"
+        },
+        {
+          "name": "Get Function",
+          "description": "Get a function's configuration, code location, tags, and reserved concurrency"
+        },
+        {
+          "name": "Get Function Configuration",
+          "description": "Get a function's version-specific configuration"
+        },
+        {
+          "name": "Create Function",
+          "description": "Create a Lambda function from a deployment package in Amazon S3 or a container image"
+        },
+        {
+          "name": "Update Function Code",
+          "description": "Update a function's deployment package from Amazon S3 or a container image"
+        },
+        {
+          "name": "Update Function Configuration",
+          "description": "Update a function's settings such as memory, timeout, role, and environment variables"
+        },
+        {
+          "name": "Delete Function",
+          "description": "Delete a Lambda function, or a single published version of it"
+        },
+        {
+          "name": "Publish Version",
+          "description": "Publish an immutable version from the current code and configuration of a function"
+        },
+        {
+          "name": "List Function Versions",
+          "description": "List the published versions of a Lambda function, plus $LATEST"
+        },
+        {
+          "name": "Create Alias",
+          "description": "Create an alias that points to a published function version"
+        },
+        {
+          "name": "Get Alias",
+          "description": "Get details about a Lambda function alias"
+        },
+        {
+          "name": "Update Alias",
+          "description": "Update the target version, description, or traffic weights of an alias"
+        },
+        {
+          "name": "Delete Alias",
+          "description": "Delete a Lambda function alias"
+        },
+        {
+          "name": "List Aliases",
+          "description": "List the aliases of a Lambda function"
+        },
+        {
+          "name": "Add Permission",
+          "description": "Grant an AWS service, account, or organization permission to use a function"
+        },
+        {
+          "name": "Remove Permission",
+          "description": "Remove a statement from a function's resource-based policy"
+        },
+        {
+          "name": "Get Policy",
+          "description": "Get the resource-based IAM policy attached to a function, version, or alias"
+        },
+        {
+          "name": "Create Event Source Mapping",
+          "description": "Map an event source such as SQS, Kinesis, DynamoDB Streams, or Kafka to a function"
+        },
+        {
+          "name": "Get Event Source Mapping",
+          "description": "Get details about an event source mapping"
+        },
+        {
+          "name": "Update Event Source Mapping",
+          "description": "Update the batching, retry, filtering, or enabled state of an event source mapping"
+        },
+        {
+          "name": "Delete Event Source Mapping",
+          "description": "Delete an event source mapping"
+        },
+        {
+          "name": "List Event Source Mappings",
+          "description": "List event source mappings, optionally filtered by function or event source"
+        },
+        {
+          "name": "Get Function Concurrency",
+          "description": "Get the reserved concurrency configured for a function"
+        },
+        {
+          "name": "Set Function Concurrency",
+          "description": "Reserve a share of the account concurrency limit for a function"
+        },
+        {
+          "name": "Delete Function Concurrency",
+          "description": "Remove the reserved concurrency configuration from a function"
+        },
+        {
+          "name": "Get Provisioned Concurrency",
+          "description": "Get the provisioned concurrency configuration of a function version or alias"
+        },
+        {
+          "name": "Set Provisioned Concurrency",
+          "description": "Allocate provisioned concurrency to a function version or alias"
+        },
+        {
+          "name": "Delete Provisioned Concurrency",
+          "description": "Remove the provisioned concurrency configuration from a function version or alias"
+        },
+        {
+          "name": "List Provisioned Concurrency",
+          "description": "List the provisioned concurrency configurations of a function"
+        },
+        {
+          "name": "Create Function URL",
+          "description": "Create a dedicated HTTPS endpoint for a function"
+        },
+        {
+          "name": "Get Function URL",
+          "description": "Get details about a function URL"
+        },
+        {
+          "name": "Update Function URL",
+          "description": "Update the auth type, invoke mode, or CORS settings of a function URL"
+        },
+        {
+          "name": "Delete Function URL",
+          "description": "Delete the URL configuration of a function"
+        },
+        {
+          "name": "List Function URLs",
+          "description": "List the URL configurations of a function"
+        },
+        {
+          "name": "Get Async Invoke Config",
+          "description": "Get the asynchronous invocation retry and destination settings of a function"
+        },
+        {
+          "name": "Set Async Invoke Config",
+          "description": "Configure retry limits and destinations for asynchronous invocations of a function"
+        },
+        {
+          "name": "Delete Async Invoke Config",
+          "description": "Remove the asynchronous invocation configuration of a function"
+        },
+        {
+          "name": "List Async Invoke Configs",
+          "description": "List the asynchronous invocation configurations of a function"
+        },
+        {
+          "name": "List Layers",
+          "description": "List Lambda layers and the latest version of each"
+        },
+        {
+          "name": "List Layer Versions",
+          "description": "List the versions of a Lambda layer"
+        },
+        {
+          "name": "Get Layer Version",
+          "description": "Get details and a download link for a specific layer version"
+        },
+        {
+          "name": "List Tags",
+          "description": "List the tags applied to a Lambda function"
+        },
+        {
+          "name": "Tag Resource",
+          "description": "Add tags to a Lambda function"
+        },
+        {
+          "name": "Untag Resource",
+          "description": "Remove tags from a Lambda function"
+        },
+        {
+          "name": "Get Account Settings",
+          "description": "Get the Lambda limits and usage of the current AWS account and region"
+        },
+        {
+          "name": "Get Recursion Config",
+          "description": "Get the recursive loop detection setting of a function"
+        },
+        {
+          "name": "Set Recursion Config",
+          "description": "Set whether Lambda stops a function that invokes itself recursively"
+        },
+        {
+          "name": "Get Runtime Management Config",
+          "description": "Get the runtime update policy of a function version"
+        },
+        {
+          "name": "Set Runtime Management Config",
+          "description": "Set how and when Lambda applies runtime updates to a function version"
+        }
+      ],
+      "operationCount": 50,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["cloud"]
+    },
+    {
       "type": "langsmith",
       "slug": "langsmith",
       "name": "LangSmith",
@@ -14238,7 +14671,7 @@
         },
         {
           "name": "Upload File",
-          "description": "Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. The file content must be provided as a base64-encoded string."
+          "description": "Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. Provide the file through the File input; its bytes are read from storage and sent as the raw request body."
         },
         {
           "name": "Download File",
@@ -14269,6 +14702,66 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["microsoft-365", "data-warehouse", "cloud"]
+    },
+    {
+      "type": "microsoft_dynamics_365",
+      "slug": "microsoft-dynamics-365-crm",
+      "name": "Microsoft Dynamics 365 CRM",
+      "description": "Manage customers, sales pipelines, and support cases in Dynamics 365 CRM",
+      "longDescription": "Manage standard Microsoft Dynamics 365 CRM records through the Dataverse Web API. List, search, create, retrieve, and update accounts, contacts, leads, opportunities, and cases; assign records to users or teams; qualify leads; close opportunities; and resolve cases. Connect a separate Microsoft credential for each environment from this Dynamics integration page or from its workflow block; existing generic Dataverse credentials remain unchanged and are not automatically rebound. This version supports public-cloud Dynamics environments; national clouds require separate OAuth authorities. Dataverse Search must be enabled for search, and lifecycle actions require the corresponding Dynamics 365 app, security role, and record privileges.",
+      "bgColor": "#FFFFFF",
+      "iconName": "MicrosoftDataverseIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/microsoft_dynamics_365",
+      "operations": [
+        {
+          "name": "List Records",
+          "description": "Query supported standard Microsoft Dynamics 365 CRM records. Supports OData filtering, column selection, ordering, and one bounded page at a time."
+        },
+        {
+          "name": "Get Record",
+          "description": "Retrieve one supported standard Microsoft Dynamics 365 CRM record by its ID. Supports $select and $expand OData query options."
+        },
+        {
+          "name": "Create Record",
+          "description": "Create a new supported standard Microsoft Dynamics 365 CRM record using Dataverse logical column names."
+        },
+        {
+          "name": "Update Record",
+          "description": "Update an existing supported standard Microsoft Dynamics 365 CRM record. Only send the columns you want to change."
+        },
+        {
+          "name": "Search Records",
+          "description": "Perform a full-text relevance search across Microsoft Dataverse tables. Requires Dataverse Search to be enabled on the environment. Supports simple and Lucene query syntax."
+        },
+        {
+          "name": "List Owners",
+          "description": "Query supported standard Microsoft Dynamics 365 CRM records. Supports OData filtering, column selection, ordering, and one bounded page at a time."
+        },
+        {
+          "name": "Assign Record",
+          "description": "Update an existing supported standard Microsoft Dynamics 365 CRM record. Only send the columns you want to change."
+        },
+        {
+          "name": "Qualify Lead",
+          "description": "Qualify a Dynamics 365 Sales lead and optionally create linked account, contact, and opportunity records."
+        },
+        {
+          "name": "Close Opportunity",
+          "description": "Close a Dynamics 365 Sales opportunity as won or lost."
+        },
+        {
+          "name": "Close Case",
+          "description": "Resolve and close a Dynamics 365 Customer Service case."
+        }
+      ],
+      "operationCount": 10,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "microsoft-dataverse",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["microsoft-365", "sales-engagement", "customer-support", "cloud"]
     },
     {
       "type": "microsoft_excel_v2",
@@ -19048,6 +19541,185 @@
       "tags": ["cloud", "automation"]
     },
     {
+      "type": "sailpoint",
+      "slug": "sailpoint",
+      "name": "SailPoint",
+      "description": "Govern identities and access in SailPoint Identity Security Cloud",
+      "longDescription": "Read and act on identity-governance data in SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT) exchanged through OAuth2 client credentials at https://TENANT.api.identitynow.com/oauth/token. SailPoint versions each service independently, so the integration uses current service paths such as /search/v1, /identities/v1, and /access-requests/v1; there is no shared annual API-version setting. Use a PAT whose owner has the ISC user level required by each endpoint because many identity, role, access-profile, certification, approval, and access-request operations require user context in addition to scopes. Common read scopes include sp:search:read, idn:identity:read, idn:accounts:read, idn:entitlement:read, idn:role-unchecked:read or idn:role-checked:read, idn:access-profile:read, idn:sources:read, idn:campaign:read, idn:access-request-status:read, idn:access-request-config:read, idn:task-management:read, and idn:access-request-approvals:read. Mutations additionally use idn:sources:manage for account aggregation, idn:entitlement:manage for entitlement aggregation and entitlement request configuration, idn:campaign:manage for certification decisions and sign-off, the access-request scopes listed by SailPoint for request submission, idn:access-request:create for account-selection discovery, and idn:access-request-approvals:manage for approval actions. A scope alone does not grant authority beyond the PAT owner's ISC permissions, and authorization failures may be returned as provider errors or filtered visibility depending on the endpoint and tenant policy.",
+      "bgColor": "#FFFFFF",
+      "iconName": "SailPointIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/sailpoint",
+      "operations": [
+        {
+          "name": "Search",
+          "description": "Search current SailPoint indices with every documented search query mode."
+        },
+        {
+          "name": "Search Count",
+          "description": "Count documents matching a complete SailPoint search body."
+        },
+        {
+          "name": "Search Aggregate",
+          "description": "Run an Elasticsearch DSL or SailPoint aggregation over current search indices."
+        },
+        {
+          "name": "List Identities",
+          "description": "List identities with documented filtering, sorting, and pagination."
+        },
+        {
+          "name": "Get Identity",
+          "description": "Get an identity from the current /identities/v1 service by ID."
+        },
+        {
+          "name": "List Accounts",
+          "description": "List accounts with documented filtering, sorting, detail, and pagination."
+        },
+        {
+          "name": "Get Account",
+          "description": "Get an account from the current /accounts/v1 service by ID."
+        },
+        {
+          "name": "Get Account Entitlements",
+          "description": "List entitlements granted to one account."
+        },
+        {
+          "name": "Get Account Selections",
+          "description": "Resolve eligible source accounts before submitting a machine or multi-account access request."
+        },
+        {
+          "name": "List Entitlements",
+          "description": "List entitlements with current segmentation, cursor, filter, and page controls."
+        },
+        {
+          "name": "Get Entitlement",
+          "description": "Get an entitlement by ID."
+        },
+        {
+          "name": "Get Entitlement Request Config",
+          "description": "Get grant, revocation, duration, approval, and form settings for an entitlement."
+        },
+        {
+          "name": "List Identity Entitlements",
+          "description": "List tagged entitlement references held by one identity."
+        },
+        {
+          "name": "List Roles",
+          "description": "List roles with current visibility, segmentation, filtering, and pagination controls."
+        },
+        {
+          "name": "Get Role",
+          "description": "Get a role by ID."
+        },
+        {
+          "name": "Get Role Entitlements",
+          "description": "List entitlements in one role using the current non-experimental roles service."
+        },
+        {
+          "name": "List Access Profiles",
+          "description": "List access profiles with current visibility and segmentation controls."
+        },
+        {
+          "name": "Get Access Profile",
+          "description": "Get an access profile by ID."
+        },
+        {
+          "name": "Get Access Profile Entitlements",
+          "description": "List entitlements in one access profile."
+        },
+        {
+          "name": "Get Access Request Config",
+          "description": "Get tenant access-request, request-on-behalf-of, and machine-identity configuration."
+        },
+        {
+          "name": "List Sources",
+          "description": "List identity sources with visibility, filtering, sorting, and pagination controls."
+        },
+        {
+          "name": "Get Source",
+          "description": "Get an identity source by ID."
+        },
+        {
+          "name": "List Account Activities",
+          "description": "List provisioning activities with identity, filter, sort, and page controls."
+        },
+        {
+          "name": "Get Account Activity",
+          "description": "Get an account activity by ID."
+        },
+        {
+          "name": "List Campaigns",
+          "description": "List certification campaigns with detail, filtering, sorting, and pagination."
+        },
+        {
+          "name": "Get Campaign",
+          "description": "Get a certification campaign by ID."
+        },
+        {
+          "name": "List Certifications",
+          "description": "List identity certifications assigned to a reviewer."
+        },
+        {
+          "name": "Get Certification",
+          "description": "Get an identity certification by ID."
+        },
+        {
+          "name": "List Certification Review Items",
+          "description": "List access-review items in one identity certification."
+        },
+        {
+          "name": "Decide Certification Review Items",
+          "description": "Approve or revoke 1-250 review items in an identity certification."
+        },
+        {
+          "name": "Sign Off Certification",
+          "description": "Sign off a completed identity certification."
+        },
+        {
+          "name": "Request Access",
+          "description": "Submit a current human or machine identity access request."
+        },
+        {
+          "name": "Cancel Access Request",
+          "description": "Cancel an access request that has not passed approval."
+        },
+        {
+          "name": "Get Access Request Status",
+          "description": "List requested-item status records for access requests."
+        },
+        {
+          "name": "List Pending Access Request Approvals",
+          "description": "List pending access-request approvals visible to the caller."
+        },
+        {
+          "name": "Approve Access Request",
+          "description": "Approve one pending access-request approval."
+        },
+        {
+          "name": "Reject Access Request",
+          "description": "Reject one pending access-request approval with a reviewer comment."
+        },
+        {
+          "name": "Load Accounts (CSV)",
+          "description": "Start account aggregation for a source, optionally using a CSV file."
+        },
+        {
+          "name": "Load Entitlements (CSV)",
+          "description": "Start entitlement aggregation for a source, optionally using a CSV file."
+        },
+        {
+          "name": "Get Task Status",
+          "description": "Get the current status of a SailPoint background task by ID."
+        }
+      ],
+      "operationCount": 40,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["identity", "automation"]
+    },
+    {
       "type": "salesforce",
       "slug": "salesforce",
       "name": "Salesforce",
@@ -19717,7 +20389,7 @@
         },
         {
           "name": "OData Query (advanced)",
-          "description": "Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The proxy handles auth, CSRF, and OData unwrapping. For write operations (POST/PUT/PATCH/MERGE/DELETE), pass an If-Match ETag obtained from a prior GET to avoid lost updates; misuse will mutate production data."
+          "description": "Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The integration handles auth, CSRF, and OData unwrapping. For write operations (POST/PUT/PATCH/MERGE/DELETE), pass an If-Match ETag obtained from a prior GET to avoid lost updates; misuse will mutate production data."
         }
       ],
       "operationCount": 38,
@@ -20669,8 +21341,8 @@
       "type": "slack_v2",
       "slug": "slack",
       "name": "Slack",
-      "description": "Send, update, delete messages, manage views and modals, add or remove reactions, manage canvases, get channel info and user presence in Slack",
-      "longDescription": "Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, open/update/push modal views, publish Home tab views, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.",
+      "description": "Send and manage Slack messages, Agent Sessions, streamed replies, views, reactions, conversations, and canvases",
+      "longDescription": "Integrate Slack messaging and administration into a workflow. Custom Slack bots can manage Agent Sessions, stream incremental Markdown or structured chunks, react to Agent Session events, and configure Agent View suggested prompts. Standard messaging and management operations support both the Sim app and custom bot credentials.",
       "bgColor": "#611f69",
       "iconName": "SlackIcon",
       "docsUrl": "https://docs.sim.ai/integrations/slack",
@@ -20720,12 +21392,24 @@
           "description": "Set the title of a Slack assistant thread (shown in the AI app thread header)."
         },
         {
-          "name": "Set Suggested Prompts",
+          "name": "Set Assistant Suggested Prompts",
           "description": "Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app)."
         },
         {
+          "name": "Set Agent Suggested Prompts",
+          "description": "Set suggested prompts in Slack Agent View, optionally scoped to a specific thread."
+        },
+        {
+          "name": "Set Agent Session Status",
+          "description": "Create or update the state of a Slack agent session associated with a thread."
+        },
+        {
+          "name": "Rename Agent Session",
+          "description": "Rename the Slack agent session associated with a thread."
+        },
+        {
           "name": "List Channels",
-          "description": "List all channels in a Slack workspace. Returns public and private channels the bot has access to."
+          "description": "List accessible Slack conversations. Credential-group user tokens also return one-to-one and group direct messages."
         },
         {
           "name": "List Channel Members",
@@ -20844,12 +21528,12 @@
           "description": "Set the purpose (description) for a Slack channel (max 250 characters)."
         }
       ],
-      "operationCount": 42,
+      "operationCount": 45,
       "triggers": [
         {
           "id": "slack_oauth",
           "name": "Slack",
-          "description": "Trigger from Slack events (mentions, messages, reactions)"
+          "description": "Trigger from Slack events, interactions, and slash commands"
         }
       ],
       "triggerCount": 1,
@@ -23504,7 +24188,7 @@
       "name": "TinyFish",
       "description": "Automate and read the live web",
       "longDescription": "Integrate TinyFish into the workflow. Give a web agent a natural-language goal and let it drive a real browser on any site, queue and track long-running automations, search the web, and fetch pages as clean markdown.",
-      "bgColor": "#FF6700",
+      "bgColor": "#FFFFFF",
       "iconName": "TinyFishIcon",
       "docsUrl": "https://docs.sim.ai/integrations/tinyfish",
       "operations": [
@@ -24644,7 +25328,7 @@
       "operations": [
         {
           "name": "List Items",
-          "description": "List all items from a Webflow CMS collection"
+          "description": "List items from a Webflow CMS collection"
         },
         {
           "name": "Get Item",

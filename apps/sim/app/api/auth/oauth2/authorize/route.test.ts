@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   getBaseUrl: vi.fn(),
   requireClient: vi.fn(),
   createConnection: vi.fn(),
+  getPerRequestScopes: vi.fn(),
   launchConnection: vi.fn(),
 }))
 
@@ -45,6 +46,9 @@ vi.mock('@/lib/credentials/application/launch-credential-connection', () => ({
     operation: { id: 'credentials.connections.launch' },
     execute: mocks.launchConnection,
   },
+}))
+vi.mock('@/lib/oauth/utils', () => ({
+  getPerRequestOAuthLinkScopes: mocks.getPerRequestScopes,
 }))
 
 import { GET } from '@/app/api/auth/oauth2/authorize/route'
@@ -89,6 +93,7 @@ describe('OAuth2 authorize route', () => {
       },
     })
     mocks.linkAccount.mockResolvedValue(linkResponse())
+    mocks.getPerRequestScopes.mockReturnValue(undefined)
   })
 
   it('creates a canonical application draft for a legacy connect URL', async () => {
@@ -121,6 +126,29 @@ describe('OAuth2 authorize route', () => {
     expect(response.headers.get('location')).toBe(`${BASE_URL}/workspace?error=oauth_link_failed`)
     expect(mocks.requireClient).toHaveBeenCalledWith('google-email')
     expect(mocks.createConnection).not.toHaveBeenCalled()
+  })
+
+  it('passes per-request scopes to providers that cannot inherit static connector scopes', async () => {
+    const scopes = ['openid', 'https://dynamics.microsoft.com/user_impersonation']
+    mocks.getPerRequestScopes.mockReturnValue(scopes)
+    mocks.createConnection.mockResolvedValue({
+      providerId: 'microsoft-dataverse',
+      workspaceId: WORKSPACE_ID,
+      draftId: 'draft-1',
+      expiresAt: new Date(),
+      authorizationUrl: '',
+    })
+
+    await GET(request({ providerId: 'microsoft-dataverse', workspaceId: WORKSPACE_ID }))
+
+    expect(mocks.linkAccount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          providerId: 'microsoft-dataverse',
+          scopes,
+        }),
+      })
+    )
   })
 
   it('launches an exact draft without creating another one', async () => {

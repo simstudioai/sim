@@ -2157,6 +2157,62 @@
       "when": 1787770314977,
       "tag": "0308_workspace_file_size_cutover",
       "breakpoints": true
+    },
+    {
+      "idx": 309,
+      "version": "7",
+      "when": 1787795555854,
+      "tag": "0309_material_blonde_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 310,
+      "version": "7",
+      "when": 1787878957459,
+      "tag": "0310_drop_orphaned_table_import_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 311,
+      "version": "7",
+      "when": 1787880668706,
+      "tag": "0311_usage_log_model_unbilled_category",
+      "breakpoints": true
+    },
+    {
+      "idx": 312,
+      "version": "7",
+      "when": 1787955244886,
+      "tag": "0312_nappy_leech",
+      "breakpoints": true
+    },
+    {
+      "idx": 313,
+      "version": "7",
+      "when": 1788051242165,
+      "tag": "0313_puzzling_zodiak",
+      "breakpoints": true
+    },
+    {
+      "idx": 314,
+      "version": "7",
+      "when": 1788208209301,
+      "tag": "0314_superb_daimon_hellstrom",
+      "breakpoints": true
+    },
+    {
+      "idx": 315,
+      "version": "7",
+      "when": 1788222849643,
+      "tag": "0315_table_dispatch_capability_governed_user",
+      "breakpoints": true
+    },
+    {
+      "idx": 316,
+      "version": "7",
+      "when": 1788229583797,
+      "tag": "0316_table_row_execution_capability_subject",
+      "breakpoints": true
     }
   ]
 }

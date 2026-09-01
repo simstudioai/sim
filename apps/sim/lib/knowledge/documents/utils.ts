@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { randomFloat } from '@sim/utils/random'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
@@ -26,6 +26,8 @@ export interface HTTPError extends Error {
   status?: number
   statusText?: string
   retryAfterMs?: number
+  /** Provider-normalized signal for throttles that do not carry standard HTTP evidence. */
+  rateLimited?: boolean
   /**
    * Response headers carried onto the error so the retry loop can re-evaluate
    * rate-limit evidence (`isRetryableError` runs again on the thrown error).
@@ -39,6 +41,8 @@ type RetryableError =
   | { status?: number; message?: string; headers?: HeaderReader }
 
 export interface RetryOptions {
+  /** Cancels the current retry cycle, including waits between attempts. */
+  signal?: AbortSignal
   maxRetries?: number
   initialDelayMs?: number
   maxDelayMs?: number
@@ -182,6 +186,30 @@ export function attachRetryHeaders(error: HTTPError, headers: HeaderReader): voi
 }
 
 /**
+ * Reads a validated provider retry delay from an error or one of its causes.
+ *
+ * The HTTP retry layer attaches this value when a provider supplies
+ * `Retry-After` or an exhausted-quota reset header. Keeping the accessor here
+ * lets longer-lived schedulers honor the same evidence without depending on a
+ * concrete error class or parsing a diagnostic message.
+ */
+export function getRetryAfterMs(error: unknown): number | undefined {
+  const seen = new Set<unknown>()
+  let current = error
+
+  while (current instanceof Error && !seen.has(current) && seen.size < 10) {
+    seen.add(current)
+    const retryAfterMs = (current as HTTPError).retryAfterMs
+    if (typeof retryAfterMs === 'number' && Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
+      return retryAfterMs
+    }
+    current = current.cause
+  }
+
+  return undefined
+}
+
+/**
  * True when response headers positively identify a rate-limit rejection rather
  * than an authorization denial.
  *
@@ -199,6 +227,32 @@ export function hasRateLimitEvidence(headers: HeaderReader | undefined): boolean
   if (!headers) return false
   if (headers.get('retry-after')) return true
   return RATE_LIMIT_REMAINING_HEADERS.some((name) => headers.get(name) === '0')
+}
+
+/**
+ * Reports whether an error or one of its causes is a structured HTTP rate-limit
+ * rejection. A bare 403 is intentionally excluded because it normally means the
+ * caller lacks access; GitHub identifies the rate-limit form through response
+ * headers, while 429 is unambiguous on its own.
+ */
+export function isRateLimitError(error: unknown): boolean {
+  const seen = new Set<unknown>()
+  let current = error
+
+  while (isRetryableErrorType(current) && !seen.has(current) && seen.size < 10) {
+    seen.add(current)
+    if ((current as HTTPError).rateLimited === true) return true
+    if (
+      hasStatus(current) &&
+      (current.status === 429 ||
+        (current.status === 403 && hasRateLimitEvidence(readHeaders(current))))
+    ) {
+      return true
+    }
+    current = current instanceof Error ? current.cause : undefined
+  }
+
+  return false
 }
 
 function parseRateLimitResetMs(value: string, nowMs: number): number | undefined {
@@ -250,6 +304,52 @@ export function resolveRetryDelayMs(
   }
 
   return undefined
+}
+
+interface RetryableHttpResponse {
+  status: number
+  headers: { get(name: string): string | null }
+  body?: ReadableStream<Uint8Array> | null
+  arrayBuffer?: () => Promise<ArrayBuffer>
+  text?: () => Promise<string>
+}
+
+/** Releases a response stream when its provider-controlled body is intentionally omitted. */
+async function cancelHttpResponseBody(response: RetryableHttpResponse): Promise<void> {
+  if (!response.body) return
+  try {
+    await response.body.cancel()
+  } catch {
+    return
+  }
+}
+
+/**
+ * Builds the bounded error shared by direct and SSRF-safe connector fetches.
+ * Rate-limit responses are named from trusted status/header evidence while all
+ * provider-controlled bodies remain omitted.
+ */
+export async function createRetryableHttpError(
+  response: RetryableHttpResponse
+): Promise<HTTPError> {
+  const rateLimited =
+    response.status === 429 || (response.status === 403 && hasRateLimitEvidence(response.headers))
+  if (rateLimited) {
+    await cancelHttpResponseBody(response)
+  }
+  const diagnostic = rateLimited
+    ? 'upstream rate limit exceeded'
+    : await readBoundedHttpErrorBody(response)
+  const error: HTTPError = new Error(`HTTP ${response.status} - ${diagnostic}`)
+  error.status = response.status
+  attachRetryHeaders(error, response.headers)
+
+  const waitMs = resolveRetryDelayMs(response.headers)
+  if (waitMs !== undefined) {
+    error.retryAfterMs = waitMs
+  }
+
+  return error
 }
 
 /**
@@ -340,6 +440,7 @@ export async function retryWithExponentialBackoff<T>(
     retryBudgetMs,
     backoffMultiplier = 2,
     retryCondition = isRetryableError,
+    signal,
   } = options
   const maxRetryAfterMs = options.maxRetryAfterMs ?? retryBudgetMs ?? maxDelayMs
 
@@ -366,6 +467,7 @@ export async function retryWithExponentialBackoff<T>(
   let delay = initialDelayMs
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    signal?.throwIfAborted()
     try {
       logger.debug(`Executing operation attempt ${attempt + 1}/${maxRetries + 1}`)
       const result = await operation()
@@ -432,7 +534,8 @@ export async function retryWithExponentialBackoff<T>(
         `Retrying in ${Math.round(actualDelay)}ms (attempt ${attempt + 1}/${maxRetries + 1})${retryAfterMs ? ' (server-stated)' : ''}`
       )
 
-      await sleep(actualDelay)
+      await interruptibleSleep(actualDelay, signal)
+      signal?.throwIfAborted()
 
       // Exponential backoff (skip if we used Retry-After)
       if (!retryAfterMs) {
@@ -466,22 +569,7 @@ export async function fetchWithRetry(
     const response = await fetch(url, options)
 
     if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
-      const errorText = await readBoundedHttpErrorBody(response)
-      const error: HTTPError = new Error(`HTTP ${response.status} - ${errorText}`)
-      error.status = response.status
-      // The retry loop re-runs the retry condition against this error, so the
-      // headers must travel with it or a rate-limit 403 would throw immediately.
-      attachRetryHeaders(error, response.headers)
-
-      // Pass the server-stated wait to the retry loop so it replaces exponential
-      // backoff. Falls back to the epoch-seconds reset header when the provider
-      // sends no Retry-After (X never does).
-      const waitMs = resolveRetryDelayMs(response.headers)
-      if (waitMs !== undefined) {
-        error.retryAfterMs = waitMs
-      }
-
-      throw error
+      throw await createRetryableHttpError(response)
     }
 
     return response

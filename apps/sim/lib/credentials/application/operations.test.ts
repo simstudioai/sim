@@ -44,6 +44,7 @@ describe('credential operations', () => {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       principalKinds: ['workspace_api_key'],
+      capability: 'integrations.manage',
     })
 
     expect(() => defineCredentialOperation(workspaceKeyOperation, 'admin')).toThrow(

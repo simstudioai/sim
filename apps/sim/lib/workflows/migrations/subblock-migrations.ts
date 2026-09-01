@@ -140,6 +140,14 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
     { from: 'folderId', to: 'folderSelector' },
     { from: 'listId', to: 'listSelector' },
   ],
+  confluence_v2: [
+    {
+      from: 'spaceSelector',
+      to: 'spaceKeySelector',
+      whenOperation: ['search_in_space'],
+    },
+    { from: 'spaceId', to: 'manualSpaceKey', whenOperation: ['search_in_space'] },
+  ],
   apollo: [
     { from: 'contact_ids_bulk', to: 'contacts' },
     { from: 'account_ids_bulk', to: 'accounts' },
@@ -292,6 +300,13 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
    * dropped outright.
    */
   sap_concur: [{ from: 'forwardId', to: '_removed_forwardId' }],
+  /**
+   * `uploadMimeType` was an advanced MIME Type input on Upload Document File whose
+   * value the upload path never read: the content type is resolved from storage and
+   * that resolution is never empty, so the field's value lost the `||` chain every
+   * time. Dropped rather than renamed — there is no field for the value to move to.
+   */
+  vanta: [{ from: 'uploadMimeType', to: '_removed_uploadMimeType' }],
 }
 
 /** Reads the value out of a stored subblock entry, tolerating a bare value. */

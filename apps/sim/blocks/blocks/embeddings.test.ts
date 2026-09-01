@@ -1,18 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getSelectorDefinition } from '@/hooks/selectors/registry'
-import type { SelectorKey } from '@/hooks/selectors/types'
-
-const { mockFetchQuery } = vi.hoisted(() => ({
-  mockFetchQuery: vi.fn(),
-}))
-
-vi.mock('@/app/_shell/providers/get-query-client', () => ({
-  getQueryClient: () => ({ fetchQuery: mockFetchQuery }),
-}))
-
+import { describe, expect, it } from 'vitest'
 import { DEFAULT_MODEL_BY_PROVIDER, EMBEDDING_MODELS } from '@/lib/embeddings/catalog'
 import { DEFAULT_OPENROUTER_EMBEDDING_MODEL } from '@/lib/embeddings/openrouter-models'
 import {
@@ -20,12 +9,6 @@ import {
   EmbeddingsBlock,
   TOOL_ID_BY_PROVIDER,
 } from '@/blocks/blocks/embeddings'
-
-const OPENROUTER_MODELS = [
-  'openrouter/openai/text-embedding-3-small',
-  'openrouter/qwen/qwen3-embedding-8b',
-  'openrouter/google/gemini-embedding-001',
-]
 
 /**
  * The block derives its model, task-type, and dimension options from the
@@ -57,11 +40,6 @@ function conditionModel(subBlock: { condition?: unknown }): string | undefined {
 }
 
 describe('Embeddings block', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockFetchQuery.mockResolvedValue({ models: OPENROUTER_MODELS })
-  })
-
   it('offers static catalog models for direct providers', () => {
     const modelSubBlocks = subBlocksById('model')
     const offered = new Map<string, string[]>()
@@ -154,15 +132,12 @@ describe('Embeddings block', () => {
     )
   })
 
-  it('loads every OpenRouter embedding model and maps its dedicated key', async () => {
+  it('uses the server-backed OpenRouter model selector and maps its dedicated key', () => {
     const openRouterModels = subBlocksById('model').find(
       (subBlock) => conditionProvider(subBlock) === 'openrouter'
     )
     expect(openRouterModels?.type).toBe('combobox')
-    const definition = getSelectorDefinition(openRouterModels?.selectorKey as SelectorKey)
-    const options = await definition.fetchList?.({ key: definition.key, context: {} })
-    expect(optionIds(options)).toEqual(OPENROUTER_MODELS)
-    expect(mockFetchQuery).toHaveBeenCalledOnce()
+    expect(openRouterModels?.selectorKey).toBe('providers.openrouterEmbeddingModels')
 
     expect(
       EmbeddingsBlock.tools.config?.params?.({

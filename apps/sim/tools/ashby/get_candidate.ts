@@ -22,9 +22,15 @@ export const getCandidateTool: ToolConfig<AshbyGetCandidateParams, AshbyGetCandi
     },
     candidateId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The UUID of the candidate to fetch',
+    },
+    externalMappingId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'External mapping ID to use instead of the Ashby candidate UUID',
     },
   },
 
@@ -32,9 +38,17 @@ export const getCandidateTool: ToolConfig<AshbyGetCandidateParams, AshbyGetCandi
     url: 'https://api.ashbyhq.com/candidate.info',
     method: 'POST',
     headers: (params) => ashbyAuthHeaders(params.apiKey),
-    body: (params) => ({
-      id: params.candidateId.trim(),
-    }),
+    body: (params) => {
+      const candidateId = params.candidateId?.trim()
+      const externalMappingId = params.externalMappingId?.trim()
+      if (Boolean(candidateId) === Boolean(externalMappingId)) {
+        throw new Error('Provide exactly one of candidateId or externalMappingId.')
+      }
+      return {
+        ...(candidateId ? { id: candidateId } : {}),
+        ...(externalMappingId ? { externalMappingId } : {}),
+      }
+    },
   },
 
   transformResponse: async (response: Response) => {

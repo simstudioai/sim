@@ -4,7 +4,8 @@ import { omit } from '@sim/utils/object'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
 import { getSkillById } from '@/lib/workflows/skills/operations'
@@ -1000,7 +1001,16 @@ export function validateTargetHandle(targetHandle: string): EdgeHandleValidation
 }
 
 /**
- * Checks if a block type is allowed by the permission group config
+ * Whether a block may be added to a graph by this viewer.
+ *
+ * Two questions, not one: whether the viewer can see the block at all
+ * (deployment visibility — an unrevealed preview block, a kill-switched type)
+ * and whether their permission group's integration allowlist permits it.
+ * Refusing to *add* something a viewer cannot see is right.
+ *
+ * Refusing to *store* it is not, which is why the persist-time guard in
+ * `@/lib/workflows/persistence/block-access-guard` checks the allowlist alone:
+ * a graph exported before a block was gated must still save.
  */
 export function isBlockTypeAllowed(
   blockType: string,
@@ -1013,7 +1023,9 @@ export function isBlockTypeAllowed(
   if (!permissionConfig || permissionConfig.allowedIntegrations === null) {
     return true
   }
-  return permissionConfig.allowedIntegrations.includes(blockType.toLowerCase())
+  return permissionConfig.allowedIntegrations.includes(
+    resolveAccessControlBlockType(blockType).toLowerCase()
+  )
 }
 
 /**

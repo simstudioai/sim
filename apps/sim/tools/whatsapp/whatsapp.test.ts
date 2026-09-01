@@ -175,14 +175,15 @@ describe('buildMediaMessageBody', () => {
 })
 
 describe('sendMediaTool', () => {
-  it('routes through the internal route so a file can be uploaded before sending', () => {
-    expect(sendMediaTool.request.url).toBe('/api/tools/whatsapp/send-media')
+  it('uses the internal operation boundary', () => {
+    expect(sendMediaTool.operation).toBeDefined()
+    expect('request' in sendMediaTool).toBe(false)
   })
 
-  it('forwards every media source to the route', () => {
+  it('forwards every media source to the operation', () => {
     const file = { name: 'a.png', key: 'k', url: 'u', size: 1, type: 'image/png' }
     expect(
-      sendMediaTool.request.body!({ ...auth, phoneNumber: '+1', mediaType: 'image', file })
+      sendMediaTool.operation.input({ ...auth, phoneNumber: '+1', mediaType: 'image', file })
     ).toMatchObject({ file, mediaType: 'image', phoneNumber: '+1' })
   })
 })
@@ -431,42 +432,21 @@ describe('WhatsAppBlock file param mapping', () => {
   })
 })
 
-describe('media tool request bodies', () => {
-  it('forwards the file and credentials to the upload route', () => {
+describe('media tool operation inputs', () => {
+  it('forwards the file and credentials to the upload operation', () => {
     const file = { name: 'a.pdf', key: 'k', url: 'u', size: 10, type: 'application/pdf' }
-    expect(uploadMediaTool.request.url).toBe('/api/tools/whatsapp/upload-media')
-    expect(uploadMediaTool.request.body!({ ...auth, file })).toEqual({
+    expect(uploadMediaTool.operation.input({ ...auth, file })).toEqual({
       accessToken: ' token ',
       phoneNumberId: ' 15550001111 ',
       file,
     })
   })
 
-  it('forwards execution context so the download is stored as an execution file', () => {
-    const body = getMediaTool.request.body!({
-      ...auth,
-      mediaId: '123',
-      _context: { workspaceId: 'ws', workflowId: 'wf', executionId: 'ex', userId: 'u' },
-    })
-
-    expect(body).toEqual({
+  it('keeps storage scope out of serialized input', () => {
+    expect(getMediaTool.operation.input({ ...auth, mediaId: '123' })).toEqual({
       accessToken: ' token ',
       phoneNumberId: ' 15550001111 ',
       mediaId: '123',
-      workspaceId: 'ws',
-      workflowId: 'wf',
-      executionId: 'ex',
-    })
-  })
-
-  it('omits execution context when the tool runs outside an execution', () => {
-    expect(getMediaTool.request.body!({ ...auth, mediaId: '123' })).toEqual({
-      accessToken: ' token ',
-      phoneNumberId: ' 15550001111 ',
-      mediaId: '123',
-      workspaceId: undefined,
-      workflowId: undefined,
-      executionId: undefined,
     })
   })
 

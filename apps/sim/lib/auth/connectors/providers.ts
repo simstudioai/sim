@@ -1,9 +1,10 @@
 import { createHash } from 'crypto'
-import { getOAuth2Tokens } from '@better-auth/core/oauth2'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import { getOAuthState } from 'better-auth/api'
+import { getOAuth2Tokens } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { syntheticConnectorEmail } from '@/lib/auth/connector-email'
 import { env } from '@/lib/core/config/env'
@@ -15,6 +16,12 @@ import {
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { getMicrosoftUserInfoFromIdToken } from '@/lib/oauth/microsoft'
+import {
+  assertMicrosoftDataverseLegacyOAuthCallbackScopes,
+  bindMicrosoftDataverseEnvironmentToUserInfo,
+  getBoundMicrosoftDataverseEnvironment,
+  resolveMicrosoftDataverseOAuthCallbackScopes,
+} from '@/lib/oauth/microsoft-dataverse'
 import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { MONDAY_API_URL, MONDAY_API_VERSION } from '@/tools/monday/utils'
@@ -791,14 +798,34 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
       tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
       userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
-      scopes: getCanonicalScopesForProvider('microsoft-dataverse'),
+      /**
+       * Better Auth appends connector scopes to link-request scopes. Dataverse audiences are
+       * request-specific, so every allowed link supplies its exact grant and this base stays empty.
+       */
+      scopes: [],
       responseType: 'code',
       accessType: 'offline',
       authentication: 'basic',
       pkce: true,
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-dataverse`,
       getUserInfo: async (tokens) => {
-        return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-dataverse')
+        const oauthState = await getOAuthState()
+        const environmentUrl = getBoundMicrosoftDataverseEnvironment(oauthState?.callbackURL)
+        if (!environmentUrl) {
+          assertMicrosoftDataverseLegacyOAuthCallbackScopes(
+            tokens.scopes,
+            getCanonicalScopesForProvider('microsoft-dataverse')
+          )
+          return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-dataverse')
+        }
+        tokens.scopes = resolveMicrosoftDataverseOAuthCallbackScopes(
+          oauthState?.callbackURL,
+          tokens.scopes
+        )
+        return bindMicrosoftDataverseEnvironmentToUserInfo(
+          getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-dataverse'),
+          tokens.scopes
+        )
       },
     },
     {

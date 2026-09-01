@@ -11,6 +11,7 @@ import {
   handleKeyboardActivation,
   Input,
   Label,
+  OverflowText,
   Tooltip,
 } from '@sim/emcn'
 import {
@@ -26,8 +27,8 @@ import {
   X,
 } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
+import { ReactFlowProvider } from '@xyflow/react'
 import { useParams } from 'next/navigation'
-import { ReactFlowProvider } from 'reactflow'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndexForSurface,
@@ -375,14 +376,11 @@ function ConnectionsSection({
                 }}
               >
                 <BlockTile blockType={connection.blockType} size='sm' />
-                <span
-                  className={cn(
-                    'truncate',
-                    'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
-                  )}
-                >
-                  {connection.blockName}
-                </span>
+                <OverflowText
+                  label={connection.blockName}
+                  className='flex-1 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                  focusTarget={hasFields ? 'nearest-interactive' : undefined}
+                />
                 {hasFields && (
                   <ChevronDown
                     className={cn(
@@ -439,14 +437,11 @@ function ConnectionsSection({
               <div className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#8B5CF6]'>
                 <span className='text-[9px] text-white'>V</span>
               </div>
-              <span
-                className={cn(
-                  'truncate',
-                  'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
-                )}
-              >
-                Variables
-              </span>
+              <OverflowText
+                label='Variables'
+                className='flex-1 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                focusTarget='nearest-interactive'
+              />
               <ChevronDown
                 className={cn(
                   'size-[14px] flex-shrink-0 transition-transform duration-100',
@@ -491,14 +486,11 @@ function ConnectionsSection({
               <div className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#6B7280]'>
                 <span className='text-[9px] text-white'>E</span>
               </div>
-              <span
-                className={cn(
-                  'truncate',
-                  'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
-                )}
-              >
-                Secrets
-              </span>
+              <OverflowText
+                label='Secrets'
+                className='flex-1 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+                focusTarget='nearest-interactive'
+              />
               <ChevronDown
                 className={cn(
                   'size-[14px] flex-shrink-0 transition-transform duration-100',
@@ -1074,9 +1066,7 @@ function PreviewEditorContent({
         {/* Header - styled like subflow header */}
         <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <BlockTile blockType={block.type} size='lg' />
-          <span className='min-w-0 flex-1 truncate text-[var(--text-primary)] text-sm'>
-            {subflowName}
-          </span>
+          <OverflowText label={subflowName} className='flex-1 text-[var(--text-primary)] text-sm' />
           {onClose && (
             <Button variant='ghost' className='!p-1 flex-shrink-0' onClick={onClose}>
               <X className='size-[14px]' />
@@ -1160,9 +1150,10 @@ function PreviewEditorContent({
       {/* Header - styled like editor */}
       <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
         {block.type !== 'note' && <BlockTile blockType={block.type} size='lg' />}
-        <span className='min-w-0 flex-1 truncate text-[var(--text-primary)] text-sm'>
-          {block.name || blockConfig.name}
-        </span>
+        <OverflowText
+          label={block.name || blockConfig.name}
+          className='flex-1 text-[var(--text-primary)] text-sm'
+        />
         {onClose && (
           <Button variant='ghost' className='!p-1 flex-shrink-0' onClick={onClose}>
             <X className='size-[14px]' />

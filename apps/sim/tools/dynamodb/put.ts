@@ -1,7 +1,7 @@
 import type { DynamoDBPutParams, DynamoDBPutResponse } from '@/tools/dynamodb/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const putTool: ToolConfig<DynamoDBPutParams, DynamoDBPutResponse> = {
+export const putTool: InternalToolConfig<DynamoDBPutParams, DynamoDBPutResponse> = {
   id: 'dynamodb_put',
   name: 'DynamoDB Put',
   description: 'Put an item into a DynamoDB table',
@@ -62,13 +62,8 @@ export const putTool: ToolConfig<DynamoDBPutParams, DynamoDBPutResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/dynamodb/put',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

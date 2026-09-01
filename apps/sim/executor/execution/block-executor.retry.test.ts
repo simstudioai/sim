@@ -5,11 +5,13 @@
  * client has already seen and cannot re-run the deterministic post-processing.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { BlockType, EDGE } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { ExecutionState } from '@/executor/execution/state'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import { attachTrustedExecutionCost } from '@/executor/utils/errors'
 import { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
@@ -135,6 +137,68 @@ describe('BlockExecutor retry', () => {
     expect(output).toMatchObject({ ok: true })
     expect(ctx.blockLogs[0]?.success).toBe(true)
     expect(ctx.blockLogs[0]?.tries).toBe(2)
+  })
+
+  it('adds the trusted cost of failed Function tries to the successful result', async () => {
+    const block = createBlock(enabled)
+    const firstFailure = new Error('first attempt failed')
+    attachTrustedExecutionCost(firstFailure, { input: 0, output: 0, total: 0.125 })
+    const successfulOutput = {
+      result: 'done',
+      cost: { input: 0, output: 0, total: 0.25 },
+    }
+    attachTrustedExecutionCost(successfulOutput, successfulOutput.cost)
+    const execute = vi
+      .fn()
+      .mockRejectedValueOnce(firstFailure)
+      .mockResolvedValueOnce(successfulOutput)
+    const state = new ExecutionState()
+    const ctx = createContext(state)
+    const executor = buildExecutor(block, { canHandle: () => true, execute }, state)
+
+    const output = await executor.execute(ctx, createNode(block), block)
+
+    expect(execute).toHaveBeenCalledTimes(2)
+    expect(output.cost).toEqual({ input: 0, output: 0, total: 0.375 })
+    expect(ctx.blockLogs[0]?.output?.cost).toEqual(output.cost)
+  })
+
+  it('keeps earlier trusted Function costs when the final try is an infrastructure error', async () => {
+    const block = createBlock(enabled)
+    const firstFailure = new Error('first Function attempt failed')
+    const secondFailure = new Error('second Function attempt failed')
+    const finalFailure = new Error('provider unavailable')
+    attachTrustedExecutionCost(firstFailure, { input: 0, output: 0, total: 0.125 })
+    attachTrustedExecutionCost(secondFailure, { input: 0, output: 0, total: 0.25 })
+    const execute = vi
+      .fn()
+      .mockRejectedValueOnce(firstFailure)
+      .mockRejectedValueOnce(secondFailure)
+      .mockRejectedValueOnce(finalFailure)
+    const state = new ExecutionState()
+    const ctx = createContext(state)
+    const executor = buildExecutor(block, { canHandle: () => true, execute }, state)
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
+      'provider unavailable'
+    )
+
+    expect(execute).toHaveBeenCalledTimes(3)
+    expect(ctx.blockLogs[0]?.output).toEqual({
+      error: 'provider unavailable',
+      cost: { input: 0, output: 0, total: 0.375 },
+    })
+
+    const { traceSpans } = buildTraceSpans({
+      success: false,
+      output: { error: 'provider unavailable' },
+      error: 'provider unavailable',
+      logs: ctx.blockLogs,
+    })
+    expect(traceSpans[0]).toMatchObject({
+      status: 'error',
+      cost: { input: 0, output: 0, total: 0.375 },
+    })
   })
 
   it('stops at maxTries and rethrows the final error unchanged', async () => {

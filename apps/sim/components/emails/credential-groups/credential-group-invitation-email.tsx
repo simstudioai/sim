@@ -1,11 +1,12 @@
-import { Link, Text } from '@react-email/components'
+import { Link, Text } from 'react-email'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailLayout } from '@/components/emails/components'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface CredentialGroupInvitationEmailProps {
   recipientEmail: string
-  inviterName: string
+  /** Absent when a workflow issued the invitation: there is no person to name. */
+  inviterName?: string
   workspaceName: string
   credentialGroupName: string
   invitationLink: string
@@ -22,14 +23,26 @@ export function CredentialGroupInvitationEmail({
 
   return (
     <EmailLayout
-      preview={`${inviterName} invited you to connect accounts for ${workspaceName}`}
+      preview={
+        inviterName
+          ? `${inviterName} invited you to connect accounts for ${workspaceName}`
+          : `You have been invited to connect accounts for ${workspaceName}`
+      }
       showUnsubscribe={false}
     >
       <Text style={baseStyles.paragraph}>Hello,</Text>
       <Text style={baseStyles.paragraph}>
-        <strong>{inviterName}</strong> invited <strong>{recipientEmail}</strong> to connect accounts
-        for <strong>{credentialGroupName}</strong> in the <strong>{workspaceName}</strong> workspace
-        on {brand.name}.
+        {inviterName ? (
+          <>
+            <strong>{inviterName}</strong> invited <strong>{recipientEmail}</strong>
+          </>
+        ) : (
+          <>
+            <strong>{recipientEmail}</strong> has been invited
+          </>
+        )}{' '}
+        to connect accounts for <strong>{credentialGroupName}</strong> in the{' '}
+        <strong>{workspaceName}</strong> workspace on {brand.name}.
       </Text>
 
       <Link href={invitationLink} style={{ textDecoration: 'none' }}>

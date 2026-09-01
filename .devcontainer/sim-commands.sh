@@ -7,8 +7,8 @@
 alias sim-start="cd /workspace && bun run dev:full"
 alias sim-app="cd /workspace && bun run dev"
 alias sim-sockets="cd /workspace && bun run dev:sockets"
-alias sim-migrate="cd /workspace/apps/sim && bunx drizzle-kit push"
-alias sim-generate="cd /workspace/apps/sim && bunx drizzle-kit generate"
+alias sim-migrate="cd /workspace/packages/db && bun run db:push"
+alias sim-generate="cd /workspace/packages/db && bun run db:generate"
 alias sim-rebuild="cd /workspace && bun run build && bun run start"
 alias docs-dev="cd /workspace/apps/docs && bun run dev"
 

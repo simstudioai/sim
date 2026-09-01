@@ -135,10 +135,12 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
      * the reference pass is skipped for them rather than resolved against the
      * billing owner. See {@link buildWorkflowLintReport}.
      */
+    const subjectUserId = humanSubjectUserId(principal)
+
     const lint = await buildWorkflowLintReport(graph, {
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
-      subjectUserId: humanSubjectUserId(principal),
+      subjectUserId,
     })
 
     if (input.dryRun) {
@@ -180,6 +182,15 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
       attributedUserId: attribution.attributedUserId,
+      /**
+       * The same human the lint pass resolved above, and never
+       * `attribution.attributedUserId`: that answers a workspace API key with
+       * the billing owner, so reusing it would judge a caller-supplied graph
+       * against a bystander's grants. This operation admits only principals
+       * that name a human, so the `null` branch is a fail-safe rather than a
+       * reachable state.
+       */
+      subjectUserId,
       state: {
         blocks: graph.blocks,
         edges: graph.edges,

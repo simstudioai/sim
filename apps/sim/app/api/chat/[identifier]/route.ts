@@ -9,12 +9,12 @@ import { parseRequest } from '@/lib/api/server'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { env } from '@/lib/core/config/env'
-import { validateAuthToken } from '@/lib/core/security/deployment'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { ChatFiles } from '@/lib/uploads'
+import { formatOutputSelector } from '@/lib/workflows/streaming/output-selector'
 import { setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -158,8 +158,8 @@ export const POST = withRouteHandler(
       if ((password || email) && !input) {
         const response = createSuccessResponse(toChatConfigResponse(deployment))
 
-        if (deployment.authType !== 'sso') {
-          setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
+        if (deployment.authType === 'password') {
+          setChatAuthCookie(response, deployment)
         }
 
         return response
@@ -181,6 +181,8 @@ export const POST = withRouteHandler(
       const preprocessResult = await preprocessExecution({
         workflowId: deployment.workflowId,
         userId: deployment.userId,
+        // Whoever deployed this chat, not whoever is talking to it.
+        userIdIsStoredReference: true,
         triggerType: 'chat',
         executionId,
         requestId,
@@ -212,9 +214,11 @@ export const POST = withRouteHandler(
         const selectedOutputs: string[] = []
         if (deployment.outputConfigs && Array.isArray(deployment.outputConfigs)) {
           for (const config of deployment.outputConfigs) {
-            const outputId = config.path
-              ? `${config.blockId}_${config.path}`
-              : `${config.blockId}_content`
+            const outputId = formatOutputSelector(
+              config.blockId,
+              config.path || 'content',
+              config.workflowId
+            )
             selectedOutputs.push(outputId)
           }
         }
@@ -274,7 +278,16 @@ export const POST = withRouteHandler(
 
         const workflowForExecution = {
           id: deployment.workflowId,
-          userId: deployment.userId,
+          /**
+           * The workflow owner, not the chat's creator: `executeWorkflow` reads this
+           * one field to set `workflowUserId`, the personal-environment fallback for
+           * runs with no identifiable caller. `chat.userId` records who deployed the
+           * chat and is never maintained as an execution identity — member removal
+           * reassigns `workflow.userId` to keep it an active workspace identity and
+           * has no equivalent for the chat row — so reading it here made deployed
+           * chat resolve a pointer that every other trigger had already repaired.
+           */
+          userId: workflowRecord.userId,
           workspaceId,
           isDeployed: workflowRecord?.isDeployed ?? false,
           variables: (workflowRecord?.variables as Record<string, unknown>) ?? undefined,
@@ -310,6 +323,12 @@ export const POST = withRouteHandler(
               resolvedActorUserId,
               {
                 enabled: true,
+                principal: {
+                  kind: 'system',
+                  serviceId: 'chat',
+                  workspaceId,
+                  workflowId: deployment.workflowId,
+                },
                 selectedOutputs,
                 isSecureMode: true,
                 workflowTriggerType: 'chat',
@@ -386,18 +405,6 @@ export const GET = withRouteHandler(
       if (!deployment.isActive) {
         logger.warn(`[${requestId}] Chat is not active: ${identifier}`)
         return createErrorResponse('This chat is currently unavailable', 403)
-      }
-
-      const cookieName = `chat_auth_${deployment.id}`
-      const authCookie = request.cookies.get(cookieName)
-
-      if (
-        deployment.authType !== 'public' &&
-        deployment.authType !== 'sso' &&
-        authCookie &&
-        validateAuthToken(authCookie.value, deployment.id, deployment.authType, deployment.password)
-      ) {
-        return createSuccessResponse(toChatConfigResponse(deployment))
       }
 
       const authResult = await validateChatAuth(requestId, deployment, request)

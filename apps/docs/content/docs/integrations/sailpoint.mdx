@@ -1,0 +1,1785 @@
+---
+title: SailPoint
+description: Govern identities and access in SailPoint Identity Security Cloud
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sailpoint"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+## MANUAL DESCRIPTION
+
+The SailPoint integration connects Sim workflows to SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT). Enter the tenant name from your ISC URL—or the full `*.api.identitynow.com` / `*.api.identitynowgov.com` host—plus the PAT client ID and client secret. Sim exchanges those credentials at the tenant's `/oauth/token` endpoint and calls SailPoint's current service-versioned endpoints, such as `/identities/v1`, `/access-requests/v1`, and `/certifications/v1`. There is no global API-version setting.
+
+Create the PAT with the least-privileged scopes required by the actions in your workflow. Common read scopes include `sp:search:read`, `idn:identity:read`, `idn:accounts:read`, `idn:entitlement:read`, `idn:role-unchecked:read` or `idn:role-checked:read`, `idn:access-profile:read`, `idn:sources:read`, `idn:campaign:read`, `idn:access-request-status:read`, `idn:access-request-config:read`, `idn:task-management:read`, and `idn:access-request-approvals:read`. SailPoint lists `idn:access-request:manage` and `idn:access-request-self:manage` for access-request submission, `idn:access-request:create` for account-selection discovery, `idn:access-request:manage` for cancellation, `idn:campaign:manage` for certification decisions and sign-off, `idn:access-request-approvals:manage` for approval actions, `idn:sources:manage` for account import, and `idn:entitlement:manage` for entitlement import and entitlement request configuration. Some identity-governance endpoints require a user-context PAT and an appropriate SailPoint user authority in addition to an OAuth scope; scopes never grant authority beyond the PAT owner's ISC permissions.
+
+List actions return one bounded page. Standard collections accept up to 250 records per call; role collections accept up to 50; Search accepts up to 10,000. Use `offset`, `sorters`, or Search's `searchAfter` cursor to continue. Enable `count` only when you need the provider's `X-Total-Count` header. Omitting Search `indices` searches every index allowed by SailPoint; complex Search request fields are available as structured JSON inputs.
+
+Access requests are asynchronous. A successful submission returns SailPoint's `newRequests` and `existingRequests` tracking records, including the access-request IDs needed by the status tools. The standard request form applies the same requested items to every identity; use `requestedForWithRequestedItems` when identities need different items, dates, forms, or account selections. Use **Get Account Selections** before a machine grant/modify or a human multi-account request, then copy the returned source/account selection into **Request Access**. Account-selection discovery accepts at most 25 flat requested items. An entitlement revoke is limited to one entitlement per request, while entitlement grants are limited to 25 entitlements and 10 identities. Sim also caps other request recipient/item arrays at 250 to keep execution payloads bounded.
+
+Use **Get Access Request Config** to inspect the tenant's request-on-behalf-of and machine-identity settings. Use **Get Entitlement Request Config** to inspect one entitlement's grant, revocation, duration, approval, and form requirements before constructing a request. These configuration reads help a workflow avoid offering a request shape the tenant or entitlement does not permit.
+
+Account and entitlement imports upload a CSV to a source and return a task that can be followed with **Get Task Status**. Sim caps each uploaded CSV at 25 MiB and does not automatically poll the task. The file must be available to the workflow owner, and the source must support the corresponding import operation.
+
+The 40 actions cover six connected workflows: search and entity lookup; account, entitlement, role, access-profile, and source inventory; access-request configuration and account-selection discovery; access request submission, cancellation, approval, rejection, and status; campaign and certification review, decision, and sign-off; and CSV import plus task monitoring. Provider-defined objects such as account attributes and Search documents remain JSON because their fields depend on the tenant, source, index, and field projection.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Read and act on identity-governance data in SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT) exchanged through OAuth2 client credentials at https://TENANT.api.identitynow.com/oauth/token. SailPoint versions each service independently, so the integration uses current service paths such as /search/v1, /identities/v1, and /access-requests/v1; there is no shared annual API-version setting. Use a PAT whose owner has the ISC user level required by each endpoint because many identity, role, access-profile, certification, approval, and access-request operations require user context in addition to scopes. Common read scopes include sp:search:read, idn:identity:read, idn:accounts:read, idn:entitlement:read, idn:role-unchecked:read or idn:role-checked:read, idn:access-profile:read, idn:sources:read, idn:campaign:read, idn:access-request-status:read, idn:access-request-config:read, idn:task-management:read, and idn:access-request-approvals:read. Mutations additionally use idn:sources:manage for account aggregation, idn:entitlement:manage for entitlement aggregation and entitlement request configuration, idn:campaign:manage for certification decisions and sign-off, the access-request scopes listed by SailPoint for request submission, idn:access-request:create for account-selection discovery, and idn:access-request-approvals:manage for approval actions. A scope alone does not grant authority beyond the PAT owner's ISC permissions, and authorization failures may be returned as provider errors or filtered visibility depending on the endpoint and tenant policy.
+
+
+
+## Actions
+
+### SailPoint Approve Access Request
+
+Approve one pending access-request approval.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `approvalId` | string | Yes | Approval ID |
+| `comment` | string | No | Optional reviewer comment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Whether SailPoint accepted the asynchronous action |
+| `status` | number | Provider response status \(normally 202\) |
+
+### SailPoint Cancel Access Request
+
+Cancel an access request that has not passed approval.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `accountActivityId` | string | Yes | Account activity / identity request ID |
+| `comment` | string | Yes | Cancellation reason |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Whether SailPoint accepted the asynchronous action |
+| `status` | number | Provider response status \(normally 202\) |
+
+### SailPoint Decide Certification Review Items
+
+Approve or revoke 1-250 review items in an identity certification.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Certification ID |
+| `decisions` | array | Yes | Array of \{id, decision: APPROVE\|REVOKE, bulk, proposedEndDate?, recommendation?, comments?\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `certification` | object | Updated identity certification |
+|   ↳ `id` | string | Certification ID |
+|   ↳ `name` | string | Certification name |
+|   ↳ `campaign` | json | Campaign reference |
+|   ↳ `completed` | boolean | Whether all decisions are complete |
+|   ↳ `identitiesCompleted` | number | Identities fully reviewed |
+|   ↳ `identitiesTotal` | number | Total identities |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `decisionsMade` | number | Decisions made |
+|   ↳ `decisionsTotal` | number | Total decisions |
+|   ↳ `due` | string | Certification due timestamp |
+|   ↳ `signed` | string | Sign-off timestamp |
+|   ↳ `reviewer` | json | Reviewer reference |
+|   ↳ `reassignment` | json | Reassignment details |
+|   ↳ `hasErrors` | boolean | Whether the certification has errors |
+|   ↳ `errorMessage` | string | Certification error message |
+|   ↳ `phase` | string | Certification phase |
+
+### SailPoint Get Access Profile
+
+Get an access profile by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Access profile ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accessProfile` | object | SailPoint access profile |
+|   ↳ `id` | string | Access profile ID |
+|   ↳ `name` | string | Access profile name |
+|   ↳ `description` | string | Access profile description |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `enabled` | boolean | Whether the access profile is enabled |
+|   ↳ `owner` | json | Primary owner reference |
+|   ↳ `source` | json | Source reference |
+|   ↳ `entitlements` | array | Entitlement references |
+|   ↳ `requestable` | boolean | Whether the access profile is requestable |
+|   ↳ `accessRequestConfig` | json | Access-request configuration |
+|   ↳ `revocationRequestConfig` | json | Revocation-request configuration |
+|   ↳ `segments` | array | Segment IDs |
+|   ↳ `accessModelMetadata` | json | Access-model metadata |
+|   ↳ `provisioningCriteria` | json | Multi-account provisioning criteria |
+|   ↳ `additionalOwners` | array | Additional owner references |
+
+### SailPoint Get Access Profile Entitlements
+
+List entitlements in one access profile.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Access profile ID |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Entitlements in this access profile |
+|   ↳ `id` | string | Entitlement ID |
+|   ↳ `name` | string | Entitlement name |
+|   ↳ `attribute` | string | Source entitlement attribute |
+|   ↳ `value` | string | Source entitlement value |
+|   ↳ `sourceSchemaObjectType` | string | Source schema object type |
+|   ↳ `description` | string | Entitlement description |
+|   ↳ `privileged` | boolean | Whether the entitlement is privileged |
+|   ↳ `cloudGoverned` | boolean | Whether SailPoint governs the entitlement |
+|   ↳ `requestable` | boolean | Whether the entitlement is requestable |
+|   ↳ `owner` | object | Primary owner reference |
+|     ↳ `id` | string | Identity ID |
+|     ↳ `type` | string | IDENTITY |
+|     ↳ `name` | string | Identity display name |
+|   ↳ `additionalOwners` | array | Additional owner references |
+|     ↳ `type` | string | IDENTITY or GOVERNANCE_GROUP |
+|     ↳ `id` | string | Identity or governance-group ID |
+|     ↳ `name` | string | Display name |
+|   ↳ `manuallyUpdatedFields` | json | Fields manually updated in SailPoint |
+|   ↳ `accessModelMetadata` | object | Access-model metadata |
+|     ↳ `attributes` | array | Access-model metadata attributes |
+|       ↳ `key` | string | Metadata type identifier |
+|       ↳ `name` | string | Metadata type display name |
+|       ↳ `multiselect` | boolean | Whether the metadata accepts multiple values |
+|       ↳ `status` | string | Metadata item status |
+|       ↳ `type` | string | Metadata item type |
+|       ↳ `objectTypes` | array | Applicable object types |
+|       ↳ `description` | string | Metadata item description |
+|       ↳ `values` | array | Metadata values |
+|         ↳ `value` | string | Metadata value |
+|         ↳ `name` | string | Metadata value display name |
+|         ↳ `status` | string | Metadata value status |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `source` | object | Source reference |
+|     ↳ `id` | string | Source ID |
+|     ↳ `type` | string | SOURCE |
+|     ↳ `name` | string | Source name |
+|   ↳ `attributes` | json | Source-defined entitlement attributes |
+|   ↳ `segments` | array | Segment IDs |
+|   ↳ `directPermissions` | array | Direct permissions |
+|     ↳ `rights` | array | Rights granted on the target |
+|     ↳ `target` | string | Permission target |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint Get Access Request Config
+
+Get tenant access-request, request-on-behalf-of, and machine-identity configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accessRequestConfig` | object | Tenant access-request configuration |
+|   ↳ `approvalsMustBeExternal` | boolean | Whether approvals must be handled externally |
+|   ↳ `reauthorizationEnabled` | boolean | Whether reauthorization is enabled |
+|   ↳ `requestOnBehalfOfConfig` | object | Request-on-behalf-of policy |
+|     ↳ `allowRequestOnBehalfOfAnyoneByAnyone` | boolean | Whether anyone may request for anyone |
+|     ↳ `allowRequestOnBehalfOfEmployeeByManager` | boolean | Whether managers may request for their employees |
+|     ↳ `allowRequestOnBehalfOfForMachineIdentity` | boolean | Whether anyone may request for a machine identity |
+|     ↳ `allowRequestForMachineByOwner` | boolean | Whether machine owners may request for their machines |
+|   ↳ `entitlementRequestConfig` | object | Tenant entitlement request configuration |
+|     ↳ `accessRequestConfig` | object | Entitlement grant request configuration |
+|       ↳ `approvalSchemes` | array | Ordered approval schemes |
+|         ↳ `approverType` | string | ENTITLEMENT_OWNER, SOURCE_OWNER, MANAGER, GOVERNANCE_GROUP, or WORKFLOW |
+|         ↳ `approverId` | string | Governance group or workflow approver ID |
+|       ↳ `requestCommentRequired` | boolean | Whether a request comment is required |
+|       ↳ `denialCommentRequired` | boolean | Whether a denial comment is required |
+|       ↳ `reauthorizationRequired` | boolean | Whether reauthorization is required |
+|       ↳ `requireEndDate` | boolean | Whether an end date is required |
+|       ↳ `maxPermittedAccessDuration` | object | Maximum permitted access duration |
+|         ↳ `value` | number | Duration value |
+|         ↳ `timeUnit` | string | HOURS, DAYS, WEEKS, or MONTHS |
+|       ↳ `formDefinitionId` | string | Request form definition ID |
+|     ↳ `revocationRequestConfig` | object | Entitlement revocation request configuration |
+|       ↳ `approvalSchemes` | array | Ordered revocation approval schemes |
+|         ↳ `approverType` | string | ENTITLEMENT_OWNER, SOURCE_OWNER, MANAGER, GOVERNANCE_GROUP, or WORKFLOW |
+|         ↳ `approverId` | string | Governance group or workflow approver ID |
+|   ↳ `govGroupVisibilityEnabled` | boolean | Whether governance group visibility is enabled |
+|   ↳ `machineIdentityAccessRequestEnabled` | boolean | Whether machine identity access requests are enabled |
+
+### SailPoint Get Access Request Status
+
+List requested-item status records for access requests.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `requestedFor` | string | No | Identity ID for whom the access was requested |
+| `requestedBy` | string | No | Identity ID that submitted the access request |
+| `regardingIdentity` | string | No | Identity ID that is either the requester or the request target |
+| `assignedTo` | string | No | Identity ID assigned to the access-request work item |
+| `requestState` | string | No | EXECUTING |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Requested item status records in this page |
+|   ↳ `id` | string | Requested item status ID |
+|   ↳ `name` | string | Requested item name |
+|   ↳ `type` | string | Requested item type |
+|   ↳ `cancelledRequestDetails` | json | Cancellation details |
+|   ↳ `errorMessages` | array | Localized request errors |
+|   ↳ `state` | string | Request state |
+|   ↳ `approvalDetails` | array | Approval details |
+|   ↳ `approvalIds` | array | Approval IDs |
+|   ↳ `manualWorkItemDetails` | array | Manual provisioning work items |
+|   ↳ `accountActivityItemId` | string | Account activity item ID |
+|   ↳ `requestType` | string | Access request type |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `requester` | json | Requester reference |
+|   ↳ `requestedFor` | json | Requested-for identity reference |
+|   ↳ `identityType` | string | HUMAN or MACHINE |
+|   ↳ `requesterComment` | json | Requester comment |
+|   ↳ `sodViolationContext` | json | Separation-of-duties violation context |
+|   ↳ `provisioningDetails` | json | Provisioning details |
+|   ↳ `preApprovalTriggerDetails` | json | Pre-approval trigger details |
+|   ↳ `accessRequestPhases` | array | Request lifecycle phases |
+|   ↳ `description` | string | Requested object description |
+|   ↳ `startDate` | string | Requested start date |
+|   ↳ `removeDate` | string | Requested removal date |
+|   ↳ `cancelable` | boolean | Whether the request can be cancelled |
+|   ↳ `accessRequestId` | string | Access request ID |
+|   ↳ `clientMetadata` | json | Caller-provided string metadata |
+|   ↳ `requestedAccounts` | array | Selected account references |
+|   ↳ `privilegeLevel` | string | Requested object privilege level |
+|   ↳ `jitDetails` | array | Just-in-time access details |
+|   ↳ `form` | json | Completed request form |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint Get Account
+
+Get an account from the current /accounts/v1 service by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Account ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | object | SailPoint account |
+|   ↳ `id` | string | Account ID |
+|   ↳ `name` | string | Account name |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `sourceId` | string | Source ID |
+|   ↳ `sourceName` | string | Source name |
+|   ↳ `identityId` | string | Correlated identity ID |
+|   ↳ `cloudLifecycleState` | string | Cloud lifecycle state |
+|   ↳ `identityState` | string | Identity state |
+|   ↳ `connectionType` | string | Source connection type |
+|   ↳ `isMachine` | boolean | Whether this is a machine account |
+|   ↳ `recommendation` | json | Correlation recommendation |
+|   ↳ `attributes` | json | Source-defined account attributes |
+|   ↳ `authoritative` | boolean | Whether the account is authoritative |
+|   ↳ `description` | string | Account description |
+|   ↳ `disabled` | boolean | Whether the account is disabled |
+|   ↳ `locked` | boolean | Whether the account is locked |
+|   ↳ `nativeIdentity` | string | Native account identifier |
+|   ↳ `systemAccount` | boolean | Whether this is a system account |
+|   ↳ `uncorrelated` | boolean | Whether the account is uncorrelated |
+|   ↳ `uuid` | string | Account UUID |
+|   ↳ `manuallyCorrelated` | boolean | Whether the account was manually correlated |
+|   ↳ `hasEntitlements` | boolean | Whether the account has entitlements |
+|   ↳ `identity` | json | Correlated identity reference |
+|   ↳ `sourceOwner` | json | Source owner reference |
+|   ↳ `features` | string | Account features |
+|   ↳ `origin` | string | Account origin |
+|   ↳ `ownerIdentity` | json | Owner identity reference |
+
+### SailPoint Get Account Activity
+
+Get an account activity by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Account activity ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accountActivity` | object | SailPoint account activity |
+|   ↳ `id` | string | Account activity ID |
+|   ↳ `name` | string | Account activity name |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `completed` | string | Completion timestamp |
+|   ↳ `completionStatus` | string | Completion status |
+|   ↳ `type` | string | Activity type |
+|   ↳ `requesterIdentitySummary` | json | Requester identity summary |
+|   ↳ `targetIdentitySummary` | json | Target identity summary |
+|   ↳ `errors` | array | Provisioning errors |
+|   ↳ `warnings` | array | Provisioning warnings |
+|   ↳ `items` | array | Account activity items |
+|   ↳ `executionStatus` | string | Execution status |
+|   ↳ `clientMetadata` | json | Caller-provided string metadata |
+
+### SailPoint Get Account Entitlements
+
+List entitlements granted to one account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Account ID |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Entitlements on this account |
+|   ↳ `id` | string | Entitlement ID |
+|   ↳ `name` | string | Entitlement name |
+|   ↳ `attribute` | string | Source entitlement attribute |
+|   ↳ `value` | string | Source entitlement value |
+|   ↳ `sourceSchemaObjectType` | string | Source schema object type |
+|   ↳ `description` | string | Entitlement description |
+|   ↳ `privileged` | boolean | Whether the entitlement is privileged |
+|   ↳ `cloudGoverned` | boolean | Whether SailPoint governs the entitlement |
+|   ↳ `requestable` | boolean | Whether the entitlement is requestable |
+|   ↳ `owner` | object | Primary owner reference |
+|     ↳ `id` | string | Identity ID |
+|     ↳ `type` | string | IDENTITY |
+|     ↳ `name` | string | Identity display name |
+|   ↳ `additionalOwners` | array | Additional owner references |
+|     ↳ `type` | string | IDENTITY or GOVERNANCE_GROUP |
+|     ↳ `id` | string | Identity or governance-group ID |
+|     ↳ `name` | string | Display name |
+|   ↳ `manuallyUpdatedFields` | json | Fields manually updated in SailPoint |
+|   ↳ `accessModelMetadata` | object | Access-model metadata |
+|     ↳ `attributes` | array | Access-model metadata attributes |
+|       ↳ `key` | string | Metadata type identifier |
+|       ↳ `name` | string | Metadata type display name |
+|       ↳ `multiselect` | boolean | Whether the metadata accepts multiple values |
+|       ↳ `status` | string | Metadata item status |
+|       ↳ `type` | string | Metadata item type |
+|       ↳ `objectTypes` | array | Applicable object types |
+|       ↳ `description` | string | Metadata item description |
+|       ↳ `values` | array | Metadata values |
+|         ↳ `value` | string | Metadata value |
+|         ↳ `name` | string | Metadata value display name |
+|         ↳ `status` | string | Metadata value status |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `source` | object | Source reference |
+|     ↳ `id` | string | Source ID |
+|     ↳ `type` | string | SOURCE |
+|     ↳ `name` | string | Source name |
+|   ↳ `attributes` | json | Source-defined entitlement attributes |
+|   ↳ `segments` | array | Segment IDs |
+|   ↳ `directPermissions` | array | Direct permissions |
+|     ↳ `rights` | array | Rights granted on the target |
+|     ↳ `target` | string | Permission target |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint Get Account Selections
+
+Resolve eligible source accounts before submitting a machine or multi-account access request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `requestType` | string | No | GRANT_ACCESS \(default\), REVOKE_ACCESS, or MODIFY_ACCESS |
+| `requestedFor` | array | No | Human identity IDs for the flat request shape |
+| `requestedItems` | array | No | Flat human request items |
+| `requestedForWithRequestedItems` | array | No | Per-identity request items for account selection and all machine identity requests |
+| `clientMetadata` | json | No | Arbitrary string-to-string metadata returned by related APIs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accountSelections` | object | Eligible account selections grouped by identity and requested item |
+|   ↳ `identities` | array | Identity-specific eligible account selections |
+|     ↳ `requestedItems` | array | Requested items and their eligible accounts |
+|       ↳ `description` | string | Requested item description |
+|       ↳ `accountsSelectionBlocked` | boolean | Whether account selection is blocked |
+|       ↳ `accountsSelectionBlockedReason` | string | Provider reason account selection is blocked |
+|       ↳ `type` | string | ACCESS_PROFILE, ROLE, or ENTITLEMENT |
+|       ↳ `id` | string | Requested item ID |
+|       ↳ `name` | string | Requested item name |
+|       ↳ `sources` | array | Sources and eligible accounts for this item |
+|         ↳ `type` | string | SOURCE or provider reference type |
+|         ↳ `id` | string | Source ID |
+|         ↳ `name` | string | Source name |
+|         ↳ `accounts` | array | Eligible accounts on this source |
+|           ↳ `uuid` | string | Account UUID |
+|           ↳ `nativeIdentity` | string | Native account identifier |
+|           ↳ `type` | string | ACCOUNT or provider reference type |
+|           ↳ `id` | string | Account reference ID |
+|           ↳ `name` | string | Account name |
+|     ↳ `accountsSelectionRequired` | boolean | Whether this identity requires account selection |
+|     ↳ `type` | string | IDENTITY, MACHINE_IDENTITY, or provider reference type |
+|     ↳ `id` | string | Identity ID |
+|     ↳ `name` | string | Identity name |
+
+### SailPoint Get Campaign
+
+Get a certification campaign by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Campaign ID |
+| `detail` | string | No | SLIM or FULL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaign` | object | SailPoint certification campaign |
+|   ↳ `id` | string | Campaign ID |
+|   ↳ `name` | string | Campaign name |
+|   ↳ `description` | string | Campaign description |
+|   ↳ `deadline` | string | Campaign deadline |
+|   ↳ `type` | string | Campaign type |
+|   ↳ `status` | string | Campaign status |
+|   ↳ `correlatedStatus` | string | Campaign correlation status |
+|   ↳ `mandatoryCommentRequirement` | string | Decision comment requirement |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `recommendationsEnabled` | boolean | Whether recommendations are enabled |
+|   ↳ `emailNotificationEnabled` | boolean | Whether email notifications are enabled |
+|   ↳ `autoRevokeAllowed` | boolean | Whether automatic revocation is allowed |
+|   ↳ `totalCertifications` | number | Total certifications |
+|   ↳ `completedCertifications` | number | Completed certifications |
+|   ↳ `alerts` | array | Campaign alerts |
+|   ↳ `filter` | json | Campaign filter reference |
+|   ↳ `sunsetCommentsRequired` | boolean | Whether sunset-date changes require comments |
+|   ↳ `sourceOwnerCampaignInfo` | json | Source-owner campaign configuration |
+|   ↳ `searchCampaignInfo` | json | Search campaign configuration |
+|   ↳ `roleCompositionCampaignInfo` | json | Role-composition campaign configuration |
+|   ↳ `machineAccountCampaignInfo` | json | Machine-account campaign configuration |
+|   ↳ `sourcesWithOrphanEntitlements` | array | Sources containing orphan entitlements |
+
+### SailPoint Get Certification
+
+Get an identity certification by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Certification ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `certification` | object | SailPoint identity certification |
+|   ↳ `id` | string | Certification ID |
+|   ↳ `name` | string | Certification name |
+|   ↳ `campaign` | json | Campaign reference |
+|   ↳ `completed` | boolean | Whether all decisions are complete |
+|   ↳ `identitiesCompleted` | number | Identities fully reviewed |
+|   ↳ `identitiesTotal` | number | Total identities |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `decisionsMade` | number | Decisions made |
+|   ↳ `decisionsTotal` | number | Total decisions |
+|   ↳ `due` | string | Certification due timestamp |
+|   ↳ `signed` | string | Sign-off timestamp |
+|   ↳ `reviewer` | json | Reviewer reference |
+|   ↳ `reassignment` | json | Reassignment details |
+|   ↳ `hasErrors` | boolean | Whether the certification has errors |
+|   ↳ `errorMessage` | string | Certification error message |
+|   ↳ `phase` | string | Certification phase |
+
+### SailPoint Get Entitlement
+
+Get an entitlement by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Entitlement ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entitlement` | object | SailPoint entitlement |
+|   ↳ `id` | string | Entitlement ID |
+|   ↳ `name` | string | Entitlement name |
+|   ↳ `attribute` | string | Source entitlement attribute |
+|   ↳ `value` | string | Source entitlement value |
+|   ↳ `sourceSchemaObjectType` | string | Source schema object type |
+|   ↳ `description` | string | Entitlement description |
+|   ↳ `privilegeLevel` | object | Privilege-level details |
+|     ↳ `direct` | string | Direct privilege level assigned to the entitlement |
+|     ↳ `setBy` | string | User or process that set the privilege level |
+|     ↳ `setByType` | string | Method by which the privilege level was set |
+|     ↳ `inherited` | string | Inherited privilege level on the entitlement |
+|     ↳ `effective` | string | Effective privilege level assigned to the entitlement |
+|   ↳ `tags` | array | Entitlement tags |
+|   ↳ `cloudGoverned` | boolean | Whether SailPoint governs the entitlement |
+|   ↳ `requestable` | boolean | Whether the entitlement is requestable |
+|   ↳ `owner` | object | Primary owner reference |
+|     ↳ `id` | string | Identity ID |
+|     ↳ `type` | string | IDENTITY |
+|     ↳ `name` | string | Identity display name |
+|   ↳ `manuallyUpdatedFields` | json | Fields manually updated in SailPoint |
+|   ↳ `accessModelMetadata` | object | Access-model metadata |
+|     ↳ `attributes` | array | Access-model metadata attributes |
+|       ↳ `key` | string | Metadata type identifier |
+|       ↳ `name` | string | Metadata type display name |
+|       ↳ `multiselect` | boolean | Whether the metadata accepts multiple values |
+|       ↳ `status` | string | Metadata item status |
+|       ↳ `type` | string | Metadata item type |
+|       ↳ `objectTypes` | array | Applicable object types |
+|       ↳ `description` | string | Metadata item description |
+|       ↳ `values` | array | Metadata values |
+|         ↳ `value` | string | Metadata value |
+|         ↳ `name` | string | Metadata value display name |
+|         ↳ `status` | string | Metadata value status |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `source` | object | Source reference |
+|     ↳ `id` | string | Source ID |
+|     ↳ `type` | string | SOURCE |
+|     ↳ `name` | string | Source name |
+|   ↳ `attributes` | json | Source-defined entitlement attributes |
+|   ↳ `segments` | array | Segment IDs |
+|   ↳ `directPermissions` | array | Direct permissions |
+|     ↳ `rights` | array | Rights granted on the target |
+|     ↳ `target` | string | Permission target |
+
+### SailPoint Get Entitlement Request Config
+
+Get grant, revocation, duration, approval, and form settings for an entitlement.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Entitlement ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entitlementRequestConfig` | object | Entitlement request configuration |
+|   ↳ `accessRequestConfig` | object | Entitlement grant request configuration |
+|     ↳ `approvalSchemes` | array | Ordered approval schemes |
+|       ↳ `approverType` | string | ENTITLEMENT_OWNER, SOURCE_OWNER, MANAGER, GOVERNANCE_GROUP, or WORKFLOW |
+|       ↳ `approverId` | string | Governance group or workflow approver ID |
+|     ↳ `requestCommentRequired` | boolean | Whether a request comment is required |
+|     ↳ `denialCommentRequired` | boolean | Whether a denial comment is required |
+|     ↳ `reauthorizationRequired` | boolean | Whether reauthorization is required |
+|     ↳ `requireEndDate` | boolean | Whether an end date is required |
+|     ↳ `maxPermittedAccessDuration` | object | Maximum permitted access duration |
+|       ↳ `value` | number | Duration value |
+|       ↳ `timeUnit` | string | HOURS, DAYS, WEEKS, or MONTHS |
+|     ↳ `formDefinitionId` | string | Request form definition ID |
+|   ↳ `revocationRequestConfig` | object | Entitlement revocation request configuration |
+|     ↳ `approvalSchemes` | array | Ordered revocation approval schemes |
+|       ↳ `approverType` | string | ENTITLEMENT_OWNER, SOURCE_OWNER, MANAGER, GOVERNANCE_GROUP, or WORKFLOW |
+|       ↳ `approverId` | string | Governance group or workflow approver ID |
+
+### SailPoint Get Identity
+
+Get an identity from the current /identities/v1 service by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Identity ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `identity` | object | SailPoint identity |
+|   ↳ `id` | string | Identity ID |
+|   ↳ `name` | string | Identity name |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `alias` | string | Identity alias |
+|   ↳ `emailAddress` | string | Identity email address |
+|   ↳ `processingState` | string | Identity processing state |
+|   ↳ `identityStatus` | string | Identity status |
+|   ↳ `managerRef` | json | Manager reference |
+|   ↳ `isManager` | boolean | Whether the identity manages other identities |
+|   ↳ `lastRefresh` | string | Last identity refresh timestamp |
+|   ↳ `attributes` | json | Tenant-defined identity attributes |
+|   ↳ `lifecycleState` | json | Lifecycle-state reference |
+
+### SailPoint Get Role
+
+Get a role by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Role ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `role` | object | SailPoint role |
+|   ↳ `id` | string | Role ID |
+|   ↳ `name` | string | Role name |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `description` | string | Role description |
+|   ↳ `owner` | json | Primary owner reference |
+|   ↳ `additionalOwners` | array | Additional owner references |
+|   ↳ `accessProfiles` | array | Access profile references |
+|   ↳ `entitlements` | array | Entitlement references |
+|   ↳ `membership` | json | Role membership selector |
+|   ↳ `legacyMembershipInfo` | json | Legacy membership information |
+|   ↳ `enabled` | boolean | Whether the role is enabled |
+|   ↳ `requestable` | boolean | Whether the role is requestable |
+|   ↳ `accessRequestConfig` | json | Access-request configuration |
+|   ↳ `revocationRequestConfig` | json | Revocation-request configuration |
+|   ↳ `segments` | array | Segment IDs |
+|   ↳ `dimensional` | boolean | Whether the role is dimensional |
+|   ↳ `dimensionRefs` | array | Dimension references |
+|   ↳ `accessModelMetadata` | json | Access-model metadata |
+|   ↳ `privilegeLevel` | string | Role privilege level |
+
+### SailPoint Get Role Entitlements
+
+List entitlements in one role using the current non-experimental roles service.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Role ID |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum roles for this page \(0-50; default 50\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Entitlements in this role |
+|   ↳ `id` | string | Entitlement ID |
+|   ↳ `name` | string | Entitlement name |
+|   ↳ `attribute` | string | Source entitlement attribute |
+|   ↳ `value` | string | Source entitlement value |
+|   ↳ `sourceSchemaObjectType` | string | Source schema object type |
+|   ↳ `description` | string | Entitlement description |
+|   ↳ `privileged` | boolean | Whether the entitlement is privileged |
+|   ↳ `cloudGoverned` | boolean | Whether SailPoint governs the entitlement |
+|   ↳ `requestable` | boolean | Whether the entitlement is requestable |
+|   ↳ `owner` | object | Primary owner reference |
+|     ↳ `id` | string | Identity ID |
+|     ↳ `type` | string | IDENTITY |
+|     ↳ `name` | string | Identity display name |
+|   ↳ `additionalOwners` | array | Additional owner references |
+|     ↳ `type` | string | IDENTITY or GOVERNANCE_GROUP |
+|     ↳ `id` | string | Identity or governance-group ID |
+|     ↳ `name` | string | Display name |
+|   ↳ `manuallyUpdatedFields` | json | Fields manually updated in SailPoint |
+|   ↳ `accessModelMetadata` | object | Access-model metadata |
+|     ↳ `attributes` | array | Access-model metadata attributes |
+|       ↳ `key` | string | Metadata type identifier |
+|       ↳ `name` | string | Metadata type display name |
+|       ↳ `multiselect` | boolean | Whether the metadata accepts multiple values |
+|       ↳ `status` | string | Metadata item status |
+|       ↳ `type` | string | Metadata item type |
+|       ↳ `objectTypes` | array | Applicable object types |
+|       ↳ `description` | string | Metadata item description |
+|       ↳ `values` | array | Metadata values |
+|         ↳ `value` | string | Metadata value |
+|         ↳ `name` | string | Metadata value display name |
+|         ↳ `status` | string | Metadata value status |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `source` | object | Source reference |
+|     ↳ `id` | string | Source ID |
+|     ↳ `type` | string | SOURCE |
+|     ↳ `name` | string | Source name |
+|   ↳ `attributes` | json | Source-defined entitlement attributes |
+|   ↳ `segments` | array | Segment IDs |
+|   ↳ `directPermissions` | array | Direct permissions |
+|     ↳ `rights` | array | Rights granted on the target |
+|     ↳ `target` | string | Permission target |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint Get Source
+
+Get an identity source by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Source ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `source` | object | SailPoint identity source |
+|   ↳ `id` | string | Source ID |
+|   ↳ `name` | string | Source name |
+|   ↳ `description` | string | Source description |
+|   ↳ `owner` | json | Source owner reference |
+|   ↳ `cluster` | json | Virtual appliance cluster reference |
+|   ↳ `accountCorrelationConfig` | json | Account correlation configuration |
+|   ↳ `accountCorrelationRule` | json | Account correlation rule reference |
+|   ↳ `managerCorrelationMapping` | json | Manager correlation mapping |
+|   ↳ `managerCorrelationRule` | json | Manager correlation rule reference |
+|   ↳ `beforeProvisioningRule` | json | Before-provisioning rule reference |
+|   ↳ `schemas` | array | Source schemas |
+|   ↳ `passwordPolicies` | array | Password policy references |
+|   ↳ `features` | array | Source features |
+|   ↳ `type` | string | Source type |
+|   ↳ `connector` | string | Connector name |
+|   ↳ `connectorClass` | string | Connector implementation class |
+|   ↳ `connectorAttributes` | json | Connector-specific attributes |
+|   ↳ `deleteThreshold` | number | Account deletion threshold |
+|   ↳ `authoritative` | boolean | Whether the source is authoritative |
+|   ↳ `managementWorkgroup` | json | Management workgroup reference |
+|   ↳ `healthy` | boolean | Whether the source is healthy |
+|   ↳ `status` | string | Source status |
+|   ↳ `since` | string | Status start timestamp |
+|   ↳ `connectorId` | string | Connector ID |
+|   ↳ `connectorName` | string | Connector display name |
+|   ↳ `connectionType` | string | Connection type |
+|   ↳ `connectorImplementationId` | string | Connector implementation ID |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `credentialProviderEnabled` | boolean | Whether a credential provider is enabled |
+|   ↳ `category` | string | Source category |
+
+### SailPoint Get Task Status
+
+Get the current status of a SailPoint background task by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Task ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | object | SailPoint task status |
+|   ↳ `id` | string | Task ID |
+|   ↳ `type` | string | Task type |
+|   ↳ `uniqueName` | string | Task unique name |
+|   ↳ `description` | string | Task description |
+|   ↳ `parentName` | string | Parent task name |
+|   ↳ `launcher` | string | Task launcher |
+|   ↳ `target` | object | Task target |
+|     ↳ `id` | string | Target ID |
+|     ↳ `type` | string | APPLICATION or IDENTITY |
+|     ↳ `name` | string | Target name |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `launched` | string | Launch timestamp |
+|   ↳ `completed` | string | Completion timestamp |
+|   ↳ `completionStatus` | string | Task completion status |
+|   ↳ `messages` | array | Task messages |
+|     ↳ `type` | string | INFO, WARN, or ERROR |
+|     ↳ `localizedText` | object | Localized task message |
+|       ↳ `locale` | string | Message locale |
+|       ↳ `message` | string | Message text |
+|     ↳ `key` | string | Message key |
+|     ↳ `parameters` | array | Internationalization parameters |
+|   ↳ `returns` | array | Task return descriptors |
+|     ↳ `name` | string | Return value display name |
+|     ↳ `attributeName` | string | Task attribute name |
+|   ↳ `attributes` | json | Task-specific attributes |
+|   ↳ `progress` | string | Human-readable progress |
+|   ↳ `percentComplete` | number | Completion percentage |
+|   ↳ `taskDefinitionSummary` | object | Task definition summary |
+|     ↳ `id` | string | Task-definition ID |
+|     ↳ `uniqueName` | string | Task-definition unique name |
+|     ↳ `description` | string | Task-definition description |
+|     ↳ `parentName` | string | Parent task-definition name |
+|     ↳ `executor` | string | Task-definition executor |
+|     ↳ `arguments` | json | Task-definition arguments |
+
+### SailPoint List Access Profiles
+
+List access profiles with current visibility and segmentation controls.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `forSubadmin` | string | No | Subadmin identity ID or 'me' whose visible resources should be returned |
+| `forSegmentIds` | string | No | Comma-separated segment IDs used to restrict the returned resources |
+| `includeUnsegmented` | boolean | No | Include resources not assigned to a segment \(default true\) |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Access profiles in this page |
+|   ↳ `id` | string | Access profile ID |
+|   ↳ `name` | string | Access profile name |
+|   ↳ `description` | string | Access profile description |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `enabled` | boolean | Whether the access profile is enabled |
+|   ↳ `owner` | json | Primary owner reference |
+|   ↳ `source` | json | Source reference |
+|   ↳ `entitlements` | array | Entitlement references |
+|   ↳ `requestable` | boolean | Whether the access profile is requestable |
+|   ↳ `accessRequestConfig` | json | Access-request configuration |
+|   ↳ `revocationRequestConfig` | json | Revocation-request configuration |
+|   ↳ `segments` | array | Segment IDs |
+|   ↳ `accessModelMetadata` | json | Access-model metadata |
+|   ↳ `provisioningCriteria` | json | Multi-account provisioning criteria |
+|   ↳ `additionalOwners` | array | Additional owner references |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint List Account Activities
+
+List provisioning activities with identity, filter, sort, and page controls.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `requestedFor` | string | No | Target identity ID or 'me'; mutually exclusive with regardingIdentity |
+| `requestedBy` | string | No | Requester identity ID or 'me'; mutually exclusive with regardingIdentity |
+| `regardingIdentity` | string | No | Requester-or-target identity ID or 'me'; excludes requestedFor/requestedBy |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Account activities in this page |
+|   ↳ `id` | string | Account activity ID |
+|   ↳ `name` | string | Account activity name |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `completed` | string | Completion timestamp |
+|   ↳ `completionStatus` | string | Completion status |
+|   ↳ `type` | string | Activity type |
+|   ↳ `requesterIdentitySummary` | json | Requester identity summary |
+|   ↳ `targetIdentitySummary` | json | Target identity summary |
+|   ↳ `errors` | array | Provisioning errors |
+|   ↳ `warnings` | array | Provisioning warnings |
+|   ↳ `items` | array | Account activity items |
+|   ↳ `executionStatus` | string | Execution status |
+|   ↳ `clientMetadata` | json | Caller-provided string metadata |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint List Accounts
+
+List accounts with documented filtering, sorting, detail, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `detailLevel` | string | No | SLIM or FULL \(default FULL\) |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Accounts in this page |
+|   ↳ `id` | string | Account ID |
+|   ↳ `name` | string | Account name |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `sourceId` | string | Source ID |
+|   ↳ `sourceName` | string | Source name |
+|   ↳ `identityId` | string | Correlated identity ID |
+|   ↳ `cloudLifecycleState` | string | Cloud lifecycle state |
+|   ↳ `identityState` | string | Identity state |
+|   ↳ `connectionType` | string | Source connection type |
+|   ↳ `isMachine` | boolean | Whether this is a machine account |
+|   ↳ `recommendation` | json | Correlation recommendation |
+|   ↳ `attributes` | json | Source-defined account attributes |
+|   ↳ `authoritative` | boolean | Whether the account is authoritative |
+|   ↳ `description` | string | Account description |
+|   ↳ `disabled` | boolean | Whether the account is disabled |
+|   ↳ `locked` | boolean | Whether the account is locked |
+|   ↳ `nativeIdentity` | string | Native account identifier |
+|   ↳ `systemAccount` | boolean | Whether this is a system account |
+|   ↳ `uncorrelated` | boolean | Whether the account is uncorrelated |
+|   ↳ `uuid` | string | Account UUID |
+|   ↳ `manuallyCorrelated` | boolean | Whether the account was manually correlated |
+|   ↳ `hasEntitlements` | boolean | Whether the account has entitlements |
+|   ↳ `identity` | json | Correlated identity reference |
+|   ↳ `sourceOwner` | json | Source owner reference |
+|   ↳ `features` | string | Account features |
+|   ↳ `origin` | string | Account origin |
+|   ↳ `ownerIdentity` | json | Owner identity reference |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint List Campaigns
+
+List certification campaigns with detail, filtering, sorting, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `detail` | string | No | SLIM \(default\) or FULL |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Certification campaigns in this page |
+|   ↳ `id` | string | Campaign ID |
+|   ↳ `name` | string | Campaign name |
+|   ↳ `description` | string | Campaign description |
+|   ↳ `deadline` | string | Campaign deadline |
+|   ↳ `type` | string | Campaign type |
+|   ↳ `status` | string | Campaign status |
+|   ↳ `correlatedStatus` | string | Campaign correlation status |
+|   ↳ `mandatoryCommentRequirement` | string | Decision comment requirement |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `recommendationsEnabled` | boolean | Whether recommendations are enabled |
+|   ↳ `emailNotificationEnabled` | boolean | Whether email notifications are enabled |
+|   ↳ `autoRevokeAllowed` | boolean | Whether automatic revocation is allowed |
+|   ↳ `totalCertifications` | number | Total certifications |
+|   ↳ `completedCertifications` | number | Completed certifications |
+|   ↳ `alerts` | array | Campaign alerts |
+|   ↳ `filter` | json | Campaign filter reference |
+|   ↳ `sunsetCommentsRequired` | boolean | Whether sunset-date changes require comments |
+|   ↳ `sourceOwnerCampaignInfo` | json | Source-owner campaign configuration |
+|   ↳ `searchCampaignInfo` | json | Search campaign configuration |
+|   ↳ `roleCompositionCampaignInfo` | json | Role-composition campaign configuration |
+|   ↳ `machineAccountCampaignInfo` | json | Machine-account campaign configuration |
+|   ↳ `sourcesWithOrphanEntitlements` | array | Sources containing orphan entitlements |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint List Certification Review Items
+
+List access-review items in one identity certification.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Certification ID |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `entitlements` | string | No | Comma-separated entitlement IDs |
+| `accessProfiles` | string | No | Comma-separated access profile IDs |
+| `roles` | string | No | Comma-separated role IDs |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Certification access-review items in this page |
+|   ↳ `accessSummary` | json | Reviewed access summary |
+|   ↳ `identitySummary` | json | Reviewed identity summary |
+|   ↳ `id` | string | Review item ID |
+|   ↳ `completed` | boolean | Whether review is complete |
+|   ↳ `newAccess` | boolean | Whether this is newly granted access |
+|   ↳ `decision` | string | Current certification decision |
+|   ↳ `comments` | string | Reviewer comments |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint List Certifications
+
+List identity certifications assigned to a reviewer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `reviewerIdentity` | string | No | Reviewer identity ID or 'me' |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Identity certifications in this page |
+|   ↳ `id` | string | Certification ID |
+|   ↳ `name` | string | Certification name |
+|   ↳ `campaign` | json | Campaign reference |
+|   ↳ `completed` | boolean | Whether all decisions are complete |
+|   ↳ `identitiesCompleted` | number | Identities fully reviewed |
+|   ↳ `identitiesTotal` | number | Total identities |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `decisionsMade` | number | Decisions made |
+|   ↳ `decisionsTotal` | number | Total decisions |
+|   ↳ `due` | string | Certification due timestamp |
+|   ↳ `signed` | string | Sign-off timestamp |
+|   ↳ `reviewer` | json | Reviewer reference |
+|   ↳ `reassignment` | json | Reassignment details |
+|   ↳ `hasErrors` | boolean | Whether the certification has errors |
+|   ↳ `errorMessage` | string | Certification error message |
+|   ↳ `phase` | string | Certification phase |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint List Entitlements
+
+List entitlements with current segmentation, cursor, filter, and page controls.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `segmentedForIdentity` | string | No | Identity ID whose visible segments restrict the results |
+| `forSegmentIds` | string | No | Comma-separated segment IDs used to restrict the returned resources |
+| `includeUnsegmented` | boolean | No | Include resources not assigned to a segment \(default true\) |
+| `searchAfter` | string | No | Opaque search-after cursor from the previous entitlement page |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Entitlements in this page |
+|   ↳ `id` | string | Entitlement ID |
+|   ↳ `name` | string | Entitlement name |
+|   ↳ `attribute` | string | Source entitlement attribute |
+|   ↳ `value` | string | Source entitlement value |
+|   ↳ `sourceSchemaObjectType` | string | Source schema object type |
+|   ↳ `description` | string | Entitlement description |
+|   ↳ `privilegeLevel` | object | Privilege-level details |
+|     ↳ `direct` | string | Direct privilege level assigned to the entitlement |
+|     ↳ `setBy` | string | User or process that set the privilege level |
+|     ↳ `setByType` | string | Method by which the privilege level was set |
+|     ↳ `inherited` | string | Inherited privilege level on the entitlement |
+|     ↳ `effective` | string | Effective privilege level assigned to the entitlement |
+|   ↳ `tags` | array | Entitlement tags |
+|   ↳ `cloudGoverned` | boolean | Whether SailPoint governs the entitlement |
+|   ↳ `requestable` | boolean | Whether the entitlement is requestable |
+|   ↳ `owner` | object | Primary owner reference |
+|     ↳ `id` | string | Identity ID |
+|     ↳ `type` | string | IDENTITY |
+|     ↳ `name` | string | Identity display name |
+|   ↳ `manuallyUpdatedFields` | json | Fields manually updated in SailPoint |
+|   ↳ `accessModelMetadata` | object | Access-model metadata |
+|     ↳ `attributes` | array | Access-model metadata attributes |
+|       ↳ `key` | string | Metadata type identifier |
+|       ↳ `name` | string | Metadata type display name |
+|       ↳ `multiselect` | boolean | Whether the metadata accepts multiple values |
+|       ↳ `status` | string | Metadata item status |
+|       ↳ `type` | string | Metadata item type |
+|       ↳ `objectTypes` | array | Applicable object types |
+|       ↳ `description` | string | Metadata item description |
+|       ↳ `values` | array | Metadata values |
+|         ↳ `value` | string | Metadata value |
+|         ↳ `name` | string | Metadata value display name |
+|         ↳ `status` | string | Metadata value status |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `source` | object | Source reference |
+|     ↳ `id` | string | Source ID |
+|     ↳ `type` | string | SOURCE |
+|     ↳ `name` | string | Source name |
+|   ↳ `attributes` | json | Source-defined entitlement attributes |
+|   ↳ `segments` | array | Segment IDs |
+|   ↳ `directPermissions` | array | Direct permissions |
+|     ↳ `rights` | array | Rights granted on the target |
+|     ↳ `target` | string | Permission target |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint List Identities
+
+List identities with documented filtering, sorting, and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `defaultFilter` | string | No | CORRELATED_ONLY \(default\) or NONE |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Identities in this page |
+|   ↳ `id` | string | Identity ID |
+|   ↳ `name` | string | Identity name |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `alias` | string | Identity alias |
+|   ↳ `emailAddress` | string | Identity email address |
+|   ↳ `processingState` | string | Identity processing state |
+|   ↳ `identityStatus` | string | Identity status |
+|   ↳ `managerRef` | json | Manager reference |
+|   ↳ `isManager` | boolean | Whether the identity manages other identities |
+|   ↳ `lastRefresh` | string | Last identity refresh timestamp |
+|   ↳ `attributes` | json | Tenant-defined identity attributes |
+|   ↳ `lifecycleState` | json | Lifecycle-state reference |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint List Identity Entitlements
+
+List tagged entitlement references held by one identity.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Identity ID |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Entitlements held by this identity |
+|   ↳ `objectRef` | json | Tagged entitlement reference |
+|   ↳ `tags` | array | Tags applied to the entitlement |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint List Pending Access Request Approvals
+
+List pending access-request approvals visible to the caller.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `ownerId` | string | No | Approval owner identity ID or 'me'; admins may omit it for all approvals |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Pending access-request approvals in this page |
+|   ↳ `id` | string | Approval ID |
+|   ↳ `accessRequestId` | string | Access request ID |
+|   ↳ `name` | string | Approval name |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `requestCreated` | string | Access-request creation timestamp |
+|   ↳ `requestType` | string | GRANT_ACCESS, REVOKE_ACCESS, or MODIFY_ACCESS |
+|   ↳ `identityType` | string | HUMAN or MACHINE |
+|   ↳ `requester` | json | Requester reference |
+|   ↳ `requestedFor` | json | Requested-for identity reference |
+|   ↳ `owner` | json | Access item owner |
+|   ↳ `requestedObject` | json | Requested access object |
+|   ↳ `requesterComment` | json | Requester comment |
+|   ↳ `previousReviewersComments` | array | Previous reviewer comments |
+|   ↳ `forwardHistory` | array | Approval forwarding history |
+|   ↳ `commentRequiredWhenRejected` | boolean | Whether rejection requires a comment |
+|   ↳ `actionInProcess` | string | Asynchronous action in progress |
+|   ↳ `removeDate` | string | Requested removal date |
+|   ↳ `removeDateUpdateRequested` | boolean | Whether this request changes the removal date |
+|   ↳ `currentRemoveDate` | string | Removal date at request time |
+|   ↳ `startDate` | string | Requested start date |
+|   ↳ `startUpdateRequested` | boolean | Whether this request changes the start date |
+|   ↳ `currentStartDate` | string | Start date at request time |
+|   ↳ `sodViolationContext` | json | Separation-of-duties violation context |
+|   ↳ `clientMetadata` | json | Caller-provided metadata |
+|   ↳ `requestedAccounts` | array | Selected account references |
+|   ↳ `privilegeLevel` | string | Requested object privilege level |
+|   ↳ `maxPermittedAccessDuration` | json | Maximum allowed access duration |
+|   ↳ `jitDetails` | array | Just-in-time access details |
+|   ↳ `form` | json | Completed request form |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint List Roles
+
+List roles with current visibility, segmentation, filtering, and pagination controls.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `forSubadmin` | string | No | Subadmin identity ID or 'me' whose visible resources should be returned |
+| `forSegmentIds` | string | No | Comma-separated segment IDs used to restrict the returned resources |
+| `includeUnsegmented` | boolean | No | Include resources not assigned to a segment \(default true\) |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `limit` | number | No | Maximum roles for this page \(0-50; default 50\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Roles in this page |
+|   ↳ `id` | string | Role ID |
+|   ↳ `name` | string | Role name |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `description` | string | Role description |
+|   ↳ `owner` | json | Primary owner reference |
+|   ↳ `additionalOwners` | array | Additional owner references |
+|   ↳ `accessProfiles` | array | Access profile references |
+|   ↳ `entitlements` | array | Entitlement references |
+|   ↳ `membership` | json | Role membership selector |
+|   ↳ `legacyMembershipInfo` | json | Legacy membership information |
+|   ↳ `enabled` | boolean | Whether the role is enabled |
+|   ↳ `requestable` | boolean | Whether the role is requestable |
+|   ↳ `accessRequestConfig` | json | Access-request configuration |
+|   ↳ `revocationRequestConfig` | json | Revocation-request configuration |
+|   ↳ `segments` | array | Segment IDs |
+|   ↳ `dimensional` | boolean | Whether the role is dimensional |
+|   ↳ `dimensionRefs` | array | Dimension references |
+|   ↳ `accessModelMetadata` | json | Access-model metadata |
+|   ↳ `privilegeLevel` | string | Role privilege level |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint List Sources
+
+List identity sources with visibility, filtering, sorting, and pagination controls.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `filters` | string | No | SailPoint standard collection filter expression for this operation |
+| `sorters` | string | No | Comma-separated supported sort fields, prefixed with - for descending order |
+| `forSubadmin` | string | No | Subadmin identity ID or 'me' whose visible resources should be returned |
+| `includeIDNSource` | boolean | No | Include the built-in IdentityNow source \(default false\) |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Sources in this page |
+|   ↳ `id` | string | Source ID |
+|   ↳ `name` | string | Source name |
+|   ↳ `description` | string | Source description |
+|   ↳ `owner` | json | Source owner reference |
+|   ↳ `cluster` | json | Virtual appliance cluster reference |
+|   ↳ `accountCorrelationConfig` | json | Account correlation configuration |
+|   ↳ `accountCorrelationRule` | json | Account correlation rule reference |
+|   ↳ `managerCorrelationMapping` | json | Manager correlation mapping |
+|   ↳ `managerCorrelationRule` | json | Manager correlation rule reference |
+|   ↳ `beforeProvisioningRule` | json | Before-provisioning rule reference |
+|   ↳ `schemas` | array | Source schemas |
+|   ↳ `passwordPolicies` | array | Password policy references |
+|   ↳ `features` | array | Source features |
+|   ↳ `type` | string | Source type |
+|   ↳ `connector` | string | Connector name |
+|   ↳ `connectorClass` | string | Connector implementation class |
+|   ↳ `connectorAttributes` | json | Connector-specific attributes |
+|   ↳ `deleteThreshold` | number | Account deletion threshold |
+|   ↳ `authoritative` | boolean | Whether the source is authoritative |
+|   ↳ `managementWorkgroup` | json | Management workgroup reference |
+|   ↳ `healthy` | boolean | Whether the source is healthy |
+|   ↳ `status` | string | Source status |
+|   ↳ `since` | string | Status start timestamp |
+|   ↳ `connectorId` | string | Connector ID |
+|   ↳ `connectorName` | string | Connector display name |
+|   ↳ `connectionType` | string | Connection type |
+|   ↳ `connectorImplementationId` | string | Connector implementation ID |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `credentialProviderEnabled` | boolean | Whether a credential provider is enabled |
+|   ↳ `category` | string | Source category |
+| `count` | number | Number of records returned in this page |
+| `totalCount` | number | Total matching records when count=true |
+
+### SailPoint Load Accounts
+
+Start account aggregation for a source, optionally using a CSV file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `sourceId` | string | Yes | Source ID |
+| `file` | file | No | Delimited-file source account CSV |
+| `disableOptimization` | boolean | No | Reprocess every account instead of using optimized aggregation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether SailPoint successfully created the task |
+| `task` | object | Account aggregation task |
+|   ↳ `id` | string | Task ID |
+|   ↳ `type` | string | Task type |
+|   ↳ `name` | string | Task name |
+|   ↳ `description` | string | Task description |
+|   ↳ `launcher` | string | Task launcher |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `launched` | string | Launch timestamp |
+|   ↳ `completed` | string | Completion timestamp |
+|   ↳ `completionStatus` | string | Task completion status |
+|   ↳ `parentName` | string | Parent task name |
+|   ↳ `messages` | array | Task messages |
+|     ↳ `type` | string | INFO, WARN, or ERROR |
+|     ↳ `error` | boolean | Whether the message is an error |
+|     ↳ `warning` | boolean | Whether the message is a warning |
+|     ↳ `key` | string | Message key |
+|     ↳ `localizedText` | string | Localized message text |
+|   ↳ `progress` | string | Human-readable progress |
+|   ↳ `attributes` | json | Task-specific attributes |
+|   ↳ `returns` | array | Task return descriptors |
+|     ↳ `displayLabel` | string | Return value display label |
+|     ↳ `attributeName` | string | Task attribute name |
+
+### SailPoint Load Entitlements
+
+Start entitlement aggregation for a source, optionally using a CSV file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `sourceId` | string | Yes | Source ID |
+| `file` | file | No | Delimited-file source entitlement CSV |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | object | Entitlement aggregation task |
+|   ↳ `id` | string | Task ID |
+|   ↳ `type` | string | Task type |
+|   ↳ `uniqueName` | string | Task unique name |
+|   ↳ `description` | string | Task description |
+|   ↳ `launcher` | string | Task launcher |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `returns` | array | Task return descriptors |
+|     ↳ `displayLabel` | string | Return value display label |
+|     ↳ `attributeName` | string | Task attribute name |
+
+### SailPoint Reject Access Request
+
+Reject one pending access-request approval with a reviewer comment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `approvalId` | string | Yes | Approval ID |
+| `comment` | string | Yes | Reviewer rejection comment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Whether SailPoint accepted the asynchronous action |
+| `status` | number | Provider response status \(normally 202\) |
+
+### SailPoint Request Access
+
+Submit a current human or machine identity access request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `requestType` | string | No | GRANT_ACCESS \(default\), REVOKE_ACCESS, or MODIFY_ACCESS |
+| `requestedFor` | array | No | Human identity IDs for the flat request shape |
+| `requestedItems` | array | No | Flat human request items |
+| `requestedForWithRequestedItems` | array | No | Per-identity request items for account selection and all machine identity requests |
+| `clientMetadata` | json | No | Arbitrary string-to-string metadata returned by related APIs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accepted` | boolean | Whether SailPoint accepted the asynchronous action |
+| `status` | number | Provider response status \(normally 202\) |
+| `newRequests` | array | New access request tracking records |
+|   ↳ `requestedFor` | string | Requested-for identity ID |
+|   ↳ `requestedItemsDetails` | array | Requested item references |
+|     ↳ `type` | string | ACCESS_PROFILE, ROLE, or ENTITLEMENT |
+|     ↳ `id` | string | Requested item ID |
+|   ↳ `attributesHash` | number | Stable request attributes hash |
+|   ↳ `accessRequestIds` | array | Access request tracking IDs |
+| `existingRequests` | array | Already-existing request tracking records |
+|   ↳ `requestedFor` | string | Requested-for identity ID |
+|   ↳ `requestedItemsDetails` | array | Requested item references |
+|     ↳ `type` | string | ACCESS_PROFILE, ROLE, or ENTITLEMENT |
+|     ↳ `id` | string | Requested item ID |
+|   ↳ `attributesHash` | number | Stable request attributes hash |
+|   ↳ `accessRequestIds` | array | Access request tracking IDs |
+
+### SailPoint Search
+
+Search current SailPoint indices with every documented search query mode.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `indices` | array | No | Indices to search: accessprofiles, accountactivities, entitlements, events, identities, roles, or *. Omit to search all. |
+| `queryType` | string | No | SAILPOINT \(default\), DSL, TEXT, or TYPEAHEAD |
+| `queryVersion` | string | No | Elasticsearch query language version \(default 5.2\) |
+| `query` | object | No | SAILPOINT query object: \{query?, fields?, timeZone?, innerHit?\} |
+| `queryDsl` | json | No | Elasticsearch Query DSL object used with queryType=DSL |
+| `textQuery` | object | No | TEXT query object with required terms\[\] and fields\[\] |
+| `typeAheadQuery` | object | No | TYPEAHEAD query with query, field, optional nestedType, maxExpansions \(1-1000\), size, sort, and sortByValue |
+| `includeNested` | boolean | No | Include nested objects in search results \(default true\) |
+| `queryResultFilter` | object | No | Result projection object with includes\[\] and/or excludes\[\] |
+| `aggregationType` | string | No | Aggregation query language: DSL \(default\) or SAILPOINT |
+| `aggregationsVersion` | string | No | Elasticsearch aggregation language version \(default 5.2\) |
+| `aggregationsDsl` | json | No | Dynamic Elasticsearch aggregations DSL object |
+| `aggregations` | json | No | Typed SailPoint aggregation specification |
+| `sort` | array | No | Ordered search fields; prefix + or - for direction |
+| `searchAfter` | array | No | String values from the final sorted record of the previous search page |
+| `filters` | json | No | Map of result field names to filter objects |
+| `limit` | number | No | Maximum search documents for this page \(0-10,000; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Index-dependent search documents |
+| `count` | number | Documents returned in this page |
+| `totalCount` | number | Total matching documents when count=true |
+
+### SailPoint Search Aggregate
+
+Run an Elasticsearch DSL or SailPoint aggregation over current search indices.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `indices` | array | No | Indices to search: accessprofiles, accountactivities, entitlements, events, identities, roles, or *. Omit to search all. |
+| `queryType` | string | No | SAILPOINT \(default\), DSL, TEXT, or TYPEAHEAD |
+| `queryVersion` | string | No | Elasticsearch query language version \(default 5.2\) |
+| `query` | object | No | SAILPOINT query object: \{query?, fields?, timeZone?, innerHit?\} |
+| `queryDsl` | json | No | Elasticsearch Query DSL object used with queryType=DSL |
+| `textQuery` | object | No | TEXT query object with required terms\[\] and fields\[\] |
+| `typeAheadQuery` | object | No | TYPEAHEAD query with query, field, optional nestedType, maxExpansions \(1-1000\), size, sort, and sortByValue |
+| `includeNested` | boolean | No | Include nested objects in search results \(default true\) |
+| `queryResultFilter` | object | No | Result projection object with includes\[\] and/or excludes\[\] |
+| `aggregationType` | string | No | Aggregation query language: DSL \(default\) or SAILPOINT |
+| `aggregationsVersion` | string | No | Elasticsearch aggregation language version \(default 5.2\) |
+| `aggregationsDsl` | json | No | Dynamic Elasticsearch aggregations DSL object |
+| `aggregations` | json | No | Typed SailPoint aggregation specification |
+| `sort` | array | No | Ordered search fields; prefix + or - for direction |
+| `searchAfter` | array | No | String values from the final sorted record of the previous search page |
+| `filters` | json | No | Map of result field names to filter objects |
+| `limit` | number | No | Maximum records for this page \(0-250; default 250\) |
+| `offset` | number | No | Zero-based record offset \(default 0\) |
+| `count` | boolean | No | Return the total matching count in X-Total-Count \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `aggregations` | json | Dynamic Elasticsearch aggregation result document |
+| `hits` | array | Index-dependent aggregation hits |
+| `totalCount` | number | Total matching documents when count=true |
+
+### SailPoint Search Count
+
+Count documents matching a complete SailPoint search body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `indices` | array | No | Indices to search: accessprofiles, accountactivities, entitlements, events, identities, roles, or *. Omit to search all. |
+| `queryType` | string | No | SAILPOINT \(default\), DSL, TEXT, or TYPEAHEAD |
+| `queryVersion` | string | No | Elasticsearch query language version \(default 5.2\) |
+| `query` | object | No | SAILPOINT query object: \{query?, fields?, timeZone?, innerHit?\} |
+| `queryDsl` | json | No | Elasticsearch Query DSL object used with queryType=DSL |
+| `textQuery` | object | No | TEXT query object with required terms\[\] and fields\[\] |
+| `typeAheadQuery` | object | No | TYPEAHEAD query with query, field, optional nestedType, maxExpansions \(1-1000\), size, sort, and sortByValue |
+| `includeNested` | boolean | No | Include nested objects in search results \(default true\) |
+| `queryResultFilter` | object | No | Result projection object with includes\[\] and/or excludes\[\] |
+| `aggregationType` | string | No | Aggregation query language: DSL \(default\) or SAILPOINT |
+| `aggregationsVersion` | string | No | Elasticsearch aggregation language version \(default 5.2\) |
+| `aggregationsDsl` | json | No | Dynamic Elasticsearch aggregations DSL object |
+| `aggregations` | json | No | Typed SailPoint aggregation specification |
+| `sort` | array | No | Ordered search fields; prefix + or - for direction |
+| `searchAfter` | array | No | String values from the final sorted record of the previous search page |
+| `filters` | json | No | Map of result field names to filter objects |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Number of matching documents |
+
+### SailPoint Sign Off Certification
+
+Sign off a completed identity certification.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | SailPoint Personal Access Token client ID |
+| `clientSecret` | string | Yes | SailPoint Personal Access Token client secret |
+| `tenant` | string | Yes | SailPoint tenant name or full *.api.identitynow.com / *.api.identitynowgov.com host |
+| `id` | string | Yes | Certification ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `certification` | object | Signed-off identity certification |
+|   ↳ `id` | string | Certification ID |
+|   ↳ `name` | string | Certification name |
+|   ↳ `campaign` | json | Campaign reference |
+|   ↳ `completed` | boolean | Whether all decisions are complete |
+|   ↳ `identitiesCompleted` | number | Identities fully reviewed |
+|   ↳ `identitiesTotal` | number | Total identities |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `decisionsMade` | number | Decisions made |
+|   ↳ `decisionsTotal` | number | Total decisions |
+|   ↳ `due` | string | Certification due timestamp |
+|   ↳ `signed` | string | Sign-off timestamp |
+|   ↳ `reviewer` | json | Reviewer reference |
+|   ↳ `reassignment` | json | Reassignment details |
+|   ↳ `hasErrors` | boolean | Whether the certification has errors |
+|   ↳ `errorMessage` | string | Certification error message |
+|   ↳ `phase` | string | Certification phase |
+
+

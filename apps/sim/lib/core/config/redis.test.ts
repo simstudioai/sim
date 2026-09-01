@@ -27,6 +27,7 @@ vi.mock('ioredis', () => ({
 import {
   acquireLock,
   closeRedisConnection,
+  describeRedisConnection,
   extendLock,
   getRedisClient,
   onRedisReconnect,
@@ -38,6 +39,7 @@ describe('redis config', () => {
     vi.clearAllMocks()
     vi.useFakeTimers()
     resetForTesting()
+    mockRedisInstance.status = 'ready'
     mockEnv.REDIS_URL = 'redis://localhost:6379'
     mockEnv.REDIS_TLS_SERVERNAME = undefined
     MockRedisConstructor.mockImplementation(
@@ -156,6 +158,114 @@ describe('redis config', () => {
 
       expect(badListener).toHaveBeenCalledTimes(1)
       expect(goodListener).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('describeRedisConnection', () => {
+    it('reports no client before one is built', () => {
+      const d = describeRedisConnection()
+
+      expect(d.status).toBe('no-client')
+      expect(d.clientAgeMs).toBeNull()
+      expect(d.readyAgeMs).toBeNull()
+      expect(d.connects).toBe(0)
+    })
+
+    it('separates a connecting client from a ready one', () => {
+      // The constructor copies the mock's fields, so each state has to be set
+      // before the client is built.
+      mockRedisInstance.status = 'connecting'
+      getRedisClient()
+      expect(describeRedisConnection().status).toBe('connecting')
+
+      resetForTesting()
+      mockRedisInstance.status = 'ready'
+      getRedisClient()
+      expect(describeRedisConnection().status).toBe('ready')
+    })
+
+    it('counts lifecycle events so a reconnect is distinguishable from a first connect', async () => {
+      getRedisClient()
+      const handler = (event: string) =>
+        mockRedisInstance.on.mock.calls.find((c: unknown[]) => c[0] === event)?.[1] as
+          | (() => void)
+          | undefined
+
+      handler('connect')?.()
+      handler('ready')?.()
+      const afterConnect = describeRedisConnection()
+      expect(afterConnect.connects).toBe(1)
+      expect(afterConnect.readyAgeMs).not.toBeNull()
+
+      const errorHandler = mockRedisInstance.on.mock.calls.find(
+        (c: unknown[]) => c[0] === 'error'
+      )?.[1] as ((e: Error) => void) | undefined
+      errorHandler?.(new Error('ECONNRESET'))
+
+      const afterError = describeRedisConnection()
+      expect(afterError.errors).toBe(1)
+      expect(afterError.lastErrorMessage).toBe('ECONNRESET')
+    })
+
+    it('classifies the host without ever exposing the URL that carries the auth token', () => {
+      mockEnv.REDIS_URL = 'rediss://10.0.0.5:6379'
+      mockEnv.REDIS_TLS_SERVERNAME = 'primary.example.cache.amazonaws.com'
+
+      const d = describeRedisConnection()
+
+      expect(d).toMatchObject({ hostKind: 'ip', tls: true, sniOverride: true })
+      expect(JSON.stringify(d)).not.toContain('10.0.0.5')
+    })
+
+    it('never throws, so it cannot mask the error it is describing', () => {
+      // Called from catch blocks: a throw here would replace the real failure.
+      mockEnv.REDIS_URL = undefined
+      expect(() => describeRedisConnection()).not.toThrow()
+
+      mockEnv.REDIS_URL = 'not a url'
+      expect(() => describeRedisConnection()).not.toThrow()
+      expect(describeRedisConnection().hostKind).toBe('unknown')
+
+      // rediss:// to a bare IP with no REDIS_TLS_SERVERNAME makes the URL
+      // resolution throw; the snapshot must still come back.
+      mockEnv.REDIS_URL = 'rediss://10.0.0.5:6379'
+      mockEnv.REDIS_TLS_SERVERNAME = undefined
+      expect(() => describeRedisConnection()).not.toThrow()
+    })
+
+    it('does not date a connection that has been discarded', async () => {
+      mockRedisInstance.status = 'ready'
+      getRedisClient()
+      expect(describeRedisConnection().clientAgeMs).not.toBeNull()
+
+      // Two consecutive PING failures drop the cached client.
+      mockRedisInstance.ping.mockRejectedValue(new Error('ETIMEDOUT'))
+      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      const d = describeRedisConnection()
+      expect(d.status).toBe('no-client')
+      expect(d.clientAgeMs).toBeNull()
+      expect(d.readyAgeMs).toBeNull()
+      expect(d.msSinceLastPingOk).toBeNull()
+      // Lifecycle counters stay cumulative for the process.
+      expect(d.reconnects).toBeGreaterThanOrEqual(0)
+    })
+
+    it('classifies an IPv6 literal as an IP, not a DNS name', () => {
+      mockEnv.REDIS_URL = 'rediss://[2600:1f18::1]:6379'
+
+      const d = describeRedisConnection()
+
+      expect(d.hostKind).toBe('ip')
+      // Mirrors resolveRedisTlsOptions, which applies the override for IPv4 only.
+      expect(d.sniOverride).toBe(false)
+    })
+
+    it('reports a DNS host so resolution latency can be ruled in or out', () => {
+      mockEnv.REDIS_URL = 'rediss://primary.example.cache.amazonaws.com:6379'
+
+      expect(describeRedisConnection()).toMatchObject({ hostKind: 'dns', sniOverride: false })
     })
   })
 

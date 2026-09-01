@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type ModelCost, resolveProxiedModelCost } from '@/providers/cost-policy'
 import { getProviderFromModel } from '@/providers/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 const logger = createLogger('LLMChatTool')
 
@@ -39,7 +39,7 @@ interface LLMChatResponse extends ToolResponse {
   }
 }
 
-export const llmChatTool: ToolConfig<LLMChatParams, LLMChatResponse> = {
+export const llmChatTool: InternalToolConfig<LLMChatParams, LLMChatResponse> = {
   id: 'llm_chat',
   name: 'LLM Chat',
   description: 'Send a chat completion request to any supported LLM provider',
@@ -127,13 +127,7 @@ export const llmChatTool: ToolConfig<LLMChatParams, LLMChatResponse> = {
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/providers',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({
@@ -142,7 +136,7 @@ export const llmChatTool: ToolConfig<LLMChatParams, LLMChatResponse> = {
       }),
       privateInputPaths: () => [['systemPrompt'], ['context']],
     },
-    body: (params) => {
+    input: (params) => {
       const provider = getProviderFromModel(params.model)
 
       return {
@@ -161,11 +155,6 @@ export const llmChatTool: ToolConfig<LLMChatParams, LLMChatResponse> = {
         bedrockAccessKeyId: params.bedrockAccessKeyId,
         bedrockSecretKey: params.bedrockSecretKey,
         bedrockRegion: params.bedrockRegion,
-        // The executor attaches the billing-attribution header on internal
-        // routes whenever the execution scope carries one, and /api/providers
-        // rejects that header unless the body names the workspace it is
-        // validated against.
-        ...(params._context?.workspaceId ? { workspaceId: params._context.workspaceId } : {}),
       }
     },
   },
@@ -186,9 +175,6 @@ export const llmChatTool: ToolConfig<LLMChatParams, LLMChatResponse> = {
         content: data.content,
         model: data.model,
         tokens: data.tokens,
-        // The provider proxy already applied the billing policy. Dropping its
-        // cost here would leave blocks built on this tool reporting tokens
-        // with no charge.
         cost: resolveProxiedModelCost(data.cost),
       },
     }

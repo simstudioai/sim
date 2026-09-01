@@ -20,20 +20,38 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   getAllowedIntegrationsFromEnv: mocks.getAllowedIntegrationsFromEnv,
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mocks.getUserPermissionConfig,
 }))
 
-vi.mock('@/lib/permission-groups/integration-allowlist', () => ({
-  intersectIntegrationAllowlists: (
+/**
+ * The real helpers canonicalize each side through the generated successor map;
+ * this stub keeps the intersection semantics without the map, because the ids
+ * used here are fixtures rather than real block types.
+ */
+vi.mock('@/lib/permission-groups/integration-allowlist', () => {
+  const intersect = (
     permissionGroup: readonly string[] | null,
     deployment: readonly string[] | null
   ) => {
     if (!permissionGroup) return deployment
     if (!deployment) return permissionGroup
     return permissionGroup.filter((type) => deployment.includes(type))
-  },
-}))
+  }
+  return {
+    intersectIntegrationAllowlists: intersect,
+    intersectAccessControlAllowlists: (
+      permissionGroup: readonly string[] | null,
+      deployment: readonly string[] | null
+    ) => {
+      const result = intersect(permissionGroup, deployment)
+      return result === null ? null : new Set(result)
+    },
+    resolveAccessControlBlockType: (blockType: string) => blockType,
+    toAccessControlAllowlist: (allowlist: readonly string[] | null) =>
+      allowlist ? new Set(allowlist) : null,
+  }
+})
 
 vi.mock('@/lib/integrations/credential-visibility.server', () => ({
   createIntegrationCredentialVisibility: mocks.createVisibility,
@@ -92,9 +110,15 @@ describe('listCredentialProviderCatalog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getAllOAuthServices.mockReturnValue(services)
-    mocks.getAllowedIntegrationsFromEnv.mockReturnValue(['salesforce'])
+    /**
+     * The permission group is the NARROWER half on purpose. With the deployment
+     * allowlist narrower, the intersection is the same set whether or not the
+     * group is read at all, and every assertion below passes against a catalog
+     * that never consulted it — which is what this fixture used to look like.
+     */
+    mocks.getAllowedIntegrationsFromEnv.mockReturnValue(['salesforce', 'trello'])
     mocks.getUserPermissionConfig.mockResolvedValue({
-      allowedIntegrations: ['salesforce', 'trello'],
+      allowedIntegrations: ['salesforce'],
     })
     mocks.getBlockVisibility.mockResolvedValue({
       revealed: new Set(),
@@ -186,8 +210,13 @@ describe('listCredentialProviderCatalog', () => {
     )
 
     expect(mocks.getUserPermissionConfig).not.toHaveBeenCalled()
+    /**
+     * The deployment allowlist alone, not the personal caller's narrower group:
+     * a workspace API key has no user and therefore no group, and borrowing the
+     * key creator's would hide Trello from every caller of a shared credential.
+     */
     expect(mocks.createVisibility).toHaveBeenCalledWith(
-      expect.objectContaining({ allowedIntegrationTypes: new Set(['salesforce']) })
+      expect.objectContaining({ allowedIntegrationTypes: new Set(['salesforce', 'trello']) })
     )
   })
 

@@ -60,6 +60,11 @@ export interface RunWorkflowParams {
   useDeployedState?: boolean
 }
 
+export interface CancelWorkflowRunParams {
+  /** The workflow execution ID returned by run_workflow or query_logs. */
+  executionId: string
+}
+
 export interface RunWorkflowUntilBlockParams {
   workflowId?: string
   workflow_input?: unknown

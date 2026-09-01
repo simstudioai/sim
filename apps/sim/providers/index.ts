@@ -152,14 +152,18 @@ function isReadableStream(response: any): response is ReadableStream {
  * stream drain — long after this function returns — so the policy is installed
  * on the live output object rather than applied to a value.
  */
-function applyStreamingCostPolicy(response: StreamingExecution, policy: ModelCostPolicy): void {
+function applyStreamingCostPolicy(
+  response: StreamingExecution,
+  policy: ModelCostPolicy,
+  additionalToolCost?: () => number
+): void {
   const output = response.execution?.output
   if (!output || typeof output !== 'object') {
     logger.warn('Streaming output unavailable at intercept time; cost policy not applied')
     return
   }
 
-  installStreamingCostPolicy(output, policy)
+  installStreamingCostPolicy(output, policy, additionalToolCost)
 
   const segments = output.providerTiming?.timeSegments
   if (Array.isArray(segments)) {
@@ -224,16 +228,19 @@ export async function executeProviderRequest(
   const provenanceSafeRequest = await omitUnsafeProviderFileAttachments(sanitizedRequest)
   const modelSafeRequest = provenanceSafeRequest
   const toolIdentities = assignProviderToolIdentities(modelSafeRequest.tools)
-  const requestRuntimeContext =
-    toolIdentities.toolIdByWireId.size > 0
+  const failedFunctionToolCost = { total: 0 }
+  const requestRuntimeContext: ProviderRuntimeContext = {
+    ...runtimeContext,
+    failedFunctionToolCost,
+    ...(toolIdentities.toolIdByWireId.size > 0
       ? {
-          ...runtimeContext,
           toolIdByWireId: new Map([
             ...(runtimeContext?.toolIdByWireId ?? []),
             ...toolIdentities.toolIdByWireId,
           ]),
         }
-      : runtimeContext
+      : {}),
+  }
 
   if (modelSafeRequest.responseFormat) {
     const structuredOutputInstructions = generateStructuredOutputInstructions(
@@ -254,7 +261,11 @@ export async function executeProviderRequest(
 
   if (isStreamingExecution(response)) {
     logger.info('Provider returned StreamingExecution', { isBYOK })
-    applyStreamingCostPolicy(response, resolveModelCostPolicy(sanitizedRequest.model, isBYOK))
+    applyStreamingCostPolicy(
+      response,
+      resolveModelCostPolicy(sanitizedRequest.model, isBYOK),
+      () => failedFunctionToolCost.total
+    )
     projectStreamingExecutionToolIdentities(response, toolIdentities)
     return response
   }
@@ -300,7 +311,7 @@ export async function executeProviderRequest(
     applySegmentCostPolicy(response.timing.timeSegments, costPolicy)
   }
 
-  const toolCost = sumToolCosts(response.toolResults)
+  const toolCost = sumToolCosts(response.toolResults) + failedFunctionToolCost.total
   if (toolCost > 0 && response.cost) {
     // Replaced rather than mutated: a provider-supplied cost can be the same
     // object it also handed to a time segment, and tool cost belongs only to

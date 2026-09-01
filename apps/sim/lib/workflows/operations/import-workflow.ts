@@ -23,6 +23,10 @@ import {
   performCreateWorkflow,
   performCreateWorkflowTransition,
 } from '@/lib/workflows/orchestration'
+import {
+  findWithheldBlockType,
+  withheldBlockTypeMessage,
+} from '@/lib/workflows/persistence/block-access-guard'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -59,7 +63,21 @@ export interface ImportWorkflowParams {
   description?: string
   /** Export envelope, bare state, or a JSON string of either. */
   workflow: string | Record<string, unknown>
+  /** Legacy attribution field: who the created workflow is recorded against. */
   userId: string
+  /**
+   * The person whose permission group judges the payload's block types, or
+   * `null` when no group governs the caller — a workspace API key, which
+   * `workflows.import` allows and which has no user at all.
+   *
+   * Deliberately not {@link ImportWorkflowParams.userId}. That one is an
+   * attribution field: for a workspace key it holds the billing owner (the
+   * application path) or the key's creator (v1), and running either one's
+   * integration allowlist against a shared key's import would refuse it on a
+   * bystander's policy — and break the key outright once that person's group
+   * changed.
+   */
+  capabilityUserId: string | null
   requestId: string
 }
 
@@ -176,7 +194,7 @@ async function executeImportWorkflowIntoWorkspace(
   params: ImportWorkflowParams,
   createWorkflow: (params: PerformCreateWorkflowParams) => Promise<PerformCreateWorkflowResult>
 ): Promise<ImportWorkflowResult> {
-  const { workspaceId, folderId, userId, requestId } = params
+  const { workspaceId, folderId, userId, capabilityUserId, requestId } = params
 
   const [workspaceData] = await db
     .select({ id: workspace.id })
@@ -256,6 +274,27 @@ async function executeImportWorkflowIntoWorkspace(
 
   const workflowState: WorkflowState = { ...parsedState, ...preparedState }
 
+  /**
+   * Nothing has been written yet, which is why the check sits here: an import
+   * carries blocks the caller never added through the editing operations, so
+   * this is the only place the workspace's integration allowlist is consulted
+   * before the graph becomes a stored workflow.
+   */
+  const withheldBlockType = capabilityUserId
+    ? await findWithheldBlockType({
+        userId: capabilityUserId,
+        workspaceId,
+        blocks: Object.values(workflowState.blocks),
+      })
+    : null
+  if (withheldBlockType) {
+    return {
+      success: false,
+      status: 403,
+      error: withheldBlockTypeMessage(withheldBlockType),
+    }
+  }
+
   let parsedPayload: unknown = rawWorkflow
   if (typeof rawWorkflow === 'string') {
     try {
@@ -297,7 +336,19 @@ async function executeImportWorkflowIntoWorkspace(
    */
   try {
     await db.transaction(async (tx) => {
-      const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
+      const saveResult = await saveWorkflowToNormalizedTables(
+        workflowId,
+        workflowState,
+        /**
+         * The same subject the pre-check above used. The pre-check stays because
+         * it renders this door's own 403 before the shell workflow row is
+         * created — a refusal after that point would have to roll the row back —
+         * and the two agree by construction: both read `capabilityUserId`, and
+         * an import with no governed user passes `null` to both.
+         */
+        { workspaceId, subjectUserId: capabilityUserId ?? null },
+        tx
+      )
       if (!saveResult.success) {
         throw new Error(saveResult.error || 'Failed to save workflow state')
       }

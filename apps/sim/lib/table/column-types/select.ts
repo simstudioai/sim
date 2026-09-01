@@ -8,7 +8,7 @@ import {
   splitMultiSelectInput,
 } from '@/lib/table/select-options'
 import { selectValueToNames } from '@/lib/table/select-values'
-import type { JsonValue } from '@/lib/table/types'
+import type { FilterOp, JsonValue } from '@/lib/table/types'
 
 /**
  * Operators that make sense on a `select` column (whose values are opaque option
@@ -29,6 +29,37 @@ export const MULTI_SELECT_OPERATORS: ReadonlySet<string> = new Set([
   '$contains',
   '$ncontains',
   '$empty',
+])
+
+/**
+ * The same allowlists in the v2 bare-operator grammar, applied inside
+ * `fieldPredicate` so both wire formats gate identically. Not derived from the
+ * `$` sets above by string surgery because the mapping is not 1:1 — `$empty`
+ * splits into `isEmpty`/`isNotEmpty`. `isNull`/`isNotNull` have no `$`
+ * equivalent and are allowed on both: a strict null check is meaningful on any
+ * column, select included.
+ *
+ * Exported so LLM enrichment can DERIVE the operator guidance it gives the
+ * model rather than restating it. A hand-copied list drifts, and the cost of
+ * drift here is a predicate the validator rejects at run time.
+ */
+export const SINGLE_SELECT_OPS: ReadonlySet<FilterOp> = new Set<FilterOp>([
+  'eq',
+  'ne',
+  'in',
+  'nin',
+  'isEmpty',
+  'isNotEmpty',
+  'isNull',
+  'isNotNull',
+])
+export const MULTI_SELECT_OPS: ReadonlySet<FilterOp> = new Set<FilterOp>([
+  'contains',
+  'ncontains',
+  'isEmpty',
+  'isNotEmpty',
+  'isNull',
+  'isNotNull',
 ])
 
 export const selectColumnType: ColumnTypeDefinition = {

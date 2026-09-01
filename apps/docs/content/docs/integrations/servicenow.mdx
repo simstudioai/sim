@@ -1,0 +1,1726 @@
+---
+title: ServiceNow
+description: Create, read, update, and delete ServiceNow records
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="servicenow"
+  color="#032D42"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ServiceNow](https://www.servicenow.com/) is a powerful cloud platform designed to streamline and automate IT service management (ITSM), workflows, and business processes across your organization. ServiceNow enables you to manage incidents, requests, tasks, users, and more using its extensive API.
+
+With ServiceNow, you can:
+
+- **Automate IT workflows**: Create, read, update, and delete records in any ServiceNow table, such as incidents, tasks, change requests, and users.
+- **Integrate systems**: Connect ServiceNow with your other tools and processes for seamless automation.
+- **Maintain a single source of truth**: Keep all your service and operations data organized and accessible.
+- **Drive operational efficiency**: Reduce manual work and improve service quality with customizable workflows and automation.
+
+In Sim, the ServiceNow integration enables your agents to interact directly with your ServiceNow instance as part of their workflows. Agents can create, read, update, or delete records in any ServiceNow table and leverage ticket or user data for sophisticated automation and decision-making. This integration bridges your workflow automation and IT operations, empowering your agents to manage service requests, incidents, users, and assets without manual intervention. By connecting Sim with ServiceNow, you can automate service management tasks, improve response times, and ensure consistent, secure access to your organization's vital service data.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate ServiceNow into your workflow. Create, read, update, and delete records in any ServiceNow table including incidents, tasks, change requests, users, and more.
+
+
+
+## Actions
+
+### Create ServiceNow Record
+
+Create a new record in a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user\) |
+| `fields` | json | Yes | Fields to set on the record as JSON object \(e.g., \{"short_description": "Issue title", "priority": "1"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Created ServiceNow record with sys_id and other fields |
+| `metadata` | json | Operation metadata |
+
+### Read ServiceNow Records
+
+Read records from a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user, change_request\) |
+| `sysId` | string | No | Specific record sys_id \(e.g., 6816f79cc0a8016401c5a33be04be441\) |
+| `number` | string | No | Record number \(e.g., INC0010001\) |
+| `query` | string | No | Encoded query string \(e.g., "active=true^priority=1"\) |
+| `limit` | number | No | Maximum number of records to return \(e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of records to skip for pagination \(e.g., 0, 10, 20\) |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., sys_id,number,short_description,state\) |
+| `displayValue` | string | No | Return display values for reference fields: "true" \(display only\), "false" \(sys_id only\), or "all" \(both\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Array of ServiceNow records |
+| `metadata` | json | Operation metadata |
+
+### Update ServiceNow Record
+
+Update an existing record in a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user, change_request\) |
+| `sysId` | string | Yes | Record sys_id to update \(e.g., 6816f79cc0a8016401c5a33be04be441\) |
+| `fields` | json | Yes | Fields to update as JSON object \(e.g., \{"state": "2", "priority": "1"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Updated ServiceNow record |
+| `metadata` | json | Operation metadata |
+
+### Delete ServiceNow Record
+
+Delete a record from a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user, change_request\) |
+| `sysId` | string | Yes | Record sys_id to delete \(e.g., 6816f79cc0a8016401c5a33be04be441\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+| `metadata` | json | Operation metadata |
+
+### Aggregate ServiceNow Records
+
+Compute aggregate statistics (count, sum, average, min, max, group by) over a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name \(e.g., incident, change_request, task\) |
+| `query` | string | No | Encoded query string to filter records before aggregating \(e.g., "active=true"\) |
+| `count` | boolean | No | Return the count of matching records |
+| `groupBy` | string | No | Comma-separated fields to group results by \(e.g., category,priority\) |
+| `avgFields` | string | No | Comma-separated numeric fields to average \(e.g., reassignment_count\) |
+| `sumFields` | string | No | Comma-separated numeric fields to sum |
+| `minFields` | string | No | Comma-separated fields to compute the minimum of |
+| `maxFields` | string | No | Comma-separated fields to compute the maximum of |
+| `having` | string | No | Filter on aggregate results, written as aggregate^field^operator^value and comma-separated for more than one \(e.g., "count^priority^&gt;^3" or "count^state^=^1,avg^priority^&gt;^3"\) |
+| `displayValue` | string | No | Return display values for grouped reference fields: "true", "false", or "all" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | json | Aggregate result. Ungrouped: \{stats: \{count, sum, avg, min, max\}\}. Grouped: array of \{stats, groupby_fields\}. |
+| `count` | number | Total matching record count \(only present for ungrouped count queries\) |
+| `metadata` | json | Operation metadata \(grouped, groupCount\) |
+
+### List ServiceNow Attachments
+
+List the attachments on a ServiceNow record
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table that owns the record \(e.g., incident, change_request\) |
+| `recordSysId` | string | Yes | sys_id of the record whose attachments should be listed |
+| `limit` | number | No | Maximum number of attachments to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachments` | array | Attachment metadata records |
+|   ↳ `sys_id` | string | Attachment sys_id |
+|   ↳ `file_name` | string | File name |
+|   ↳ `content_type` | string | MIME type |
+|   ↳ `size_bytes` | string | File size in bytes |
+|   ↳ `download_link` | string | Direct download URL for the file |
+| `metadata` | json | Operation metadata \(recordCount\) |
+
+### Download ServiceNow Attachment
+
+Download an attachment file from ServiceNow by its sys_id
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `attachmentSysId` | string | Yes | sys_id of the attachment to download \(from List Attachments\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded attachment stored in execution files |
+| `content` | string | Base64 encoded file content |
+
+### Upload ServiceNow Attachment
+
+Attach a file to a ServiceNow record
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table that owns the record \(e.g., incident, change_request\) |
+| `recordSysId` | string | Yes | sys_id of the record to attach the file to |
+| `fileName` | string | Yes | Name to give the uploaded file \(e.g., logs.txt\) |
+| `file` | file | No | File to upload \(UserFile object\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachment` | json | Created attachment metadata \(sys_id, file_name, content_type, download_link\) |
+| `metadata` | json | Operation metadata |
+
+### Create ServiceNow Incident
+
+Create an incident in ServiceNow. Reference fields (caller, assignment group, assigned to, configuration item) take sys_ids unless input display value is enabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `shortDescription` | string | Yes | Short description — the one-line summary of the incident. |
+| `description` | string | No | Detailed description of the incident. |
+| `callerId` | string | No | Caller \(caller_id\) — sys_id of the sys_user who reported the incident. Use Find ServiceNow User to resolve an email address to a sys_id. |
+| `category` | string | No | Category \(e.g., inquiry, software, hardware, network, database\). |
+| `subcategory` | string | No | Subcategory, valid for the selected category. |
+| `impact` | string | No | Impact: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
+| `urgency` | string | No | Urgency: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
+| `priority` | string | No | Priority 1-5 \(1 Critical … 5 Planning\). Normally derived from impact and urgency, so prefer setting those. |
+| `state` | string | No | Incident state coded value. Base system: 1=New, 2=In Progress, 3=On Hold, 6=Resolved, 7=Closed, 8=Canceled. Defaults to New. |
+| `assignmentGroup` | string | No | Assignment group \(assignment_group\) — sys_id of the sys_user_group. |
+| `assignedTo` | string | No | Assigned to \(assigned_to\) — sys_id of the sys_user. |
+| `cmdbCi` | string | No | Configuration item \(cmdb_ci\) — sys_id of the affected CI. |
+| `businessService` | string | No | Service \(business_service\) — sys_id of the affected business service. |
+| `contactType` | string | No | Channel \(contact_type\), e.g., email, phone, self-service, chat. |
+| `workNotes` | string | No | Internal work note to record on creation. |
+| `comments` | string | No | Customer-visible additional comment to record on creation. |
+| `additionalFields` | json | No | Any other ServiceNow fields to set, as a JSON object of raw column names \(e.g., \{"correlation_id": "abc-123", "u_custom": "x"\}\). Merged last, so it overrides the named parameters. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Get ServiceNow Incident
+
+Retrieve a single ServiceNow incident by number (e.g., INC0010001) or sys_id. Reference fields are returned with both their sys_id and their label by default.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | No | Record sys_id. Provide either this or the record number. |
+| `number` | string | No | Record number \(e.g., INC0010001\). Provide either this or the sys_id. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### List ServiceNow Incidents
+
+Search ServiceNow incidents by state, priority, assignment, caller, or text. All filters are ANDed together.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `searchText` | string | No | Text to match against the incident short description using the ServiceNow LIKE operator, which matches anywhere in the field. |
+| `state` | string | No | Incident state coded value. Base system: 1=New, 2=In Progress, 3=On Hold, 6=Resolved, 7=Closed, 8=Canceled. |
+| `priority` | string | No | Priority coded value 1-5 \(1 Critical … 5 Planning\). |
+| `assignmentGroup` | string | No | sys_id of the assignment group. |
+| `assignedTo` | string | No | sys_id of the assigned user. |
+| `callerId` | string | No | sys_id of the caller. |
+| `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) incidents. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Update ServiceNow Incident
+
+Update fields on an existing ServiceNow incident. Only the fields you supply are changed. Reference fields take sys_ids unless input display value is enabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
+| `shortDescription` | string | No | New short description. |
+| `description` | string | No | New detailed description. |
+| `state` | string | No | Incident state coded value. Base system: 1=New, 2=In Progress, 3=On Hold, 6=Resolved, 7=Closed, 8=Canceled. Use Resolve or Close ServiceNow Incident for those transitions so the resolution fields are populated. |
+| `impact` | string | No | Impact: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
+| `urgency` | string | No | Urgency: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
+| `priority` | string | No | Priority coded value 1-5 \(1 Critical … 5 Planning\). |
+| `category` | string | No | Category. |
+| `subcategory` | string | No | Subcategory. |
+| `assignmentGroup` | string | No | Assignment group \(assignment_group\) — sys_id of the sys_user_group. |
+| `assignedTo` | string | No | Assigned to \(assigned_to\) — sys_id of the sys_user. |
+| `cmdbCi` | string | No | Configuration item \(cmdb_ci\) — sys_id of the affected CI. |
+| `workNotes` | string | No | Internal work note to append. |
+| `comments` | string | No | Customer-visible additional comment to append. |
+| `additionalFields` | json | No | Any other ServiceNow fields to set, as a JSON object of raw column names \(e.g., \{"correlation_id": "abc-123", "u_custom": "x"\}\). Merged last, so it overrides the named parameters. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Resolve ServiceNow Incident
+
+Move a ServiceNow incident to Resolved (state 6) with a resolution code and resolution notes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
+| `closeCode` | string | Yes | Resolution code \(close_code\). This is a choice field whose values are configured per instance — read the choice list on your incident table and pass one of its values. |
+| `closeNotes` | string | Yes | Resolution notes \(close_notes\) documenting how the incident was resolved. |
+| `workNotes` | string | No | Additional internal work note to append. |
+| `additionalFields` | json | No | Any other ServiceNow fields to set, as a JSON object of raw column names \(e.g., \{"correlation_id": "abc-123", "u_custom": "x"\}\). Merged last, so it overrides the named parameters. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Close ServiceNow Incident
+
+Move a ServiceNow incident to Closed (state 7) with a resolution code and resolution notes. Which roles may close an incident is instance-configurable, so the credential may need elevated rights.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
+| `closeCode` | string | Yes | Resolution code \(close_code\). This is a choice field whose values are configured per instance — read the choice list on your incident table and pass one of its values. |
+| `closeNotes` | string | Yes | Resolution notes \(close_notes\) documenting how the incident was resolved. |
+| `workNotes` | string | No | Additional internal work note to append. |
+| `additionalFields` | json | No | Any other ServiceNow fields to set, as a JSON object of raw column names \(e.g., \{"correlation_id": "abc-123", "u_custom": "x"\}\). Merged last, so it overrides the named parameters. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Add ServiceNow Incident Comment
+
+Append an internal work note or a customer-visible additional comment to a ServiceNow incident. Both are journal fields, so the text is appended rather than replacing earlier entries.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
+| `comment` | string | Yes | Text to append to the journal field. |
+| `commentField` | string | No | Which journal field to write to: "work_notes" for an internal note \(default\) or "comments" for a customer-visible additional comment. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Create ServiceNow Change Request
+
+Create a change request in ServiceNow. Reference fields (assignment group, assigned to, requested by, configuration item) take sys_ids unless input display value is enabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `shortDescription` | string | Yes | Short description — the one-line summary of the change. |
+| `description` | string | No | Detailed description of the change. |
+| `type` | string | No | Change type: "normal", "standard", or "emergency". |
+| `category` | string | No | Change category. |
+| `risk` | string | No | Risk coded value. The choice list is configured per instance. |
+| `impact` | string | No | Impact: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
+| `priority` | string | No | Priority coded value 1-5 \(1 Critical … 5 Planning\). |
+| `assignmentGroup` | string | No | Assignment group \(assignment_group\) — sys_id of the sys_user_group. |
+| `assignedTo` | string | No | Assigned to \(assigned_to\) — sys_id of the sys_user. |
+| `requestedBy` | string | No | Requested by \(requested_by\) — sys_id of the sys_user. |
+| `cmdbCi` | string | No | Configuration item \(cmdb_ci\) — sys_id of the CI being changed. |
+| `startDate` | string | No | Planned start date \(start_date\) as "YYYY-MM-DD HH:mm:ss" in UTC. |
+| `endDate` | string | No | Planned end date \(end_date\) as "YYYY-MM-DD HH:mm:ss" in UTC. |
+| `justification` | string | No | Justification for making the change. |
+| `implementationPlan` | string | No | Implementation plan. |
+| `backoutPlan` | string | No | Backout plan. |
+| `testPlan` | string | No | Test plan. |
+| `additionalFields` | json | No | Any other ServiceNow fields to set, as a JSON object of raw column names \(e.g., \{"correlation_id": "abc-123", "u_custom": "x"\}\). Merged last, so it overrides the named parameters. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Get ServiceNow Change Request
+
+Retrieve a single ServiceNow change request by number (e.g., CHG0030001) or sys_id. Reference fields are returned with both their sys_id and their label by default.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | No | Record sys_id. Provide either this or the record number. |
+| `number` | string | No | Record number \(e.g., INC0010001\). Provide either this or the sys_id. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### List ServiceNow Change Requests
+
+Search ServiceNow change requests by state, type, risk, assignment, or text. All filters are ANDed together.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `searchText` | string | No | Text to match against the change short description using the ServiceNow LIKE operator, which matches anywhere in the field. |
+| `state` | string | No | Change state coded value. Base system: -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled. |
+| `type` | string | No | Change type: "normal", "standard", or "emergency". |
+| `risk` | string | No | Risk coded value. The choice list is configured per instance. |
+| `assignmentGroup` | string | No | sys_id of the assignment group. |
+| `assignedTo` | string | No | sys_id of the assigned user. |
+| `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) change requests. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Update ServiceNow Change Request
+
+Update fields on an existing ServiceNow change request. Only the fields you supply are changed. Use Move ServiceNow Change State for state transitions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
+| `shortDescription` | string | No | New short description. |
+| `description` | string | No | New detailed description. |
+| `state` | string | No | Change state coded value. Base system: -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled. |
+| `risk` | string | No | Risk coded value. The choice list is configured per instance. |
+| `impact` | string | No | Impact: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
+| `priority` | string | No | Priority coded value 1-5 \(1 Critical … 5 Planning\). |
+| `assignmentGroup` | string | No | Assignment group \(assignment_group\) — sys_id of the sys_user_group. |
+| `assignedTo` | string | No | Assigned to \(assigned_to\) — sys_id of the sys_user. |
+| `startDate` | string | No | Planned start date \(start_date\) as "YYYY-MM-DD HH:mm:ss" in UTC. |
+| `endDate` | string | No | Planned end date \(end_date\) as "YYYY-MM-DD HH:mm:ss" in UTC. |
+| `closeCode` | string | No | Close code: "successful", "successful_issues", or "unsuccessful". Required when closing a change. |
+| `closeNotes` | string | No | Close notes describing the outcome of the change. |
+| `workNotes` | string | No | Internal work note to append. |
+| `additionalFields` | json | No | Any other ServiceNow fields to set, as a JSON object of raw column names \(e.g., \{"correlation_id": "abc-123", "u_custom": "x"\}\). Merged last, so it overrides the named parameters. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Move ServiceNow Change State
+
+Move a ServiceNow change request to another state. Base-system change model states are -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled. The state machine rejects transitions whose conditions are not met.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
+| `state` | string | Yes | Target state coded value: -5 \(New\), -4 \(Assess\), -3 \(Authorize\), -2 \(Scheduled\), -1 \(Implement\), 0 \(Review\), 3 \(Closed\), or 4 \(Canceled\). |
+| `closeCode` | string | No | Close code, required when moving to Closed \(3\): "successful", "successful_issues", or "unsuccessful". |
+| `closeNotes` | string | No | Close notes describing the outcome of the change. |
+| `workNotes` | string | No | Internal work note explaining the transition. |
+| `additionalFields` | json | No | Any other ServiceNow fields to set, as a JSON object of raw column names \(e.g., \{"correlation_id": "abc-123", "u_custom": "x"\}\). Merged last, so it overrides the named parameters. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### List ServiceNow Change Tasks
+
+List the change tasks belonging to a ServiceNow change request, via the Change Management API. Every field is returned as \{value, display_value\}, so a reference field carries both its sys_id and its label. This endpoint is not the Table API: the shape is fixed with no display-value option, and the results come back under `tasks` rather than the `records` the other list operations use.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `changeSysId` | string | Yes | sys_id of the change request whose tasks should be listed. |
+| `query` | string | No | ServiceNow encoded query used to filter the tasks \(e.g., "active=true^ORDERBYnumber"\). |
+| `order` | string | No | Field to sort the returned tasks by. |
+| `limit` | number | No | Maximum number of tasks to return \(sysparm_limit\). ServiceNow defaults to 500. |
+| `offset` | number | No | Number of tasks to skip for pagination \(sysparm_offset\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tasks` | array | Change tasks, under `tasks` rather than the `records` key the Table API list operations use. Each field is an object of the form \{value, display_value\} — the Change Management API fixes this shape, so unlike those operations there is no display-value setting. `parent` holds the owning change request. |
+| `metadata` | json | Operation metadata |
+|   ↳ `recordCount` | number | Number of change tasks returned |
+
+### Get ServiceNow Change Next States
+
+Read the states a ServiceNow change request can actually move to next, with the instance's own state-to-label map and the conditions each transition still has to meet. Use this instead of assuming the base-system state codes, which a customized change model can change.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `changeSysId` | string | Yes | sys_id of the change request. Use Get ServiceNow Change Request to resolve a CHG number to its sys_id. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `availableStates` | array | Every state coded value reachable from the change request, including its current state |
+| `allowedStates` | array | The subset of state coded values whose transition currently reports transition_available, meaning the change request already meets that transition conditions |
+| `stateLabels` | json | Map of state coded value to the label this instance uses, e.g. \{'0': 'Review'\}. Read the state model from here rather than assuming the base-system codes |
+| `stateTransitions` | array | Available transitions, flattened from the per-target-state grouping ServiceNow returns. Empty for type-driven and legacy change requests, which do not report conditions |
+|   ↳ `sys_id` | string | Sys_id of the state transition record on sttrm_state_transition |
+|   ↳ `display_value` | string | Human-readable transition name, e.g. "Implement to Review" |
+|   ↳ `from_state` | string | State coded value moved from |
+|   ↳ `to_state` | string | State coded value moved to |
+|   ↳ `transition_available` | boolean | Whether the change request can move to this state right now |
+|   ↳ `automatic_transition` | boolean | Whether the change request moves to this state automatically |
+|   ↳ `conditions` | array | Conditions gating the transition, each with whether it has passed |
+|     ↳ `passed` | boolean | Whether the change request met this condition |
+|     ↳ `condition` | json | The condition as \{name, description, sys_id\} |
+| `metadata` | json | Operation metadata |
+|   ↳ `transitionCount` | number | Number of transitions returned |
+
+### List ServiceNow Catalog Items
+
+Browse or search the ServiceNow service catalog. Returns each item with its sys_id, name, description, type, category, and catalogs, which is what Order ServiceNow Catalog Item needs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `searchText` | string | No | Text to search for in the catalog items \(e.g., "iPhone"\). |
+| `catalogSysId` | string | No | Restrict results to a specific catalog, by catalog sys_id. |
+| `categorySysId` | string | No | Restrict results to a specific category, by category sys_id. |
+| `limit` | number | No | Maximum number of items to return \(sysparm_limit\). |
+| `offset` | number | No | Number of items to skip for pagination \(sysparm_offset\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Catalog items |
+|   ↳ `sys_id` | string | Catalog item sys_id, used to order the item |
+|   ↳ `name` | string | Catalog item name |
+|   ↳ `short_description` | string | Short description |
+|   ↳ `description` | string | HTML description |
+|   ↳ `type` | string | Item type, e.g., record_producer or catalog_item |
+|   ↳ `sys_class_name` | string | Item table |
+|   ↳ `category` | json | Category \{sys_id, title\} |
+|   ↳ `catalogs` | json | Catalogs the item belongs to, each \{sys_id, title\} |
+|   ↳ `picture` | string | Item picture reference |
+|   ↳ `icon` | string | Item icon reference |
+|   ↳ `order` | number | Display order |
+|   ↳ `price` | string | Item price |
+|   ↳ `show_price` | boolean | Whether the price is shown |
+|   ↳ `show_quantity` | boolean | Whether a quantity can be chosen when ordering |
+|   ↳ `content_type` | string | Content type for content items |
+|   ↳ `url` | string | Target URL for content items |
+|   ↳ `kb_article` | string | sys_id of the knowledge article backing the item |
+| `metadata` | json | Operation metadata |
+|   ↳ `recordCount` | number | Number of catalog items returned |
+
+### Order ServiceNow Catalog Item
+
+Submit a service catalog request for a catalog item using the Service Catalog API order_now endpoint. Returns the generated request number and sys_id.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `catalogItemSysId` | string | Yes | sys_id of the catalog item to order. Use List ServiceNow Catalog Items to find it. |
+| `quantity` | number | No | Quantity to order. Must not be negative. Defaults to 1. |
+| `requestedFor` | string | No | sys_id of the sys_user the item is ordered for. Ordering on behalf of another user is governed by the glide.sc.req_for.roles instance properties. |
+| `variables` | json | No | Name-value pairs for the catalog item variables, as a JSON object \(e.g., \{"data_plan": "500MB"\}\). All variables the item marks mandatory must be supplied. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Sys_id of the order |
+| `number` | string | Number of the generated request |
+| `requestNumber` | string | Request number |
+| `requestId` | string | Sys_id of the order request |
+| `table` | string | Table name of the request |
+
+### List ServiceNow Requested Items
+
+List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] table, optionally scoped to a parent request or a catalog item. To scope by requester, pass an encoded query against the parent request, for example "request.requested_for=&lt;sys_id&gt;".
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `requestSysId` | string | No | sys_id of the parent request \(sc_request\) whose items should be listed. |
+| `catalogItemSysId` | string | No | sys_id of the catalog item \(cat_item\) to filter by. |
+| `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) requested items. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Get ServiceNow Requested Item
+
+Retrieve a single ServiceNow requested item (RITM) by number (e.g., RITM0010001) or sys_id from the Requested Item [sc_req_item] table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | No | Record sys_id. Provide either this or the record number. |
+| `number` | string | No | Record number \(e.g., INC0010001\). Provide either this or the sys_id. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### List ServiceNow Approvals
+
+List approval records from the ServiceNow Approval [sysapproval_approver] table. Defaults to the "requested" state, which is what a user's pending approvals look like.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `approverSysId` | string | No | sys_id of the approver \(sys_user\) whose approvals should be listed. Use Find ServiceNow User to resolve an email address to a sys_id. |
+| `state` | string | No | Approval state: "requested" \(pending, the default\), "approved", or "rejected". Pass an empty string with a custom query to list every state. |
+| `approvalFor` | string | No | sys_id of the record being approved, matched against the sysapproval reference field. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Approve or Reject ServiceNow Approval
+
+Approve or reject a ServiceNow approval record by setting its state on the Approval [sysapproval_approver] table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `approvalSysId` | string | Yes | sys_id of the approval record on the sysapproval_approver table. Use List ServiceNow Approvals to find it. |
+| `decision` | string | Yes | Decision to record: "approved" or "rejected". |
+| `comments` | string | No | Comment to record alongside the decision. This is a journal field. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Search ServiceNow Configuration Items
+
+Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci table, which returns CIs of every class; pass a CI class to scope the search to a subclass such as cmdb_ci_linux_server.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `ciClass` | string | No | CMDB class \(table\) to search, e.g., cmdb_ci_linux_server or cmdb_ci_app_server. Defaults to cmdb_ci, which covers every CI class. |
+| `name` | string | No | Text to match against the CI name using the ServiceNow LIKE operator, which matches anywhere in the field. |
+| `operationalStatus` | string | No | Operational status coded value \(operational_status\). The choice list is configured per instance. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Get ServiceNow Configuration Item
+
+Retrieve a configuration item and its CMDB relationships through the CMDB Instance API. Returns the CI attributes plus its inbound and outbound relations, each carrying the related CI and the relationship type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `ciClass` | string | Yes | CMDB class \(table\) the CI belongs to, e.g., cmdb_ci_linux_server. Read it from the sys_class_name field returned by Search ServiceNow Configuration Items. |
+| `sysId` | string | Yes | sys_id of the configuration item to retrieve. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attributes` | json | Data attributes on the CI record. The available attributes depend on the class. |
+| `inboundRelations` | array | Inbound CI relationships |
+|   ↳ `sys_id` | string | Sys_id of the relationship record on cmdb_rel_ci |
+|   ↳ `target` | json | Related CI as \{value \(sys_id\), display_value, link\} |
+|   ↳ `type` | json | Relationship type as \{value \(sys_id\), display_value, link\} |
+| `outboundRelations` | array | Outbound CI relationships |
+|   ↳ `sys_id` | string | Sys_id of the relationship record on cmdb_rel_ci |
+|   ↳ `target` | json | Related CI as \{value \(sys_id\), display_value, link\} |
+|   ↳ `type` | json | Relationship type as \{value \(sys_id\), display_value, link\} |
+| `metadata` | json | Operation metadata |
+|   ↳ `inboundCount` | number | Number of inbound relations |
+|   ↳ `outboundCount` | number | Number of outbound relations |
+
+### List ServiceNow CI Relationships
+
+List rows from the CI Relationship [cmdb_rel_ci] table for a configuration item. Each row carries the parent CI, the child CI, and the relationship type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `ciSysId` | string | Yes | sys_id of the configuration item whose relationships should be listed. |
+| `direction` | string | No | Which side of the relationship the CI sits on: "parent", "child", or "both" \(default\). "both" matches rows where the CI is either the parent or the child. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Search ServiceNow Knowledge
+
+Search ServiceNow knowledge base articles through the Knowledge Management API. Returns ranked results with a snippet and the article number, which Get ServiceNow Knowledge Article accepts to fetch the full body.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `query` | string | No | Text to search for across knowledge articles. |
+| `filter` | string | No | Encoded query used to filter the results, against the Knowledge \[kb_knowledge\] table \(e.g., "workflow_state=published"\). |
+| `knowledgeBaseSysIds` | string | No | Comma-separated knowledge base sys_ids \(from kb_knowledge_base\) to restrict results to. |
+| `language` | string | No | Comma-separated ISO 639-1 language codes to restrict results to, or "all". Defaults to the session language. |
+| `fields` | string | No | Comma-separated kb_knowledge fields to include in each result \(e.g., workflow_state,kb_category\). |
+| `limit` | number | No | Maximum number of articles to return. ServiceNow defaults to 30. |
+| `offset` | number | No | Number of articles to skip for pagination. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `articles` | array | Matching knowledge articles, sorted in descending order by relevance score |
+|   ↳ `id` | string | Table-prefixed article identifier, e.g. "kb_knowledge:9e528db1...". Get ServiceNow Knowledge Article takes a bare sys_id or KB number, so pass `number` or the portion after the colon rather than this value as-is |
+|   ↳ `number` | string | Knowledge article number |
+|   ↳ `title` | string | Article title \(short description\) |
+|   ↳ `snippet` | string | Small excerpt of the article text |
+|   ↳ `link` | string | Link to the article |
+|   ↳ `score` | number | Relevancy score |
+|   ↳ `rank` | number | Search rank of the article for this search |
+|   ↳ `fields` | json | Requested kb_knowledge fields, each \{name, label, type, value, display_value\} |
+| `metadata` | json | Operation metadata |
+|   ↳ `recordCount` | number | Number of articles returned |
+|   ↳ `totalCount` | number | Total number of available articles reported by ServiceNow |
+
+### Get ServiceNow Knowledge Article
+
+Retrieve the full content of a ServiceNow knowledge article by sys_id or KB number through the Knowledge Management API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `articleId` | string | Yes | sys_id or KB number of the knowledge article \(e.g., KB0000011\). |
+| `fields` | string | No | Comma-separated kb_knowledge fields to include alongside the article content \(e.g., workflow_state,author\). |
+| `language` | string | No | Two-letter ISO 639-1 language code. Only applies when the article is addressed by KB number and a translation exists. |
+| `updateView` | boolean | No | Set to true to increment the article view count and record an entry in the Knowledge Use \[kb_use\] table. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Article sys_id on kb_knowledge |
+| `number` | string | Knowledge article number |
+| `title` | string | Article title \(short description\) |
+| `content` | string | Full HTML content of the article |
+| `fields` | json | Requested kb_knowledge fields, each \{name, label, type, value, display_value\} |
+| `attachments` | array | Article attachments, returned only when display_attachments is active on the article |
+|   ↳ `sys_id` | string | Attachment sys_id |
+|   ↳ `file_name` | string | Attachment file name |
+|   ↳ `size_bytes` | string | Attachment size in bytes |
+|   ↳ `state` | string | Attachment state: available, available_conditionally, not_available, or pending |
+
+### Find ServiceNow User
+
+Look up ServiceNow users by email, user name, or display name. Use this to resolve the sys_id needed by reference fields such as caller_id, assigned_to, and approver.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `email` | string | No | Exact email address to match. |
+| `userName` | string | No | Exact user name \(user_name\) to match. |
+| `name` | string | No | Text to match against the display name using the ServiceNow LIKE operator, which matches anywhere in the field. |
+| `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) users. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### List ServiceNow Group Members
+
+List the members of a ServiceNow group from the Group Member [sys_user_grmember] table. Each row links a user to a group, so use it to find who can be assigned work for an assignment group.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `groupSysId` | string | No | sys_id of the sys_user_group whose members should be listed. |
+| `groupName` | string | No | Exact group name, resolved against the referenced group record. Provide this or the group sys_id. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `availableStates` | json | State coded values a change request can reach, including its current state |
+| `allowedStates` | json | State coded values whose transition conditions the change request already meets |
+| `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
+| `stateTransitions` | json | \[\{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions\}\] |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### ServiceNow Change Request Created
+
+Trigger workflow when a new change request is created in ServiceNow
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `type` | string | Change type \(Normal, Standard, Emergency\) |
+| `risk` | string | Risk level of the change |
+| `impact` | string | Impact level of the change |
+| `approval` | string | Approval status |
+| `startDate` | string | Planned start date |
+| `endDate` | string | Planned end date |
+| `category` | string | Change category |
+| `record` | json | Full change request record data |
+
+
+---
+
+### ServiceNow Change Request Updated
+
+Trigger workflow when a change request is updated in ServiceNow
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `type` | string | Change type \(Normal, Standard, Emergency\) |
+| `risk` | string | Risk level of the change |
+| `impact` | string | Impact level of the change |
+| `approval` | string | Approval status |
+| `startDate` | string | Planned start date |
+| `endDate` | string | Planned end date |
+| `category` | string | Change category |
+| `record` | json | Full change request record data |
+
+
+---
+
+### ServiceNow Incident Created
+
+Trigger workflow when a new incident is created in ServiceNow
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `urgency` | string | Urgency level \(1=High, 2=Medium, 3=Low\) |
+| `impact` | string | Impact level \(1=High, 2=Medium, 3=Low\) |
+| `category` | string | Incident category |
+| `subcategory` | string | Incident subcategory |
+| `caller` | string | Caller/requester of the incident |
+| `resolvedBy` | string | User who resolved the incident |
+| `resolvedAt` | string | When the incident was resolved |
+| `closeNotes` | string | Notes added when the incident was closed |
+| `record` | json | Full incident record data |
+
+
+---
+
+### ServiceNow Incident Updated
+
+Trigger workflow when an incident is updated in ServiceNow
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `urgency` | string | Urgency level \(1=High, 2=Medium, 3=Low\) |
+| `impact` | string | Impact level \(1=High, 2=Medium, 3=Low\) |
+| `category` | string | Incident category |
+| `subcategory` | string | Incident subcategory |
+| `caller` | string | Caller/requester of the incident |
+| `resolvedBy` | string | User who resolved the incident |
+| `resolvedAt` | string | When the incident was resolved |
+| `closeNotes` | string | Notes added when the incident was closed |
+| `record` | json | Full incident record data |
+
+
+---
+
+### ServiceNow Webhook (All Events)
+
+Trigger workflow on any ServiceNow webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `eventType` | string | The type of event that triggered this workflow \(e.g., insert, update, delete\) |
+| `category` | string | Record category |
+| `record` | json | Full record data from the webhook payload |
+

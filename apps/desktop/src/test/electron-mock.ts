@@ -156,6 +156,7 @@ function createWebContentsMock() {
     getTitle: vi.fn(() => 'Example'),
     loadURL: vi.fn(() => Promise.resolve()),
     reload: vi.fn(),
+    stop: vi.fn(),
     print: vi.fn(),
     focus: vi.fn(),
     invalidate: vi.fn(),

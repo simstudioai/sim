@@ -6,8 +6,11 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { asc, count, desc, eq, inArray } from 'drizzle-orm'
-import { getActivePermissionGroupRestrictions } from '@/lib/permission-groups/features'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import {
+  type ActivePermissionGroupRestriction,
+  getActivePermissionGroupRestrictions,
+} from '@/lib/permission-groups/features'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 
 /** A workspace reference (id + display name). */
 export interface OrgWorkspaceRef {
@@ -38,7 +41,7 @@ export interface PermissionGroupRosterEntry {
   isDefault: boolean
   memberCount: number
   workspaces: OrgWorkspaceRef[]
-  activeRestrictions: Array<{ key: string; description: string }>
+  activeRestrictions: ActivePermissionGroupRestriction[]
 }
 
 /**

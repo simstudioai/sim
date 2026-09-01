@@ -406,7 +406,8 @@ export function requireBillingRequestIdHeader(headers: Pick<Headers, 'get'>): st
 
 function parseBillingAttributionHeader(
   headers: Pick<Headers, 'get'>,
-  expected: ResolveBillingAttributionParams
+  expected: Pick<ResolveBillingAttributionParams, 'workspaceId'> &
+    Partial<Pick<ResolveBillingAttributionParams, 'actorUserId'>>
 ): BillingAttributionSnapshot | undefined {
   const encoded = headers.get(BILLING_ATTRIBUTION_HEADER)
   if (!encoded) return undefined
@@ -423,7 +424,7 @@ function parseBillingAttributionHeader(
 
   const attribution = assertBillingAttributionSnapshot(parsed)
   if (
-    attribution.actorUserId !== expected.actorUserId ||
+    (expected.actorUserId !== undefined && attribution.actorUserId !== expected.actorUserId) ||
     attribution.workspaceId !== expected.workspaceId
   ) {
     throw new Error('Billing attribution header does not match the authenticated request scope')
@@ -439,6 +440,22 @@ function parseBillingAttributionHeader(
 export function requireBillingAttributionHeader(
   headers: Pick<Headers, 'get'>,
   expected: ResolveBillingAttributionParams
+): BillingAttributionSnapshot {
+  const attribution = parseBillingAttributionHeader(headers, expected)
+  if (!attribution) {
+    throw new Error('Billing attribution header is required for this internal request')
+  }
+  return attribution
+}
+
+/**
+ * Restores the executor's captured billing decision without treating its actor as authorization.
+ * The authenticated executor is authoritative for the snapshot; the canonical use case supplies
+ * the workspace scope that must still match.
+ */
+export function requireWorkspaceBillingAttributionHeader(
+  headers: Pick<Headers, 'get'>,
+  expected: Pick<ResolveBillingAttributionParams, 'workspaceId'>
 ): BillingAttributionSnapshot {
   const attribution = parseBillingAttributionHeader(headers, expected)
   if (!attribution) {
@@ -573,6 +590,30 @@ export function toUsageLimitSubscription(attribution: BillingAttributionSnapshot
       interval: snapshot.billingInterval ?? null,
     },
   }
+}
+
+/**
+ * Reads only the identity an unauthenticated run acts as: the workspace's
+ * billing account.
+ *
+ * The same identity {@link resolveSystemBillingAttribution} elects as
+ * `actorUserId`, exposed on its own for gates that must name that identity
+ * before execution and have no use for the payer's subscription. Surfaces with
+ * no identifiable caller — a public API URL, a schedule, a webhook — must
+ * authorize against this rather than against the workflow owner, which is a
+ * stored pointer whose access can lapse without the workspace changing.
+ *
+ * Returns `null` when the workspace has no billing account or does not exist,
+ * so a gate can fail closed without distinguishing the two.
+ */
+export async function getWorkspaceBilledAccountUserId(workspaceId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ billedAccountUserId: workspace.billedAccountUserId })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1)
+
+  return row?.billedAccountUserId ?? null
 }
 
 /**

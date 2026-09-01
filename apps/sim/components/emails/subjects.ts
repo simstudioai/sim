@@ -110,10 +110,16 @@ export function getOtpSubject(resourceLabel: string): string {
   return `Verification code for ${resourceLabel}`
 }
 
-/** Names both the inviter and workspace so an external recipient can identify the request. */
+/**
+ * Names the workspace so an external recipient can identify the request, and the
+ * inviter when there is one — a workflow-issued invitation has no person to name.
+ */
 export function getCredentialGroupInvitationSubject(
-  inviterName: string,
+  inviterName: string | undefined,
   workspaceName: string
 ): string {
-  return `${inviterName} invited you to connect accounts for ${workspaceName} on ${getBrandConfig().name}`
+  const brandName = getBrandConfig().name
+  return inviterName
+    ? `${inviterName} invited you to connect accounts for ${workspaceName} on ${brandName}`
+    : `You have been invited to connect accounts for ${workspaceName} on ${brandName}`
 }

@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { requireCredentialGroupCredentialAccess } from '@/lib/credential-groups/application/authorization'
 import { managedOAuthCredentialDelegationPolicy } from '@/lib/credentials/application/authorization'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import {
@@ -24,6 +25,9 @@ export const resolveManagedOAuthCredentialToken = defineAuthorizedWorkspaceUseCa
     return context
   },
   authorizationOptions: { delegation: managedOAuthCredentialDelegationPolicy },
+  async authorizeResource({ principal, context, resourcePolicy }) {
+    await requireCredentialGroupCredentialAccess(principal, context, resourcePolicy)
+  },
   execute: async ({ input, context }): Promise<ResolvedManagedOAuthToken> =>
     resolveManagedOAuthToken({
       credentialId: context.credentialId,

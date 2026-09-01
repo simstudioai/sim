@@ -62,7 +62,7 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
         byteStream('event: message\ndata: {"id":1}\n\n')
       )
     )
-    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+    const { fetch } = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
 
     const response = await fetch('https://mcp.example.com/serve', {
       method: 'POST',
@@ -92,7 +92,7 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
         undiciReply(302, { location: 'https://mcp.example.com/final' }, byteStream('redirect'))
       )
       .mockResolvedValueOnce(undiciReply(200, {}, byteStream('final-body')))
-    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+    const { fetch } = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
 
     const response = await fetch('https://mcp.example.com/start', { method: 'GET' })
 
@@ -110,7 +110,7 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
         byteStream(JSON.stringify({ ok: true }))
       )
     )
-    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+    const { fetch } = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
 
     const response = await fetch('https://mcp.example.com/data', { method: 'GET' })
 
@@ -119,7 +119,7 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
 
   it('normalizes a Headers instance and an ArrayBuffer body for undici.request', async () => {
     mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, byteStream('x')))
-    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+    const { fetch } = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
 
     await fetch('https://mcp.example.com/x', {
       method: 'POST',
@@ -135,7 +135,7 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
 
   it('serializes a URLSearchParams body and defaults the form content-type (OAuth token exchange)', async () => {
     mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, byteStream('{}')))
-    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+    const { fetch } = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
 
     await fetch('https://auth.example.com/token', {
       method: 'POST',
@@ -149,7 +149,7 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
 
   it('does not override an explicit content-type on a URLSearchParams body', async () => {
     mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, byteStream('{}')))
-    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+    const { fetch } = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
 
     await fetch('https://auth.example.com/token', {
       method: 'POST',
@@ -166,7 +166,7 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
   it('copies each chunk so a recycled source buffer cannot corrupt queued data', async () => {
     const source = new Readable({ read() {} })
     mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, source))
-    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+    const { fetch } = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
 
     const response = await fetch('https://mcp.example.com/stream', { method: 'GET' })
     const reader = response.body!.getReader()
@@ -193,7 +193,7 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
         source
       )
     )
-    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+    const { fetch } = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
 
     const response = await fetch('https://mcp.example.com/data', { method: 'GET' })
 
@@ -209,7 +209,7 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
     mockUndiciRequest.mockResolvedValueOnce(
       undiciReply(200, { 'content-type': 'application/json', 'content-encoding': 'gzip' }, source)
     )
-    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+    const { fetch } = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
 
     const response = await fetch('https://mcp.example.com/bad', { method: 'GET' })
 
@@ -220,7 +220,7 @@ describe('createSsrfGuardedFetchWithDispatcher (undici.request backed)', () => {
   it('rejects the reader when the source is destroyed without an error (abort/reset)', async () => {
     const source = new Readable({ read() {} }) // stays open, never pushes
     mockUndiciRequest.mockResolvedValueOnce(undiciReply(200, {}, source))
-    const { fetch } = createSsrfGuardedFetchWithDispatcher()
+    const { fetch } = createSsrfGuardedFetchWithDispatcher({ profile: 'configuredEndpoint' })
 
     const response = await fetch('https://mcp.example.com/hang', { method: 'GET' })
     const reader = response.body!.getReader()

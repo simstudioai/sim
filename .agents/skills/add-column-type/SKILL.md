@@ -149,7 +149,7 @@ Registering the *type* is compiler-enforced. Registering its *metadata* is not, 
 - [ ] `migrateCellsTo` / `migrateCellsFrom` added if the stored bytes change
 - [ ] New metadata keys added to `TYPE_SPECIFIC_COLUMN_KEYS` + `FOREIGN_METADATA_VERB`
 - [ ] Unit tests for `coerce` / `isCompatibleWith` round-trips, verified to fail without the code
-- [ ] Docs row added to `apps/docs/content/docs/en/tables/index.mdx`
+- [ ] Docs row added to `apps/docs/content/docs/tables/index.mdx`
 
 ## Final Validation (Required)
 

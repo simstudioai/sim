@@ -2,9 +2,9 @@ import type {
   CodePipelineListPipelineExecutionsParams,
   CodePipelineListPipelineExecutionsResponse,
 } from '@/tools/codepipeline/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listPipelineExecutionsTool: ToolConfig<
+export const listPipelineExecutionsTool: InternalToolConfig<
   CodePipelineListPipelineExecutionsParams,
   CodePipelineListPipelineExecutionsResponse
 > = {
@@ -58,13 +58,8 @@ export const listPipelineExecutionsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/codepipeline/list-pipeline-executions',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

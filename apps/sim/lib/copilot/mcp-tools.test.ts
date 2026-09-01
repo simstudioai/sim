@@ -3,20 +3,20 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { discoverServerTools, validateMcpToolsAllowed } = vi.hoisted(() => ({
+const { discoverServerTools, assertPermissionsAllowed } = vi.hoisted(() => ({
   discoverServerTools: vi.fn(),
-  validateMcpToolsAllowed: vi.fn(),
+  assertPermissionsAllowed: vi.fn(),
 }))
 
 vi.mock('@/lib/mcp/service', () => ({ mcpService: { discoverServerTools } }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({ validateMcpToolsAllowed }))
+vi.mock('@/ee/access-control/utils/permission-check', () => ({ assertPermissionsAllowed }))
 
 import { buildSelectedMcpToolSchemas, buildTaggedMcpToolSchemas } from '@/lib/copilot/mcp-tools'
 
 describe('mothership MCP tool schemas', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    validateMcpToolsAllowed.mockResolvedValue(undefined)
+    assertPermissionsAllowed.mockResolvedValue(undefined)
   })
 
   it('discovers tools only for explicitly tagged servers', async () => {

@@ -135,6 +135,9 @@ const EMBEDDING_RETRY_BUDGET_MS = EMBEDDING_MAX_RETRIES * EMBEDDING_MAX_RETRY_DE
 export class EmbeddingAPIError extends Error {
   public status: number
 
+  /** True when the rejected request used a customer-managed credential. */
+  public readonly isBYOK: boolean
+
   /** Rejected for an exhausted balance rather than a recoverable rate limit. */
   public quotaExhausted?: boolean
 
@@ -144,10 +147,11 @@ export class EmbeddingAPIError extends Error {
    */
   public retryAfterMs?: number
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, isBYOK = false) {
     super(message)
     this.name = 'EmbeddingAPIError'
     this.status = status
+    this.isBYOK = isBYOK
   }
 }
 
@@ -170,6 +174,9 @@ export class EmbeddingOutputLimitError extends Error {
 export const EMBEDDING_QUOTA_EXHAUSTED_MESSAGE =
   'The embedding provider has exhausted its available quota. Add credit or replace the credential before retrying.'
 
+export const BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE =
+  'The configured embedding API key was rejected. Update the key and retry this document.'
+
 /**
  * A provider credential has no remaining credit. This remains transient across
  * providers so a configured fallback can run, but it is terminal for the
@@ -182,7 +189,8 @@ export class EmbeddingQuotaExhaustedError extends EmbeddingAPIError {
     const status = cause instanceof EmbeddingAPIError ? cause.status : 429
     super(
       `The ${providerId} embedding credential has exhausted its available quota. Add credit or replace the credential before retrying.`,
-      status
+      status,
+      cause instanceof EmbeddingAPIError && cause.isBYOK
     )
     this.name = 'EmbeddingQuotaExhaustedError'
     this.providerId = providerId
@@ -202,6 +210,21 @@ export function isEmbeddingQuotaExhaustion(error: unknown): boolean {
     return error.errors.length > 0 && error.errors.every(isEmbeddingQuotaExhaustion)
   }
   return false
+}
+
+/**
+ * True when a customer-managed embedding credential was rejected outright.
+ * These failures require a key or permission change; retrying the same request
+ * cannot recover. Quota failures are classified separately even when a provider
+ * reports them with HTTP 403.
+ */
+export function isBYOKEmbeddingCredentialRejection(error: unknown): error is EmbeddingAPIError {
+  return (
+    error instanceof EmbeddingAPIError &&
+    error.isBYOK &&
+    !error.quotaExhausted &&
+    (error.status === 401 || error.status === 403)
+  )
 }
 
 /**
@@ -434,7 +457,9 @@ async function callEmbeddingAPI(
    * native size is a 400, not a no-op.
    */
   requestedDimensions: number | undefined,
-  expectedDimensions: number | undefined
+  expectedDimensions: number | undefined,
+  isBYOK: boolean,
+  signal?: AbortSignal
 ): Promise<{ embeddings: number[][]; totalTokens: number; dimensions: number }> {
   return retryWithExponentialBackoff(
     async () => {
@@ -448,7 +473,11 @@ async function callEmbeddingAPI(
         dimensions: requestedDimensions,
       })
 
+      signal?.throwIfAborted()
       const controller = new AbortController()
+      const onAbort = () => controller.abort(signal?.reason)
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) onAbort()
       const timeout = setTimeout(() => controller.abort(), EMBEDDING_REQUEST_TIMEOUT_MS)
 
       const response = await fetch(request.apiUrl, {
@@ -456,13 +485,17 @@ async function callEmbeddingAPI(
         headers: request.headers,
         body: JSON.stringify(request.body),
         signal: controller.signal,
-      }).finally(() => clearTimeout(timeout))
+      }).finally(() => {
+        clearTimeout(timeout)
+        signal?.removeEventListener('abort', onAbort)
+      })
 
       if (!response.ok) {
         const classificationBody = await readEmbeddingErrorBody(response)
         const error = new EmbeddingAPIError(
           `Embedding API failed: ${response.status}`,
-          response.status
+          response.status,
+          isBYOK
         )
         error.quotaExhausted =
           isQuotaExhaustionBody(classificationBody) ||
@@ -531,7 +564,8 @@ async function callEmbeddingAPI(
       initialDelayMs: 1000,
       maxDelayMs: EMBEDDING_MAX_RETRY_DELAY_MS,
       retryBudgetMs: EMBEDDING_RETRY_BUDGET_MS,
-      retryCondition: isWorthRetrying,
+      retryCondition: (error) => !signal?.aborted && isWorthRetrying(error),
+      signal,
     }
   )
 }
@@ -602,8 +636,10 @@ async function embedWithProvider(
   model: string,
   taskType: EmbeddingTaskType,
   requestedDimensions: number | undefined,
-  provider: ResolvedProvider
+  provider: ResolvedProvider,
+  signal?: AbortSignal
 ): Promise<EmbedResult> {
+  signal?.throwIfAborted()
   assertEmbeddingAggregateResponseWithinLimit(boundedInputs.length, provider.dimensions)
   const batches = createEmbeddingBatches(
     boundedInputs,
@@ -618,6 +654,7 @@ async function embedWithProvider(
     MAX_CONCURRENT_BATCHES,
     async (batch, i) => {
       try {
+        signal?.throwIfAborted()
         return await callEmbeddingAPI(
           batch,
           provider.adapter,
@@ -626,12 +663,20 @@ async function embedWithProvider(
           provider.providerId,
           provider.quotaCircuitIdentity,
           requestedDimensions,
-          provider.dimensions
+          provider.dimensions,
+          provider.isBYOK,
+          signal
         )
       } catch (error) {
         const message = `Failed to generate embeddings for batch ${i + 1}/${batches.length}:`
         if (isEmbeddingQuotaExhaustion(error)) {
           logger.warn(message, { providerId: provider.providerId, quotaExhausted: true })
+        } else if (isBYOKEmbeddingCredentialRejection(error)) {
+          logger.warn(message, {
+            providerId: provider.providerId,
+            outcome: 'customer_configuration',
+            status: error.status,
+          })
         } else {
           logger.error(message, error)
         }
@@ -748,6 +793,7 @@ function combineEmbeddingBatches(
  * per-provider item caps, bounded concurrency, and retry on transient failures.
  */
 export async function embed(texts: string[], options: EmbedOptions): Promise<EmbedResult> {
+  options.signal?.throwIfAborted()
   const model = options.model ?? DEFAULT_EMBEDDING_MODEL
   const taskType = options.taskType ?? 'document'
   const provider = await resolveProvider(model, options)
@@ -757,7 +803,14 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
     getEmbeddingInputLimits(provider.info),
     options.projectInputs
   )
-  return embedWithProvider(boundedInputs, model, taskType, options.dimensions, provider)
+  return embedWithProvider(
+    boundedInputs,
+    model,
+    taskType,
+    options.dimensions,
+    provider,
+    options.signal
+  )
 }
 
 /** Generates embeddings for any model returned by OpenRouter's embedding catalog. */
@@ -796,7 +849,9 @@ export async function embedOpenRouter(
       'openrouter',
       quotaCircuitIdentity,
       options.dimensions,
-      expectedDimensions
+      expectedDimensions,
+      true,
+      options.signal
     )
 
   let batchResults: { embeddings: number[][]; totalTokens: number; dimensions: number }[]
@@ -805,6 +860,7 @@ export async function embedOpenRouter(
     if (firstInput === undefined) {
       throw new EmbeddingResponseValidationError('the response did not contain any vectors')
     }
+    options.signal?.throwIfAborted()
     const firstResult = await callOpenRouterBatch([firstInput], undefined)
     assertEmbeddingAggregateResponseWithinLimit(boundedInputs.length, firstResult.dimensions)
     const batches = createEmbeddingBatches(
@@ -814,9 +870,10 @@ export async function embedOpenRouter(
       adapter.maxItemsPerRequest,
       firstResult.dimensions
     )
-    const remainingResults = await mapWithConcurrency(batches, MAX_CONCURRENT_BATCHES, (batch) =>
-      callOpenRouterBatch(batch, firstResult.dimensions)
-    )
+    const remainingResults = await mapWithConcurrency(batches, MAX_CONCURRENT_BATCHES, (batch) => {
+      options.signal?.throwIfAborted()
+      return callOpenRouterBatch(batch, firstResult.dimensions)
+    })
     batchResults = [firstResult, ...remainingResults]
   } else {
     assertEmbeddingAggregateResponseWithinLimit(boundedInputs.length, options.dimensions)
@@ -827,9 +884,10 @@ export async function embedOpenRouter(
       adapter.maxItemsPerRequest,
       options.dimensions
     )
-    batchResults = await mapWithConcurrency(batches, MAX_CONCURRENT_BATCHES, (batch) =>
-      callOpenRouterBatch(batch, options.dimensions)
-    )
+    batchResults = await mapWithConcurrency(batches, MAX_CONCURRENT_BATCHES, (batch) => {
+      options.signal?.throwIfAborted()
+      return callOpenRouterBatch(batch, options.dimensions)
+    })
   }
   const result = combineEmbeddingBatches(batchResults)
 
@@ -976,7 +1034,8 @@ export async function embedKnowledgeForDeployment(
             provider.providerId,
             provider.quotaCircuitIdentity,
             options.dimensions,
-            provider.dimensions
+            provider.dimensions,
+            provider.isBYOK
           )),
           provider,
         }))
@@ -984,6 +1043,11 @@ export async function embedKnowledgeForDeployment(
         const message = `Failed to generate embeddings for batch ${i + 1}/${batches.length}:`
         if (isEmbeddingQuotaExhaustion(error)) {
           logger.warn(message, { quotaExhausted: true })
+        } else if (isBYOKEmbeddingCredentialRejection(error)) {
+          logger.warn(message, {
+            outcome: 'customer_configuration',
+            status: error.status,
+          })
         } else {
           logger.error(message, error)
         }

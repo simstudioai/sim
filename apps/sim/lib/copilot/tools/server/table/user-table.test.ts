@@ -258,6 +258,7 @@ vi.mock('@/lib/workflows/application/context', () => ({
 }))
 
 vi.mock('@/lib/workflows/application/resolve-workflow-outputs', () => ({
+  loadResolvedDeployedWorkflowOutputs: async () => mockExecuteCopilotWorkflowUseCase(),
   loadResolvedWorkflowOutputs: async () => mockExecuteCopilotWorkflowUseCase(),
   resolveWorkflowOutputs: { operation: { id: 'workflows.read' } },
 }))
@@ -957,6 +958,25 @@ describe('userTableServerTool workflow scope', () => {
       assertedWorkspaceId: 'workspace-1',
     })
     expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
+  })
+
+  it('does not pass a legacy deployment mode into workflow group creation', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'add_workflow_group',
+        args: {
+          tableId: 'tbl_1',
+          workflowId: 'workflow-1',
+          outputs: [{ blockId: 'block-1', path: 'content' }],
+          deploymentMode: 'live',
+        },
+      },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockAddWorkflowGroup).toHaveBeenCalledTimes(1)
+    expect(mockAddWorkflowGroup.mock.calls[0][0].group).not.toHaveProperty('deploymentMode')
   })
 
   it('conceals unknown application failures from tool output', async () => {

@@ -93,7 +93,6 @@ const LEGACY_CORE_REPLACEMENTS = {
   getUsageLimits: 'GET /api/v2/billing/status',
 } as const
 
-const API_REFERENCE_LOCALES = ['de', 'en', 'es', 'fr', 'ja', 'zh'] as const
 const REQUIRED_API_REFERENCE_GROUPS = [
   '(generated)/workflows',
   '(generated)/workflow-runs',
@@ -251,13 +250,23 @@ function docPropertyNames(schema: unknown, spec: Json): Set<string> | null {
   return null
 }
 
-function toJsonSchema(schema: z.ZodType, io: 'input' | 'output'): Json {
-  return z.toJSONSchema(schema, {
+type SchemaIo = 'input' | 'output'
+
+const jsonSchemaCache = new WeakMap<z.ZodType, Map<SchemaIo, Json>>()
+
+function toJsonSchema(schema: z.ZodType, io: SchemaIo): Json {
+  const cached = jsonSchemaCache.get(schema)?.get(io)
+  if (cached) return cached
+  const converted = z.toJSONSchema(schema, {
     io,
     target: 'draft-2020-12',
     unrepresentable: 'any',
     cycles: 'ref',
   }) as Json
+  const byIo = jsonSchemaCache.get(schema) ?? new Map<SchemaIo, Json>()
+  byIo.set(io, converted)
+  jsonSchemaCache.set(schema, byIo)
+  return converted
 }
 
 const outputExampleValidator = new Ajv2020({
@@ -265,6 +274,10 @@ const outputExampleValidator = new Ajv2020({
   allErrors: true,
   validateFormats: false,
 })
+const outputValidatorCache = new WeakMap<
+  z.ZodType,
+  ReturnType<typeof outputExampleValidator.compile>
+>()
 
 function stripLegacySchemaIds(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stripLegacySchemaIds)
@@ -277,9 +290,11 @@ function stripLegacySchemaIds(value: unknown): unknown {
 }
 
 function outputExampleError(schema: z.ZodType, value: unknown): string | null {
-  const validate = outputExampleValidator.compile(
-    stripLegacySchemaIds(toJsonSchema(schema, 'output'))
-  )
+  let validate = outputValidatorCache.get(schema)
+  if (!validate) {
+    validate = outputExampleValidator.compile(stripLegacySchemaIds(toJsonSchema(schema, 'output')))
+    outputValidatorCache.set(schema, validate)
+  }
   if (validate(value)) return null
   return outputExampleValidator.errorsText(validate.errors)
 }
@@ -1065,11 +1080,11 @@ for (const [legacyOperationId, replacement] of Object.entries(LEGACY_CORE_REPLAC
 const workflowMetaGroups = [
   {
     tag: 'Workflows',
-    file: 'content/docs/en/api-reference/(generated)/workflows/meta.json',
+    file: 'content/docs/api-reference/(generated)/workflows/meta.json',
   },
   {
     tag: 'Workflow Runs',
-    file: 'content/docs/en/api-reference/(generated)/workflow-runs/meta.json',
+    file: 'content/docs/api-reference/(generated)/workflow-runs/meta.json',
   },
 ] as const
 const visibleWorkflowOperationIds = new Set<string>()
@@ -1100,19 +1115,24 @@ for (const [operationId, specFile] of globalOperationIds) {
   }
 }
 
-for (const locale of API_REFERENCE_LOCALES) {
-  const metaFile = `content/docs/${locale}/api-reference/meta.json`
-  const meta = JSON.parse(readFileSync(path.join(DOCS_DIR, metaFile), 'utf8')) as Json
-  if (!Array.isArray(meta.pages) || !meta.pages.every((page) => typeof page === 'string')) {
-    fail(metaFile, 'pages must be an array of page identifiers')
-    continue
-  }
-  const pages = new Set(meta.pages as string[])
+const API_REFERENCE_META_FILE = 'content/docs/api-reference/meta.json'
+const apiReferenceMeta = JSON.parse(
+  readFileSync(path.join(DOCS_DIR, API_REFERENCE_META_FILE), 'utf8')
+) as Json
+if (
+  !Array.isArray(apiReferenceMeta.pages) ||
+  !apiReferenceMeta.pages.every((page) => typeof page === 'string')
+) {
+  fail(API_REFERENCE_META_FILE, 'pages must be an array of page identifiers')
+} else {
+  const pages = new Set(apiReferenceMeta.pages as string[])
   for (const group of REQUIRED_API_REFERENCE_GROUPS) {
-    if (!pages.has(group)) fail(metaFile, `missing public v2 group ${group}`)
+    if (!pages.has(group)) fail(API_REFERENCE_META_FILE, `missing public v2 group ${group}`)
   }
   for (const group of REMOVED_API_REFERENCE_GROUPS) {
-    if (pages.has(group)) fail(metaFile, `obsolete legacy group ${group} must not be published`)
+    if (pages.has(group)) {
+      fail(API_REFERENCE_META_FILE, `obsolete legacy group ${group} must not be published`)
+    }
   }
 }
 

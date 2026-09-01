@@ -1,6 +1,13 @@
 'use client'
 
-import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@sim/emcn'
+import {
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
+  OverflowText,
+} from '@sim/emcn'
 import type {
   BYOKManagerCapabilities,
   BYOKManagerKey,
@@ -53,12 +60,14 @@ export function BYOKProviderKeysModal({
           {keys.map((key) => (
             <div key={key.id} className='flex items-center justify-between gap-2.5'>
               <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                <span className='truncate text-[var(--text-body)] text-sm'>
-                  {key.name ?? 'Unnamed key'}
-                </span>
-                <span className='truncate font-mono text-[var(--text-muted)] text-caption'>
-                  {key.maskedKey}
-                </span>
+                <OverflowText
+                  label={key.name ?? 'Unnamed key'}
+                  className='text-[var(--text-body)] text-sm'
+                />
+                <OverflowText
+                  label={key.maskedKey}
+                  className='font-mono text-[var(--text-muted)] text-caption'
+                />
               </div>
               {(capabilities.update || capabilities.delete) && (
                 <div className='flex flex-shrink-0 items-center gap-2'>

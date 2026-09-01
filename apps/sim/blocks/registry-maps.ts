@@ -147,7 +147,7 @@ import { HarmonicBlock, HarmonicBlockMeta } from '@/blocks/blocks/harmonic'
 import { HexBlock, HexBlockMeta } from '@/blocks/blocks/hex'
 import { HubSpotBlock, HubSpotBlockMeta } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock, HuggingFaceBlockMeta } from '@/blocks/blocks/huggingface'
-import { HumanInTheLoopBlock } from '@/blocks/blocks/human_in_the_loop'
+import { HumanInTheLoopBlock, HumanInTheLoopV2Block } from '@/blocks/blocks/human_in_the_loop'
 import { HunterBlock, HunterBlockMeta } from '@/blocks/blocks/hunter'
 import { IAMBlock, IAMBlockMeta } from '@/blocks/blocks/iam'
 import { IcypeasBlock, IcypeasBlockMeta } from '@/blocks/blocks/icypeas'
@@ -181,6 +181,7 @@ import {
 } from '@/blocks/blocks/kalshi'
 import { KetchBlock, KetchBlockMeta } from '@/blocks/blocks/ketch'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
+import { LambdaBlock, LambdaBlockMeta } from '@/blocks/blocks/lambda'
 import { LangsmithBlock, LangsmithBlockMeta } from '@/blocks/blocks/langsmith'
 import { LatexBlock, LatexBlockMeta } from '@/blocks/blocks/latex'
 import { LaunchDarklyBlock, LaunchDarklyBlockMeta } from '@/blocks/blocks/launchdarkly'
@@ -207,6 +208,10 @@ import {
   MicrosoftDataverseBlock,
   MicrosoftDataverseBlockMeta,
 } from '@/blocks/blocks/microsoft_dataverse'
+import {
+  MicrosoftDynamics365Block,
+  MicrosoftDynamics365BlockMeta,
+} from '@/blocks/blocks/microsoft_dynamics_365'
 import {
   MicrosoftExcelBlock,
   MicrosoftExcelBlockMeta,
@@ -281,6 +286,7 @@ import { RootlyBlock, RootlyBlockMeta } from '@/blocks/blocks/rootly'
 import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 import { RssBlock, RssBlockMeta } from '@/blocks/blocks/rss'
 import { S3Block, S3BlockMeta } from '@/blocks/blocks/s3'
+import { SailPointBlock, SailPointBlockMeta } from '@/blocks/blocks/sailpoint'
 import { SalesforceBlock, SalesforceBlockMeta } from '@/blocks/blocks/salesforce'
 import { SapConcurBlock, SapConcurBlockMeta } from '@/blocks/blocks/sap_concur'
 import { SapS4HanaBlock, SapS4HanaBlockMeta } from '@/blocks/blocks/sap_s4hana'
@@ -510,6 +516,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
   human_in_the_loop: HumanInTheLoopBlock,
+  human_in_the_loop_v2: HumanInTheLoopV2Block,
   hunter: HunterBlock,
   iam: IAMBlock,
   icypeas: IcypeasBlock,
@@ -533,6 +540,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   kalshi_v2: KalshiV2Block,
   ketch: KetchBlock,
   knowledge: KnowledgeBlock,
+  lambda: LambdaBlock,
   langsmith: LangsmithBlock,
   latex: LatexBlock,
   launchdarkly: LaunchDarklyBlock,
@@ -558,6 +566,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   memory: MemoryBlock,
   microsoft_ad: MicrosoftAdBlock,
   microsoft_dataverse: MicrosoftDataverseBlock,
+  microsoft_dynamics_365: MicrosoftDynamics365Block,
   microsoft_excel: MicrosoftExcelBlock,
   microsoft_excel_v2: MicrosoftExcelV2Block,
   microsoft_planner: MicrosoftPlannerBlock,
@@ -622,6 +631,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   router_v2: RouterV2Block,
   rss: RssBlock,
   s3: S3Block,
+  sailpoint: SailPointBlock,
   salesforce: SalesforceBlock,
   sap_concur: SapConcurBlock,
   sap_s4hana: SapS4HanaBlock,
@@ -859,6 +869,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   kalshi: KalshiBlockMeta,
   kalshi_v2: KalshiV2BlockMeta,
   ketch: KetchBlockMeta,
+  lambda: LambdaBlockMeta,
   langsmith: LangsmithBlockMeta,
   latex: LatexBlockMeta,
   launchdarkly: LaunchDarklyBlockMeta,
@@ -878,6 +889,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   mem0: Mem0BlockMeta,
   microsoft_ad: MicrosoftAdBlockMeta,
   microsoft_dataverse: MicrosoftDataverseBlockMeta,
+  microsoft_dynamics_365: MicrosoftDynamics365BlockMeta,
   microsoft_excel: MicrosoftExcelBlockMeta,
   microsoft_excel_v2: MicrosoftExcelV2BlockMeta,
   microsoft_planner: MicrosoftPlannerBlockMeta,
@@ -934,6 +946,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   rootly: RootlyBlockMeta,
   rss: RssBlockMeta,
   s3: S3BlockMeta,
+  sailpoint: SailPointBlockMeta,
   salesforce: SalesforceBlockMeta,
   sap_concur: SapConcurBlockMeta,
   sap_s4hana: SapS4HanaBlockMeta,

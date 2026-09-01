@@ -10,7 +10,7 @@ import {
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   parsePermissionGroupConfig,
-} from '@/lib/permission-groups/types'
+} from '@/lib/permission-groups/fields'
 
 describe('createPermissionGroupBodySchema', () => {
   it('accepts a name-only body (scope is resolved and validated server-side)', () => {

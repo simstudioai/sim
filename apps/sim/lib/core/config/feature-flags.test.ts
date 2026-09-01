@@ -12,6 +12,7 @@ const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
     APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
     TABLES_V2_API: undefined as boolean | undefined,
+    TABLE_ROW_TTL: undefined as boolean | undefined,
     CREDENTIAL_GROUPS: undefined as boolean | undefined,
   },
 }))
@@ -77,6 +78,7 @@ describe('getFeatureFlags', () => {
     // All registered flags should be present, disabled (env vars unset in test env)
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
     expect(flags['tables-v2-api']).toEqual({ enabled: false })
+    expect(flags['table-row-ttl']).toEqual({ enabled: false })
     expect(flags['credential-groups']).toEqual({ enabled: false })
     expect(mockFetch).not.toHaveBeenCalled()
   })
@@ -104,6 +106,7 @@ describe('getFeatureFlags', () => {
     const flags = await getFeatureFlags()
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
     expect(flags['tables-v2-api']).toEqual({ enabled: false })
+    expect(flags['table-row-ttl']).toEqual({ enabled: false })
     expect(flags['credential-groups']).toEqual({ enabled: false })
   })
 
@@ -130,10 +133,24 @@ describe('isFeatureEnabled', () => {
       expect(await isFeatureEnabled('credential-groups')).toBe(true)
     })
 
-    it('uses only the global AppConfig clause', async () => {
+    it('uses the global AppConfig clause', async () => {
       withAppConfig({ 'credential-groups': { enabled: true } })
       expect(await isFeatureEnabled('credential-groups')).toBe(true)
     })
+
+    it('opens for an allowlisted workspace only', async () => {
+      withAppConfig({ 'credential-groups': { workspaceIds: ['ws-1'] } })
+      expect(await isFeatureEnabled('credential-groups', { workspaceId: 'ws-1' })).toBe(true)
+      expect(await isFeatureEnabled('credential-groups', { workspaceId: 'ws-2' })).toBe(false)
+      expect(await isFeatureEnabled('credential-groups')).toBe(false)
+    })
+  })
+
+  it('matches the workspaceIds clause', async () => {
+    withAppConfig({ f: { workspaceIds: ['ws-1'] } })
+    expect(await enabled('f', { workspaceId: 'ws-1' })).toBe(true)
+    expect(await enabled('f', { workspaceId: 'ws-2' })).toBe(false)
+    expect(await enabled('f', { userId: 'ws-1' })).toBe(false)
   })
 
   it('returns false for an unknown flag', async () => {
@@ -222,5 +239,25 @@ describe('tables-v2-api flag', () => {
   it('global enabled turns it on for everyone', async () => {
     withAppConfig({ 'tables-v2-api': { enabled: true } })
     expect(await isFeatureEnabled('tables-v2-api')).toBe(true)
+  })
+})
+
+describe('table-row-ttl flag', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setEnvFlags({ isAppConfigEnabled: false })
+    envRef.TABLE_ROW_TTL = undefined
+  })
+
+  it('uses a global fallback switch off AppConfig', async () => {
+    expect(await isFeatureEnabled('table-row-ttl')).toBe(false)
+
+    envRef.TABLE_ROW_TTL = true
+    expect(await isFeatureEnabled('table-row-ttl')).toBe(true)
+  })
+
+  it('uses the global AppConfig clause', async () => {
+    withAppConfig({ 'table-row-ttl': { enabled: true } })
+    expect(await isFeatureEnabled('table-row-ttl')).toBe(true)
   })
 })

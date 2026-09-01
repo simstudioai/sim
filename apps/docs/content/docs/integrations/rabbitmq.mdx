@@ -1,0 +1,664 @@
+---
+title: RabbitMQ
+description: Publish and read messages and manage queues in RabbitMQ
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="rabbitmq"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[RabbitMQ](https://www.rabbitmq.com/) is an open-source message broker that sits between the parts of a system that produce work and the parts that do it. A producer publishes a message to an **exchange**, the exchange matches the message's **routing key** against its **bindings**, and every matching **queue** holds the message until a consumer takes it. That indirection is the point: producers never need to know who consumes their messages, and a queue absorbs bursts that would otherwise overwhelm a downstream service.
+
+**Why RabbitMQ?**
+- **Durable buffering:** A queue holds work while consumers are slow, restarting, or offline, so a traffic spike becomes a backlog to work through rather than dropped requests.
+- **Flexible routing:** Direct exchanges route on an exact key, topic exchanges on wildcard patterns like `orders.*`, fanout exchanges to every bound queue, and headers exchanges on message metadata.
+- **Delivery guarantees:** Messages and queues can be marked durable so they survive a broker restart, and unacknowledged messages return to the queue when a consumer dies mid-work.
+- **Failure handling built in:** Dead-letter exchanges, per-message TTLs, and queue length limits let you decide up front what happens to work that expires, overflows, or repeatedly fails.
+- **Runs anywhere:** Self-hosted on your own infrastructure, or managed through providers such as CloudAMQP and Amazon MQ.
+
+**Using RabbitMQ in Sim**
+
+Sim talks to RabbitMQ over its **Management HTTP API** — the same interface behind the RabbitMQ management UI — using the management plugin's base URL plus a username and password. There is no AMQP connection to configure and no client library to install; if you can reach the management UI in a browser, Sim can reach your broker.
+
+**Key benefits of using RabbitMQ in Sim:**
+- **Publish from any workflow step:** Hand off enriched or classified data to an existing service by publishing to an exchange, without that service needing to know Sim exists.
+- **Inspect queues without consuming them:** The default acknowledgement mode requeues what it reads, so an agent can examine a dead-letter backlog and leave the messages exactly where they were.
+- **Triage failures with an agent:** Read a dead-letter queue, let an agent group messages by root cause, and route the summary to Slack, PagerDuty, or a table.
+- **Monitor broker health on a schedule:** List queues and read the broker overview to catch a queue whose depth is climbing or that has lost all its consumers.
+- **Declare topology as part of a workflow:** Create queues, set arguments such as quorum type or dead-lettering, and bind them to exchanges as an automated setup step.
+
+**Before you start**
+
+- The **management plugin must be enabled and reachable** from Sim. It listens on port `15672` by default and is separate from the AMQP port (`5672`). Self-hosted brokers enable it with `rabbitmq-plugins enable rabbitmq_management`; managed providers expose it as a management or console URL.
+- The management URL **must use `https`** unless the broker is on a loopback host. Credentials travel on every request as HTTP basic auth, so plain `http` to a remote broker would put them on the wire in the clear — Sim rejects it rather than sending them.
+- The user you authenticate as needs the **`management` tag** at minimum, plus read and write permissions on the virtual host you target. Administrative operations require broader permissions.
+- Publishing and reading messages over the HTTP API is **convenient but not a high-throughput transport** — RabbitMQ opens a new connection per request. It is well suited to workflow-rate traffic, inspection, and operational automation; a service consuming thousands of messages per second should use an AMQP client instead.
+- Queue statistics such as message and consumer counts are **collected on an interval**, so a queue declared moments ago may report them as empty until the broker's next sample.
+- Reading messages is **bounded per call** so one retrieval cannot exceed Sim's response limit. A batch is capped at 50 messages, payloads are truncated (each message reports whether it was), and a large batch shortens payloads further. AMQP properties and headers are returned in full — the broker offers no way to truncate them — so retrieving several messages carrying very large headers may still hit the limit; lower the count if that happens.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect agents to a RabbitMQ broker through its Management HTTP API. Publish messages to exchanges, read messages off queues, declare queues, exchanges, bindings, and policies, and inspect broker health, queue depth, consumers, connections, and cluster nodes. Works with self-hosted brokers and managed offerings such as CloudAMQP as long as the management plugin is reachable.
+
+
+
+## Actions
+
+### RabbitMQ Publish Message
+
+Publish a message to a RabbitMQ exchange with a routing key. Reports whether the message was routed to at least one queue.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `exchange` | string | No | Exchange to publish to. Leave empty to publish to the default exchange, which routes by queue name. Empty is a valid value, so this is not required. |
+| `routingKey` | string | Yes | Routing key. When publishing to the default exchange this is the target queue name. |
+| `payload` | string | Yes | Message body to publish |
+| `payloadEncoding` | string | No | How the payload is encoded: string \(default\) or base64 |
+| `properties` | string | No | AMQP basic properties as a JSON object, e.g. \{"delivery_mode":2,"content_type":"application/json"\} |
+| `headers` | string | No | Message headers as a JSON object, e.g. \{"source":"sim"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `routed` | boolean | Whether the message was routed to at least one queue. False means no binding matched and the message was dropped. |
+| `exchange` | string | Exchange the message was published to |
+| `routingKey` | string | Routing key the message was published with |
+
+### RabbitMQ Get Messages
+
+Retrieve messages from a RabbitMQ queue. Defaults to requeueing the messages so they stay available to real consumers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `queue` | string | Yes | Queue to read messages from |
+| `count` | number | No | Maximum number of messages to retrieve, from 1 to 50. Defaults to 1 |
+| `ackmode` | string | No | How retrieved messages are handled: ack_requeue_true \(default, leaves messages in the queue\), ack_requeue_false \(removes them\), reject_requeue_true, or reject_requeue_false |
+| `encoding` | string | No | auto \(default\) returns readable text where possible, base64 always returns base64 |
+| `truncate` | number | No | Truncate payloads longer than this many bytes. Defaults to 50000, capped at 1000000, and lowered further at high counts so the whole batch stays inside the response limit. Each message reports whether it was truncated |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queueName` | string | Queue the messages were read from |
+| `count` | number | Number of messages retrieved |
+| `messages` | array | Retrieved messages, empty when the queue holds nothing |
+
+### RabbitMQ List Queues
+
+List queues in a RabbitMQ virtual host with their depth, consumer count, and configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `pageSize` | number | No | Queues per page, from 1 to 500. Defaults to 50 |
+| `name` | string | No | Filter queues whose name contains this value |
+| `useRegex` | boolean | No | Treat the name filter as a regular expression |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queues` | array | Queues in the virtual host |
+| `count` | number | Number of queues returned on this page |
+| `totalCount` | number | Total queues in the virtual host before filtering |
+| `page` | number | Page number returned |
+| `pageCount` | number | Total number of pages |
+
+### RabbitMQ Get Queue
+
+Read a single RabbitMQ queue, including its depth, consumer count, and declaration settings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `queue` | string | Yes | Queue name to read |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queue` | object | The requested queue |
+
+### RabbitMQ Create Queue
+
+Declare a RabbitMQ queue. Declaring a queue that already exists with the same settings succeeds without changing it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `queue` | string | Yes | Name of the queue to declare |
+| `durable` | boolean | No | Whether the queue survives a broker restart. Defaults to true |
+| `autoDelete` | boolean | No | Delete the queue when its last consumer disconnects. Defaults to false |
+| `arguments` | string | No | Queue arguments as a JSON object, e.g. \{"x-queue-type":"quorum","x-message-ttl":60000\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queueName` | string | Name of the declared queue |
+| `vhost` | string | Virtual host the queue was declared in |
+| `created` | boolean | Whether the declaration succeeded |
+
+### RabbitMQ Delete Queue
+
+Delete a RabbitMQ queue and every message still in it. Can be guarded so the delete only happens when the queue is unused or empty.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `queue` | string | Yes | Name of the queue to delete |
+| `ifUnused` | boolean | No | Only delete the queue when it has no consumers |
+| `ifEmpty` | boolean | No | Only delete the queue when it holds no messages |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queueName` | string | Name of the deleted queue |
+| `vhost` | string | Virtual host the queue was deleted from |
+| `deleted` | boolean | Whether the queue was deleted |
+
+### RabbitMQ Purge Queue
+
+Discard every ready message in a RabbitMQ queue while leaving the queue itself in place.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `queue` | string | Yes | Name of the queue to purge |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queueName` | string | Name of the purged queue |
+| `vhost` | string | Virtual host the queue belongs to |
+| `purged` | boolean | Whether the queue was purged |
+
+### RabbitMQ List Exchanges
+
+List exchanges in a RabbitMQ virtual host with their type and declaration settings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `pageSize` | number | No | Exchanges per page, from 1 to 500. Defaults to 50 |
+| `name` | string | No | Filter exchanges whose name contains this value |
+| `useRegex` | boolean | No | Treat the name filter as a regular expression |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exchanges` | array | Exchanges in the virtual host |
+| `count` | number | Number of exchanges returned on this page |
+| `totalCount` | number | Total exchanges in the virtual host before filtering |
+| `page` | number | Page number returned |
+| `pageCount` | number | Total number of pages |
+
+### RabbitMQ Get Exchange
+
+Read a single RabbitMQ exchange and the settings it was declared with.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `exchange` | string | No | Exchange name to read. Leave empty for the default exchange, which is a valid value, so this is not required |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exchange` | object | The requested exchange |
+
+### RabbitMQ Create Exchange
+
+Declare a RabbitMQ exchange. Declaring an exchange that already exists with the same settings succeeds without changing it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `exchange` | string | Yes | Name of the exchange to declare |
+| `exchangeType` | string | No | Routing behaviour: direct \(exact routing key, default\), topic \(wildcard patterns\), fanout \(every bound queue\), or headers \(match on binding arguments\) |
+| `durable` | boolean | No | Whether the exchange survives a broker restart. Defaults to true |
+| `autoDelete` | boolean | No | Delete the exchange once its last binding is removed. Defaults to false |
+| `internal` | boolean | No | Internal exchanges cannot be published to directly, only bound from another exchange. Defaults to false |
+| `arguments` | string | No | Exchange arguments as a JSON object, e.g. \{"alternate-exchange":"unrouted"\} to capture messages that match no binding |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exchangeName` | string | Name of the declared exchange |
+| `vhost` | string | Virtual host the exchange was declared in |
+| `created` | boolean | Whether the declaration succeeded |
+
+### RabbitMQ Delete Exchange
+
+Delete a RabbitMQ exchange and every binding attached to it. Publishers targeting it will fail afterwards.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `exchange` | string | Yes | Name of the exchange to delete |
+| `ifUnused` | boolean | No | Only delete the exchange when nothing is bound to it |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exchangeName` | string | Name of the deleted exchange |
+| `vhost` | string | Virtual host the exchange was deleted from |
+| `deleted` | boolean | Whether the exchange was deleted |
+
+### RabbitMQ List Bindings
+
+List the bindings that route messages into a RabbitMQ queue, including the implicit default-exchange binding.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `queue` | string | Yes | Queue whose bindings should be listed |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queueName` | string | Queue the bindings route into |
+| `bindings` | array | Bindings targeting the queue. The entry with an empty source is the implicit default-exchange binding |
+| `count` | number | Number of bindings returned |
+
+### RabbitMQ List Exchange Bindings
+
+List everything an exchange routes to, so you can see which routing keys reach which queues.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `exchange` | string | No | Exchange whose outgoing bindings should be listed. Leave empty for the default exchange, which is a valid value, so this is not required |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exchangeName` | string | Exchange the bindings originate from |
+| `bindings` | array | Bindings routing out of the exchange. An empty list means nothing it publishes can be delivered |
+| `count` | number | Number of bindings returned |
+
+### RabbitMQ Create Binding
+
+Bind a queue or another exchange to a RabbitMQ exchange so messages matching a routing key are routed to it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `exchange` | string | Yes | Source exchange to bind from |
+| `queue` | string | Yes | Destination queue, or destination exchange when binding exchange to exchange |
+| `destinationType` | string | No | Whether the destination is a queue \(default\) or an exchange. Exchange-to-exchange bindings chain routing between exchanges |
+| `routingKey` | string | No | Routing key the binding matches. Topic exchanges accept wildcards such as orders.* |
+| `arguments` | string | No | Binding arguments as a JSON object. Headers exchanges match on these, e.g. \{"x-match":"all","type":"invoice"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exchange` | string | Source exchange the binding reads from |
+| `queueName` | string | Destination queue the binding routes into |
+| `routingKey` | string | Routing key the binding matches |
+| `propertiesKey` | string | Broker identifier addressing the new binding |
+| `created` | boolean | Whether the binding was created |
+
+### RabbitMQ Delete Binding
+
+Remove a binding so an exchange stops routing its matching messages to that destination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `exchange` | string | Yes | Source exchange the binding reads from |
+| `destination` | string | Yes | Destination queue or exchange the binding routes to |
+| `destinationType` | string | No | Whether the destination is a queue \(default\) or an exchange |
+| `propertiesKey` | string | Yes | Broker identifier for the binding, taken from List Bindings or Create Binding. It is the routing key for a simple binding, ~ for an empty routing key, and a hashed value when the binding has arguments |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exchange` | string | Source exchange the binding read from |
+| `destination` | string | Destination the binding routed to |
+| `propertiesKey` | string | Broker identifier of the deleted binding |
+| `deleted` | boolean | Whether the binding was deleted |
+
+### RabbitMQ Get Overview
+
+Read broker-wide RabbitMQ status: version, cluster name, object totals, queue depth totals, and message rates.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rabbitmqVersion` | string | RabbitMQ version running on the node |
+| `productName` | string | Broker product name |
+| `productVersion` | string | Broker product version |
+| `erlangVersion` | string | Erlang runtime version |
+| `clusterName` | string | Name of the cluster |
+| `node` | string | Node that served the request |
+| `objectTotals` | object | Counts of brokers objects |
+|   ↳ `connections` | number | Open connections |
+|   ↳ `channels` | number | Open channels |
+|   ↳ `exchanges` | number | Declared exchanges |
+|   ↳ `queues` | number | Declared queues |
+|   ↳ `consumers` | number | Registered consumers |
+| `queueTotals` | object | Aggregate queue depth across the broker |
+|   ↳ `messages` | number | Total messages across all queues |
+|   ↳ `messages_ready` | number | Messages ready for delivery |
+|   ↳ `messages_unacknowledged` | number | Delivered but unacknowledged messages |
+| `messageStats` | json | Broker-wide message counters and rates, e.g. publish and confirm totals |
+
+### RabbitMQ Health Check
+
+Run one of the broker health checks and report whether it passed. A failing check is a normal result, not a tool error.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `check` | string | No | Which check to run: alarms \(cluster-wide resource alarms, default\), local-alarms, virtual-hosts, node-is-quorum-critical, port-listener, protocol-listener, or certificate-expiration |
+| `port` | number | No | Port to verify a listener on. Required for the port-listener check |
+| `protocol` | string | No | Protocol to verify a listener for, e.g. amqp, amqp/ssl, mqtt, stomp, or http. Required for the protocol-listener check |
+| `within` | number | No | How far ahead to look for expiring certificates. Required for the certificate-expiration check |
+| `unit` | string | No | Unit for the certificate-expiration window: days, weeks, months \(default\), or years |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `check` | string | The health check that was run |
+| `healthy` | boolean | True when the check reported status ok |
+| `status` | string | Raw status reported by the broker: ok or failed |
+| `reason` | string | Explanation the broker gave, present on failures and on some passes |
+| `details` | json | Full check body, including check-specific fields such as the ports or protocols found |
+
+### RabbitMQ List Nodes
+
+List the cluster nodes with memory, disk, file-descriptor, and alarm state. A fired alarm blocks publishers broker-wide.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `nodes` | array | Cluster nodes and their resource headroom |
+| `count` | number | Number of nodes in the cluster |
+
+### RabbitMQ List Virtual Hosts
+
+List the virtual hosts on the broker with their message totals, so you can discover which scopes exist.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `vhosts` | array | Virtual hosts the authenticated user can see |
+| `count` | number | Number of virtual hosts returned |
+
+### RabbitMQ List Connections
+
+List client connections to the broker with their user, state, and channel count. Connections are cluster-wide, not scoped to one virtual host.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `pageSize` | number | No | Connections per page, from 1 to 500. Defaults to 50 |
+| `name` | string | No | Filter connections whose name contains this value |
+| `useRegex` | boolean | No | Treat the name filter as a regular expression |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `connections` | array | Open client connections |
+| `count` | number | Number of connections returned on this page |
+| `totalCount` | number | Total connections before filtering |
+| `page` | number | Page number returned |
+| `pageCount` | number | Total number of pages |
+
+### RabbitMQ List Channels
+
+List open channels with their prefetch limit and unacknowledged message count, which is where stalled consumers show up. Channels are cluster-wide, not scoped to one virtual host.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `page` | number | No | Page of results to return, starting at 1 |
+| `pageSize` | number | No | Channels per page, from 1 to 500. Defaults to 50 |
+| `name` | string | No | Filter channels whose name contains this value |
+| `useRegex` | boolean | No | Treat the name filter as a regular expression |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channels` | array | Open channels |
+| `count` | number | Number of channels returned on this page |
+| `totalCount` | number | Total channels before filtering |
+| `page` | number | Page number returned |
+| `pageCount` | number | Total number of pages |
+
+### RabbitMQ List Consumers
+
+List the consumers subscribed in a virtual host. An empty result for a queue with a backlog means nothing is processing it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `consumers` | array | Consumers currently subscribed in the virtual host |
+| `count` | number | Number of consumers returned |
+
+### RabbitMQ List Policies
+
+List the policies in a virtual host. Policies are how dead-lettering, TTLs, and length limits get applied to matching queues and exchanges.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `policies` | array | Policies defined in the virtual host |
+| `count` | number | Number of policies returned |
+
+### RabbitMQ Create Policy
+
+Create or replace a RabbitMQ policy, applying settings such as dead-lettering, TTLs, or length limits to every queue or exchange whose name matches a pattern.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `policyName` | string | Yes | Name of the policy. Reusing an existing name replaces that policy |
+| `pattern` | string | Yes | Regular expression matched against queue or exchange names, e.g. ^orders\. to match every name starting with orders. |
+| `definition` | string | Yes | Settings to apply, as a JSON object, e.g. \{"dead-letter-exchange":"dlx","message-ttl":86400000,"max-length":10000\} |
+| `priority` | number | No | Priority, defaulting to 0. When several policies match a resource only the highest-priority one applies — they do not merge |
+| `applyTo` | string | No | What the policy applies to: queues \(default\), classic_queues, quorum_queues, streams, exchanges, or all |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `policyName` | string | Name of the created policy |
+| `vhost` | string | Virtual host the policy applies in |
+| `created` | boolean | Whether the policy was created or replaced |
+
+### RabbitMQ Delete Policy
+
+Delete a RabbitMQ policy. Every queue and exchange it matched immediately loses the settings it applied.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host. |
+| `username` | string | Yes | RabbitMQ username |
+| `password` | string | Yes | RabbitMQ password |
+| `vhost` | string | No | Virtual host to operate on. Defaults to / |
+| `policyName` | string | Yes | Name of the policy to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `policyName` | string | Name of the deleted policy |
+| `vhost` | string | Virtual host the policy applied in |
+| `deleted` | boolean | Whether the policy was deleted |
+
+

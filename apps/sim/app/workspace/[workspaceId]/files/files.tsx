@@ -69,6 +69,7 @@ import {
   resourceListState,
   selectionLabel,
   timeCell,
+  useFindShortcut,
   useResourceRowSelection,
 } from '@/app/workspace/[workspaceId]/components'
 import type {
@@ -1583,25 +1584,14 @@ export function Files() {
 
   /**
    * Overrides the browser's Cmd/Ctrl+F with the in-list find while the list is
-   * showing. Skipped when a file is open — its editor owns the shortcut there —
-   * and when another surface already claimed the press.
+   * showing. Handed to the open file's editor instead once one is open.
    */
-  useEffect(() => {
-    const handleFindShortcut = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return
-      if (e.key.toLowerCase() !== 'f') return
-      if (fileIdFromRouteRef.current) return
-      if (e.defaultPrevented) return
-      e.preventDefault()
-      setFindOpen(true)
-      requestAnimationFrame(() => {
-        findInputRef.current?.focus()
-        findInputRef.current?.select()
-      })
-    }
-    document.addEventListener('keydown', handleFindShortcut)
-    return () => document.removeEventListener('keydown', handleFindShortcut)
-  }, [])
+  const handleFindOpen = useCallback(() => setFindOpen(true), [])
+  useFindShortcut({
+    enabled: !fileIdFromRoute,
+    inputRef: findInputRef,
+    onOpen: handleFindOpen,
+  })
 
   const handleCyclePreviewMode = useCallback(() => {
     setPreviewMode((prev) => {
@@ -1968,9 +1958,8 @@ export function Files() {
             multiSelect
             multiSelectValues={typeFilter}
             onMultiSelectChange={setTypeFilter}
-            overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{typeDisplayLabel}</span>
-            }
+            overlayLabel={typeDisplayLabel}
+            overlayContent={typeDisplayLabel}
             showAllOption
             allOptionLabel='All'
             className='w-full'
@@ -1987,9 +1976,8 @@ export function Files() {
             multiSelect
             multiSelectValues={sizeFilter}
             onMultiSelectChange={setSizeFilter}
-            overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{sizeDisplayLabel}</span>
-            }
+            overlayLabel={sizeDisplayLabel}
+            overlayContent={sizeDisplayLabel}
             showAllOption
             allOptionLabel='All'
             className='w-full'
@@ -2003,11 +1991,8 @@ export function Files() {
               multiSelect
               multiSelectValues={uploadedByFilter}
               onMultiSelectChange={setUploadedByFilter}
-              overlayContent={
-                <span className='truncate text-[var(--text-primary)]'>
-                  {uploadedByDisplayLabel}
-                </span>
-              }
+              overlayLabel={uploadedByDisplayLabel}
+              overlayContent={uploadedByDisplayLabel}
               searchable
               searchPlaceholder='Search members...'
               showAllOption
@@ -2127,6 +2112,7 @@ export function Files() {
               discardRef={discardRef}
               collaborative
               onDeriveTitleFromHeading={handleDeriveTitleFromHeading}
+              enableFind
             />
 
             <ChipConfirmModal

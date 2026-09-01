@@ -1,13 +1,12 @@
-import type { ListListsParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { ListListsParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
+  baseSapConcurInput,
   buildListQuery,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listListsTool: ToolConfig<ListListsParams, SapConcurProxyResponse> = {
+export const listListsTool: InternalToolConfig<ListListsParams, SapConcurResponse> = {
   id: 'sap_concur_list_lists',
   name: 'SAP Concur List Lists',
   description: 'List custom lists (GET /list/v4/lists).',
@@ -102,12 +101,9 @@ export const listListsTool: ToolConfig<ListListsParams, SapConcurProxyResponse> 
         'Filter by number of levels. Accepts an operator prefix: eq:, gt:, gte:, lt:, lte: (e.g. "eq:1", "gt:2", "lte:9").',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...baseSapConcurInput(params),
       path: `/list/v4/lists`,
       method: 'GET',
       query: buildListQuery({
@@ -121,7 +117,7 @@ export const listListsTool: ToolConfig<ListListsParams, SapConcurProxyResponse> 
       }),
     }),
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

@@ -2,14 +2,16 @@
 
 import { memo } from 'react'
 import { type SubflowNodeData, SubflowNodeView } from '@sim/workflow-renderer'
-import type { NodeProps } from 'reactflow'
+import type { Node, NodeProps } from '@xyflow/react'
 
-interface DocsContainerData {
+export interface DocsContainerData extends Record<string, unknown> {
   name: string
   blockType: string
   size?: { width: number; height: number }
   parentId?: string
 }
+
+export type DocsContainerNodeType = Node<DocsContainerData, 'previewContainer'>
 
 /**
  * Docs adapter for loop/parallel container blocks: maps the static preview data
@@ -19,7 +21,7 @@ interface DocsContainerData {
 export const DocsContainerNode = memo(function DocsContainerNode({
   id,
   data,
-}: NodeProps<DocsContainerData>) {
+}: NodeProps<DocsContainerNodeType>) {
   const subflowData: SubflowNodeData = {
     kind: data.blockType === 'parallel' ? 'parallel' : 'loop',
     name: data.name,

@@ -162,6 +162,118 @@ describe('buildSimToolSpecs', () => {
     expect(callParams._context.workflowId).toBe('wf-1')
   })
 
+  it('executes Function tools with resolved inputs and the complete trusted execution context', async () => {
+    mockTransformBlockTool.mockResolvedValue({
+      id: 'function_execute',
+      name: 'Function Execute',
+      description: 'Execute code',
+      params: {
+        code: 'return [{{API_KEY}}, __blockRef_0.field, workflowVariables.customer]',
+        envVars: { API_KEY: 'resolved-secret' },
+        workflowVariables: { customer: 'Ada' },
+        contextVariables: { __blockRef_0: { field: 'resolved-output' } },
+      },
+      parameters: { type: 'object', properties: {} },
+    })
+    const abortController = new AbortController()
+    const trustedCtx = {
+      workspaceId: 'ws-1',
+      workflowId: 'wf-1',
+      userId: 'user-1',
+      executionId: 'execution-1',
+      largeValueExecutionIds: ['execution-1'],
+      largeValueKeys: ['lv_ABCDEFGHIJKL'],
+      fileKeys: ['file-1'],
+      allowLargeValueWorkflowScope: true,
+      abortSignal: abortController.signal,
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    } as ExecutionContext
+    mockExecuteTool.mockResolvedValue({
+      success: true,
+      output: { result: ['resolved-secret', 'resolved-output', 'Ada'] },
+    })
+
+    const [spec] = await buildSimToolSpecs(trustedCtx, [
+      { type: 'function', operation: 'execute', usageControl: 'auto' },
+    ])
+    const result = await spec.execute({
+      _context: { userId: 'attacker', workspaceId: 'evil-workspace' },
+    })
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({
+        code: 'return [{{API_KEY}}, __blockRef_0.field, workflowVariables.customer]',
+        envVars: { API_KEY: 'resolved-secret' },
+        workflowVariables: { customer: 'Ada' },
+        contextVariables: { __blockRef_0: { field: 'resolved-output' } },
+        _context: expect.objectContaining({
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          workflowId: 'wf-1',
+          executionId: 'execution-1',
+        }),
+      }),
+      expect.objectContaining({
+        executionContext: trustedCtx,
+        resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
+      })
+    )
+    expect(result).toEqual({
+      text: JSON.stringify({ result: ['resolved-secret', 'resolved-output', 'Ada'] }),
+      isError: false,
+    })
+  })
+
+  it('accumulates cost from canonical Function results while preserving failures', async () => {
+    mockTransformBlockTool
+      .mockResolvedValueOnce({
+        id: 'function_execute',
+        name: 'Function Execute',
+        description: 'Execute code',
+        params: {},
+        parameters: { type: 'object', properties: {} },
+      })
+      .mockResolvedValueOnce({
+        id: 'exa_search',
+        name: 'Exa Search',
+        description: 'Search the web',
+        params: {},
+        parameters: { type: 'object', properties: {} },
+      })
+    const functionToolCost = { total: 0 }
+    const [functionSpec, searchSpec] = await buildSimToolSpecs(
+      executionContext(undefined),
+      [
+        { type: 'function', operation: 'execute', usageControl: 'auto' },
+        { type: 'exa', operation: 'exa_search', usageControl: 'auto' },
+      ],
+      functionToolCost
+    )
+
+    mockExecuteTool
+      .mockResolvedValueOnce({
+        success: true,
+        output: { result: 'ok', cost: { total: 0.125 } },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        output: { result: 'search result', cost: { total: 4 } },
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        output: { cost: { total: 8 } },
+        error: 'execution failed',
+      })
+
+    await functionSpec.execute({})
+    await searchSpec.execute({})
+    const failedResult = await functionSpec.execute({})
+
+    expect(functionToolCost.total).toBe(8.125)
+    expect(failedResult).toEqual({ text: 'execution failed', isError: true })
+  })
+
   it('projects named provenance in successful Sim tool output', async () => {
     mockToolAdapter({ apiKey: 'secret-value' })
     encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })

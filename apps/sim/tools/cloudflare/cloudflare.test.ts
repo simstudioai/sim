@@ -11,6 +11,7 @@
  * control is deliberately not last, so re-introducing a collision goes red.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { executeGetZoneSettingsOperation } from '@/lib/internal/cloudflare/operations/get-zone-settings'
 import { CloudflareBlock } from '@/blocks/blocks/cloudflare'
 import * as cloudflareTools from '@/tools/cloudflare'
 
@@ -908,9 +909,8 @@ describe('zone settings are read through the endpoints Cloudflare still supports
    * endpoint instead.
    */
   it('does not declare the deprecated batch settings endpoint', () => {
-    const declaredUrl = tool.request.url({ zoneId: 'z1', apiKey } as never)
-    expect(declaredUrl).not.toMatch(/\/zones\/z1\/settings$/)
-    expect(declaredUrl).toMatch(/\/zones\/z1\/settings\/[a-z0-9_]+$/)
+    expect(tool.operation).toBeDefined()
+    expect('request' in tool).toBe(false)
   })
 
   it('issues one request per setting against the per-setting endpoint', async () => {
@@ -918,7 +918,11 @@ describe('zone settings are read through the endpoints Cloudflare still supports
       .spyOn(globalThis, 'fetch')
       .mockImplementation(async (input) => settingEnvelope(String(input).split('/').pop()!, 'on'))
 
-    await tool.directExecution!({ zoneId: 'z1', apiKey, settingIds: 'ssl,http3' } as never)
+    await executeGetZoneSettingsOperation({
+      zoneId: 'z1',
+      apiKey,
+      settingIds: 'ssl,http3',
+    } as never)
 
     expect(fetchMock.mock.calls.map((call) => String(call[0]))).toEqual([
       'https://api.cloudflare.com/client/v4/zones/z1/settings/ssl',
@@ -926,12 +930,60 @@ describe('zone settings are read through the endpoints Cloudflare still supports
     ])
   })
 
+  it('keeps a crafted zone ID inside the zone path segment', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async (input) => settingEnvelope(String(input).split('/').pop()!, 'on'))
+
+    await executeGetZoneSettingsOperation({
+      zoneId: '../accounts',
+      apiKey,
+      settingIds: 'ssl',
+    } as never)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.cloudflare.com/client/v4/zones/..%2Faccounts/settings/ssl',
+      expect.any(Object)
+    )
+  })
+
+  it('does not let a dot-segment setting ID escape the settings endpoint', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+
+    const out = (await executeGetZoneSettingsOperation({
+      zoneId: 'z1',
+      apiKey,
+      settingIds: '..',
+    } as never)) as { success: boolean; error?: string }
+
+    expect(out.success).toBe(false)
+    expect(out.error).toMatch(/setting ID must identify a resource/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('propagates cancellation instead of returning partial settings', async () => {
+    const controller = new AbortController()
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const settingId = String(input).split('/').pop()!
+      if (settingId === 'ssl') return settingEnvelope(settingId, 'full')
+      controller.abort(new DOMException('cancelled', 'AbortError'))
+      throw controller.signal.reason
+    })
+
+    await expect(
+      executeGetZoneSettingsOperation(
+        { zoneId: 'z1', apiKey, settingIds: 'ssl,http3' } as never,
+        controller.signal
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
   it('returns each setting under the list shape the block already reads', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) =>
       settingEnvelope(String(input).split('/').pop()!, 'full')
     )
 
-    const out = (await tool.directExecution!({
+    const out = (await executeGetZoneSettingsOperation({
       zoneId: 'z1',
       apiKey,
       settingIds: 'ssl',
@@ -966,7 +1018,7 @@ describe('zone settings are read through the endpoints Cloudflare still supports
       return settingEnvelope(settingId, 'full')
     })
 
-    const out = (await tool.directExecution!({
+    const out = (await executeGetZoneSettingsOperation({
       zoneId: 'z1',
       apiKey,
       settingIds: 'ssl,http3',
@@ -988,7 +1040,7 @@ describe('zone settings are read through the endpoints Cloudflare still supports
       )
     )
 
-    const out = (await tool.directExecution!({
+    const out = (await executeGetZoneSettingsOperation({
       zoneId: 'z1',
       apiKey,
       settingIds: 'ssl',
@@ -1001,7 +1053,7 @@ describe('zone settings are read through the endpoints Cloudflare still supports
   it('refuses an unbounded fan-out instead of issuing the requests', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
 
-    const out = (await tool.directExecution!({
+    const out = (await executeGetZoneSettingsOperation({
       zoneId: 'z1',
       apiKey,
       settingIds: Array.from({ length: 41 }, (_, index) => `setting_${index}`).join(','),

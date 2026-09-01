@@ -515,7 +515,7 @@ async function doExecuteRunTool(
   const abortController = new AbortController()
   activeRunAbortByWorkflowId.set(targetWorkflowId, abortController)
 
-  consolePersistence.executionStarted()
+  const persistenceExecution = consolePersistence.executionStarted()
   setIsExecuting(targetWorkflowId, true)
   const executionId = generateId()
   setCurrentExecutionId(targetWorkflowId, executionId)
@@ -524,7 +524,7 @@ async function doExecuteRunTool(
     const { setCurrentExecutionId: clearExecId, setActiveBlocks } = useExecutionStore.getState()
     if (activeRunToolByWorkflowId.get(targetWorkflowId) === toolCallId) {
       clearExecId(targetWorkflowId, null)
-      consolePersistence.executionEnded()
+      consolePersistence.executionEnded(persistenceExecution)
       setIsExecuting(targetWorkflowId, false)
       setActiveBlocks(targetWorkflowId, new Set())
     }
@@ -715,7 +715,7 @@ async function doExecuteRunTool(
     if (!leaveExecutionRecoverable && activeToolCallId === toolCallId) {
       clearExecId(targetWorkflowId, null)
       clearExecutionPointer(targetWorkflowId)
-      consolePersistence.executionEnded()
+      consolePersistence.executionEnded(persistenceExecution)
       setIsExecuting(targetWorkflowId, false)
       setActiveBlocks(targetWorkflowId, new Set())
     }

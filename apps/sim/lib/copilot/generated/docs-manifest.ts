@@ -1,6 +1,6 @@
 /**
  * AUTO-GENERATED FILE. DO NOT EDIT.
- * Generated from apps/docs/content/docs/en by scripts/sync-docs-manifest.ts.
+ * Generated from apps/docs/content/docs by scripts/sync-docs-manifest.ts.
  * Run: bun run docs-manifest:generate.
  *
  * Every page in the copilot's read-only `docs/` VFS tree, as a path that is
@@ -194,6 +194,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/kalshi.mdx',
   'integrations/ketch.mdx',
   'integrations/knowledge.mdx',
+  'integrations/lambda.mdx',
   'integrations/langsmith.mdx',
   'integrations/latex.mdx',
   'integrations/launchdarkly.mdx',
@@ -216,6 +217,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/memory.mdx',
   'integrations/microsoft_ad.mdx',
   'integrations/microsoft_dataverse.mdx',
+  'integrations/microsoft_dynamics_365.mdx',
   'integrations/microsoft_excel.mdx',
   'integrations/microsoft_planner.mdx',
   'integrations/microsoft_teams.mdx',
@@ -273,6 +275,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/rocketlane.mdx',
   'integrations/rootly.mdx',
   'integrations/s3.mdx',
+  'integrations/sailpoint.mdx',
   'integrations/salesforce-service-account.mdx',
   'integrations/salesforce.mdx',
   'integrations/sap_concur.mdx',
@@ -369,6 +372,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'platform/enterprise/self-hosted.mdx',
   'platform/enterprise/session-policies.mdx',
   'platform/enterprise/sso.mdx',
+  'platform/enterprise/usage-tracking.mdx',
   'platform/enterprise/verified-domains.mdx',
   'platform/enterprise/whitelabeling.mdx',
   'platform/organization.mdx',

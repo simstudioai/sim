@@ -18,6 +18,7 @@ import {
   type ComboboxOption,
   cn,
   Library,
+  OverflowText,
   Popover,
   PopoverAnchor,
   PopoverContent,
@@ -1227,8 +1228,8 @@ export default function Logs() {
           filterTags={filterTags}
         />
         {isDashboardView ? (
-          <div className='relative flex min-h-0 flex-1 flex-col overflow-auto'>
-            <div className='flex min-h-0 flex-1 flex-col px-6'>
+          <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
+            <div className='flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-6'>
               <Dashboard
                 stats={dashboardStatsQuery.data}
                 isLoading={dashboardStatsQuery.isLoading}
@@ -1463,15 +1464,16 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           multiSelectValues={selectedStatuses}
           onMultiSelectChange={handleStatusChange}
           placeholder='All statuses'
+          overlayLabel={statusDisplayLabel}
           overlayContent={
-            <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
+            <span className='flex w-full min-w-0 items-center gap-1.5 text-[var(--text-primary)]'>
               {selectedStatusColor && (
                 <div
                   className='flex-shrink-0 rounded-[3px]'
                   style={{ backgroundColor: selectedStatusColor, width: 8, height: 8 }}
                 />
               )}
-              <span className='truncate'>{statusDisplayLabel}</span>
+              <span className='min-w-0 flex-1'>{statusDisplayLabel}</span>
             </span>
           }
           showAllOption
@@ -1488,12 +1490,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           multiSelectValues={workflowIds}
           onMultiSelectChange={setWorkflowIds}
           placeholder='All workflows'
+          overlayLabel={workflowDisplayLabel}
           overlayContent={
-            <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
+            <span className='flex w-full min-w-0 items-center gap-1.5 text-[var(--text-primary)]'>
               {selectedWorkflow && (
                 <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
               )}
-              <span className='truncate'>{workflowDisplayLabel}</span>
+              <span className='min-w-0 flex-1'>{workflowDisplayLabel}</span>
             </span>
           }
           searchable
@@ -1512,9 +1515,8 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           multiSelectValues={folderIds}
           onMultiSelectChange={setFolderIds}
           placeholder='All folders'
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{folderDisplayLabel}</span>
-          }
+          overlayLabel={folderDisplayLabel}
+          overlayContent={folderDisplayLabel}
           searchable
           searchPlaceholder='Search folders...'
           showAllOption
@@ -1531,9 +1533,8 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           multiSelectValues={triggers}
           onMultiSelectChange={setTriggers}
           placeholder='All triggers'
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{triggerDisplayLabel}</span>
-          }
+          overlayLabel={triggerDisplayLabel}
+          overlayContent={triggerDisplayLabel}
           searchable
           searchPlaceholder='Search triggers...'
           showAllOption
@@ -1550,9 +1551,8 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             value={timeRange}
             onChange={handleTimeRangeChange}
             placeholder='All time'
-            overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
-            }
+            overlayLabel={timeDisplayLabel}
+            overlayContent={timeDisplayLabel}
             className='w-full'
             maxHeight={320}
           />
@@ -1627,7 +1627,7 @@ function SuggestionButton({
       }}
     >
       <div className='flex w-full items-center justify-between gap-3'>
-        <div className='min-w-0 flex-1 truncate text-small'>{suggestion.label}</div>
+        <OverflowText label={suggestion.label} className='flex-1 text-small' />
         {showCategory && suggestion.value !== suggestion.label && (
           <div className='shrink-0 font-mono text-[var(--text-muted)] text-xs'>
             {suggestion.category === 'workflow' || suggestion.category === 'folder'

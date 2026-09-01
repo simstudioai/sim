@@ -31,9 +31,10 @@ import { cellValueFilterConditions } from '@/lib/table/query-builder/cell-filter
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { FindBar } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
 import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
 import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
-import { useTimezone } from '@/hooks/queries/general-settings'
+import { useTimezoneState } from '@/hooks/queries/general-settings'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -57,8 +58,8 @@ import { useContextMenu, useTable } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import { cleanCellValue, generateColumnName as sharedGenerateColumnName } from '../../utils'
 import type { ColumnConfig } from '../column-config-sidebar'
+import { ColumnDropdown } from '../column-dropdown'
 import { ContextMenu } from '../context-menu'
-import { NewColumnDropdown } from '../new-column-dropdown'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
@@ -172,6 +173,7 @@ interface TableGridProps {
   workspaceId?: string
   tableId?: string
   embedded?: boolean
+  tableRowTtlEnabled: boolean
   /** Remote collaborators' cell selections, rendered as presence overlays. */
   remoteSelections: RemoteTableSelection[]
   /** Broadcast the local viewer's cell selection to the table presence room. */
@@ -342,6 +344,7 @@ function cellToText(value: unknown, column?: DisplayColumn): string {
  */
 function writeLoadedRowsWithChip(opts: {
   clipboardData: DataTransfer | null
+  workspaceId: string
   rows: TableRowType[]
   complete: boolean
   buildCells: (row: TableRowType) => string[]
@@ -362,7 +365,7 @@ function writeLoadedRowsWithChip(opts: {
     'text/plain',
     rows.map((row) => opts.buildCells(row).join('\t')).join('\n')
   )
-  attachSelectionContextToClipboard(opts.clipboardData, context)
+  attachSelectionContextToClipboard(opts.clipboardData, context, opts.workspaceId)
   toast.success(`Copied ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}`)
   return true
 }
@@ -434,6 +437,7 @@ export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   embedded,
+  tableRowTtlEnabled,
   remoteSelections,
   emitCellSelection,
   locks,
@@ -474,6 +478,10 @@ export function TableGrid({
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
+  const workspaceIdRef = useRef(workspaceId)
+  workspaceIdRef.current = workspaceId
+  const tableIdRef = useRef(tableId)
+  tableIdRef.current = tableId
   const posthog = usePostHog()
 
   useEffect(() => {
@@ -729,9 +737,12 @@ export function TableGrid({
   const workflowsRef = useRef(workflows)
   workflowsRef.current = workflows
 
-  const timeZone = useTimezone()
+  const timezoneState = useTimezoneState()
+  const timeZone = timezoneState.timezone
   const timeZoneRef = useRef(timeZone)
   timeZoneRef.current = timeZone
+  const timezoneStateRef = useRef(timezoneState)
+  timezoneStateRef.current = timezoneState
 
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const createRowMutation = useCreateTableRow({ workspaceId, tableId })
@@ -898,7 +909,11 @@ export function TableGrid({
    *  so solo editing never pays the map build. */
   const columnIndexById = useMemo(() => {
     const map = new Map<string, number>()
-    if (remoteSelections.length > 0) displayColumns.forEach((col, index) => map.set(col.key, index))
+    if (remoteSelections.length > 0) {
+      displayColumns.forEach((col, index) => {
+        map.set(col.key, index)
+      })
+    }
     return map
   }, [displayColumns, remoteSelections.length])
 
@@ -907,7 +922,11 @@ export function TableGrid({
    *  solo editing never pays the O(n) map build on a refetch. */
   const rowIndexById = useMemo(() => {
     const map = new Map<string, number>()
-    if (remoteSelections.length > 0) rows.forEach((row, index) => map.set(row.id, index))
+    if (remoteSelections.length > 0) {
+      rows.forEach((row, index) => {
+        map.set(row.id, index)
+      })
+    }
     return map
   }, [rows, remoteSelections.length])
 
@@ -2251,7 +2270,9 @@ export function TableGrid({
       const draggedGid = colByName.get(dragged)?.workflowGroupId
 
       const orderIndex = new Map<string, number>()
-      currentOrder.forEach((n, i) => orderIndex.set(n, i))
+      currentOrder.forEach((n, i) => {
+        orderIndex.set(n, i)
+      })
 
       // Compute the contiguous run covering the dragged column. For a plain
       // column this is just [fromIndex, fromIndex]. For a group member it spans
@@ -3386,11 +3407,12 @@ export function TableGrid({
           const selectedRows = currentRows.filter((row) => rowSelectionIncludes(rowSel, row.id))
           const handled = writeLoadedRowsWithChip({
             clipboardData: e.clipboardData,
+            workspaceId: workspaceIdRef.current,
             rows: selectedRows,
             complete: true,
             buildCells: (row) => cols.map((col) => cellToText(row.data[col.key], col)),
             context: buildTableSelectionContext({
-              tableId,
+              tableId: tableIdRef.current,
               tableName: tableNameRef.current,
               // Every selected id, not just the loaded page: the chip carries
               // ids and the server re-fetches them, so an unloaded row still
@@ -3433,12 +3455,13 @@ export function TableGrid({
         // in the rest — so the chip path applies only once all of them are here.
         const handled = writeLoadedRowsWithChip({
           clipboardData: e.clipboardData,
+          workspaceId: workspaceIdRef.current,
           rows: currentRows,
           complete: currentRows.length >= selectAllTotalRef.current,
           buildCells: (row) =>
             colNames.map((name) => cellToText(row.data[name], colByKey.get(name))),
           context: buildTableSelectionContext({
-            tableId,
+            tableId: tableIdRef.current,
             tableName: tableNameRef.current,
             rowIds: currentRows.map((row) => row.id),
             columnIds: selectedColumnIds(cols, sel),
@@ -3465,12 +3488,14 @@ export function TableGrid({
         if (row) rangeRowIds.push(row.id)
       }
       const rangeContext = buildTableSelectionContext({
-        tableId,
+        tableId: tableIdRef.current,
         tableName: tableNameRef.current,
         rowIds: rangeRowIds,
         columnIds: selectedColumnIds(cols, sel),
       })
-      if (rangeContext) attachSelectionContextToClipboard(e.clipboardData, rangeContext)
+      if (rangeContext) {
+        attachSelectionContextToClipboard(e.clipboardData, rangeContext, workspaceIdRef.current)
+      }
 
       const lines: string[] = []
       for (let r = sel.startRow; r <= sel.endRow; r++) {
@@ -3612,6 +3637,20 @@ export function TableGrid({
       const parsedPaste = parseBoundedTsv(text, currentCols.length - currentAnchor.colIndex)
       const pasteRows = parsedPaste.rows
       if (pasteRows.length === 0) return
+
+      const touchesDateEditor = pasteRows.some((pasteRow) =>
+        pasteRow.some((_, offset) => {
+          const column = currentCols[currentAnchor.colIndex + offset]
+          return column ? columnTypeOf(column).editor === 'date' : false
+        })
+      )
+      if (touchesDateEditor) {
+        const message = getTimezoneEditBlockedMessage(timezoneStateRef.current)
+        if (message) {
+          toast.error(message)
+          return
+        }
+      }
 
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const updateBatch: Array<{ rowId: string; data: Record<string, unknown> }> = []
@@ -3796,6 +3835,15 @@ export function TableGrid({
       const oldValue = row.data[columnName] ?? null
       const normalizedValue = value ?? null
       const column = columnsRef.current.find((c) => c.key === columnName)
+      if (column && columnTypeOf(column).editor === 'date') {
+        const message = getTimezoneEditBlockedMessage(timezoneStateRef.current)
+        if (message) {
+          toast.error(message)
+          setEditingCell(null)
+          setInitialCharacter(null)
+          return
+        }
+      }
       const changed = !cellValuesEqual(oldValue, normalizedValue, column)
 
       if (changed) {
@@ -4853,7 +4901,9 @@ export function TableGrid({
                         )
                       })}
                       {userPermissions.canEdit && (
-                        <NewColumnDropdown
+                        <ColumnDropdown
+                          columns={columns}
+                          tableRowTtlEnabled={tableRowTtlEnabled}
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}
                           blocked={!canMutateSchema}
@@ -4903,6 +4953,8 @@ export function TableGrid({
                                 row={row}
                                 columns={displayColumns}
                                 workspaceId={workspaceId}
+                                timeZone={timeZone}
+                                timezoneStatus={timezoneState.status}
                                 rowIndex={index}
                                 isFirstRow={index === 0}
                                 editingColumnName={

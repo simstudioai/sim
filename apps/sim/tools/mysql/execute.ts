@@ -1,7 +1,7 @@
 import type { MySQLExecuteParams, MySQLResponse } from '@/tools/mysql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const executeTool: ToolConfig<MySQLExecuteParams, MySQLResponse> = {
+export const executeTool: InternalToolConfig<MySQLExecuteParams, MySQLResponse> = {
   id: 'mysql_execute',
   name: 'MySQL Execute',
   description: 'Execute raw SQL query on MySQL database',
@@ -53,13 +53,8 @@ export const executeTool: ToolConfig<MySQLExecuteParams, MySQLResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mysql/execute',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

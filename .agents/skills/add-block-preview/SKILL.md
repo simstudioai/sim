@@ -41,7 +41,7 @@ A revealed block that is not globally GA (`enabled !== true`, or env-revealed) r
    - GA via config (code cleanup pending): `{ "enabled": true }` — suffix disappears everywhere within ~30s (AppConfig TTL) + client refetch.
 
    Same runbook as `feature-flags`: edit the hosted document, `aws appconfig start-deployment` with the `sim-<env>-fast` strategy (see the infra README).
-5. **GA cleanup:** delete `preview: true` from the block (now visible to self-hosters on their next upgrade), add its `BlockMeta` + regen docs, and drop the AppConfig entry. For a v2 upgrade, this is also when v1 gets `hideFromToolbar: true` (the superseded-version paradigm).
+5. **GA cleanup:** delete `preview: true` from the block (now visible to self-hosters on their next upgrade), add its `BlockMeta` + regen docs, and drop the AppConfig entry. For a v2 upgrade, this is also when v1 gets `hideFromToolbar: true` **and** `sunset: { status: 'legacy', replacedBy: '<v2-type>' }` (the superseded-version paradigm). Both edits must land in the **same commit** as the `preview: true` removal — `check-block-registry` fails a sunset block whose `replacedBy` is still `preview`, so splitting them breaks the build in between. Also move the block's `BLOCK_DISPLAY_WORKFLOWS` entry (`apps/docs/components/workflow-preview/block-display-workflows.ts`) to the new type, or `BlockPreview` silently renders nothing on the docs page.
 
 ## Kill switch (shipped blocks)
 

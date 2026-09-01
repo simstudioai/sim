@@ -14,7 +14,7 @@ import {
   executeSSHCommand,
   sanitizeCommand,
   sanitizePath,
-} from '@/app/api/tools/ssh/utils'
+} from '@/lib/internal/ssh/client'
 import type { PiSshConnection, PiToolResult, PiToolSpec } from '@/executor/handlers/pi/core/backend'
 
 const logger = createLogger('PiSshTools')

@@ -5,7 +5,7 @@ import { uploadExecutionFile, uploadFileFromRawData } from '@/lib/uploads/contex
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { MAX_FILE_SIZE, sniffImageContentType } from '@/lib/uploads/utils/validation'
 import type { ExecutionContext, UserFile } from '@/executor/types'
-import type { ToolConfig, ToolFileData } from '@/tools/types'
+import type { ToolDefinition, ToolFileData } from '@/tools/types'
 
 const logger = createLogger('FileToolProcessor')
 
@@ -57,7 +57,7 @@ export class FileToolProcessor {
    */
   static async processToolOutputs(
     toolOutput: any,
-    toolConfig: ToolConfig,
+    toolConfig: ToolDefinition,
     executionContext: ExecutionContext
   ): Promise<any> {
     if (!toolConfig.outputs) {
@@ -236,7 +236,7 @@ export class FileToolProcessor {
   /**
    * Check if a tool has any file-typed outputs
    */
-  static hasFileOutputs(toolConfig: ToolConfig): boolean {
+  static hasFileOutputs(toolConfig: ToolDefinition): boolean {
     if (!toolConfig.outputs) {
       return false
     }

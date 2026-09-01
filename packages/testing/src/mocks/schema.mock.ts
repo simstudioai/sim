@@ -1114,6 +1114,7 @@ export const schemaMock = {
     providerId: 'ssoProvider.providerId',
     organizationId: 'ssoProvider.organizationId',
     domainVerified: 'ssoProvider.domainVerified',
+    jitProvisioningEnabled: 'ssoProvider.jitProvisioningEnabled',
   },
   ssoDomain: {
     id: 'ssoDomain.id',
@@ -1237,6 +1238,18 @@ export const schemaMock = {
     createdBy: 'credentialGroup.createdBy',
     createdAt: 'credentialGroup.createdAt',
     updatedAt: 'credentialGroup.updatedAt',
+  },
+  resourcePolicy: {
+    id: 'id',
+    workspaceId: 'workspaceId',
+    resourceType: 'resourceType',
+    resourceId: 'resourceId',
+    revision: 'revision',
+    document: 'document',
+    createdBy: 'createdBy',
+    updatedBy: 'updatedBy',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
   },
   credentialGroupEnrollmentStatusEnum: {
     enumValues: ['invited', 'delivery_failed', 'in_progress', 'completed', 'revoked'] as const,
@@ -1431,6 +1444,7 @@ export const schemaMock = {
     runningBlockIds: 'tableRowExecutions.runningBlockIds',
     blockErrors: 'tableRowExecutions.blockErrors',
     cancelledAt: 'tableRowExecutions.cancelledAt',
+    capabilityGovernedUserId: 'tableRowExecutions.capabilityGovernedUserId',
     updatedAt: 'tableRowExecutions.updatedAt',
   },
   tableRunDispatches: {
@@ -1446,6 +1460,7 @@ export const schemaMock = {
     processedCount: 'tableRunDispatches.processedCount',
     isManualRun: 'tableRunDispatches.isManualRun',
     triggeredByUserId: 'tableRunDispatches.triggeredByUserId',
+    capabilityGovernedUserId: 'tableRunDispatches.capabilityGovernedUserId',
     requestedAt: 'tableRunDispatches.requestedAt',
     heartbeatAt: 'tableRunDispatches.heartbeatAt',
     completedAt: 'tableRunDispatches.completedAt',

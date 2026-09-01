@@ -1,0 +1,304 @@
+---
+title: Environment Variables
+description: Configuration reference for Sim
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## Required
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `BETTER_AUTH_SECRET` | Auth secret (32 hex chars): `openssl rand -hex 32`. **Must be identical on the app and realtime services** |
+| `BETTER_AUTH_URL` | Your app URL — must be the real public origin, not `localhost` |
+| `ENCRYPTION_KEY` | Encryption key (32 hex chars): `openssl rand -hex 32` |
+| `INTERNAL_API_SECRET` | Internal API secret (32 hex chars): `openssl rand -hex 32` |
+| `NEXT_PUBLIC_APP_URL` | Public app URL |
+| `CRON_SECRET` | Bearer token for the background job endpoints (32 hex chars). **Required whenever background jobs are enabled** — the Helm chart's default, and the chart will not render without it. See [Background Jobs](/platform/self-hosting/background-jobs) |
+| `API_ENCRYPTION_KEY` | Encrypts user-generated API keys at rest (32 hex chars). Required to create API keys |
+
+<Callout type="error">
+  `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` cannot be rotated or recovered. Losing either makes the data it protects permanently unreadable — workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets in the first case, user-generated Sim API keys in the second. Back them up separately from the database.
+</Callout>
+
+## Strongly recommended
+
+| Variable | Description |
+|----------|-------------|
+| `REDIS_URL` | Redis connection string. Optional on a single replica; **required** past one app or realtime replica — see [Redis](/platform/self-hosting/redis) |
+| `REDIS_TLS_SERVERNAME` | TLS SNI override. Required when `REDIS_URL` uses `rediss://` with a bare IP, or the app throws at startup |
+| `NEXT_PUBLIC_SOCKET_URL` | WebSocket URL — defaults to the page origin; set only if realtime is on a separate host |
+| `TRUSTED_ORIGINS` | Comma-separated additional origins to trust for auth (apex + `www`, alias domains) |
+| `AUTH_TRUSTED_PROXIES` | Comma-separated reverse-proxy IPs/CIDRs so the client IP cannot be forged through `X-Forwarded-For` |
+| `INTERNAL_API_BASE_URL` | Internal URL for server-side self-calls, e.g. `http://sim-app.simstudio.svc.cluster.local:3000`. Required for PII log redaction; defaults to `NEXT_PUBLIC_APP_URL` |
+| `DATABASE_REPLICA_URL` | Read-replica connection string for log listing, audit logs, and dashboard aggregations. Falls back to the primary when unset |
+
+## AI Providers
+
+| Variable | Provider |
+|----------|----------|
+| `OPENAI_API_KEY` | OpenAI — also the default knowledge base embedding provider |
+| `ANTHROPIC_API_KEY_1` | Anthropic Claude |
+| `GEMINI_API_KEY` / `GEMINI_API_KEY_1` | Google Gemini |
+| `MISTRAL_API_KEY` | Mistral |
+| `XAI_API_KEY_1` | xAI |
+| `KIMI_API_KEY_1` | Moonshot Kimi |
+| `ZAI_API_KEY_1` | Z.ai |
+| `TOGETHER_API_KEY` | Together AI |
+| `FIREWORKS_API_KEY` | Fireworks AI |
+| `BASETEN_API_KEY` | Baseten |
+| `COHERE_API_KEY` | Cohere — required for the Knowledge block reranker |
+| `OLLAMA_URL` | Ollama (default: `http://localhost:11434`) |
+
+<Callout type="warn">
+  **Knowledge bases require a hosted embedding provider.** Three are supported, selected with `KB_EMBEDDING_MODEL`: `text-embedding-3-small` (default) and `text-embedding-3-large` on OpenAI or Azure OpenAI, and `gemini-embedding-001` on Gemini. There is no local embedding backend — configuring Ollama or vLLM does not substitute, because embeddings do not route through the configured chat model.
+</Callout>
+
+<Callout type="info">
+  For load balancing, add multiple keys with `_1`, `_2`, `_3` suffixes (e.g., `OPENAI_API_KEY_1`, `OPENAI_API_KEY_2`). Works with OpenAI, Anthropic, Gemini, xAI, Kimi, Z.ai, Cohere, and Fireworks.
+</Callout>
+
+<Callout type="info">
+  In Docker, use `OLLAMA_URL=http://host.docker.internal:11434` for host-machine Ollama.
+</Callout>
+
+### AWS Bedrock
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS` | Set `true` when using the AWS default credential chain (IAM roles, ECS task roles, IRSA). Hides credential fields in the Agent block UI |
+
+### Azure OpenAI
+
+| Variable | Description |
+|----------|-------------|
+| `AZURE_OPENAI_API_KEY` | Azure OpenAI API key |
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint URL |
+| `AZURE_OPENAI_API_VERSION` | API version (e.g., `2024-02-15-preview`) |
+
+### Self-hosted OpenAI-compatible endpoints
+
+| Variable | Description |
+|----------|-------------|
+| `VLLM_BASE_URL` | OpenAI-compatible vLLM or LM Studio URL. Both the server root (`http://localhost:8000`) and versioned API URL (`http://localhost:8000/v1`) are accepted |
+| `VLLM_API_KEY` | Optional bearer token for the vLLM or LM Studio endpoint |
+| `LITELLM_BASE_URL` | LiteLLM proxy base URL |
+| `LITELLM_API_KEY` | Optional bearer token for LiteLLM |
+
+## Login Providers
+
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google — also powers all Google integrations |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub |
+| `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` | Microsoft — also powers all Microsoft integrations |
+| `DISABLE_GOOGLE_AUTH` / `DISABLE_GITHUB_AUTH` / `DISABLE_MICROSOFT_AUTH` | Hide a provider from the login page without removing its credentials |
+
+See [Authentication](/platform/self-hosting/authentication).
+
+## Integration Credentials
+
+<Callout type="warn">
+  Integrations do not work on a self-hosted deployment until you register your own OAuth app with each service and set its `*_CLIENT_ID` / `*_CLIENT_SECRET`. There are around 27 of them covering 50 connectors. The full table, redirect-URI format, and setup steps are in [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
+</Callout>
+
+## Access Control
+
+| Variable | Description |
+|----------|-------------|
+| `DISABLE_REGISTRATION` | Set `true` to block all new accounts, including social sign-in. Invitations still work for people who already have an account. SSO is unaffected |
+| `DISABLE_EMAIL_SIGNUP` | Block new email/password registrations; existing email login keeps working |
+| `ALLOWED_LOGIN_DOMAINS` | Restrict signups to domains (comma-separated) |
+| `ALLOWED_LOGIN_EMAILS` | Restrict signups to specific emails (comma-separated) |
+| `BLOCKED_SIGNUP_DOMAINS` | Block specific domains from signing up (comma-separated) |
+| `SIGNUP_MX_VALIDATION_ENABLED` | Reject domains with no MX record or a denylisted mail backend |
+| `BLOCKED_EMAIL_MX_HOSTS` | MX-host substrings to block; used only with the above |
+| `DISABLE_INVITATIONS` / `NEXT_PUBLIC_DISABLE_INVITATIONS` | Disable workspace invitations globally |
+| `DISABLE_PUBLIC_API` / `NEXT_PUBLIC_DISABLE_PUBLIC_API` | Disable the public API globally |
+| `DISABLE_AUTH` | Bypass authentication entirely, creating an anonymous session for every request |
+
+<Callout type="error">
+  `DISABLE_AUTH=true` makes everyone who can reach the instance a fully privileged user. Use it only for a single-user instance on a private network, never behind an internet-facing ingress.
+</Callout>
+
+## Code Execution
+
+| Variable | Description |
+|----------|-------------|
+| `SANDBOX_PROVIDER` | Remote sandbox provider: `e2b` (default) or `daytona` |
+| `E2B_ENABLED` / `E2B_API_KEY` | Enable E2B remote execution |
+| `DAYTONA_API_KEY` | Daytona API key (used when `SANDBOX_PROVIDER=daytona`) |
+| `IVM_MAX_EXECUTIONS_PER_WORKER` | Executions before an isolated-vm worker is recycled |
+| `IVM_MAX_BROKERS_PER_EXECUTION` | Host-call brokers per execution |
+| `IVM_MAX_BROKER_ARGS_JSON_CHARS` | Max argument payload size |
+| `IVM_MAX_BROKER_RESULT_JSON_CHARS` | Max result payload size |
+
+Without a remote provider, user code runs in an in-process V8 isolate inside the app container. See [Security](/platform/self-hosting/security).
+
+## Networking & Limits
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `API_MAX_JSON_BODY_BYTES` | 50 MB | Max JSON body on contract-validated API routes |
+| `CHAT_MAX_REQUEST_BYTES` | 220 MB | Max body on the public deployed-chat endpoint |
+| `WEBHOOK_MAX_REQUEST_BYTES` | 10 MB | Max body on public webhook receiver endpoints |
+| `WORKFLOW_EXECUTION_CONCURRENCY_LIMIT` | `75` | Workflow executions in parallel |
+| `WEBHOOK_EXECUTION_CONCURRENCY_LIMIT` | `75` | Webhook-triggered executions in parallel |
+| `SCHEDULE_EXECUTION_CONCURRENCY_LIMIT` | `30` | Scheduled executions in parallel |
+| `RESUME_EXECUTION_CONCURRENCY_LIMIT` | `50` | Resumed executions in parallel |
+| `EGRESS_ALLOWED_HOSTS` | unset | Comma-separated hostnames outbound requests may reach on a private network. Leading wildcard allowed, e.g. `host.docker.internal,*.svc.cluster.local`. Not honored for URLs harvested from content or a third-party response, nor for an HTTP block's `proxyUrl` |
+| `EGRESS_ALLOWED_IP_RANGES` | unset | Comma-separated CIDRs or IPs outbound requests may reach on a private network, e.g. `10.0.0.0/8`. Same exclusions |
+| `ALLOW_PRIVATE_DATABASE_HOSTS` | unset | **Deprecated.** Vouches for the entire private address space, for database, cache, and mail connector hosts only. Replace it with the two settings above naming specific destinations |
+
+A malformed entry in either allowlist stops the app at startup with a message naming the setting. See [the SSRF boundary](/platform/self-hosting/security#the-ssrf-boundary) for the accepted syntax and for what the allowlist does and does not reach.
+
+Your reverse proxy's body-size limit must be at least as large as the app limits above. See [Networking](/platform/self-hosting/networking).
+
+## Observability
+
+| Variable | Description |
+|----------|-------------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector endpoint |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Auth headers, `key=value` comma-separated |
+| `OTEL_TRACES_SAMPLER_ARG` | Trace sampling ratio |
+| `OTEL_DEPLOYMENT_ENVIRONMENT` | Environment label on emitted spans |
+| `TELEMETRY_SAMPLING_RATIO` | Application-level sampling ratio |
+| `TELEMETRY_ENDPOINT` | Where anonymous telemetry is sent. Defaults to `https://telemetry.simstudio.ai/v1/traces` — point it at your own collector to keep traces internal |
+| `NEXT_TELEMETRY_DISABLED` | Set to `1` to disable anonymous telemetry entirely |
+| `GRAFANA_OTLP_ENDPOINT` / `GRAFANA_OTLP_HEADERS` / `GRAFANA_DEPLOYMENT_ENVIRONMENT` | Grafana Cloud OTLP export |
+
+See [Observability](/platform/self-hosting/observability).
+
+## Knowledge Bases
+
+| Variable | Description |
+|----------|-------------|
+| `KB_EMBEDDING_MODEL` | Embedding model for new knowledge bases. Defaults to `text-embedding-3-small`; an unsupported value falls back to the default |
+| `COHERE_API_KEY` | Enables the Knowledge block reranker |
+
+## Chat & PII
+
+| Variable | Description |
+|----------|-------------|
+| `COPILOT_API_KEY` | API key for Chat. Without it the Sim Chat block, scheduled prompt jobs, and Inbox cannot run |
+| `NEXT_PUBLIC_CHAT_DISABLED` | Set to `true` to hide the Chat module: the workspace lands on your first workflow, with no chats list, scheduled tasks, or editor Chat panel. Chat is shown when unset; `npx sim-setup` sets it for you if you skip the chat key |
+| `DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES` | Durable stores where a value whose secret provenance was never recorded fails the run instead of logging a warning. `all`, or a comma-separated subset of `memory`, `table-row`, `knowledge`. Unset (nothing enforced) by default |
+| `ADMIN_API_KEY` | Admin API key for GitOps operations and organization provisioning |
+
+## Enterprise Features
+
+Enterprise features are unlocked by configuration rather than billing on self-hosted deployments. One switch turns on the full set; per-feature flags below it override the switch either way.
+
+| Variable | Description |
+|----------|-------------|
+| `ENTERPRISE_ENABLED`, `NEXT_PUBLIC_ENTERPRISE_ENABLED` | Enable the whole enterprise feature set |
+| `INSTANCE_ORG_NAME` | Name of the organization every user joins automatically at signup |
+| `INSTANCE_ORG_SLUG` | Slug for that organization (derived from the name when omitted) |
+| `INSTANCE_ORG_OWNER_EMAIL` | Owner of that organization (defaults to the first user to sign up) |
+
+Most enterprise features read their settings from the organization that owns a workspace, so enabling the flags alone is not enough — the deployment also needs an organization model. See the [self-hosted enterprise guide](/platform/enterprise/self-hosted) for the per-feature flags, both organization patterns, and the Admin API.
+
+## File Storage
+
+By default Sim writes uploads to local disk. For production, point it at AWS S3, Azure Blob, or Google Cloud Storage. See [Object Storage](/platform/self-hosting/object-storage) for the full setup, bucket layout, and IAM policy.
+
+| Variable | Description |
+|----------|-------------|
+| `AWS_REGION` | AWS region — set with `S3_BUCKET_NAME` to enable S3 |
+| `AWS_ACCESS_KEY_ID` | AWS access key. Omit to use the instance/IRSA credential chain |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key. Omit to use the instance/IRSA credential chain |
+| `S3_BUCKET_NAME` | General workspace files bucket — set with `AWS_REGION` to enable S3 |
+| `AZURE_STORAGE_CONTAINER_NAME` | General files container — set with Azure credentials to enable Blob (takes precedence over S3) |
+| `AZURE_CONNECTION_STRING` | Azure connection string, or use `AZURE_ACCOUNT_NAME` + `AZURE_ACCOUNT_KEY` |
+| `GCS_BUCKET_NAME` | General workspace files bucket — enables GCS when neither Azure Blob nor S3 is configured |
+| `GCS_PROJECT_ID` | GCP project ID. Omit to infer from credentials/ADC |
+| `GCS_CREDENTIALS_JSON` | Inline service-account JSON. Omit to use Application Default Credentials (Workload Identity, `GOOGLE_APPLICATION_CREDENTIALS`) |
+
+## Email Providers
+
+Configure at least one. Every configured provider stays active and is tried in order — **Resend → AWS SES → SMTP → Azure Communication Services → Gmail** — falling through only on failure. With none configured, mail is silently not sent. Setup, verification, and troubleshooting are in [Email](/platform/self-hosting/email).
+
+| Provider | Variables |
+|----------|-----------|
+| Shared | `FROM_EMAIL_ADDRESS`, `EMAIL_DOMAIN`, `EMAIL_VERIFICATION_ENABLED` |
+| Resend | `RESEND_API_KEY` |
+| AWS SES | `AWS_SES_REGION` (credentials via the AWS provider chain) |
+| SMTP | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `SMTP_EHLO_NAME` |
+| Azure ACS | `AZURE_ACS_CONNECTION_STRING` |
+| Gmail | `GMAIL_CREDENTIALS_JSON`, `GMAIL_SENDER` |
+
+## Limits
+
+Self-hosted deployments (billing disabled) run without plan limits: no rate limits, no execution timeouts, no table or storage caps, and no retention-based data deletion. Each limit can be opted back in individually by explicitly setting its variable.
+
+| Variable | Opts in | Suggested value |
+|----------|---------|-----------------|
+| `RATE_LIMIT_FREE_SYNC` | Sync executions per minute | `50` |
+| `RATE_LIMIT_FREE_ASYNC` | Async executions per minute | `200` |
+| `RATE_LIMIT_FREE_API_ENDPOINT` | v1 API endpoint requests per minute | `30` |
+| `EXECUTION_TIMEOUT_FREE` | Sync execution timeout (seconds) | `300` |
+| `EXECUTION_TIMEOUT_ASYNC_FREE` | Async execution timeout (seconds) | `5400` |
+| `FREE_TABLES_LIMIT` | Max user tables per workspace | `5` |
+| `FREE_TABLE_ROWS_LIMIT` | Max rows per user table | `50000` |
+| `FREE_STORAGE_LIMIT_GB` | File storage quota (GB) | `5` |
+
+<Callout type="info">
+  Without billing, every account resolves to the free tier, so only the free-tier variables apply. Setting one variable enforces only that limit — the rest stay unlimited.
+</Callout>
+
+<Callout type="warn">
+  Neither deployment presets these. The Helm chart previously did, which enforced hosted-plan caps on self-hosted installs; chart 1.5.0 removed the presets so Compose and Kubernetes behave identically.
+</Callout>
+
+### Removing a limit you already inherited
+
+If a limit is still enforced after upgrading — most often a `FREE_TABLES_LIMIT` or `FREE_TABLE_ROWS_LIMIT` carried forward from a chart older than 1.5.0, or copied into your own values file — the variable is still reaching the pod. On Helm, remove it by overriding it with `null`:
+
+```yaml
+app:
+  envDefaults:
+    FREE_TABLES_LIMIT: null
+    FREE_TABLE_ROWS_LIMIT: null
+```
+
+Setting the variable to an empty string does **not** remove it: the chart reads an empty value as "not specified", so the inherited value still applies.
+
+Null the variable in every layer that sets it. If it appears in both `app.env` and `app.envDefaults`, nulling only the `app.env` entry lets the `envDefaults` value apply again and the limit stays in force. With External Secrets, also drop the key from `externalSecrets.remoteRefs.app`, which keeps syncing it independently. Confirm what the pod will actually receive before rolling out:
+
+```bash
+helm template sim ./helm/sim -f values.yaml | grep -A1 FREE_TABLE   # expect no output
+```
+
+`null` deletion has no effect under `helm upgrade --reuse-values` — pass your full values with `-f`, or use `--reset-then-reuse-values` (Helm 3.14+). If you deploy with Argo CD, put the `null` in `valueFiles` or the `values` string rather than `valuesObject`, which strips nulls. On Docker Compose, delete the line from your `.env` file.
+
+## Example .env
+
+```bash
+# Core
+DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
+BETTER_AUTH_URL=https://sim.yourdomain.com
+
+# Secrets — generate each with `openssl rand -hex 32`
+BETTER_AUTH_SECRET=<openssl rand -hex 32>
+ENCRYPTION_KEY=<openssl rand -hex 32>
+INTERNAL_API_SECRET=<openssl rand -hex 32>
+API_ENCRYPTION_KEY=<openssl rand -hex 32>
+CRON_SECRET=<openssl rand -hex 32>
+
+# Coordination (required past one replica)
+REDIS_URL=redis://redis:6379
+
+# Models — OPENAI_API_KEY also powers knowledge base embeddings
+OPENAI_API_KEY=sk-...
+
+# Email
+RESEND_API_KEY=re_...
+FROM_EMAIL_ADDRESS="Sim <noreply@yourdomain.com>"
+
+# Access control
+ALLOWED_LOGIN_DOMAINS=yourdomain.com
+```
+
+See `apps/sim/.env.example` for all options.

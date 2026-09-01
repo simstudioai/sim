@@ -1,7 +1,7 @@
 import type { RedisHGetParams, RedisHGetResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisHGetTool: ToolConfig<RedisHGetParams, RedisHGetResponse> = {
+export const redisHGetTool: InternalToolConfig<RedisHGetParams, RedisHGetResponse> = {
   id: 'redis_hget',
   name: 'Redis HGET',
   description: 'Get the value of a field in a hash stored at a key in Redis.',
@@ -28,11 +28,8 @@ export const redisHGetTool: ToolConfig<RedisHGetParams, RedisHGetResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'HGET',
       args: [params.key, params.field],

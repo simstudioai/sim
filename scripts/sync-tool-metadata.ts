@@ -4,7 +4,7 @@
  *
  * `apps/sim/tools/registry.ts` is a ~9,000-line barrel importing all 4,300+
  * tools. Each `ToolConfig` mixes plain data (`params`, `outputs`, `name`) with
- * closures (`request.headers`, `transformResponse`, `directExecution`,
+ * closures (`request.headers`, `transformResponse`,
  * `postProcess`), and it is those closures — and the SDK clients and API
  * helpers they reach — that make the barrel cost ~4,700 modules to compile.
  *
@@ -52,7 +52,7 @@ const OUTPUTS_PATH = resolve(GENERATED_DIR, 'tool-outputs.ts')
 /**
  * Fields copied into `tool-metadata.ts`. Every one must be plain data.
  *
- * Deliberately excluded: `request`, `transformResponse`, `directExecution`,
+ * Deliberately excluded: `request`, `transformResponse`,
  * `postProcess` (closures, and the whole reason the registry is expensive);
  * `hosting` and `schemaEnrichment` (contain predicates/`enrichSchema`, and are
  * only consumed server-side); `outputs` (emitted separately).

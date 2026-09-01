@@ -418,6 +418,25 @@ export function parseIdListParam(value: unknown, paramName: string): number[] | 
   return toPositiveIntegers(entries, paramName)
 }
 
+/** Parses an optional organization-ID filter while enforcing the shared request ceiling. */
+export function parseOptionalOrgIds(value: unknown): number[] | undefined {
+  const orgIds = parseIdListParam(value, 'orgIds')
+  if (orgIds && orgIds.length > MAX_ORG_IDS) {
+    throw new Error(`CB Insights accepts at most ${MAX_ORG_IDS} organization IDs per request`)
+  }
+  return orgIds
+}
+
+/** Trims an optional text parameter and rejects non-text runtime values. */
+export function parseOptionalStringParam(value: unknown, paramName: string): string | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'string') {
+    throw new Error(`CB Insights "${paramName}" must be a string`)
+  }
+  const trimmed = value.trim()
+  return trimmed || undefined
+}
+
 /**
  * Parses a list of free-text values, rejecting an entry that is not text.
  *

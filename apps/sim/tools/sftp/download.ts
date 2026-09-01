@@ -1,7 +1,7 @@
 import type { SftpDownloadParams, SftpDownloadResult } from '@/tools/sftp/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const sftpDownloadTool: ToolConfig<SftpDownloadParams, SftpDownloadResult> = {
+export const sftpDownloadTool: InternalToolConfig<SftpDownloadParams, SftpDownloadResult> = {
   id: 'sftp_download',
   name: 'SFTP Download',
   description: 'Download a file from a remote SFTP server',
@@ -58,13 +58,8 @@ export const sftpDownloadTool: ToolConfig<SftpDownloadParams, SftpDownloadResult
     },
   },
 
-  request: {
-    url: '/api/tools/sftp/download',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

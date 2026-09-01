@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { isBrowserToolName } from '@sim/browser-protocol'
+import { isBrowserToolName, isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { isPendingDesktopScopeId } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName } from '@sim/terminal-protocol'
@@ -2140,7 +2140,7 @@ export function useChat(
       eventTs?: string,
       signal?: AbortSignal
     ) => {
-      if (!isBrowserToolName(toolName)) {
+      if (!isCurrentBrowserToolName(toolName)) {
         return
       }
       openBrowserResource()

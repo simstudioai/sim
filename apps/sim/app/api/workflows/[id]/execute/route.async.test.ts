@@ -38,6 +38,7 @@ import {
 
 const {
   mockAssertBillingAttributionSnapshot,
+  mockGetWorkspaceBilledAccountUserId,
   mockClaimExecutionId,
   mockClaimWorkflowToolExecution,
   mockCheckNeedsRedeployment,
@@ -89,12 +90,14 @@ const {
   mockReleaseExecutionSlot: vi.fn(),
   mockReleaseWorkflowToolExecutionClaim: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
+  mockGetWorkspaceBilledAccountUserId: vi.fn().mockResolvedValue('billing-1'),
   mockShouldExecuteInline: vi.fn().mockReturnValue(false),
   mockValidatePublicApiAllowed: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,
+  getWorkspaceBilledAccountUserId: mockGetWorkspaceBilledAccountUserId,
   requireBillingAttributionHeader: mockRequireBillingAttributionHeader,
 }))
 
@@ -255,6 +258,24 @@ interface ExecutionCallerCase {
   isPublic?: boolean
 }
 
+const SESSION_PRINCIPAL = {
+  kind: 'session',
+  userId: 'session-user-1',
+  sessionId: 'session-1',
+} as const
+
+const PERSONAL_API_KEY_PRINCIPAL = {
+  kind: 'personal_api_key',
+  userId: 'personal-key-user-1',
+  keyId: 'personal-key-1',
+} as const
+
+const WORKSPACE_API_KEY_PRINCIPAL = {
+  kind: 'workspace_api_key',
+  workspaceId: 'workspace-1',
+  keyId: 'workspace-key-1',
+} as const
+
 const EXECUTION_CALLERS: ExecutionCallerCase[] = [
   {
     caseName: 'session',
@@ -262,6 +283,7 @@ const EXECUTION_CALLERS: ExecutionCallerCase[] = [
       success: true,
       userId: 'session-user-1',
       authType: 'session',
+      principal: SESSION_PRINCIPAL,
     },
     headers: { Cookie: 'session=value' },
     usesExternalInput: false,
@@ -273,6 +295,7 @@ const EXECUTION_CALLERS: ExecutionCallerCase[] = [
       userId: 'personal-key-user-1',
       authType: 'api_key',
       apiKeyType: 'personal',
+      principal: PERSONAL_API_KEY_PRINCIPAL,
     },
     headers: { 'X-API-Key': 'personal-key' },
     usesExternalInput: true,
@@ -285,6 +308,7 @@ const EXECUTION_CALLERS: ExecutionCallerCase[] = [
       workspaceId: 'workspace-1',
       authType: 'api_key',
       apiKeyType: 'workspace',
+      principal: WORKSPACE_API_KEY_PRINCIPAL,
     },
     headers: { 'X-API-Key': 'workspace-key' },
     usesExternalInput: true,
@@ -324,7 +348,6 @@ function configureExecutionCaller(caller: ExecutionCallerCase, requestCount = 1)
       {
         isPublicApi: true,
         isDeployed: true,
-        userId: 'owner-1',
         workspaceId: 'workspace-1',
       },
     ])
@@ -458,6 +481,7 @@ describe('workflow execute async route', () => {
       success: true,
       userId: 'session-user-1',
       authType: 'session',
+      principal: SESSION_PRINCIPAL,
     })
 
     mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
@@ -1309,6 +1333,7 @@ describe('workflow execute async route', () => {
       userId: 'personal-key-user-1',
       authType: 'api_key',
       apiKeyType: 'personal',
+      principal: PERSONAL_API_KEY_PRINCIPAL,
     })
     const response = await POST(
       createMockRequest(
@@ -2677,6 +2702,11 @@ describe('workflow execute async route', () => {
       userId: 'api-user-1',
       authType: 'api_key',
       apiKeyType: 'personal',
+      principal: {
+        kind: 'personal_api_key',
+        userId: 'api-user-1',
+        keyId: 'personal-key-1',
+      },
     })
     workflowsUtilsMockFns.mockWorkflowHasResponseBlock.mockReturnValueOnce(true)
     workflowsUtilsMockFns.mockCreateHttpResponseFromBlock.mockResolvedValueOnce(

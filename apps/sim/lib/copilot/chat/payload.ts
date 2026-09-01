@@ -160,8 +160,10 @@ export async function buildIntegrationToolSchemas(
   // what the entry caches: a user-tool schema per exposed integration tool.
   let permissionConfig: IntegrationGateConfig | null = null
   if (workspaceId) {
-    const { getUserPermissionConfig } = await import('@/ee/access-control/utils/permission-check')
-    permissionConfig = await getUserPermissionConfig(userId, workspaceId)
+    const { resolvePermissionGroupConfig } = await import(
+      '@/lib/permission-groups/config-scope.server'
+    )
+    permissionConfig = await resolvePermissionGroupConfig(userId, workspaceId, undefined)
   }
   const cacheKey = getIntegrationToolSchemaCacheKey(
     userId,

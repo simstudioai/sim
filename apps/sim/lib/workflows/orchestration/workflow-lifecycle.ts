@@ -239,7 +239,19 @@ export async function performCreateWorkflowTransition(
           variables: {},
         })
 
-        await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
+        await saveWorkflowToNormalizedTables(
+          workflowId,
+          workflowState,
+          {
+            /**
+             * Actorless: the starter graph a new workflow is seeded with is the
+             * platform's, not a member's choice of blocks.
+             */
+            workspaceId: null,
+            subjectUserId: null,
+          },
+          tx
+        )
       })
       break
     } catch (error) {

@@ -98,8 +98,9 @@ interface EmitAnchoredParams {
    *
    * Two cases fall back to the block-level `required`, failing closed: a param absent from
    * the map (custom-tool / MCP generic fallback, or an unresolvable tool id), and a param
-   * present with an `undefined` value — the resolver's `buildToolInputSearchConfig` branch
-   * does not copy `paramVisibility`, so an authoritative entry can still carry none.
+   * present with an `undefined` value. Every authoritative config now carries a resolved
+   * visibility, so the second case should be unreachable — it stays a guard rather than an
+   * assertion because reading it wrong silently withholds a target's redeploy.
    */
   paramVisibilityById?: Map<string, ParameterVisibility | undefined>
   out: ForkDependentReconfig[]

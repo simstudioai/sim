@@ -38,6 +38,7 @@ import {
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -72,11 +73,11 @@ import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
+  ColumnDropdown,
   ColumnsMenu,
   EnrichmentDetails,
   EnrichmentsSidebar,
   LockSettingsModal,
-  NewColumnDropdown,
   RowModal,
   RunStatusControl,
   SaveViewModal,
@@ -196,6 +197,7 @@ export function Table({
   const tableId = propTableId || (params.tableId as string)
 
   const posthog = usePostHog()
+  const tableRowTtlEnabled = useFeatureFlag('table-row-ttl')
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
 
@@ -1395,7 +1397,9 @@ export function Table({
   // table is schema-locked and explains itself instead of disappearing.
   const canMutateSchema = userPermissions.canEdit && !tableData?.locks.schemaLocked
   const createTrigger = userPermissions.canEdit ? (
-    <NewColumnDropdown
+    <ColumnDropdown
+      columns={columns}
+      tableRowTtlEnabled={tableRowTtlEnabled}
       trigger='header'
       disabled={false}
       blocked={!canMutateSchema}
@@ -1562,6 +1566,7 @@ export function Table({
         workspaceId={workspaceId}
         tableId={tableId}
         embedded={embedded}
+        tableRowTtlEnabled={tableRowTtlEnabled}
         locks={tableData?.locks}
         onBlockedAction={showBlockedToast}
         sidebarReservedPx={sidebarReservedPx}
@@ -1667,7 +1672,9 @@ export function Table({
       )}
       <ColumnConfigSidebar
         config={columnConfig}
+        tableRowTtlEnabled={tableRowTtlEnabled}
         onClose={onCloseSlideout}
+        allColumns={columns}
         existingColumn={
           columnConfig?.mode === 'edit'
             ? (columns.find((c) => getColumnId(c) === columnConfig.columnName) ?? null)

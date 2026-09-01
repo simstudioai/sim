@@ -377,10 +377,23 @@ async function importSingleWorkflow(
       logger.warn(`Admin API: normalized "${dedupedName}" with warnings`, { warnings })
     }
 
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, {
-      ...workflowData,
-      ...preparedState,
-    })
+    const saveResult = await saveWorkflowToNormalizedTables(
+      workflowId,
+      {
+        ...workflowData,
+        ...preparedState,
+      },
+      {
+        /**
+         * Actorless. This is the platform-admin surface: the caller is a Sim
+         * operator restoring data, not a member of the target workspace, so no
+         * member's permission group governs the write. `check-capability-subject`
+         * excludes `v1/admin` for the same reason.
+         */
+        workspaceId: null,
+        subjectUserId: null,
+      }
+    )
 
     if (!saveResult.success) {
       await db.delete(workflow).where(eq(workflow.id, workflowId))

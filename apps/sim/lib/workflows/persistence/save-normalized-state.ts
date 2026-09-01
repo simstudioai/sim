@@ -101,6 +101,15 @@ export async function saveWorkflowNormalizedState(params: {
       workflowId,
       workspaceId: workflowData.workspaceId ?? null,
       attributedUserId: userId,
+      /**
+       * This door authorizes by bare `userId`, so the writer and the governed
+       * subject are the same person. The integration allowlist that used to be
+       * checked inline here now lives on the shared write, which refuses a
+       * withheld block type as a `forbidden` `OrchestrationError` — read below
+       * by the same `asOrchestrationError` branch that classifies the rest, and
+       * rendered as the identical 403 and message.
+       */
+      subjectUserId: userId,
       state: {
         blocks: state.blocks as Record<string, BlockState>,
         edges: state.edges as WorkflowState['edges'],

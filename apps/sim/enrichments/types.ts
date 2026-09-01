@@ -23,14 +23,25 @@ export interface EnrichmentOutputField {
 }
 
 /**
- * Execution context for an enrichment run (runs server-side). `tableId`/`rowId`
- * are present for the table per-row path but optional — the workflow block path
- * (`/api/tools/enrichment/run`) has no table/row and passes only `workspaceId`.
+ * Execution context for an enrichment run. `tableId` and `rowId` are present
+ * for the table per-row path but optional for workflow tool execution.
  */
 export interface EnrichmentRunContext {
   tableId?: string
   rowId?: string
   workspaceId: string
+  /**
+   * The person the run acts for, or `null` for a deliberately actorless run.
+   *
+   * Load-bearing, not decorative: the per-tool permission gate is skipped
+   * entirely when a tool call carries no user, so a run without one sends row
+   * data to its provider with the workspace's `deniedTools` denylist silently
+   * not applied. Required, and explicitly nullable, so that is a decision a
+   * caller states rather than one it falls into by leaving a field off — the
+   * only actorless caller is a system-triggered table dispatch, which has no
+   * person to name and must not borrow the billing owner instead.
+   */
+  userId: string | null
   signal?: AbortSignal
   /** Isolated provenance for the exact mapped row inputs used by this run. */
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry

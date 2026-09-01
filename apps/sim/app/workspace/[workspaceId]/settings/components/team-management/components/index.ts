@@ -1,4 +1,3 @@
-export { ManageCreditsModal } from './manage-credits-modal'
 export { NoOrganizationView } from './no-organization-view'
 export { OrganizationMemberLists } from './organization-member-lists'
 export { RemoveMemberDialog } from './remove-member-dialog'

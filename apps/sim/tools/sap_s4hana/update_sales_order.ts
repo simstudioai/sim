@@ -1,14 +1,8 @@
-import type { SapProxyResponse, UpdateSalesOrderParams } from '@/tools/sap_s4hana/types'
-import {
-  baseProxyBody,
-  parseJsonInput,
-  quoteOdataKey,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
-} from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { SapS4HanaResponse, UpdateSalesOrderParams } from '@/tools/sap_s4hana/types'
+import { buildSapOperationBaseInput, parseJsonInput, quoteOdataKey } from '@/tools/sap_s4hana/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateSalesOrderTool: ToolConfig<UpdateSalesOrderParams, SapProxyResponse> = {
+export const updateSalesOrderTool: InternalToolConfig<UpdateSalesOrderParams, SapS4HanaResponse> = {
   id: 'sap_s4hana_update_sales_order',
   name: 'SAP S/4HANA Update Sales Order',
   description:
@@ -96,17 +90,14 @@ export const updateSalesOrderTool: ToolConfig<UpdateSalesOrderParams, SapProxyRe
       description: 'If-Match ETag for optimistic concurrency. Defaults to "*" (unconditional).',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const payload = parseJsonInput<Record<string, unknown>>(params.body, 'body')
       if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
         throw new Error('body must be a JSON object with the fields to update')
       }
       return {
-        ...baseProxyBody(params),
+        ...buildSapOperationBaseInput(params),
         service: 'API_SALES_ORDER_SRV',
         path: `/A_SalesOrder(${quoteOdataKey(params.salesOrder)})`,
         method: 'MERGE',
@@ -116,7 +107,6 @@ export const updateSalesOrderTool: ToolConfig<UpdateSalesOrderParams, SapProxyRe
       }
     },
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP (204 on success)' },
     data: {

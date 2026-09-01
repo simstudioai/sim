@@ -10,12 +10,11 @@ interface SftpConnectionConfig {
   passphrase?: string
 }
 
-// Upload file params
 export interface SftpUploadParams extends SftpConnectionConfig {
   remotePath: string
   files?: UserFile[]
-  fileContent?: string // Direct content for text files
-  fileName?: string // File name when using direct content
+  fileContent?: string
+  fileName?: string
   overwrite?: boolean
   permissions?: string
 }
@@ -32,7 +31,6 @@ export interface SftpUploadResult extends ToolResponse {
   }
 }
 
-// Download file params
 export interface SftpDownloadParams extends SftpConnectionConfig {
   remotePath: string
   encoding?: 'utf-8' | 'base64'
@@ -50,7 +48,6 @@ export interface SftpDownloadResult extends ToolResponse {
   }
 }
 
-// List directory params
 export interface SftpListParams extends SftpConnectionConfig {
   remotePath: string
   detailed?: boolean
@@ -72,7 +69,6 @@ export interface SftpListResult extends ToolResponse {
   }
 }
 
-// Delete file params
 export interface SftpDeleteParams extends SftpConnectionConfig {
   remotePath: string
   recursive?: boolean
@@ -86,7 +82,6 @@ export interface SftpDeleteResult extends ToolResponse {
   }
 }
 
-// Mkdir params
 export interface SftpMkdirParams extends SftpConnectionConfig {
   remotePath: string
   recursive?: boolean

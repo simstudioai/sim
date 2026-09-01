@@ -113,6 +113,8 @@ export {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuItemAction,
+  DropdownMenuItemLabel,
+  type DropdownMenuItemLabelProps,
   DropdownMenuLabel,
   DropdownMenuPortal,
   DropdownMenuRadioGroup,
@@ -163,6 +165,12 @@ export {
   useModalDismissDisabled,
   useNativeSurfaceOcclusionReady,
 } from './modal/modal'
+export {
+  OverflowText,
+  type OverflowTextProps,
+  overflowTextClipClass,
+  overflowTextFadeClass,
+} from './overflow-text/overflow-text'
 export {
   Popover,
   PopoverAnchor,

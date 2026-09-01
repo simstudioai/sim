@@ -107,11 +107,27 @@ export const credentialGroupIdUrlKeys = {
 /** Active view inside a credential-group detail page. */
 export const credentialGroupTabParam = {
   key: 'credential-group-tab',
-  parser: parseAsStringLiteral(['details', 'people'] as const).withDefault('details'),
+  parser: parseAsStringLiteral(['details', 'people', 'access'] as const).withDefault('details'),
 } as const
 
 /** Tab view-state: clean URLs, no back-stack churn. */
 export const credentialGroupTabUrlKeys = {
+  history: 'replace',
+  clearOnDefault: true,
+} as const
+
+/**
+ * Filters the account types offered inside a credential group's detail view. Separate from the
+ * settings-wide search so filtering the picker does not follow the user back out to the list of
+ * groups, where the same term would usually match nothing.
+ */
+export const credentialGroupProviderSearchParam = {
+  key: 'credential-group-provider',
+  parser: parseAsString.withDefault(''),
+} as const
+
+/** A transient picker filter: no back-stack entry, and absent from the URL when empty. */
+export const credentialGroupProviderSearchUrlKeys = {
   history: 'replace',
   clearOnDefault: true,
 } as const

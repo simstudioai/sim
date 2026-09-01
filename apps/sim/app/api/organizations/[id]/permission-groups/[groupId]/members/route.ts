@@ -10,7 +10,7 @@ import { addPermissionGroupMemberContract } from '@/lib/api/contracts/permission
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { PERMISSION_GROUP_MEMBER_CONSTRAINTS } from '@/lib/permission-groups/types'
+import { PERMISSION_GROUP_MEMBER_CONSTRAINTS } from '@/lib/permission-groups/constraints'
 import { isOrganizationMember } from '@/lib/workspaces/permissions/utils'
 import {
   type AllMembersConflict,

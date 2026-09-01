@@ -1,15 +1,9 @@
 import type { NetSuiteGetSelectOptionsParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import {
-  buildRecordPath,
-  executeNetSuiteRequest,
-  netsuiteAuthParamFields,
-  normalizePagination,
-  optionalTrim,
-  requiredTrim,
-} from '@/tools/netsuite/utils'
-import type { ToolConfig } from '@/tools/types'
+import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const netsuiteGetSelectOptionsTool: ToolConfig<
+export const netsuiteGetSelectOptionsTool: InternalToolConfig<
   NetSuiteGetSelectOptionsParams,
   NetSuiteResponse
 > = {
@@ -65,31 +59,9 @@ export const netsuiteGetSelectOptionsTool: ToolConfig<
         'Zero-based result offset; must be divisible by limit and stay within the first 100,000 results and 1,000 pages',
     },
   },
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-  directExecution: (params, signal) =>
-    executeNetSuiteRequest(
-      params,
-      () => {
-        const recordId = optionalTrim(params.recordId)
-        const pagination = normalizePagination(params.limit, params.offset)
-        return {
-          method: recordId ? 'PATCH' : 'POST',
-          path: buildRecordPath(
-            { value: params.recordType, label: 'Record type' },
-            ...(recordId ? [{ value: recordId, label: 'Record ID' }] : [])
-          ),
-          success: { status: 200, body: 'object' },
-          query: {
-            ...pagination,
-            fields: requiredTrim(params.fields, 'Fields'),
-            q: optionalTrim(params.q),
-          },
-          headers: { Accept: 'application/vnd.oracle.resource+json; type=select-options' },
-          body: params.body ?? {},
-        }
-      },
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
   outputs: {
     status: { type: 'number', description: 'HTTP status returned by NetSuite' },
     data: {

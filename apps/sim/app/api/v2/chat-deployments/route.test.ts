@@ -61,15 +61,9 @@ vi.mock('@/lib/workflows/orchestration', () => ({
   performChatDeploy: mocks.performChatDeploy,
   performChatUndeploy: vi.fn(),
 }))
-vi.mock('@/ee/access-control/utils/permission-check', () => {
-  class ChatDeployAuthNotAllowedError extends Error {
-    constructor() {
-      super('This chat authentication mode is not allowed')
-      this.name = 'ChatDeployAuthNotAllowedError'
-    }
-  }
-  return { validateChatDeployAuth: mocks.validateChatDeployAuth, ChatDeployAuthNotAllowedError }
-})
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  validateChatDeployAuth: mocks.validateChatDeployAuth,
+}))
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 

@@ -17,6 +17,7 @@ import {
   ChipTag,
   cn,
   Info,
+  OverflowText,
   Search,
   Skeleton,
   Switch,
@@ -29,9 +30,14 @@ import { formatDate } from '@sim/utils/formatting'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
-import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
-import { PLATFORM_CATEGORY_ORDER, PLATFORM_FEATURES } from '@/lib/permission-groups/features'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import { isAccessControlAllowlistRow } from '@/lib/permission-groups/block-access'
+import {
+  isFeatureInertForGroup,
+  ORGANIZATION_SCOPED_FEATURE_NOTE,
+  PLATFORM_CATEGORY_ORDER,
+  PLATFORM_FEATURES,
+} from '@/lib/permission-groups/features'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
   groupSearchParam,
@@ -53,6 +59,7 @@ import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/
 import { getAllBlocks } from '@/blocks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { BlockConfig } from '@/blocks/types'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
 import {
   type PermissionGroup,
@@ -63,6 +70,11 @@ import {
   useRemovePermissionGroupMember,
   useUpdatePermissionGroup,
 } from '@/ee/access-control/hooks/permission-groups'
+import {
+  allowlistRowsFromStored,
+  toggleAllowlistRow,
+  withAllowlistRows,
+} from '@/ee/access-control/utils/integration-allowlist-rows'
 import { SettingRow } from '@/ee/components/setting-row'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
 import { useOrganizationRoster } from '@/hooks/queries/organization'
@@ -105,7 +117,22 @@ const ALL_CHAT_DEPLOY_AUTH_TYPES: ShareAuthType[] = CHAT_DEPLOY_AUTH_TYPE_OPTION
   (o) => o.value
 )
 
+/**
+ * Knowledge base connectors an admin can allow or disallow. `null` config = all
+ * allowed. Sorted by display name because the picker is read alphabetically,
+ * while the registry is keyed by the snake_case id the server stores. Reads
+ * {@link CONNECTOR_META_REGISTRY}, the client-safe metadata half of the
+ * connector split.
+ */
+const KNOWLEDGE_CONNECTOR_OPTIONS: { value: string; label: string }[] = Object.values(
+  CONNECTOR_META_REGISTRY
+)
+  .map((meta) => ({ value: meta.id, label: meta.name }))
+  .sort((a, b) => a.label.localeCompare(b.label))
+
 type StatusFilter = 'all' | 'enabled' | 'disabled'
+
+const ALL_KNOWLEDGE_CONNECTORS: string[] = KNOWLEDGE_CONNECTOR_OPTIONS.map((o) => o.value)
 
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'Show all' },
@@ -135,21 +162,21 @@ function StatusFilterChip({ value, onChange }: StatusFilterChipProps) {
   )
 }
 
-interface AuthModeFieldProps {
+interface AllowlistFieldProps {
   label: string
-  value: ShareAuthType[]
+  value: string[]
   onChange: (values: string[]) => void
-  options: { value: ShareAuthType; label: string }[]
+  options: { value: string; label: string }[]
   disabled: boolean
 }
 
 /**
- * The allowed-auth-modes multi-select nested under a platform toggle. Dims and
+ * The allowed-values multi-select nested under a platform toggle. Dims and
  * disables together with the toggle that owns it. The left padding lines both
  * children up with the parent's label text — row gutter (8) + checkbox (16) +
  * gap (8) = 32 — so the field reads as subordinate rather than as a sibling row.
  */
-function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFieldProps) {
+function AllowlistField({ label, value, onChange, options, disabled }: AllowlistFieldProps) {
   const labelId = useId()
   const triggerId = useId()
   return (
@@ -168,6 +195,9 @@ function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFi
         onChange={onChange}
         options={options}
         disabled={disabled}
+        // An empty allow-list denies every option, so the multi-select's default
+        // empty label — 'All' — states the opposite of what the server enforces.
+        allLabel='None allowed'
         matchTriggerWidth={false}
         className='w-[200px]'
       />
@@ -305,10 +335,14 @@ function AddMembersModal({
                           <Checkbox checked={isSelected} />
                           <MemberAvatar name={name} image={member.user?.image ?? null} />
                           <div className='min-w-0 flex-1'>
-                            <div className='truncate text-[var(--text-body)] text-sm'>{name}</div>
-                            <div className='truncate text-[var(--text-muted)] text-caption'>
-                              {email}
-                            </div>
+                            <OverflowText
+                              label={name}
+                              className='block text-[var(--text-body)] text-sm'
+                            />
+                            <OverflowText
+                              label={email}
+                              className='block text-[var(--text-muted)] text-caption'
+                            />
                           </div>
                         </button>
                       )
@@ -428,7 +462,7 @@ function CheckboxGrid({
                 checked={isAllowed(item.id)}
                 onCheckedChange={() => onToggle(item.id)}
               />
-              <span className='truncate text-sm'>{item.label}</span>
+              <OverflowText label={item.label} className='text-sm' />
             </label>
           )
         })}
@@ -524,7 +558,7 @@ function ProviderRow({
             isProviderAllowed ? 'cursor-pointer' : 'cursor-default opacity-60'
           )}
         >
-          <span className='truncate text-sm'>{providerName}</span>
+          <OverflowText label={providerName} className='text-sm' />
           {isProviderAllowed && deniedCount > 0 && (
             <ChipTag variant='gray' className='flex-shrink-0'>
               {deniedCount} blocked
@@ -611,7 +645,7 @@ function BlockToolRow({
             !isBlockAllowed && 'opacity-60'
           )}
         >
-          <span className='truncate text-sm'>{block.name}</span>
+          <OverflowText label={block.name} className='text-sm' />
           {/* An org running one custom block per environment has prod/uat/sandbox copies
               sharing a name and differing only by an opaque type slug. The source workspace
               is the only thing that tells them apart, so an allowlist decision made without
@@ -765,9 +799,15 @@ export function GroupDetail({
    * otherwise a null→partial transition by a non-revealed admin would silently
    * drop a preview block from the stored allowlist and deny it to revealed
    * users already running it.
+   *
+   * EXCLUDES superseded blocks. They are hidden and so are never rendered, but
+   * they used to be materialized into the allowlist all the same — so an admin
+   * narrowing a previously-unrestricted allowlist by unchecking `slack_v2` wrote
+   * `slack` into it, which the runtime resolves back to `slack_v2` and allows.
+   * A decision about a retired version is made on its successor's row.
    */
   const allBlocks = useMemo(() => {
-    const blocks = getAllBlocks().filter((b) => !isBlockTypeAccessControlExempt(b.type))
+    const blocks = getAllBlocks().filter((b) => isAccessControlAllowlistRow(b.type))
     return blocks.sort((a, b) => {
       const catA = BLOCK_CATEGORY_ORDER[a.category] ?? 3
       const catB = BLOCK_CATEGORY_ORDER[b.category] ?? 3
@@ -857,17 +897,16 @@ export function GroupDetail({
 
   const guard = useSettingsUnsavedGuard({ isDirty: hasChanges })
 
+  const allBlockTypes = useMemo(() => allBlocks.map((b) => b.type), [allBlocks])
+
   /**
    * `null` means "everything allowed". Indexing the allow-lists once keeps the
    * per-row membership checks O(1) — they run for every one of the ~200 block
    * rows on each render, and again in the section-wide `every(...)` scans.
    */
   const allowedIntegrationSet = useMemo(
-    () =>
-      editingConfig.allowedIntegrations === null
-        ? null
-        : new Set(editingConfig.allowedIntegrations),
-    [editingConfig.allowedIntegrations]
+    () => allowlistRowsFromStored(allBlockTypes, editingConfig.allowedIntegrations),
+    [allBlockTypes, editingConfig.allowedIntegrations]
   )
 
   const allowedProviderSet = useMemo(
@@ -970,17 +1009,7 @@ export function GroupDetail({
   const toggleIntegration = useCallback(
     (blockType: string) => {
       setEditingConfig((prev) => {
-        const current = prev.allowedIntegrations
-        let nextAllowed: string[] | null
-        if (current === null) {
-          nextAllowed = allBlocks.map((b) => b.type).filter((t) => t !== blockType)
-        } else if (current.includes(blockType)) {
-          const updated = current.filter((t) => t !== blockType)
-          nextAllowed = updated.length === allBlocks.length ? null : updated
-        } else {
-          const updated = [...current, blockType]
-          nextAllowed = updated.length === allBlocks.length ? null : updated
-        }
+        const nextAllowed = toggleAllowlistRow(allBlockTypes, prev.allowedIntegrations, blockType)
         return {
           ...prev,
           allowedIntegrations: nextAllowed,
@@ -988,22 +1017,19 @@ export function GroupDetail({
         }
       })
     },
-    [allBlocks, pruneDeniedTools]
+    [allBlockTypes, pruneDeniedTools]
   )
 
   /** Allow or deny a whole section's blocks at once, respecting the active filter. */
   const setBlocksAllowed = useCallback(
     (blocks: BlockConfig[], allowed: boolean) => {
       setEditingConfig((prev) => {
-        const allTypes = allBlocks.map((b) => b.type)
-        const current =
-          prev.allowedIntegrations === null ? new Set(allTypes) : new Set(prev.allowedIntegrations)
-        for (const block of blocks) {
-          if (allowed) current.add(block.type)
-          else current.delete(block.type)
-        }
-        const nextArr = allTypes.filter((t) => current.has(t))
-        const nextAllowed = nextArr.length === allTypes.length ? null : nextArr
+        const nextAllowed = withAllowlistRows(
+          allBlockTypes,
+          prev.allowedIntegrations,
+          blocks.map((block) => block.type),
+          allowed
+        )
         return {
           ...prev,
           allowedIntegrations: nextAllowed,
@@ -1011,7 +1037,7 @@ export function GroupDetail({
         }
       })
     },
-    [allBlocks, pruneDeniedTools]
+    [allBlockTypes, pruneDeniedTools]
   )
 
   const isToolAllowed = useCallback(
@@ -1186,13 +1212,32 @@ export function GroupDetail({
     }))
   }, [])
 
+  const knowledgeConnectorValue = useMemo(
+    () => editingConfig.allowedKnowledgeConnectors ?? ALL_KNOWLEDGE_CONNECTORS,
+    [editingConfig.allowedKnowledgeConnectors]
+  )
+
+  /**
+   * At least one connector must stay allowed while the Knowledge Base module is
+   * visible — an empty allow-list would silently block every connector while
+   * the add-connector button still offered them. To withhold connectors along
+   * with the rest of the module, uncheck Knowledge Base instead.
+   */
+  const setKnowledgeConnectors = useCallback((values: string[]) => {
+    if (values.length === 0) return
+    setEditingConfig((prev) => ({
+      ...prev,
+      allowedKnowledgeConnectors: values.length === ALL_KNOWLEDGE_CONNECTORS.length ? null : values,
+    }))
+  }, [])
+
   /**
    * Nested controls rendered under a platform feature's checkbox, keyed by
    * feature id. Kept out of `PLATFORM_FEATURES` so that array stays pure data.
    */
   const featureExtras: Partial<Record<string, ReactNode>> = {
     'hide-deploy-chatbot': (
-      <AuthModeField
+      <AllowlistField
         label='Auth modes chat deployments may use'
         value={chatDeployAuthValue}
         onChange={setChatDeployAuthTypes}
@@ -1201,12 +1246,27 @@ export function GroupDetail({
       />
     ),
     'disable-public-file-sharing': (
-      <AuthModeField
+      <AllowlistField
         label='Auth modes public file-share links may use'
         value={fileShareAuthValue}
         onChange={setFileShareAuthTypes}
         options={FILE_SHARE_AUTH_TYPE_OPTIONS}
         disabled={editingConfig.disablePublicFileSharing}
+      />
+    ),
+    /**
+     * Nested under Knowledge Base rather than Knowledge Base Creation: a
+     * connector attaches to an existing knowledge base, so the allow-list still
+     * governs a group that may sync but never create. Hanging it off creation
+     * would dim the picker for exactly the group it was written for.
+     */
+    'hide-knowledge-base': (
+      <AllowlistField
+        label='Connectors knowledge bases may sync from'
+        value={knowledgeConnectorValue}
+        onChange={setKnowledgeConnectors}
+        options={KNOWLEDGE_CONNECTOR_OPTIONS}
+        disabled={editingConfig.hideKnowledgeBaseTab}
       />
     ),
   }
@@ -1384,7 +1444,20 @@ export function GroupDetail({
   const filteredProvidersAllAllowed = filteredProviders.every((id) => isProviderAllowed(id))
   const coreBlocksAllAllowed = filteredCoreBlocks.every((b) => isIntegrationAllowed(b.type))
   const toolBlocksAllAllowed = filteredToolBlocks.every((b) => isIntegrationAllowed(b.type))
-  const platformAllVisible = filteredPlatformFeatures.every((f) => !editingConfig[f.configKey])
+  /**
+   * Rows this group cannot decide: an organization-scoped key is read from the
+   * organization's *default* group, so setting it on any other group changes
+   * nothing. They render inert, and every bulk action skips them — "Select All"
+   * writing a value the server would never read is the same false promise as
+   * the checkbox itself.
+   */
+  const editablePlatformFeatures = useMemo(
+    () =>
+      filteredPlatformFeatures.filter((f) => !isFeatureInertForGroup(f, viewingGroup.isDefault)),
+    [filteredPlatformFeatures, viewingGroup.isDefault]
+  )
+
+  const platformAllAllowed = editablePlatformFeatures.every((f) => !editingConfig[f.configKey])
 
   return (
     <>
@@ -1651,7 +1724,7 @@ export function GroupDetail({
                           >
                             {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
                           </div>
-                          <span className='truncate text-sm'>{block.name}</span>
+                          <OverflowText label={block.name} className='text-sm' />
                           {block.sourceWorkspaceName && (
                             <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
                               {block.sourceWorkspaceName}
@@ -1722,13 +1795,13 @@ export function GroupDetail({
                   setEditingConfig((prev) => ({
                     ...prev,
                     ...Object.fromEntries(
-                      filteredPlatformFeatures.map((f) => [f.configKey, platformAllVisible])
+                      editablePlatformFeatures.map((f) => [f.configKey, platformAllAllowed])
                     ),
                   }))
                 }
-                disabled={filteredPlatformFeatures.length === 0}
+                disabled={editablePlatformFeatures.length === 0}
               >
-                {platformAllVisible ? 'Deselect All' : 'Select All'}
+                {platformAllAllowed ? 'Deselect All' : 'Select All'}
               </Chip>
             </div>
             {platformCategorySections.length === 0 && (
@@ -1739,32 +1812,46 @@ export function GroupDetail({
             {platformCategorySections.map(({ category, features }) => (
               <SettingsSection key={category} label={category}>
                 <div className='flex flex-col gap-0.5'>
-                  {features.map((feature) => (
-                    <div key={feature.id} className='flex flex-col'>
-                      <div className='flex items-center gap-1.5 rounded-md pr-2 transition-colors hover-hover:bg-[var(--surface-active)]'>
-                        <label
-                          htmlFor={feature.id}
-                          className='flex flex-1 cursor-pointer items-center gap-2 py-[5px] pl-2'
-                        >
-                          <Checkbox
-                            id={feature.id}
-                            checked={!editingConfig[feature.configKey]}
-                            onCheckedChange={(checked) =>
-                              setEditingConfig((prev) => ({
-                                ...prev,
-                                [feature.configKey]: checked !== true,
-                              }))
-                            }
-                          />
-                          <span className='font-normal text-sm'>{feature.label}</span>
-                        </label>
-                        <Info side='top' className='flex-shrink-0'>
-                          {feature.hint}
-                        </Info>
+                  {features.map((feature) => {
+                    const inert = isFeatureInertForGroup(feature, viewingGroup.isDefault)
+                    return (
+                      <div key={feature.id} className='flex flex-col'>
+                        <div className='flex items-center gap-1.5 rounded-md pr-2 transition-colors hover-hover:bg-[var(--surface-active)]'>
+                          <label
+                            htmlFor={feature.id}
+                            className={cn(
+                              'flex flex-1 items-center gap-2 py-[5px] pl-2',
+                              inert ? 'cursor-default opacity-60' : 'cursor-pointer'
+                            )}
+                          >
+                            <Checkbox
+                              id={feature.id}
+                              checked={!editingConfig[feature.configKey]}
+                              disabled={inert}
+                              onCheckedChange={(checked) =>
+                                setEditingConfig((prev) => ({
+                                  ...prev,
+                                  [feature.configKey]: checked !== true,
+                                }))
+                              }
+                            />
+                            <span className='font-normal text-sm'>{feature.label}</span>
+                            {inert && (
+                              <ChipTag variant='gray' className='flex-shrink-0'>
+                                Organization
+                              </ChipTag>
+                            )}
+                          </label>
+                          <Info side='top' className='flex-shrink-0'>
+                            {inert
+                              ? `${feature.hint} ${ORGANIZATION_SCOPED_FEATURE_NOTE}`
+                              : feature.hint}
+                          </Info>
+                        </div>
+                        {featureExtras[feature.id]}
                       </div>
-                      {featureExtras[feature.id]}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </SettingsSection>
             ))}

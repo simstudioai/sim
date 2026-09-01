@@ -16,7 +16,7 @@
 import { describe, expect, it } from 'vitest'
 import * as daytonaTools from '@/tools/daytona/index'
 import { daytonaToolboxUrl, encodeSandboxId } from '@/tools/daytona/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 const TOOLBOX_PREFIX = '/toolbox/'
 const API_PREFIX = '/api/sandbox/'
@@ -48,7 +48,14 @@ const LEGITIMATE_IDS = [
 
 const SAFE_ID = 'SAFEID'
 
-type AnyTool = ToolConfig<any, any>
+/**
+ * The slice of a tool this harness reads. `ToolConfig`'s param type sits in the
+ * contravariant position of `request.url`, so no concrete member of the barrel's
+ * union is assignable to a widened `ToolConfig<Record<string, unknown>, …>`. The
+ * barrel is therefore seeded as `unknown` below and narrowed by {@link isDaytonaTool},
+ * which is the single point where the type is established.
+ */
+type AnyTool = ToolConfig<Record<string, unknown>, ToolResponse>
 
 function isDaytonaTool(value: unknown): value is AnyTool {
   return (
@@ -82,14 +89,14 @@ function buildPath(tool: AnyTool, sandboxId: string): string {
   if (typeof url !== 'function') {
     throw new Error(`${tool.id} does not build its URL from params`)
   }
-  return new URL(url(buildParams(tool, sandboxId) as any)).pathname
+  return new URL(url(buildParams(tool, sandboxId))).pathname
 }
 
 function segmentsOf(pathname: string): string[] {
   return pathname.split('/')
 }
 
-const SANDBOX_SCOPED_TOOLS = Object.values(daytonaTools)
+const SANDBOX_SCOPED_TOOLS = Object.values<unknown>(daytonaTools)
   .filter(isDaytonaTool)
   .filter((tool) => typeof tool.request?.url === 'function')
   .filter((tool) => {
@@ -179,4 +186,46 @@ describe('encodeSandboxId', () => {
   it.each(LEGITIMATE_IDS)('leaves %j untouched', (sandboxId) => {
     expect(encodeSandboxId(sandboxId)).toBe(sandboxId)
   })
+})
+
+/**
+ * The lifecycle tools echo `sandboxId` back as the output id when the API
+ * returns no body. That runs in `transformResponse`, so the sandbox has already
+ * been started, stopped, or irreversibly deleted by the time it executes — a
+ * `.trim()` on a non-string id would surface the successful call as an unnamed
+ * `TypeError`. `sandboxId` is declared `type: 'string'` but arrives unvalidated,
+ * and `safeUrlPathSegment` now accepts a numeric id, so a number reaches here.
+ */
+describe('the sandbox id echoed back by the lifecycle tools', () => {
+  const lifecycleTools = [
+    daytonaTools.daytonaStartSandboxTool,
+    daytonaTools.daytonaStopSandboxTool,
+    daytonaTools.daytonaDeleteSandboxTool,
+  ] as AnyTool[]
+
+  const emptyBody = () => new Response('', { status: 200 })
+
+  it.each(lifecycleTools.map((tool) => [tool.id, tool] as const))(
+    '%s reports a numeric sandboxId instead of throwing after the request went out',
+    async (_id, tool) => {
+      const result = await tool.transformResponse!(emptyBody(), {
+        apiKey: 'k',
+        sandboxId: 12345 as unknown as string,
+      })
+
+      expect(result.output.sandbox.id).toBe('12345')
+    }
+  )
+
+  it.each(lifecycleTools.map((tool) => [tool.id, tool] as const))(
+    '%s still trims a string sandboxId',
+    async (_id, tool) => {
+      const result = await tool.transformResponse!(emptyBody(), {
+        apiKey: 'k',
+        sandboxId: '  sbx_abc123  ',
+      })
+
+      expect(result.output.sandbox.id).toBe('sbx_abc123')
+    }
+  )
 })

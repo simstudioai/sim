@@ -73,8 +73,11 @@ import {
   markInsideTriggerRun,
   resetInsideTriggerRunForTests,
 } from '@/lib/core/config/trigger-runtime'
-import { EMBEDDING_QUOTA_EXHAUSTED_MESSAGE } from '@/lib/embeddings'
-import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
+import {
+  BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
+  EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
+} from '@/lib/embeddings'
+import { EmbeddingAPIError, EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
 import {
   PermanentDocumentProcessingError,
   UsageLimitDocumentProcessingError,
@@ -740,6 +743,41 @@ describe('processDocumentAsync write guards', () => {
     )
     expect(failure).toBeDefined()
     expect(failure![0]).not.toHaveProperty('processingAttempts')
+  })
+
+  it('dead-letters rejected customer-managed embedding credentials until the user retries', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+    mockProcessDocument.mockResolvedValue({
+      chunks: [{ text: 'Index me', metadata: { startIndex: 0, endIndex: 8 } }],
+      metadata: { chunkCount: 1, tokenCount: 2, characterCount: 8 },
+    })
+    mockGenerateEmbeddings.mockRejectedValue(
+      new EmbeddingAPIError('Embedding API failed: 401', 401, true)
+    )
+
+    await expect(
+      processDocumentAsync('knowledge-base-1', 'document-1', {
+        filename: 'report.docx',
+        fileUrl: 'https://example.com/report.docx',
+        fileSize: 1,
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      })
+    ).rejects.toMatchObject({ status: 401, isBYOK: true })
+
+    const failure = dbChainMockFns.set.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
+    )
+    expect(failure?.[0]).toMatchObject({
+      processingError: BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
+      processingAttempts: MAX_PROCESSING_ATTEMPTS,
+    })
   })
 
   it.each([

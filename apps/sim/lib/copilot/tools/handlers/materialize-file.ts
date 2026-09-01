@@ -27,6 +27,7 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/typ
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
 import { canonicalWorkspaceFilePath, encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
   ArchiveError,
@@ -140,7 +141,8 @@ async function executeSave(
 
     try {
       transition = await db.transaction(async (tx) => {
-        await tx.execute(sql`SELECT 1 FROM workspace WHERE id = ${workspaceId} FOR UPDATE`)
+        /** `FOR NO KEY UPDATE`: see the module header of `lib/billing/storage/tracking.ts`. */
+        await tx.execute(sql`SELECT 1 FROM workspace WHERE id = ${workspaceId} FOR NO KEY UPDATE`)
 
         const [updated] = await tx
           .update(workspaceFiles)
@@ -302,7 +304,29 @@ async function executeImport(
     variables: {},
   })
 
-  const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowData)
+  let saveResult: Awaited<ReturnType<typeof saveWorkflowToNormalizedTables>>
+  try {
+    /**
+     * Copilot is a surface adapter, not an exemption. The graph here comes from
+     * a JSON file the user uploaded, so it names whatever block types the file
+     * names — exactly the whole-graph write the workspace's integration
+     * allowlist exists to judge — and the subject is the person chatting, never
+     * the workflow's billing owner.
+     *
+     * The shared write refuses a withheld type by throwing, so the shell row
+     * inserted above is rolled back here the same way a failed save is;
+     * otherwise a refusal would leave an empty workflow behind.
+     */
+    saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowData, {
+      workspaceId,
+      subjectUserId: userId,
+    })
+  } catch (error) {
+    await db.delete(workflow).where(eq(workflow.id, workflowId))
+    const classified = asOrchestrationError(error)
+    if (classified) return { success: false, error: classified.message }
+    throw error
+  }
   if (!saveResult.success) {
     await db.delete(workflow).where(eq(workflow.id, workflowId))
     return { success: false, error: `Failed to save workflow state: ${saveResult.error}` }

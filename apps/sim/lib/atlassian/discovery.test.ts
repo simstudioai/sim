@@ -205,6 +205,30 @@ describe('resolveAtlassianCloudId', () => {
   it('rejects when the token can see no sites', async () => {
     fetchMock.mockResolvedValue(sites([]))
 
-    await expect(resolveAtlassianCloudId(options())).rejects.toThrow('No Jira resources found')
+    await expect(resolveAtlassianCloudId(options())).rejects.toThrow(
+      'No Jira sites are accessible to this credential. Reconnect the credential and grant access to the configured Atlassian site.'
+    )
+  })
+
+  it('distinguishes a malformed discovery payload from an empty site grant', async () => {
+    fetchMock.mockResolvedValue(createMockResponse({ json: { id: CLOUD_ID, url: SITE } }))
+
+    await expect(resolveAtlassianCloudId(options())).rejects.toThrow(
+      'Invalid Jira accessible-resources response'
+    )
+  })
+
+  it.each([
+    [{ url: SITE }],
+    [{ id: CLOUD_ID }],
+    [{ id: '', url: SITE }],
+    [{ id: CLOUD_ID, url: '' }],
+    [null],
+  ])('rejects malformed resource entries in an otherwise valid array', async (resources) => {
+    fetchMock.mockResolvedValue(createMockResponse({ json: resources }))
+
+    await expect(resolveAtlassianCloudId(options())).rejects.toThrow(
+      'Invalid Jira accessible-resources response'
+    )
   })
 })

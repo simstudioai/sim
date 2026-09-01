@@ -18,7 +18,11 @@ import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/env-f
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+import {
+  intersectIntegrationAllowlists,
+  resolveAccessControlBlockType,
+} from '@/lib/permission-groups/integration-allowlist'
 import {
   collectDeniedOperationIds,
   createToolAccessGate,
@@ -29,7 +33,6 @@ import {
 import { getBlock } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, type SubBlockConfig } from '@/blocks/types'
 import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 /**
  * The block shape this tool reports, projected by the shared catalog projection
@@ -193,7 +196,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
 
     const permissionConfig =
       context?.userId && context?.workspaceId
-        ? await getUserPermissionConfig(context.userId, context.workspaceId)
+        ? await resolvePermissionGroupConfig(context.userId, context.workspaceId, undefined)
         : null
     const allowedIntegrations = intersectIntegrationAllowlists(
       permissionConfig?.allowedIntegrations ?? null,
@@ -213,7 +216,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         allowedIntegrations != null &&
         !specialBlock &&
         !isBlockTypeAccessControlExempt(blockId) &&
-        !allowedIntegrations.includes(blockId.toLowerCase())
+        !allowedIntegrations.includes(resolveAccessControlBlockType(blockId.toLowerCase()))
       ) {
         logger.debug('Block not allowed by permission group', { blockId })
         continue

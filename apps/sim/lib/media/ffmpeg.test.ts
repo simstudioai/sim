@@ -5,81 +5,79 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { capturedVideoFilters, capturedCaptions, killSignals, probeReport, command, saves } =
-  vi.hoisted(() => ({
-    capturedVideoFilters: [] as string[],
-    capturedCaptions: [] as string[],
-    killSignals: [] as string[],
-    probeReport: { json: '{"streams":[],"format":{}}' },
-    command: { hang: false },
-    saves: { waiters: [] as Array<() => void> },
-  }))
-
-vi.mock('node:child_process', () => ({
-  execSync: (cmd: string) =>
-    String(cmd).includes('ffprobe') ? '/usr/bin/ffprobe\n' : '/usr/bin/ffmpeg\n',
-  // `promisify` honors this symbol the same way it does for the real execFile,
-  // so the module under test destructures `{ stdout }` exactly as in production.
-  execFile: Object.assign(() => undefined, {
-    [Symbol.for('nodejs.util.promisify.custom')]: async () => ({
-      stdout: probeReport.json,
-      stderr: '',
-    }),
-  }),
+const {
+  capturedArgs,
+  capturedVideoFilters,
+  capturedCaptions,
+  killSignals,
+  probeReport,
+  command,
+  saves,
+} = vi.hoisted(() => ({
+  capturedArgs: [] as string[][],
+  capturedVideoFilters: [] as string[],
+  capturedCaptions: [] as string[],
+  killSignals: [] as string[],
+  probeReport: { json: '{"streams":[],"format":{}}' },
+  command: { hang: false },
+  saves: { waiters: [] as Array<() => void> },
 }))
 
-vi.mock('fluent-ffmpeg', () => {
-  const makeCommand = (cwd?: string) => {
-    const handlers: Record<string, (...args: unknown[]) => void> = {}
-    const cmd: Record<string, unknown> = {}
-    const chain = (fn?: (arg: unknown) => void) => (arg?: unknown) => {
-      fn?.(arg)
-      return cmd
+vi.mock('node:child_process', () => ({
+  execFileSync: (_executable: string, args: string[]) =>
+    args[0] === 'ffprobe' ? '/usr/bin/ffprobe\n' : '/usr/bin/ffmpeg\n',
+  execFile: (
+    executable: string,
+    args: string[],
+    options: { cwd?: string; killSignal?: string; signal?: AbortSignal; timeout?: number },
+    callback: (error: Error | null, stdout: string, stderr: string) => void
+  ) => {
+    if (executable.includes('ffprobe')) {
+      callback(null, probeReport.json, '')
+      return
     }
-    cmd.input = chain()
-    cmd.inputOptions = chain()
-    cmd.outputOptions = chain()
-    cmd.complexFilter = chain()
-    cmd.audioFilters = chain()
-    cmd.noVideo = chain()
-    cmd.setStartTime = chain()
-    cmd.setDuration = chain()
-    cmd.seekInput = chain()
-    cmd.frames = chain()
-    cmd.kill = chain((signal) => {
-      killSignals.push(String(signal))
-    })
-    cmd.videoFilters = chain((arg) => {
-      const filter = String(arg)
+
+    capturedArgs.push(args)
+    const filterIndex = args.indexOf('-vf')
+    if (filterIndex >= 0) {
+      const filter = args[filterIndex + 1]
       capturedVideoFilters.push(filter)
-      // The caption is a bare relative filename resolved against the command's cwd (the
-      // temp dir). Read it back while it still exists to prove the raw caption never
-      // reached the filtergraph string.
       const match = filter.match(/textfile=([^:]+)/)
-      if (match && cwd) {
-        capturedCaptions.push(fs.readFileSync(path.join(cwd, match[1]), 'utf-8'))
+      if (match && options.cwd) {
+        capturedCaptions.push(fs.readFileSync(path.join(options.cwd, match[1]), 'utf-8'))
       }
-    })
-    cmd.on = (event: string, handler: (...args: unknown[]) => void) => {
-      handlers[event] = handler
-      return cmd
     }
-    cmd.save = (outputPath: string) => {
-      for (const resolve of saves.waiters.splice(0)) resolve()
-      // A hung command never emits `end`, standing in for an encode that outlives
-      // the request that asked for it.
-      if (command.hang) return cmd
-      fs.writeFileSync(outputPath, Buffer.from('stub-output'))
-      handlers.end?.()
-      return cmd
+    for (const resolve of saves.waiters.splice(0)) resolve()
+
+    let settled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const finish = (error: Error | null) => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      options.signal?.removeEventListener('abort', onAbort)
+      callback(error, '', error ? 'stub failure' : '')
     }
-    return cmd
-  }
-  const ffmpeg = ((_input?: unknown, options?: { cwd?: string }) =>
-    makeCommand(options?.cwd)) as unknown as Record<string, unknown> & (() => unknown)
-  ;(ffmpeg as Record<string, unknown>).setFfmpegPath = () => {}
-  return { default: ffmpeg }
-})
+    const onAbort = () => {
+      killSignals.push(options.killSignal || 'SIGTERM')
+      const error = new Error('aborted')
+      error.name = 'AbortError'
+      finish(error)
+    }
+    options.signal?.addEventListener('abort', onAbort, { once: true })
+
+    if (command.hang) {
+      timer = setTimeout(() => {
+        killSignals.push(options.killSignal || 'SIGTERM')
+        finish(Object.assign(new Error('timed out'), { killed: true }))
+      }, options.timeout)
+      return
+    }
+
+    fs.writeFileSync(args.at(-1) as string, Buffer.from('stub-output'))
+    finish(null)
+  },
+}))
 
 import { runFfmpegOperation } from '@/lib/media/ffmpeg'
 
@@ -95,6 +93,7 @@ function nextSave(): Promise<void> {
 }
 
 beforeEach(() => {
+  capturedArgs.length = 0
   capturedVideoFilters.length = 0
   capturedCaptions.length = 0
   killSignals.length = 0
@@ -279,6 +278,65 @@ describe('runFfmpegOperation output format', () => {
   it('lowercases before validating, so MP4 is still a valid target', async () => {
     const result = await runFfmpegOperation('convert', [videoInput], { format: 'MP4' })
     expect(result.ext).toBe('mp4')
+  })
+})
+
+describe('runFfmpegOperation argument vectors', () => {
+  it('loops the second overlay input without involving a shell', async () => {
+    await runFfmpegOperation('overlay_audio', [videoInput, videoInput], { loopToVideo: true })
+
+    expect(capturedArgs[0]).toEqual([
+      '-y',
+      '-nostdin',
+      '-i',
+      expect.stringMatching(/in-0\.mp4$/),
+      '-stream_loop',
+      '-1',
+      '-i',
+      expect.stringMatching(/in-1\.mp4$/),
+      '-map',
+      '0:v:0',
+      '-map',
+      '1:a:0',
+      '-c:v',
+      'copy',
+      '-c:a',
+      'aac',
+      '-shortest',
+      expect.stringMatching(/out\.mp4$/),
+    ])
+  })
+
+  it('keeps trim seek and duration as distinct arguments', async () => {
+    await runFfmpegOperation('trim', [videoInput], { end: 5.5, start: 1.25 })
+
+    expect(capturedArgs[0]).toEqual([
+      '-y',
+      '-nostdin',
+      '-i',
+      expect.stringMatching(/in-0\.mp4$/),
+      '-ss',
+      '1.25',
+      '-t',
+      '4.25',
+      expect.stringMatching(/out\.mp4$/),
+    ])
+  })
+
+  it('selects one thumbnail frame at the requested input time', async () => {
+    await runFfmpegOperation('thumbnail', [videoInput], { start: 3 })
+
+    expect(capturedArgs[0]).toEqual([
+      '-y',
+      '-nostdin',
+      '-ss',
+      '3',
+      '-i',
+      expect.stringMatching(/in-0\.mp4$/),
+      '-frames:v',
+      '1',
+      expect.stringMatching(/out\.jpg$/),
+    ])
   })
 })
 

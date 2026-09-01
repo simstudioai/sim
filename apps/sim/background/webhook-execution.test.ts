@@ -25,6 +25,7 @@ const {
   mockLoadDeploymentVersionState,
   mockGetProviderHandler,
   mockSetResolvedSecretTraceRegistry,
+  mockExecutionSnapshot,
   mockEnqueue,
   mockGetJobQueue,
 } = vi.hoisted(() => {
@@ -38,6 +39,7 @@ const {
     mockReleaseExecutionSlot: vi.fn(),
     mockGetProviderHandler: vi.fn(() => ({})),
     mockSetResolvedSecretTraceRegistry: vi.fn(),
+    mockExecutionSnapshot: vi.fn(),
     mockLoadDeploymentVersionState: vi.fn(
       async (_workflowId: string, deploymentVersionId: string) => ({
         blocks: {},
@@ -52,8 +54,12 @@ const {
   }
 })
 
-const mockGetEffectiveEnvironmentSnapshot =
-  environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
+/**
+ * The execution path resolves two identities (workflow owner for personal
+ * variables, run actor for workspace ones), so it goes through
+ * `getExecutionEnvironment` rather than the single-identity snapshot reader.
+ */
+const mockGetExecutionEnvironment = environmentUtilsMockFns.mockGetExecutionEnvironment
 
 afterAll(resetEnvironmentUtilsMock)
 
@@ -132,7 +138,7 @@ vi.mock('@/lib/oauth/credential-service', () => ({
 }))
 
 vi.mock('@/executor/execution/snapshot', () => ({
-  ExecutionSnapshot: class {},
+  ExecutionSnapshot: mockExecutionSnapshot,
 }))
 
 vi.mock('@/tools/safe-assign', () => ({ safeAssign: vi.fn() }))
@@ -229,6 +235,17 @@ describe('executeWebhookJob fault vs error handling', () => {
   const payload: WebhookExecutionPayload = {
     webhookId: 'webhook-1',
     workflowId: 'workflow-1',
+    principal: {
+      version: 1,
+      principal: {
+        kind: 'system',
+        serviceId: 'webhook',
+        webhookId: 'webhook-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        provider: 'gmail',
+      },
+    },
     userId: 'user-1',
     billingAttribution,
     executionId: 'execution-1',
@@ -238,6 +255,19 @@ describe('executeWebhookJob fault vs error handling', () => {
     headers: {},
     path: '/webhook',
     workspaceId: 'workspace-1',
+  }
+  const legacyPayload = {
+    webhookId: payload.webhookId,
+    workflowId: payload.workflowId,
+    userId: payload.userId,
+    billingAttribution: payload.billingAttribution,
+    executionId: payload.executionId,
+    requestId: payload.requestId,
+    provider: payload.provider,
+    body: payload.body,
+    headers: payload.headers,
+    path: payload.path,
+    workspaceId: payload.workspaceId,
   }
 
   beforeEach(() => {
@@ -273,7 +303,7 @@ describe('executeWebhookJob fault vs error handling', () => {
       executionTimeout: { async: 120_000 },
     })
     mockResolveWebhookRecordProviderConfig.mockImplementation(async (record) => record)
-    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+    mockGetExecutionEnvironment.mockResolvedValue({
       personalEncrypted: {},
       workspaceEncrypted: {},
       personalDecrypted: {},
@@ -282,6 +312,110 @@ describe('executeWebhookJob fault vs error handling', () => {
       decryptionFailures: [],
     })
     dbChainMockFns.limit.mockResolvedValue([{ id: 'webhook-1' }])
+  })
+
+  it('restores a legacy queued webhook as its canonical system principal', async () => {
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+
+    await executeWebhookJob(legacyPayload)
+
+    expect(mockExecutionSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: {
+          kind: 'system',
+          serviceId: 'webhook',
+          webhookId: 'webhook-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          provider: 'gmail',
+        },
+      }),
+      expect.anything(),
+      expect.anything(),
+      expect.any(Object),
+      expect.any(Array)
+    )
+  })
+
+  it('restores the exact serialized webhook principal without substituting the billing actor', async () => {
+    const serializedPrincipal = {
+      version: 1 as const,
+      principal: {
+        kind: 'system' as const,
+        serviceId: 'webhook' as const,
+        webhookId: 'webhook-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        provider: 'slack',
+        subject: {
+          kind: 'external_user' as const,
+          provider: 'slack',
+          tenantId: 'team-1',
+          subjectId: 'slack-user-1',
+        },
+      },
+    }
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      executionState: {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: {},
+        completedLoops: [],
+        activeExecutionPath: [],
+      },
+    })
+
+    await executeWebhookJob({
+      ...payload,
+      provider: 'slack',
+      principal: serializedPrincipal,
+    })
+
+    const executionMetadata = mockExecutionSnapshot.mock.calls[0]?.[0]
+    expect(executionMetadata.userId).toBe('user-1')
+    expect(executionMetadata.principal).toEqual(serializedPrincipal.principal)
+    expect(executionMetadata.principal).not.toHaveProperty('userId')
+  })
+
+  it('persists the reconstructed legacy principal on setup retries', async () => {
+    executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: {
+        message: 'Internal error while fetching workflow',
+        statusCode: 500,
+        retryable: true,
+        cause: { code: 'CONNECT_TIMEOUT' },
+      },
+    })
+
+    await expect(executeWebhookJob(legacyPayload)).resolves.toMatchObject({
+      success: false,
+      requeued: true,
+    })
+
+    expect(mockEnqueue).toHaveBeenCalledTimes(1)
+    expect(mockEnqueue.mock.calls[0][1]).toMatchObject({
+      principal: payload.principal,
+      infraRetryCount: 1,
+    })
   })
 
   it('completes the run (does not throw) when the failure was finalized by core', async () => {
@@ -366,7 +500,7 @@ describe('executeWebhookJob fault vs error handling', () => {
   })
 
   it('does not pass provider-config provenance absent from the trigger input', async () => {
-    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+    mockGetExecutionEnvironment.mockResolvedValue({
       personalEncrypted: { WEBHOOK_SECRET: 'personal-ciphertext' },
       workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
       personalDecrypted: { WEBHOOK_SECRET: 'personal-value' },
@@ -420,7 +554,7 @@ describe('executeWebhookJob fault vs error handling', () => {
   })
 
   it('passes provider-config provenance when its value crosses in the trigger input', async () => {
-    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+    mockGetExecutionEnvironment.mockResolvedValue({
       personalEncrypted: {},
       workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
       personalDecrypted: {},
@@ -471,7 +605,7 @@ describe('executeWebhookJob fault vs error handling', () => {
   it('installs provenance before a post-resolution webhook setup failure', async () => {
     const rawMessage = 'Webhook handler exposed activated-secret-value'
     const rawError = new Error(rawMessage)
-    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+    mockGetExecutionEnvironment.mockResolvedValue({
       personalEncrypted: {},
       workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
       personalDecrypted: {},

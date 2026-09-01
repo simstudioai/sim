@@ -1,13 +1,12 @@
-import type { GetListParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { GetListParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getListTool: ToolConfig<GetListParams, SapConcurProxyResponse> = {
+export const getListTool: InternalToolConfig<GetListParams, SapConcurResponse> = {
   id: 'sap_concur_get_list',
   name: 'SAP Concur Get List',
   description: 'Get a single custom list (GET /list/v4/lists/{listId}).',
@@ -62,20 +61,17 @@ export const getListTool: ToolConfig<GetListParams, SapConcurProxyResponse> = {
       description: 'List ID',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const listId = trimRequired(params.listId, 'listId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/list/v4/lists/${encodeURIComponent(listId)}`,
         method: 'GET',
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

@@ -248,11 +248,28 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
             value={valueField.value}
             onChange={valueField.setValue}
             canEdit={valueField.canEdit}
+            canReveal={!isPersonal && credential.unredacted}
             unmasked={valueField.isConflicted}
             readOnly={valueField.isConflicted}
             placeholder='Enter value'
           />
         </DetailSection>
+
+        {!isPersonal && (
+          <DetailSection title='Description'>
+            <ChipTextarea
+              id='secret-description'
+              rows={4}
+              value={form.descriptionDraft}
+              onChange={(event) => form.setDescriptionDraft(event.target.value)}
+              placeholder='Add a description...'
+              maxLength={500}
+              autoComplete='off'
+              data-lpignore='true'
+              viewOnly={!isWorkspaceSecretAdmin}
+            />
+          </DetailSection>
+        )}
 
         {!isPersonal && (
           <DetailSection title='Visibility'>
@@ -272,22 +289,6 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
                 disabled={!isWorkspaceSecretAdmin}
               />
             </div>
-          </DetailSection>
-        )}
-
-        {!isPersonal && (
-          <DetailSection title='Description'>
-            <ChipTextarea
-              id='secret-description'
-              rows={4}
-              value={form.descriptionDraft}
-              onChange={(event) => form.setDescriptionDraft(event.target.value)}
-              placeholder='Add a description...'
-              maxLength={500}
-              autoComplete='off'
-              data-lpignore='true'
-              viewOnly={!isWorkspaceSecretAdmin}
-            />
           </DetailSection>
         )}
 

@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import {
   createCredentialGroupBodySchema,
+  credentialGroupAccessPolicySchema,
+  credentialGroupAccessResponseSchema,
   credentialGroupEnrollmentDetailSchema,
   credentialGroupEnrollmentListQuerySchema,
   credentialGroupSchema,
   inviteCredentialGroupEnrollmentsBodySchema,
   sharedCredentialGroupOAuthCallbackContract,
+  updateCredentialGroupAccessBodySchema,
   updateCredentialGroupBodySchema,
 } from '@/lib/api/contracts/credential-groups'
+import {
+  CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT,
+  CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT,
+} from '@/lib/credential-groups/workflow-access-limits'
 
 describe('credential group contracts', () => {
   it('describes the shared managed OAuth callback as a redirect', () => {
@@ -200,5 +207,85 @@ describe('credential group contracts', () => {
     })
 
     expect(result.connections).toEqual([{ provider: 'gmail', status: 'active', count: 2 }])
+  })
+
+  it('accepts a bounded unique workflow access selection', () => {
+    const result = updateCredentialGroupAccessBodySchema.parse({
+      expectedRevision: 3,
+      allowedWorkflowIds: ['workflow-1', 'workflow-2'],
+    })
+
+    expect(result.allowedWorkflowIds).toEqual(['workflow-1', 'workflow-2'])
+  })
+
+  it('requires the bounded workflow catalog only on access reads', () => {
+    const access = { revision: 1, allowedWorkflowIds: ['workflow-1'] }
+
+    expect(
+      credentialGroupAccessResponseSchema.parse({
+        ...access,
+        workflows: [{ id: 'workflow-1', name: 'Support workflow' }],
+      }).workflows
+    ).toEqual([{ id: 'workflow-1', name: 'Support workflow' }])
+    expect(credentialGroupAccessResponseSchema.safeParse(access).success).toBe(false)
+    expect(
+      credentialGroupAccessResponseSchema.safeParse({
+        ...access,
+        workflows: Array.from(
+          { length: CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT + 1 },
+          (_, index) => ({ id: `workflow-${index}`, name: `Workflow ${index}` })
+        ),
+      }).success
+    ).toBe(false)
+    expect(credentialGroupAccessPolicySchema.safeParse(access).success).toBe(true)
+    expect(
+      credentialGroupAccessPolicySchema.safeParse({
+        ...access,
+        workflows: [],
+      }).success
+    ).toBe(false)
+  })
+
+  it('rejects revision zero, duplicate workflows, oversized selections, and policy documents', () => {
+    expect(
+      updateCredentialGroupAccessBodySchema.safeParse({
+        expectedRevision: 0,
+        allowedWorkflowIds: [],
+      }).success
+    ).toBe(false)
+    expect(
+      updateCredentialGroupAccessBodySchema.safeParse({
+        expectedRevision: 1,
+        allowedWorkflowIds: ['workflow-1', 'workflow-1'],
+      }).success
+    ).toBe(false)
+    expect(
+      updateCredentialGroupAccessBodySchema.safeParse({
+        expectedRevision: 1,
+        allowedWorkflowIds: [' workflow-1'],
+      }).success
+    ).toBe(false)
+    expect(
+      updateCredentialGroupAccessBodySchema.safeParse({
+        expectedRevision: 1,
+        allowedWorkflowIds: ['   '],
+      }).success
+    ).toBe(false)
+    expect(
+      updateCredentialGroupAccessBodySchema.safeParse({
+        expectedRevision: 1,
+        allowedWorkflowIds: Array.from(
+          { length: CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT + 1 },
+          (_, index) => `workflow-${index}`
+        ),
+      }).success
+    ).toBe(false)
+    expect(
+      updateCredentialGroupAccessBodySchema.safeParse({
+        expectedRevision: 1,
+        allowedWorkflowIds: [],
+        document: { version: 1, resource: { type: 'credential_group', id: 'group-1' } },
+      }).success
+    ).toBe(false)
   })
 })

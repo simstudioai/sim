@@ -1,20 +1,30 @@
 import { vi } from 'vitest'
 
+/**
+ * Every field of the real `EnvironmentResolutionSnapshot`, including the two a
+ * caller reads as arrays/records rather than testing for presence. Omitting them
+ * let a mocked snapshot reach production code as `undefined` and fail there
+ * instead of in the assertion, which is the opposite of what a default should do.
+ */
 function emptyPersonalAndWorkspaceEnv(): {
   personalEncrypted: Record<string, string>
   workspaceEncrypted: Record<string, string>
   personalDecrypted: Record<string, string>
   workspaceDecrypted: Record<string, string>
+  personalOwners: Record<string, string>
   conflicts: string[]
   decryptionFailures: string[]
+  workspaceUnredactedKeys: string[]
 } {
   return {
     personalEncrypted: {},
     workspaceEncrypted: {},
     personalDecrypted: {},
     workspaceDecrypted: {},
+    personalOwners: {},
     conflicts: [],
     decryptionFailures: [],
+    workspaceUnredactedKeys: [],
   }
 }
 
@@ -77,6 +87,10 @@ async function delegateExecutionEnvironment(
         ...(actor.decryptionFailures ?? []).filter((k: string) => k in workspaceEncrypted),
       ]),
     ],
+    // Belongs to the workspace slice, so it comes from the actor. Spreading
+    // `personal` alone carried the wrong identity's keys — and `undefined` when
+    // the stub omitted them.
+    workspaceUnredactedKeys: actor.workspaceUnredactedKeys,
   }
 }
 
@@ -90,6 +104,8 @@ export const environmentUtilsMockFns = {
   mockGetEffectiveEnvironmentSnapshot: vi
     .fn()
     .mockImplementation(async () => emptyPersonalAndWorkspaceEnv()),
+  mockGetEffectiveEnvironmentVariableNames: vi.fn().mockResolvedValue([]),
+  mockResolveEffectiveEnvironmentVariables: vi.fn().mockResolvedValue({}),
   mockUpsertPersonalEnvVars: vi.fn().mockResolvedValue({ added: [], updated: [] }),
   mockUpsertWorkspaceEnvVars: vi.fn().mockResolvedValue([]),
   mockGetEffectiveDecryptedEnv: vi.fn().mockResolvedValue({}),
@@ -112,6 +128,8 @@ export function resetEnvironmentUtilsMock(): void {
   environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
     .mockReset()
     .mockImplementation(async () => emptyPersonalAndWorkspaceEnv())
+  environmentUtilsMockFns.mockGetEffectiveEnvironmentVariableNames.mockReset().mockResolvedValue([])
+  environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables.mockReset().mockResolvedValue({})
   environmentUtilsMockFns.mockUpsertPersonalEnvVars
     .mockReset()
     .mockResolvedValue({ added: [], updated: [] })
@@ -135,6 +153,10 @@ export const environmentUtilsMock = {
   getPersonalAndWorkspaceEnv: environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv,
   getExecutionEnvironment: environmentUtilsMockFns.mockGetExecutionEnvironment,
   getEffectiveEnvironmentSnapshot: environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot,
+  getEffectiveEnvironmentVariableNames:
+    environmentUtilsMockFns.mockGetEffectiveEnvironmentVariableNames,
+  resolveEffectiveEnvironmentVariables:
+    environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables,
   upsertPersonalEnvVars: environmentUtilsMockFns.mockUpsertPersonalEnvVars,
   upsertWorkspaceEnvVars: environmentUtilsMockFns.mockUpsertWorkspaceEnvVars,
   getEffectiveDecryptedEnv: environmentUtilsMockFns.mockGetEffectiveDecryptedEnv,

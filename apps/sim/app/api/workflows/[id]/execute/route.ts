@@ -1,9 +1,11 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { generateId, isValidUuid } from '@sim/utils/id'
+import { generateId } from '@sim/utils/id'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -19,6 +21,7 @@ import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservati
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
+  getWorkspaceBilledAccountUserId,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import {
@@ -139,6 +142,7 @@ import {
   forwardAgentStreamToExecutionEvents,
   shouldForwardAnswerTextFromSink,
 } from '@/lib/workflows/streaming/forward-agent-stream-events'
+import { resolveOutputSelectors } from '@/lib/workflows/streaming/resolve-output-selectors'
 import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
@@ -150,7 +154,6 @@ import {
   PublicApiNotAllowedError,
   validatePublicApiAllowed,
 } from '@/ee/access-control/utils/permission-check'
-import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
   BlockCompletionCallbackData,
@@ -296,56 +299,13 @@ function payloadTooLargeResponse(message = 'Workflow execution response exceeds 
   )
 }
 
-function resolveOutputIds(
+async function resolveOutputIds(
   selectedOutputs: string[] | undefined,
-  blocks: Record<string, any>
-): string[] | undefined {
-  if (!selectedOutputs || selectedOutputs.length === 0) {
-    return selectedOutputs
-  }
-
-  return selectedOutputs.map((outputId) => {
-    const underscoreIndex = outputId.indexOf('_')
-    const dotIndex = outputId.indexOf('.')
-    if (underscoreIndex > 0) {
-      const maybeUuid = outputId.substring(0, underscoreIndex)
-      if (isValidUuid(maybeUuid)) {
-        return outputId
-      }
-    }
-
-    if (dotIndex > 0) {
-      const maybeUuid = outputId.substring(0, dotIndex)
-      if (isValidUuid(maybeUuid)) {
-        return `${outputId.substring(0, dotIndex)}_${outputId.substring(dotIndex + 1)}`
-      }
-    }
-
-    if (isValidUuid(outputId)) {
-      return outputId
-    }
-
-    if (dotIndex === -1) {
-      logger.warn(`Invalid output ID format (missing dot): ${outputId}`)
-      return outputId
-    }
-
-    const blockName = outputId.substring(0, dotIndex)
-    const path = outputId.substring(dotIndex + 1)
-
-    const normalizedBlockName = normalizeName(blockName)
-    const block = Object.values(blocks).find((b: any) => {
-      return normalizeName(b.name || '') === normalizedBlockName
-    })
-
-    if (!block) {
-      logger.warn(`Block not found for name: ${blockName} (from output ID: ${outputId})`)
-      return outputId
-    }
-
-    const resolvedId = `${block.id}_${path}`
-    logger.debug(`Resolved output ID: ${outputId} -> ${resolvedId}`)
-    return resolvedId
+  blocks: Record<string, BlockState>
+): Promise<string[] | undefined> {
+  return resolveOutputSelectors({
+    selectedOutputs,
+    currentBlocks: blocks,
   })
 }
 
@@ -374,6 +334,7 @@ function bindRequestAbort(
 type AsyncExecutionParams = {
   requestId: string
   workflowId: string
+  principal: WorkflowExecutionPrincipal
   userId: string
   billingAttribution: BillingAttributionSnapshot
   workspaceId: string
@@ -594,7 +555,6 @@ async function handleExecutePost(
         .select({
           isPublicApi: workflowTable.isPublicApi,
           isDeployed: workflowTable.isDeployed,
-          userId: workflowTable.userId,
           workspaceId: workflowTable.workspaceId,
         })
         .from(workflowTable)
@@ -605,8 +565,21 @@ async function handleExecutePost(
         return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
       }
 
+      /**
+       * An anonymous public-API call has no caller, so it acts as the workspace
+       * billing account — the identity preprocessing elects for exactly this
+       * case. The workflow owner is only the personal-variable fallback, and a
+       * public run resolves no personal variables at all, so gating on the
+       * owner's governance config would fail a public endpoint the moment that
+       * stored pointer's access lapsed.
+       */
+      const billedAccountUserId = await getWorkspaceBilledAccountUserId(wf.workspaceId)
+      if (!billedAccountUserId) {
+        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+      }
+
       try {
-        await validatePublicApiAllowed(wf.userId, wf.workspaceId)
+        await validatePublicApiAllowed(billedAccountUserId, wf.workspaceId)
       } catch (err) {
         if (err instanceof PublicApiNotAllowedError) {
           return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
@@ -614,7 +587,7 @@ async function handleExecutePost(
         throw err
       }
 
-      userId = wf.userId
+      userId = billedAccountUserId
       isPublicApiAccess = true
     } else {
       userId = auth.userId
@@ -985,6 +958,26 @@ async function handleExecutePost(
       reqLogger.error('Workflow authorization succeeded without a workspace')
       return NextResponse.json({ error: 'Invalid workflow execution context' }, { status: 500 })
     }
+    let executionPrincipal: WorkflowExecutionPrincipal
+    if (auth.principal) {
+      executionPrincipal = auth.principal
+    } else if (isPublicApiAccess) {
+      executionPrincipal = {
+        kind: 'system',
+        serviceId: 'public_api',
+        workspaceId: workflowWorkspaceId,
+        workflowId,
+      }
+    } else if (auth.authType === AuthType.INTERNAL_JWT) {
+      executionPrincipal = {
+        kind: 'system',
+        serviceId: 'internal',
+        workspaceId: workflowWorkspaceId,
+        workflowId,
+      }
+    } else {
+      throw new Error('Authenticated workflow execution is missing its principal')
+    }
     if (auth.authType === AuthType.API_KEY) {
       if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflowWorkspaceId) {
         return NextResponse.json({ error: WORKSPACE_KEY_SCOPE_DENIED }, { status: 403 })
@@ -1247,6 +1240,7 @@ async function handleExecutePost(
       const asyncResult = await handleAsyncExecution({
         requestId,
         workflowId,
+        principal: executionPrincipal,
         userId: actorUserId,
         billingAttribution,
         workspaceId,
@@ -1386,6 +1380,7 @@ async function handleExecutePost(
         workflowId,
         workspaceId,
         userId: actorUserId,
+        principal: executionPrincipal,
         billingAttribution,
         sessionUserId: isClientSession ? userId : undefined,
         workflowUserId: workflow.userId,
@@ -1634,10 +1629,19 @@ async function handleExecutePost(
     } else {
       reqLogger.info('Using streaming API response')
 
-      const resolvedSelectedOutputs = resolveOutputIds(
-        selectedOutputs,
-        cachedWorkflowData?.blocks || {}
-      )
+      let resolvedSelectedOutputs: string[] | undefined
+      try {
+        resolvedSelectedOutputs = await resolveOutputIds(
+          selectedOutputs,
+          cachedWorkflowData?.blocks || {}
+        )
+      } catch (error) {
+        await releaseExecutionSlot(executionId)
+        return NextResponse.json(
+          { error: `Invalid selectedOutputs: ${getErrorMessage(error)}` },
+          { status: 400 }
+        )
+      }
       const streamVariables = cachedWorkflowData?.variables ?? (workflow as any).variables
       const streamWorkflow = {
         id: workflow.id,
@@ -1718,6 +1722,7 @@ async function handleExecutePost(
               base64MaxBytes,
               abortSignal,
               executionMode: 'stream',
+              principal: executionPrincipal,
               enforceCredentialAccess: useAuthenticatedUserAsActor,
               isPublicApiAccess,
               billingAttribution,
@@ -2128,6 +2133,7 @@ async function handleExecutePost(
             workflowId,
             workspaceId,
             userId: actorUserId,
+            principal: executionPrincipal,
             billingAttribution,
             sessionUserId: isClientSession ? userId : undefined,
             workflowUserId: workflow.userId,

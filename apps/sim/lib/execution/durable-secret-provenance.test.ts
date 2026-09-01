@@ -104,6 +104,16 @@ describe('private durable provenance scope admission', () => {
     })
   })
 
+  it('admits workspace-scoped execution without fabricating a destination user', () => {
+    expect(
+      durableSecretProvenanceFromPrivateBundle(
+        privateBundle({ userId: 'workflow-owner', workspaceId: 'workspace-1' }),
+        'value',
+        { workspaceId: 'workspace-1' }
+      )
+    ).toMatchObject({ status: 'exact' })
+  })
+
   it('rejects a source from another or no workspace', () => {
     expect(
       durableSecretProvenanceFromPrivateBundle(

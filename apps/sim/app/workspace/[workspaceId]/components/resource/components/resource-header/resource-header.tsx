@@ -24,6 +24,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   FloatingTooltip,
+  OverflowText,
+  overflowTextClipClass,
+  overflowTextFadeClass,
   POPOVER_ANIMATION_CLASSES,
   Popover,
   PopoverAnchor,
@@ -541,9 +544,11 @@ function BreadcrumbLocationPopover({
               <ArrowUpLeft className='col-start-1 row-start-1 size-[16px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none' />
             </span>
             {rootBreadcrumb?.label && (
-              <span className='shrink-0 truncate text-[var(--text-body)] text-sm'>
-                {rootBreadcrumb.label}
-              </span>
+              <OverflowText
+                label={rootBreadcrumb.label}
+                className='flex-1 text-[var(--text-body)] text-sm'
+                tooltipEnabled={false}
+              />
             )}
           </button>
         </PopoverAnchor>
@@ -664,7 +669,7 @@ function BreadcrumbLocationItem({
           <span className='size-1.5 rounded-full bg-[var(--text-muted)]' />
         )}
       </span>
-      <span className='min-w-0 flex-1 truncate text-left'>{label}</span>
+      <OverflowText label={label} className='flex-1 text-left' />
     </>
   )
 
@@ -701,9 +706,9 @@ const BreadcrumbLabel = memo(
       <span
         ref={ref}
         className={cn(
-          'min-w-0 truncate text-[var(--text-body)]',
-          isOverflowing &&
-            '[mask-image:linear-gradient(to_right,black_calc(100%-18px),transparent)] group-hover:[mask-image:none] group-focus-visible:[mask-image:none]'
+          overflowTextClipClass,
+          'text-[var(--text-body)]',
+          isOverflowing && overflowTextFadeClass
         )}
       >
         {label}

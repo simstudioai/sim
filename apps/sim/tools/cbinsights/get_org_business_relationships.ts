@@ -1,8 +1,8 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import { asArray, cbInsightsRequest, requireOrgId } from '@/tools/cbinsights/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-export const cbinsightsGetOrgBusinessRelationshipsTool: ToolConfig<
+export const cbinsightsGetOrgBusinessRelationshipsTool: InternalToolConfig<
   CbInsightsOrgParams,
   ToolResponse
 > = {
@@ -34,16 +34,8 @@ export const cbinsightsGetOrgBusinessRelationshipsTool: ToolConfig<
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) => {
-    const orgId = requireOrgId(params.orgId)
-    return cbInsightsRequest<{ businessRelationships?: unknown }>(
-      params,
-      { path: `/v2/organizations/${orgId}/businessrelationships` },
-      (data) => ({ businessRelationships: asArray(data.businessRelationships) }),
-      signal
-    )
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

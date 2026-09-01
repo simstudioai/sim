@@ -13,6 +13,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Loader,
+  OverflowText,
 } from '@sim/emcn'
 import { Folder, MoreHorizontal, Pencil, Pin, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
 import Link from 'next/link'
@@ -95,7 +96,7 @@ function CollapsedFlyoutRows({
             <DropdownMenuItem key={entry.id} asChild active={currentItemId === entry.id}>
               <Link href={entry.href}>
                 <Icon className='size-[14px]' />
-                <span className='truncate'>{entry.name}</span>
+                <OverflowText label={entry.name} />
                 {entry.pinned && <PinnedGlyph />}
               </Link>
             </DropdownMenuItem>
@@ -106,7 +107,7 @@ function CollapsedFlyoutRows({
           return (
             <DropdownMenuItem key={entry.id} disabled>
               <Folder className='size-[14px]' />
-              <span className='truncate'>{entry.name}</span>
+              <OverflowText label={entry.name} />
               {entry.pinned && <PinnedGlyph />}
             </DropdownMenuItem>
           )
@@ -116,7 +117,7 @@ function CollapsedFlyoutRows({
           <DropdownMenuSub key={entry.id}>
             <DropdownMenuSubTrigger>
               <Folder className='size-[14px]' />
-              <span className='truncate'>{entry.name}</span>
+              <OverflowText label={entry.name} />
               {entry.pinned && <PinnedGlyph />}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
@@ -463,7 +464,7 @@ export function CollapsedWorkflowFlyoutItem({
             : undefined
         }
       >
-        <span className='min-w-0 flex-1 truncate'>{workflow.name}</span>
+        <OverflowText label={workflow.name} className='flex-1' />
       </Link>
     </DropdownMenuItem>
   )
@@ -520,7 +521,7 @@ export function CollapsedFolderItems(props: CollapsedFolderItemsProps) {
           return (
             <DropdownMenuItem key={folder.id} disabled>
               <Folder className='size-[14px]' />
-              <span className='truncate'>{folder.name}</span>
+              <OverflowText label={folder.name} />
             </DropdownMenuItem>
           )
         }
@@ -529,7 +530,7 @@ export function CollapsedFolderItems(props: CollapsedFolderItemsProps) {
           <DropdownMenuSub key={folder.id}>
             <DropdownMenuSubTrigger>
               <Folder className='size-[14px]' />
-              <span className='truncate'>{folder.name}</span>
+              <OverflowText label={folder.name} />
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               {interleaveSiblings(folder.children, folderWorkflows).map((child) =>

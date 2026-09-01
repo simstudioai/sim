@@ -29,6 +29,36 @@ export interface IntegrationLandingContent {
   aiDisclaimer?: string
 }
 
+export interface IntegrationComparisonRow {
+  label: string
+  values: IntegrationComparisonValue[]
+}
+
+export interface IntegrationComparisonValue {
+  text: string
+  href?: string
+}
+
+export interface IntegrationComparisonContent {
+  id: string
+  heading: string
+  intro: string
+  columns: string[]
+  rows: IntegrationComparisonRow[]
+  conclusion: string
+}
+
+export interface IntegrationFaqContent {
+  question: string
+  answer: string
+}
+
+export interface IntegrationNarrativeSectionContent {
+  id: string
+  heading: string
+  paragraphs: string[]
+}
+
 /**
  * Hand-authored, per-integration SEO/GEO overrides keyed by slug. Unlike
  * {@link IntegrationLandingContent}, this is consumed at render time directly by
@@ -57,6 +87,12 @@ export interface IntegrationSeoContent {
   triggersIntro?: string
   /** Agent-templates intro paragraph, overriding the generated default. */
   templatesIntro?: string
+  /** Optional comparison section rendered immediately before real-time triggers. */
+  comparison?: IntegrationComparisonContent
+  /** Optional prose comparison rendered after the supported-tools list. */
+  narrativeComparison?: IntegrationNarrativeSectionContent
+  /** Full FAQ replacement for integrations with hand-authored answers. */
+  faqs?: IntegrationFaqContent[]
   /**
    * Text appended to the `"{n} {name} tool(s) available in Sim"` subtitle (e.g.
    * `" for Confluence automation across pages, blog posts, …"`). Keeps the tool

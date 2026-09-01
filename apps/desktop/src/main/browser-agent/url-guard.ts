@@ -43,10 +43,9 @@ function guardHost(rawUrl: string): string | null {
  *
  * Loopback is deliberately allowed: it is the user's own machine, and opening
  * a dev server on localhost is one of the most ordinary things to do in this
- * panel — the URL bar already assumes `http://` for it. Nothing is given away
- * by it either, since the desktop app hands the same agent an unrestricted
- * shell on that machine, so a blocked `http://localhost:3000` is one
- * `curl http://localhost:3000` away regardless.
+ * panel — the URL bar already assumes `http://` for it. This is an explicit
+ * desktop-product capability, independent of whether terminal execution is
+ * enabled or separately approval-gated.
  *
  * Every other private range stays blocked. Those are a different matter: the
  * LAN is other people's machines, and `169.254.169.254` is link-local rather
@@ -121,11 +120,13 @@ export async function checkAgentUrl(rawUrl: string): Promise<UrlGuardResult> {
 /**
  * Subresource types that keep the cheap synchronous literal-IP check.
  *
- * Images and fonts are the high-volume types and are not readable
- * cross-origin, so the residual for them is a load/error timing oracle — a
- * documented, accepted trade against a DNS lookup per asset.
+ * Fonts are high-volume and their response bytes are not exposed to the model,
+ * so the residual is a load/error timing oracle — a documented, accepted trade
+ * against a DNS lookup per asset. Images are not exempt: browser screenshots
+ * make their rendered contents observable even when cross-origin reads are
+ * otherwise blocked.
  */
-const LITERAL_ONLY_RESOURCE_TYPES: ReadonlySet<string> = new Set(['image', 'font'])
+const LITERAL_ONLY_RESOURCE_TYPES: ReadonlySet<string> = new Set(['font'])
 
 /**
  * Whether a subresource needs the DNS-resolving check rather than the literal-IP

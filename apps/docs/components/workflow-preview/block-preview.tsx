@@ -1,15 +1,17 @@
 'use client'
 
 import { useMemo } from 'react'
+import { CANVAS_Z_INDEX_MODE } from '@sim/workflow-renderer'
+import { type NodeTypes, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { domAnimation, LazyMotion } from 'framer-motion'
-import ReactFlow, { type NodeTypes, ReactFlowProvider } from 'reactflow'
-import 'reactflow/dist/style.css'
+import '@xyflow/react/dist/style.css'
 import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
+import { usePreviewColorMode } from '@/components/workflow-preview/use-preview-color-mode'
 import { toReactFlowElements } from '@/components/workflow-preview/workflow-data'
 
 /** The hero mounts the same node type the canvas uses, so it can never drift. */
-const NODE_TYPES: NodeTypes = { previewBlock: DocsBlockNode }
+const NODE_TYPES = { previewBlock: DocsBlockNode } satisfies NodeTypes
 const PRO_OPTIONS = { hideAttribution: true }
 /** `maxZoom` mirrors the previous hand-rolled hero's 1.3 scale. */
 const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1.3 } as const
@@ -28,6 +30,7 @@ interface BlockPreviewProps {
  * `block-display-workflows.ts`.
  */
 export function BlockPreview({ type }: BlockPreviewProps) {
+  const colorMode = usePreviewColorMode()
   const workflow = BLOCK_DISPLAY_WORKFLOWS[type]
 
   const elements = useMemo(() => (workflow ? toReactFlowElements(workflow) : null), [workflow])
@@ -42,6 +45,8 @@ export function BlockPreview({ type }: BlockPreviewProps) {
       <LazyMotion features={domAnimation}>
         <ReactFlowProvider>
           <ReactFlow
+            colorMode={colorMode}
+            zIndexMode={CANVAS_Z_INDEX_MODE}
             nodes={elements.nodes}
             edges={elements.edges}
             nodeTypes={NODE_TYPES}

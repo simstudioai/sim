@@ -12,10 +12,10 @@ import {
 import { Button, cn } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { WorkflowBlockBorder, type WorkflowBorderPort } from '@sim/workflow-renderer'
+import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
 import { Command } from 'cmdk'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { Handle, type NodeProps, Position } from 'reactflow'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   CommandFadedList,
@@ -93,10 +93,15 @@ const SELECTOR_PORTS: WorkflowBorderPort[] = [
   },
 ]
 
-export interface ConnectionBlockSelectorData {
+export interface ConnectionBlockSelectorData extends Record<string, unknown> {
   pendingConnect: PendingConnect
   onClose: () => void
 }
+
+export type ConnectionBlockSelectorNode = Node<
+  ConnectionBlockSelectorData,
+  'connectionBlockSelector'
+>
 
 type RecentSelection =
   | { kind: 'block'; id: string }
@@ -144,7 +149,7 @@ function isRecentSelection(value: unknown): value is RecentSelection {
  * pane. Its outer silhouette is the canonical workflow-card border, so the
  * temporary edge reads as connected to the block that will replace it.
  */
-export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockSelectorData>) {
+export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockSelectorNode>) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const currentWorkflowId = params.workflowId as string | undefined

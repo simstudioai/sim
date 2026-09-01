@@ -1,7 +1,7 @@
 import type { SSHDownloadFileParams, SSHResponse } from '@/tools/ssh/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const downloadFileTool: ToolConfig<SSHDownloadFileParams, SSHResponse> = {
+export const downloadFileTool: InternalToolConfig<SSHDownloadFileParams, SSHResponse> = {
   id: 'ssh_download_file',
   name: 'SSH Download File',
   description: 'Download a file from a remote SSH server',
@@ -52,13 +52,8 @@ export const downloadFileTool: ToolConfig<SSHDownloadFileParams, SSHResponse> = 
     },
   },
 
-  request: {
-    url: '/api/tools/ssh/download-file',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

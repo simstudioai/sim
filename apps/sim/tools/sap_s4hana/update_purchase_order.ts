@@ -1,14 +1,11 @@
-import type { SapProxyResponse, UpdatePurchaseOrderParams } from '@/tools/sap_s4hana/types'
-import {
-  baseProxyBody,
-  parseJsonInput,
-  quoteOdataKey,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
-} from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { SapS4HanaResponse, UpdatePurchaseOrderParams } from '@/tools/sap_s4hana/types'
+import { buildSapOperationBaseInput, parseJsonInput, quoteOdataKey } from '@/tools/sap_s4hana/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updatePurchaseOrderTool: ToolConfig<UpdatePurchaseOrderParams, SapProxyResponse> = {
+export const updatePurchaseOrderTool: InternalToolConfig<
+  UpdatePurchaseOrderParams,
+  SapS4HanaResponse
+> = {
   id: 'sap_s4hana_update_purchase_order',
   name: 'SAP S/4HANA Update Purchase Order',
   description:
@@ -96,17 +93,14 @@ export const updatePurchaseOrderTool: ToolConfig<UpdatePurchaseOrderParams, SapP
       description: 'If-Match ETag for optimistic concurrency. Defaults to "*" (unconditional).',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const payload = parseJsonInput<Record<string, unknown>>(params.body, 'body')
       if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
         throw new Error('body must be a JSON object with the fields to update')
       }
       return {
-        ...baseProxyBody(params),
+        ...buildSapOperationBaseInput(params),
         service: 'API_PURCHASEORDER_PROCESS_SRV',
         path: `/A_PurchaseOrder(${quoteOdataKey(params.purchaseOrder.trim())})`,
         method: 'MERGE',
@@ -116,7 +110,6 @@ export const updatePurchaseOrderTool: ToolConfig<UpdatePurchaseOrderParams, SapP
       }
     },
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP (204 on success)' },
     data: {

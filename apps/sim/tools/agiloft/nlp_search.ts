@@ -1,7 +1,10 @@
 import type { AgiloftNlpSearchParams, AgiloftNlpSearchResponse } from '@/tools/agiloft/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const agiloftNlpSearchTool: ToolConfig<AgiloftNlpSearchParams, AgiloftNlpSearchResponse> = {
+export const agiloftNlpSearchTool: InternalToolConfig<
+  AgiloftNlpSearchParams,
+  AgiloftNlpSearchResponse
+> = {
   id: 'agiloft_nlp_search',
   name: 'Agiloft Natural Language Search',
   description:
@@ -61,12 +64,8 @@ export const agiloftNlpSearchTool: ToolConfig<AgiloftNlpSearchParams, AgiloftNlp
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/agiloft/nlp_search',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       instanceUrl: params.instanceUrl,
       knowledgeBase: params.knowledgeBase,
       login: params.login,

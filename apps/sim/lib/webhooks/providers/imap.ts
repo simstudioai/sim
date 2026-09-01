@@ -1,7 +1,13 @@
 import { db } from '@sim/db'
-import { webhook } from '@sim/db/schema'
+import { webhook, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import {
+  createSecureImapClient,
+  hasImapEnvironmentReferences,
+  normalizeLiteralImapConnection,
+  resolveImapConnectionForActor,
+} from '@/lib/imap/connection.server'
 import type {
   FormatInputContext,
   FormatInputResult,
@@ -39,6 +45,9 @@ export const imapHandler: WebhookProviderHandler = {
   async configurePolling({
     webhook: webhookData,
     requestId,
+    userId,
+    workspaceId,
+    deploymentVersionId,
     persistProviderConfig,
   }: PollingConfigContext) {
     logger.info(`[${requestId}] Setting up IMAP polling for webhook ${webhookData.id}`)
@@ -54,10 +63,53 @@ export const imapHandler: WebhookProviderHandler = {
         return false
       }
 
+      const connection = providerConfig as {
+        host: string
+        username: string
+        password: string
+        port?: string | number
+        secure?: boolean
+      }
+      const hasReferences = hasImapEnvironmentReferences(connection)
+      let deploymentActorUserId = userId
+      if (hasReferences) {
+        if (!deploymentVersionId) {
+          throw new Error('Referenced IMAP authentication requires redeployment')
+        }
+        const [deployment] = await db
+          .select({ createdBy: workflowDeploymentVersion.createdBy })
+          .from(workflowDeploymentVersion)
+          .where(eq(workflowDeploymentVersion.id, deploymentVersionId))
+          .limit(1)
+        if (!deployment?.createdBy) {
+          throw new Error('Referenced IMAP authentication requires redeployment')
+        }
+        deploymentActorUserId = deployment.createdBy
+      }
+      const resolved = hasReferences
+        ? await resolveImapConnectionForActor({
+            connection,
+            actorUserId: deploymentActorUserId,
+            workspaceId,
+          })
+        : normalizeLiteralImapConnection(connection)
+      const client = await createSecureImapClient(resolved)
+      client.close()
+
       const configuredProviderConfig = {
         ...providerConfig,
-        port: providerConfig.port || '993',
-        secure: providerConfig.secure !== false,
+        port:
+          providerConfig.port === null ||
+          providerConfig.port === undefined ||
+          providerConfig.port === ''
+            ? '993'
+            : providerConfig.port,
+        secure:
+          providerConfig.secure === null ||
+          providerConfig.secure === undefined ||
+          providerConfig.secure === ''
+            ? true
+            : providerConfig.secure,
         mailbox: providerConfig.mailbox || 'INBOX',
         searchCriteria: providerConfig.searchCriteria || 'UNSEEN',
         markAsRead: providerConfig.markAsRead || false,
@@ -78,11 +130,9 @@ export const imapHandler: WebhookProviderHandler = {
         `[${requestId}] Successfully configured IMAP polling for webhook ${webhookData.id}`
       )
       return true
-    } catch (error: unknown) {
-      const err = error as Error
+    } catch {
       logger.error(`[${requestId}] Failed to configure IMAP polling`, {
         webhookId: webhookData.id,
-        error: err.message,
       })
       return false
     }

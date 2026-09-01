@@ -1,5 +1,4 @@
-import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
-import { type NextRequest, NextRequest as ServerRequest } from 'next/server'
+import { resolvePrincipalAttribution, resolvePrincipalSubject } from '@sim/auth/principal'
 import { type FunctionExecuteBody, functionExecuteBodySchema } from '@/lib/api/contracts'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -36,7 +35,7 @@ export const executeFunction = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: {
     delegation: functionExecutionDelegationPolicy,
   },
-  execute: async ({ principal, input }): Promise<Response> => {
+  execute: async ({ principal, input, context }): Promise<Response> => {
     const parsedBody = functionExecuteBodySchema.safeParse(input.body)
     if (!parsedBody.success) {
       throw new OrchestrationError(
@@ -44,15 +43,23 @@ export const executeFunction = defineAuthorizedWorkspaceUseCase({
         parsedBody.error.issues[0]?.message ?? 'Function execution input is invalid'
       )
     }
-    const request = new ServerRequest('http://sim.internal/api/function/execute', {
-      method: 'POST',
-      headers: input.headers,
-      ...(input.signal ? { signal: input.signal } : {}),
-    }) as NextRequest
     const { executeFunctionRequest } = await import('@/lib/function-execution/execute-request')
-    return executeFunctionRequest(request, parsedBody.data, {
-      userId: requirePrincipalSubjectUserId(principal),
-      ...(input.sandboxProfile ? { sandboxProfile: input.sandboxProfile } : {}),
+    const { attributedUserId } = resolvePrincipalAttribution(principal, {
+      workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
+    const subject = resolvePrincipalSubject(principal)
+    return executeFunctionRequest(
+      {
+        headers: input.headers,
+        signal: input.signal ?? new AbortController().signal,
+      },
+      parsedBody.data,
+      {
+        attributedUserId,
+        principal,
+        ...(subject?.kind === 'sim_user' ? { fileAccessUserId: subject.userId } : {}),
+        ...(input.sandboxProfile ? { sandboxProfile: input.sandboxProfile } : {}),
+      }
+    )
   },
 })

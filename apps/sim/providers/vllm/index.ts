@@ -115,20 +115,23 @@ export const vllmProvider: ProviderConfig = {
 
     /**
      * A user-supplied endpoint is attacker-controlled: validate it against the
-     * central SSRF guard and pin the connection to the resolved IP to defeat DNS
+     * egress guard and pin the connection to the resolved IP to defeat DNS
      * rebinding. The operator-configured `VLLM_BASE_URL` is trusted and left
      * unvalidated, mirroring the Azure providers.
      *
-     * `allowHttp` is enabled because self-hosted vLLM is frequently served over
-     * plain HTTP; this only relaxes the protocol requirement — the private/reserved
-     * IP blocklist and blocked-port checks still apply, so SSRF protection is intact.
+     * The `selfHostedService` profile is what makes a self-hosted vLLM reachable
+     * at all: over plain HTTP, which these deployments usually are, and at a
+     * private address once the operator names it in the egress allowlist.
+     * Anything they have not named stays blocked.
      */
     let pinnedFetch: typeof fetch | undefined
     let pinnedIP: string | undefined
     if (userProvidedEndpoint) {
-      const validation = await validateUrlWithDNS(userProvidedEndpoint, 'vLLM endpoint', {
-        allowHttp: true,
-      })
+      const validation = await validateUrlWithDNS(
+        userProvidedEndpoint,
+        'vLLM endpoint',
+        'selfHostedService'
+      )
       if (!validation.isValid) {
         logger.warn('Blocked SSRF attempt via vLLM endpoint', {
           endpoint: userProvidedEndpoint,
@@ -136,11 +139,8 @@ export const vllmProvider: ProviderConfig = {
         })
         throw new Error(`Invalid vLLM endpoint: ${validation.error}`)
       }
-      if (!validation.resolvedIP) {
-        throw new Error('Invalid vLLM endpoint: could not resolve a pinnable IP address')
-      }
       pinnedIP = validation.resolvedIP
-      pinnedFetch = createPinnedFetch(pinnedIP)
+      pinnedFetch = createPinnedFetch(pinnedIP, { profile: 'selfHostedService' })
     }
 
     const apiKey = request.apiKey || env.VLLM_API_KEY || 'empty'

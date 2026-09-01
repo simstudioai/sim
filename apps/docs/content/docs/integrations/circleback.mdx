@@ -1,0 +1,890 @@
+---
+title: Circleback
+description: AI-powered meeting notes, action items, and transcripts
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="circleback"
+  color="linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Circleback](https://circleback.ai/) is an AI-powered platform that automates meeting notes, action items, transcripts, and recordings for your team. When a meeting is completed, Circleback processes the conversation and provides detailed notes and action items, along with a transcript and a recording (when available). This helps teams efficiently capture insights, distribute action items, and ensure nothing is missed—all seamlessly integrated into your workflows.
+
+With the Sim Circleback integration, you can:
+
+- **Receive detailed meeting notes and action items**: Automatically collect well-formatted meeting summaries and track actionable tasks discussed during your calls.
+- **Access complete meeting recordings and transcripts**: Get the full conversation and the associated recording, making it easy to review key moments or share with colleagues.
+- **Capture attendee information and meeting context**: Attendee lists, meeting metadata, and tags help keep your data organized and actionable.
+- **Deliver insights directly into your workflows**: Trigger automations or send Circleback data to other systems the moment a meeting is done, using Sim’s powerful webhook triggers.
+
+**How it works in Sim:**  
+Circleback uses webhook triggers: whenever a meeting is processed, data is pushed automatically to your agent or automation. You can build further automations based on:
+
+- Meeting completed (all processed data available)
+- New notes (notes ready even before full meeting is processed)
+- Raw webhook integration for advanced use cases
+
+**The following information is available in the Circleback meeting webhook payload:**
+
+| Field          | Type    | Description                                        |
+|----------------|---------|----------------------------------------------------|
+| `id`           | number  | Circleback meeting ID                              |
+| `name`         | string  | Meeting title                                      |
+| `url`          | string  | Virtual meeting URL (Zoom, Meet, Teams, etc.)      |
+| `createdAt`    | string  | Meeting creation timestamp                         |
+| `duration`     | number  | Duration in seconds                                |
+| `recordingUrl` | string  | Recording URL (valid 24 hours)                     |
+| `tags`         | json    | Array of tags                                      |
+| `icalUid`      | string  | Calendar event ID                                  |
+| `attendees`    | json    | Array of attendee objects                          |
+| `notes`        | string  | Meeting notes in Markdown                          |
+| `actionItems`  | json    | Array of action items                              |
+| `transcript`   | json    | Array of transcript segments                       |
+| `insights`     | json    | User-created insights                              |
+| `meeting`      | json    | Full meeting payload                               |
+
+Whether you want to distribute instant summaries, log action items, or build custom workflows triggered by new meeting data, Circleback and Sim make it seamless to handle everything related to your meetings—automatically.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Circleback into your workflow to read meetings, notes, transcripts, and insights, search across meetings, manage action items and tags, and browse the people and companies you meet with. Circleback can also trigger workflows when meetings are processed.
+
+
+
+## Actions
+
+### Circleback List Meetings
+
+Lists meetings from Circleback with optional ownership, status, tag, and attendee filters.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `ownership` | string | No | Which meetings to return: All, Mine, or Shared. Defaults to Mine |
+| `statuses` | string | No | Comma-separated meeting statuses to filter by |
+| `tagIds` | string | No | Comma-separated tag IDs to filter by |
+| `attendeeProfileIds` | string | No | Comma-separated profile IDs of attendees to filter by |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meetings` | array | The meetings on this page |
+|   ↳ `id` | string | The Circleback meeting ID |
+|   ↳ `name` | string | The meeting name |
+|   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
+|   ↳ `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
+|   ↳ `duration` | number | The meeting duration in seconds |
+|   ↳ `url` | string | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
+|   ↳ `recordingUrl` | string | The URL of the meeting recording file, valid for 24 hours |
+|   ↳ `tags` | array | Tags added to the meeting |
+|     ↳ `id` | number | The unique identifier of the tag |
+|     ↳ `name` | string | The display name of the tag |
+|     ↳ `description` | string | A description of the tag |
+|   ↳ `icalUid` | string | The identifier of the calendar event associated with the meeting |
+|   ↳ `attendees` | array | The meeting attendees |
+|     ↳ `profileId` | number | The unique identifier of the attendee profile |
+|     ↳ `name` | string | The attendee name |
+|     ↳ `title` | string | The attendee job title |
+|     ↳ `companyName` | string | The name of the company the attendee belongs to |
+|     ↳ `email` | string | The attendee email address |
+|     ↳ `isCalendarEventOrganizer` | boolean | Whether the attendee organized the calendar event |
+|     ↳ `isCalendarInvitee` | boolean | Whether the attendee was invited on the calendar event |
+|   ↳ `notes` | string | The meeting notes with Markdown formatting |
+|   ↳ `privateNotes` | string | The authenticated user private notes for the meeting |
+|   ↳ `actionItems` | array | Action items created for the meeting |
+|     ↳ `id` | number | The unique identifier of the action item |
+|     ↳ `title` | string | The action item title |
+|     ↳ `description` | string | The action item description |
+|     ↳ `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+|     ↳ `status` | string | The completion status, PENDING or DONE |
+|   ↳ `insights` | json | Insight results for the meeting, keyed by the name of the user-created insight |
+|   ↳ `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
+|   ↳ `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
+| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether another page of meetings is available |
+
+### Circleback Get Meeting
+
+Gets a Circleback meeting by ID, including notes, attendees, action items, insights, and recording details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `meetingId` | string | Yes | The unique identifier of the meeting |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The Circleback meeting ID |
+| `name` | string | The meeting name |
+| `createdAt` | string | When the meeting was created \(ISO 8601\) |
+| `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
+| `duration` | number | The meeting duration in seconds |
+| `url` | string | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
+| `recordingUrl` | string | The URL of the meeting recording file, valid for 24 hours |
+| `tags` | array | Tags added to the meeting |
+|   ↳ `id` | number | The unique identifier of the tag |
+|   ↳ `name` | string | The display name of the tag |
+|   ↳ `description` | string | A description of the tag |
+| `icalUid` | string | The identifier of the calendar event associated with the meeting |
+| `attendees` | array | The meeting attendees |
+|   ↳ `profileId` | number | The unique identifier of the attendee profile |
+|   ↳ `name` | string | The attendee name |
+|   ↳ `title` | string | The attendee job title |
+|   ↳ `companyName` | string | The name of the company the attendee belongs to |
+|   ↳ `email` | string | The attendee email address |
+|   ↳ `isCalendarEventOrganizer` | boolean | Whether the attendee organized the calendar event |
+|   ↳ `isCalendarInvitee` | boolean | Whether the attendee was invited on the calendar event |
+| `notes` | string | The meeting notes with Markdown formatting |
+| `privateNotes` | string | The authenticated user private notes for the meeting |
+| `actionItems` | array | Action items created for the meeting |
+|   ↳ `id` | number | The unique identifier of the action item |
+|   ↳ `title` | string | The action item title |
+|   ↳ `description` | string | The action item description |
+|   ↳ `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+|   ↳ `status` | string | The completion status, PENDING or DONE |
+| `insights` | json | Insight results for the meeting, keyed by the name of the user-created insight |
+| `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
+| `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
+
+### Circleback Search Meetings
+
+Searches Circleback meetings by name and content, with optional filters for specific meetings, tags, and people.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `searchTerm` | string | No | The text to search for across meeting names and content |
+| `meetingIds` | string | No | Comma-separated meeting IDs to restrict the search to |
+| `tagIds` | string | No | Comma-separated tag IDs to restrict the search to |
+| `attendeeProfileIds` | string | No | Comma-separated profile IDs of attendees to restrict the search to |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meetings` | array | The matching meetings on this page |
+|   ↳ `id` | string | The Circleback meeting ID |
+|   ↳ `name` | string | The meeting name |
+|   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
+|   ↳ `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
+|   ↳ `duration` | number | The meeting duration in seconds |
+|   ↳ `url` | string | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
+|   ↳ `recordingUrl` | string | The URL of the meeting recording file, valid for 24 hours |
+|   ↳ `tags` | array | Tags added to the meeting |
+|     ↳ `id` | number | The unique identifier of the tag |
+|     ↳ `name` | string | The display name of the tag |
+|     ↳ `description` | string | A description of the tag |
+|   ↳ `icalUid` | string | The identifier of the calendar event associated with the meeting |
+|   ↳ `attendees` | array | The meeting attendees |
+|     ↳ `profileId` | number | The unique identifier of the attendee profile |
+|     ↳ `name` | string | The attendee name |
+|     ↳ `title` | string | The attendee job title |
+|     ↳ `companyName` | string | The name of the company the attendee belongs to |
+|     ↳ `email` | string | The attendee email address |
+|     ↳ `isCalendarEventOrganizer` | boolean | Whether the attendee organized the calendar event |
+|     ↳ `isCalendarInvitee` | boolean | Whether the attendee was invited on the calendar event |
+|   ↳ `notes` | string | The meeting notes with Markdown formatting |
+|   ↳ `privateNotes` | string | The authenticated user private notes for the meeting |
+|   ↳ `actionItems` | array | Action items created for the meeting |
+|     ↳ `id` | number | The unique identifier of the action item |
+|     ↳ `title` | string | The action item title |
+|     ↳ `description` | string | The action item description |
+|     ↳ `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+|     ↳ `status` | string | The completion status, PENDING or DONE |
+|   ↳ `insights` | json | Insight results for the meeting, keyed by the name of the user-created insight |
+|   ↳ `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
+|   ↳ `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
+| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether another page of results is available |
+
+### Circleback Get Transcript
+
+Gets the full transcript for a Circleback meeting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `meetingId` | string | Yes | The unique identifier of the meeting |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transcript` | array | The transcript segments in order |
+|   ↳ `speaker` | string | The speaker name |
+|   ↳ `text` | string | The words spoken |
+|   ↳ `timestamp` | number | The timestamp in seconds that marks the beginning of the segment |
+
+### Circleback Update Meeting
+
+Updates the name, notes, or private notes of a Circleback meeting. The API returns only the fields that were updated.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `meetingId` | string | Yes | The unique identifier of the meeting |
+| `name` | string | No | The new name of the meeting |
+| `notes` | string | No | The new meeting notes in Markdown |
+| `privateNotes` | string | No | The authenticated user private notes for the meeting |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The Circleback meeting ID |
+| `name` | string | The updated meeting name, when the name was updated |
+| `notes` | string | The updated meeting notes, when the notes were updated |
+| `privateNotes` | string | The updated private notes, when the private notes were updated |
+| `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
+
+### Circleback Delete Meeting
+
+Deletes a Circleback meeting. Only the owner of the meeting can delete it. Returns the deleted meeting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `meetingId` | string | Yes | The unique identifier of the meeting |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The Circleback meeting ID |
+| `name` | string | The meeting name |
+| `createdAt` | string | When the meeting was created \(ISO 8601\) |
+| `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
+| `duration` | number | The meeting duration in seconds |
+| `url` | string | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
+| `recordingUrl` | string | The URL of the meeting recording file, valid for 24 hours |
+| `tags` | array | Tags added to the meeting |
+|   ↳ `id` | number | The unique identifier of the tag |
+|   ↳ `name` | string | The display name of the tag |
+|   ↳ `description` | string | A description of the tag |
+| `icalUid` | string | The identifier of the calendar event associated with the meeting |
+| `attendees` | array | The meeting attendees |
+|   ↳ `profileId` | number | The unique identifier of the attendee profile |
+|   ↳ `name` | string | The attendee name |
+|   ↳ `title` | string | The attendee job title |
+|   ↳ `companyName` | string | The name of the company the attendee belongs to |
+|   ↳ `email` | string | The attendee email address |
+|   ↳ `isCalendarEventOrganizer` | boolean | Whether the attendee organized the calendar event |
+|   ↳ `isCalendarInvitee` | boolean | Whether the attendee was invited on the calendar event |
+| `notes` | string | The meeting notes with Markdown formatting |
+| `privateNotes` | string | The authenticated user private notes for the meeting |
+| `actionItems` | array | Action items created for the meeting |
+|   ↳ `id` | number | The unique identifier of the action item |
+|   ↳ `title` | string | The action item title |
+|   ↳ `description` | string | The action item description |
+|   ↳ `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+|   ↳ `status` | string | The completion status, PENDING or DONE |
+| `insights` | json | Insight results for the meeting, keyed by the name of the user-created insight |
+| `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
+| `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
+
+### Circleback List Action Items
+
+Lists action items across the authenticated user meetings, filtered by assignee, status, tags, and attendees. Defaults to incomplete action items assigned to the API key owner.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `assigneeType` | string | No | The assignee scope to filter by: Me, NotMe, Profile, MyWorkspace, OutsideMyWorkspace, Unassigned, or Anyone. Defaults to Me |
+| `assigneeProfileId` | string | No | Profile ID of the assignee to filter by |
+| `assigneeTeamId` | string | No | Team ID of the assignee to filter by |
+| `status` | string | No | Completion status to filter by: PENDING or DONE. Defaults to incomplete action items |
+| `attendeeProfileIds` | string | No | Comma-separated profile IDs of meeting attendees to filter by |
+| `tagIds` | string | No | Comma-separated tag IDs to filter by |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `actionItems` | array | The action items on this page. Each also carries canEditActionItem, whether the caller may edit it |
+|   ↳ `id` | number | The unique identifier of the action item |
+|   ↳ `title` | string | The action item title |
+|   ↳ `description` | string | The action item description |
+|   ↳ `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+|   ↳ `completedAt` | string | When the action item was marked done, or null if not completed |
+|   ↳ `meetingId` | string | The ID of the meeting the action item belongs to, or null |
+|   ↳ `status` | string | The completion status, PENDING or DONE |
+|   ↳ `meetings` | array | The meetings the action item is associated with |
+|     ↳ `id` | string | The Circleback meeting ID |
+|     ↳ `name` | string | The meeting name |
+|     ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
+|   ↳ `canEditActionItem` | boolean | Whether the caller may edit the action item. Returned only by the list operation |
+| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether another page of action items is available |
+
+### Circleback Update Action Item
+
+Updates the title, description, status, or assignee of a Circleback action item. Returns the updated action item.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `actionItemId` | string | Yes | The unique identifier of the action item |
+| `title` | string | No | The new title of the action item |
+| `description` | string | No | The new detailed description of the action item |
+| `assigneeProfileId` | string | No | The profile ID to assign the action item to, or the literal text null to remove the assignee |
+| `status` | string | No | The completion status: PENDING or DONE |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The unique identifier of the action item |
+| `title` | string | The action item title |
+| `description` | string | The action item description |
+| `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+| `completedAt` | string | When the action item was marked done, or null if not completed |
+| `meetingId` | string | The ID of the meeting the action item belongs to, or null |
+| `status` | string | The completion status, PENDING or DONE |
+| `meetings` | array | The meetings the action item is associated with |
+|   ↳ `id` | string | The Circleback meeting ID |
+|   ↳ `name` | string | The meeting name |
+|   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
+| `canEditActionItem` | boolean | Whether the caller may edit the action item. Returned only by the list operation |
+
+### Circleback Delete Action Item
+
+Deletes a Circleback action item. Returns the deleted action item.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `actionItemId` | string | Yes | The unique identifier of the action item |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The unique identifier of the action item |
+| `title` | string | The action item title |
+| `description` | string | The action item description |
+| `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+| `completedAt` | string | When the action item was marked done, or null if not completed |
+| `meetingId` | string | The ID of the meeting the action item belongs to, or null |
+| `status` | string | The completion status, PENDING or DONE |
+| `meetings` | array | The meetings the action item is associated with |
+|   ↳ `id` | string | The Circleback meeting ID |
+|   ↳ `name` | string | The meeting name |
+|   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
+| `canEditActionItem` | boolean | Whether the caller may edit the action item. Returned only by the list operation |
+
+### Circleback List Calendar Events
+
+Lists upcoming calendar events from the authenticated user connected calendars, with pagination and a configurable time window.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `startTimeLookbackHours` | string | No | How many hours in the past to include calendar meetings from |
+| `startTimeLookaheadHours` | string | No | How many hours in the future to include calendar meetings from |
+| `sortDirection` | string | No | The direction calendar meetings are sorted in by start time: ascending or descending. Defaults to ascending |
+| `includeOfflineSingleAttendee` | string | No | Set to true to include calendar meetings that have no meeting link and only one attendee |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | The calendar events on this page |
+|   ↳ `id` | string | The unique identifier of the calendar meeting |
+|   ↳ `title` | string | The title of the calendar meeting |
+|   ↳ `icalUid` | string | The iCalendar UID of the calendar event |
+|   ↳ `attendees` | array | The attendees invited to the calendar meeting |
+|     ↳ `name` | string | The name of the attendee |
+|     ↳ `email` | string | The email address of the attendee |
+|     ↳ `isOrganizer` | boolean | Whether the attendee organized the calendar meeting |
+|     ↳ `status` | string | The attendee response to the invitation: accepted, declined, tentative, or not_available |
+|   ↳ `calendarDescription` | string | The description of the calendar event |
+|   ↳ `calendarPlatform` | string | The calendar platform the meeting was synced from |
+|   ↳ `startTime` | string | When the calendar meeting starts \(ISO 8601\) |
+|   ↳ `endTime` | string | When the calendar meeting ends \(ISO 8601\) |
+|   ↳ `isExternal` | boolean | Whether the meeting includes attendees from more than one email domain |
+|   ↳ `isHostedByMe` | boolean | Whether the current user organized the calendar meeting |
+|   ↳ `location` | string | The location of the calendar meeting |
+|   ↳ `meetingId` | string | The Circleback meeting associated with the calendar meeting, when one exists |
+|   ↳ `meetingPlatform` | string | The conferencing platform hosting the meeting, when detected |
+|   ↳ `organizerEmail` | string | The email address of the meeting organizer |
+|   ↳ `platform` | string | The conferencing platform hosting the meeting, when detected. Alias of meetingPlatform |
+|   ↳ `overrideShouldRecord` | boolean | Whether the user manually overrode the automatic recording decision, or null when no override is set |
+|   ↳ `recurringEventId` | string | The identifier of the recurring event series the meeting belongs to |
+|   ↳ `willRecord` | boolean | Whether the notetaker will join and record the meeting |
+|   ↳ `willRecordReason` | string | A human-readable explanation of why the meeting will or will not be recorded |
+| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether another page of calendar events is available |
+
+### Circleback List Companies
+
+Lists the companies whose people attend the authenticated user meetings, with optional tag filters.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `tagIds` | string | No | Comma-separated tag IDs. Filters companies to those with meetings so tagged |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companies` | array | The companies on this page |
+|   ↳ `id` | number | The unique identifier of the company |
+|   ↳ `name` | string | The company name |
+|   ↳ `avatarUrl` | string | The URL of the company logo image |
+|   ↳ `domain` | string | The company website domain |
+| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether another page of companies is available |
+
+### Circleback Get Company
+
+Gets a company by its domain from Circleback, including its people and external links.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `domain` | string | Yes | The website domain of the company to fetch, such as example.com |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | The company name |
+| `avatarUrl` | string | The URL of the company logo image |
+| `domain` | string | The company website domain |
+| `externalLinks` | array | Links to the company on external platforms and connected integrations |
+|   ↳ `url` | string | The URL of the external resource |
+|   ↳ `objectType` | string | Whether the link refers to a person or a company |
+|   ↳ `type` | string | The platform or integration the link points to, such as Attio, HubSpot, Linear, Salesforce, Zoho, linkedin, or website |
+| `people` | array | People at the company the authenticated user has met with |
+|   ↳ `id` | number | The unique identifier of the person |
+|   ↳ `title` | string | The person job title |
+|   ↳ `companyId` | number | The unique identifier of the company the person belongs to |
+|   ↳ `companyName` | string | The name of the company the person belongs to |
+|   ↳ `email` | string | The person email address |
+|   ↳ `firstName` | string | The person first name |
+|   ↳ `lastName` | string | The person last name |
+
+### Circleback List People
+
+Lists the people who attend the authenticated user meetings, ordered by most recent meeting, with optional company and tag filters.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `domains` | string | No | Comma-separated company domains to filter people by |
+| `tagIds` | string | No | Comma-separated tag IDs. Filters people to attendees of meetings so tagged |
+| `limit` | string | No | The maximum number of people to return |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `people` | array | The people on this page |
+|   ↳ `id` | number | The unique identifier of the person |
+|   ↳ `title` | string | The person job title |
+|   ↳ `companyId` | number | The unique identifier of the company the person belongs to |
+|   ↳ `companyName` | string | The name of the company the person belongs to |
+|   ↳ `email` | string | The person email address |
+|   ↳ `firstName` | string | The person first name |
+|   ↳ `lastName` | string | The person last name |
+| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether another page of people is available |
+
+### Circleback Get Person
+
+Gets a person by their profile ID from Circleback, including their profile details and external links.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `profileId` | string | Yes | The unique identifier of the person profile |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The unique identifier of the person |
+| `title` | string | The person job title |
+| `companyId` | number | The unique identifier of the company the person belongs to |
+| `companyName` | string | The name of the company the person belongs to |
+| `email` | string | The person email address |
+| `firstName` | string | The person first name |
+| `lastName` | string | The person last name |
+| `externalLinks` | array | Links to the person on external platforms and connected integrations |
+|   ↳ `url` | string | The URL of the external resource |
+|   ↳ `objectType` | string | Whether the link refers to a person or a company |
+|   ↳ `type` | string | The platform or integration the link points to, such as Attio, HubSpot, Linear, Salesforce, Zoho, linkedin, or website |
+
+### Circleback List Tags
+
+Lists every tag available to the authenticated Circleback user.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | Every tag available to the authenticated user |
+|   ↳ `id` | number | The unique identifier of the tag |
+|   ↳ `name` | string | The display name of the tag |
+|   ↳ `description` | string | A description of the tag |
+
+### Circleback Create Tag
+
+Creates a new tag in Circleback. If a tag with the same name already exists, a conflict error is returned.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `tagName` | string | Yes | The display name of the tag |
+| `tagDescription` | string | No | A description of the tag |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The unique identifier of the tag |
+| `name` | string | The display name of the tag |
+| `description` | string | A description of the tag |
+
+### Circleback Update Tag
+
+Updates the name or description of a Circleback tag.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `tagId` | string | Yes | The unique identifier of the tag |
+| `tagName` | string | No | The new display name of the tag |
+| `tagDescription` | string | No | The new description of the tag |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The unique identifier of the tag |
+| `name` | string | The display name of the tag |
+| `description` | string | A description of the tag |
+
+### Circleback Delete Tag
+
+Permanently deletes a Circleback tag and removes it from every meeting it was applied to.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `tagId` | string | Yes | The unique identifier of the tag |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | The unique identifier of the tag |
+| `name` | string | The display name of the tag |
+| `description` | string | A description of the tag |
+
+### Circleback Add Tag to Meetings
+
+Applies an existing Circleback tag to one or more meetings and returns the updated meetings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `tagId` | string | Yes | The unique identifier of the tag to apply |
+| `meetingIds` | string | No | Comma-separated IDs of the meetings to tag |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meetings` | array | The updated meetings |
+|   ↳ `id` | string | The Circleback meeting ID |
+|   ↳ `name` | string | The meeting name |
+|   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
+|   ↳ `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
+|   ↳ `duration` | number | The meeting duration in seconds |
+|   ↳ `url` | string | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
+|   ↳ `recordingUrl` | string | The URL of the meeting recording file, valid for 24 hours |
+|   ↳ `tags` | array | Tags added to the meeting |
+|     ↳ `id` | number | The unique identifier of the tag |
+|     ↳ `name` | string | The display name of the tag |
+|     ↳ `description` | string | A description of the tag |
+|   ↳ `icalUid` | string | The identifier of the calendar event associated with the meeting |
+|   ↳ `attendees` | array | The meeting attendees |
+|     ↳ `profileId` | number | The unique identifier of the attendee profile |
+|     ↳ `name` | string | The attendee name |
+|     ↳ `title` | string | The attendee job title |
+|     ↳ `companyName` | string | The name of the company the attendee belongs to |
+|     ↳ `email` | string | The attendee email address |
+|     ↳ `isCalendarEventOrganizer` | boolean | Whether the attendee organized the calendar event |
+|     ↳ `isCalendarInvitee` | boolean | Whether the attendee was invited on the calendar event |
+|   ↳ `notes` | string | The meeting notes with Markdown formatting |
+|   ↳ `privateNotes` | string | The authenticated user private notes for the meeting |
+|   ↳ `actionItems` | array | Action items created for the meeting |
+|     ↳ `id` | number | The unique identifier of the action item |
+|     ↳ `title` | string | The action item title |
+|     ↳ `description` | string | The action item description |
+|     ↳ `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+|     ↳ `status` | string | The completion status, PENDING or DONE |
+|   ↳ `insights` | json | Insight results for the meeting, keyed by the name of the user-created insight |
+|   ↳ `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
+|   ↳ `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
+
+### Circleback Remove Tag from Meetings
+
+Removes a Circleback tag from one or more meetings and returns the updated meetings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Circleback API key |
+| `tagId` | string | Yes | The unique identifier of the tag to remove |
+| `meetingIds` | string | No | Comma-separated IDs of the meetings to remove the tag from |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meetings` | array | The updated meetings |
+|   ↳ `id` | string | The Circleback meeting ID |
+|   ↳ `name` | string | The meeting name |
+|   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
+|   ↳ `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
+|   ↳ `duration` | number | The meeting duration in seconds |
+|   ↳ `url` | string | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
+|   ↳ `recordingUrl` | string | The URL of the meeting recording file, valid for 24 hours |
+|   ↳ `tags` | array | Tags added to the meeting |
+|     ↳ `id` | number | The unique identifier of the tag |
+|     ↳ `name` | string | The display name of the tag |
+|     ↳ `description` | string | A description of the tag |
+|   ↳ `icalUid` | string | The identifier of the calendar event associated with the meeting |
+|   ↳ `attendees` | array | The meeting attendees |
+|     ↳ `profileId` | number | The unique identifier of the attendee profile |
+|     ↳ `name` | string | The attendee name |
+|     ↳ `title` | string | The attendee job title |
+|     ↳ `companyName` | string | The name of the company the attendee belongs to |
+|     ↳ `email` | string | The attendee email address |
+|     ↳ `isCalendarEventOrganizer` | boolean | Whether the attendee organized the calendar event |
+|     ↳ `isCalendarInvitee` | boolean | Whether the attendee was invited on the calendar event |
+|   ↳ `notes` | string | The meeting notes with Markdown formatting |
+|   ↳ `privateNotes` | string | The authenticated user private notes for the meeting |
+|   ↳ `actionItems` | array | Action items created for the meeting |
+|     ↳ `id` | number | The unique identifier of the action item |
+|     ↳ `title` | string | The action item title |
+|     ↳ `description` | string | The action item description |
+|     ↳ `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+|     ↳ `status` | string | The completion status, PENDING or DONE |
+|   ↳ `insights` | json | Insight results for the meeting, keyed by the name of the user-created insight |
+|   ↳ `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
+|   ↳ `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Circleback Meeting Completed
+
+Trigger workflow when a meeting is processed and ready in Circleback
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Validates that webhook deliveries originate from Circleback using HMAC-SHA256. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Circleback meeting ID |
+| `name` | string | Meeting title/name |
+| `url` | string | URL of the virtual meeting \(Zoom, Google Meet, Teams, etc.\) |
+| `createdAt` | string | ISO8601 timestamp when meeting was created |
+| `duration` | number | Meeting duration in seconds |
+| `recordingUrl` | string | Recording URL \(valid for 24 hours, if enabled\) |
+| `tags` | array | Array of tag strings |
+| `icalUid` | string | Calendar event identifier |
+| `attendees` | array | Array of attendee objects with name and email |
+|   ↳ `name` | string | Attendee name |
+|   ↳ `email` | string | Attendee email address |
+| `notes` | string | Meeting notes in Markdown format |
+| `actionItems` | array | Array of action item objects |
+|   ↳ `id` | number | Action item ID |
+|   ↳ `title` | string | Action item title |
+|   ↳ `description` | string | Action item description |
+|   ↳ `assignee` | object | Person assigned to the action item \(or null\) |
+|     ↳ `name` | string | Assignee name |
+|     ↳ `email` | string | Assignee email |
+|   ↳ `status` | string | Status: PENDING or DONE |
+| `transcript` | array | Array of transcript segments |
+|   ↳ `speaker` | string | Speaker name |
+|   ↳ `text` | string | Transcript text |
+|   ↳ `timestamp` | number | Timestamp in seconds |
+| `insights` | object | User-created insights keyed by insight name |
+| `meeting` | object | Full meeting payload object |
+|   ↳ `id` | number | Meeting ID |
+|   ↳ `name` | string | Meeting name |
+|   ↳ `url` | string | Meeting URL |
+|   ↳ `duration` | number | Duration in seconds |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `recordingUrl` | string | Recording URL |
+
+
+---
+
+### Circleback Meeting Notes Ready
+
+Trigger workflow when meeting notes and action items are ready
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Validates that webhook deliveries originate from Circleback using HMAC-SHA256. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Circleback meeting ID |
+| `name` | string | Meeting title/name |
+| `url` | string | URL of the virtual meeting \(Zoom, Google Meet, Teams, etc.\) |
+| `createdAt` | string | ISO8601 timestamp when meeting was created |
+| `duration` | number | Meeting duration in seconds |
+| `recordingUrl` | string | Recording URL \(valid for 24 hours, if enabled\) |
+| `tags` | array | Array of tag strings |
+| `icalUid` | string | Calendar event identifier |
+| `attendees` | array | Array of attendee objects with name and email |
+|   ↳ `name` | string | Attendee name |
+|   ↳ `email` | string | Attendee email address |
+| `notes` | string | Meeting notes in Markdown format |
+| `actionItems` | array | Array of action item objects |
+|   ↳ `id` | number | Action item ID |
+|   ↳ `title` | string | Action item title |
+|   ↳ `description` | string | Action item description |
+|   ↳ `assignee` | object | Person assigned to the action item \(or null\) |
+|     ↳ `name` | string | Assignee name |
+|     ↳ `email` | string | Assignee email |
+|   ↳ `status` | string | Status: PENDING or DONE |
+| `transcript` | array | Array of transcript segments |
+|   ↳ `speaker` | string | Speaker name |
+|   ↳ `text` | string | Transcript text |
+|   ↳ `timestamp` | number | Timestamp in seconds |
+| `insights` | object | User-created insights keyed by insight name |
+| `meeting` | object | Full meeting payload object |
+|   ↳ `id` | number | Meeting ID |
+|   ↳ `name` | string | Meeting name |
+|   ↳ `url` | string | Meeting URL |
+|   ↳ `duration` | number | Duration in seconds |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `recordingUrl` | string | Recording URL |
+
+
+---
+
+### Circleback Webhook
+
+Generic webhook trigger for all Circleback events
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Validates that webhook deliveries originate from Circleback using HMAC-SHA256. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Circleback meeting ID |
+| `name` | string | Meeting title/name |
+| `url` | string | URL of the virtual meeting \(Zoom, Google Meet, Teams, etc.\) |
+| `createdAt` | string | ISO8601 timestamp when meeting was created |
+| `duration` | number | Meeting duration in seconds |
+| `recordingUrl` | string | Recording URL \(valid for 24 hours, if enabled\) |
+| `tags` | array | Array of tag strings |
+| `icalUid` | string | Calendar event identifier |
+| `attendees` | array | Array of attendee objects with name and email |
+|   ↳ `name` | string | Attendee name |
+|   ↳ `email` | string | Attendee email address |
+| `notes` | string | Meeting notes in Markdown format |
+| `actionItems` | array | Array of action item objects |
+|   ↳ `id` | number | Action item ID |
+|   ↳ `title` | string | Action item title |
+|   ↳ `description` | string | Action item description |
+|   ↳ `assignee` | object | Person assigned to the action item \(or null\) |
+|     ↳ `name` | string | Assignee name |
+|     ↳ `email` | string | Assignee email |
+|   ↳ `status` | string | Status: PENDING or DONE |
+| `transcript` | array | Array of transcript segments |
+|   ↳ `speaker` | string | Speaker name |
+|   ↳ `text` | string | Transcript text |
+|   ↳ `timestamp` | number | Timestamp in seconds |
+| `insights` | object | User-created insights keyed by insight name |
+| `meeting` | object | Full meeting payload object |
+|   ↳ `id` | number | Meeting ID |
+|   ↳ `name` | string | Meeting name |
+|   ↳ `url` | string | Meeting URL |
+|   ↳ `duration` | number | Duration in seconds |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `recordingUrl` | string | Recording URL |
+

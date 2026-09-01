@@ -1,13 +1,12 @@
-import type { SapConcurProxyResponse, UpdateExpenseParams } from '@/tools/sap_concur/types'
+import type { SapConcurResponse, UpdateExpenseParams } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateExpenseTool: ToolConfig<UpdateExpenseParams, SapConcurProxyResponse> = {
+export const updateExpenseTool: InternalToolConfig<UpdateExpenseParams, SapConcurResponse> = {
   id: 'sap_concur_update_expense',
   name: 'SAP Concur Update Expense',
   description:
@@ -76,22 +75,19 @@ export const updateExpenseTool: ToolConfig<UpdateExpenseParams, SapConcurProxyRe
         'PATCH body. Allowed fields: businessPurpose (string, max 64), customData (CustomData[]), expenseSource (required: EA|MOB|OTHER|SE|TA|TR|UI), isExpenseRejected (boolean), isPaperReceiptReceived (boolean).',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const reportId = trimRequired(params.reportId, 'reportId')
       const expenseId = trimRequired(params.expenseId, 'expenseId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/expensereports/v4/reports/${encodeURIComponent(reportId)}/expenses/${encodeURIComponent(expenseId)}`,
         method: 'PATCH',
         body: params.body,
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

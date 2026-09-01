@@ -8,8 +8,7 @@ import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
 const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(),
-  buildHeaders: vi.fn(),
+  createPrincipal: vi.fn(),
   createInviteLink: vi.fn(),
   enforceInviteRateLimit: vi.fn(),
   listCredentials: vi.fn(),
@@ -20,10 +19,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/credential-groups/application/create-invite-link', () => ({
   createCredentialGroupInviteLink: { execute: mocks.createInviteLink },
-}))
-
-vi.mock('@/lib/credential-groups/application/delegation', () => ({
-  authenticateCredentialGroupDelegation: mocks.authenticate,
 }))
 
 vi.mock('@/lib/credential-groups/application/list-credentials', () => ({
@@ -53,8 +48,8 @@ vi.mock('@/lib/credential-groups/rate-limit', () => ({
   enforceCredentialGroupInvitationExecutionRateLimit: mocks.enforceInviteRateLimit,
 }))
 
-vi.mock('@/executor/utils/http', () => ({
-  buildExecutorDelegationHeaders: mocks.buildHeaders,
+vi.mock('@/lib/internal/principals/executor', () => ({
+  createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
 }))
 
 import { CredentialGroupBlockHandler } from '@/executor/handlers/credential-group/credential-group-handler'
@@ -68,13 +63,23 @@ const principal: WorkflowExecutionDelegatedPrincipal = {
   audience: 'sim:credential-groups',
   issuedAt: new Date(Date.now() - 1_000),
   expiresAt: new Date(Date.now() + 60_000),
-  delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
+  delegationContext: {
+    kind: 'workflow_execution',
+    workflowId: 'workflow-1',
+    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+  },
 }
 
 const context = {
   workspaceId: 'workspace-1',
   workflowId: 'workflow-1',
   userId: 'user-1',
+  principal: principal.delegationContext.principal,
+  executorDelegationOrigin: {
+    subjectUserId: 'user-1',
+    workflowId: 'workflow-1',
+    principal: principal.delegationContext.principal,
+  },
 } as ExecutionContext
 
 const block = { metadata: { id: BlockType.CREDENTIAL_GROUP } } as SerializedBlock
@@ -82,8 +87,7 @@ const block = { metadata: { id: BlockType.CREDENTIAL_GROUP } } as SerializedBloc
 describe('CredentialGroupBlockHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.buildHeaders.mockResolvedValue({ Authorization: 'Bearer executor-token' })
-    mocks.authenticate.mockResolvedValue(principal)
+    mocks.createPrincipal.mockResolvedValue(principal)
   })
 
   it('recognizes only Credential Group blocks', () => {
@@ -95,7 +99,7 @@ describe('CredentialGroupBlockHandler', () => {
     )
   })
 
-  it('lists credentials with normalized provider, email, and page filters', async () => {
+  it('lists credentials with an optional email selector', async () => {
     mocks.listCredentials.mockResolvedValue({
       credentials: [],
       count: 0,
@@ -106,24 +110,95 @@ describe('CredentialGroupBlockHandler', () => {
     const result = await new CredentialGroupBlockHandler().execute(context, block, {
       operation: 'list_credentials',
       credentialGroupId: ' group-1 ',
-      credentialProviderIds: '["google-email", "google-email"]',
       email: ' person@example.com ',
+      credentialProviderIds: '["google-email", "google-email"]',
       limit: '25',
       cursor: ' credential-1 ',
     })
 
-    expect(mocks.authenticate).toHaveBeenCalledWith('Bearer executor-token', 'group-1')
+    expect(mocks.createPrincipal).toHaveBeenCalledWith({
+      context,
+      audience: 'sim:credential-groups',
+      resourceScope: { credentialGroupId: 'group-1' },
+    })
     expect(mocks.listCredentials).toHaveBeenCalledWith({
       principal,
       input: {
         credentialGroupId: 'group-1',
-        credentialProviderIds: ['google-email'],
         email: 'person@example.com',
+        credentialProviderIds: ['google-email'],
         limit: 25,
         cursor: 'credential-1',
       },
     })
     expect(result).toEqual({ credentials: [], count: 0, hasMore: false, nextCursor: null })
+  })
+
+  it('lists credentials for an actorless workflow execution', async () => {
+    const executionPrincipal = {
+      kind: 'system' as const,
+      serviceId: 'schedule' as const,
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+    }
+    const actorlessPrincipal: WorkflowExecutionDelegatedPrincipal = {
+      kind: 'delegated',
+      serviceId: 'executor',
+      workspaceId: 'workspace-1',
+      delegationId: 'delegation-actorless',
+      audience: 'sim:credential-groups',
+      issuedAt: new Date(Date.now() - 1_000),
+      expiresAt: new Date(Date.now() + 60_000),
+      resourceScope: { credentialGroupId: 'group-1' },
+      delegationContext: {
+        kind: 'workflow_execution',
+        workflowId: 'workflow-1',
+        principal: executionPrincipal,
+        currentWorkflow: {
+          workflowId: 'workflow-1',
+          mode: 'deployment',
+          deploymentVersionId: 'deployment-version-1',
+        },
+      },
+    }
+    const actorlessContext = {
+      ...context,
+      userId: undefined,
+      principal: executionPrincipal,
+      executorDelegationOrigin: {
+        workflowId: 'workflow-1',
+        principal: executionPrincipal,
+        currentWorkflow: actorlessPrincipal.delegationContext.currentWorkflow,
+      },
+    } as ExecutionContext
+    mocks.createPrincipal.mockResolvedValueOnce(actorlessPrincipal)
+    mocks.listCredentials.mockResolvedValue({
+      credentials: [],
+      count: 0,
+      hasMore: false,
+      nextCursor: null,
+    })
+
+    await new CredentialGroupBlockHandler().execute(actorlessContext, block, {
+      operation: 'list_credentials',
+      credentialGroupId: 'group-1',
+    })
+
+    expect(mocks.createPrincipal).toHaveBeenCalledWith({
+      context: actorlessContext,
+      audience: 'sim:credential-groups',
+      resourceScope: { credentialGroupId: 'group-1' },
+    })
+    expect(mocks.listCredentials).toHaveBeenCalledWith({
+      principal: actorlessPrincipal,
+      input: {
+        credentialGroupId: 'group-1',
+        limit: 100,
+        cursor: undefined,
+        email: undefined,
+        credentialProviderIds: undefined,
+      },
+    })
   })
 
   it('lists groups under workspace-scoped delegation', async () => {
@@ -139,7 +214,10 @@ describe('CredentialGroupBlockHandler', () => {
       limit: 10,
     })
 
-    expect(mocks.authenticate).toHaveBeenCalledWith('Bearer executor-token', undefined)
+    expect(mocks.createPrincipal).toHaveBeenCalledWith({
+      context,
+      audience: 'sim:credential-groups',
+    })
     expect(mocks.listGroups).toHaveBeenCalledWith({
       principal,
       input: { workspaceId: 'workspace-1', limit: 10, cursor: undefined },
@@ -191,7 +269,11 @@ describe('CredentialGroupBlockHandler', () => {
       email: ' person@example.com ',
     })
 
-    expect(mocks.authenticate).toHaveBeenCalledWith('Bearer executor-token', 'group-1')
+    expect(mocks.createPrincipal).toHaveBeenCalledWith({
+      context,
+      audience: 'sim:credential-groups',
+      resourceScope: { credentialGroupId: 'group-1' },
+    })
     expect(mocks.enforceInviteRateLimit).toHaveBeenCalledWith('workspace-1')
     expect(mocks.enforceInviteRateLimit.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.createInviteLink.mock.invocationCallOrder[0]!
@@ -226,7 +308,6 @@ describe('CredentialGroupBlockHandler', () => {
     await expect(
       new CredentialGroupBlockHandler().execute(context, block, { operation: 'unknown' })
     ).rejects.toThrow('Unsupported Credential Group operation: unknown')
-    expect(mocks.buildHeaders).not.toHaveBeenCalled()
-    expect(mocks.authenticate).not.toHaveBeenCalled()
+    expect(mocks.createPrincipal).not.toHaveBeenCalled()
   })
 })

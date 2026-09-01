@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { PDFDocument } from 'pdf-lib'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import {
@@ -22,9 +23,17 @@ import {
   isPayloadSizeLimitError,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import {
+  addModelInputProvenanceToRequest,
+  createModelInputProvenanceRequestMetadata,
+} from '@/lib/execution/model-input-provenance'
 import { parseBuffer } from '@/lib/file-parsers'
 import { decodeDataUriWithinLimit } from '@/lib/file-parsers/data-uri'
+import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
 import type { FileParseMetadata, FileParseResult } from '@/lib/file-parsers/types'
+import { MistralOperationError } from '@/lib/internal/mistral/errors'
+import { mistralParseInputSchema } from '@/lib/internal/mistral/input'
+import { executeMistralParse } from '@/lib/internal/mistral/operations'
 import {
   MAX_DOCUMENT_CHUNKS,
   PermanentDocumentProcessingError,
@@ -54,7 +63,6 @@ import { getFileExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-ut
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { mistralParserTool } from '@/tools/mistral/parser'
-import { prepareToolRequest } from '@/tools/request-transport'
 
 const logger = createLogger('DocumentProcessor')
 
@@ -92,11 +100,10 @@ const LEGACY_FORMAT_REPLACEMENTS: Record<string, string> = {
 }
 
 async function getPdfPageCount(buffer: Buffer): Promise<number> {
-  let pdf: Awaited<ReturnType<typeof import('unpdf')['getDocumentProxy']>> | undefined
+  let pdf: Awaited<ReturnType<typeof openPdfDocument>> | undefined
   try {
-    const { getDocumentProxy } = await import('unpdf')
     const uint8Array = new Uint8Array(buffer)
-    pdf = await getDocumentProxy(uint8Array)
+    pdf = await openPdfDocument(uint8Array)
     return pdf.numPages
   } catch (error) {
     logger.warn('Primary PDF page-count parser failed', {
@@ -847,28 +854,47 @@ async function executeMistralOCRRequest(
 ): Promise<Response> {
   return retryWithExponentialBackoff(
     async () => {
-      const request = prepareToolRequest(
-        mistralParserTool,
-        params,
-        getKnowledgeOpaqueModelInputRegistry()
+      const input = mistralParseInputSchema.parse(mistralParserTool.operation.input(params))
+      const headers = new Headers()
+      const modelInput = mistralParserTool.operation.modelInput
+      const inputPaths =
+        modelInput?.mode === 'private-provenance' ? modelInput.inputPaths(params) : []
+      const metadata = createModelInputProvenanceRequestMetadata(
+        getKnowledgeOpaqueModelInputRegistry(),
+        inputPaths
       )
-      let { url } = request
-
-      if (request.isInternalRoute) {
-        const { getInternalApiBaseUrl } = await import('@/lib/core/utils/urls')
-        url = `${getInternalApiBaseUrl()}${url}`
+      const operationInput = mistralParseInputSchema.parse(
+        addModelInputProvenanceToRequest(input, headers, metadata)
+      )
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.MISTRAL_OCR_API)
+      try {
+        try {
+          const result = await executeMistralParse(operationInput, {
+            headers,
+            maxResponseBytes: MAX_OCR_RESPONSE_BYTES,
+            requestId: generateId(),
+            signal: controller.signal,
+            trustedCaller: 'knowledge-ingestion',
+            userId,
+          })
+          return Response.json(result)
+        } catch (error) {
+          if (controller.signal.aborted) throw new Error('OCR API request timed out')
+          if (error instanceof MistralOperationError) {
+            if (error.status === 413) {
+              throw new PermanentDocumentProcessingError(
+                'document_complexity_limit',
+                'The OCR provider rejected this document because the request was too large. Split or optimize the document and retry.'
+              )
+            }
+            throw new APIError(`OCR failed: ${error.status}`, error.status)
+          }
+          throw error
+        }
+      } finally {
+        clearTimeout(timeoutId)
       }
-
-      const { headers } = request
-
-      if (request.isInternalRoute) {
-        const { generateInternalToken } = await import('@/lib/auth/internal')
-        const internalToken = await generateInternalToken(userId)
-        headers.set('Authorization', `Bearer ${internalToken}`)
-      }
-
-      if (!request.body) throw new Error('Mistral parser request body is unavailable')
-      return makeOCRRequest(url, headers, request.body)
     },
     { maxRetries: 3, initialDelayMs: 1000, maxDelayMs: 10000 }
   )

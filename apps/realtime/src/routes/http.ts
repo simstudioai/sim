@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http'
-import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { WORKSPACE_LIST_ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { safeCompare } from '@sim/security/compare'
 import { env } from '@/env'
 import { applyMarkdownToLiveFileDoc } from '@/handlers/file-doc'
@@ -164,43 +164,27 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       return
     }
 
-    // Fan out a file-tree change to everyone viewing a workspace's files, so their
-    // browser refetches. File mutations happen over the HTTP API (not the socket);
-    // this is the lossy liveness signal — a missed one only means stale-until-refetch.
-    if (req.method === 'POST' && req.url === '/api/workspace-files-changed') {
+    // Fan out a workspace list change (files tree, tables list, workflow registry) to everyone in
+    // that workspace's live-list room, so their browser refetches. These mutations happen over the
+    // HTTP API (not the socket); this is the lossy liveness signal — a missed one only means
+    // stale-until-refetch. Endpoint and event names derive from the room type, mirroring the socket
+    // handler and the client hook.
+    const listRoomType = WORKSPACE_LIST_ROOM_TYPES.find(
+      (type) => req.url === `/api/${type}-changed`
+    )
+    if (req.method === 'POST' && listRoomType) {
       try {
         const body = await readRequestBody(req)
         const { workspaceId } = JSON.parse(body)
         if (!isNonEmptyString(workspaceId)) return sendError(res, 'Invalid workspaceId', 400)
-        roomManager.emitToRoom(
-          { type: ROOM_TYPES.WORKSPACE_FILES, id: workspaceId },
-          'workspace-files-changed',
-          { workspaceId, timestamp: Date.now() }
-        )
+        roomManager.emitToRoom({ type: listRoomType, id: workspaceId }, `${listRoomType}-changed`, {
+          workspaceId,
+          timestamp: Date.now(),
+        })
         sendSuccess(res)
       } catch (error) {
-        logger.error('Error handling workspace files changed notification:', error)
-        sendError(res, 'Failed to process files change notification')
-      }
-      return
-    }
-
-    // Fan out a table-list change to everyone viewing a workspace's tables, so their browser
-    // refetches. The list-level counterpart to workspace-files-changed; same lossy-signal contract.
-    if (req.method === 'POST' && req.url === '/api/workspace-tables-changed') {
-      try {
-        const body = await readRequestBody(req)
-        const { workspaceId } = JSON.parse(body)
-        if (!isNonEmptyString(workspaceId)) return sendError(res, 'Invalid workspaceId', 400)
-        roomManager.emitToRoom(
-          { type: ROOM_TYPES.WORKSPACE_TABLES, id: workspaceId },
-          'workspace-tables-changed',
-          { workspaceId, timestamp: Date.now() }
-        )
-        sendSuccess(res)
-      } catch (error) {
-        logger.error('Error handling workspace tables changed notification:', error)
-        sendError(res, 'Failed to process tables change notification')
+        logger.error(`Error handling ${listRoomType} changed notification:`, error)
+        sendError(res, 'Failed to process list change notification')
       }
       return
     }

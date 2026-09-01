@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import {
+  assertWorkflowGroupMatchesLatestDeployment,
   buildTableAbortState,
   buildTableUsageLimitClear,
   createWorkflowGroupAttemptTimeoutController,
@@ -14,9 +15,15 @@ import {
   terminalizeAbortedQueuedCarrierMarker,
 } from '@/background/workflow-column-execution'
 
-const { appendTableEventMock } = vi.hoisted(() => ({ appendTableEventMock: vi.fn() }))
+const { appendTableEventMock, flattenWorkflowOutputsMock } = vi.hoisted(() => ({
+  appendTableEventMock: vi.fn(),
+  flattenWorkflowOutputsMock: vi.fn(),
+}))
 
 vi.mock('@/lib/table/events', () => ({ appendTableEvent: appendTableEventMock }))
+vi.mock('@/lib/workflows/blocks/flatten-outputs', () => ({
+  flattenWorkflowOutputs: flattenWorkflowOutputsMock,
+}))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -49,6 +56,106 @@ const QUEUED_PAYLOAD = {
     payerSubscription: null,
   },
 }
+
+function latestDeployment(
+  startType = 'start_trigger'
+): Parameters<typeof assertWorkflowGroupMatchesLatestDeployment>[1] {
+  return {
+    blocks: {
+      start: {
+        id: 'start',
+        type: startType,
+        subBlocks: {
+          inputFormat: { value: [{ name: 'company', type: 'string' }] },
+        },
+      },
+      agent: {
+        id: 'agent',
+        type: 'agent',
+        subBlocks: {},
+      },
+    },
+    edges: [{ id: 'start-agent', source: 'start', target: 'agent' }],
+    loops: {},
+    parallels: {},
+    variables: {},
+    isFromNormalizedTables: false,
+    deploymentVersionId: 'deployment-version-latest',
+  } as Parameters<typeof assertWorkflowGroupMatchesLatestDeployment>[1]
+}
+
+describe('latest table workflow deployment mappings', () => {
+  beforeEach(() => {
+    flattenWorkflowOutputsMock.mockReturnValue([
+      {
+        blockId: 'agent',
+        blockName: 'Agent',
+        blockType: 'agent',
+        path: 'content',
+        leafType: 'string',
+      },
+    ])
+  })
+
+  it('accepts saved mappings that the latest active deployment still supports', () => {
+    expect(() =>
+      assertWorkflowGroupMatchesLatestDeployment(
+        {
+          id: 'group-1',
+          workflowId: 'workflow-1',
+          outputs: [{ blockId: 'agent', path: 'content', columnName: 'column-output' }],
+          inputMappings: [{ inputName: 'company', columnName: 'column-company' }],
+        },
+        latestDeployment()
+      )
+    ).not.toThrow()
+  })
+
+  it('accepts a canonical split manual start block', () => {
+    expect(() =>
+      assertWorkflowGroupMatchesLatestDeployment(
+        {
+          id: 'group-1',
+          workflowId: 'workflow-1',
+          outputs: [{ blockId: 'agent', path: 'content', columnName: 'column-output' }],
+          inputMappings: [{ inputName: 'company', columnName: 'column-company' }],
+        },
+        latestDeployment('manual_trigger')
+      )
+    ).not.toThrow()
+  })
+
+  it('rejects an output mapping removed by the latest active deployment', () => {
+    expect(() =>
+      assertWorkflowGroupMatchesLatestDeployment(
+        {
+          id: 'group-1',
+          workflowId: 'workflow-1',
+          outputs: [{ blockId: 'agent', path: 'score', columnName: 'column-output' }],
+        },
+        latestDeployment()
+      )
+    ).toThrow(
+      'Workflow group group-1 output agent::score is not available in the latest active deployment'
+    )
+  })
+
+  it('rejects an input mapping removed by the latest active deployment', () => {
+    expect(() =>
+      assertWorkflowGroupMatchesLatestDeployment(
+        {
+          id: 'group-1',
+          workflowId: 'workflow-1',
+          outputs: [{ blockId: 'agent', path: 'content', columnName: 'column-output' }],
+          inputMappings: [{ inputName: 'website', columnName: 'column-website' }],
+        },
+        latestDeployment()
+      )
+    ).toThrow(
+      'Workflow group group-1 input website is not available in the latest active deployment'
+    )
+  })
+})
 
 describe('table workflow carrier deadline', () => {
   it('preserves one absolute deadline when a later cascade group creates its controller', () => {
@@ -176,6 +283,8 @@ describe('table workflow usage-limit clear', () => {
       data: {},
       workspaceId: 'workspace-1',
       executionsPatch: { 'group-1': null },
+      /** Clearing a pre-stamp writes no values, so no acting person governs it. */
+      capabilityGovernedUserId: null,
       cancellationGuard: { groupId: 'group-1', executionId: 'execution-1' },
     })
   })

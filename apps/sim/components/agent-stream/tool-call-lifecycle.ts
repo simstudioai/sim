@@ -7,7 +7,7 @@
  * implementation so the three surfaces cannot drift.
  */
 
-import { humanizeToolName } from '@/lib/copilot/tools/tool-display'
+import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 
 export type AgentStreamToolStatus = 'running' | 'success' | 'error' | 'cancelled'
 
@@ -53,7 +53,7 @@ export function applyToolCallPhase<T extends AgentStreamToolCall>(
         key,
         id: event.id,
         name: event.name,
-        displayName: humanizeToolName(event.name),
+        displayName: getToolDisplayTitle(event.name),
         status: 'running',
       })
     )
@@ -70,7 +70,7 @@ export function applyToolCallPhase<T extends AgentStreamToolCall>(
         key,
         id: event.id,
         name: event.name,
-        displayName: humanizeToolName(event.name),
+        displayName: getToolDisplayTitle(event.name),
         status: endStatus,
       })
     )

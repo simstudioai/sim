@@ -1,0 +1,234 @@
+---
+title: Security & Hardening
+description: Secrets, network boundaries, code sandboxing, and the settings to review before going live
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+
+## Secrets
+
+Five secrets drive the security of a deployment. Generate each with `openssl rand -hex 32`.
+
+| Secret | Protects | Rotatable |
+|---|---|---|
+| `BETTER_AUTH_SECRET` | Session tokens | Yes — invalidates all sessions |
+| `ENCRYPTION_KEY` | Workspace env vars, stored provider keys, MCP OAuth credentials, deployment/chat secrets | **No** — see below |
+| `API_ENCRYPTION_KEY` | Reversible stored copy of user-generated API keys | **No** — existing keys keep authenticating, but their stored copy can no longer be displayed |
+| `INTERNAL_API_SECRET` | Service-to-service calls | Yes — roll app and realtime together |
+| `CRON_SECRET` | Background job endpoints | Yes — roll app and cron together |
+
+<Callout type="error">
+  `ENCRYPTION_KEY` cannot be rotated without re-encrypting the data it protects, and cannot be recovered if lost. Changing it renders all of that data permanently unreadable. Back it up independently of the database.
+</Callout>
+
+`BETTER_AUTH_SECRET` must be **identical** on the app and realtime services — they share sessions through the database, and a mismatch means realtime rejects every authenticated socket.
+
+### Storing them
+
+In increasing order of production-readiness:
+
+1. **`--set` on the command line** — dev only. Values appear in `helm get values` output and shell history.
+2. **A pre-created Kubernetes Secret** — set `app.secrets.existingSecret.enabled: true` and the secret name. Works with Sealed Secrets and SOPS. The secret is consumed wholesale and must use the standard key names.
+3. **External Secrets Operator** — sync from Vault, AWS Secrets Manager, Azure Key Vault, or GCP Secret Manager. Recommended.
+
+In the default and External Secrets modes, the chart writes every key under `app.env` and `realtime.env` into a chart-managed Secret mounted via `envFrom`, so no value is inlined into a pod spec. (In `existingSecret` mode the pre-created Secret is the source of truth and any `app.env` values you still pass are rendered inline — supply everything through the Secret in that mode.) Either way, a secret committed to `values.yaml` is a secret in your git history.
+
+## Network boundaries
+
+### Ingress
+
+Expose only the app (3000) and realtime (3002). Everything else — Postgres, Redis, the PII service, the cron endpoints — should be reachable only from inside the deployment.
+
+The background job endpoints under `/api/cron/*`, `/api/webhooks/poll/*`, and `/api/schedules/execute` are authenticated by `CRON_SECRET`, but there is no reason to expose them publicly. Point cron at the in-cluster Service.
+
+### NetworkPolicy
+
+The chart ships an optional policy that isolates east-west traffic and blocks cloud metadata endpoints (`169.254.169.254/32`, `169.254.170.2/32`) on egress — worth enabling, because those endpoints are the standard SSRF escalation target.
+
+```yaml
+networkPolicy:
+  enabled: true
+```
+
+<Callout type="warn">
+  `networkPolicy.ingressFrom` defaults to `[{}]` — an empty peer selector that allows ingress from **any pod in the cluster**. On a shared or multi-tenant cluster, scope it to your ingress controller:
+
+  ```yaml
+  networkPolicy:
+    ingressFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+  ```
+</Callout>
+
+The policy already allows HTTPS (443) egress to everything except the metadata CIDRs, which covers model provider APIs, integration APIs, and cloud object-storage endpoints. It also allows the bundled Postgres and Redis by pod selector.
+
+What it does **not** cover is any datastore you run outside the chart — a managed Postgres or Redis on a non-443 port. Add a rule for each:
+
+```yaml
+networkPolicy:
+  enabled: true
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/16   # your VPC / managed-service subnet
+      ports:
+        - protocol: TCP
+          port: 6379           # managed Redis
+        - protocol: TCP
+          port: 5432           # managed Postgres
+```
+
+<Callout type="warn">
+  This applies even when `REDIS_URL` reaches the pod through a Secret rather than `values.yaml` — the chart cannot see the host, so it cannot generate the rule. A deployment that accepts the URL but has no matching egress rule will fail to reach Redis with `networkPolicy.enabled: true`.
+</Callout>
+
+If maintaining CIDR lists is not worth it, drop the port restriction instead:
+
+```yaml
+networkPolicy:
+  enabled: true
+  allowExternalEgress: true
+```
+
+Cloud metadata endpoints stay blocked either way. This defaults to `false` because Sim's chart is deliberately stricter than the common chart default, which permits unrestricted egress.
+
+### Pod Security Standards
+
+All workloads set `runAsNonRoot`, drop all Linux capabilities, disable privilege escalation, and use `seccompProfile: RuntimeDefault` — the four controls the `restricted` profile requires. Label the namespace to enforce it:
+
+```bash
+kubectl label namespace simstudio pod-security.kubernetes.io/enforce=restricted
+```
+
+`readOnlyRootFilesystem` is not set by default: Postgres and Ollama need a writable root, and the app container writes to Next.js's `.next/cache`. It is viable on the genuinely stateless services (`realtime`, `pii`, `copilot`) — set `<component>.securityContext.readOnlyRootFilesystem: true` and mount an `emptyDir` at `/tmp` via `extraVolumes` / `extraVolumeMounts`.
+
+## Where user code runs
+
+Workflows can execute user-authored JavaScript and Python. Know which sandbox you are running before you expose Sim to untrusted authors.
+
+| Mode | Configuration | Isolation |
+|---|---|---|
+| **isolated-vm** (default) | none | In-process V8 isolate inside the app container. No network namespace or filesystem separation from the app process — isolation is at the JS-engine level. JavaScript only. |
+| **E2B** | `E2B_ENABLED=true`, `E2B_API_KEY` | Remote sandbox per execution. Strongest isolation; requires outbound access to E2B. |
+| **Daytona** | `SANDBOX_PROVIDER=daytona`, `DAYTONA_API_KEY` | Remote sandbox per execution. |
+
+Python, Shell, JavaScript with external imports, and tooling-dependent blocks
+require a remote sandbox provider. JavaScript without `import` or `require`
+continues to run in the in-process isolate when no remote provider is configured.
+
+<Callout type="warn">
+  With the default in-process sandbox, treat everyone who can author a workflow as someone running code in your app container's security context. If your Sim instance is open to a wide or partly-trusted audience, use a remote sandbox provider and enable the NetworkPolicy egress restrictions.
+</Callout>
+
+Resource ceilings for the in-process path:
+
+| Variable | Controls |
+|---|---|
+| `IVM_MAX_EXECUTIONS_PER_WORKER` | Executions before a worker is recycled |
+| `IVM_MAX_BROKERS_PER_EXECUTION` | Host-call brokers per execution |
+| `IVM_MAX_BROKER_ARGS_JSON_CHARS` | Max argument payload size |
+| `IVM_MAX_BROKER_RESULT_JSON_CHARS` | Max result payload size |
+
+## The SSRF boundary
+
+By default Sim blocks outbound requests to private, reserved, and loopback addresses. This stops a workflow from being used to scan your internal network. Two things soften it on a self-hosted deployment: the provenances marked **Yes** below reach whatever you allowlist, and a configured endpoint, self-hosted service, or request target written as `localhost` or a loopback literal is reachable without any allowlist at all — a local Ollama or Jupyter is the ordinary case. That second carve-out stops short in two places: it does not lift the blocked-port list, and it does not extend to a database, cache, or mail connector on `localhost` — loopback is where Sim's own database and Redis listen, so reaching them has to be asked for. Neither softening applies on Sim Cloud. Every outbound request is classified by where its URL came from:
+
+| Provenance | Examples | Reaches allowlisted private destinations |
+|---|---|---|
+| Configured endpoint | GitHub Enterprise, Grafana, a data-drain destination, a connector's host | Yes |
+| Self-hosted service | vLLM, Jupyter, 1Password Connect, ClickHouse, an MCP server — software usually run on-prem without TLS, so plain HTTP is expected | Yes |
+| Request target | The HTTP block's URL, an A2A agent, an RSS feed, a Function block's `fetch` | Yes |
+| Database host | A database, cache, or mail connector's host | Yes |
+| Content fetch | An image URL, a file imported by URL, a link from a third-party API response | **No** |
+| Proxy | The outbound HTTP proxy itself | **No** |
+
+Content fetches never reach a private destination, allowlist or not — that is the class where SSRF is actually exploited. Nor does the proxy: it is the component deciding where everything else may go, so it is held to public destinations regardless of what the allowlist says.
+
+Deployments frequently need to reach an internal service by name or address. Name the destinations:
+
+```bash
+EGRESS_ALLOWED_HOSTS=host.docker.internal,vllm.ai.svc.cluster.local
+EGRESS_ALLOWED_IP_RANGES=10.4.2.17/32,10.4.9.0/24
+```
+
+A wildcard (`*.svc.cluster.local`) and a broad range (`10.0.0.0/8`) are accepted, but they hand every workflow author the whole namespace or network. Name the hosts you actually use.
+
+Both lists are validated when Sim starts, and a malformed entry stops it with a message naming the setting. `EGRESS_ALLOWED_HOSTS` takes hostnames only — a URL or a CIDR is rejected — and a wildcard has to be a leading `*.` covering at least two labels, so `*.local` is refused and `*.svc.cluster.local` matches `vllm.ai.svc.cluster.local` but not the bare `svc.cluster.local`. `EGRESS_ALLOWED_IP_RANGES` takes CIDRs and bare addresses; a range shorter than `/8` (such as `0.0.0.0/1`) is refused as a near-catch-all, so `10.0.0.0/8` is the broadest a single entry can name.
+
+On Sim Cloud plain HTTP is refused for every provenance except the proxy, whose scheme is fixed by protocol — self-hosted-service ones included: nothing is vouched there, so a credential would cross the wire in the clear.
+
+Naming a destination permits plain HTTP to it and lifts the blocked-port list for it, since those are the same decision about the same host. The loopback carve-out does not: it is granted without being asked for, so `http://localhost:5432` stays refused until `localhost` is named. A database, cache, or mail connector's host carries no scheme or port of its own, so naming one of those only lifts the private-address block. Cloud metadata endpoints (`169.254.169.254` and equivalents) stay blocked no matter how broad the allowlist is, and both variables are ignored entirely on Sim Cloud.
+
+The allowlist reaches the four provenances marked **Yes** above. It does not reach a content fetch, and it does not reach a proxy: an HTTP block's `proxyUrl` must be a public address, because the proxy is what decides where every other request may go. Adding an internal proxy to the allowlist will not make it work.
+
+To reach a service on the Docker host, pair the allowlist with the host alias that Compose already sets up:
+
+```bash
+EGRESS_ALLOWED_HOSTS=host.docker.internal
+```
+
+<Callout type="warn">
+  An allowlist widens what every workflow author on the instance can reach. Name specific hosts and narrow ranges rather than whole private networks, and pair it with a NetworkPolicy that constrains what the app can actually reach. When `networkPolicy.enabled` is true the chart permits broad egress on port 443 only, so an allowlisted in-cluster target on another port also needs a `networkPolicy.egress` rule — or `networkPolicy.allowExternalEgress: true` for unrestricted egress.
+</Callout>
+
+### Upgrading from an earlier release
+
+The allowlist replaces four separate escape hatches, so a few deployments that worked before now need a destination named:
+
+- **`ALLOW_PRIVATE_DATABASE_HOSTS`** still works, but it is deprecated and logs a warning at startup. It vouches for the whole private address space, loopback included, for database, cache, and mail connector hosts. Replace it with `EGRESS_ALLOWED_HOSTS` or `EGRESS_ALLOWED_IP_RANGES` naming the hosts you actually use.
+- **1Password Connect** on a private, non-loopback address, and an **MCP server** on a private address or reached through a DNS name that points at loopback, are no longer reachable implicitly. Name them.
+- **`ALLOWED_MCP_DOMAINS`** governs which domains may be used; it no longer disables the address check, so an MCP server on a private address needs the allowlist too.
+- **Content fetches** — an image URL, a file imported by URL, an MCP OAuth endpoint on a different origin than the MCP server itself — never use the allowlist. Those destinations have to be publicly routable. (An SSO OIDC *discovery* URL is a configured endpoint and does use the allowlist; the endpoints named *inside* the discovery document are validated as content when Sim registers the provider, so an internal IdP endpoint is refused there and cannot be allowlisted — provide the endpoints explicitly to have them validated as configured endpoints instead.)
+- **Redirects** are re-judged at every hop under the request's own provenance, so a redirect that lands on a blocked port is refused, and one that downgrades to plain HTTP is refused for every provenance except the self-hosted-service and proxy classes, which expect plain HTTP by design. Only 301, 302, 303, 307 and 308 are followed; 300, 305 and 306 are not. When a redirect crosses origins and the caller supplied no redirect policy, every header is dropped, so no credential — a standard `Authorization`/`Cookie` or a custom one like `PRIVATE-TOKEN` — reaches the new origin; a caller that supplies a policy keeps its non-credential headers and drops the ones it marked sensitive. A cross-origin redirect that would carry a request body to the new origin is refused outright rather than replayed: a body-preserving hop — a 307 or 308, or any hop in a legacy-replay workflow — that crosses origins fails with a message saying so, whereas a standard 301, 302 or 303 drops the body to a GET first and continues.
+
+## Client IP and forwarded headers
+
+Behind a load balancer, `X-Forwarded-For` is client-controllable. Set `AUTH_TRUSTED_PROXIES` to your proxies' actual addresses so Better Auth resolves the real client IP, and `TRUSTED_ORIGINS` if users reach Sim from more than one origin. Both are covered in [Authentication](/platform/self-hosting/authentication#behind-a-load-balancer).
+
+## Restricting who can use the instance
+
+Signup allowlists and blocklists, social-login toggles, SSO, and the `DISABLE_AUTH` escape hatch are all covered in [Authentication](/platform/self-hosting/authentication). The security-relevant summary: restrict signup before exposing the instance, and never set `DISABLE_AUTH=true` behind an internet-facing ingress.
+
+## PII redaction
+
+The optional Presidio-based service supports the Guardrails PII block and, when enabled, automatic redaction of PII from workflow logs:
+
+```yaml
+pii:
+  enabled: true
+
+app:
+  env:
+    INTERNAL_API_BASE_URL: "http://sim-app.simstudio.svc.cluster.local:3000"
+```
+
+`INTERNAL_API_BASE_URL` must be the **in-cluster** Service URL. The redaction path calls the app's own API, and a public ingress URL is usually not hairpin-reachable from inside the cluster. Without a reachable value the path fails closed — affected fields are scrubbed to `[REDACTION_FAILED]` rather than leaking, but redaction does not actually run.
+
+The service bundles ~2.2 GB of spaCy models, so first start takes around three minutes and it needs at least 4 GB of memory.
+
+## Pre-launch checklist
+
+- [ ] All five secrets generated fresh, stored in a secret manager, and **`ENCRYPTION_KEY` backed up separately**
+- [ ] `BETTER_AUTH_SECRET` identical on app and realtime
+- [ ] Images pinned to an explicit tag or digest on app, realtime, and migrations
+- [ ] TLS terminating at the ingress; HTTP redirected or disabled
+- [ ] `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL` set to the real public origin
+- [ ] `AUTH_TRUSTED_PROXIES` set if behind a load balancer
+- [ ] Signup restricted (`DISABLE_REGISTRATION` or `ALLOWED_LOGIN_DOMAINS`)
+- [ ] `DISABLE_AUTH` **not** set
+- [ ] NetworkPolicy enabled and `ingressFrom` scoped to the ingress controller
+- [ ] Namespace labelled `pod-security.kubernetes.io/enforce=restricted`
+- [ ] Object storage buckets private, with CORS limited to your Sim origin
+- [ ] Database reachable only from the deployment; TLS enforced (`sslMode: require`)
+- [ ] Backups configured **and a restore rehearsed**
+- [ ] Sandbox strategy decided for user code
+
+<FAQ items={[
+  { question: "Can I rotate ENCRYPTION_KEY?", answer: "Not without re-encrypting everything it protects. Changing it makes workspace environment variables, stored provider API keys, MCP OAuth credentials, and deployment secrets permanently unreadable. Treat it as a permanent, backed-up value rather than a rotating secret."},
+  { question: "Where does user-authored code run?", answer: "By default in an in-process V8 isolate inside the app container, which isolates at the JS-engine level but shares the container's network and filesystem context. For untrusted authors, or to run Python at all, use E2B or Daytona so each execution runs in a remote sandbox."},
+  { question: "Why does the chart's NetworkPolicy allow traffic from any pod?", answer: "networkPolicy.ingressFrom defaults to an empty peer selector as a simple default that works on any cluster. On a shared cluster you should scope it to your ingress controller's namespace."},
+  { question: "How do I reach an internal service from a workflow?", answer: "Name it in EGRESS_ALLOWED_HOSTS (hostnames, leading wildcard allowed) or EGRESS_ALLOWED_IP_RANGES (CIDRs). That permits plain HTTP to it and lifts the blocked-port list for HTTP destinations; a database, cache, or mail host carries no scheme or port of its own, so naming it only lifts the private-address block. Cloud metadata endpoints stay blocked regardless, content fetches never use the allowlist, and both variables are ignored on Sim Cloud."},
+]} />

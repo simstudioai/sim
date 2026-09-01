@@ -1,15 +1,14 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import {
-  type Principal,
-  requirePrincipalSubjectUserId,
-  resolvePrincipalAttribution,
-} from '@sim/auth/principal'
+import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import type { customTools } from '@sim/db/schema'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { customToolDelegationPolicy } from '@/lib/custom-tools/application/authorization'
+import {
+  customToolDelegationPolicy,
+  requireCustomToolUserId,
+} from '@/lib/custom-tools/application/authorization'
 import { customToolOperations } from '@/lib/custom-tools/application/operations'
 import {
   assertStorableCustomToolSchema,
@@ -20,6 +19,7 @@ import {
   type CustomToolSortBy,
   deleteCustomTool,
   deleteWorkspaceCustomTool,
+  getAvailableCustomTool,
   getCustomToolById,
   getWorkspaceCustomTool,
   getWorkspaceCustomToolByTitle,
@@ -68,7 +68,7 @@ async function resolveAvailableToolContext(args: {
   const workspace = await resolveWorkspaceContext(args.workspaceId)
   const tool = await getCustomToolById({
     toolId: args.toolId,
-    userId: requirePrincipalSubjectUserId(args.principal),
+    userId: requireCustomToolUserId(args.principal),
     workspaceId: workspace.workspaceId,
   })
   if (!tool) throw new OrchestrationError('not_found', 'Custom tool not found')
@@ -125,9 +125,9 @@ export const listAvailableCustomToolsUseCase = defineAuthorizedWorkspaceUseCase(
   resolveContext: ({ input }: { input: ListAvailableCustomToolsInput }) =>
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
-  async execute({ principal, context }) {
+  async execute({ principal, input, context }) {
     const tools = await listCustomTools({
-      userId: requirePrincipalSubjectUserId(principal),
+      userId: requireCustomToolUserId(principal),
       workspaceId: context.workspaceId,
     })
     return { tools }
@@ -146,6 +146,28 @@ export const getWorkspaceCustomToolUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions,
   async execute({ context }) {
     return { tool: context.tool }
+  },
+})
+
+export interface ReadAvailableCustomToolByIdOrTitleInput {
+  workspaceId: string
+  identifier: string
+  lookup: 'id' | 'id_or_title'
+}
+
+export const readAvailableCustomToolByIdOrTitleUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: customToolOperations.readAvailableByIdOrTitle,
+  resolveContext: ({ input }: { input: ReadAvailableCustomToolByIdOrTitleInput }) =>
+    resolveWorkspaceContext(input.workspaceId),
+  authorizationOptions,
+  async execute({ principal, input, context }) {
+    const tool = await getAvailableCustomTool({
+      identifier: input.identifier,
+      userId: requireCustomToolUserId(principal),
+      workspaceId: context.workspaceId,
+      lookup: input.lookup,
+    })
+    return { tool }
   },
 })
 
@@ -328,7 +350,7 @@ export const updateAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase
       const tool = await updateCustomTool({
         workspaceId: context.workspaceId,
         toolId: context.tool.id,
-        userId: requirePrincipalSubjectUserId(principal),
+        userId: requireCustomToolUserId(principal),
         title,
         schema: input.schema ?? context.tool.schema,
         code: input.code ?? context.tool.code,
@@ -393,11 +415,11 @@ export const deleteAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase
       toolId: input.toolId,
     }),
   authorizationOptions,
-  async execute({ principal, context }) {
+  async execute({ principal, input, context }) {
     const deleted = await deleteCustomTool({
       workspaceId: context.workspaceId,
       toolId: context.tool.id,
-      userId: requirePrincipalSubjectUserId(principal),
+      userId: requireCustomToolUserId(principal),
     })
     if (!deleted) throw new OrchestrationError('not_found', 'Custom tool not found')
     return { tool: context.tool }

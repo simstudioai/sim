@@ -24,7 +24,13 @@ export type DrainAccessResult =
 /**
  * Auth + membership + role + enterprise-plan gate shared by every data-drain
  * route. Owner/admin role is required for reads as well as writes since drain
- * configs expose customer bucket names and webhook URLs. On Sim Cloud the
+ * configs expose customer bucket names and webhook URLs.
+ *
+ * Deliberately above member permission groups, like the audit-log surface:
+ * the reader of a drained record is the organization, not a member, so the
+ * per-member log projections (`hideCostInfo`, `hideTraceSpans`) do not apply
+ * to what a drain serializes, and no group capability gates configuring one —
+ * the owner/admin requirement is the whole access story. On Sim Cloud the
  * gate is the Enterprise plan; on self-hosted it's `DATA_DRAINS_ENABLED`,
  * which 404s when unset so a newer image doesn't silently expose drains.
  */

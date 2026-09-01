@@ -20,6 +20,7 @@ import { vi } from 'vitest'
 export const workflowsPersistenceUtilsMockFns = {
   mockBlockExistsInDeployment: vi.fn(),
   mockLoadDeployedWorkflowState: vi.fn(),
+  mockLoadWorkflowDeploymentVersionState: vi.fn(),
   mockMigrateAgentBlocksToMessagesFormat: vi.fn(),
   mockLoadWorkflowFromNormalizedTables: vi.fn(),
   mockSaveWorkflowToNormalizedTables: vi.fn(),
@@ -43,6 +44,8 @@ export const workflowsPersistenceUtilsMockFns = {
 export const workflowsPersistenceUtilsMock = {
   blockExistsInDeployment: workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment,
   loadDeployedWorkflowState: workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState,
+  loadWorkflowDeploymentVersionState:
+    workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentVersionState,
   migrateAgentBlocksToMessagesFormat:
     workflowsPersistenceUtilsMockFns.mockMigrateAgentBlocksToMessagesFormat,
   loadWorkflowFromNormalizedTables:

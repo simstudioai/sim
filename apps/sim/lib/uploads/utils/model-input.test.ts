@@ -2,7 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
+import {
+  addModelInputProvenanceToRequest,
+  createModelInputProvenanceRequestMetadata,
+  markModelInputProjected,
+  validateOpaqueModelInputProvenance,
+} from '@/lib/execution/model-input-provenance'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import {
   applyProjectedModelVisibleFileNames,
@@ -12,8 +17,24 @@ import {
 } from '@/lib/uploads/utils/model-input'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { a2aSendMessageTool } from '@/tools/a2a/send_message'
-import { prepareToolRequest } from '@/tools/request-transport'
+import { projectToolModelInputParams } from '@/tools/request-transport'
 import { visionTool } from '@/tools/vision/tool'
+
+function prepareVisionOperation(
+  params: Parameters<typeof visionTool.operation.input>[0],
+  registry?: ResolvedSecretTraceRegistry
+) {
+  const projected = projectToolModelInputParams(visionTool, params, registry)
+  const input = visionTool.operation.input(projected)
+  const inputPaths = visionTool.operation.modelInput?.privateInputPaths?.(projected)
+  const metadata = inputPaths
+    ? createModelInputProvenanceRequestMetadata(registry, inputPaths)
+    : undefined
+  const headers = new Headers()
+  const payload = addModelInputProvenanceToRequest(input, headers, metadata)
+  if (metadata) markModelInputProjected(headers)
+  return { headers, payload }
+}
 
 describe('model-bound file input selection', () => {
   it('omits internal storage keys and unrelated file metadata', () => {
@@ -159,8 +180,8 @@ describe('model-bound file input selection', () => {
     expect(applyProjectedModelVisibleFileNames(original, [{}])).toEqual(original)
   })
 
-  it('preserves an optional undefined file name through tool request projection', () => {
-    const prepared = prepareToolRequest(
+  it('preserves an optional undefined file name through operation input projection', () => {
+    const projected = projectToolModelInputParams(
       a2aSendMessageTool,
       {
         agentUrl: 'https://agent.example',
@@ -170,7 +191,7 @@ describe('model-bound file input selection', () => {
       new ResolvedSecretTraceRegistry()
     )
 
-    expect(JSON.parse(prepared.body ?? '{}')).toEqual({
+    expect(a2aSendMessageTool.operation.input(projected)).toEqual({
       agentUrl: 'https://agent.example',
       message: 'Summarize the attachment',
       files: [{ key: 'workspace/ws-1/report.pdf' }],
@@ -195,12 +216,11 @@ describe('server-resolved model file provenance', () => {
       'https://files.example/document.png?token={{FILE_TOKEN}}'
     )
 
-    const prepared = prepareToolRequest(
-      visionTool,
+    const prepared = prepareVisionOperation(
       { apiKey: 'key', imageUrl: locator, prompt: 'Describe this image' },
       registry
     )
-    const payload = JSON.parse(prepared.body ?? '{}') as Record<string, unknown>
+    const { payload } = prepared
 
     expect(payload.imageUrl).toBe(locator)
     expect(payload[RESOLVED_SECRET_PROVENANCE_FIELD]).toEqual({
@@ -235,8 +255,7 @@ describe('server-resolved model file provenance', () => {
       '{{INLINE_BYTES}}'
     )
 
-    const prepared = prepareToolRequest(
-      visionTool,
+    const prepared = prepareVisionOperation(
       {
         apiKey: 'key',
         imageFile: {
@@ -250,7 +269,7 @@ describe('server-resolved model file provenance', () => {
       },
       registry
     )
-    const payload = JSON.parse(prepared.body ?? '{}') as Record<string, unknown>
+    const { payload } = prepared
 
     expect(
       validateOpaqueModelInputProvenance({
@@ -267,12 +286,12 @@ describe('server-resolved model file provenance', () => {
 
   it('keeps headerless legacy file requests unchanged', () => {
     const locator = 'https://files.example/legacy.png'
-    const prepared = prepareToolRequest(visionTool, {
+    const prepared = prepareVisionOperation({
       apiKey: 'key',
       imageUrl: locator,
       prompt: 'Describe this image',
     })
-    const payload = JSON.parse(prepared.body ?? '{}') as Record<string, unknown>
+    const { payload } = prepared
 
     expect(payload.imageUrl).toBe(locator)
     expect(payload).not.toHaveProperty(RESOLVED_SECRET_PROVENANCE_FIELD)

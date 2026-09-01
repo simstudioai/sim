@@ -56,6 +56,34 @@ describe('workflow operation registry', () => {
     expect(Object.isFrozen(workflowOperations.moveBulk)).toBe(true)
   })
 
+  it('admits executor delegation only to workflow deployment operations', () => {
+    for (const operation of [
+      workflowOperations.deploy,
+      workflowOperations.undeploy,
+      workflowOperations.activateVersion,
+    ]) {
+      expect(operation).toMatchObject({
+        minimumRole: 'admin',
+        workspaceApiKey: 'deny',
+        principalKinds: ['session', 'personal_api_key', 'delegated'],
+        delegatedServices: ['copilot', 'executor'],
+      })
+    }
+
+    for (const operation of [workflowOperations.listVersions, workflowOperations.readVersion]) {
+      expect(operation).toMatchObject({
+        minimumRole: 'read',
+        workspaceApiKey: 'allow',
+        principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+        delegatedServices: ['copilot', 'executor'],
+      })
+    }
+
+    expect(workflowOperations.deployChat.delegatedServices).toEqual(['copilot'])
+    expect(workflowOperations.undeployChat.delegatedServices).toEqual(['copilot'])
+    expect(workflowOperations.revertVersion.delegatedServices).toEqual(['copilot'])
+  })
+
   /**
    * Toggling unauthenticated public execution removes the authentication
    * requirement from a deployed workflow, so it takes an accountable human:
@@ -105,5 +133,15 @@ describe('workflow operation registry', () => {
       })
       expect(operation.id).toMatch(/^workflows\.manual\.execute/)
     }
+  })
+
+  it('protects paused execution detail as a workflow read', () => {
+    expect(workflowOperations.readPausedExecution).toMatchObject({
+      id: 'workflows.paused_executions.read',
+      minimumRole: 'read',
+      workspaceApiKey: 'allow',
+      principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+      delegatedServices: ['copilot'],
+    })
   })
 })

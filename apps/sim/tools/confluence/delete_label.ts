@@ -1,5 +1,5 @@
 import { TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceDeleteLabelParams {
   accessToken: string
@@ -19,7 +19,7 @@ export interface ConfluenceDeleteLabelResponse {
   }
 }
 
-export const confluenceDeleteLabelTool: ToolConfig<
+export const confluenceDeleteLabelTool: InternalToolConfig<
   ConfluenceDeleteLabelParams,
   ConfluenceDeleteLabelResponse
 > = {
@@ -61,21 +61,14 @@ export const confluenceDeleteLabelTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/labels',
-    method: 'DELETE',
-    headers: (params: ConfluenceDeleteLabelParams) => ({
-      Accept: 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceDeleteLabelParams) => ({
+  operation: {
+    input: (params: ConfluenceDeleteLabelParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       pageId: params.pageId?.trim(),

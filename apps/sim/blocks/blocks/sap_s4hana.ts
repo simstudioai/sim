@@ -1,7 +1,7 @@
 import { SapS4HanaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta, CanvasSentence } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { SapProxyResponse } from '@/tools/sap_s4hana/types'
+import type { SapS4HanaResponse } from '@/tools/sap_s4hana/types'
 
 /**
  * Whichever name a new business partner carries: an organization has
@@ -37,7 +37,7 @@ function updateSentence(noun: string, keyField: string): CanvasSentence {
   ]
 }
 
-export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
+export const SapS4HanaBlock: BlockConfig<SapS4HanaResponse> = {
   type: 'sap_s4hana',
   name: 'SAP S4HANA',
   description: 'Read and write SAP S4HANA Cloud business data via OData',

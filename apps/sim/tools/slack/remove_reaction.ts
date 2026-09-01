@@ -1,8 +1,8 @@
 import type { SlackRemoveReactionParams, SlackRemoveReactionResponse } from '@/tools/slack/types'
 import { REACTION_METADATA_OUTPUT_PROPERTIES } from '@/tools/slack/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const slackRemoveReactionTool: ToolConfig<
+export const slackRemoveReactionTool: InternalToolConfig<
   SlackRemoveReactionParams,
   SlackRemoveReactionResponse
 > = {
@@ -56,13 +56,8 @@ export const slackRemoveReactionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/slack/remove-reaction',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: SlackRemoveReactionParams) => ({
+  operation: {
+    input: (params: SlackRemoveReactionParams) => ({
       accessToken: params.accessToken || params.botToken,
       channel: params.channel?.trim(),
       timestamp: params.timestamp?.trim(),

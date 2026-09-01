@@ -416,7 +416,14 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
   })
 
   const { workflowState } = buildDefaultWorkflowArtifacts()
-  const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
+  const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState, {
+    /**
+     * Actorless: `buildDefaultWorkflowArtifacts` produces the platform's starter
+     * graph, so there is no caller-chosen block type for a group to judge.
+     */
+    workspaceId: null,
+    subjectUserId: null,
+  })
   if (!saveResult.success) {
     throw new Error(saveResult.error || 'Failed to save workflow state')
   }

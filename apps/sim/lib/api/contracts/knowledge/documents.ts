@@ -319,16 +319,23 @@ export const listKnowledgeDocumentsContract = defineRouteContract({
   },
 })
 
-export const createKnowledgeDocumentsContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/knowledge/[id]/documents',
+/**
+ * Document creation from inline content has no HTTP route: `POST
+ * /api/knowledge/[id]/documents` was retired when tool operations moved
+ * in-process, and the surviving `GET`/`PATCH` on that path would answer a `POST`
+ * with 405. So these stay plain schemas rather than a `defineRouteContract` —
+ * `lib/internal/knowledge/execute-tool.ts` validates `knowledge_create_document`
+ * against them directly. Callers wanting an HTTP upload use v1 or v2, both of
+ * which take multipart file bodies rather than inline content.
+ */
+export const createKnowledgeDocumentsSchemas = {
   params: knowledgeBaseParamsSchema,
   body: createKnowledgeDocumentsBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.union([bulkCreateDocumentsResponseSchema, documentDataSchema])),
-  },
-})
+} as const
+
+export const createKnowledgeDocumentsResponseSchema = successResponseSchema(
+  z.union([bulkCreateDocumentsResponseSchema, documentDataSchema])
+)
 
 export const updateKnowledgeDocumentContract = defineRouteContract({
   method: 'PUT',

@@ -11,6 +11,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  OverflowText,
   Tooltip,
 } from '@sim/emcn'
 import {
@@ -362,7 +363,7 @@ function ConnectorCard({
           <div className='flex min-w-0 flex-col gap-0.5'>
             <div className='flex min-w-0 items-center gap-2'>
               <span className='flex min-w-0 items-center gap-1.5 text-[var(--text-primary)] text-small'>
-                <span className='truncate'>{connectorDef?.name || connector.connectorType}</span>
+                <OverflowText label={connectorDef?.name || connector.connectorType} />
                 {syncInFlight && <Loader className='size-3 text-[var(--text-muted)]' animate />}
               </span>
               <Badge variant={statusConfig.variant} size='sm' dot className='flex-shrink-0'>

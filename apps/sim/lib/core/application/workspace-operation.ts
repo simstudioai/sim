@@ -1,21 +1,21 @@
-import type {
-  CredentialGroupEnrollmentPrincipal,
-  DelegatedPrincipal,
-  DelegatedServiceId,
-  Principal,
-} from '@sim/auth/principal'
+import type { DelegatedPrincipal, DelegatedServiceId, Principal } from '@sim/auth/principal'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import type { ApplicationOperation, PrincipalKind } from '@/lib/core/application/operation'
+import { assertOperationCapability } from '@/lib/core/application/operation'
+import {
+  type ResourcePolicyBinding,
+  requireResourcePolicyBinding,
+} from '@/lib/resource-policies/registry'
 
 type WorkspaceApiKeyPolicy<R extends PermissionType> = R extends 'admin' ? 'deny' : 'allow' | 'deny'
 
-export type { PrincipalKind }
+type WorkspaceOperationPrincipal = Extract<Principal, { kind: PrincipalKind }>
 
 type NonDelegatedPrincipalForOperation<
   O extends { readonly principalKinds: readonly PrincipalKind[] },
 > = Exclude<
-  Extract<Principal, { kind: O['principalKinds'][number] }>,
-  DelegatedPrincipal | CredentialGroupEnrollmentPrincipal
+  Extract<WorkspaceOperationPrincipal, { kind: O['principalKinds'][number] }>,
+  DelegatedPrincipal
 >
 
 type DelegatedPrincipalForOperation<
@@ -62,17 +62,25 @@ type DelegatedPrincipalConsistency<
     }
   : { readonly delegatedServices?: never }
 
+type ResourcePolicyOperationConsistency<Binding extends ResourcePolicyBinding | undefined> =
+  Binding extends ResourcePolicyBinding
+    ? { readonly resourcePolicy: Binding }
+    : { readonly resourcePolicy?: never }
+
 export function defineWorkspaceOperation<
   const Id extends string,
   const Role extends PermissionType,
   const PrincipalKinds extends readonly PrincipalKind[],
   const DelegatedServices extends readonly DelegatedServiceId[] = readonly [],
+  const ResourcePolicy extends ResourcePolicyBinding | undefined = undefined,
 >(
   operation: WorkspaceOperation<Id, Role, PrincipalKinds, DelegatedServices> &
     WorkspaceApiKeyPrincipalConsistency<Role, PrincipalKinds> &
-    DelegatedPrincipalConsistency<PrincipalKinds, DelegatedServices>
+    DelegatedPrincipalConsistency<PrincipalKinds, DelegatedServices> &
+    ResourcePolicyOperationConsistency<ResourcePolicy>
 ): WorkspaceOperation<Id, Role, PrincipalKinds, DelegatedServices> &
-  DelegatedPrincipalConsistency<PrincipalKinds, DelegatedServices> {
+  DelegatedPrincipalConsistency<PrincipalKinds, DelegatedServices> &
+  ResourcePolicyOperationConsistency<ResourcePolicy> {
   if (operation.principalKinds.length === 0) {
     throw new Error(`Operation ${operation.id} must allow at least one principal kind`)
   }
@@ -97,8 +105,27 @@ export function defineWorkspaceOperation<
     throw new Error(`Operation ${operation.id} declares duplicate delegated services`)
   }
 
+  if (operation.resourcePolicy) requireResourcePolicyBinding(operation.resourcePolicy)
+
+  /**
+   * `capability` is required, so refusing an absent one reads as unreachable.
+   * It is not. `apps/sim/tsconfig.json` excludes test files from type-checking,
+   * and `check-permission-group-enforcement.ts` walks past them too, so a test
+   * fixture is the one construction site no static check reads — and fixtures
+   * are where an operation is written from memory rather than from the
+   * surrounding domain.
+   *
+   * Left to reach authorization, an absent capability does not deny; it throws
+   * `Cannot read properties of undefined` from inside `capabilityDeniedBy`, and
+   * only for a caller whose organization has a permission group. It would pass
+   * every personal workspace and every non-enterprise test, then fail in the
+   * tenants that bought the feature. Named here instead, at definition time.
+   */
+  assertOperationCapability(operation)
+
   Object.freeze(operation.principalKinds)
   if (operation.delegatedServices) Object.freeze(operation.delegatedServices)
+  if (operation.resourcePolicy) Object.freeze(operation.resourcePolicy)
   Object.freeze(operation)
   return operation
 }

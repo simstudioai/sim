@@ -1,8 +1,8 @@
 import type { SlackMessageReaderParams, SlackMessageReaderResponse } from '@/tools/slack/types'
 import { MESSAGE_OUTPUT_PROPERTIES } from '@/tools/slack/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const slackMessageReaderTool: ToolConfig<
+export const slackMessageReaderTool: InternalToolConfig<
   SlackMessageReaderParams,
   SlackMessageReaderResponse
 > = {
@@ -74,13 +74,8 @@ export const slackMessageReaderTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/slack/read-messages',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: SlackMessageReaderParams) => {
+  operation: {
+    input: (params: SlackMessageReaderParams) => {
       const isDM = params.destinationType === 'dm'
       return {
         accessToken: params.accessToken || params.botToken,

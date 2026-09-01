@@ -14,6 +14,7 @@ import {
   Home,
   Library,
   Loader,
+  OverflowText,
   Skeleton,
   Tooltip,
   Upload,
@@ -92,6 +93,8 @@ import {
   useWorkflowOperations,
   useWorkspaceLogoUpload,
   useWorkspaceManagement,
+  useWorkspaceWorkflowsRoom,
+  WORKSPACE_LOGO_ACCEPT_ATTRIBUTE,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
   compareByOrder,
@@ -275,7 +278,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{chat.name}</div>
+        <OverflowText label={chat.name} className='flex-1 text-[var(--text-body)]' />
         {chat.id !== 'new' && (
           <div className='relative flex size-[18px] flex-shrink-0 items-center justify-center'>
             {showStatusDot && (
@@ -572,6 +575,7 @@ export const Sidebar = memo(function Sidebar({
   })
 
   useFolders(workspaceId)
+  useWorkspaceWorkflowsRoom(workspaceId)
   const { data: folderMap = EMPTY_FOLDER_MAP } = useFolderMap(workspaceId)
   const updateWorkflowMutation = useUpdateWorkflow()
 
@@ -1329,7 +1333,7 @@ export const Sidebar = memo(function Sidebar({
       <input
         ref={logoFileInputRef}
         type='file'
-        accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
+        accept={WORKSPACE_LOGO_ACCEPT_ATTRIBUTE}
         className='hidden'
         onChange={handleLogoFileChange}
       />

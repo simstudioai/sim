@@ -56,6 +56,7 @@ vi.mock('@/lib/workflows/executor/pause-persistence', () => ({
 }))
 
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
+import { hasExecutionResult } from '@/executor/utils/errors'
 
 const workflowExecutionLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'WorkflowExecution'
@@ -91,6 +92,12 @@ const workflow = {
   workspaceId: 'workspace-1',
   variables: {},
 }
+
+const principal = {
+  kind: 'session',
+  userId: 'actor-1',
+  sessionId: 'session-1',
+} as const
 
 describe('executeWorkflow', () => {
   beforeEach(() => {
@@ -137,6 +144,18 @@ describe('executeWorkflow', () => {
     expect(safeStartMock).not.toHaveBeenCalled()
   })
 
+  it('rejects workspace execution without a principal', async () => {
+    await expect(
+      executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
+        enabled: true,
+        principal: undefined as never,
+        billingAttribution,
+      })
+    ).rejects.toThrow('Workflow execution principal is required')
+
+    expect(executeWorkflowCoreMock).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['actor', { ...billingAttribution, actorUserId: 'other-actor' }],
     ['workspace', { ...billingAttribution, workspaceId: 'other-workspace' }],
@@ -144,6 +163,7 @@ describe('executeWorkflow', () => {
     await expect(
       executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
         enabled: true,
+        principal,
         billingAttribution: mismatchedAttribution,
       })
     ).rejects.toThrow('Workflow billing attribution does not match its actor and workspace')
@@ -161,6 +181,7 @@ describe('executeWorkflow', () => {
     await expect(
       executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
         enabled: true,
+        principal,
         billingAttribution: malformedAttribution,
       })
     ).rejects.toThrow('Billing attribution snapshot is missing its billing period')
@@ -171,6 +192,7 @@ describe('executeWorkflow', () => {
   it('propagates validated attribution through execution metadata to logger startup', async () => {
     await executeWorkflow(workflow, 'request-1', { prompt: 'hello' }, 'actor-1', {
       enabled: true,
+      principal,
       workflowTriggerType: 'copilot',
       billingAttribution,
     })
@@ -203,6 +225,7 @@ describe('executeWorkflow', () => {
 
     await executeWorkflow(workflow, 'request-1', { prompt: 'hello' }, 'actor-1', {
       enabled: true,
+      principal,
       billingAttribution,
       trustedInitialResolvedSecretTraceProvenance: provenance,
     })
@@ -210,6 +233,32 @@ describe('executeWorkflow', () => {
     expect(executeWorkflowCoreMock).toHaveBeenCalledWith(
       expect.objectContaining({ trustedInitialResolvedSecretTraceProvenance: provenance })
     )
+  })
+
+  it('forwards a trusted immutable workflow state to the execution snapshot', async () => {
+    const workflowStateOverride = {
+      blocks: { 'block-1': { id: 'block-1', type: 'start_trigger' } },
+      edges: [],
+      loops: {},
+      parallels: {},
+      variables: {
+        'variable-1': { id: 'variable-1', name: 'deployed', value: 'frozen' },
+      },
+      deploymentVersionId: 'deployment-version-1',
+    }
+
+    await executeWorkflow(workflow, 'request-1', { prompt: 'hello' }, 'actor-1', {
+      enabled: true,
+      principal,
+      billingAttribution,
+      workflowStateOverride,
+    })
+
+    const coreParams = executeWorkflowCoreMock.mock.calls[0]?.[0] as {
+      snapshot: ExecutionSnapshot
+    }
+    expect(coreParams.snapshot.metadata.workflowStateOverride).toEqual(workflowStateOverride)
+    expect(coreParams.snapshot.workflowVariables).toEqual(workflowStateOverride.variables)
   })
 
   it('waits for post-execution persistence before resolving', async () => {
@@ -228,6 +277,7 @@ describe('executeWorkflow', () => {
       'actor-1',
       {
         enabled: true,
+        principal,
         billingAttribution,
       }
     ).then((result) => {
@@ -258,6 +308,7 @@ describe('executeWorkflow', () => {
     let executionSettled = false
     const executionPromise = executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
       enabled: true,
+      principal,
       billingAttribution,
     }).catch((error: unknown) => {
       executionSettled = true
@@ -272,9 +323,48 @@ describe('executeWorkflow', () => {
     expect(executionSettled).toBe(true)
   })
 
+  /**
+   * Post-execution work runs after the core has produced a result and the executor never sees
+   * its failure, so this layer is the only one that can carry the result onto it. Callers read a
+   * missing result as proof that no block ran — a Copilot run would report an executed workflow
+   * as never started and vouch for content it cannot describe.
+   */
+  it('carries the execution result onto a post-execution failure', async () => {
+    const result = { success: true, output: { ran: true }, logs: [] }
+    executeWorkflowCoreMock.mockResolvedValueOnce(result)
+    handlePostExecutionPauseStateMock.mockRejectedValueOnce(new Error('pause persistence failed'))
+
+    const thrown = await executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
+      enabled: true,
+      principal,
+      billingAttribution,
+    }).catch((error: unknown) => error)
+
+    expect(hasExecutionResult(thrown)).toBe(true)
+    expect((thrown as { executionResult?: unknown }).executionResult).toBe(result)
+  })
+
+  /** A non-Error cannot carry the result, so it is normalized before anything reads it. */
+  it('normalizes a non-Error post-execution failure so it can carry the result', async () => {
+    const result = { success: true, output: { ran: true }, logs: [] }
+    executeWorkflowCoreMock.mockResolvedValueOnce(result)
+    handlePostExecutionPauseStateMock.mockRejectedValueOnce('pause persistence exploded')
+
+    const thrown = await executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
+      enabled: true,
+      principal,
+      billingAttribution,
+    }).catch((error: unknown) => error)
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect(hasExecutionResult(thrown)).toBe(true)
+    expect((thrown as { executionResult?: unknown }).executionResult).toBe(result)
+  })
+
   it('transfers post-execution ownership with successful streaming metadata', async () => {
     const result = await executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
       enabled: true,
+      principal,
       skipLoggingComplete: true,
       billingAttribution,
     })
@@ -290,6 +380,7 @@ describe('executeWorkflow', () => {
     await expect(
       executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
         enabled: true,
+        principal,
         skipLoggingComplete: true,
         billingAttribution,
       })
@@ -312,6 +403,7 @@ describe('executeWorkflow', () => {
 
     await executeWorkflow(workflow, 'request-1', { rowId: 'row-1' }, 'actor-1', {
       enabled: true,
+      principal,
       workflowTriggerType: 'table',
       billingAttribution,
       trustedExecutionCorrelation: correlation,
@@ -334,6 +426,7 @@ describe('executeWorkflow', () => {
     await expect(
       executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
         enabled: true,
+        principal,
         billingAttribution,
       })
     ).rejects.toBe(error)

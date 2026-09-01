@@ -35,6 +35,7 @@ import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
+  CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   connectorFailureBackoffMinutes,
   MAX_CONSECUTIVE_FAILURES,
   SYNC_LOCK_HEARTBEAT_INTERVAL_MS,
@@ -52,6 +53,7 @@ import {
   MAX_PROCESSING_ATTEMPTS,
   QUEUED_DISPATCH_GRACE_MS,
 } from '@/lib/knowledge/documents/types'
+import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { StorageService } from '@/lib/uploads'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
@@ -68,6 +70,8 @@ import type {
 import { hasIndexablePayload } from '@/connectors/utils'
 
 const logger = createLogger('ConnectorSyncEngine')
+
+const RATE_LIMIT_RETRY_JITTER_MAX_MS = 60_000
 
 /**
  * Raised when a run discovers mid-flight that it no longer holds its sync lock.
@@ -1321,25 +1325,69 @@ export function buildReconciliationHoldNotice(
  * it applies need to be assertable without standing up the whole sync. The
  * in-process ladder here and the reaper's SQL ladder must agree — they are two
  * writers of one policy, both sourced from
- * {@link connectorFailureBackoffMinutes}.
+ * {@link connectorFailureBackoffMinutes}. A validated provider retry delay is
+ * an additional lower bound, capped at the same one-day ceiling: a short hint
+ * cannot weaken the failure ladder, while an untrusted extreme value cannot
+ * pin the connector indefinitely.
  */
 export function buildSyncFailureUpdate(
   now: Date,
   previousFailures: number | null | undefined,
-  errorMessage: string
+  errorMessage: string,
+  retryAfterMs?: number
 ) {
   const failures = (previousFailures ?? 0) + 1
   const disabled = failures >= MAX_CONSECUTIVE_FAILURES
+  const failureBackoffMs = connectorFailureBackoffMinutes(failures) * 60 * 1000
+  const maximumBackoffMs = CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES * 60 * 1000
+  const providerBackoffMs =
+    typeof retryAfterMs === 'number' && Number.isFinite(retryAfterMs) && retryAfterMs > 0
+      ? Math.min(retryAfterMs, maximumBackoffMs)
+      : 0
 
   return {
     status: (disabled ? 'disabled' : 'error') as 'disabled' | 'error',
     lastSyncError: disabled ? CONNECTOR_AUTO_DISABLED_ERROR : errorMessage,
     nextSyncAt: disabled
       ? null
-      : new Date(now.getTime() + connectorFailureBackoffMinutes(failures) * 60 * 1000),
+      : new Date(now.getTime() + Math.max(failureBackoffMs, providerBackoffMs)),
     consecutiveFailures: failures,
     // Releases the lock so a stale token can never match a later run, and closes
     // its lease so the reaper is not left waiting out a TTL on a finished run.
+    syncLockToken: null,
+    syncLockLeaseAt: null,
+    updatedAt: now,
+  }
+}
+
+/**
+ * The connector row written after a provider positively identifies throttling.
+ *
+ * Structured throttling is a transient quota or availability condition, so it
+ * must not consume the breaker reserved for persistent connector failures. The
+ * provider deadline remains authoritative, with a short post-deadline jitter
+ * to avoid releasing every connector sharing the same quota window at once.
+ * When the provider omits a usable deadline, the first rung of the ordinary
+ * failure ladder provides a conservative fallback.
+ */
+export function buildSyncRateLimitUpdate(
+  now: Date,
+  previousFailures: number | null | undefined,
+  errorMessage: string,
+  retryAfterMs?: number
+) {
+  const maximumBackoffMs = CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES * 60 * 1000
+  const providerBackoffMs =
+    typeof retryAfterMs === 'number' && Number.isFinite(retryAfterMs) && retryAfterMs > 0
+      ? retryAfterMs
+      : connectorFailureBackoffMinutes(1) * 60 * 1000
+  const jitterMs = randomInt(0, RATE_LIMIT_RETRY_JITTER_MAX_MS + 1)
+
+  return {
+    status: 'error' as const,
+    lastSyncError: errorMessage,
+    nextSyncAt: new Date(now.getTime() + Math.min(providerBackoffMs + jitterMs, maximumBackoffMs)),
+    consecutiveFailures: previousFailures ?? 0,
     syncLockToken: null,
     syncLockLeaseAt: null,
     updatedAt: now,
@@ -2431,6 +2479,14 @@ export async function executeSync(
           })
         )
 
+        const rateLimitFailure = hydrated.find(
+          (outcome): outcome is PromiseRejectedResult =>
+            outcome.status === 'rejected' && isRateLimitError(outcome.reason)
+        )
+        if (rateLimitFailure) {
+          throw rateLimitFailure.reason
+        }
+
         for (let i = 0; i < hydrated.length; i++) {
           const outcome = hydrated[i]
           if (outcome.status === 'fulfilled' && outcome.value) {
@@ -3160,7 +3216,13 @@ export async function executeSync(
     }
 
     const errorMessage = toError(error).message
-    logger.error('Sync failed', { connectorId, error: errorMessage })
+    const retryAfterMs = getRetryAfterMs(error)
+    const rateLimited = isRateLimitError(error)
+    logger.error('Sync failed', {
+      connectorId,
+      error: errorMessage,
+      ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+    })
 
     try {
       await completeSyncLog(syncLogId, 'failed', result, { errorMessage })
@@ -3168,7 +3230,19 @@ export async function executeSync(
       const failureUpdate =
         error instanceof ConnectorSyncCapacityError
           ? buildSyncCapacityUpdate(new Date(), connector.consecutiveFailures, errorMessage)
-          : buildSyncFailureUpdate(new Date(), connector.consecutiveFailures, errorMessage)
+          : rateLimited
+            ? buildSyncRateLimitUpdate(
+                new Date(),
+                connector.consecutiveFailures,
+                errorMessage,
+                retryAfterMs
+              )
+            : buildSyncFailureUpdate(
+                new Date(),
+                connector.consecutiveFailures,
+                errorMessage,
+                retryAfterMs
+              )
 
       if (failureUpdate.status === 'disabled') {
         logger.warn('Connector disabled after repeated failures', {

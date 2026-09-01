@@ -6,6 +6,7 @@ import {
   extractDaytonaError,
   mapDaytonaSandbox,
   parseDaytonaJson,
+  resolveSandboxId,
 } from '@/tools/daytona/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -48,7 +49,7 @@ export const daytonaDeleteSandboxTool: ToolConfig<
     const data = await parseDaytonaJson(response)
     const sandbox = mapDaytonaSandbox(data)
     if (!sandbox.id && params) {
-      sandbox.id = params.sandboxId.trim()
+      sandbox.id = resolveSandboxId(params.sandboxId)
     }
     return {
       success: true,

@@ -1,6 +1,6 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const s3CopyObjectTool: ToolConfig = {
+export const s3CopyObjectTool: InternalToolConfig = {
   id: 's3_copy_object',
   name: 'S3 Copy Object',
   description: 'Copy an object within or between AWS S3 buckets',
@@ -57,13 +57,8 @@ export const s3CopyObjectTool: ToolConfig = {
     },
   },
 
-  request: {
-    url: '/api/tools/s3/copy-object',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
       region: params.region,

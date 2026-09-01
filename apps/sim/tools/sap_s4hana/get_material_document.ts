@@ -1,14 +1,15 @@
-import type { GetMaterialDocumentParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
+import type { GetMaterialDocumentParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
 import {
-  baseProxyBody,
   buildEntityQuery,
+  buildSapOperationBaseInput,
   quoteOdataKey,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
 } from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getMaterialDocumentTool: ToolConfig<GetMaterialDocumentParams, SapProxyResponse> = {
+export const getMaterialDocumentTool: InternalToolConfig<
+  GetMaterialDocumentParams,
+  SapS4HanaResponse
+> = {
   id: 'sap_s4hana_get_material_document',
   name: 'SAP S/4HANA Get Material Document',
   description:
@@ -102,19 +103,15 @@ export const getMaterialDocumentTool: ToolConfig<GetMaterialDocumentParams, SapP
         'Comma-separated navigation properties to expand (e.g., "to_MaterialDocumentItem")',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...buildSapOperationBaseInput(params),
       service: 'API_MATERIAL_DOCUMENT_SRV',
       path: `/A_MaterialDocumentHeader(MaterialDocument=${quoteOdataKey(params.materialDocument)},MaterialDocumentYear=${quoteOdataKey(params.materialDocumentYear)})`,
       method: 'GET',
       query: buildEntityQuery(params),
     }),
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {

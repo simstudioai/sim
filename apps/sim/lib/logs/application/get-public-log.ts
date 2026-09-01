@@ -1,12 +1,19 @@
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import type { CostLedger } from '@/lib/api/contracts/logs'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { logDelegationAuthorization } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { buildCostLedger } from '@/lib/logs/cost-ledger'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
+import {
+  logProjectionSubjectUserId,
+  projectExecutionData,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
 import { getPublicWorkflowLog, getPublicWorkflowLogScope } from '@/lib/logs/public-queries'
 import { sanitizeExecutionSnapshotState } from '@/lib/logs/snapshot-sanitizer'
 import {
@@ -86,8 +93,29 @@ export const getPublicLog = defineAuthorizedWorkspaceUseCase({
     if (!workspace) throw new OrchestrationError('not_found', 'Log not found')
     return { ...workspace, executionId: scope.executionId, workflowId: scope.workflowId }
   },
-  authorizationOptions: {},
+  authorizationOptions: logDelegationAuthorization<PublicLogContext>(),
   execute: async ({ principal, context }): Promise<GetPublicLogResult> => {
+    /**
+     * Attribution and the projection subject in one value; a workspace API key
+     * represents no user and therefore reads the run whole. See
+     * `list-public-logs.ts` for why the key's creator is never substituted.
+     */
+    const viewerUserId = resolvePrincipalSubjectUserId(principal)
+
+    /**
+     * permission-group-enforced: logs.trace_spans
+     * permission-group-enforced: logs.cost
+     *
+     * The same projection the list and the internal detail path apply. Without
+     * it this route published the whole trace and the itemized ledger to a
+     * member whose group withholds both everywhere else.
+     */
+    const projection = await resolveLogFieldProjection(
+      logProjectionSubjectUserId(principal),
+      context.workspaceId,
+      context.workspaceOrganizationId
+    )
+
     const log = await getPublicWorkflowLog(
       { column: 'executionId', value: context.executionId },
       context.workspaceId
@@ -109,22 +137,36 @@ export const getPublicLog = defineAuthorizedWorkspaceUseCase({
         workspaceId: context.workspaceId,
         workflowId: log.workflowId,
         executionId: log.executionId,
-        userId: principal.kind === 'personal_api_key' ? principal.userId : undefined,
+        userId: viewerUserId,
       }
     )
-    if (log.workflowUserId && !log.workflowOwnerEmail) {
-      throw new Error(`Unable to resolve workflow owner email for ${log.workflowUserId}`)
-    }
-    const costLedger = await buildCostLedger(log.executionId)
+    /**
+     * No assertion on `executedByEmail`. The owner-email version of this field
+     * could reasonably insist a non-null user id resolve to an email, because
+     * the workflow row's owner was expected to exist. The executing identity is
+     * read from attribution the run captured for itself, and a run that failed
+     * before resolving one legitimately has none — so null is an answer here,
+     * not a missing join.
+     */
+    /**
+     * The ledger is the itemization of the very total `costTotal` reports, so a
+     * group withholding spend has to lose both — blanking the total alone would
+     * leave the caller able to sum the lines.
+     */
+    const costLedger = projection.hideCostInfo ? null : await buildCostLedger(log.executionId)
     return {
-      log: { ...log, workflowState: sanitizeExecutionSnapshotState(log.workflowState) },
+      log: {
+        ...log,
+        costTotal: projection.hideCostInfo ? null : log.costTotal,
+        workflowState: sanitizeExecutionSnapshotState(log.workflowState),
+      },
       costLedger,
       workflowFolderPath: publicLogFolderPath(
         folderIndex.pathById,
         log.workflowFolderId,
         log.workflowName !== null
       ),
-      executionData,
+      executionData: projectExecutionData(executionData, projection) as Record<string, unknown>,
     }
   },
 })

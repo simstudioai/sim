@@ -5,6 +5,49 @@ import crypto from 'crypto'
 import { createMockRequest } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ashbyHandler } from '@/lib/webhooks/providers/ashby'
+import type {
+  AuthContext,
+  EventMatchContext,
+  FormatInputContext,
+} from '@/lib/webhooks/providers/types'
+
+function authContext(
+  request: AuthContext['request'],
+  rawBody: string,
+  providerConfig: Record<string, unknown>
+): AuthContext {
+  return {
+    request,
+    rawBody,
+    requestId: 'r1',
+    providerConfig,
+    webhook: {},
+    workflow: {},
+  }
+}
+
+function eventMatchContext(body: unknown, triggerId: string): EventMatchContext {
+  return {
+    webhook: { id: 'w1' },
+    workflow: {},
+    body,
+    request: createMockRequest('POST', body),
+    requestId: 'r1',
+    providerConfig: { triggerId },
+  }
+}
+
+function formatInputContext(body: unknown): FormatInputContext {
+  return {
+    webhook: { id: 'w1' },
+    workflow: { id: 'workflow-1', userId: 'user-1' },
+    body,
+    headers: {},
+    query: {},
+    method: 'POST',
+    requestId: 'r1',
+  }
+}
 
 describe('ashbyHandler', () => {
   describe('verifyAuth', () => {
@@ -16,27 +59,13 @@ describe('ashbyHandler', () => {
       const request = createMockRequest('POST', JSON.parse(rawBody), {
         'ashby-signature': signature,
       })
-      const res = ashbyHandler.verifyAuth!({
-        request: request as any,
-        rawBody,
-        requestId: 'r1',
-        providerConfig: {},
-        webhook: {},
-        workflow: {},
-      })
+      const res = ashbyHandler.verifyAuth!(authContext(request, rawBody, {}))
       expect(res?.status).toBe(401)
     })
 
     it('returns 401 when signature header is missing', () => {
       const request = createMockRequest('POST', JSON.parse(rawBody), {})
-      const res = ashbyHandler.verifyAuth!({
-        request: request as any,
-        rawBody,
-        requestId: 'r1',
-        providerConfig: { secretToken: secret },
-        webhook: {},
-        workflow: {},
-      })
+      const res = ashbyHandler.verifyAuth!(authContext(request, rawBody, { secretToken: secret }))
       expect(res?.status).toBe(401)
     })
 
@@ -44,14 +73,7 @@ describe('ashbyHandler', () => {
       const request = createMockRequest('POST', JSON.parse(rawBody), {
         'ashby-signature': 'sha256=deadbeef',
       })
-      const res = ashbyHandler.verifyAuth!({
-        request: request as any,
-        rawBody,
-        requestId: 'r1',
-        providerConfig: { secretToken: secret },
-        webhook: {},
-        workflow: {},
-      })
+      const res = ashbyHandler.verifyAuth!(authContext(request, rawBody, { secretToken: secret }))
       expect(res?.status).toBe(401)
     })
 
@@ -59,67 +81,78 @@ describe('ashbyHandler', () => {
       const request = createMockRequest('POST', JSON.parse(rawBody), {
         'ashby-signature': signature,
       })
-      const res = ashbyHandler.verifyAuth!({
-        request: request as any,
-        rawBody,
-        requestId: 'r1',
-        providerConfig: { secretToken: secret },
-        webhook: {},
-        workflow: {},
-      })
+      const res = ashbyHandler.verifyAuth!(authContext(request, rawBody, { secretToken: secret }))
       expect(res).toBeNull()
     })
   })
 
   describe('matchEvent', () => {
     it('rejects ping events', async () => {
-      const matched = await ashbyHandler.matchEvent!({
-        webhook: { id: 'w1' } as any,
-        body: { action: 'ping', data: { webhookActionType: 'ping' } },
-        requestId: 'r1',
-        providerConfig: { triggerId: 'ashby_application_submit' },
-      } as any)
+      const matched = await ashbyHandler.matchEvent!(
+        eventMatchContext(
+          { action: 'ping', data: { webhookActionType: 'ping' } },
+          'ashby_application_submit'
+        )
+      )
       expect(matched).toBe(false)
     })
 
     it('matches when action equals the configured trigger event', async () => {
-      const matched = await ashbyHandler.matchEvent!({
-        webhook: { id: 'w1' } as any,
-        body: { action: 'applicationSubmit', data: {} },
-        requestId: 'r1',
-        providerConfig: { triggerId: 'ashby_application_submit' },
-      } as any)
+      const matched = await ashbyHandler.matchEvent!(
+        eventMatchContext({ action: 'applicationSubmit', data: {} }, 'ashby_application_submit')
+      )
       expect(matched).toBe(true)
     })
 
     it('rejects when action does not match the configured trigger event', async () => {
-      const matched = await ashbyHandler.matchEvent!({
-        webhook: { id: 'w1' } as any,
-        body: { action: 'jobCreate', data: {} },
-        requestId: 'r1',
-        providerConfig: { triggerId: 'ashby_application_submit' },
-      } as any)
+      const matched = await ashbyHandler.matchEvent!(
+        eventMatchContext({ action: 'jobCreate', data: {} }, 'ashby_application_submit')
+      )
       expect(matched).toBe(false)
+    })
+
+    it('matches newly supported Ashby events', async () => {
+      const matched = await ashbyHandler.matchEvent!(
+        eventMatchContext(
+          { action: 'signatureRequestUpdate', data: {} },
+          'ashby_signature_request_update'
+        )
+      )
+      expect(matched).toBe(true)
+    })
+  })
+
+  describe('extractIdempotencyId', () => {
+    it('uses Ashby webhookActionId across retries and related event deliveries', () => {
+      expect(
+        ashbyHandler.extractIdempotencyId!({
+          action: 'applicationUpdate',
+          webhookActionId: 'action-1',
+          data: { application: { id: 'app-1' } },
+        })
+      ).toBe('ashby:webhook-action:action-1')
     })
   })
 
   describe('formatInput', () => {
     it('spreads data fields to the top level alongside action', async () => {
-      const result = await ashbyHandler.formatInput!({
-        body: {
+      const result = await ashbyHandler.formatInput!(
+        formatInputContext({
           action: 'applicationSubmit',
+          webhookActionId: 'action-1',
           data: { application: { id: 'app-1', status: 'Active' } },
-        },
-      } as any)
+        })
+      )
       expect(result.input).toEqual({
         action: 'applicationSubmit',
+        webhookActionId: 'action-1',
         application: { id: 'app-1', status: 'Active' },
       })
     })
 
     it('renames currentInterviewStage.type to stageType, matching the trigger output schema', async () => {
-      const result = await ashbyHandler.formatInput!({
-        body: {
+      const result = await ashbyHandler.formatInput!(
+        formatInputContext({
           action: 'candidateStageChange',
           data: {
             application: {
@@ -127,8 +160,8 @@ describe('ashbyHandler', () => {
               currentInterviewStage: { id: 'stage-1', title: 'Offer', type: 'Offer' },
             },
           },
-        },
-      } as any)
+        })
+      )
       expect(result.input.application).toEqual({
         id: 'app-1',
         currentInterviewStage: { id: 'stage-1', title: 'Offer', stageType: 'Offer' },
@@ -262,6 +295,21 @@ describe('ashbyHandler', () => {
     it('accepts a successful delete', async () => {
       respondWith({ success: true, results: { webhookId: 'ext-1' } })
       await expect(ashbyHandler.deleteSubscription?.(ctx(true))).resolves.toBeUndefined()
+    })
+
+    it('rejects an oversized provider response before buffering it', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue(
+        new Response('{}', {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+            'content-length': String(Number.MAX_SAFE_INTEGER),
+          },
+        })
+      ) as never
+      await expect(ashbyHandler.deleteSubscription?.(ctx(true))).rejects.toThrow(
+        /exceeds maximum size/
+      )
     })
   })
 

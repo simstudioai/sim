@@ -47,7 +47,7 @@ describe('credential groups collection route', () => {
       user: { id: 'user-1' },
       session: { id: 'session-1' },
     })
-    mocks.list.mockResolvedValue({ credentialGroups: [] })
+    mocks.list.mockResolvedValue({ credentialGroups: [], availableProviders: ['gmail'] })
   })
 
   it('authenticates before parsing the request body', async () => {
@@ -64,7 +64,7 @@ describe('credential groups collection route', () => {
     const response = await GET(request, context)
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ credentialGroups: [] })
+    expect(await response.json()).toEqual({ credentialGroups: [], availableProviders: ['gmail'] })
     expect(mocks.list).toHaveBeenCalledWith({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       input: { workspaceId: WORKSPACE_ID },

@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@sim/security/hostnames'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  keepPreviousData,
+  queryOptions,
   useMutation,
   useQueries,
   useQuery,
@@ -44,17 +44,9 @@ import { workflowMcpServerKeys } from '@/hooks/queries/workflow-mcp-servers'
 const logger = createLogger('McpQueries')
 
 export type { McpServerStatusConfig, McpTool, StoredMcpTool }
+export type { McpServer }
 
 export const MCP_SERVER_LIST_STALE_TIME = 60 * 1000
-/**
- * Tool discovery is kept fresh by the `list_changed` → SSE push (see `useMcpToolsEvents`),
- * so the query only needs a re-probe-on-visit fallback for servers without push. Matches the
- * server-side cache TTL (`MCP_CONSTANTS.CACHE_TIMEOUT`) — no reference MCP client re-probes
- * more often than its cache; real changes arrive via push regardless of this value.
- */
-export const MCP_SERVER_TOOLS_STALE_TIME = 5 * 60 * 1000
-export const MCP_STORED_TOOL_LIST_STALE_TIME = 60 * 1000
-export const MCP_ALLOWED_DOMAINS_STALE_TIME = 5 * 60 * 1000
 
 export const mcpKeys = {
   all: ['mcp'] as const,
@@ -70,7 +62,37 @@ export const mcpKeys = {
   allowedDomains: () => [...mcpKeys.all, 'allowedDomains'] as const,
 }
 
-export type { McpServer }
+async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promise<McpServer[]> {
+  try {
+    const data = await requestJson(listMcpServersContract, {
+      query: { workspaceId },
+      signal,
+    })
+    return data.data.servers
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) return []
+    throw error
+  }
+}
+
+export function mcpServersQueryOptions(workspaceId: string) {
+  return queryOptions({
+    queryKey: mcpKeys.serversList(workspaceId),
+    queryFn: ({ signal }) => fetchMcpServers(workspaceId, signal),
+    retry: false,
+    retryOnMount: true,
+    staleTime: MCP_SERVER_LIST_STALE_TIME,
+  })
+}
+/**
+ * Tool discovery is kept fresh by the `list_changed` → SSE push (see `useMcpToolsEvents`),
+ * so the query only needs a re-probe-on-visit fallback for servers without push. Matches the
+ * server-side cache TTL (`MCP_CONSTANTS.CACHE_TIMEOUT`) — no reference MCP client re-probes
+ * more often than its cache; real changes arrive via push regardless of this value.
+ */
+export const MCP_SERVER_TOOLS_STALE_TIME = 5 * 60 * 1000
+export const MCP_STORED_TOOL_LIST_STALE_TIME = 60 * 1000
+export const MCP_ALLOWED_DOMAINS_STALE_TIME = 5 * 60 * 1000
 
 /** Wire shape for create/update; distinct from runtime McpServerConfig. */
 export interface McpServerInput {
@@ -85,29 +107,10 @@ export interface McpServerInput {
   authType?: McpAuthType
 }
 
-async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promise<McpServer[]> {
-  try {
-    const data = await requestJson(listMcpServersContract, {
-      query: { workspaceId },
-      signal,
-    })
-    return data.data.servers
-  } catch (error) {
-    if (error instanceof ApiClientError && error.status === 404) {
-      return []
-    }
-    throw error
-  }
-}
-
 export function useMcpServers(workspaceId: string) {
   return useQuery({
-    queryKey: mcpKeys.serversList(workspaceId),
-    queryFn: ({ signal }) => fetchMcpServers(workspaceId, signal),
+    ...mcpServersQueryOptions(workspaceId),
     enabled: !!workspaceId,
-    retry: false,
-    staleTime: MCP_SERVER_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 

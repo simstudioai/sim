@@ -2,13 +2,15 @@ import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import {
   type Principal,
-  requirePrincipalSubjectUserId,
   resolvePrincipalAttribution,
+  resolvePrincipalSubjectUserId,
 } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import type {
@@ -24,6 +26,7 @@ import type {
   TablePredicate,
   TableRow,
   TableRowSecretProvenanceWrite,
+  TableRowsCursor,
 } from '@/lib/table'
 import {
   batchInsertRows,
@@ -55,12 +58,20 @@ import {
   type TableRowProvenanceEnvelope,
 } from '@/lib/table/application/row-secret-provenance'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
-import { buildColumnNameById, buildIdByName, unknownColumnNames } from '@/lib/table/column-keys'
+import {
+  buildColumnNameById,
+  buildIdByName,
+  columnMatchesRef,
+  filterNamesToIds,
+  getColumnId,
+  sortNamesToIds,
+  unknownColumnNames,
+} from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
-import { predicateToFilter } from '@/lib/table/query-builder/converters'
+import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicate,
   validatePredicateShape,
@@ -77,8 +88,9 @@ import {
 } from '@/lib/table/rows/secret-provenance'
 import type { FindRowMatch, RowWriteOptions } from '@/lib/table/rows/service'
 import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
-import { predicateToStorage } from '@/lib/table/select-values'
+import { predicateToStorage, resolveFilterSelectValues } from '@/lib/table/select-values'
 import { coerceRowValues } from '@/lib/table/validation'
+import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export class TableRowsValidationError extends OrchestrationError {
@@ -88,6 +100,13 @@ export class TableRowsValidationError extends OrchestrationError {
   ) {
     super('validation', message)
     this.name = 'TableRowsValidationError'
+  }
+}
+
+export class TableV2FeatureDisabledError extends OrchestrationError {
+  constructor() {
+    super('forbidden', 'The v2 table query API is not enabled for this workspace')
+    this.name = 'TableV2FeatureDisabledError'
   }
 }
 
@@ -135,8 +154,8 @@ interface TableResult {
 type TableRowsProvenance = Awaited<ReturnType<typeof loadTableRowSecretProvenance>>
 
 async function loadAuthorizedRowsProvenance(
-  principal: Parameters<typeof requirePrincipalSubjectUserId>[0],
   workspaceId: string,
+  attributedUserId: string,
   // The loader reads only id, updatedAt and the selected values, so a row
   // without its executions sidecar is enough — see `TABLE_ROW_SIDECAR_SELECTION`.
   rows: TableRowSummary[],
@@ -149,7 +168,7 @@ async function loadAuthorizedRowsProvenance(
     // which is how the unmigrated `rows`/`query` routes have always behaved.
     rows.map((row) => ({ id: row.id, updatedAt: row.updatedAt, selectedValues: row.data })),
     {
-      userId: requirePrincipalSubjectUserId(principal),
+      userId: attributedUserId,
       workspaceId,
     }
   )
@@ -359,6 +378,28 @@ export function tablePredicateNamesToFilter(
   }
 }
 
+function tableFilterToStorage(
+  filter: Filter | TablePredicate,
+  table: TableDefinition,
+  keying: TableRowDataKeying = 'names'
+): Filter {
+  if (isTablePredicate(filter)) {
+    if (keying === 'names') return tablePredicateNamesToFilter(filter, table)
+    try {
+      validatePredicateShape(filter)
+      validateStoragePredicate(filter, table.schema.columns)
+      return predicateToFilter(filter)
+    } catch (error) {
+      rethrowQueryValidation(error)
+    }
+  }
+  if (keying === 'ids') return filter
+  return resolveFilterSelectValues(
+    filterNamesToIds(filter, buildIdByName(table.schema)),
+    table.schema.columns
+  )
+}
+
 async function throwValidationResponse(
   validation:
     | { valid: true }
@@ -423,9 +464,17 @@ export const listTableRows = defineAuthorizedTableUseCase({
 export interface QueryTableRowsInput extends TableScopedInput, RunStateReadInput {
   predicate?: TablePredicate
   sort?: SortSpec
+  legacyFilter?: Filter
+  legacySort?: Sort
+  legacyKeying?: TableRowDataKeying
   limit?: number
+  offset?: number
+  after?: TableRowsCursor
   cursor?: string
+  columns?: string[]
   includeTotal?: boolean
+  allowExpandedLimit?: boolean
+  requireV2Feature?: boolean
   includePersistedSecretProvenance?: boolean
 }
 
@@ -433,6 +482,8 @@ export interface QueryTableRowsResult extends TableResult {
   rows: TableRow[]
   rowCount: number
   totalCount: number | null
+  limit: number
+  offset: number
   nextCursor: string | null
   secretProvenance?: TableRowsProvenance
 }
@@ -442,35 +493,92 @@ export const queryTableRows = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: QueryTableRowsInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<QueryTableRowsResult> {
     try {
-      if (input.limit !== undefined) {
+      if (input.requireV2Feature) {
+        const orgId = await getWorkspaceOrganizationId(context.workspaceId)
+        if (
+          !(await isFeatureEnabled('tables-v2-api', {
+            // An actorless run has no user to match a per-user rule against, and a
+            // missing one resolves the admin clause to `false` without a query — so
+            // the gate only ever narrows here, never widens.
+            userId: resolvePrincipalSubjectUserId(principal),
+            orgId,
+          }))
+        ) {
+          throw new TableV2FeatureDisabledError()
+        }
+      }
+      if (input.limit !== undefined && !input.allowExpandedLimit) {
         requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_QUERY_LIMIT, 'Limit')
+      } else if (
+        input.limit !== undefined &&
+        (!Number.isSafeInteger(input.limit) || input.limit < 1)
+      ) {
+        throw new TableRowsValidationError('Limit must be at least 1')
+      }
+      if (input.offset !== undefined && (!Number.isSafeInteger(input.offset) || input.offset < 0)) {
+        throw new TableRowsValidationError('Offset must be 0 or greater')
       }
       let predicate = input.predicate
       if (predicate) {
-        validatePredicate(predicate, context.table.schema.columns)
-        predicate = predicateToStorage(predicate, context.table.schema)
+        if (input.legacyKeying !== undefined) {
+          validatePredicateShape(predicate)
+          if (input.legacyKeying === 'names') {
+            predicate = predicateToStorage(predicate, context.table.schema)
+          }
+          validateStoragePredicate(predicate, context.table.schema.columns)
+        } else {
+          validatePredicate(predicate, context.table.schema.columns)
+          predicate = predicateToStorage(predicate, context.table.schema)
+        }
       }
       let sortSpec = input.sort
       if (sortSpec?.length) {
-        validateSortSpec(sortSpec, context.table.schema.columns)
-        sortSpec = sortSpecNamesToIds(sortSpec, buildIdByName(context.table.schema))
+        if (input.legacyKeying !== undefined) {
+          if (input.legacyKeying === 'names') {
+            sortSpec = sortSpecNamesToIds(sortSpec, buildIdByName(context.table.schema))
+          }
+        } else {
+          validateSortSpec(sortSpec, context.table.schema.columns)
+          sortSpec = sortSpecNamesToIds(sortSpec, buildIdByName(context.table.schema))
+        }
       }
-      const sort: Sort | undefined = sortSpec?.length
+      let sort: Sort | undefined = sortSpec?.length
         ? Object.fromEntries(sortSpec.map((item) => [item.field, item.direction]))
+        : undefined
+      if (input.legacySort) {
+        sort =
+          input.legacyKeying === 'ids'
+            ? input.legacySort
+            : sortNamesToIds(input.legacySort, buildIdByName(context.table.schema))
+      }
+      const legacyFilter = input.legacyFilter
+        ? tableFilterToStorage(input.legacyFilter, context.table, input.legacyKeying ?? 'names')
         : undefined
       const cursor = input.cursor ? decodeCursor(input.cursor) : undefined
       if (cursor) assertCursorQueryBinding(cursor, { sort, predicate })
+      let columnIds: Set<string> | undefined
+      if (input.columns?.length) {
+        columnIds = new Set()
+        for (const reference of input.columns) {
+          const column = context.table.schema.columns.find((candidate) =>
+            columnMatchesRef(candidate, reference)
+          )
+          if (column) columnIds.add(getColumnId(column))
+        }
+      }
       const result = await queryRows(
         context.table,
         {
           predicate,
+          filter: legacyFilter,
           sort,
           limit: input.limit,
-          after: cursor?.after,
-          offset: cursor?.offset,
+          after: cursor?.after ?? input.after,
+          offset: cursor?.offset ?? input.offset,
           includeTotal: input.includeTotal ?? false,
           withExecutions: input.includeRunState ?? false,
           runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
+          columnIds,
         },
         requestId(input)
       )
@@ -478,8 +586,8 @@ export const queryTableRows = defineAuthorizedTableUseCase({
         table: context.table,
         ...result,
         secretProvenance: await loadAuthorizedRowsProvenance(
-          principal,
           context.workspaceId,
+          actorUserId(principal, context.billedAccountUserId),
           result.rows,
           input.includePersistedSecretProvenance
         ),
@@ -559,8 +667,8 @@ export const readTableRow = defineAuthorizedTableUseCase({
       row,
       ...(runState ? { runState } : {}),
       secretProvenance: await loadAuthorizedRowsProvenance(
-        principal,
         context.workspaceId,
+        actorUserId(principal, context.billedAccountUserId),
         [row],
         input.includePersistedSecretProvenance
       ),
@@ -620,6 +728,8 @@ interface CreateSingleTableRowInput extends TableScopedInput {
   afterRowId?: string
   beforeRowId?: string
   secretProvenance?: TableRowSecretProvenanceWrite
+  secretProvenanceEnvelope?: TableRowProvenanceEnvelope
+  includePersistedSecretProvenance?: boolean
 }
 
 interface CreateBatchTableRowsInput extends TableScopedInput {
@@ -631,13 +741,15 @@ interface CreateBatchTableRowsInput extends TableScopedInput {
   rows: RowData[]
   orderKeys?: string[]
   secretProvenance?: Array<TableRowSecretProvenanceWrite | undefined>
+  secretProvenanceEnvelope?: TableRowProvenanceEnvelope
+  includePersistedSecretProvenance?: boolean
 }
 
 export type CreateTableRowsInput = CreateSingleTableRowInput | CreateBatchTableRowsInput
 
 export type CreateTableRowsResult =
-  | (TableResult & { kind: 'single'; row: TableRow })
-  | (TableResult & { kind: 'batch'; rows: TableRow[] })
+  | (TableResult & { kind: 'single'; row: TableRow; secretProvenance?: TableRowsProvenance })
+  | (TableResult & { kind: 'batch'; rows: TableRow[]; secretProvenance?: TableRowsProvenance })
 
 export const createTableRows = defineAuthorizedTableUseCase({
   operation: tableOperations.createRows,
@@ -655,6 +767,13 @@ export const createTableRows = defineAuthorizedTableUseCase({
         throw new TableRowsValidationError('Position must be 0 or greater')
       }
       const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
+      const secretProvenance = singleRowWriteProvenance({
+        principal,
+        workspaceId: context.workspaceId,
+        table: context.table,
+        input,
+        storageData: data,
+      })
       const writeOptions = rowWriteOptions(input)
       await throwValidationResponse(
         await validateRowData({
@@ -670,16 +789,27 @@ export const createTableRows = defineAuthorizedTableUseCase({
           workspaceId: context.workspaceId,
           data,
           userId,
+          capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
           position: input.position,
           afterRowId: input.afterRowId,
           beforeRowId: input.beforeRowId,
-          secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
+          secretProvenance,
         },
         context.table,
         requestId(input),
         writeOptions
       )
-      return { kind: 'single', table: context.table, row }
+      return {
+        kind: 'single',
+        table: context.table,
+        row,
+        secretProvenance: await loadAuthorizedRowsProvenance(
+          context.workspaceId,
+          actorUserId(principal, context.billedAccountUserId),
+          [row],
+          input.includePersistedSecretProvenance
+        ),
+      }
     }
     if (input.rows.length < 1 || input.rows.length > TABLE_LIMITS.MAX_BATCH_INSERT_SIZE) {
       throw new TableRowsValidationError(
@@ -693,6 +823,17 @@ export const createTableRows = defineAuthorizedTableUseCase({
       throw new TableRowsValidationError('orderKeys must align one-to-one with rows')
     }
     const rows = rowsToStorage(input.rows, context.table, input.dataKeying, input.strictWrite)
+    const secretProvenance = input.secretProvenanceEnvelope
+      ? resolveRowWriteProvenance({
+          envelope: input.secretProvenanceEnvelope,
+          principal,
+          workspaceId: context.workspaceId,
+          table: context.table,
+          keying: input.dataKeying,
+          wireRows: input.rows,
+          storageRows: rows,
+        }).stamps
+      : defaultedRowsSecretProvenance(rows, input.secretProvenance)
     const batchWriteOptions = rowWriteOptions(input)
     await throwValidationResponse(
       await validateBatchRows({
@@ -708,14 +849,25 @@ export const createTableRows = defineAuthorizedTableUseCase({
         workspaceId: context.workspaceId,
         rows,
         userId,
+        capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
         orderKeys: input.orderKeys,
-        secretProvenance: defaultedRowsSecretProvenance(rows, input.secretProvenance),
+        secretProvenance,
       },
       context.table,
       requestId(input),
       batchWriteOptions
     )
-    return { kind: 'batch', table: context.table, rows: created }
+    return {
+      kind: 'batch',
+      table: context.table,
+      rows: created,
+      secretProvenance: await loadAuthorizedRowsProvenance(
+        context.workspaceId,
+        actorUserId(principal, context.billedAccountUserId),
+        created,
+        input.includePersistedSecretProvenance
+      ),
+    }
   },
   afterSuccess: ({ context, input, result }) => {
     // Narrowed on the input, not the result: only the single-row variant carries
@@ -844,7 +996,6 @@ function projectedRowsForTable(
 
 function projectedRowsSecretProvenance(
   rows: RowData[],
-  principal: Parameters<typeof requirePrincipalSubjectUserId>[0],
   workspaceId: string,
   policy: ReplaceProjectedWireRowsInput['secretProvenance']
 ): TableRowSecretProvenanceWrite[] {
@@ -853,7 +1004,6 @@ function projectedRowsSecretProvenance(
   if (!registry) return rows.map(createUnknownTableRowSecretProvenance)
 
   const destinationScope = {
-    userId: requirePrincipalSubjectUserId(principal),
     workspaceId,
   }
   return rows.map((row) => {
@@ -911,7 +1061,6 @@ export const replaceProjectedWireRows = defineAuthorizedTableUseCase({
             userId: actorUserId(principal, context.billedAccountUserId),
             secretProvenance: projectedRowsSecretProvenance(
               provenanceRows,
-              principal,
               context.workspaceId,
               input.secretProvenance
             ),
@@ -1005,6 +1154,7 @@ export const updateTableRow = defineAuthorizedTableUseCase({
         rowId: input.rowId,
         data,
         actorUserId: actorUserId(principal, context.billedAccountUserId),
+        capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
         secretProvenance,
       },
       context.table,
@@ -1017,8 +1167,8 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       row,
       changed: Object.keys(data).length > 0,
       secretProvenance: await loadAuthorizedRowsProvenance(
-        principal,
         context.workspaceId,
+        actorUserId(principal, context.billedAccountUserId),
         [row],
         input.includePersistedSecretProvenance
       ),
@@ -1034,10 +1184,12 @@ export interface UpdateTableRowsInput extends TableScopedInput {
   strictWrite: boolean
   /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
   dataKeying: TableRowDataKeying
-  filter: TablePredicate
+  filter: TablePredicate | Filter
+  filterKeying?: TableRowDataKeying
   data: RowData
   limit?: number
   secretProvenance?: TableRowSecretProvenanceWrite
+  secretProvenanceEnvelope?: TableRowProvenanceEnvelope
 }
 
 export interface UpdateTableRowsResult extends TableResult, BulkOperationResult {}
@@ -1051,14 +1203,22 @@ export const updateTableRows = defineAuthorizedTableUseCase({
         requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit')
       }
       const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
+      const secretProvenance = singleRowWriteProvenance({
+        principal,
+        workspaceId: context.workspaceId,
+        table: context.table,
+        input,
+        storageData: data,
+      })
       const result = await updateRowsByFilter(
         context.table,
         {
-          filter: tablePredicateNamesToFilter(input.filter, context.table),
+          filter: tableFilterToStorage(input.filter, context.table, input.filterKeying ?? 'names'),
           data,
           limit: input.limit,
           actorUserId: actorUserId(principal, context.billedAccountUserId),
-          secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
+          capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
+          secretProvenance,
         },
         requestId(input),
         rowWriteOptions(input)
@@ -1080,6 +1240,7 @@ export interface BatchUpdateTableRowsInput extends TableScopedInput {
   dataKeying: TableRowDataKeying
   /** One merge patch per row. A row identifier may appear at most once. */
   updates: readonly { rowId: string; data: RowData }[]
+  secretProvenanceEnvelope?: TableRowProvenanceEnvelope
 }
 
 export interface BatchUpdateTableRowsResult extends TableResult, BulkOperationResult {}
@@ -1132,17 +1293,29 @@ export const batchUpdateTableRows = defineAuthorizedTableUseCase({
       rowId: update.rowId,
       data: storageData[index],
     }))
+    const secretProvenance = input.secretProvenanceEnvelope
+      ? resolveRowWriteProvenance({
+          envelope: input.secretProvenanceEnvelope,
+          principal,
+          workspaceId: context.workspaceId,
+          table: context.table,
+          keying: input.dataKeying,
+          wireRows: input.updates.map((update) => update.data),
+          storageRows: storageData,
+        }).stamps
+      : storageData.map(createExactEmptyTableRowSecretProvenance)
     const result = await batchUpdateRows(
       {
         tableId: context.tableId,
         updates,
         workspaceId: context.workspaceId,
         actorUserId: actorUserId(principal, context.billedAccountUserId),
+        capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
         secretProvenanceByRowId: Object.fromEntries(
-          updates.map((update) => [
-            update.rowId,
-            createExactEmptyTableRowSecretProvenance(update.data),
-          ])
+          updates.flatMap((update, index) => {
+            const stamp = secretProvenance[index]
+            return stamp ? [[update.rowId, stamp]] : []
+          })
         ),
       },
       context.table,
@@ -1188,7 +1361,15 @@ export const deleteTableRow = defineAuthorizedTableUseCase({
 })
 
 export type DeleteTableRowsInput = TableScopedInput &
-  ({ kind: 'ids'; rowIds: string[] } | { kind: 'filter'; filter: TablePredicate; limit?: number })
+  (
+    | { kind: 'ids'; rowIds: string[] }
+    | {
+        kind: 'filter'
+        filter: TablePredicate | Filter
+        filterKeying?: TableRowDataKeying
+        limit?: number
+      }
+  )
 
 export type DeleteTableRowsResult = TableResult &
   (({ kind: 'ids' } & BulkDeleteByIdsResult) | ({ kind: 'filter' } & BulkOperationResult))
@@ -1221,7 +1402,7 @@ export const deleteTableRows = defineAuthorizedTableUseCase({
       const result = await deleteRowsByFilter(
         context.table,
         {
-          filter: tablePredicateNamesToFilter(input.filter, context.table),
+          filter: tableFilterToStorage(input.filter, context.table, input.filterKeying ?? 'names'),
           limit: input.limit,
         },
         requestId(input)
@@ -1297,6 +1478,7 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
         data,
         conflictTarget,
         userId: actorUserId(principal, context.billedAccountUserId),
+        capabilityGovernedUserId: capabilityGovernedPrincipalUserId(principal),
         secretProvenance,
       },
       context.table,
@@ -1308,8 +1490,8 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
       row: result.row,
       operation: result.operation,
       secretProvenance: await loadAuthorizedRowsProvenance(
-        principal,
         context.workspaceId,
+        actorUserId(principal, context.billedAccountUserId),
         [result.row],
         input.includePersistedSecretProvenance
       ),

@@ -752,7 +752,7 @@ export const simProfile: CompetitorProfile = {
       },
       mcpPublishing: {
         value:
-          'Yes: any deployed workflow can be published as a tool on an MCP server (private, API-key protected, or public/no-auth), with ready-to-paste client config generated for Cursor, Claude Code, Claude Desktop, and VS Code',
+          'Yes: any deployed workflow can be published as a tool on an MCP server (private, API-key protected, or public/no-auth), with ready-to-paste client config generated for Codex, Cursor, Claude Code, Claude Desktop, and VS Code',
         shortValue: 'Deployed workflows publish as MCP server tools',
         confidence: 'verified',
         sources: [
@@ -792,8 +792,8 @@ export const simProfile: CompetitorProfile = {
       },
       freeTier: {
         value:
-          'Yes: Free plan with 1,000 monthly credits (worth $5, env-configurable), granted monthly with no weekly refresh (weekly refresh is a paid-plan feature)',
-        shortValue: 'Free plan, 1,000 credits/month',
+          'Yes: Free plan with 1,000 one-time credits (worth $5, env-configurable), granted once at signup and never refreshed — no monthly reset and no weekly refresh (weekly refresh is a paid-plan feature)',
+        shortValue: 'Free plan, 1,000 one-time credits',
         confidence: 'verified',
         sources: [
           {

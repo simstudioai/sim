@@ -1,12 +1,12 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
-import { asArray, cbInsightsRequest, compactBody, requireOrgId } from '@/tools/cbinsights/utils'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-interface CbInsightsMosaicHistoryParams extends CbInsightsOrgParams {
+export interface CbInsightsMosaicHistoryParams extends CbInsightsOrgParams {
   startDate?: string
 }
 
-export const cbinsightsGetMosaicHistoryTool: ToolConfig<
+export const cbinsightsGetMosaicHistoryTool: InternalToolConfig<
   CbInsightsMosaicHistoryParams,
   ToolResponse
 > = {
@@ -45,31 +45,8 @@ export const cbinsightsGetMosaicHistoryTool: ToolConfig<
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) => {
-    const orgId = requireOrgId(params.orgId)
-    return cbInsightsRequest<{
-      overall?: unknown
-      management?: unknown
-      market?: unknown
-      momentum?: unknown
-      money?: unknown
-    }>(
-      params,
-      {
-        path: `/v2/organizations/${orgId}/mosaichistory`,
-        body: compactBody({ startDate: params.startDate?.trim() }),
-      },
-      (data) => ({
-        overall: asArray(data.overall),
-        management: asArray(data.management),
-        market: asArray(data.market),
-        momentum: asArray(data.momentum),
-        money: asArray(data.money),
-      }),
-      signal
-    )
+  operation: {
+    input: createInternalToolOperationInput,
   },
 
   outputs: {

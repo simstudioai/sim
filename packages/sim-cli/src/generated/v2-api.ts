@@ -181,7 +181,7 @@ export type AddTableColumnBody = {
   column: {
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required?: boolean
     unique?: boolean
     options?: Array<{
@@ -198,7 +198,7 @@ type AddTableColumnResponseRef0 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -248,7 +248,7 @@ export type AddWorkflowGroupBody = {
   }
   outputColumns: Array<{
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required?: boolean
     unique?: boolean
   }>
@@ -283,7 +283,7 @@ type AddWorkflowGroupResponseRef1 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -1023,6 +1023,9 @@ type CancelWorkflowRunResponseRef0 = {
     | 'redis_write_failed'
     | 'paused_event_publish_failed'
     | 'paused_database_cancel_failed'
+    | 'queue_cancelled'
+    | 'active_resume_signal_failed'
+    | 'cancellation_not_finalized'
 }
 
 export type CancelWorkflowRunResponse = {
@@ -1874,7 +1877,7 @@ export type CreateTableBody = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
       required?: boolean
       unique?: boolean
       options?: Array<{
@@ -1906,7 +1909,7 @@ type CreateTableResponseRef1 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -2858,7 +2861,7 @@ type DeleteTableColumnResponseRef0 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -3119,7 +3122,7 @@ type DeleteWorkflowGroupResponseRef0 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -4038,6 +4041,7 @@ type GetLogResponseRef2 = {
   endedAt: string | null
   totalDurationMs: number | null
   files: Array<GetLogResponseRef0> | null
+  executedByEmail: string | null
   workflow: {
     id: string | null
     name: string
@@ -4272,7 +4276,7 @@ type GetTableResponseRef1 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -4604,6 +4608,7 @@ type GetWorkflowChatDeploymentResponseRef0 = {
 }
 
 type GetWorkflowChatDeploymentResponseRef1 = {
+  workflowId?: string
   blockId: string
   path: string
 }
@@ -5133,6 +5138,7 @@ type ListChatDeploymentsResponseRef0 = {
 }
 
 type ListChatDeploymentsResponseRef1 = {
+  workflowId?: string
   blockId: string
   path: string
 }
@@ -6028,7 +6034,7 @@ type ListTablesResponseRef0 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -6871,6 +6877,7 @@ type ReplaceWorkflowChatDeploymentBodyRef0 = {
 }
 
 type ReplaceWorkflowChatDeploymentBodyRef1 = {
+  workflowId?: string
   blockId: string
   path: string
 }
@@ -6895,6 +6902,7 @@ type ReplaceWorkflowChatDeploymentResponseRef0 = {
 }
 
 type ReplaceWorkflowChatDeploymentResponseRef1 = {
+  workflowId?: string
   blockId: string
   path: string
 }
@@ -7232,7 +7240,7 @@ type RestoreTableResponseRef1 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -8372,7 +8380,7 @@ type UpdateTableResponseRef1 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -8414,7 +8422,7 @@ export type UpdateTableColumnBody = {
   columnName: string
   updates: {
     name?: string
-    type?: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type?: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required?: boolean
     unique?: boolean
     options?: Array<{
@@ -8430,7 +8438,7 @@ type UpdateTableColumnResponseRef0 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -8693,7 +8701,7 @@ export type UpdateWorkflowGroupBody = {
   }>
   newOutputColumns?: Array<{
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required?: boolean
     unique?: boolean
   }>
@@ -8739,7 +8747,7 @@ type UpdateWorkflowGroupResponseRef1 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -10739,7 +10747,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'array',
         describe:
-          'Block output references to include in a streamed response, as `blockId`, `blockId.path`, or `BlockName.path` (resolved against the live workflow). Requires `stream: true` — it shapes the streamed envelope only, so it is rejected on a sync request and when `async` is true. To narrow a finished run, pass `selectedOutputs` to the run resource instead.',
+          'Block output references to include in a streamed response. Use `<blockName>.<outputPath>` for the executed workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow; block names are normalized workflow reference names. Selecting a child workflow applies to every invocation of it. Requires `stream: true` — it shapes the streamed envelope only, so it is rejected on a sync request and when `async` is true. To narrow a finished run, pass `selectedOutputs` to the run resource instead.',
       },
       includeThinking: {
         kind: 'boolean',

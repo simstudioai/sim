@@ -17,7 +17,17 @@ import {
   MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
   PRIVATE_SECRET_PROVENANCE_FIELD,
 } from '@/lib/execution/private-tool-metadata'
+import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
+import {
+  createSandboxMountBudget,
+  MAX_INLINE_MOUNT_FILE_BYTES,
+  MAX_INLINE_MOUNT_TOTAL_BYTES,
+  MAX_TOTAL_URL_BYTES,
+  MOUNT_URL_TTL_SECONDS,
+  pushSandboxFileMount,
+  type SandboxMountBudget,
+} from '@/lib/function-execution/sandbox-mounts'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { getTableSnapshotModelMountSafety } from '@/lib/table/rows/secret-provenance'
 import { getTableById, listTables } from '@/lib/table/service'
@@ -49,46 +59,9 @@ import { executeTool as executeAppTool } from '@/tools'
 
 const logger = createLogger('CopilotFunctionExecute')
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024
-const MAX_TOTAL_SIZE = 50 * 1024 * 1024
+const MAX_FILE_SIZE = MAX_INLINE_MOUNT_FILE_BYTES
+const MAX_TOTAL_SIZE = MAX_INLINE_MOUNT_TOTAL_BYTES
 const MAX_MOUNTED_FILES = 500
-
-/**
- * Lifetime of a presigned URL handed to the sandbox to fetch a mounted object (table snapshot or
- * workspace file). Long enough to download a large file at sandbox startup; the URL grants read to
- * only that one object.
- */
-const MOUNT_URL_TTL_SECONDS = 600
-
-/**
- * Per-file ceiling for URL-mounted workspace files. The bytes never transit the web process — the
- * sandbox curls them straight from storage — so the bound is sandbox disk, not web heap (unlike the
- * inline MAX_FILE_SIZE path).
- */
-const MOUNT_URL_MAX_BYTES = 500 * 1024 * 1024
-
-/**
- * Aggregate ceiling across all URL-mounted files in one request. URL mounts bypass the web heap (so
- * they don't count against MAX_TOTAL_SIZE), but the sandbox still curls every byte onto its disk —
- * this rejects an oversized request up front instead of filling the sandbox disk one slow curl at a
- * time. Generous vs MAX_TOTAL_SIZE since the bytes never transit web memory.
- */
-const MAX_TOTAL_URL_BYTES = 2 * 1024 * 1024 * 1024
-
-type SandboxFile =
-  | { type?: 'content'; path: string; content: string; encoding?: 'base64' }
-  | { type: 'url'; path: string; url: string }
-
-/**
- * Running byte totals for one resolveInputFiles call. `buffered` bytes pass through the web process
- * (capped by MAX_TOTAL_SIZE); `url` bytes are curled straight into the sandbox (capped by
- * MAX_TOTAL_URL_BYTES). Tracked separately because the two ceilings protect different resources —
- * web heap vs sandbox disk.
- */
-interface MountedBytes {
-  buffered: number
-  url: number
-}
 
 async function importMountedWorkspaceFileProvenance(args: {
   workspaceId: string
@@ -118,17 +91,18 @@ async function importMountedWorkspaceFileProvenance(args: {
 }
 
 /**
- * Mounts a stored workspace file into the sandbox and records its bytes against the running totals.
- * With cloud storage the sandbox fetches the bytes itself from a presigned URL (no web-heap transit,
- * per-file ceiling MOUNT_URL_MAX_BYTES, aggregate ceiling MAX_TOTAL_URL_BYTES); with local storage a
- * presigned URL is an app-internal serve path a remote sandbox can't reach, so we buffer the bytes
- * through the web process under the inline MAX_FILE_SIZE / MAX_TOTAL_SIZE guards.
+ * Mounts a stored workspace file into the sandbox. The transport choice, the byte
+ * ceilings, and the budget accounting live in {@link pushSandboxFileMount}, which
+ * the Function block shares; what stays here is workspace-specific — reloading the
+ * record through its application operation, importing its secret provenance, and
+ * reading generated documents through the servable reader rather than presigning
+ * their generator source.
  */
 async function pushWorkspaceFileMount(
   sandboxFiles: SandboxFile[],
   record: WorkspaceFileRecord,
   mountPath: string,
-  mounted: MountedBytes,
+  mounted: SandboxMountBudget,
   workspaceId: string,
   principal: Principal,
   registry?: ResolvedSecretTraceRegistry
@@ -148,78 +122,51 @@ async function pushWorkspaceFileMount(
   // through the web process rather than presigning is affordable.
   const rendersFromSource = isGeneratedDocumentSourceType(record.type)
 
-  if (hasCloudStorage() && !rendersFromSource) {
-    if (record.size > MOUNT_URL_MAX_BYTES) {
-      throw new Error(
-        `Input file "${mountPath}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MOUNT_URL_MAX_BYTES / 1024 / 1024}MB per-file mount limit.`
-      )
-    }
-    if (mounted.url + record.size > MAX_TOTAL_URL_BYTES) {
-      throw new Error(
-        `Mounting "${mountPath}" would exceed the ${MAX_TOTAL_URL_BYTES / 1024 / 1024 / 1024}GB total mount limit. Mount fewer or smaller files.`
-      )
-    }
-    const url = await generatePresignedDownloadUrl(
-      record.key,
-      record.storageContext ?? 'workspace',
-      MOUNT_URL_TTL_SECONDS
-    )
-    sandboxFiles.push({ type: 'url', path: mountPath, url })
-    mounted.url += record.size
-    return
-  }
-
-  const remainingBudget = Math.max(0, MAX_TOTAL_SIZE - mounted.buffered)
-
-  // A source-backed document declares the size of its generator, not of the document,
-  // so these pre-checks say nothing about what is about to be mounted. Its read is
-  // capped instead, and the real length is checked once it is known.
-  if (!rendersFromSource) {
-    if (record.size > MAX_FILE_SIZE) {
-      throw new Error(
-        `Input file "${mountPath}" is ${Math.round(record.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
-      )
-    }
-    if (record.size > remainingBudget) {
-      throw new Error(
-        `Mounting "${mountPath}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller files.`
-      )
-    }
-  }
-
-  const { buffer, contentType } = rendersFromSource
-    ? await fetchAuthorizedServableWorkspaceFileBuffer(record, principal, {
-        maxBytes: Math.min(MAX_FILE_SIZE, remainingBudget),
-      }).catch((error) => {
-        if (!isPayloadSizeLimitError(error)) throw error
-        throw new Error(
-          `Input file "${mountPath}" renders to more than the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit, or than the mount budget left. Mount fewer or smaller files.`
+  await pushSandboxFileMount(
+    sandboxFiles,
+    {
+      mountPath,
+      key: record.key,
+      storageContext: record.storageContext ?? 'workspace',
+      declaredSize: record.size,
+      rendersFromSource,
+      readInline: async (maxBytes) => {
+        const { buffer, contentType } = rendersFromSource
+          ? await fetchAuthorizedServableWorkspaceFileBuffer(record, principal, {
+              maxBytes,
+            }).catch((error) => {
+              if (!isPayloadSizeLimitError(error)) throw error
+              throw new Error(
+                `Input file "${mountPath}" renders to more than the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit, or than the mount budget left. Mount fewer or smaller files.`
+              )
+            })
+          : {
+              buffer: (
+                await readWorkspaceFileContent.execute({
+                  principal,
+                  input: {
+                    fileId: record.id,
+                    assertedWorkspaceId: workspaceId,
+                    maxBytes,
+                  },
+                })
+              ).content,
+              contentType: record.type,
+            }
+        // Keyed off the resolved type: a rendered document's source MIME is `text/x-…`, and
+        // decoding the binary as UTF-8 would corrupt it just as surely as shipping the source.
+        const isText = /^text\/|application\/json|application\/xml|application\/csv/.test(
+          contentType || ''
         )
-      })
-    : {
-        buffer: (
-          await readWorkspaceFileContent.execute({
-            principal,
-            input: {
-              fileId: record.id,
-              assertedWorkspaceId: workspaceId,
-              maxBytes: Math.min(MAX_FILE_SIZE, remainingBudget),
-            },
-          })
-        ).content,
-        contentType: record.type,
-      }
-  // Keyed off the resolved type: a rendered document's source MIME is `text/x-…`, and
-  // decoding the binary as UTF-8 would corrupt it just as surely as shipping the source.
-  const isText = /^text\/|application\/json|application\/xml|application\/csv/.test(
-    contentType || ''
+        return {
+          content: isText ? buffer.toString('utf-8') : buffer.toString('base64'),
+          ...(isText ? {} : { encoding: 'base64' as const }),
+          byteLength: buffer.length,
+        }
+      },
+    },
+    mounted
   )
-  sandboxFiles.push({
-    path: mountPath,
-    content: isText ? buffer.toString('utf-8') : buffer.toString('base64'),
-    encoding: isText ? undefined : 'base64',
-  })
-  mounted.buffered += buffer.length
 }
 
 /**
@@ -306,7 +253,7 @@ export async function resolveInputFiles(
   filePrincipal?: Principal
 ): Promise<SandboxFile[]> {
   const sandboxFiles: SandboxFile[] = []
-  const mounted: MountedBytes = { buffered: 0, url: 0 }
+  const mounted = createSandboxMountBudget()
 
   if (inputFiles?.length && workspaceId) {
     if (!filePrincipal) {
@@ -512,7 +459,7 @@ export async function resolveInputFiles(
           'execution',
           MOUNT_URL_TTL_SECONDS
         )
-        sandboxFiles.push({ type: 'url', path: mountPath, url })
+        sandboxFiles.push({ type: 'url', path: mountPath, url, maxBytes: SNAPSHOT_MAX_BYTES })
         mounted.url += snapshot.size
         continue
       }
@@ -717,6 +664,20 @@ export async function executeFunctionExecute(
        */
       const result = await executeAppTool('function_execute', enrichedParams, {
         resolvedSecretTraceRegistry: mountedRegistry,
+        operationContext: {
+          userId: context.userId,
+          workflowId: context.workflowId,
+          workspaceId: context.workspaceId,
+          executionId: context.executionId,
+          executorDelegationOrigin: {
+            subjectUserId: context.userId,
+            workflowId: context.workflowId,
+            ...(context.executionId ? { executionId: context.executionId } : {}),
+          },
+          copilotToolExecution: context.copilotToolExecution,
+          billingAttribution: context.billingAttribution,
+          resolvedSecretTraceRegistry: mountedRegistry,
+        },
         ...(context.abortSignal ? { signal: context.abortSignal } : {}),
         ...(context.sandboxProfile ? { internalSandboxProfile: context.sandboxProfile } : {}),
       })

@@ -1,4 +1,4 @@
-import { BlockType, isMetadataOnlyBlockType } from '@/executor/constants'
+import { isHumanInTheLoopBlock, isMetadataOnlyBlockType } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import { buildBranchNodeId } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -108,7 +108,7 @@ export class NodeConstructor {
         subflowType: 'parallel',
         branchIndex: 0,
         branchTotal: 1,
-        isPauseResponse: block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP,
+        isPauseResponse: isHumanInTheLoopBlock(block.metadata?.id),
         originalBlockId: block.id,
       },
     })
@@ -121,7 +121,7 @@ export class NodeConstructor {
   ): void {
     const isLoopNode = blocksInLoops.has(block.id)
     const loopId = isLoopNode ? this.findLoopIdForBlock(block.id, dag) : undefined
-    const isPauseBlock = block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP
+    const isPauseBlock = isHumanInTheLoopBlock(block.metadata?.id)
 
     dag.nodes.set(block.id, {
       id: block.id,

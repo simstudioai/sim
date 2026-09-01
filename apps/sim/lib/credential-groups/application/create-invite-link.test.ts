@@ -104,6 +104,48 @@ describe('createCredentialGroupInviteLink', () => {
     expect(mocks.resolveGroup).not.toHaveBeenCalled()
   })
 
+  it('issues an unattributed link for an actorless run', async () => {
+    // A schedule (or a webhook with no external subject) reaches this with a real
+    // admin-scoped delegation and no person on it. The delegation is the authority;
+    // the issuer is only recorded, and `created_by` is nullable — so this issues the
+    // link with no issuer rather than refusing, which is what it did when the
+    // subject was demanded here.
+    const { subjectUserId: _subject, ...base } = executorPrincipal()
+    // What actually authorizes an actorless caller: the delegation is running a
+    // deployment. No user is consulted anywhere in that decision.
+    const actorless = {
+      ...base,
+      delegationContext: {
+        kind: 'workflow_execution' as const,
+        workflowId: 'workflow-1',
+        principal: {
+          kind: 'system' as const,
+          serviceId: 'schedule' as const,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+        },
+        currentWorkflow: {
+          workflowId: 'workflow-1',
+          mode: 'deployment' as const,
+          deploymentVersionId: 'version-1',
+        },
+      },
+    }
+
+    const result = await createCredentialGroupInviteLink.execute({
+      principal: actorless,
+      input: { credentialGroupId: 'group-1', email: 'person@example.com' },
+    })
+
+    expect(result.invitationLink).toBe('https://sim.ai/credential-groups/enroll/token-1')
+    expect(mocks.createInvitationLink).toHaveBeenCalledWith(
+      'workspace-1',
+      'group-1',
+      undefined,
+      'person@example.com'
+    )
+  })
+
   it('rejects delegation scoped to another Credential Group', async () => {
     await expect(
       createCredentialGroupInviteLink.execute({

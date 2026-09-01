@@ -746,9 +746,8 @@ export function Document({
               setEnabledFilter(values)
               setSelectedChunks(new Set())
             }}
-            overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{enabledDisplayLabel}</span>
-            }
+            overlayLabel={enabledDisplayLabel}
+            overlayContent={enabledDisplayLabel}
             showAllOption
             allOptionLabel='All'
             className='w-full'

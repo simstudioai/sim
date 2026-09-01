@@ -6,20 +6,25 @@ import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import { preferIpv4, resolveHostAddresses } from '@sim/security/dns'
-import { isLoopbackIp, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
+import type { EgressDecision } from '@sim/security/egress'
+import { isIpLiteral, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
-import * as ipaddr from 'ipaddr.js'
 import {
   Agent,
   type Dispatcher,
   type RequestInit as UndiciRequestInit,
   request as undiciRequest,
 } from 'undici'
-import { isHosted, isPrivateDatabaseHostsAllowed } from '@/lib/core/config/env-flags'
+import { describeEgressDenial, type EgressProfile } from '@/lib/core/security/egress/profiles'
+import {
+  checkEgressUrl,
+  checkResolvedEgress,
+  validateEgressUrl,
+} from '@/lib/core/security/egress/validate'
 import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
-import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
+import type { ValidationResult } from '@/lib/core/security/input-validation'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
@@ -28,84 +33,33 @@ const logger = createLogger('InputValidation')
 /**
  * Result type for async URL validation with resolved IP
  */
-export interface AsyncValidationResult extends ValidationResult {
-  resolvedIP?: string
-  originalHostname?: string
-}
+export type AsyncValidationResult =
+  | { isValid: true; resolvedIP: string; originalHostname: string; error?: undefined }
+  | { isValid: false; error: string; resolvedIP?: undefined; originalHostname?: undefined }
 
 /**
- * Validates a URL and resolves its DNS to prevent SSRF via DNS rebinding
+ * Validates a URL, resolves its DNS, and returns the address to pin.
  *
- * This function:
- * 1. Performs basic URL validation (protocol, format)
- * 2. Resolves the hostname to an IP address
- * 3. Validates the resolved IP is not private/reserved
- * 4. Returns the resolved IP for use in the actual request
+ * `profile` states where the URL came from — see {@link EgressProfile}. It is
+ * required because provenance is the only input to the trust decision, and a
+ * wrong guess is silent in both directions: too strict breaks a self-hosted
+ * integration, too loose hands an attacker the internal network.
  *
  * @param url - The URL to validate
  * @param paramName - Name of the parameter for error messages
+ * @param profile - Where this URL came from
  * @returns AsyncValidationResult with resolved IP for DNS pinning
  */
 export async function validateUrlWithDNS(
   url: string | null | undefined,
-  paramName = 'url',
-  options: { allowHttp?: boolean } = {}
+  paramName: string,
+  profile: EgressProfile,
+  options: { logDetails?: boolean } = {}
 ): Promise<AsyncValidationResult> {
-  const basicValidation = validateExternalUrl(url, paramName, options)
-  if (!basicValidation.isValid) {
-    return basicValidation
-  }
-
-  const parsedUrl = new URL(url!)
-  const hostname = parsedUrl.hostname
-
-  const hostnameLower = hostname.toLowerCase()
-  const cleanHostname = unwrapIpv6Brackets(hostnameLower)
-
-  // Whole loopback range — see the matching note in input-validation.ts.
-  const isLocalhost = cleanHostname === 'localhost' || isLoopbackIp(cleanHostname)
-
-  try {
-    // Refused records are filtered rather than failing the whole host, matching
-    // createSsrfGuardedLookup below. Pinning to a surviving public address is
-    // just as safe as refusing outright, and rejecting the host would break a
-    // split-horizon resolver that answers with a private record alongside the
-    // public one — with no operator opt-out on this path.
-    const { addresses } = await resolveHostAddresses(cleanHostname)
-    const usable = addresses.filter(
-      (address) => !isPrivateIp(address) || (isLocalhost && !isHosted && isLoopbackIp(address))
-    )
-
-    if (usable.length === 0) {
-      logger.warn('URL resolves to blocked IP address', {
-        paramName,
-        hostname,
-        resolvedIP: addresses.find((address) => isPrivateIp(address)),
-      })
-      return {
-        isValid: false,
-        error: `${paramName} resolves to a blocked IP address`,
-      }
-    }
-
-    return {
-      isValid: true,
-      // Re-preferred over the surviving set so the pin is never an address the
-      // filter above just refused.
-      resolvedIP: preferIpv4(usable as [string, ...string[]]),
-      originalHostname: hostname,
-    }
-  } catch (error) {
-    logger.warn('DNS lookup failed for URL', {
-      paramName,
-      hostname,
-      error: toError(error).message,
-    })
-    return {
-      isValid: false,
-      error: `${paramName} hostname could not be resolved`,
-    }
-  }
+  const result = await validateEgressUrl(url, paramName, profile, options)
+  return result.isValid
+    ? { isValid: true, resolvedIP: result.resolvedIP, originalHostname: result.originalHostname }
+    : { isValid: false, error: result.error }
 }
 
 /**
@@ -154,18 +108,16 @@ export async function validateAndPinProxyUrl(
     }
   }
 
-  const validation = await validateUrlWithDNS(proxyUrl, 'proxyUrl', { allowHttp: true })
+  // The `proxy` profile is what holds a proxy to a stricter rule than the
+  // destinations it fronts: plain HTTP by protocol, but public addresses only,
+  // and no operator allowlist — a private proxy host stays blocked even on a
+  // deployment that has allowlisted that range for everything else.
+  const validation = await validateUrlWithDNS(proxyUrl, 'proxyUrl', 'proxy')
   if (!validation.isValid) {
     return { isValid: false, error: validation.error }
   }
 
-  const resolvedIP = validation.resolvedIP!
-
-  // validateUrlWithDNS permits loopback for self-hosted dev targets; a proxy governs
-  // egress, so loopback/private proxy hosts stay blocked unconditionally.
-  if (isPrivateIp(resolvedIP)) {
-    return { isValid: false, error: 'proxyUrl resolves to a blocked IP address' }
-  }
+  const resolvedIP = validation.resolvedIP
 
   // Bracket IPv6 literals: assigning an unbracketed IPv6 address to URL.hostname
   // is a no-op, which would leave the DNS hostname in place and reopen rebinding.
@@ -177,16 +129,20 @@ export async function validateAndPinProxyUrl(
  * Validates a database hostname by resolving DNS and checking the resolved IP
  * against private/reserved ranges to prevent SSRF via database connections.
  *
- * Unlike validateHostname (which enforces strict RFC hostname format), this
- * function is permissive about hostname format to avoid breaking legitimate
- * database hostnames (e.g. underscores in Docker/K8s service names). It only
- * blocks localhost and private/reserved IPs.
+ * Permissive about hostname format, so a legitimate database host is not
+ * rejected on shape alone — Docker and K8s service names carry underscores that
+ * a strict RFC check would refuse. Only the address is judged.
  *
- * Self-hosted operators can set `ALLOW_PRIVATE_DATABASE_HOSTS` to reach databases
- * on their private network (e.g. a Docker/Swarm service name that resolves to an
- * internal IP). The opt-in only bypasses the private/reserved/loopback block; DNS
- * is still resolved so the caller can pin the connection to the resolved IP. The
- * bypass is never honored on the hosted platform (see {@link isPrivateDatabaseHostsAllowed}).
+ * Self-hosted operators reach a database on their private network (e.g. a
+ * Docker/Swarm service name that resolves to an internal IP) by naming it in the
+ * shared egress allowlist — the same one that governs HTTP destinations, because
+ * "may this deployment talk to that host" is one question, not one per protocol.
+ * DNS is still resolved so the caller can pin the connection to the resolved IP,
+ * and the allowlist is never honored on the hosted platform.
+ *
+ * A database host carries no scheme or port of its own, so it is evaluated as an
+ * `https` destination: the address rules and the allowlist apply, the HTTP-only
+ * scheme and port rules do not.
  *
  * @param host - The database hostname to validate
  * @param paramName - Name of the parameter for error messages
@@ -194,7 +150,8 @@ export async function validateAndPinProxyUrl(
  */
 export async function validateDatabaseHost(
   host: string | null | undefined,
-  paramName = 'host'
+  paramName = 'host',
+  options: { logDetails?: boolean } = {}
 ): Promise<AsyncValidationResult> {
   if (!host) {
     return { isValid: false, error: `${paramName} is required` }
@@ -202,43 +159,55 @@ export async function validateDatabaseHost(
 
   const cleanHost = unwrapIpv6Brackets(host.toLowerCase())
 
-  if (cleanHost === 'localhost' && !isPrivateDatabaseHostsAllowed) {
-    return { isValid: false, error: `${paramName} cannot be localhost` }
+  let asUrl: URL
+  try {
+    asUrl = new URL(
+      `https://${isIpLiteral(cleanHost) && cleanHost.includes(':') ? `[${cleanHost}]` : cleanHost}`
+    )
+  } catch {
+    return { isValid: false, error: `${paramName} is not a valid host` }
   }
 
-  if (isPrivateIpHost(cleanHost) && !isPrivateDatabaseHostsAllowed) {
-    return { isValid: false, error: `${paramName} cannot be a private IP address` }
+  if (isIpLiteral(cleanHost)) {
+    const decision = checkResolvedEgress(asUrl, cleanHost, 'databaseHost')
+    if (!decision.allowed) {
+      return { isValid: false, error: describeEgressDenial(decision, paramName, 'databaseHost') }
+    }
+    return { isValid: true, resolvedIP: cleanHost, originalHostname: host }
   }
 
   try {
-    const { addresses, preferred } = await resolveHostAddresses(cleanHost)
-    const blockedAddress = isPrivateDatabaseHostsAllowed
-      ? undefined
-      : addresses.find((candidate) => isPrivateIp(candidate))
+    const { addresses } = await resolveHostAddresses(cleanHost)
+    let refusal: Extract<EgressDecision, { allowed: false }> | undefined
+    const blocked = addresses.find((candidate) => {
+      const decision = checkResolvedEgress(asUrl, candidate, 'databaseHost')
+      if (decision.allowed) return false
+      refusal = decision
+      return true
+    })
 
-    if (blockedAddress !== undefined) {
-      logger.warn('Database host resolves to blocked IP address', {
-        paramName,
-        hostname: host,
-        resolvedIP: blockedAddress,
-      })
-      return {
-        isValid: false,
-        error: `${paramName} resolves to a blocked IP address`,
-      }
+    if (refusal !== undefined) {
+      logger.warn(
+        'Database host resolves to blocked IP address',
+        options.logDetails === false
+          ? { profile: 'databaseHost', reason: refusal.reason, paramName }
+          : { paramName, hostname: host, resolvedIP: blocked }
+      )
+      return { isValid: false, error: describeEgressDenial(refusal, paramName, 'databaseHost') }
     }
 
     return {
       isValid: true,
-      resolvedIP: preferred,
+      resolvedIP: preferIpv4(addresses as [string, ...string[]]),
       originalHostname: host,
     }
   } catch (error) {
-    logger.warn('DNS lookup failed for database host', {
-      paramName,
-      hostname: host,
-      error: toError(error).message,
-    })
+    logger.warn(
+      'DNS lookup failed for database host',
+      options.logDetails === false
+        ? { profile: 'databaseHost', paramName }
+        : { paramName, hostname: host, error: toError(error).message }
+    )
     return {
       isValid: false,
       error: `${paramName} hostname could not be resolved`,
@@ -372,12 +341,23 @@ export interface SecureFetchOptions {
   stripAuthOnRedirect?: boolean
   /** Omit for the historical behavior used by existing workflows. */
   redirectPolicy?: HttpRedirectPolicy
+  /** Rejects a redirect target before DNS resolution or a follow-up request is attempted. */
+  assertRedirectTarget?: (url: string) => void
   /**
    * Pre-validated, IP-pinned `http://` proxy URL (see {@link validateAndPinProxyUrl}).
    * When set, the connection routes through this proxy and target-IP pinning is
    * bypassed (the proxy resolves the target).
    */
   proxyUrl?: string
+  /** Hide credential-derived URL details from validation logs. */
+  logUrlValidationDetails?: boolean
+  /**
+   * Where this request's URL came from. Carried on the options so the same
+   * policy is re-applied to every redirect hop rather than re-derived — a hop
+   * evaluated under a laxer policy than the origin is how a redirect chain
+   * escapes the guard it started under.
+   */
+  profile: EgressProfile
 }
 
 export class SecureFetchHeaders {
@@ -437,8 +417,16 @@ export const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024
 /** Response cap for JSON/control-plane proxies to user-supplied hosts. */
 export const MAX_JSON_API_RESPONSE_BYTES = 10 * 1024 * 1024
 
+/**
+ * The statuses that name a new destination to request. 300, 305 and 306 are
+ * deliberately absent: 305 (Use Proxy) redirects a request into a server-named
+ * proxy, which is the one hop a guard must never take, and the other two carry
+ * no single target.
+ */
+const FOLLOWED_REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308])
+
 function isRedirectStatus(status: number): boolean {
-  return status >= 300 && status < 400 && status !== 304
+  return FOLLOWED_REDIRECT_STATUSES.has(status)
 }
 
 function isRetryableHttpStatus(status: number): boolean {
@@ -481,12 +469,30 @@ export function createPinnedLookup(resolvedIP: string): LookupFunction {
  * full public address set, so the OS/undici can fall back across addresses.
  * IPv4 is ordered first (`verbatim: false`) — our egress is IPv4-only.
  */
-export function createSsrfGuardedLookup(): LookupFunction {
+function safeParseUrl(value: string): URL | null {
+  try {
+    return new URL(value)
+  } catch {
+    return null
+  }
+}
+
+export function createSsrfGuardedLookup(profile: EgressProfile): LookupFunction {
   return (hostname, options, callback) => {
+    // Scheme and port were judged when the request URL was checked, so this
+    // stage only classifies addresses — but it classifies them against the
+    // request's own policy, so a destination the operator allowlisted is not
+    // stranded here after the redirect check permitted it.
+    const asUrl = safeParseUrl(`https://${hostname}`)
     dns
       .lookup(hostname, { all: true, verbatim: false })
       .then((addresses) => {
-        const usable = addresses.filter((entry) => !isPrivateIp(entry.address))
+        const usable =
+          asUrl === null
+            ? []
+            : addresses.filter(
+                (entry) => checkResolvedEgress(asUrl, entry.address, profile).allowed
+              )
         if (usable.length === 0) {
           callback(
             new Error(`Blocked by SSRF policy: ${hostname} has no publicly routable address`),
@@ -502,7 +508,8 @@ export function createSsrfGuardedLookup(): LookupFunction {
   }
 }
 
-const MAX_GUARDED_REDIRECTS = 5
+/** The undici follower's fixed cap; the same value the node path defaults to. */
+const MAX_GUARDED_REDIRECTS = DEFAULT_MAX_REDIRECTS
 
 /**
  * Rejects a redirect hop whose target is a private/reserved IP LITERAL. Node's
@@ -511,23 +518,32 @@ const MAX_GUARDED_REDIRECTS = 5
  * a 3xx to `http://169.254.169.254/` would otherwise connect directly. Hostname
  * targets are covered by {@link createSsrfGuardedLookup} at connect time.
  */
-function assertGuardedRedirectTarget(url: URL, allowedPinnedIp?: string): void {
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error(`Blocked by SSRF policy: redirect to unsupported protocol ${url.protocol}`)
-  }
+function assertGuardedRedirectTarget(
+  url: URL,
+  profile: EgressProfile,
+  knownAddress?: string
+): void {
   const host = unwrapIpv6Brackets(url.hostname)
-  if (ipaddr.isValid(host) && isPrivateIp(host)) {
-    // The pinned-private carve-out permits exactly its own validated IP as a target (a
-    // self-hosted MCP on a private IP, or a same-host redirect that stays on it) — but nothing
-    // else private (a redirect to e.g. the cloud metadata IP is still blocked).
-    if (
-      allowedPinnedIp &&
-      ipaddr.isValid(allowedPinnedIp) &&
-      ipaddr.process(host).toString() === ipaddr.process(allowedPinnedIp).toString()
-    ) {
-      return
-    }
-    throw new Error('Blocked by SSRF policy: redirect to a private or reserved address')
+
+  // The request's own policy decides, which is how a self-hosted server on a
+  // permitted private address stays reachable across a hop.
+  //
+  // A literal is judged completely here, and takes precedence over any address a
+  // caller resolved earlier: `net.connect` dials a numeric host directly, so the
+  // literal is what the socket will reach. A hostname is judged on
+  // `knownAddress` when the caller resolved this exact URL — a range-allowlist
+  // match is only visible post-DNS — and otherwise gets the pre-DNS half, scheme
+  // and port, with its address left to the connect-time lookup.
+  const decision = isIpLiteral(host)
+    ? checkResolvedEgress(url, host, profile)
+    : knownAddress
+      ? checkResolvedEgress(url, knownAddress, profile)
+      : checkEgressUrl(url, profile)
+
+  if (!decision.allowed) {
+    throw new Error(
+      `Blocked by SSRF policy: ${describeEgressDenial(decision, 'redirect', profile)}`
+    )
   }
 }
 
@@ -593,14 +609,15 @@ export async function followRedirectsGuarded(
   rawFetch: (url: string, init: UndiciRequestInit) => Promise<Response>,
   input: string,
   init: UndiciRequestInit,
-  options?: { allowRedirectToIp?: string }
+  profile: EgressProfile,
+  initialAddress?: string
 ): Promise<Response> {
   let currentUrl = new URL(input)
-  // The initial URL gets the same IP-literal check as redirect hops, so the exported guard is
-  // self-contained even when a caller skips its own up-front validation. `allowRedirectToIp`
-  // (the pinned-private MCP carve-out's validated IP) permits that one private target — both the
-  // initial URL and any hop that stays on it — while everything else private stays blocked.
-  assertGuardedRedirectTarget(currentUrl, options?.allowRedirectToIp)
+  // The initial URL is checked too, so the guard is self-contained even when a
+  // caller skips its own up-front validation. A caller that already resolved it
+  // passes that address, so a destination allowlisted by range is not refused
+  // here for want of a lookup. Redirect hops are always judged afresh.
+  assertGuardedRedirectTarget(currentUrl, profile, initialAddress)
   let method = (init.method ?? 'GET').toUpperCase()
   let body = init.body
   let headers = init.headers
@@ -614,7 +631,7 @@ export async function followRedirectsGuarded(
     })
     const status = response.status
     const location = response.headers.get('location')
-    if (![301, 302, 303, 307, 308].includes(status) || !location) {
+    if (!isRedirectStatus(status) || !location) {
       // `response.url` is already the final hop's URL (set per-request by the raw fetch); flag
       // `redirected` too when at least one hop was followed, matching fetch semantics.
       if (hop > 0)
@@ -628,7 +645,7 @@ export async function followRedirectsGuarded(
       throw new Error(`Blocked by SSRF policy: more than ${MAX_GUARDED_REDIRECTS} redirects`)
     }
     const nextUrl = new URL(location, currentUrl)
-    assertGuardedRedirectTarget(nextUrl, options?.allowRedirectToIp)
+    assertGuardedRedirectTarget(nextUrl, profile)
     const hopPolicy = resolveRedirectHop({
       status,
       method,
@@ -882,14 +899,17 @@ async function liftFetchArgs(
  * targets can't bypass the lookup and custom headers never cross origins. See
  * {@link createPinnedFetchWithDispatcher} for the `maxResponseSize` semantics.
  */
-export function createSsrfGuardedFetchWithDispatcher(options?: { maxResponseSize?: number }): {
+export function createSsrfGuardedFetchWithDispatcher(options: {
+  profile: EgressProfile
+  maxResponseSize?: number
+}): {
   fetch: typeof fetch
   dispatcher: Agent
 } {
   const dispatcher = new Agent({
     allowH2: false,
-    connect: { lookup: createSsrfGuardedLookup() },
-    ...(options?.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
+    connect: { lookup: createSsrfGuardedLookup(options.profile) },
+    ...(options.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
   })
 
   const rawFetch = (url: string, init: UndiciRequestInit): Promise<Response> =>
@@ -898,8 +918,13 @@ export function createSsrfGuardedFetchWithDispatcher(options?: { maxResponseSize
 
   const guarded = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const { target, effectiveInit } = await liftFetchArgs(input, init)
-    // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
-    return followRedirectsGuarded(rawFetch, target, effectiveInit as unknown as UndiciRequestInit)
+    return followRedirectsGuarded(
+      rawFetch,
+      target,
+      // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
+      effectiveInit as unknown as UndiciRequestInit,
+      options.profile
+    )
   }
 
   return { fetch: guarded, dispatcher }
@@ -931,7 +956,7 @@ export function createSsrfGuardedFetchWithDispatcher(options?: { maxResponseSize
  */
 export function createPinnedFetch(
   resolvedIP: string,
-  options?: { allowH2?: boolean }
+  options: { profile: EgressProfile; allowH2?: boolean }
 ): typeof fetch {
   return createPinnedFetchWithDispatcher(resolvedIP, options).fetch
 }
@@ -949,12 +974,12 @@ export function createPinnedFetch(
  */
 export function createPinnedFetchWithDispatcher(
   resolvedIP: string,
-  options?: { allowH2?: boolean; maxResponseSize?: number }
+  options: { profile: EgressProfile; allowH2?: boolean; maxResponseSize?: number }
 ): { fetch: typeof fetch; dispatcher: Agent } {
   const dispatcher = new Agent({
-    allowH2: options?.allowH2 ?? false,
+    allowH2: options.allowH2 ?? false,
     connect: { lookup: createPinnedLookup(resolvedIP) },
-    ...(options?.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
+    ...(options.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
   })
 
   const rawFetch = (url: string, init: UndiciRequestInit): Promise<Response> =>
@@ -988,11 +1013,7 @@ export function createPinnedFetchWithDispatcher(
       }
       return response
     }
-    // Permit this pinned IP as a redirect/initial target even when it's private (the
-    // self-hosted MCP carve-out on a private/loopback IP, and same-host redirects that stay on
-    // it) — otherwise the guarded policy would block a self-hosted server reaching itself. Any
-    // OTHER private target (e.g. a redirect to the cloud metadata IP) is still blocked.
-    return followRedirectsGuarded(rawFetch, target, undiciInit, { allowRedirectToIp: resolvedIP })
+    return followRedirectsGuarded(rawFetch, target, undiciInit, options.profile, resolvedIP)
   }
 
   return { fetch: pinned, dispatcher }
@@ -1010,7 +1031,7 @@ export function createPinnedFetchWithDispatcher(
 export async function secureFetchWithPinnedIP(
   url: string,
   resolvedIP: string,
-  options: SecureFetchOptions & { allowHttp?: boolean } = {},
+  options: SecureFetchOptions,
   redirectCount = 0
 ): Promise<SecureFetchResponse> {
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS
@@ -1059,50 +1080,86 @@ export async function secureFetchWithPinnedIP(
         res.resume()
         const redirectUrl = resolveRedirectUrl(url, location)
 
-        validateUrlWithDNS(redirectUrl, 'redirectUrl', { allowHttp: options.allowHttp })
+        try {
+          options.assertRedirectTarget?.(redirectUrl)
+        } catch (error) {
+          settledReject(error)
+          return
+        }
+        validateUrlWithDNS(redirectUrl, 'redirectUrl', options.profile, {
+          logDetails: options.logUrlValidationDetails,
+        })
           .then((validation) => {
             if (!validation.isValid) {
               settledReject(new Error(`Redirect blocked: ${validation.error}`))
               return
             }
             const redirectPolicy = options.redirectPolicy
+            const isCrossOrigin = new URL(redirectUrl).origin !== parsed.origin
+            // Legacy mode replays the method and body verbatim on every status,
+            // which is what persisted workflows were built against.
             const hop =
               redirectPolicy?.mode === 'standard'
                 ? resolveRedirectHop({ status: statusCode, method: options.method ?? 'GET' })
                 : { method: options.method ?? 'GET', dropBody: false }
-            const isCrossOrigin = new URL(redirectUrl).origin !== parsed.origin
             let redirectHeaders = options.headers
             if (redirectHeaders && hop.dropBody) {
               redirectHeaders = stripHeaders(redirectHeaders, ENTITY_HEADERS)
             }
-            if (
-              redirectHeaders &&
-              redirectPolicy &&
-              isCrossOrigin &&
-              (redirectPolicy.mode === 'standard' ||
-                !redirectPolicy.sendCredentialsOnCrossOriginRedirect)
-            ) {
-              const sensitiveHeaders = redirectPolicy.sendCredentialsOnCrossOriginRedirect
-                ? ['host']
-                : [
-                    'host',
-                    ...CROSS_ORIGIN_CREDENTIAL_HEADERS,
-                    ...(redirectPolicy.sensitiveHeaders ?? []),
-                  ]
-              redirectHeaders = stripHeaders(redirectHeaders, sensitiveHeaders)
+            // A cross-origin hop must not hand a credential to whatever host the
+            // redirect named. With no redirect policy the caller has not
+            // declared which of its headers are sensitive, so — matching the
+            // undici follower — none survive: a custom credential header
+            // (`PRIVATE-TOKEN`, `x-api-key`) cannot leak. A policy keeps
+            // non-credential headers, dropping the standard credentials and any
+            // it named sensitive, unless it opts into forwarding them. `host`
+            // always goes: it describes the old origin.
+            if (redirectHeaders && isCrossOrigin) {
+              if (!redirectPolicy) {
+                redirectHeaders = undefined
+              } else {
+                const keepCredentials = redirectPolicy.sendCredentialsOnCrossOriginRedirect === true
+                redirectHeaders = stripHeaders(
+                  redirectHeaders,
+                  keepCredentials
+                    ? ['host']
+                    : [
+                        'host',
+                        ...CROSS_ORIGIN_CREDENTIAL_HEADERS,
+                        ...(redirectPolicy.sensitiveHeaders ?? []),
+                      ]
+                )
+              }
             }
             if (redirectHeaders && options.stripAuthOnRedirect) {
               redirectHeaders = stripHeaders(redirectHeaders, ['authorization'])
             }
-            const redirectOptions: SecureFetchOptions & { allowHttp?: boolean } = {
+            const redirectBody = hop.dropBody ? undefined : options.body
+            // Refusing rather than quietly dropping the body: a bodyless replay
+            // of a POST is a different request, and the caller cannot tell it
+            // happened. Matches followRedirectsGuarded.
+            if (
+              isCrossOrigin &&
+              redirectBody !== undefined &&
+              redirectBody !== null &&
+              redirectPolicy?.allowCrossOriginBody !== true
+            ) {
+              settledReject(
+                new Error(
+                  'Blocked by SSRF policy: cross-origin redirect would forward a request body'
+                )
+              )
+              return
+            }
+            const redirectOptions: SecureFetchOptions = {
               ...options,
               method: hop.method,
-              body: hop.dropBody ? undefined : options.body,
+              body: redirectBody,
               headers: redirectHeaders,
             }
             return secureFetchWithPinnedIP(
               redirectUrl,
-              validation.resolvedIP!,
+              validation.resolvedIP,
               redirectOptions,
               redirectCount + 1
             )
@@ -1294,21 +1351,21 @@ export async function secureFetchWithPinnedIP(
  * Combines validateUrlWithDNS and secureFetchWithPinnedIP for convenience.
  *
  * @param url - The URL to fetch
- * @param options - Fetch options (method, headers, body, etc.)
+ * @param options - Fetch options, including the required egress `profile`
  * @param paramName - Name of the parameter for error messages (default: 'url')
  * @returns SecureFetchResponse
  * @throws Error if URL validation fails
  */
 export async function secureFetchWithValidation(
   url: string,
-  options: SecureFetchOptions & { allowHttp?: boolean } = {},
+  options: SecureFetchOptions,
   paramName = 'url'
 ): Promise<SecureFetchResponse> {
-  const validation = await validateUrlWithDNS(url, paramName, {
-    allowHttp: options.allowHttp,
+  const validation = await validateUrlWithDNS(url, paramName, options.profile, {
+    logDetails: options.logUrlValidationDetails,
   })
   if (!validation.isValid) {
     throw new Error(validation.error)
   }
-  return secureFetchWithPinnedIP(url, validation.resolvedIP!, options)
+  return secureFetchWithPinnedIP(url, validation.resolvedIP, options)
 }

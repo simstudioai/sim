@@ -3,9 +3,9 @@ import type {
   DocuSignListEnvelopesResponse,
 } from '@/tools/docusign/types'
 import { ENVELOPES_ARRAY_OUTPUT } from '@/tools/docusign/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const docusignListEnvelopesTool: ToolConfig<
+export const docusignListEnvelopesTool: InternalToolConfig<
   DocuSignListEnvelopesParams,
   DocuSignListEnvelopesResponse
 > = {
@@ -58,13 +58,9 @@ export const docusignListEnvelopesTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/docusign',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
-      operation: 'list_envelopes',
       fromDate: params.fromDate,
       toDate: params.toDate,
       envelopeStatus: params.envelopeStatus,

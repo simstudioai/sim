@@ -9,7 +9,9 @@ import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyGetApplicationParams {
   apiKey: string
-  applicationId: string
+  applicationId?: string
+  submittedFormInstanceId?: string
+  expand?: string[]
 }
 
 interface AshbyGetApplicationResponse extends ToolResponse {
@@ -34,9 +36,21 @@ export const getApplicationTool: ToolConfig<
     },
     applicationId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The UUID of the application to fetch',
+    },
+    submittedFormInstanceId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Submitted application-form instance UUID to use instead of applicationId',
+    },
+    expand: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Ashby-supported application expansions to include',
     },
   },
 
@@ -44,9 +58,19 @@ export const getApplicationTool: ToolConfig<
     url: 'https://api.ashbyhq.com/application.info',
     method: 'POST',
     headers: (params) => ashbyAuthHeaders(params.apiKey),
-    body: (params) => ({
-      applicationId: params.applicationId.trim(),
-    }),
+    body: (params) => {
+      const applicationId = params.applicationId?.trim()
+      const submittedFormInstanceId = params.submittedFormInstanceId?.trim()
+      if (!applicationId && !submittedFormInstanceId)
+        throw new Error('Provide applicationId or submittedFormInstanceId.')
+      return {
+        ...(applicationId ? { applicationId } : {}),
+        ...(submittedFormInstanceId ? { submittedFormInstanceId } : {}),
+        ...(Array.isArray(params.expand) && params.expand.length > 0
+          ? { expand: params.expand }
+          : {}),
+      }
+    },
   },
 
   transformResponse: async (response: Response) => {

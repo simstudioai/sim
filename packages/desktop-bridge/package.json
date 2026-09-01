@@ -28,7 +28,8 @@
   },
   "dependencies": {
     "@sim/browser-protocol": "workspace:*",
-    "@sim/terminal-protocol": "workspace:*"
+    "@sim/terminal-protocol": "workspace:*",
+    "@sim/utils": "workspace:*"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",

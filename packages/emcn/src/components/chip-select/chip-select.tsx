@@ -10,10 +10,12 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemLabel,
   DropdownMenuLabel,
   DropdownMenuSearchInput,
   DropdownMenuTrigger,
 } from '../dropdown-menu/dropdown-menu'
+import { OverflowText, overflowTextClipClass } from '../overflow-text/overflow-text'
 
 /** A selectable option in a {@link ChipSelect}. */
 export interface ChipSelectOption {
@@ -86,6 +88,12 @@ export interface ChipSelectProps {
   contentClassName?: string
   /** Accessible label for the trigger. */
   'aria-label'?: string
+  /** Marks the trigger as required. */
+  'aria-required'?: React.AriaAttributes['aria-required']
+  /** Marks the trigger as invalid. */
+  'aria-invalid'?: React.AriaAttributes['aria-invalid']
+  /** Id of hint or error content describing the trigger. */
+  'aria-describedby'?: React.AriaAttributes['aria-describedby']
   /**
    * Forwarded to the underlying `DropdownMenu`'s Radix `modal` prop
    * (default `true`, matching Radix). Set `false` when an `onChange` handler
@@ -148,6 +156,9 @@ export function ChipSelect({
   className,
   contentClassName,
   'aria-label': ariaLabel,
+  'aria-required': ariaRequired,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
   modal,
 }: ChipSelectProps) {
   const [query, setQuery] = React.useState('')
@@ -182,6 +193,7 @@ export function ChipSelect({
   }, [searchable, query, sections])
 
   const hasResults = filteredSections.some((g) => g.items.length > 0)
+  const visibleLabel = displayLabel ?? triggerLabel
 
   const toggleValue = (val: string) => {
     if (selectedValues.includes(val)) {
@@ -232,7 +244,7 @@ export function ChipSelect({
         onSelect={() => onChange?.(opt.value)}
       >
         {Icon ? <Icon /> : null}
-        <span>{opt.label}</span>
+        <DropdownMenuItemLabel label={opt.label} />
       </DropdownMenuItem>
     )
   }
@@ -249,16 +261,27 @@ export function ChipSelect({
           type='button'
           disabled={disabled}
           aria-label={ariaLabel}
+          aria-required={ariaRequired}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
           className={cn(
             chipVariants({ variant: 'filled', fullWidth }),
             TRIGGER_BORDER_CLASS,
-            fullWidth ? 'w-full justify-between' : 'w-fit max-w-[240px]',
+            fullWidth ? 'justify-between' : 'w-fit max-w-[240px]',
             className
           )}
         >
-          <span className='min-w-0 truncate text-[var(--text-body)]'>
-            {displayLabel ?? triggerLabel}
-          </span>
+          {typeof visibleLabel === 'string' || typeof visibleLabel === 'number' ? (
+            <OverflowText
+              label={String(visibleLabel)}
+              className='flex-1 text-[var(--text-body)]'
+              focusTarget='nearest-interactive'
+            />
+          ) : (
+            <span className={cn(overflowTextClipClass, 'flex-1 text-[var(--text-body)]')}>
+              {visibleLabel}
+            </span>
+          )}
           <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
             <ChevronDown className='size-[14px]' />
           </span>

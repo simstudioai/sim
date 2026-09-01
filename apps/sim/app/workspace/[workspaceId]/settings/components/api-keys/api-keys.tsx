@@ -4,10 +4,13 @@ import { useMemo, useState } from 'react'
 import { ChipConfirmModal, Label, Switch, Tooltip, toast } from '@sim/emcn'
 import { CircleInfo, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
+import type { ApiKey } from '@/lib/api/contracts/api-keys'
 import { useSession } from '@/lib/auth/auth-client'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -19,14 +22,13 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
+import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
+import type { ApiKeyScope } from '@/hooks/queries/api-key-list'
 import {
-  type ApiKey,
-  type ApiKeyScope,
   useApiKeys,
   useDeleteApiKey,
   useUpdateWorkspaceApiKeySettings,
 } from '@/hooks/queries/api-keys'
-import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { CreateApiKeyModal } from './components'
 
 const logger = createLogger('ApiKeys')
@@ -81,6 +83,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const userId = session?.user?.id
   const params = useParams<{ workspaceId?: string }>()
   const workspaceId = (params?.workspaceId as string) || ''
+  const hostContext = useOptionalWorkspaceHostContext()
   const workspacePermissions = useUserPermissionsContext()
   const isWorkspaceScope = scope === 'workspace'
   const isPersonalScope = scope === 'personal'
@@ -92,10 +95,9 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const {
     data: apiKeysData,
     isLoading: isLoadingKeys,
+    error: apiKeysError,
     refetch: refetchApiKeys,
   } = useApiKeys(workspaceId, scope)
-  const { data: workspaceSettingsData, isLoading: isLoadingSettings } =
-    useWorkspaceSettings(workspaceId)
   const deleteApiKeyMutation = useDeleteApiKey()
   const updateSettingsMutation = useUpdateWorkspaceApiKeySettings()
 
@@ -103,10 +105,56 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const personalKeys = apiKeysData?.personalKeys ?? EMPTY_KEYS
   const conflicts = apiKeysData?.conflicts ?? EMPTY_KEY_NAMES
   const conflictNames = useMemo(() => new Set(conflicts), [conflicts])
-  const isLoading = isLoadingKeys || (showsWorkspaceKeys && isLoadingSettings)
+  const isLoading = isLoadingKeys
+
+  /**
+   * The raw group config, not `usePermissionConfig` — that hook also projects
+   * block and model availability, which would pull the block registry into this
+   * settings page's module graph for one boolean.
+   */
+  const permissionConfigQuery = useUserPermissionConfig(workspaceId)
+
+  /**
+   * Both layers have to agree. The workspace column is the coarse switch every
+   * workspace has; the permission group narrows it for one cohort inside an
+   * enterprise organization. The server combines them the same way, so offering
+   * a key type here that it would refuse is the only failure worth avoiding —
+   * which is why the policy fails closed while its query is pending or errored,
+   * rather than treating an unanswered question as an unrestricted answer.
+   * `useUserPermissionConfig` retries and refetches on remount, which is what
+   * makes the gate self-healing rather than sticky.
+   *
+   * `isSuccess` and not `isSuccess && !isFetching`, on purpose. A background
+   * refetch of an already-answered policy keeps the cached answer, and the
+   * fail-closed window that matters — the first load, where there is nothing
+   * cached — is already covered because `isSuccess` is false until the first
+   * response. Re-closing on every refetch would instead blank the personal-key
+   * affordance and flip the create default to `workspace` on each window focus,
+   * for a policy that changes on the order of never. This gate is the
+   * affordance; `/api/workspaces/[id]/api-keys` is the enforcement, and it
+   * re-reads the group on the request itself, so the seconds of staleness cost
+   * a user a refused create at worst.
+   *
+   * The `!workspaceId` arm covers the account plane, which renders this
+   * component as `scope='personal'` outside `/workspace/[workspaceId]`: the
+   * hook is disabled there and nothing reads the result — a personal key is
+   * not a workspace's to withhold, and `/api/users/me/api-keys` remains the
+   * enforcement for the user-global `api_keys.manage` policy.
+   */
+  const permissionPolicyReady = !workspaceId || permissionConfigQuery.isSuccess
+
+  /**
+   * The stored workspace column alone. The admin switch below binds to this,
+   * not to the combined policy — a group's `disablePersonalApiKeys` must not
+   * render the stored setting as off, or toggling it "on" fires a successful
+   * mutation with no visible effect.
+   */
+  const storedAllowPersonalApiKeys = hostContext?.workspace.allowPersonalApiKeys ?? true
 
   const allowPersonalApiKeys =
-    workspaceSettingsData?.settings?.workspace?.allowPersonalApiKeys ?? true
+    storedAllowPersonalApiKeys &&
+    permissionPolicyReady &&
+    !permissionConfigQuery.data?.config?.disablePersonalApiKeys
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [deleteKey, setDeleteKey] = useState<ApiKey | null>(null)
@@ -120,6 +168,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
       : 'workspace'
   const createButtonDisabled =
     isLoading ||
+    (Boolean(apiKeysError) && apiKeysData === undefined) ||
     (isWorkspaceScope && !canManageWorkspaceKeys) ||
     (isCombinedScope && !allowPersonalApiKeys && !canManageWorkspaceKeys)
 
@@ -195,7 +244,11 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
         }}
         actions={actions}
       >
-        {isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
+        {apiKeysError && apiKeysData === undefined ? (
+          <SettingsEmptyState tone='error'>
+            {getErrorMessage(apiKeysError, 'Failed to load API keys')}
+          </SettingsEmptyState>
+        ) : isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
           <SettingsEmptyState>Click "Create API key" above to get started</SettingsEmptyState>
         ) : (
           <div className='flex flex-col gap-6'>
@@ -333,23 +386,21 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                     </Tooltip.Content>
                   </Tooltip.Root>
                 </div>
-                {isLoadingSettings ? null : (
-                  <Switch
-                    id='allow-personal-api-keys'
-                    checked={allowPersonalApiKeys}
-                    disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
-                    onCheckedChange={async (checked) => {
-                      try {
-                        await updateSettingsMutation.mutateAsync({
-                          workspaceId,
-                          allowPersonalApiKeys: checked,
-                        })
-                      } catch (error) {
-                        logger.error('Error updating workspace settings:', { error })
-                      }
-                    }}
-                  />
-                )}
+                <Switch
+                  id='allow-personal-api-keys'
+                  checked={storedAllowPersonalApiKeys}
+                  disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
+                  onCheckedChange={async (checked) => {
+                    try {
+                      await updateSettingsMutation.mutateAsync({
+                        workspaceId,
+                        allowPersonalApiKeys: checked,
+                      })
+                    } catch (error) {
+                      logger.error('Error updating workspace settings:', { error })
+                    }
+                  }}
+                />
               </div>
             </SettingsSection>
           </Tooltip.Provider>

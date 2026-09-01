@@ -336,7 +336,6 @@ export function useWorkspacePermissionsQuery(workspaceId: string | null | undefi
     queryFn: ({ signal }) => fetchWorkspacePermissions(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
     staleTime: WORKSPACE_PERMISSIONS_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 

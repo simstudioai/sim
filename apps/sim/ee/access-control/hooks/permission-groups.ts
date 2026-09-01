@@ -1,9 +1,12 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  type BulkAddPermissionGroupMembersBody,
   bulkAddPermissionGroupMembersContract,
+  type CreatePermissionGroupBody,
   createPermissionGroupContract,
   deletePermissionGroupContract,
   getUserPermissionConfigContract,
@@ -13,11 +16,12 @@ import {
   type PermissionGroup,
   type PermissionGroupMember,
   type PermissionGroupWorkspaceRef,
+  type RemovePermissionGroupMemberQuery,
   removePermissionGroupMemberContract,
+  type UpdatePermissionGroupBody,
   type UserPermissionConfig,
   updatePermissionGroupContract,
 } from '@/lib/api/contracts'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 
 export const PERMISSION_GROUP_MEMBERS_STALE_TIME = 30 * 1000
 export const PERMISSION_GROUPS_STALE_TIME = 60 * 1000
@@ -93,6 +97,38 @@ export function useOrganizationWorkspaces(organizationId?: string, enabled = tru
   })
 }
 
+/**
+ * How many times a failed policy read is retried before the UI is left with no
+ * answer, and the app default this raises it from.
+ *
+ * Consumers of this query fail CLOSED — the API-keys page withholds the create
+ * button until the read succeeds, because offering a key type the server would
+ * refuse is the only failure worth avoiding. That makes an unanswered question
+ * a withheld capability, and the client's default query options give it no way
+ * back: `retry: 1` on the web, `retryOnMount: false`, and `refetchOnWindowFocus`
+ * off outside the desktop app. One transient failure would otherwise disable
+ * the button for the rest of the session with nothing to say why.
+ *
+ * The read is a small, idempotent, cacheable GET, so retrying it is close to
+ * free — cheap enough to justify self-healing rather than a page reload.
+ */
+const USER_PERMISSION_CONFIG_RETRIES = 3
+
+/**
+ * A refusal will not heal by asking again: the caller's session or membership
+ * is what the server disagrees with, and three more requests spend latency to
+ * arrive at the same 4xx. Only a transport failure or a 5xx is worth a retry.
+ *
+ * Stated as "a 5xx and nothing else" rather than "not a 4xx". `requestJson`
+ * raises an `ApiClientError` carrying the response status for a body that fails
+ * contract validation too, and that status is a `200` — deterministic, and
+ * outside the 4xx band the narrower test would have let through.
+ */
+function retryUserPermissionConfig(failureCount: number, error: Error): boolean {
+  if (isApiClientError(error) && (error.status < 500 || error.status >= 600)) return false
+  return failureCount < USER_PERMISSION_CONFIG_RETRIES
+}
+
 export function useUserPermissionConfig(workspaceId?: string) {
   return useQuery<UserPermissionConfig>({
     queryKey: permissionGroupKeys.userConfig(workspaceId),
@@ -105,23 +141,24 @@ export function useUserPermissionConfig(workspaceId?: string) {
     },
     enabled: Boolean(workspaceId),
     staleTime: PERMISSION_GROUPS_STALE_TIME,
+    retry: retryUserPermissionConfig,
+    /**
+     * The self-heal. Without it a query left in error stays there for the life
+     * of the browser session, because nothing else remounts it back to life:
+     * `refetchOnWindowFocus` is off on the web, and the settings modal
+     * unmounting and reopening is exactly the moment a user retries by hand.
+     */
+    retryOnMount: true,
   })
 }
 
-export interface CreatePermissionGroupData {
-  organizationId: string
-  name: string
-  description?: string
-  config?: Partial<PermissionGroupConfig>
-  isDefault?: boolean
-  workspaceIds?: string[]
-}
+type CreatePermissionGroupVariables = CreatePermissionGroupBody & { organizationId: string }
 
 export function useCreatePermissionGroup() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ organizationId, ...data }: CreatePermissionGroupData) => {
+    mutationFn: async ({ organizationId, ...data }: CreatePermissionGroupVariables) => {
       return requestJson(createPermissionGroupContract, {
         params: { id: organizationId },
         body: data,
@@ -135,21 +172,16 @@ export function useCreatePermissionGroup() {
   })
 }
 
-export interface UpdatePermissionGroupData {
+type UpdatePermissionGroupVariables = UpdatePermissionGroupBody & {
   id: string
   organizationId: string
-  name?: string
-  description?: string | null
-  config?: Partial<PermissionGroupConfig>
-  isDefault?: boolean
-  workspaceIds?: string[]
 }
 
 export function useUpdatePermissionGroup() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, organizationId, ...data }: UpdatePermissionGroupData) => {
+    mutationFn: async ({ id, organizationId, ...data }: UpdatePermissionGroupVariables) => {
       return requestJson(updatePermissionGroupContract, {
         params: { id: organizationId, groupId: id },
         body: data,
@@ -164,7 +196,7 @@ export function useUpdatePermissionGroup() {
   })
 }
 
-export interface DeletePermissionGroupParams {
+interface DeletePermissionGroupVariables {
   permissionGroupId: string
   organizationId: string
 }
@@ -173,7 +205,7 @@ export function useDeletePermissionGroup() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ permissionGroupId, organizationId }: DeletePermissionGroupParams) => {
+    mutationFn: async ({ permissionGroupId, organizationId }: DeletePermissionGroupVariables) => {
       return requestJson(deletePermissionGroupContract, {
         params: { id: organizationId, groupId: permissionGroupId },
       })
@@ -184,15 +216,16 @@ export function useDeletePermissionGroup() {
   })
 }
 
+type RemovePermissionGroupMemberVariables = RemovePermissionGroupMemberQuery & {
+  organizationId: string
+  permissionGroupId: string
+}
+
 export function useRemovePermissionGroupMember() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: {
-      organizationId: string
-      permissionGroupId: string
-      memberId: string
-    }) => {
+    mutationFn: async (data: RemovePermissionGroupMemberVariables) => {
       return requestJson(removePermissionGroupMemberContract, {
         params: { id: data.organizationId, groupId: data.permissionGroupId },
         query: { memberId: data.memberId },
@@ -204,18 +237,20 @@ export function useRemovePermissionGroupMember() {
   })
 }
 
-export interface BulkAddMembersData {
+type BulkAddPermissionGroupMembersVariables = BulkAddPermissionGroupMembersBody & {
   organizationId: string
   permissionGroupId: string
-  userIds?: string[]
-  addAllOrganizationMembers?: boolean
 }
 
 export function useBulkAddPermissionGroupMembers() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ organizationId, permissionGroupId, ...data }: BulkAddMembersData) => {
+    mutationFn: async ({
+      organizationId,
+      permissionGroupId,
+      ...data
+    }: BulkAddPermissionGroupMembersVariables) => {
       return requestJson(bulkAddPermissionGroupMembersContract, {
         params: { id: organizationId, groupId: permissionGroupId },
         body: data,

@@ -2,6 +2,10 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  MAX_PII_VALIDATION_DETECTED_ENTITIES,
+  MAX_PII_VALIDATION_RESPONSE_BYTES,
+} from '@/lib/guardrails/pii-limits'
 import { maskPIIBatch, validatePII } from '@/lib/guardrails/validate_pii'
 
 interface Span {
@@ -125,6 +129,25 @@ describe('validate_pii (Presidio service)', () => {
   })
 
   describe('validatePII', () => {
+    it('forwards cancellation to Presidio and does not reshape it into a verdict', async () => {
+      const controller = new AbortController()
+      fetchMock.mockImplementationOnce(async (_url: string, init: RequestInit) => {
+        expect(init.signal).toBe(controller.signal)
+        controller.abort(new DOMException('cancelled', 'AbortError'))
+        throw controller.signal.reason
+      })
+
+      await expect(
+        validatePII({
+          text: 'claim',
+          entityTypes: [],
+          mode: 'block',
+          requestId: 'cancelled-request',
+          abortSignal: controller.signal,
+        })
+      ).rejects.toMatchObject({ name: 'AbortError' })
+    })
+
     it('block mode fails with a summary when PII is detected', async () => {
       const res = await validatePII({
         text: 'reach me at a@b.com',
@@ -157,6 +180,74 @@ describe('validate_pii (Presidio service)', () => {
       })
       expect(res.passed).toBe(true)
       expect(res.detectedEntities).toHaveLength(0)
+    })
+
+    it('fails closed before materializing too many detected entities', async () => {
+      const spans = Array.from({ length: MAX_PII_VALIDATION_DETECTED_ENTITIES + 1 }, () => ({
+        entity_type: 'CUSTOM_0',
+        start: 0,
+        end: 1,
+        score: 0.8,
+      }))
+      fetchMock.mockResolvedValueOnce(Response.json(spans))
+
+      const res = await validatePII({
+        text: 'claim',
+        entityTypes: [],
+        mode: 'block',
+        requestId: 'entity-limit',
+      })
+
+      expect(res).toMatchObject({ passed: false, detectedEntities: [] })
+      expect(res.error).toContain(
+        `more than ${MAX_PII_VALIDATION_DETECTED_ENTITIES} detected entities`
+      )
+      expect(fetchMock).toHaveBeenCalledOnce()
+    })
+
+    it('fails closed before parsing an oversized anonymizer response', async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          Response.json([{ entity_type: 'EMAIL_ADDRESS', start: 0, end: 1, score: 0.9 }])
+        )
+        .mockResolvedValueOnce(
+          new Response('{"text":"masked"}', {
+            headers: { 'content-length': String(MAX_PII_VALIDATION_RESPONSE_BYTES + 1) },
+          })
+        )
+
+      const res = await validatePII({
+        text: 'a',
+        entityTypes: [],
+        mode: 'mask',
+        requestId: 'output-limit',
+      })
+
+      expect(res).toMatchObject({ passed: false, detectedEntities: [] })
+      expect(res.error).toContain('PII anonymizer response exceeds maximum size')
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('fails closed before materializing oversized detected-entity text', async () => {
+      const text = 'x'.repeat(6_000)
+      const spans = Array.from({ length: 2_000 }, () => ({
+        entity_type: 'CUSTOM_0',
+        start: 0,
+        end: text.length,
+        score: 0.8,
+      }))
+      fetchMock.mockResolvedValueOnce(Response.json(spans))
+
+      const res = await validatePII({
+        text,
+        entityTypes: [],
+        mode: 'block',
+        requestId: 'entity-byte-limit',
+      })
+
+      expect(res).toMatchObject({ passed: false, detectedEntities: [] })
+      expect(res.error).toContain('detected entities exceed the validation response size limit')
+      expect(fetchMock).toHaveBeenCalledOnce()
     })
   })
 })

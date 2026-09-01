@@ -218,7 +218,7 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
     const lifetimeMs = resolvePiRunLifetimeMs(context.signal)
 
     try {
-      return await withPiSandbox({ lifetimeMs }, async (runner) => {
+      return await withPiSandbox({ lifetimeMs, cost: context.sandboxCost }, async (runner) => {
         await runner.writeFile(GIT_ASKPASS_PATH, GIT_ASKPASS_SCRIPT)
         const fetched = await raceAbort(
           runner.run(FETCH_PR_SCRIPT, {

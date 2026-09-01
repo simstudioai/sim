@@ -15,6 +15,8 @@ import { getCredentialGroupProviderService } from '@/lib/credential-groups/provi
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
+  credentialGroupProviderSearchParam,
+  credentialGroupProviderSearchUrlKeys,
   credentialGroupTabParam,
   credentialGroupTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
@@ -28,6 +30,10 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
+import {
+  CredentialGroupAccess,
+  useCredentialGroupAccessEditor,
+} from '@/ee/credential-groups/components/credential-group-access'
 import { CredentialGroupDetails } from '@/ee/credential-groups/components/credential-group-details'
 import { CredentialGroupInviteModal } from '@/ee/credential-groups/components/credential-group-invite-modal'
 import {
@@ -38,6 +44,7 @@ import {
   useUpdateCredentialGroup,
 } from '@/hooks/queries/credential-groups'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
+import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 interface CredentialGroupDetailProps {
   workspaceId: string
@@ -45,11 +52,12 @@ interface CredentialGroupDetailProps {
   onBack: () => void
 }
 
-type CredentialGroupTab = 'details' | 'people'
+type CredentialGroupTab = 'details' | 'people' | 'access'
 
 const CREDENTIAL_GROUP_TABS = [
   { value: 'details', label: 'Details' },
   { value: 'people', label: 'People' },
+  { value: 'access', label: 'Access' },
 ] as const
 
 interface EnrollmentConnectionsProps {
@@ -101,6 +109,16 @@ export function CredentialGroupDetail({
     ...credentialGroupTabParam.parser,
     ...credentialGroupTabUrlKeys,
   })
+  const accessEditor = useCredentialGroupAccessEditor({
+    workspaceId,
+    groupId,
+    enabled: activeTab === 'access',
+  })
+  const [providerSearch, setProviderSearchParam] = useQueryState(
+    credentialGroupProviderSearchParam.key,
+    { ...credentialGroupProviderSearchParam.parser, ...credentialGroupProviderSearchUrlKeys }
+  )
+  const setProviderSearch = useDebouncedSearchSetter(setProviderSearchParam)
   const [showInvite, setShowInvite] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [deletingEnrollmentId, setDeletingEnrollmentId] = useState<string | null>(null)
@@ -128,11 +146,26 @@ export function CredentialGroupDetail({
       (name.trim() !== credentialGroup.name ||
         normalizedDescription !== credentialGroup.description)
   )
-  const guard = useSettingsUnsavedGuard({ isDirty: detailsDirty })
+  const guard = useSettingsUnsavedGuard({
+    isDirty: detailsDirty || accessEditor.dirty,
+    navigationBlocked: updateGroup.isPending || accessEditor.saving,
+  })
+  const credentialGroupMutationPending =
+    updateGroup.isPending || accessEditor.saving || resend.isPending || deleteEnrollment.isPending
 
   const discardDetails = () => {
     setDraftName(null)
     setDraftDescription(null)
+  }
+
+  const handleTabChange = (value: string) => {
+    const nextTab = value as CredentialGroupTab
+    if (nextTab === activeTab) return
+    guard.guardBack(() => {
+      discardDetails()
+      accessEditor.discard()
+      void setActiveTab(nextTab)
+    })
   }
 
   const handleSaveDetails = async () => {
@@ -150,10 +183,6 @@ export function CredentialGroupDetail({
     }
   }
 
-  /**
-   * Each tab owns its own primary action: Details commits the edited name and
-   * description, People invites more users. Delete is available from both.
-   */
   const actions: SettingsAction[] = credentialGroup
     ? [
         ...(activeTab === 'details'
@@ -165,20 +194,32 @@ export function CredentialGroupDetail({
               saveDisabled: !name.trim(),
               saveTooltip: name.trim() ? undefined : 'Name is required',
             })
-          : [
-              {
-                text: 'Invite users',
-                icon: Plus,
-                variant: 'primary' as const,
-                onSelect: () => setShowInvite(true),
-                disabled: credentialGroup.status !== 'active' || !configurationReady,
-              },
-            ]),
+          : activeTab === 'people'
+            ? [
+                {
+                  text: 'Invite users',
+                  icon: Plus,
+                  variant: 'primary' as const,
+                  onSelect: () => setShowInvite(true),
+                  disabled: credentialGroup.status !== 'active' || !configurationReady,
+                },
+              ]
+            : saveDiscardActions({
+                dirty: accessEditor.dirty,
+                saving: accessEditor.saving,
+                onSave: () => void accessEditor.save(),
+                onDiscard: accessEditor.discard,
+                saveDisabled: !accessEditor.isReady,
+                saveTooltip: !accessEditor.isReady ? 'Workflow access is unavailable' : undefined,
+              })),
         {
           id: 'delete',
           text: deleteGroup.isPending ? 'Deleting...' : 'Delete',
           onSelect: () => setShowDelete(true),
-          disabled: deleteGroup.isPending,
+          disabled: deleteGroup.isPending || credentialGroupMutationPending,
+          tooltip: credentialGroupMutationPending
+            ? 'Wait for the current Credential Group change to finish'
+            : undefined,
         },
       ]
     : []
@@ -229,6 +270,16 @@ export function CredentialGroupDetail({
         title={credentialGroup?.name ?? 'Credential group'}
         description={credentialGroup?.description ?? undefined}
         actions={actions}
+        search={
+          activeTab === 'details'
+            ? {
+                value: providerSearch,
+                onChange: setProviderSearch,
+                placeholder: 'Search account types...',
+                disabled: detail.isPending,
+              }
+            : undefined
+        }
       >
         {detail.error ? (
           <SettingsEmptyState tone='error'>
@@ -239,7 +290,7 @@ export function CredentialGroupDetail({
             <ChipModalTabs
               tabs={CREDENTIAL_GROUP_TABS}
               value={activeTab}
-              onChange={(value) => void setActiveTab(value as CredentialGroupTab)}
+              onChange={handleTabChange}
               aria-label='Credential group sections'
             />
 
@@ -247,6 +298,7 @@ export function CredentialGroupDetail({
               <CredentialGroupDetails
                 workspaceId={workspaceId}
                 credentialGroup={credentialGroup}
+                providerSearch={providerSearch}
                 name={name}
                 onNameChange={setDraftName}
                 description={description}
@@ -305,6 +357,20 @@ export function CredentialGroupDetail({
                   </div>
                 )}
               </SettingsSection>
+            )}
+
+            {activeTab === 'access' && (
+              <CredentialGroupAccess
+                key={groupId}
+                allowedWorkflowIds={accessEditor.allowedWorkflowIds}
+                revision={accessEditor.revision}
+                workflows={accessEditor.workflows}
+                onAllowedWorkflowIdsChange={accessEditor.setAllowedWorkflowIds}
+                error={accessEditor.error}
+                isPending={accessEditor.isPending}
+                loadError={accessEditor.loadError}
+                saving={accessEditor.saving}
+              />
             )}
           </>
         )}

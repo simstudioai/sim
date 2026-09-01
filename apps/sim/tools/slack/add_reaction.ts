@@ -1,8 +1,11 @@
 import type { SlackAddReactionParams, SlackAddReactionResponse } from '@/tools/slack/types'
 import { REACTION_METADATA_OUTPUT_PROPERTIES } from '@/tools/slack/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const slackAddReactionTool: ToolConfig<SlackAddReactionParams, SlackAddReactionResponse> = {
+export const slackAddReactionTool: InternalToolConfig<
+  SlackAddReactionParams,
+  SlackAddReactionResponse
+> = {
   id: 'slack_add_reaction',
   name: 'Slack Add Reaction',
   description: 'Add an emoji reaction to a Slack message',
@@ -52,13 +55,8 @@ export const slackAddReactionTool: ToolConfig<SlackAddReactionParams, SlackAddRe
     },
   },
 
-  request: {
-    url: '/api/tools/slack/add-reaction',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: SlackAddReactionParams) => ({
+  operation: {
+    input: (params: SlackAddReactionParams) => ({
       accessToken: params.accessToken || params.botToken,
       channel: params.channel?.trim(),
       timestamp: params.timestamp?.trim(),

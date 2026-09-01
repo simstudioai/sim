@@ -14,11 +14,14 @@ import {
   useRef,
   useState,
 } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown, Loader, Search } from '../../icons'
 import { cn } from '../../lib/cn'
+import { Button } from '../button/button'
 import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chrome'
 import { Input } from '../input/input'
+import { OverflowText } from '../overflow-text/overflow-text'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
 const comboboxVariants = cva(
@@ -39,6 +42,8 @@ const comboboxVariants = cva(
     },
   }
 )
+
+const VIRTUALIZE_OPTION_THRESHOLD = 100
 
 /**
  * Represents a selectable option in the combobox
@@ -93,8 +98,10 @@ export interface ComboboxProps
   disabled?: boolean
   /** Enable free-text input mode (default: false) */
   editable?: boolean
-  /** Custom overlay content for editable mode */
+  /** Visual content rendered over the selected value. */
   overlayContent?: ReactNode
+  /** Plain-text value represented by a visual overlay in non-editable mode. */
+  overlayLabel?: string
   /** Additional input props for editable mode */
   inputProps?: Omit<
     React.InputHTMLAttributes<HTMLInputElement>,
@@ -149,6 +156,20 @@ export interface ComboboxProps
   maxHeight?: number
   /** Empty state message when no options match the search */
   emptyMessage?: string
+  /** Whether additional option pages are available. */
+  hasMore?: boolean
+  /** Whether another option page is loading. */
+  isLoadingMore?: boolean
+  /** Whether every remaining option page is being searched. */
+  isLoadingAll?: boolean
+  /** Whether undiscovered provider pages were cut off by the selector safety bound. */
+  truncated?: boolean
+  /** Whether an externally controlled editable input is actively filtering options. */
+  searchActive?: boolean
+  /** Loads one additional option page. */
+  onLoadMore?: () => void
+  /** Loads all remaining option pages within the selector safety bound. */
+  onLoadAll?: () => void
 }
 
 /**
@@ -172,6 +193,7 @@ const Combobox = memo(
         disabled,
         editable = false,
         overlayContent,
+        overlayLabel,
         inputProps = {},
         inputRef: externalInputRef,
         filterOptions = editable,
@@ -191,6 +213,13 @@ const Combobox = memo(
         groups,
         maxHeight = 192,
         emptyMessage,
+        hasMore = false,
+        isLoadingMore = false,
+        isLoadingAll = false,
+        truncated = false,
+        searchActive = false,
+        onLoadMore,
+        onLoadAll,
         ...props
       },
       ref
@@ -254,6 +283,7 @@ const Combobox = memo(
       )
       const searchInputRef = useRef<HTMLInputElement>(null)
       const containerRef = useRef<HTMLDivElement>(null)
+      const scrollAreaRef = useRef<HTMLDivElement>(null)
       const dropdownRef = useRef<HTMLDivElement>(null)
       const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null)
       const internalInputRef = useRef<HTMLInputElement>(null)
@@ -391,6 +421,21 @@ const Combobox = memo(
           }))
           .filter((group) => group.items.length > 0)
       }, [groups, searchable, searchQuery])
+
+      const virtualizeOptions =
+        !filteredGroups && !showAllOption && filteredOptions.length >= VIRTUALIZE_OPTION_THRESHOLD
+      const optionVirtualizer = useVirtualizer({
+        count: virtualizeOptions ? filteredOptions.length : 0,
+        getScrollElement: () => scrollAreaRef.current,
+        estimateSize: () => (size === 'sm' ? 28 : 34),
+        overscan: 8,
+      })
+      const hasActiveSearch = searchActive || (searchable && searchQuery.trim().length > 0)
+      const continuationAction = hasActiveSearch ? (onLoadAll ?? onLoadMore) : onLoadMore
+      const continuationLabel = hasActiveSearch ? 'Search all options' : 'Load more'
+      const continuationLoadingLabel = hasActiveSearch
+        ? 'Searching options...'
+        : 'Loading options...'
 
       /**
        * Handles selection of an option. In editable mode the input is blurred on
@@ -620,7 +665,12 @@ const Combobox = memo(
        * Scroll highlighted option into view
        */
       useEffect(() => {
-        if (effectiveHighlightedIndex >= 0 && dropdownRef.current) {
+        if (effectiveHighlightedIndex < 0) return
+        if (virtualizeOptions) {
+          optionVirtualizer.scrollToIndex(effectiveHighlightedIndex, { align: 'auto' })
+          return
+        }
+        if (dropdownRef.current) {
           const highlightedElement = dropdownRef.current.querySelector(
             `[data-option-index="${effectiveHighlightedIndex}"]`
           )
@@ -631,9 +681,94 @@ const Combobox = memo(
             })
           }
         }
-      }, [effectiveHighlightedIndex])
+      }, [effectiveHighlightedIndex, optionVirtualizer, virtualizeOptions])
 
       const SelectedIcon = selectedOption?.icon
+      const visualLabel =
+        overlayLabel ?? multiSelectLabel ?? (selectedOption ? selectedOption.label : placeholder)
+      const isLoadingContinuation = isLoadingMore || isLoadingAll
+      const resolvedEmptyMessage =
+        truncated && hasActiveSearch
+          ? 'No matches in the first 10,000 options'
+          : hasMore && hasActiveSearch
+            ? 'No matches in loaded options'
+            : hasMore
+              ? 'No options loaded'
+              : emptyMessage ||
+                (searchQuery || (editable && value)
+                  ? 'No matching options found'
+                  : 'No options available')
+      const continuationFooter =
+        hasMore && continuationAction ? (
+          <Button
+            type='button'
+            variant='ghost-secondary'
+            size='sm'
+            className='w-full'
+            disabled={isLoadingContinuation}
+            onMouseDown={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
+            onClick={(event) => {
+              event.stopPropagation()
+              continuationAction()
+            }}
+          >
+            {isLoadingContinuation && (
+              <Loader className='mr-1.5 size-[14px] text-[var(--text-icon)]' animate />
+            )}
+            {isLoadingContinuation
+              ? continuationLoadingLabel
+              : error
+                ? 'Try again'
+                : continuationLabel}
+          </Button>
+        ) : truncated && filteredOptions.length > 0 ? (
+          <div className='py-2 text-center text-[var(--text-muted)] text-caption'>
+            Showing the first 10,000 options
+          </div>
+        ) : null
+
+      const renderFlatOption = (option: ComboboxOption, index: number) => {
+        const isSelected = multiSelect
+          ? multiSelectValues?.includes(option.value)
+          : effectiveSelectedValue === option.value
+        const isHighlighted = index === effectiveHighlightedIndex
+        const OptionIcon = option.icon
+
+        return (
+          <div
+            role='option'
+            aria-selected={isSelected}
+            aria-disabled={option.disabled}
+            data-option-index={index}
+            onMouseDown={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              if (!option.disabled) {
+                handleSelect(option.value, option.onSelect, option.keepOpen)
+              }
+            }}
+            onMouseEnter={() => !option.disabled && setHighlightedIndex(index)}
+            className={cn(
+              'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
+              size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
+              (isHighlighted || isSelected) && chipActiveSurfaceClass,
+              option.disabled && 'cursor-not-allowed opacity-50'
+            )}
+          >
+            {option.iconElement
+              ? option.iconElement
+              : OptionIcon && <OptionIcon className='size-[14px] flex-shrink-0' />}
+            <OverflowText label={option.label} className='flex-1 text-[var(--text-primary)]' />
+            {option.suffixElement}
+            {multiSelect && isSelected && (
+              <Check className='ml-2 size-[12px] flex-shrink-0 text-[var(--text-primary)]' />
+            )}
+          </div>
+        )
+      }
 
       return (
         <Popover open={open} onOpenChange={changeOpen}>
@@ -677,9 +812,10 @@ const Combobox = memo(
                         ) : (
                           <>
                             {SelectedIcon && <SelectedIcon className='mr-2 size-3 flex-shrink-0' />}
-                            <span className='truncate text-[var(--text-primary)]'>
-                              {selectedOption?.label}
-                            </span>
+                            <OverflowText
+                              label={selectedOption?.label ?? ''}
+                              className='text-[var(--text-primary)]'
+                            />
                           </>
                         )}
                       </div>
@@ -716,15 +852,14 @@ const Combobox = memo(
                     onClick={handleToggle}
                     onKeyDown={handleKeyDown}
                   >
-                    <span
+                    <OverflowText
+                      label={visualLabel}
                       className={cn(
-                        'flex-1 truncate',
+                        'flex-1',
                         !selectedOption && !multiSelectLabel && 'text-[var(--text-muted)]',
                         overlayContent && 'text-transparent'
                       )}
-                    >
-                      {multiSelectLabel ?? (selectedOption ? selectedOption.label : placeholder)}
-                    </span>
+                    />
                     <ChevronDown
                       className={cn(
                         'ml-2 size-4 flex-shrink-0 opacity-50 transition-transform',
@@ -733,7 +868,9 @@ const Combobox = memo(
                     />
                     {overlayContent && (
                       <div className='pointer-events-none absolute inset-y-0 right-[24px] left-0 flex items-center px-2'>
-                        <div className='w-full truncate'>{overlayContent}</div>
+                        <OverflowText label={visualLabel} className='w-full' tooltipEnabled={false}>
+                          {overlayContent}
+                        </OverflowText>
                       </div>
                     )}
                   </div>
@@ -804,8 +941,14 @@ const Combobox = memo(
                 </div>
               )}
               <PopoverScrollArea
+                ref={scrollAreaRef}
                 className='!flex-none p-1'
                 style={{ maxHeight: `${maxHeight}px` }}
+                onScroll={(event) => {
+                  if (hasActiveSearch || !hasMore || isLoadingContinuation || !onLoadMore) return
+                  const { scrollTop, scrollHeight, clientHeight } = event.currentTarget
+                  if (scrollTop + clientHeight >= scrollHeight - 24) onLoadMore()
+                }}
                 onWheelCapture={(e) => {
                   const target = e.currentTarget
                   const { scrollTop, scrollHeight, clientHeight } = target
@@ -827,16 +970,13 @@ const Combobox = memo(
                         Loading options...
                       </span>
                     </div>
-                  ) : error ? (
-                    <div className='px-1.5 py-3.5 text-center text-caption text-red-500'>
+                  ) : error && filteredOptions.length === 0 && !hasMore ? (
+                    <div className='px-1.5 py-3.5 text-center text-[var(--text-error)] text-caption'>
                       {error}
                     </div>
                   ) : filteredOptions.length === 0 ? (
                     <div className='py-3.5 text-center text-[var(--text-muted)] text-caption'>
-                      {emptyMessage ||
-                        (searchQuery || (editable && value)
-                          ? 'No matching options found'
-                          : 'No options available')}
+                      {resolvedEmptyMessage}
                     </div>
                   ) : filteredGroups ? (
                     // Render grouped options with section headers
@@ -899,9 +1039,10 @@ const Combobox = memo(
                                   : OptionIcon && (
                                       <OptionIcon className='size-[14px] flex-shrink-0' />
                                     )}
-                                <span className='flex-1 truncate text-[var(--text-primary)]'>
-                                  {option.label}
-                                </span>
+                                <OverflowText
+                                  label={option.label}
+                                  className='flex-1 text-[var(--text-primary)]'
+                                />
                                 {option.suffixElement}
                                 {multiSelect && isSelected && (
                                   <Check className='ml-2 size-[12px] flex-shrink-0 text-[var(--text-primary)]' />
@@ -935,57 +1076,41 @@ const Combobox = memo(
                               : chipHoverSurfaceClass
                           )}
                         >
-                          <span className='flex-1 truncate text-[var(--text-primary)]'>
-                            {allOptionLabel}
-                          </span>
+                          <OverflowText
+                            label={allOptionLabel}
+                            className='flex-1 text-[var(--text-primary)]'
+                          />
                         </div>
                       )}
-                      {filteredOptions.map((option, index) => {
-                        const isSelected = multiSelect
-                          ? multiSelectValues?.includes(option.value)
-                          : effectiveSelectedValue === option.value
-                        const isHighlighted = index === effectiveHighlightedIndex
-                        const OptionIcon = option.icon
-
-                        return (
-                          <div
-                            key={option.value}
-                            role='option'
-                            aria-selected={isSelected}
-                            aria-disabled={option.disabled}
-                            data-option-index={index}
-                            onMouseDown={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              if (!option.disabled) {
-                                handleSelect(option.value, option.onSelect, option.keepOpen)
-                              }
-                            }}
-                            onMouseEnter={() => !option.disabled && setHighlightedIndex(index)}
-                            className={cn(
-                              'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
-                              size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
-                              // See above: `isHighlighted` alone, so paint matches what Enter commits.
-                              (isHighlighted || isSelected) && chipActiveSurfaceClass,
-                              option.disabled && 'cursor-not-allowed opacity-50'
-                            )}
-                          >
-                            {option.iconElement
-                              ? option.iconElement
-                              : OptionIcon && <OptionIcon className='size-[14px] flex-shrink-0' />}
-                            <span className='flex-1 truncate text-[var(--text-primary)]'>
-                              {option.label}
-                            </span>
-                            {option.suffixElement}
-                            {multiSelect && isSelected && (
-                              <Check className='ml-2 size-[12px] flex-shrink-0 text-[var(--text-primary)]' />
-                            )}
-                          </div>
-                        )
-                      })}
+                      {virtualizeOptions ? (
+                        <div
+                          className='relative w-full'
+                          style={{ height: `${optionVirtualizer.getTotalSize()}px` }}
+                        >
+                          {optionVirtualizer.getVirtualItems().map((virtualOption) => (
+                            <div
+                              key={filteredOptions[virtualOption.index].value}
+                              ref={optionVirtualizer.measureElement}
+                              data-index={virtualOption.index}
+                              className='absolute top-0 left-0 w-full pb-0.5'
+                              style={{ transform: `translateY(${virtualOption.start}px)` }}
+                            >
+                              {renderFlatOption(
+                                filteredOptions[virtualOption.index],
+                                virtualOption.index
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        filteredOptions.map((option, index) => (
+                          <div key={option.value}>{renderFlatOption(option, index)}</div>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>
+                {continuationFooter}
               </PopoverScrollArea>
             </PopoverContent>
           </div>

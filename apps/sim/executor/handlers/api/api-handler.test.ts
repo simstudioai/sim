@@ -136,32 +136,24 @@ describe('ApiBlockHandler', () => {
     expect(result).toEqual(expectedOutput)
   })
 
-  it('should throw error for invalid URL format (no protocol)', async () => {
-    const inputs = { url: 'example.com/api' }
+  it('leaves egress validation to the tool layer rather than re-resolving here', async () => {
+    // `executeToolRequest` validates the fully composed URL and connects to the
+    // address it pinned. Validating the pre-templating string here would resolve
+    // DNS a second time and check a URL that is not the one dialed.
+    await handler.execute(mockContext, mockBlock, { url: 'https://api.example.com/data' })
 
-    mockValidateUrlWithDNS.mockResolvedValueOnce({
-      isValid: false,
-      error: 'url must be a valid URL',
-    })
-
-    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-      'url must be a valid URL'
-    )
-    expect(mockExecuteTool).not.toHaveBeenCalled()
+    expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
+    expect(mockExecuteTool).toHaveBeenCalled()
   })
 
-  it('should throw error for generally invalid URL format', async () => {
-    const inputs = { url: 'htp:/invalid-url' }
+  it('strips quotes a block reference left around the URL', async () => {
+    await handler.execute(mockContext, mockBlock, { url: '"https://api.example.com/data"' })
 
-    mockValidateUrlWithDNS.mockResolvedValueOnce({
-      isValid: false,
-      error: 'url must use https:// protocol',
-    })
-
-    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
-      'url must use https:// protocol'
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'http_request',
+      expect.objectContaining({ url: 'https://api.example.com/data' }),
+      expect.anything()
     )
-    expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 
   it('should parse JSON string body correctly', async () => {

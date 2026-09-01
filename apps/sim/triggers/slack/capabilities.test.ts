@@ -3,10 +3,29 @@ import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed
 import {
   buildSlackManifest,
   getSlackManagedUserAuthorizationManifestConfig,
+  SLACK_CAPABILITIES,
   SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY,
 } from '@/triggers/slack/capabilities'
 
 const opts = { appName: 'Test Bot', webhookUrl: 'https://sim.test/api/webhooks/slack' }
+
+const REQUIRED_AGENT_SCOPES = [
+  'assistant:write',
+  'chat:write',
+  'chat:write.customize',
+  'im:history',
+  'im:write',
+]
+
+const REQUIRED_AGENT_EVENTS = [
+  'agent_session_stopped',
+  'agent_session_title_changed',
+  'app_context_changed',
+  'app_home_opened',
+  'assistant_thread_context_changed',
+  'assistant_thread_started',
+  'message.im',
+]
 
 function settingsOf(manifest: Record<string, unknown>) {
   return manifest.settings as Record<string, unknown>
@@ -22,39 +41,116 @@ describe('buildSlackManifest - interactivity', () => {
   })
 
   it('omits settings.interactivity when the capability is absent', () => {
-    const manifest = buildSlackManifest(new Set(['action_send']), opts)
+    const manifest = buildSlackManifest(new Set(), opts)
     expect(settingsOf(manifest).interactivity).toBeUndefined()
   })
 
-  it('enables interactivity independently of event subscriptions', () => {
-    // No bot_events (interactivity-only bot) still gets the interactivity block.
-    const manifest = buildSlackManifest(new Set(['action_interactivity']), opts)
-    const settings = settingsOf(manifest)
-    expect(settings.event_subscriptions).toBeUndefined()
-    expect(settings.interactivity).toBeDefined()
+  it('keeps mandatory Agent View event subscriptions without interactivity', () => {
+    const manifest = buildSlackManifest(new Set(), opts)
+    expect(settingsOf(manifest).event_subscriptions).toEqual({
+      request_url: opts.webhookUrl,
+      bot_events: REQUIRED_AGENT_EVENTS,
+    })
   })
 })
 
-describe('buildSlackManifest - description', () => {
-  it('emits display_information.description and reuses it as the assistant description', () => {
-    const manifest = buildSlackManifest(new Set(['action_assistant']), {
+describe('buildSlackManifest - Agent View', () => {
+  it('enables Agent View, Agent Sessions, streaming, and direct messages for every custom bot', () => {
+    const manifest = buildSlackManifest(new Set(), opts)
+    const features = manifest.features as Record<string, Record<string, unknown>>
+
+    expect(SLACK_CAPABILITIES.map((capability) => capability.id)).not.toEqual(
+      expect.arrayContaining(['action_assistant', 'action_send', 'trigger_app_home'])
+    )
+    expect(features.agent_view).toEqual({
+      agent_description: 'Test Bot — an AI agent powered by Sim.',
+    })
+    expect(features.app_home).toEqual({
+      home_tab_enabled: false,
+      messages_tab_enabled: true,
+      messages_tab_read_only_enabled: false,
+    })
+    expect(manifest.oauth_config).toEqual({ scopes: { bot: REQUIRED_AGENT_SCOPES } })
+    expect(settingsOf(manifest).event_subscriptions).toEqual({
+      request_url: opts.webhookUrl,
+      bot_events: REQUIRED_AGENT_EVENTS,
+    })
+  })
+
+  it('emits a custom description and slash commands', () => {
+    const manifest = buildSlackManifest(new Set(), {
       ...opts,
-      description: 'Answers support questions.',
+      description: ' Answers support questions. ',
+      slashCommands: [
+        {
+          command: ' /ask-support ',
+          description: ' Ask the support agent. ',
+          usageHint: ' question or task ',
+        },
+      ],
     })
     expect(manifest.display_information).toEqual({
       name: 'Test Bot',
       description: 'Answers support questions.',
     })
     const features = manifest.features as Record<string, Record<string, unknown>>
-    expect(features.assistant_view.assistant_description).toBe('Answers support questions.')
+    expect(features.agent_view).toEqual({
+      agent_description: 'Answers support questions.',
+    })
+    expect(features.slash_commands).toEqual([
+      {
+        command: '/ask-support',
+        description: 'Ask the support agent.',
+        should_escape: true,
+        usage_hint: 'question or task',
+        url: opts.webhookUrl,
+      },
+    ])
+    expect(manifest.oauth_config).toEqual({
+      scopes: { bot: [...REQUIRED_AGENT_SCOPES, 'commands'].sort() },
+    })
   })
 
-  it('omits the description key and falls back for the assistant when absent', () => {
-    const manifest = buildSlackManifest(new Set(['action_assistant']), opts)
-    expect(manifest.display_information).toEqual({ name: 'Test Bot' })
-    const features = manifest.features as Record<string, Record<string, unknown>>
-    expect(features.assistant_view.assistant_description).toBe(
-      'Test Bot — an AI assistant powered by Sim.'
+  it('fails fast for invalid slash commands', () => {
+    expect(() =>
+      buildSlackManifest(new Set(), {
+        ...opts,
+        slashCommands: [{ command: '/ask-support', description: ' ' }],
+      })
+    ).toThrow('Slack slash command 1 requires a command and description')
+
+    expect(() =>
+      buildSlackManifest(new Set(), {
+        ...opts,
+        slashCommands: [{ command: '/ask support', description: 'Ask support' }],
+      })
+    ).toThrow('Slack slash command 1 must be one word beginning with /')
+
+    expect(() =>
+      buildSlackManifest(new Set(), {
+        ...opts,
+        slashCommands: [
+          { command: '/ask', description: 'Ask once' },
+          { command: ' /ask ', description: 'Ask twice' },
+        ],
+      })
+    ).toThrow('Slack slash command /ask is configured more than once')
+  })
+
+  it('uses the manifest placeholder for slash commands before deployment', () => {
+    const manifest = buildSlackManifest(new Set(), {
+      appName: 'Test Bot',
+      webhookUrl: null,
+      slashCommands: [{ command: '/ask', description: 'Ask the bot' }],
+    })
+    const features = manifest.features as Record<string, Record<string, unknown>[]>
+
+    expect(features.slash_commands[0].url).toBe('<deploy workflow to generate webhook URL>')
+  })
+
+  it("fails fast when the Agent View description exceeds Slack's limit", () => {
+    expect(() => buildSlackManifest(new Set(), { ...opts, description: 'a'.repeat(301) })).toThrow(
+      'Slack agent description must be 300 characters or fewer'
     )
   })
 })
@@ -70,7 +166,7 @@ describe('buildSlackManifest - managed users', () => {
   it('adds user OAuth configuration and its bot prerequisite', () => {
     const managedUserAuthorization =
       getSlackManagedUserAuthorizationManifestConfig('https://sim.ai')
-    const manifest = buildSlackManifest(new Set(['action_send']), {
+    const manifest = buildSlackManifest(new Set(), {
       appName: 'Managed Slack',
       webhookUrl: 'https://sim.ai/api/webhooks/slack/custom/credential-id',
       managedUserAuthorization,
@@ -83,7 +179,7 @@ describe('buildSlackManifest - managed users', () => {
           'https://sim.ai/api/credential-groups/oauth/slack/callback',
         ],
         scopes: {
-          bot: ['chat:write', 'users:read'],
+          bot: [...REQUIRED_AGENT_SCOPES, 'users:read'].sort(),
           user: [...SLACK_MANAGED_USER_SCOPES].sort(),
         },
       },
@@ -91,7 +187,7 @@ describe('buildSlackManifest - managed users', () => {
   })
 
   it('omits managed user OAuth configuration when disabled', () => {
-    const manifest = buildSlackManifest(new Set(['action_send']), opts)
-    expect(manifest.oauth_config).toEqual({ scopes: { bot: ['chat:write'] } })
+    const manifest = buildSlackManifest(new Set(), opts)
+    expect(manifest.oauth_config).toEqual({ scopes: { bot: REQUIRED_AGENT_SCOPES } })
   })
 })

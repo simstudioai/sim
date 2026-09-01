@@ -53,6 +53,7 @@ import { ChipTextarea } from '../chip-textarea/chip-textarea'
 import { Label } from '../label/label'
 import { focusFirstTextInputIn, isElementVisible } from '../modal/auto-focus'
 import { Modal, ModalContent, useModalDismissDisabled } from '../modal/modal'
+import { OverflowText } from '../overflow-text/overflow-text'
 import { Tooltip } from '../tooltip/tooltip'
 
 /**
@@ -302,7 +303,11 @@ const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
         <div className='flex min-w-0 items-center justify-between gap-2 px-4 pt-3'>
           <div className='flex min-w-0 items-center gap-2'>
             {Icon ? <Icon className={chipContentIconClass} /> : null}
-            <span className={chipContentLabelClass}>{children}</span>
+            {typeof children === 'string' || typeof children === 'number' ? (
+              <OverflowText label={String(children)} className={chipContentLabelClass} />
+            ) : (
+              <span className={chipContentLabelClass}>{children}</span>
+            )}
           </div>
           <Button
             type='button'
@@ -556,6 +561,16 @@ interface ChipModalInputFieldProps extends ChipModalFieldBaseProps, ChipModalSin
    * native password input. See {@link ChipModalPasswordControl}.
    */
   inputType?: 'text' | 'password' | 'url' | 'tel' | 'search' | 'number'
+  /**
+   * Virtual-keyboard hint, independent of {@link inputType}.
+   *
+   * A field holding a number usually wants `inputMode='numeric'` on a `'text'` input
+   * rather than `inputType='number'`: the numeric type renders the browser's stepper,
+   * which paints its own chrome inside a flat chip surface, and reports `''` for any
+   * value it considers invalid — so the caller cannot tell an empty field from a
+   * rejected keystroke.
+   */
+  inputMode?: 'numeric' | 'decimal' | 'tel'
   /**
    * Renders the value in the monospace stack (`font-mono`). Use for
    * code-like values (identifiers, keys, snippets) where the proportional
@@ -814,6 +829,7 @@ function renderChipModalControl(
         <ChipInput
           id={id}
           type={props.type === 'email' ? 'email' : (props.inputType ?? 'text')}
+          inputMode={props.type === 'input' ? props.inputMode : undefined}
           value={props.value}
           onChange={(event) => props.onChange(event.target.value)}
           onKeyDown={onKeyDown}

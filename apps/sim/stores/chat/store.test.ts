@@ -38,6 +38,8 @@ vi.hoisted(() => {
 
 import { useChatStore } from '@/stores/chat/store'
 
+const migratedMessageIds = useChatStore.getState().messages.map((message) => message.id)
+
 function readBlob(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -49,8 +51,7 @@ function readBlob(blob: Blob): Promise<string> {
 
 describe('chat store message ordering', () => {
   it('migrates v0 persisted messages from newest-first to insertion order', () => {
-    const messages = useChatStore.getState().messages
-    expect(messages.map((m) => m.id)).toEqual(['msg-1', 'msg-2'])
+    expect(migratedMessageIds).toEqual(['msg-1', 'msg-2'])
   })
 
   describe('addMessage', () => {
@@ -81,6 +82,38 @@ describe('chat store message ordering', () => {
       expect(messages).toHaveLength(50)
       expect(messages[0].content).toBe('m5')
       expect(messages[messages.length - 1].content).toBe('m54')
+    })
+  })
+
+  it('resets persisted identity and transient UI state', () => {
+    useChatStore.setState({
+      isChatOpen: true,
+      chatPosition: { x: 10, y: 20 },
+      chatWidth: 500,
+      chatHeight: 400,
+      messages: [
+        {
+          id: 'message-a',
+          content: 'private response',
+          workflowId: 'workflow-a',
+          type: 'workflow',
+          timestamp: '2026-08-31T00:00:00.000Z',
+        },
+      ],
+      selectedWorkflowOutputs: { 'workflow-a': ['output-a'] },
+      conversationIds: { 'workflow-a': 'conversation-a' },
+    })
+
+    useChatStore.getState().reset()
+
+    expect(useChatStore.getState()).toMatchObject({
+      isChatOpen: false,
+      chatPosition: null,
+      chatWidth: 305,
+      chatHeight: 286,
+      messages: [],
+      selectedWorkflowOutputs: {},
+      conversationIds: {},
     })
   })
 

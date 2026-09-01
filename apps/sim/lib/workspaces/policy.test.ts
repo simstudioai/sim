@@ -17,11 +17,20 @@ const {
   mockGetUserOrganization,
   mockGetOrganizationSubscription,
   mockGetHighestPrioritySubscription,
+  mockGetUserPermissionConfigForOrganization,
+  mockGetUserPermissionConfig,
 } = vi.hoisted(() => ({
   mockAcquireOrganizationUserMutationLocks: vi.fn(),
   mockGetUserOrganization: vi.fn(),
   mockGetOrganizationSubscription: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
+  mockGetUserPermissionConfigForOrganization: vi.fn(),
+  mockGetUserPermissionConfig: vi.fn(),
+}))
+
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: mockGetUserPermissionConfigForOrganization,
+  getUserPermissionConfig: mockGetUserPermissionConfig,
 }))
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
@@ -43,6 +52,7 @@ import {
   getWorkspaceInvitePolicy,
   lockWorkspaceCreationContext,
   WORKSPACE_MODE,
+  WorkspaceCreationCapabilityWithheldError,
   WorkspaceCreationContextChangedError,
 } from '@/lib/workspaces/policy'
 import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
@@ -128,6 +138,75 @@ describe('lockWorkspaceCreationContext', () => {
     )
   })
 
+  /**
+   * The preflight in `getWorkspaceCreationPolicy` and the insert are separate
+   * requests. A group that withheld creation in between has to be caught under
+   * the lock, or the in-flight create lands a workspace that carries no
+   * `permissionGroupWorkspace` row to bring it back under the regime.
+   */
+  it('rejects when the group withheld workspace creation after the preflight', async () => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: false })
+    mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
+    mockGetUserOrganization.mockResolvedValue({ organizationId: 'org-1', role: 'admin' })
+    mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      disableWorkspaceCreation: true,
+    })
+    queueTableRows(member, [{ userId: 'owner-1' }])
+    const tx = dbChainMock.db as unknown as DbOrTx
+
+    await expect(
+      lockWorkspaceCreationContext(tx, {
+        userId: 'creator-1',
+        organizationId: 'org-1',
+        observedOrganizationId: 'org-1',
+      })
+    ).rejects.toBeInstanceOf(WorkspaceCreationCapabilityWithheldError)
+    expect(mockGetUserPermissionConfigForOrganization).toHaveBeenCalledWith('org-1')
+  })
+
+  /**
+   * A personal workspace is precisely the escape from a scoped group, so the
+   * re-check reads the caller's membership organization even when the workspace
+   * being inserted carries none — the same organization the preflight used.
+   */
+  it('rejects a personal workspace when the membership organization withheld creation', async () => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
+    mockGetUserOrganization.mockResolvedValue({ organizationId: 'org-1', role: 'member' })
+    mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      disableWorkspaceCreation: true,
+    })
+    const tx = dbChainMock.db as unknown as DbOrTx
+
+    await expect(
+      lockWorkspaceCreationContext(tx, {
+        userId: 'creator-1',
+        organizationId: null,
+        observedOrganizationId: 'org-1',
+      })
+    ).rejects.toBeInstanceOf(WorkspaceCreationCapabilityWithheldError)
+  })
+
+  it('leaves an unaffiliated creator alone, with no group to read', async () => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
+    mockGetUserOrganization.mockResolvedValue(null)
+    const tx = dbChainMock.db as unknown as DbOrTx
+
+    await expect(
+      lockWorkspaceCreationContext(tx, {
+        userId: 'creator-1',
+        organizationId: null,
+        observedOrganizationId: null,
+      })
+    ).resolves.toEqual({ billedAccountUserId: 'creator-1' })
+    expect(mockGetUserPermissionConfigForOrganization).not.toHaveBeenCalled()
+  })
+
   it('rejects when the paid org entitlement disappeared before insertion', async () => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -158,6 +237,69 @@ describe('getWorkspaceCreationPolicy', () => {
     mockGetUserOrganization.mockResolvedValue(null)
     mockGetOrganizationSubscription.mockResolvedValue(null)
     mockGetHighestPrioritySubscription.mockResolvedValue(null)
+    mockGetUserPermissionConfigForOrganization.mockResolvedValue(null)
+  })
+
+  it('blocks a member whose permission group disables workspace creation', async () => {
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      role: 'member',
+      memberId: 'member-1',
+    })
+    mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      disableWorkspaceCreation: true,
+    })
+    queueTableRows(member, [{ role: 'member' }])
+
+    const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
+
+    expect(result.canCreate).toBe(false)
+    expect(result.status).toBe(403)
+    expect(result.blockedReasonCode).toBe('permission-group-denied')
+    expect(mockGetUserPermissionConfigForOrganization).toHaveBeenCalledWith('org-1')
+  })
+
+  it('governs the personal workspace a scoped-group member would otherwise escape into', async () => {
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      role: 'member',
+      memberId: 'member-1',
+    })
+    mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      disableWorkspaceCreation: true,
+    })
+    queueTableRows(member, [{ role: 'member' }])
+
+    const result = await getWorkspaceCreationPolicy({ userId: 'user-1', pinOrganization: true })
+
+    expect(result.canCreate).toBe(false)
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.PERSONAL)
+    expect(result.blockedReasonCode).toBe('permission-group-denied')
+  })
+
+  /**
+   * Creating a workspace names no workspace, so there is no workspace whose
+   * group could govern it — and a member may be governed by different groups in
+   * different workspaces, so there is no single scoped group to pick. The
+   * decision is read from the organization's default group and from nothing
+   * else, which is what `disableWorkspaceCreation`'s admin hint has to say.
+   */
+  it("reads workspace creation from the organization's default group and no workspace group", async () => {
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      role: 'member',
+      memberId: 'member-1',
+    })
+    mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      disableWorkspaceCreation: true,
+    })
+    queueTableRows(member, [{ role: 'member' }])
+
+    const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
+
+    expect(result.blockedReasonCode).toBe('permission-group-denied')
+    expect(mockGetUserPermissionConfigForOrganization).toHaveBeenCalledWith('org-1')
+    expect(mockGetUserPermissionConfig).not.toHaveBeenCalled()
   })
 
   it('blocks free users once they already own one non-organization workspace', async () => {

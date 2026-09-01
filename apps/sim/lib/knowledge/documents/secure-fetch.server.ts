@@ -4,17 +4,13 @@ import {
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
 import {
-  attachRetryHeaders,
-  type HTTPError,
+  createRetryableHttpError,
   isRetryableError,
   type RetryOptions,
-  readBoundedHttpErrorBody,
-  resolveRetryDelayMs,
   retryWithExponentialBackoff,
 } from '@/lib/knowledge/documents/utils'
 
 export interface SecureFetchRetryOptions extends RetryOptions {
-  allowHttp?: boolean
   timeout?: number
   maxResponseBytes?: number
 }
@@ -31,16 +27,15 @@ export interface SecureFetchRetryOptions extends RetryOptions {
  */
 export async function secureFetchWithRetry(
   url: string,
-  options: SecureFetchOptions = {},
+  options: SecureFetchOptions,
   retryOptions: SecureFetchRetryOptions = {}
 ): Promise<SecureFetchResponse> {
-  const { allowHttp, timeout, maxResponseBytes, ...retry } = retryOptions
+  const { timeout, maxResponseBytes, ...retry } = retryOptions
   return retryWithExponentialBackoff(async () => {
     const response = await secureFetchWithValidation(
       url,
       {
         ...options,
-        ...(allowHttp !== undefined ? { allowHttp } : {}),
         ...(timeout !== undefined ? { timeout } : {}),
         ...(maxResponseBytes !== undefined ? { maxResponseBytes } : {}),
       },
@@ -56,17 +51,7 @@ export async function secureFetchWithRetry(
      * limit) use instead.
      */
     if (!response.ok && isRetryableError({ status: response.status, headers: response.headers })) {
-      const errorText = await readBoundedHttpErrorBody(response)
-      const error: HTTPError = new Error(`HTTP ${response.status} - ${errorText}`)
-      error.status = response.status
-      attachRetryHeaders(error, response.headers)
-
-      const waitMs = resolveRetryDelayMs(response.headers)
-      if (waitMs !== undefined) {
-        error.retryAfterMs = waitMs
-      }
-
-      throw error
+      throw await createRetryableHttpError(response)
     }
 
     return response

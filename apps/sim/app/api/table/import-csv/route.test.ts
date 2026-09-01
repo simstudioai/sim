@@ -1,7 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { hybridAuthMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
+import {
+  hybridAuthMockFns,
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+  permissionsMock,
+  permissionsMockFns,
+  resetPermissionGroupScopeMock,
+} from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -63,8 +70,10 @@ vi.mock('@/app/api/table/utils', async () => {
   }
 })
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { POST } from '@/app/api/table/import-csv/route'
 
@@ -125,6 +134,7 @@ function uploadParts(csv: string): Part[] {
 describe('POST /api/table/import-csv', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetPermissionGroupScopeMock()
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -246,5 +256,88 @@ describe('POST /api/table/import-csv', () => {
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
     const response = await POST(makeRequest(uploadParts(csvWithRows(3))))
     expect(response.status).toBe(403)
+  })
+
+  /**
+   * A CSV import creates a table, so `tables.create` governs it. A group that
+   * only sets `disableTableCreation` leaves Tables visible and usable, which is
+   * exactly the configuration a `tables.use` gate would let through.
+   */
+  it('refuses the import when the group disables table creation', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableTableCreation: true,
+    })
+
+    const response = await POST(makeRequest(uploadParts(csvWithRows(3))))
+
+    expect(response.status).toBe(403)
+    expect((await response.json()).details).toEqual({
+      code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    })
+    expect(mockCreateTable).not.toHaveBeenCalled()
+  })
+
+  it('refuses the import when the group hides Tables entirely', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideTablesTab: true,
+    })
+
+    const response = await POST(makeRequest(uploadParts(csvWithRows(3))))
+
+    expect(response.status).toBe(403)
+    expect(mockCreateTable).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `checkSessionOrInternalAuth` also accepts an internal JWT, whose user id is
+   * the run's actor rather than someone asking for a table. Gating on it would
+   * refuse an executor call for a bystander's group, and dispatching under it
+   * would run the table's cells with that bystander's capabilities.
+   */
+  it('leaves an internal-JWT import ungoverned rather than gating on the run actor', async () => {
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'billing-owner',
+      authType: 'internal_jwt',
+    })
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableTableCreation: true,
+    })
+
+    const response = await POST(makeRequest(uploadParts(csvWithRows(3))))
+
+    expect(response.status).toBe(200)
+    expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
+    expect(mockBatchInsertRows).toHaveBeenCalledWith(
+      expect.objectContaining({ capabilityGovernedUserId: null }),
+      expect.anything(),
+      expect.any(String)
+    )
+  })
+
+  it('dispatches a session import under the person it gated', async () => {
+    const response = await POST(makeRequest(uploadParts(csvWithRows(3))))
+
+    expect(response.status).toBe(200)
+    expect(mockBatchInsertRows).toHaveBeenCalledWith(
+      expect.objectContaining({ capabilityGovernedUserId: 'user-1' }),
+      expect.anything(),
+      expect.any(String)
+    )
+  })
+
+  it('lets the import through when the group withholds something else', async () => {
+    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideKnowledgeBaseTab: true,
+    })
+
+    const response = await POST(makeRequest(uploadParts(csvWithRows(3))))
+
+    expect(response.status).toBe(200)
+    expect(mockCreateTable).toHaveBeenCalledTimes(1)
   })
 })

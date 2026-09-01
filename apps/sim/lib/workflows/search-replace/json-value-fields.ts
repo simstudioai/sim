@@ -4,6 +4,7 @@ import type {
   WorkflowSearchValuePath,
 } from '@/lib/workflows/search-replace/types'
 import { getValueAtPath, setValueAtPath } from '@/lib/workflows/search-replace/value-walker'
+import { holdsObjectValue } from '@/tools/param-shape'
 
 const SEARCHABLE_JSON_ARRAY_VALUE_FIELDS: Partial<Record<SubBlockType, Record<string, string>>> = {
   'condition-input': {
@@ -28,12 +29,6 @@ const SEARCHABLE_JSON_OBJECT_VALUE_FIELDS: Partial<Record<SubBlockType, string>>
   'input-mapping': 'Value',
   'workflow-input-mapper': 'Value',
 }
-
-const SERIALIZED_SUBBLOCK_VALUE_TYPES = new Set<SubBlockType>([
-  'file-upload',
-  'grouped-checkbox-list',
-  'table',
-])
 
 export interface SearchableJsonStringLeaf {
   path: WorkflowSearchValuePath
@@ -120,8 +115,7 @@ export function shouldParseSerializedSubBlockValue(
 ): subBlockType is SubBlockType {
   return Boolean(
     subBlockType &&
-      (isSearchableJsonValueSubBlock(subBlockType) ||
-        SERIALIZED_SUBBLOCK_VALUE_TYPES.has(subBlockType))
+      (isSearchableJsonValueSubBlock(subBlockType) || holdsObjectValue({ type: subBlockType }))
   )
 }
 

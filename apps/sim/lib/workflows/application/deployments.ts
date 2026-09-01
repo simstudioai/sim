@@ -1,13 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import {
-  type Principal,
-  requirePrincipalSubjectUserId,
-  resolvePrincipalAttribution,
-  toPrincipalActor,
-} from '@sim/auth/principal'
+import { type Principal, resolvePrincipalAttribution, toPrincipalActor } from '@sim/auth/principal'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { notifyWorkflowReverted } from '@/lib/realtime/notify'
+import { requireWorkflowExecutionUserId } from '@/lib/workflows/application/authorization'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -243,7 +239,7 @@ export const revertWorkflowVersion = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.revertVersion,
   resolveContext: resolveWorkflowContext<RevertWorkflowVersionInput>,
   async execute({ principal, input, context }) {
-    const userId = requirePrincipalSubjectUserId(principal)
+    const userId = requireWorkflowExecutionUserId(principal)
     await requireMutableWorkflow(context.workflowId)
     const result = await performRevertToVersion({
       workflowId: context.workflowId,

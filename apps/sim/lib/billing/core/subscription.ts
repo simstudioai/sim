@@ -431,7 +431,44 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
   }
 }
 
-async function resolveOrganizationEnterprisePlan(organizationId: string): Promise<boolean> {
+/**
+ * Whether an organization's entitlement actually comes from its subscription
+ * row, as opposed to being granted by deployment configuration.
+ *
+ * `resolveOrganizationEnterprisePlan` short-circuits to `true` in two modes —
+ * billing disabled, and self-hosted with access control enabled — where no
+ * `subscription` row need exist at all. Anything that wants to re-verify an
+ * entitlement against the subscription table must consult this first, or it
+ * will read a missing row as a lapse and refuse work that should proceed.
+ * Exported so those callers cannot drift from the short-circuits below.
+ */
+export function isSubscriptionBackedEntitlement(): boolean {
+  return isBillingEnabled && !(isAccessControlEnabled && !isHosted)
+}
+
+/**
+ * What a billing-read failure resolves to for the Enterprise gate.
+ *
+ * `'return-false'` (the default) fails closed for a *feature* gate: the feature
+ * is hidden, and the worst outcome is a button that is briefly missing.
+ *
+ * `'throw'` is for callers where "no Enterprise plan" is not a smaller answer
+ * but a different regime. Access Control resolves to `config: null` when the
+ * organization is not entitled, and `null` means *every* capability allowed and
+ * every allowlist off — so a swallowed subscription-read failure would silently
+ * disable the whole permission-group regime for the request instead of
+ * surfacing an error. Those callers must pass `'throw'`.
+ *
+ * A primitive rather than an options object on purpose: `cache()` keys on the
+ * argument list, and a fresh object literal per call would miss the memo every
+ * time.
+ */
+export type EnterprisePlanErrorPolicy = 'return-false' | 'throw'
+
+async function resolveOrganizationEnterprisePlan(
+  organizationId: string,
+  onError: EnterprisePlanErrorPolicy = 'return-false'
+): Promise<boolean> {
   try {
     if (!isBillingEnabled) {
       return true
@@ -445,11 +482,23 @@ async function resolveOrganizationEnterprisePlan(organizationId: string): Promis
       return false
     }
 
-    const orgSub = await getOrganizationSubscriptionUsable(organizationId)
+    /**
+     * The subscription read soft-fails to `null` by default, which would arrive
+     * here as an ordinary "no usable subscription" and return a successful
+     * `false` — the catch below never sees it. A caller that asked to throw
+     * needs that failure propagated too.
+     */
+    const orgSub = await getOrganizationSubscriptionUsable(
+      organizationId,
+      onError === 'throw' ? { onError: 'throw' } : {}
+    )
 
     return !!orgSub && checkEnterprisePlan(orgSub)
   } catch (error) {
     logger.error('Error checking organization enterprise plan status', { error, organizationId })
+    if (onError === 'throw') {
+      throw error
+    }
     return false
   }
 }
@@ -522,7 +571,15 @@ export async function resolveOrganizationPlan(
  * Used for Access Control (Permission Groups) feature gating
  *
  * Request-memoized: a settings render gates several sections on the same
- * organization's plan, and it cannot change mid-render.
+ * organization's plan, and it cannot change mid-render. `cache()` keys on the
+ * whole argument list, so the default and `'throw'` policies memoize
+ * separately — a request that mixes both pays for two reads, and a rejection is
+ * replayed to every later caller that asked for the same policy, which is the
+ * fail-closed behavior those callers want.
+ *
+ * Pass `'throw'` from any caller for which a swallowed read failure would read
+ * as a *permissive* answer rather than a restrictive one — see
+ * {@link EnterprisePlanErrorPolicy}.
  */
 export const isOrganizationOnEnterprisePlan = cache(resolveOrganizationEnterprisePlan)
 

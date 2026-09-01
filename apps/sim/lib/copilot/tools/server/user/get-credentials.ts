@@ -17,10 +17,10 @@ import {
   credentialProviderMatchesService,
   getAllOAuthServices,
 } from '@/lib/oauth'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 interface GetCredentialsParams {
   workflowId?: string
@@ -80,7 +80,9 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
       .limit(1)
     const userEmail = userRecord.length > 0 ? userRecord[0]?.email : null
 
-    const permissionConfig = workspaceId ? await getUserPermissionConfig(userId, workspaceId) : null
+    const permissionConfig = workspaceId
+      ? await resolvePermissionGroupConfig(userId, workspaceId, undefined)
+      : null
     const configuredAllowedIntegrations = intersectIntegrationAllowlists(
       permissionConfig?.allowedIntegrations ?? null,
       getAllowedIntegrationsFromEnv()

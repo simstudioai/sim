@@ -1,3 +1,9 @@
+import {
+  parsePrincipal,
+  type SerializedPrincipalV1,
+  serializePrincipal,
+  type WorkflowExecutionPrincipal,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger, runWithRequestContext } from '@sim/logger'
@@ -42,6 +48,7 @@ import {
 import {
   type EnvironmentResolutionSnapshot,
   getEffectiveEnvironmentSnapshot,
+  getExecutionEnvironment,
 } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -55,7 +62,13 @@ import {
   resolveWebhookRecordProviderConfig,
   type WebhookEnvResolutionOptions,
 } from '@/lib/webhooks/env-resolver'
+import {
+  assertWebhookExecutionPrincipal,
+  createWebhookExecutionPrincipal,
+} from '@/lib/webhooks/execution-principal'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import { SlackExecutionStreamController } from '@/lib/webhooks/slack-execution-stream'
+import { readSlackStreamResponseConfig } from '@/lib/webhooks/slack-stream-config'
 import {
   executeWorkflowCore,
   wasExecutionFinalizedByCore,
@@ -170,7 +183,7 @@ function normalizeWebhookAttachments(value: unknown): WebhookAttachment[] {
 }
 
 export function buildWebhookCorrelation(
-  payload: WebhookExecutionPayload
+  payload: WebhookExecutionJobPayload
 ): AsyncExecutionCorrelation {
   const executionId = payload.executionId || generateId()
   const requestId = payload.requestId || payload.correlation?.requestId || executionId.slice(0, 8)
@@ -276,6 +289,7 @@ async function processTriggerFileOutputs(
 export type WebhookExecutionPayload = {
   webhookId: string
   workflowId: string
+  principal: SerializedPrincipalV1
   userId: string
   billingAttribution: BillingAttributionSnapshot
   executionId?: string
@@ -467,19 +481,47 @@ async function recordSetupFailureWithoutRequeue(
   }
 }
 
+type LegacyWebhookExecutionPayload = Omit<WebhookExecutionPayload, 'principal'> & {
+  /** Jobs queued before execution principals were introduced omit this field. */
+  principal?: undefined
+}
+
+type WebhookExecutionJobPayload = WebhookExecutionPayload | LegacyWebhookExecutionPayload
+
+/** Reconstructs the exact system authority recorded by the pre-principal webhook payload. */
+function parseWebhookJobPrincipal(payload: WebhookExecutionJobPayload): WorkflowExecutionPrincipal {
+  if (payload.principal !== undefined) return parsePrincipal(payload.principal)
+  return createWebhookExecutionPrincipal({
+    webhookId: payload.webhookId,
+    workflowId: payload.workflowId,
+    workspaceId: payload.workspaceId,
+    provider: payload.provider,
+  })
+}
+
 export async function executeWebhookJob(
-  payload: WebhookExecutionPayload,
+  payload: WebhookExecutionJobPayload,
   externalAbortSignal?: AbortSignal
 ) {
   const correlation = buildWebhookCorrelation(payload)
   const executionId = correlation.executionId
   const requestId = correlation.requestId
+  let authenticatedPayload: WebhookExecutionPayload
   let payloadBillingAttribution: BillingAttributionSnapshot
+  let principal: WorkflowExecutionPrincipal
   try {
-    payloadBillingAttribution = assertBillingAttributionSnapshot(payload.billingAttribution)
+    principal = parseWebhookJobPrincipal(payload)
+    assertWebhookExecutionPrincipal(principal, payload)
+    authenticatedPayload = {
+      ...payload,
+      principal: payload.principal ?? serializePrincipal(principal),
+    }
+    payloadBillingAttribution = assertBillingAttributionSnapshot(
+      authenticatedPayload.billingAttribution
+    )
     if (
-      payloadBillingAttribution.actorUserId !== payload.userId ||
-      payloadBillingAttribution.workspaceId !== payload.workspaceId
+      payloadBillingAttribution.actorUserId !== authenticatedPayload.userId ||
+      payloadBillingAttribution.workspaceId !== authenticatedPayload.workspaceId
     ) {
       throw new Error('Webhook job billing attribution does not match its actor and workspace')
     }
@@ -490,7 +532,7 @@ export async function executeWebhookJob(
   const timeoutController = createTimeoutAbortController(
     capExecutionTimeoutMs(
       getAsyncExecutionTimeoutForBillingAttribution(payloadBillingAttribution),
-      payload.executionTimeoutMs
+      authenticatedPayload.executionTimeoutMs
     ),
     externalAbortSignal
   )
@@ -506,32 +548,33 @@ export async function executeWebhookJob(
           )
     if (!admissionCompleted) {
       logger.warn('Queued webhook reservation expired; repeating usage admission', {
-        workflowId: payload.workflowId,
+        workflowId: authenticatedPayload.workflowId,
         executionId,
       })
     }
 
     return await runWithRequestContext({ requestId }, async () => {
       logger.info(`[${requestId}] Starting webhook execution`, {
-        webhookId: payload.webhookId,
-        workflowId: payload.workflowId,
-        provider: payload.provider,
-        userId: payload.userId,
+        webhookId: authenticatedPayload.webhookId,
+        workflowId: authenticatedPayload.workflowId,
+        provider: authenticatedPayload.provider,
+        userId: authenticatedPayload.userId,
         executionId,
       })
 
       const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
-        payload.webhookId,
-        payload.headers,
-        payload.body,
-        payload.provider
+        authenticatedPayload.webhookId,
+        authenticatedPayload.headers,
+        authenticatedPayload.body,
+        authenticatedPayload.provider
       )
 
       let operationStarted = false
       const runOperation = async () => {
         operationStarted = true
         return await executeWebhookJobInternal(
-          payload,
+          authenticatedPayload,
+          principal,
           correlation,
           timeoutController,
           admissionCompleted
@@ -540,7 +583,7 @@ export async function executeWebhookJob(
 
       try {
         const result = await webhookIdempotency.executeWithIdempotency(
-          payload.provider,
+          authenticatedPayload.provider,
           idempotencyKey,
           runOperation,
           undefined,
@@ -566,19 +609,21 @@ export async function executeWebhookJob(
          * the retry-bound attempt suppressed, then fall through to the throw
          * so the run fails loudly rather than dropping the delivery silently.
          */
-        if (isRetryableSetupError(error) && hasRemainingWebhookInfraRetry(payload)) {
-          if (await requeueWebhookExecutionAfterSetupFailure(payload, correlation, error)) {
+        if (isRetryableSetupError(error) && hasRemainingWebhookInfraRetry(authenticatedPayload)) {
+          if (
+            await requeueWebhookExecutionAfterSetupFailure(authenticatedPayload, correlation, error)
+          ) {
             return {
               success: false,
               requeued: true,
-              workflowId: payload.workflowId,
+              workflowId: authenticatedPayload.workflowId,
               executionId,
               output: {},
               executedAt: new Date().toISOString(),
-              provider: payload.provider,
+              provider: authenticatedPayload.provider,
             }
           }
-          await recordSetupFailureWithoutRequeue(payload, correlation, error)
+          await recordSetupFailureWithoutRequeue(authenticatedPayload, correlation, error)
         }
         throw error
       }
@@ -588,6 +633,21 @@ export async function executeWebhookJob(
   }
 }
 
+/**
+ * Resolves `{{VAR}}` references inside a webhook's provider config.
+ *
+ * `userId` is the workflow owner, which is the personal-variable identity this
+ * config was authored against. `actorUserId` is who the run acts as, and the
+ * two are resolved separately for the same reason the executor resolves them
+ * separately: workspace variables authorize against the running identity, while
+ * personal ones stay with whoever owns them. Reading both slices as the owner —
+ * as this did — meant a webhook stopped resolving its own signing secret the
+ * moment that person left the workspace, even though the run itself was acting
+ * as the workspace billing account the whole time.
+ *
+ * Omitting `actorUserId` keeps the single-identity behavior, for callers with no
+ * run to speak of.
+ */
 export async function resolveWebhookExecutionProviderConfig<
   T extends { id: string; providerConfig?: unknown },
 >(
@@ -597,6 +657,7 @@ export async function resolveWebhookExecutionProviderConfig<
   workspaceId?: string,
   options?: WebhookEnvResolutionOptions & {
     onEnvironmentSnapshot?: (snapshot: EnvironmentResolutionSnapshot) => void | Promise<void>
+    actorUserId?: string
   }
 ): Promise<T & { providerConfig: Record<string, unknown> }> {
   try {
@@ -604,9 +665,12 @@ export async function resolveWebhookExecutionProviderConfig<
       return await resolveWebhookRecordProviderConfig(webhookRecord, userId, workspaceId)
     }
 
-    const { onEnvironmentSnapshot, ...resolutionOptions } = options
+    const { onEnvironmentSnapshot, actorUserId, ...resolutionOptions } = options
     if (onEnvironmentSnapshot && resolutionOptions.envVars === undefined) {
-      const snapshot = await getEffectiveEnvironmentSnapshot(userId, workspaceId)
+      const snapshot =
+        actorUserId && workspaceId
+          ? await getExecutionEnvironment(userId, actorUserId, workspaceId)
+          : await getEffectiveEnvironmentSnapshot(userId, workspaceId)
       await onEnvironmentSnapshot(snapshot)
       resolutionOptions.envVars = {
         ...snapshot.personalDecrypted,
@@ -680,6 +744,7 @@ async function handleExecutionResult(
 
 async function executeWebhookJobInternal(
   payload: WebhookExecutionPayload,
+  principal: WorkflowExecutionPrincipal,
   correlation: AsyncExecutionCorrelation,
   timeoutController: ReturnType<typeof createTimeoutAbortController>,
   admissionCompleted: boolean
@@ -816,6 +881,13 @@ async function executeWebhookJobInternal(
       workflowRecord.userId,
       workspaceId,
       {
+        /**
+         * The identity preprocessing already elected for this run, so the
+         * provider config resolves against exactly the workspace variables the
+         * run's own blocks will see rather than against a second, narrower
+         * selection derived from the workflow owner.
+         */
+        actorUserId,
         onEnvironmentSnapshot: async (secretEnvironment) => {
           try {
             resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
@@ -971,6 +1043,7 @@ async function executeWebhookJobInternal(
       workflowId: payload.workflowId,
       workspaceId,
       userId: actorUserId!,
+      principal,
       billingAttribution,
       sessionUserId: undefined,
       workflowUserId: workflowRecord.userId,
@@ -1010,25 +1083,72 @@ async function executeWebhookJobInternal(
       })
     }
 
+    const persistedProviderConfig = isRecordLike(resolvedWebhookRecord.providerConfig)
+      ? resolvedWebhookRecord.providerConfig
+      : {}
+    const slackStreamConfig =
+      payload.provider === 'slack' || payload.provider === 'slack_app'
+        ? readSlackStreamResponseConfig(persistedProviderConfig)
+        : null
+    if (slackStreamConfig && payload.provider !== 'slack') {
+      throw new Error('Slack trigger response streaming is only supported for custom bots')
+    }
+    const slackStreamCredentialId =
+      typeof persistedProviderConfig.credentialId === 'string'
+        ? persistedProviderConfig.credentialId
+        : null
+    if (slackStreamConfig && !slackStreamCredentialId) {
+      throw new Error('Slack stream configuration is missing its custom bot credential')
+    }
+    const slackStreamController = slackStreamConfig
+      ? await SlackExecutionStreamController.create({
+          credentialId: slackStreamCredentialId!,
+          workspaceId,
+          workflowId: payload.workflowId,
+          executionId,
+          userId: actorUserId,
+          triggerInput,
+          config: slackStreamConfig,
+          loggingSession,
+          abortSignal: timeoutController.signal,
+        })
+      : null
+
     const snapshot = new ExecutionSnapshot(
       metadata,
       workflowRecord,
       triggerInput,
       workflowVariables,
-      []
+      slackStreamController?.selectedOutputs ?? []
     )
 
     workflowCoreStarted = true
-    const executionResult = await executeWorkflowCore({
-      snapshot,
-      callbacks: {},
-      loggingSession,
-      trustedInitialResolvedSecretTraceProvenance:
-        resolvedSecretTraceRegistry.exportProvenanceForValue(triggerInput),
-      includeFileBase64: false,
-      base64MaxBytes: undefined,
-      abortSignal: timeoutController.signal,
-    })
+    let executionResult: ExecutionResult
+    try {
+      executionResult = await executeWorkflowCore({
+        snapshot,
+        callbacks: slackStreamController?.callbacks ?? {},
+        loggingSession,
+        trustedInitialResolvedSecretTraceProvenance:
+          resolvedSecretTraceRegistry.exportProvenanceForValue(triggerInput),
+        includeFileBase64: false,
+        base64MaxBytes: undefined,
+        abortSignal: timeoutController.signal,
+      })
+    } catch (error) {
+      if (slackStreamController) {
+        await slackStreamController.finalize({
+          success: false,
+          output: {},
+          error: toError(error).message,
+        })
+      }
+      throw error
+    }
+    if (slackStreamController) {
+      await slackStreamController.finalize(executionResult)
+      slackStreamController.assertSucceeded()
+    }
 
     await handleExecutionResult(executionResult, {
       loggingSession,
@@ -1162,6 +1282,6 @@ export const webhookExecution = task({
   queue: {
     concurrencyLimit: WEBHOOK_EXECUTION_CONCURRENCY_LIMIT,
   },
-  run: async (payload: WebhookExecutionPayload, { signal }: { signal: AbortSignal }) =>
+  run: async (payload: WebhookExecutionJobPayload, { signal }: { signal: AbortSignal }) =>
     executeWebhookJob(payload, signal),
 })

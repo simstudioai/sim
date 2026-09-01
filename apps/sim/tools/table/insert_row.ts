@@ -1,9 +1,9 @@
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableRowInsertParams, TableRowResponse } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowResponse> = {
+export const tableInsertRowTool: InternalToolConfig<TableRowInsertParams, TableRowResponse> = {
   id: 'table_insert_row',
   name: 'Insert Row',
   description:
@@ -31,24 +31,19 @@ export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowRespon
     },
   },
 
-  request: {
-    internal: true,
+  operation: {
     secretProvenance: {
       request: (params) => selectTableRowSecretProvenance([params.data]),
       response: { incomplete: 'propagate' },
     },
-    url: (params: TableRowInsertParams) => `/api/table/${encodeURIComponent(params.tableId)}/rows`,
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: TableRowInsertParams) => {
+    input: (params: TableRowInsertParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
       return {
+        tableId: params.tableId,
         data: params.data,
         workspaceId,
       }

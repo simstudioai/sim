@@ -3,7 +3,7 @@ import {
   TIMESTAMP_OUTPUT,
   VERSION_OUTPUT_PROPERTIES,
 } from '@/tools/confluence/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceCreateBlogPostParams {
   accessToken: string
@@ -30,7 +30,7 @@ export interface ConfluenceCreateBlogPostResponse {
   }
 }
 
-export const confluenceCreateBlogPostTool: ToolConfig<
+export const confluenceCreateBlogPostTool: InternalToolConfig<
   ConfluenceCreateBlogPostParams,
   ConfluenceCreateBlogPostResponse
 > = {
@@ -84,22 +84,14 @@ export const confluenceCreateBlogPostTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'hidden',
       description:
         'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/confluence/blogposts',
-    method: 'POST',
-    headers: (params: ConfluenceCreateBlogPostParams) => ({
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
-    body: (params: ConfluenceCreateBlogPostParams) => ({
+  operation: {
+    input: (params: ConfluenceCreateBlogPostParams) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       spaceId: params.spaceId?.trim(),

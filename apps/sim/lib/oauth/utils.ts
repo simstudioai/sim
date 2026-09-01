@@ -1,3 +1,4 @@
+import { MICROSOFT_DATAVERSE_PROVIDER_ID } from './microsoft-dataverse'
 import { OAUTH_PROVIDERS } from './oauth'
 import type {
   OAuthProvider,
@@ -312,7 +313,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'groups:write': 'Create, archive, and manage private channels',
   'chat:write': 'Send messages',
   'chat:write.public': 'Post to public channels',
-  'assistant:write': 'Set assistant thread status, title, and suggested prompts',
+  'chat:write.customize': 'Customize message username and icon',
+  'assistant:write': 'Manage assistant status, titles, and suggested prompts',
   'im:write': 'Send direct messages',
   'im:history': 'Read direct message history',
   'im:read': 'View direct message channels',
@@ -385,7 +387,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'webhooks:full': 'Full access to manage Pipedrive webhooks',
 
   // LinkedIn scopes
-  w_member_social: 'Access LinkedIn profile',
+  w_member_social: 'Post, comment, and like posts on your behalf',
 
   // Instagram scopes (Business Login for Instagram)
   instagram_business_basic: 'Access Instagram professional profile and media',
@@ -689,6 +691,17 @@ export function canonicalizeServiceProviderId(
 export function getCanonicalScopesForProvider(providerId: string): string[] {
   const service = getServiceConfigByProviderId(providerId)
   return service?.scopes ? [...service.scopes] : []
+}
+
+/**
+ * Returns scopes that must be supplied on the link request instead of inherited from the static
+ * Better Auth connector. Dataverse has both a legacy grant and an environment-specific grant;
+ * leaving either on the connector makes Better Auth append it to the other resource audience.
+ */
+export function getPerRequestOAuthLinkScopes(providerId: string): string[] | undefined {
+  return providerId === MICROSOFT_DATAVERSE_PROVIDER_ID
+    ? getCanonicalScopesForProvider(providerId)
+    : undefined
 }
 
 /**

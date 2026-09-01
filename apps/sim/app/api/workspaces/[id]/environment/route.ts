@@ -26,6 +26,8 @@ import {
   getPersonalAndWorkspaceEnv,
   invalidateEffectiveDecryptedEnvCache,
 } from '@/lib/environment/utils'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   getUserEntityPermissions,
@@ -36,25 +38,51 @@ import {
 const logger = createLogger('WorkspaceEnvironmentAPI')
 
 /**
- * Restricts decrypted workspace env values to administrators. Members (including
- * read-only) receive the variable names with empty values so editor autocomplete
- * and conflict detection keep working without leaking secret values. A value is
- * revealed when the caller is a workspace admin (which includes organization
- * admins) or a per-secret credential admin of that key. Mirrors the per-key edit
- * gating in PUT/DELETE: if you can administer a secret, you can read it.
+ * Refuses when the caller's permission group withholds secrets, and `null` when
+ * it does not.
+ *
+ * permission-group-enforced: secrets.manage — this route predates the operation
+ * boundary and is raw `withRouteHandler`, so the authorization funnel that
+ * applies the capability to `secretOperations` never sees it. It reads and
+ * writes the very values the Secrets tab shows, which is what the capability
+ * describes, so it takes the same one the `secrets.*` operations declare.
+ *
+ * Every handler here authenticates with `getSession` alone, so the caller is
+ * always a user-bearing session principal — a workspace API key cannot reach
+ * this route, and there is no executor delegation to refuse. Call this only
+ * after the workspace role check has passed: a caller with no role must learn
+ * that the workspace is out of reach, not how their organization's group is
+ * configured.
+ */
+async function secretsCapabilityRefusal(
+  userId: string,
+  workspaceId: string
+): Promise<NextResponse | null> {
+  const withheld = await isWorkspaceCapabilityWithheld(userId, workspaceId, 'secrets.manage')
+  return withheld ? capabilityRefusalResponse('secrets.manage') : null
+}
+
+/**
+ * Reveals a workspace secret only to a workspace administrator, that secret's
+ * credential administrator, or a caller allowed to use a secret explicitly
+ * marked visible. The environment snapshot has already limited
+ * `workspaceUnredactedKeys` to secrets the caller may use.
  */
 async function maskWorkspaceEnvForViewer({
   workspaceDecrypted,
   workspaceId,
   userId,
   permission,
+  workspaceUnredactedKeys,
 }: {
   workspaceDecrypted: Record<string, string>
   workspaceId: string
   userId: string
   permission: PermissionType
+  workspaceUnredactedKeys: readonly string[]
 }): Promise<Record<string, string>> {
   const workspaceKeys = Object.keys(workspaceDecrypted)
+  const unredactedKeys = new Set(workspaceUnredactedKeys)
   const { adminKeys } = await getWorkspaceEnvKeyAdminAccess({
     workspaceId,
     envKeys: workspaceKeys,
@@ -63,7 +91,7 @@ async function maskWorkspaceEnvForViewer({
 
   const masked: Record<string, string> = {}
   for (const key of workspaceKeys) {
-    const canViewValue = permission === 'admin' || adminKeys.has(key)
+    const canViewValue = permission === 'admin' || adminKeys.has(key) || unredactedKeys.has(key)
     masked[key] = canViewValue ? workspaceDecrypted[key] : ''
   }
   return masked
@@ -119,14 +147,23 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { workspaceDecrypted, personalDecrypted, personalOwners, conflicts } =
-        await getPersonalAndWorkspaceEnv(userId, workspaceId)
+      const withheld = await secretsCapabilityRefusal(userId, workspaceId)
+      if (withheld) return withheld
+
+      const {
+        workspaceDecrypted,
+        personalDecrypted,
+        personalOwners,
+        conflicts,
+        workspaceUnredactedKeys,
+      } = await getPersonalAndWorkspaceEnv(userId, workspaceId)
 
       const workspace = await maskWorkspaceEnvForViewer({
         workspaceDecrypted,
         workspaceId,
         userId,
         permission,
+        workspaceUnredactedKeys,
       })
       const personal = await maskPersonalEnvForViewer({
         personalDecrypted,
@@ -183,6 +220,9 @@ export const PUT = withRouteHandler(
       if (!permission) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
+
+      const withheld = await secretsCapabilityRefusal(userId, workspaceId)
+      if (withheld) return withheld
 
       const incomingKeys = Object.keys(variables)
       if (incomingKeys.length === 0) {
@@ -339,6 +379,9 @@ export const DELETE = withRouteHandler(
       if (!permission) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
+
+      const withheld = await secretsCapabilityRefusal(userId, workspaceId)
+      if (withheld) return withheld
 
       const { adminKeys, knownKeys } = await getWorkspaceEnvKeyAdminAccess({
         workspaceId,

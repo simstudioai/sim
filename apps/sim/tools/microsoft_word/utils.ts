@@ -1,6 +1,6 @@
 import { validatePathSegment } from '@/lib/core/security/input-validation'
+import { MicrosoftWordInputError } from '@/lib/internal/microsoft-word/errors'
 import { GRAPH_ID_PATTERN } from '@/tools/microsoft_excel/utils'
-import { MicrosoftWordInputError } from '@/tools/microsoft_word/errors'
 
 export const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
 

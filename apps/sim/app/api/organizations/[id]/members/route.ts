@@ -12,6 +12,10 @@ import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getOrganizationMemberUsageSnapshot } from '@/lib/billing/core/organization'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  capabilityRefusal,
+  isOrganizationCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 
 const logger = createLogger('OrganizationMembersAPI')
 
@@ -65,6 +69,29 @@ export const GET = withRouteHandler(
 
       const userRole = memberEntry[0].role
       const hasAdminAccess = isOrgAdminRole(userRole)
+
+      /**
+       * permission-group-enforced: organization.member_directory — an
+       * organization-scoped read with no workspace for the funnel to authorize.
+       *
+       * Admins and owners are exempt. This response is the only source for the
+       * team-management page and the seat-usage snapshot it renders, so
+       * withholding it from an admin would take away the page they would use to
+       * change the setting, and their seat management with it.
+       */
+      if (
+        !hasAdminAccess &&
+        (await isOrganizationCapabilityWithheld(organizationId, 'organization.member_directory'))
+      ) {
+        logger.warn('Organization member directory blocked by permission group', {
+          organizationId,
+          userId: session.user.id,
+        })
+        return NextResponse.json(
+          { error: capabilityRefusal('organization.member_directory') },
+          { status: 403 }
+        )
+      }
 
       // Get organization members
       const memberPageQuery = db

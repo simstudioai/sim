@@ -61,6 +61,15 @@ const BILLING_TO_INTERNAL_SOURCES = {
   'voice-output': ['voice-output'],
 } as const satisfies Record<BillingUsageLogSource, readonly InternalUsageLogSource[]>
 
+/**
+ * What each source is called wherever usage is shown.
+ *
+ * `workflow` covers everything one run consumed — the models it called on Sim's
+ * hosted keys, any hosted-key tool calls, and the per-run execution fee — so the
+ * label stays the broad "Workflow". Naming it after the execution fee would
+ * understate it by orders of magnitude; the fee is a rounding error beside the
+ * model cost.
+ */
 export const BILLING_USAGE_LOG_SOURCE_LABELS = {
   workflow: 'Workflow',
   wand: 'Wand',

@@ -34,7 +34,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
 
-    const result = await checkAccess(tableId, authResult.userId, 'read')
+    const result = await checkAccess(tableId, { kind: 'user', userId: authResult.userId }, 'read')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const rows = await listActiveDispatches(tableId)

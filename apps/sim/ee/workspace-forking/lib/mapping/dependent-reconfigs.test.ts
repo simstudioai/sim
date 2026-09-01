@@ -1299,10 +1299,10 @@ describe('collectForkDependentReconfigs — nested tool params follow ParameterV
   })
 
   it('fails closed when an authoritative entry carries no visibility', () => {
-    // The real resolver's `uncoveredParams` branch builds its config via
-    // `buildToolInputSearchConfig`, which does NOT copy `paramVisibility` - so the map holds
-    // the key with an `undefined` value. That must fall back to the block-level `required`,
-    // not be read as "not user-only".
+    // The resolver now sets `paramVisibility` on every authoritative config, so this state
+    // should be unreachable. The guard stays anyway: reading a missing visibility as
+    // "not user-only" would withhold a target's redeploy, so it must fall back to the
+    // block-level `required`.
     agentWithJiraTool()
     mockGetToolInputParamConfigs.mockReturnValue([
       {
