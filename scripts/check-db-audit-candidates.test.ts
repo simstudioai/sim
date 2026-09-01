@@ -31,6 +31,10 @@ describe('database audit candidate scans', () => {
     expect(mayBindDrizzleSql("import { sql as query } from 'drizzle-orm'")).toBe(true)
   })
 
+  it('finds drizzle sql subpath imports', () => {
+    expect(mayBindDrizzleSql("import { sql } from 'drizzle-orm/sql'")).toBe(true)
+  })
+
   it('decodes escaped drizzle module literals', () => {
     expect(mayBindDrizzleSql(String.raw`const { sql } = require('drizzle\x2dorm')`)).toBe(true)
   })

@@ -28,6 +28,13 @@ const ALLOW_ANNOTATION = '// sql-date-bound:'
 const DRIZZLE_MODULE = 'drizzle-orm'
 const STATEMENT_TYPE = /(Statement|Declaration)$/
 
+function isDrizzleModule(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    (value === DRIZZLE_MODULE || value.startsWith(`${DRIZZLE_MODULE}/`))
+  )
+}
+
 interface Violation {
   file: string
   line: number
@@ -223,10 +230,7 @@ function collectSqlBindings(program: SyntaxNode): SqlBindings {
   const visit = (node: SyntaxNode) => {
     if (node.type === 'ImportDeclaration' && isSyntaxNode(node.source)) {
       const source = node.source.value
-      const isDrizzle =
-        typeof source === 'string' &&
-        (source === DRIZZLE_MODULE || source.startsWith(`${DRIZZLE_MODULE}/`))
-      if (isDrizzle && Array.isArray(node.specifiers)) {
+      if (isDrizzleModule(source) && Array.isArray(node.specifiers)) {
         for (const specifier of node.specifiers) {
           if (!isSyntaxNode(specifier) || !isSyntaxNode(specifier.local)) continue
           const local = specifier.local.name
@@ -270,10 +274,7 @@ function isDrizzleImportCall(node: unknown): boolean {
   const args = Array.isArray(current.arguments) ? current.arguments : []
   const source = isSyntaxNode(current.source) ? current.source : args.find(isSyntaxNode)
   const value = source?.value
-  return (
-    typeof value === 'string' &&
-    (value === DRIZZLE_MODULE || value.startsWith(`${DRIZZLE_MODULE}/`))
-  )
+  return isDrizzleModule(value)
 }
 
 const unwrapAwait = (node: SyntaxNode): unknown =>
@@ -562,7 +563,7 @@ export function mayBindDrizzleSql(source: string): boolean {
     if (
       (token === ts.SyntaxKind.StringLiteral ||
         token === ts.SyntaxKind.NoSubstitutionTemplateLiteral) &&
-      value === DRIZZLE_MODULE
+      isDrizzleModule(value)
     ) {
       hasDrizzleModule = true
     }
