@@ -25,12 +25,8 @@ WORKDIR /app
 COPY --from=pruner /app/out/json/ ./
 COPY --from=pruner /app/out/bun.lock ./bun.lock
 
-# turbo prune emits a bun.lock that bun 1.3.x rejects under --frozen-lockfile
-# ("Failed to resolve prod dependency"). Bun must be allowed to normalize that
-# lockfile to the pruned graph; the full-repository CI install owns
-# frozen-lockfile validation.
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
-    bun install --linker=hoisted --omit=dev --ignore-scripts
+    bun install --frozen-lockfile --linker=hoisted --omit=dev --ignore-scripts
 
 # ========================================
 # Runner Stage: Run the Socket Server

@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react'
 import { useParams, useRouter } from 'next/navigation'
 import '@xyflow/react/dist/style.css'
-import { toast } from '@sim/emcn'
+import { cn, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
@@ -33,6 +33,7 @@ import {
   getEdgeZIndexForTarget,
   getNoteBlockHeight,
   normalizeCursorSourceHandleId,
+  useCanvasColorMode,
 } from '@sim/workflow-renderer'
 import {
   normalizeWorkflowEdgeSourceHandle,
@@ -138,7 +139,6 @@ import {
   isFolderOrAncestorLocked,
 } from '@/hooks/queries/utils/folder-tree'
 import { useUpdateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
-import { useCanvasColorMode } from '@/hooks/use-canvas-color-mode'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOAuthReturnForWorkflow } from '@/hooks/use-oauth-return'
@@ -5207,7 +5207,12 @@ const WorkflowContent = React.memo(
                   draggable={false}
                   noWheelClassName='allow-scroll'
                   edgesFocusable={!embedded}
-                  className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${canvasOpacityClass} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
+                  className={cn(
+                    'workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 [--xy-background-color:var(--bg)]',
+                    reactFlowStyles,
+                    canvasOpacityClass,
+                    isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'
+                  )}
                   onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
                   onNodeDragStop={
                     !embedded && effectivePermissions.canEdit ? onNodeDragStop : undefined

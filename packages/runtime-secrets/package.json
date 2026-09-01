@@ -25,7 +25,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@aws-sdk/client-secrets-manager": "3.1032.0",
+    "@aws-sdk/client-secrets-manager": "3.1117.0",
     "@sim/logger": "workspace:*",
     "@sim/utils": "workspace:*"
   },

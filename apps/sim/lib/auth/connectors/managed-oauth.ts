@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import type { OAuth2Tokens } from '@better-auth/core/oauth2'
 import { isRecordLike } from '@sim/utils/object'
+import type { OAuth2Tokens } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { OAuth2Client, type TokenPayload } from 'google-auth-library'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'

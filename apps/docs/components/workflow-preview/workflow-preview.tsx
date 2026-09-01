@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Expand, X } from '@sim/emcn/icons'
-import { CANVAS_Z_INDEX_MODE } from '@sim/workflow-renderer'
+import { CANVAS_Z_INDEX_MODE, useCanvasColorMode } from '@sim/workflow-renderer'
 import {
   applyEdgeChanges,
   applyNodeChanges,
@@ -21,7 +21,7 @@ import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-dis
 import { BlockInspector } from '@/components/workflow-preview/block-inspector'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
 import { DocsContainerNode } from '@/components/workflow-preview/docs-container-node'
-import { usePreviewColorMode } from '@/components/workflow-preview/use-preview-color-mode'
+import { FitViewAfterInit } from '@/components/workflow-preview/fit-view-after-init'
 import {
   EASE_OUT,
   type PreviewBlock,
@@ -179,7 +179,8 @@ function PreviewFlow({
     [workflow, animate, highlightBlock, highlightEdge, selectedBlock]
   )
 
-  const colorMode = usePreviewColorMode()
+  const colorMode = useCanvasColorMode()
+
   const [nodes, setNodes] = useState<PreviewNode[]>(initialNodes)
   const [edges, setEdges] = useState<PreviewFlowEdge[]>(initialEdges)
 
@@ -208,34 +209,35 @@ function PreviewFlow({
   )
 
   return (
-    <ReactFlow<PreviewNode, PreviewFlowEdge>
-      colorMode={colorMode}
-      zIndexMode={CANVAS_Z_INDEX_MODE}
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onNodeClick={onNodeClick ? (_, node) => onNodeClick(node.id) : undefined}
-      onPaneClick={onPaneClick}
-      nodeTypes={NODE_TYPES}
-      edgeTypes={EDGE_TYPES}
-      defaultEdgeOptions={{ type: 'previewEdge' }}
-      elementsSelectable={false}
-      nodesDraggable
-      nodesConnectable={false}
-      zoomOnScroll={interactive}
-      zoomOnDoubleClick={interactive}
-      panOnScroll={false}
-      zoomOnPinch
-      panOnDrag
-      preventScrolling={interactive}
-      autoPanOnNodeDrag={false}
-      proOptions={PRO_OPTIONS}
-      minZoom={0.1}
-      fitView
-      fitViewOptions={interactive ? LIGHTBOX_FIT_VIEW_OPTIONS : FIT_VIEW_OPTIONS}
-      className='h-full w-full'
-    />
+    <>
+      <ReactFlow<PreviewNode, PreviewFlowEdge>
+        colorMode={colorMode}
+        zIndexMode={CANVAS_Z_INDEX_MODE}
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onNodeClick={onNodeClick ? (_, node) => onNodeClick(node.id) : undefined}
+        onPaneClick={onPaneClick}
+        nodeTypes={NODE_TYPES}
+        edgeTypes={EDGE_TYPES}
+        defaultEdgeOptions={{ type: 'previewEdge' }}
+        elementsSelectable={false}
+        nodesDraggable
+        nodesConnectable={false}
+        zoomOnScroll={interactive}
+        zoomOnDoubleClick={interactive}
+        panOnScroll={false}
+        zoomOnPinch
+        panOnDrag
+        preventScrolling={interactive}
+        autoPanOnNodeDrag={false}
+        proOptions={PRO_OPTIONS}
+        minZoom={0.1}
+        className='h-full w-full [--xy-background-color:var(--bg)]'
+      />
+      <FitViewAfterInit options={interactive ? LIGHTBOX_FIT_VIEW_OPTIONS : FIT_VIEW_OPTIONS} />
+    </>
   )
 }
 

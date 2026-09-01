@@ -5,21 +5,20 @@ import { chipBorderShadowRing, cn } from '@sim/emcn'
 import dynamic from 'next/dynamic'
 import { preconnect } from 'react-dom'
 import { DemoForm, type DemoLead } from '@/app/(landing)/demo/components/demo-form'
-import { CAL_ORIGIN } from '@/app/(landing)/demo/components/demo-scheduler/cal-config'
 import { applyLegacyInertFallback } from '@/app/(landing)/demo/components/legacy-inert-fallback'
 
 const importScheduler = () => import('@/app/(landing)/demo/components/demo-scheduler')
 
 /**
  * Warm the entire booking path while the visitor fills the form: preconnect to
- * the configured Cal origin, then load the scheduler chunk and the
+ * app.cal.com, then load the scheduler chunk, Cal.com's embed.js, and the
  * booker iframe assets (via the embed's `preload` instruction). Fired on first
  * form focus so nothing Cal.com-related competes with initial page load — the
  * connection handshake overlaps the chunk import, and it all finishes long
  * before the visitor submits.
  */
 function preloadScheduler() {
-  preconnect(CAL_ORIGIN)
+  preconnect('https://app.cal.com')
   return importScheduler().then((m) => m.preloadCalEmbed())
 }
 

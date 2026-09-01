@@ -99,10 +99,6 @@ const nextConfig: NextConfig = {
     '@daytona/sdk',
     '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
-    // pdf.js resolves its worker via a runtime-relative dynamic import
-    // (`webpackIgnore: true`); bundling pdf.mjs breaks that resolution, so it
-    // must load from node_modules like `unpdf` did before it.
-    'pdfjs-dist',
     // The collab-doc seed converter lazily `require`s jsdom for a headless TipTap editor. Keep it
     // external so webpack doesn't try to bundle jsdom's dynamic internal requires.
     'jsdom',
@@ -243,7 +239,8 @@ const nextConfig: NextConfig = {
     ],
   }),
   transpilePackages: [
-    'react-email',
+    '@react-email/components',
+    '@react-email/render',
     '@t3-oss/env-nextjs',
     '@t3-oss/env-core',
     '@sim/db',
