@@ -64,6 +64,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     expect(mocks.cancel).toHaveBeenCalledWith({
       principal,
       input: {
+        workflowId: 'workflow-1',
         runId: 'execution-1',
         abortSignal: expect.any(AbortSignal),
       },

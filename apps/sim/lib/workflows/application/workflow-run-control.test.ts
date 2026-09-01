@@ -140,6 +140,27 @@ describe('workflow run-control application use cases', () => {
     }
   )
 
+  it('derives cancellation workflow scope from the execution ID when no workflow is asserted', async () => {
+    const result = await cancelWorkflowRun.execute({
+      principal: principals[0].principal,
+      input: { runId: 'parent-run-1', assertedWorkspaceId: 'workspace-1' },
+    })
+
+    expect(mocks.resolveRunContext).toHaveBeenCalledWith({
+      runId: 'parent-run-1',
+      assertedWorkflowId: undefined,
+      assertedWorkspaceId: 'workspace-1',
+    })
+    expect(mocks.cancel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        executionId: 'parent-run-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+      })
+    )
+    expect(result).toMatchObject({ workflowId: 'workflow-1', workspaceId: 'workspace-1' })
+  })
+
   it.each(principals)(
     'authorizes $principal.kind resume and preserves the parent/new run distinction',
     async ({ principal, actorUserId }) => {

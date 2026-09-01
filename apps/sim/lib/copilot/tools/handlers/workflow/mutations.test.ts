@@ -198,6 +198,7 @@ describe('workflow mutation Copilot adapters', () => {
       }),
       {
         runId: 'execution-1',
+        assertedWorkspaceId: 'workspace-1',
       }
     )
   })

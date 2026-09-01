@@ -10,7 +10,9 @@ import { resolveActiveWorkflowRunApplicationContext } from '@/lib/workflows/appl
 import { workflowOperations } from '@/lib/workflows/application/operations'
 
 export interface CancelWorkflowRunInput {
+  workflowId?: string
   runId: string
+  assertedWorkspaceId?: string
   abortSignal?: AbortSignal
 }
 
@@ -19,6 +21,8 @@ export const cancelWorkflowRun = defineAuthorizedWorkflowUseCase({
   resolveContext: ({ input }: { input: CancelWorkflowRunInput }) =>
     resolveActiveWorkflowRunApplicationContext({
       runId: input.runId,
+      assertedWorkflowId: input.workflowId,
+      assertedWorkspaceId: input.assertedWorkspaceId,
     }),
   async execute({ principal, context, input }) {
     const attribution = resolvePrincipalAttribution(principal, {

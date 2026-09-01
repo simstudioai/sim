@@ -144,6 +144,47 @@ describe('workflow application contexts', () => {
     })
   })
 
+  it('resolves the canonical workflow from an execution ID without a workflow assertion', async () => {
+    queueCanonicalBindings({ log: 'workflow-1' })
+    queueTableRows(schemaMock.workflow, [
+      {
+        workflowId: 'workflow-1',
+        workflow: { id: 'workflow-1', name: 'Canonical workflow' },
+        workspaceId: 'workspace-1',
+      },
+    ])
+
+    await expect(
+      resolveActiveWorkflowRunApplicationContext({
+        runId: 'run-1',
+        assertedWorkspaceId: 'workspace-1',
+      })
+    ).resolves.toMatchObject({
+      runId: 'run-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+    })
+  })
+
+  it('conceals a workspace mismatch for an execution-only lookup', async () => {
+    queueCanonicalBindings({ log: 'workflow-1' })
+    queueTableRows(schemaMock.workflow, [
+      {
+        workflowId: 'workflow-1',
+        workflow: { id: 'workflow-1', name: 'Canonical workflow' },
+        workspaceId: 'workspace-1',
+      },
+    ])
+
+    await expect(
+      resolveActiveWorkflowRunApplicationContext({
+        runId: 'run-1',
+        assertedWorkspaceId: 'workspace-2',
+      })
+    ).rejects.toMatchObject({ code: 'not_found', message: 'Workflow not found' })
+    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+  })
+
   it('binds live execution authority to the deployment version stored on its durable log', async () => {
     queueTableRows(schemaMock.workflowExecutionLogs, [
       {

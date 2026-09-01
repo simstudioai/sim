@@ -300,6 +300,7 @@ export async function executeCancelWorkflowRun(
     )
     const result = await executeCopilotWorkflowUseCase(context, cancelWorkflowRun, {
       runId: executionId,
+      assertedWorkspaceId: context.workspaceId,
       ...(context.abortSignal ? { abortSignal: context.abortSignal } : {}),
     })
 
