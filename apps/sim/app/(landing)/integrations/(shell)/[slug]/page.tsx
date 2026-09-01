@@ -893,6 +893,34 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           </section>
         )}
 
+        {seo?.narrativeComparison && (
+          <>
+            <section
+              id={seo.narrativeComparison.id}
+              aria-labelledby={`${seo.narrativeComparison.id}-heading`}
+              className='px-6 py-10'
+            >
+              <h2
+                id={`${seo.narrativeComparison.id}-heading`}
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em]'
+              >
+                {seo.narrativeComparison.heading}
+              </h2>
+              <div className='max-w-[900px] space-y-4'>
+                {seo.narrativeComparison.paragraphs.map((paragraph) => (
+                  <p
+                    key={paragraph}
+                    className='text-[var(--text-body)] text-sm leading-[150%] tracking-[0.02em]'
+                  >
+                    {paragraph}
+                  </p>
+                ))}
+              </div>
+            </section>
+            <div className='h-px w-full bg-[var(--border)]' />
+          </>
+        )}
+
         {/* FAQ - full width */}
         <section aria-labelledby='faq-heading' className='px-6 py-10'>
           <h2
