@@ -397,7 +397,7 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'hide-cost-info',
     label: 'Execution Cost',
     category: 'Logs',
-    hint: 'Withhold execution cost. Logs and exports omit cost and token spend.',
+    hint: 'Withhold execution cost. Logs and member exports omit cost and token spend; organization-level data drains, configurable by org admins only, are not projected.',
   }),
   disableKnowledgeBaseCreation: booleanRestriction('capability', {
     scope: 'workspace',
