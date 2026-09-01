@@ -598,7 +598,10 @@ If creating V2 versions (API-aligned outputs):
 
 1. **V2 Tools** - Add `_v2` suffix, version `2.0.0`, flat outputs
 2. **V2 Block** - Add `_v2` type, use `createVersionedToolSelector`
-3. **V1 Block** - Add `(Legacy)` to name, set `hideFromToolbar: true`
+3. **V1 Block** - Add `(Legacy)` to name, set `hideFromToolbar: true`, and add
+   `sunset: { status: 'legacy', replacedBy: '{service}_v2' }` — `check-block-registry`
+   fails a legacy block with no `replacedBy`, and the amber legacy badge plus its
+   click-to-upgrade action read from that field
 4. **Registry** - Register both versions
 
 ```typescript

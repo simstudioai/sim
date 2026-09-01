@@ -139,7 +139,7 @@ export const TABLE_ENRICH_WORKFLOW: PreviewWorkflow = {
     {
       id: 'table1',
       name: 'Table 1',
-      type: 'table',
+      type: 'table_v2',
       bgColor: '#10B981',
       position: { x: 0, y: 0 },
       hideTargetHandle: true,
@@ -162,7 +162,7 @@ export const TABLE_ENRICH_WORKFLOW: PreviewWorkflow = {
     {
       id: 'table2',
       name: 'Table 2',
-      type: 'table',
+      type: 'table_v2',
       bgColor: '#10B981',
       position: { x: 660, y: 0 },
       rows: [
@@ -1644,7 +1644,7 @@ export const TABLE_ROUNDTRIP_WORKFLOW: PreviewWorkflow = {
     {
       id: 'query',
       name: 'Table',
-      type: 'table',
+      type: 'table_v2',
       bgColor: '#10B981',
       position: { x: 0, y: 0 },
       hideTargetHandle: true,
@@ -1664,7 +1664,7 @@ export const TABLE_ROUNDTRIP_WORKFLOW: PreviewWorkflow = {
     {
       id: 'update',
       name: 'Table',
-      type: 'table',
+      type: 'table_v2',
       bgColor: '#10B981',
       position: { x: 680, y: 0 },
       rows: [

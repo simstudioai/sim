@@ -43,7 +43,7 @@ Later blocks read these by name: `<table1.rows>` is the array, `<table1.rowCount
 
 <OutputBundle
   blockName="table1"
-  blockType="table"
+  blockType="table_v2"
   blockColor="#10B981"
   duration="84ms"
   values={[
@@ -138,7 +138,7 @@ After the run, the table holds the enriched rows. The next run queries them agai
 
 ## Inspecting reads and writes
 
-Every Table block's input and output is recorded in [logs](/logs-debugging). For a Query block, the log shows the filter and sort it sent and the rows it received. For an Update or Insert, it shows the row data written and the count affected. When a write does nothing or a query comes back empty, the log is where you check the filter and the data shape before looking anywhere else.
+Every Table block's input and output is recorded in [logs](/logs-debugging). For a Query block, the log shows the filter and order it sent and the rows it received. For an Update or Insert, it shows the row data written and the count affected. When a write does nothing or a query comes back empty, the log is where you check the filter and the data shape before looking anywhere else.
 
 ## Next
 
