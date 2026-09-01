@@ -426,8 +426,11 @@ export const circlebackConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const maxMeetings = sourceConfig.maxMeetings as string | undefined
-    if (maxMeetings && (!Number.isInteger(Number(maxMeetings)) || Number(maxMeetings) < 0)) {
-      return { valid: false, error: 'Max meetings must be a non-negative whole number' }
+    if (maxMeetings && (!Number.isInteger(Number(maxMeetings)) || Number(maxMeetings) < 1)) {
+      return {
+        valid: false,
+        error: 'Max meetings must be a positive whole number, or blank to sync all meetings',
+      }
     }
 
     const ownership = sourceConfig.ownership

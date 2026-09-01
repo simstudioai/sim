@@ -218,7 +218,7 @@ describe('circleback connector request shaping and documents', () => {
   })
 
   it('rejects caps that the parser would silently treat as unlimited', async () => {
-    for (const bad of ['0.5', 'Infinity', '-1', 'abc']) {
+    for (const bad of ['0', '0.5', 'Infinity', '-1', 'abc']) {
       const result = await circlebackConnector.validateConfig('tok', { maxMeetings: bad })
       expect(result.valid).toBe(false)
     }
