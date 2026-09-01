@@ -1183,7 +1183,7 @@ Lists all jobs in an Ashby organization. By default returns Open, Closed, and Ar
 | `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
 | `perPage` | number | No | Number of results per page \(default and max 100\). Ashby silently caps larger values rather than erroring. |
 | `syncToken` | string | No | Opaque token from a prior sync to fetch only jobs changed since then. Ashby only returns a new syncToken on the last page, so drain moreDataAvailable/nextCursor before persisting it. |
-| `status` | json | No | One job status or an array of statuses to include: Open, Closed, Archived, or Draft |
+| `status` | array | No | One job status or an array of statuses to include: Open, Closed, Archived, or Draft |
 | `createdAfter` | string | No | Only return jobs created after this ISO 8601 timestamp \(e.g. 2024-01-01T00:00:00Z\) |
 | `openedAfter` | string | No | Only return jobs opened after this ISO 8601 timestamp |
 | `openedBefore` | string | No | Only return jobs opened before this ISO 8601 timestamp |
@@ -1441,7 +1441,7 @@ Searches for candidates by name and/or email with AND logic. Results are limited
 
 ### Ashby Search Jobs
 
-Searches Ashby jobs by title and/or requisition ID.
+Searches Ashby jobs by title and/or requisition ID. Provide at least one of these filters.
 
 #### Input
 

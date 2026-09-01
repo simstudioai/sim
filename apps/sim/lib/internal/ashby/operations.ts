@@ -7,13 +7,15 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
+  isPayloadSizeLimitError,
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import type { AshbyUploadInput } from '@/lib/internal/ashby/schema'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { ashbyAuthHeaders, ashbyErrorMessage, mapCandidate } from '@/tools/ashby/utils'
 
@@ -62,7 +64,6 @@ export async function executeAshbyUpload(
 ): Promise<Response> {
   try {
     context.signal?.throwIfAborted()
-    if (typeof input.file === 'string') return failure('Invalid file input', 400)
     const userFile = processFilesToUserFiles([input.file], context.requestId, logger)[0]
     if (!userFile) return failure('Invalid file input', 400)
     const denied = await assertToolFileAccess(
@@ -74,15 +75,21 @@ export async function executeAshbyUpload(
     context.signal?.throwIfAborted()
     if (denied) return denied
 
-    const buffer = await downloadFileFromStorage(userFile, context.requestId, logger, {
-      maxBytes: MAX_ASHBY_UPLOAD_BYTES,
-      signal: context.signal,
-    })
+    const servableFile = await downloadServableFileFromStorage(
+      userFile,
+      context.requestId,
+      logger,
+      {
+        maxBytes: MAX_ASHBY_UPLOAD_BYTES,
+        signal: context.signal,
+      }
+    )
+    const { buffer } = servableFile
     context.signal?.throwIfAborted()
     if (buffer.length === 0) return failure('File is empty', 400)
 
     const filename = input.fileName?.trim() || userFile.name
-    const contentType = userFile.type || 'application/octet-stream'
+    const contentType = servableFile.contentType || userFile.type || 'application/octet-stream'
     const registration = await ashbyPost(
       input.apiKey,
       'file.createFileUploadHandle',
@@ -152,9 +159,14 @@ export async function executeAshbyUpload(
     return Response.json({ success: true, output: mapCandidate(candidate) })
   } catch (error) {
     context.signal?.throwIfAborted()
+    const notReady = docNotReadyResponse(error)
+    if (notReady) return notReady
     logger.error(`[${context.requestId}] Ashby candidate file upload failed`, {
       error: getErrorMessage(error),
     })
-    return failure(getErrorMessage(error, 'Unknown Ashby upload error'), 500)
+    return failure(
+      getErrorMessage(error, 'Unknown Ashby upload error'),
+      isPayloadSizeLimitError(error) ? 413 : 500
+    )
   }
 }

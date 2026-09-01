@@ -20,7 +20,8 @@ interface Response extends ToolResponse {
 export const searchJobsTool: ToolConfig<Params, Response> = {
   id: 'ashby_search_jobs',
   name: 'Ashby Search Jobs',
-  description: 'Searches Ashby jobs by title and/or requisition ID.',
+  description:
+    'Searches Ashby jobs by title and/or requisition ID. Provide at least one of these filters.',
   version: '1.0.0',
   params: {
     apiKey: {

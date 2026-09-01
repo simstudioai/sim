@@ -54,10 +54,12 @@ export function ashbyTimestamp(value: string, parameter: string): number {
   return timestamp
 }
 
-/** Validate Ashby's page/search size contract before sending a provider request. */
-export function ashbyLimit(value: number | undefined, parameter = 'perPage'): number | undefined {
-  if (value === undefined) return undefined
-  if (!Number.isSafeInteger(value) || value < 1 || value > 100) {
+/** Normalize optional block inputs and validate Ashby's page/search size contract. */
+export function ashbyLimit(value: unknown, parameter = 'perPage'): number | undefined {
+  if (value === undefined || value === null || (typeof value === 'string' && !value.trim())) {
+    return undefined
+  }
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1 || value > 100) {
     throw new Error(`Invalid ${parameter}: expected an integer from 1 to 100.`)
   }
   return value

@@ -1547,7 +1547,7 @@
         },
         {
           "name": "Search Jobs",
-          "description": "Searches Ashby jobs by title and/or requisition ID."
+          "description": "Searches Ashby jobs by title and/or requisition ID. Provide at least one of these filters."
         },
         {
           "name": "Search Users",

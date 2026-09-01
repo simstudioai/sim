@@ -41,8 +41,9 @@ export const getCandidateTool: ToolConfig<AshbyGetCandidateParams, AshbyGetCandi
     body: (params) => {
       const candidateId = params.candidateId?.trim()
       const externalMappingId = params.externalMappingId?.trim()
-      if (!candidateId && !externalMappingId)
-        throw new Error('Provide candidateId or externalMappingId.')
+      if (Boolean(candidateId) === Boolean(externalMappingId)) {
+        throw new Error('Provide exactly one of candidateId or externalMappingId.')
+      }
       return {
         ...(candidateId ? { id: candidateId } : {}),
         ...(externalMappingId ? { externalMappingId } : {}),

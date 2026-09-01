@@ -9,6 +9,29 @@ import {
 } from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** Normalize the array schema plus legacy scalar and JSON-string status inputs. */
+function normalizeJobStatuses(value: unknown): string[] | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  let candidate = value
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim()
+    if (!trimmed) return undefined
+    try {
+      candidate = JSON.parse(trimmed)
+    } catch {
+      candidate = trimmed
+    }
+  }
+  const rawStatuses = Array.isArray(candidate) ? candidate : [candidate]
+  const statuses = rawStatuses.map((status) => {
+    if (typeof status !== 'string' || !status.trim()) {
+      throw new Error('Invalid status: expected a status string or an array of status strings.')
+    }
+    return status.trim()
+  })
+  return statuses.length > 0 ? statuses : undefined
+}
+
 export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse> = {
   id: 'ashby_list_jobs',
   name: 'Ashby List Jobs',
@@ -44,11 +67,12 @@ export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse
         'Opaque token from a prior sync to fetch only jobs changed since then. Ashby only returns a new syncToken on the last page, so drain moreDataAvailable/nextCursor before persisting it.',
     },
     status: {
-      type: 'json',
+      type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description:
         'One job status or an array of statuses to include: Open, Closed, Archived, or Draft',
+      items: { type: 'string' },
     },
     createdAfter: {
       type: 'string',
@@ -99,9 +123,8 @@ export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse
       const limit = ashbyLimit(params.perPage)
       if (limit) body.limit = limit
       if (params.syncToken) body.syncToken = params.syncToken
-      if (Array.isArray(params.status) && params.status.length > 0) body.status = params.status
-      else if (typeof params.status === 'string' && params.status.trim())
-        body.status = [params.status.trim()]
+      const statuses = normalizeJobStatuses(params.status)
+      if (statuses) body.status = statuses
       if (params.createdAfter)
         body.createdAfter = ashbyTimestamp(params.createdAfter, 'createdAfter')
       if (params.openedAfter) body.openedAfter = ashbyTimestamp(params.openedAfter, 'openedAfter')

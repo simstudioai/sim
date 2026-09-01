@@ -102,6 +102,13 @@ describe('ashby request bodies', () => {
         expand: ['candidate'],
       })
     ).toEqual({ submittedFormInstanceId: 'form-1', expand: ['candidate'] })
+    expect(() =>
+      requestBody(getCandidateTool, {
+        apiKey: 'k',
+        candidateId: 'candidate-1',
+        externalMappingId: 'external-1',
+      })
+    ).toThrow(/exactly one/)
   })
 
   it('sends list status filters as arrays and exposes draft posting IDs for job lists', () => {
@@ -118,6 +125,25 @@ describe('ashby request bodies', () => {
       status: ['Open', 'Draft'],
       includeUnpublishedJobPostingsIds: true,
     })
+    expect(requestBody(listJobsTool, { apiKey: 'k', status: '["Open","Draft"]' }).status).toEqual([
+      'Open',
+      'Draft',
+    ])
+  })
+
+  it('omits null and blank optional limits without weakening explicit validation', () => {
+    expect(requestBody(listCandidatesTool, { apiKey: 'k', perPage: null })).not.toHaveProperty(
+      'limit'
+    )
+    expect(requestBody(listInterviewPlansTool, { apiKey: 'k', perPage: '' })).not.toHaveProperty(
+      'limit'
+    )
+    expect(requestBody(searchJobsTool, { apiKey: 'k', title: 'Engineer', limit: null })).toEqual({
+      title: 'Engineer',
+    })
+    expect(() => requestBody(searchJobsTool, { apiKey: 'k', title: 'Engineer', limit: 0 })).toThrow(
+      /integer from 1 to 100/
+    )
   })
 
   it('validates note page size and supports explicit candidate field clearing', () => {

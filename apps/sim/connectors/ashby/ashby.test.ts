@@ -63,4 +63,40 @@ describe('ashbyConnector', () => {
       'feedback unavailable'
     )
   })
+
+  it('continues through short non-final note pages beyond the former page ceiling', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+    fetchMock.mockResolvedValueOnce(ashbyResponse({ id: 'c1', name: 'One', applicationIds: [] }))
+    for (let page = 1; page <= 6; page++) {
+      fetchMock.mockResolvedValueOnce(
+        ashbyResponse(
+          [{ content: `note-${page}`, createdAt: `2026-01-0${page}T00:00:00Z` }],
+          page < 6 ? { moreDataAvailable: true, nextCursor: `cursor-${page}` } : {}
+        )
+      )
+    }
+    const document = await ashbyConnector.getDocument('key', {}, 'c1')
+    expect(document?.content).toContain('note-6')
+    expect(fetchMock).toHaveBeenCalledTimes(7)
+  })
+
+  it('fails hydration on a repeated note cursor instead of storing partial content', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(ashbyResponse({ id: 'c1', name: 'One', applicationIds: [] }))
+      .mockResolvedValueOnce(
+        ashbyResponse([{ content: 'note-1' }], {
+          moreDataAvailable: true,
+          nextCursor: 'same-cursor',
+        })
+      )
+      .mockResolvedValueOnce(
+        ashbyResponse([{ content: 'note-2' }], {
+          moreDataAvailable: true,
+          nextCursor: 'same-cursor',
+        })
+      )
+    await expect(ashbyConnector.getDocument('key', {}, 'c1')).rejects.toThrow(
+      /repeated a pagination cursor/
+    )
+  })
 })

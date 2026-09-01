@@ -31,13 +31,6 @@ const MAX_DOCUMENT_CHARACTERS = 2_000_000
  */
 const MAX_APPLICATIONS_FOR_FEEDBACK = 10
 
-/**
- * Defensive page ceiling for the per-candidate note and feedback cursor loops. Ashby
- * terminates them via `moreDataAvailable`, but a repeated cursor would otherwise spin
- * forever inside a single `getDocument` call.
- */
-const MAX_SUB_PAGES = 5
-
 type UnknownRecord = Record<string, unknown>
 
 /**
@@ -457,9 +450,9 @@ function candidateMetadata(candidate: AshbyCandidateSummary): Record<string, unk
 async function fetchAllNotes(accessToken: string, candidateId: string): Promise<AshbyNote[]> {
   const notes: AshbyNote[] = []
   let cursor: string | undefined
-  let hasMore = true
+  const seenCursors = new Set<string>()
 
-  for (let page = 0; hasMore && page < MAX_SUB_PAGES; page++) {
+  while (notes.length < MAX_NOTES_PER_CANDIDATE) {
     const body: UnknownRecord = { candidateId, limit: NOTES_PER_PAGE }
     if (cursor) body.cursor = cursor
     const data = await ashbyPost(accessToken, 'candidate.listNotes', body)
@@ -468,16 +461,19 @@ async function fetchAllNotes(accessToken: string, candidateId: string): Promise<
       if (notes.length >= MAX_NOTES_PER_CANDIDATE) break
       notes.push(mapNote(raw))
     }
-    cursor = data.nextCursor ?? undefined
-    hasMore =
-      notes.length < MAX_NOTES_PER_CANDIDATE && Boolean(data.moreDataAvailable) && Boolean(cursor)
-  }
-
-  if (hasMore) {
-    logger.warn('Stopped paginating Ashby candidate notes at the page ceiling', {
-      candidateId,
-      notes: notes.length,
-    })
+    if (!data.moreDataAvailable || notes.length >= MAX_NOTES_PER_CANDIDATE) break
+    const nextCursor = data.nextCursor?.trim()
+    if (!nextCursor) {
+      throw new Error('Ashby candidate.listNotes reported more data without a next cursor')
+    }
+    if (seenCursors.has(nextCursor)) {
+      throw new Error('Ashby candidate.listNotes repeated a pagination cursor')
+    }
+    if (results.length === 0) {
+      throw new Error('Ashby candidate.listNotes returned an empty non-final page')
+    }
+    seenCursors.add(nextCursor)
+    cursor = nextCursor
   }
 
   return notes
@@ -493,9 +489,9 @@ async function fetchFeedbackForApplication(
 ): Promise<AshbyFeedbackSummary[]> {
   const feedback: AshbyFeedbackSummary[] = []
   let cursor: string | undefined
-  let hasMore = true
+  const seenCursors = new Set<string>()
 
-  for (let page = 0; hasMore && page < MAX_SUB_PAGES; page++) {
+  while (feedback.length < MAX_FEEDBACK_PER_CANDIDATE) {
     const body: UnknownRecord = { applicationId, limit: FEEDBACK_PER_PAGE }
     if (cursor) body.cursor = cursor
     const data = await ashbyPost(accessToken, 'applicationFeedback.list', body)
@@ -504,18 +500,19 @@ async function fetchFeedbackForApplication(
       if (feedback.length >= MAX_FEEDBACK_PER_CANDIDATE) break
       feedback.push(mapFeedback(raw))
     }
-    cursor = data.nextCursor ?? undefined
-    hasMore =
-      feedback.length < MAX_FEEDBACK_PER_CANDIDATE &&
-      Boolean(data.moreDataAvailable) &&
-      Boolean(cursor)
-  }
-
-  if (hasMore) {
-    logger.warn('Stopped paginating Ashby application feedback at the page ceiling', {
-      applicationId,
-      submissions: feedback.length,
-    })
+    if (!data.moreDataAvailable || feedback.length >= MAX_FEEDBACK_PER_CANDIDATE) break
+    const nextCursor = data.nextCursor?.trim()
+    if (!nextCursor) {
+      throw new Error('Ashby applicationFeedback.list reported more data without a next cursor')
+    }
+    if (seenCursors.has(nextCursor)) {
+      throw new Error('Ashby applicationFeedback.list repeated a pagination cursor')
+    }
+    if (results.length === 0) {
+      throw new Error('Ashby applicationFeedback.list returned an empty non-final page')
+    }
+    seenCursors.add(nextCursor)
+    cursor = nextCursor
   }
 
   return feedback

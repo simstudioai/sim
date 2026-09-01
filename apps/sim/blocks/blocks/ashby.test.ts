@@ -325,6 +325,13 @@ describe('AshbyBlock', () => {
       expect(condition.value).toContain('list_jobs')
     })
 
+    it('maps the editor status selection to the tool array contract', () => {
+      const result = AshbyBlock.tools.config.params!(
+        buildParams('list_jobs', { jobStatus: 'Open' })
+      )
+      expect(result.status).toEqual(['Open'])
+    })
+
     it('maps the shared draft-posting switch to the endpoint-specific parameter', () => {
       const listParams = AshbyBlock.tools.config.params!(
         buildParams('list_jobs', { includeUnpublishedJobPostingIds: true })
@@ -337,6 +344,25 @@ describe('AshbyBlock', () => {
       )
       expect(infoParams.includeUnpublishedJobPostingIds).toBe(true)
       expect(infoParams.includeUnpublishedJobPostingsIds).toBeUndefined()
+    })
+  })
+
+  describe('expanded list controls', () => {
+    it('exposes only provider-supported pagination and sync controls', () => {
+      const cursor = AshbyBlock.subBlocks.find((s) => s.id === 'cursor')
+      const cursorOperations = (cursor?.condition as { value: string[] }).value
+      expect(cursorOperations).not.toContain('search_candidates')
+      expect(cursorOperations).not.toContain('search_jobs')
+
+      const syncToken = AshbyBlock.subBlocks.find((s) => s.id === 'syncToken')
+      const syncOperations = (syncToken?.condition as { value: string[] }).value
+      expect(syncOperations).toContain('list_application_feedback')
+    })
+
+    it('exposes archived interview plans in the editor', () => {
+      const includeArchived = AshbyBlock.subBlocks.find((s) => s.id === 'includeArchived')
+      const operations = (includeArchived?.condition as { value: string[] }).value
+      expect(operations).toContain('list_interview_plans')
     })
   })
 

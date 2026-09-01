@@ -854,8 +854,6 @@ Output only the ISO 8601 timestamp string, nothing else.`,
           'list_application_feedback',
           'list_application_history',
           'list_interview_plans',
-          'search_candidates',
-          'search_jobs',
         ],
       },
       mode: 'advanced',
@@ -906,6 +904,7 @@ Output only the ISO 8601 timestamp string, nothing else.`,
           'list_custom_fields',
           'list_offers',
           'list_jobs',
+          'list_application_feedback',
         ],
       },
       mode: 'advanced',
@@ -992,6 +991,7 @@ Output only the JSON array, nothing else.`,
           'list_departments',
           'list_custom_fields',
           'list_locations',
+          'list_interview_plans',
         ],
       },
       mode: 'advanced',
@@ -1428,7 +1428,7 @@ Output only the JSON array.`,
         if (params.openingIdentifier) result.identifier = params.openingIdentifier
         if (params.filterStatus) result.status = params.filterStatus
         if (params.filterJobId) result.jobId = params.filterJobId
-        if (params.jobStatus) result.status = params.jobStatus
+        if (params.jobStatus) result.status = [params.jobStatus]
         if (params.sendNotifications === 'true' || params.sendNotifications === true) {
           result.sendNotifications = true
         }
