@@ -15,11 +15,11 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
   uploadFile: mockUploadFile,
 }))
 
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   loadPublishedCompiledDoc,
   storeCompiledDoc,
 } from '@/lib/mothership/tools/server/files/doc-compiled-store'
-import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 describe('compiled document publication', () => {
