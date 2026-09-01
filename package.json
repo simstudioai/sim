@@ -134,7 +134,7 @@
     "protobufjs": "7.6.5",
     "socket.io": "4.8.3",
     "socket.io-parser": "4.2.7",
-    "ws": "8.21.0"
+    "ws": "8.21.3"
   },
   "optionalDependencies": {
     "@next/swc-darwin-arm64": "16.3.1",

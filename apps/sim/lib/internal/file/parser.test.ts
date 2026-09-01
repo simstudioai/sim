@@ -26,6 +26,7 @@ const {
   mockIsSupportedFileType,
   mockParseFile,
   mockParseBuffer,
+  mockPdfParseBuffer,
   mockFsAccess,
   mockFsStat,
   mockFsReadFile,
@@ -49,6 +50,10 @@ const {
     }),
     mockParseBuffer: vi.fn().mockResolvedValue({
       content: 'parsed buffer content',
+      metadata: { pageCount: 1 },
+    }),
+    mockPdfParseBuffer: vi.fn().mockResolvedValue({
+      content: 'parsed PDF content',
       metadata: { pageCount: 1 },
     }),
     mockFsAccess: vi.fn().mockResolvedValue(undefined),
@@ -95,6 +100,14 @@ vi.mock('@/lib/file-parsers', () => ({
   isSupportedFileType: mockIsSupportedFileType,
   parseFile: mockParseFile,
   parseBuffer: mockParseBuffer,
+}))
+
+vi.mock('@/lib/file-parsers/pdf-parser', () => ({
+  PdfParser: class {
+    parseBuffer(...args: Parameters<typeof mockPdfParseBuffer>) {
+      return mockPdfParseBuffer(...args)
+    }
+  },
 }))
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
@@ -240,6 +253,10 @@ describe('file parser operation', () => {
       content: 'parsed buffer content',
       metadata: { pageCount: 1 },
     })
+    mockPdfParseBuffer.mockResolvedValue({
+      content: 'parsed PDF content',
+      metadata: { pageCount: 1 },
+    })
   })
 
   afterEach(() => {
@@ -367,6 +384,59 @@ describe('file parser operation', () => {
     expect(mockParseBuffer).toHaveBeenCalledWith(expect.any(Buffer), 'docx', {
       signal: req.signal,
     })
+  })
+
+  it('forwards request cancellation to external PDF parsing', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response('pdf bytes', {
+        status: 200,
+        headers: { 'content-type': 'application/pdf' },
+      })
+    )
+    const req = createMockRequest('POST', {
+      filePath: 'https://example.com/report.pdf',
+    })
+
+    const response = await POST(req)
+
+    expect(response.status).toBe(200)
+    expect(mockPdfParseBuffer).toHaveBeenCalledWith(expect.any(Buffer), {
+      signal: req.signal,
+    })
+  })
+
+  it('forwards request cancellation to cloud PDF parsing', async () => {
+    const req = createMockRequest('POST', {
+      filePath: '/api/files/serve/execution/workspace-1/workflow-1/execution-1/report.pdf',
+    })
+
+    const response = await POST(req)
+
+    expect(response.status).toBe(200)
+    expect(mockPdfParseBuffer).toHaveBeenCalledWith(expect.any(Buffer), {
+      signal: req.signal,
+    })
+  })
+
+  it('forwards request cancellation to local file parsing and reads', async () => {
+    setupFileApiMocks({
+      cloudEnabled: false,
+      storageProvider: 'local',
+      authenticated: true,
+    })
+    const req = createMockRequest('POST', {
+      filePath: 'workspace/report.pdf',
+    })
+
+    const response = await POST(req)
+
+    expect(response.status).toBe(200)
+    expect(mockParseFile).toHaveBeenCalledWith(expect.any(String), { signal: req.signal })
+    expect(mockFsReadFile).toHaveBeenCalledWith(expect.any(String), { signal: req.signal })
   })
 
   it('should reject parser complexity limits instead of returning raw text', async () => {

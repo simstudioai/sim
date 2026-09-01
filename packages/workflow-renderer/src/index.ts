@@ -52,6 +52,7 @@ export type {
   EdgeDiffStatus,
   EdgeRunStatus,
 } from './types'
+export { useCanvasColorMode } from './use-canvas-color-mode'
 export {
   type CanvasSentenceSegment,
   CanvasSentenceView,

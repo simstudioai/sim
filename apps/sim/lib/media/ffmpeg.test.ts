@@ -79,13 +79,33 @@ vi.mock('node:child_process', () => ({
   },
 }))
 
-import { runFfmpegOperation } from '@/lib/media/ffmpeg'
+import { extFromMime, runFfmpegOperation } from '@/lib/media/ffmpeg'
 
 const videoInput = {
   buffer: Buffer.from('fake-video-bytes'),
   mimeType: 'video/mp4',
   name: 'clip.mp4',
 }
+
+describe('extFromMime', () => {
+  it('normalizes parameters and casing before selecting a known extension', () => {
+    expect(extFromMime(' Video/MP4; codecs=avc1 ')).toBe('mp4')
+  })
+
+  it.each(['video/../../../../escaped', 'video/..\\..\\..\\..\\escaped', 'video/mp4\\..\\escaped'])(
+    'rejects path syntax in an unknown MIME subtype: %s',
+    (mimeType) => {
+      expect(extFromMime(mimeType)).toBe('bin')
+    }
+  )
+
+  it('never returns separators from extra MIME path segments', () => {
+    const extension = extFromMime('video/mp4/../../escaped')
+
+    expect(extension).toBe('mp4')
+    expect(extension).not.toMatch(/[\\/]/)
+  })
+})
 
 /** Resolves once the next FFmpeg command reaches `.save()`, i.e. once it is running. */
 function nextSave(): Promise<void> {

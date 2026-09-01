@@ -562,7 +562,14 @@ async function handleExternalUrl(
 
     let parseResult: ParseResult
     if (extension === 'pdf') {
-      parseResult = await handlePdfBuffer(buffer, filename, fileType, url, maxParsedOutputBytes)
+      parseResult = await handlePdfBuffer(
+        buffer,
+        filename,
+        fileType,
+        url,
+        maxParsedOutputBytes,
+        signal
+      )
     } else if (extension === 'csv') {
       parseResult = await handleCsvBuffer(buffer, filename, fileType, url, maxParsedOutputBytes)
     } else if (isSupportedFileType(extension)) {
@@ -586,6 +593,7 @@ async function handleExternalUrl(
 
     return parseResult
   } catch (error) {
+    signal?.throwIfAborted()
     logger.error(`Error handling external URL ${sanitizeUrlForLog(url)}:`, error)
     if (isPayloadSizeLimitError(error)) {
       logger.warn('Rejected oversized external file parse payload', {
@@ -748,7 +756,8 @@ async function handleCloudFile(
         filename,
         fileType,
         normalizedFilePath,
-        maxParsedOutputBytes
+        maxParsedOutputBytes,
+        signal
       )
     } else if (extension === 'csv') {
       parseResult = await handleCsvBuffer(
@@ -794,6 +803,7 @@ async function handleCloudFile(
 
     return parseResult
   } catch (error) {
+    signal?.throwIfAborted()
     logger.error(`Error handling cloud file ${filePath}:`, error)
 
     const errorMessage = (error as Error).message
@@ -871,9 +881,9 @@ async function handleLocalFile(
     const stats = await fsPromises.stat(fullPath)
     assertKnownSizeWithinLimit(stats.size, maxDownloadBytes, 'local file')
 
-    const result = await parseFile(fullPath)
+    const result = await parseFile(fullPath, { signal })
     const content = assertParsedContentWithinLimit(result.content, maxParsedOutputBytes)
-    const fileBuffer = await fsPromises.readFile(fullPath)
+    const fileBuffer = await fsPromises.readFile(fullPath, { signal })
     signal?.throwIfAborted()
     const hash = createHash('md5').update(fileBuffer).digest('hex')
 
@@ -912,6 +922,7 @@ async function handleLocalFile(
       },
     }
   } catch (error) {
+    signal?.throwIfAborted()
     logger.error(`Error handling local file ${filePath}:`, error)
     if (isPayloadSizeLimitError(error)) {
       logger.warn('Rejected oversized local file parse payload', {
@@ -948,12 +959,14 @@ async function handlePdfBuffer(
   filename: string,
   fileType?: string,
   originalPath?: string,
-  maxParsedOutputBytes?: number
+  maxParsedOutputBytes?: number,
+  signal?: AbortSignal
 ): Promise<ParseResult> {
   try {
+    signal?.throwIfAborted()
     logger.info(`Parsing PDF in memory: ${filename}`)
 
-    const result = await parseBufferAsPdf(fileBuffer)
+    const result = await parseBufferAsPdf(fileBuffer, signal)
 
     const content =
       result.content ||
@@ -972,6 +985,7 @@ async function handlePdfBuffer(
       },
     }
   } catch (error) {
+    signal?.throwIfAborted()
     if (isPayloadSizeLimitError(error)) throw error
 
     logger.error('Failed to parse PDF in memory:', error)
@@ -1149,14 +1163,16 @@ function handleGenericBuffer(
 /**
  * Parse a PDF buffer
  */
-async function parseBufferAsPdf(buffer: Buffer) {
+async function parseBufferAsPdf(buffer: Buffer, signal?: AbortSignal) {
   try {
+    signal?.throwIfAborted()
     const { PdfParser } = await import('@/lib/file-parsers/pdf-parser')
     const parser = new PdfParser()
     logger.info('Using main PDF parser for buffer')
 
-    return await parser.parseBuffer(buffer)
+    return await parser.parseBuffer(buffer, { signal })
   } catch (error) {
+    signal?.throwIfAborted()
     throw new Error(`PDF parsing failed: ${(error as Error).message}`)
   }
 }

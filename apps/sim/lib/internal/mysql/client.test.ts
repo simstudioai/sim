@@ -114,4 +114,13 @@ describe('MySQL client', () => {
     await expect(execution).rejects.toMatchObject({ name: 'AbortError' })
     expect(connection.destroy).toHaveBeenCalledOnce()
   })
+
+  it('rejects unsupported bind values before executing the query', async () => {
+    const connection = { execute: vi.fn(), destroy: vi.fn() }
+
+    await expect(executeMysqlCommand(connection as never, 'SELECT ?', [undefined])).rejects.toThrow(
+      'MySQL bind values must contain only supported scalar or structured values'
+    )
+    expect(connection.execute).not.toHaveBeenCalled()
+  })
 })

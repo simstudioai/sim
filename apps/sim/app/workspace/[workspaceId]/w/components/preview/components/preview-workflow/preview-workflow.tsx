@@ -25,6 +25,7 @@ import {
   EDGE_Z_BASE,
   EDGE_Z_MAX,
   getEdgeZIndexForTarget,
+  useCanvasColorMode,
 } from '@sim/workflow-renderer'
 import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
@@ -35,7 +36,6 @@ import {
 import { PreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/block'
 import { PreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/subflow'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
-import { useCanvasColorMode } from '@/hooks/use-canvas-color-mode'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('PreviewWorkflow')
@@ -704,6 +704,7 @@ export function PreviewWorkflow({
               : undefined
           }
           onPaneClick={onPaneClick}
+          className='[--xy-background-color:var(--bg)]'
         />
         <FitViewOnChange
           nodeIds={blocksStructure.ids}

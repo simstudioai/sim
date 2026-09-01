@@ -4,7 +4,6 @@
   "timezone": "America/Los_Angeles",
   "schedule": ["before 6am on Monday"],
   "minimumReleaseAge": "7 days",
-  "internalChecksFilter": "strict",
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "enabled": true,
@@ -62,8 +61,13 @@
     },
     {
       "description": "Keep React Email packages and CLI aligned",
-      "matchPackageNames": ["react-email", "@react-email/**", "resend"],
+      "matchPackageNames": ["react-email", "@react-email/**"],
       "groupName": "React Email"
+    },
+    {
+      "description": "Keep Trigger.dev runtime, build package, and CLI aligned",
+      "matchPackageNames": ["@trigger.dev/**", "trigger.dev"],
+      "groupName": "Trigger.dev"
     },
     {
       "description": "Group immutable GitHub Actions digest refreshes",

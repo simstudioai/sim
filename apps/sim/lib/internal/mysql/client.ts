@@ -11,6 +11,30 @@ export interface MysqlConnectionConfig {
   ssl: 'disabled' | 'required' | 'preferred'
 }
 
+function isMysqlExecuteValue(value: unknown): value is mysql.ExecuteValues {
+  if (
+    value === null ||
+    ['string', 'number', 'bigint', 'boolean'].includes(typeof value) ||
+    value instanceof Date ||
+    value instanceof Blob ||
+    value instanceof Uint8Array
+  ) {
+    return true
+  }
+
+  if (Array.isArray(value)) return value.every(isMysqlExecuteValue)
+  if (typeof value !== 'object') return false
+  return Object.values(value).every(isMysqlExecuteValue)
+}
+
+function assertMysqlExecuteValues(
+  values: unknown[] | undefined
+): asserts values is mysql.ExecuteValues[] | undefined {
+  if (values?.some((value) => !isMysqlExecuteValue(value))) {
+    throw new TypeError('MySQL bind values must contain only supported scalar or structured values')
+  }
+}
+
 export async function createMysqlConnection(
   config: MysqlConnectionConfig,
   signal?: AbortSignal
@@ -70,6 +94,7 @@ export async function executeMysqlCommand<TResult extends mysql.QueryResult>(
   signal?.addEventListener('abort', destroyConnection, { once: true })
 
   try {
+    assertMysqlExecuteValues(values)
     const [result] = await connection.execute<TResult>(query, values)
     signal?.throwIfAborted()
     return result

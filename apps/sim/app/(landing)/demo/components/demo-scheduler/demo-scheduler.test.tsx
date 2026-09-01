@@ -5,20 +5,27 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockConsent, mockTrackGoogleEvent } = vi.hoisted(() => ({
-  mockConsent: { marketing: true, measurement: true },
-  mockTrackGoogleEvent: vi.fn(),
-}))
+const { mockCal, mockCalComponent, mockConsent, mockGetCalApi, mockTrackGoogleEvent } = vi.hoisted(
+  () => ({
+    mockCal: vi.fn(),
+    mockCalComponent: vi.fn(() => null),
+    mockConsent: { marketing: true, measurement: true },
+    mockGetCalApi: vi.fn(),
+    mockTrackGoogleEvent: vi.fn(),
+  })
+)
 
+vi.mock('@calcom/embed-react', () => ({
+  default: mockCalComponent,
+  getCalApi: mockGetCalApi,
+}))
 vi.mock('@/lib/analytics/google', () => ({ trackGoogleEvent: mockTrackGoogleEvent }))
 vi.mock('@/lib/consent/scripts', () => ({ X_DEMO_BOOKED_EVENT_ID: 'demo-booked' }))
 vi.mock('@/lib/consent/tracking-consent', () => ({
   useTrackingConsent: () => mockConsent,
 }))
 
-import { resolveCalLink } from '@/app/(landing)/demo/components/demo-scheduler/cal-config'
 import {
-  createCalEmbedUrl,
   DemoScheduler,
   preloadCalEmbed,
 } from '@/app/(landing)/demo/components/demo-scheduler/demo-scheduler'
@@ -38,136 +45,109 @@ describe('DemoScheduler', () => {
     vi.clearAllMocks()
     mockConsent.marketing = true
     mockConsent.measurement = true
+    mockGetCalApi.mockResolvedValue(mockCal)
     container = document.createElement('div')
     document.body.append(container)
     root = createRoot(container)
   })
 
-  afterEach(() => {
-    act(() => root.unmount())
-    container.remove()
-    document.querySelectorAll('iframe[hidden]').forEach((frame) => {
-      frame.remove()
+  afterEach(async () => {
+    await act(async () => {
+      root.unmount()
+      await Promise.resolve()
     })
+    container.remove()
     window.twq = undefined
   })
 
-  function renderScheduler(): HTMLIFrameElement {
-    act(() => root.render(<DemoScheduler lead={LEAD} />))
-    const frame = container.querySelector<HTMLIFrameElement>('iframe[title="Book a demo"]')
-    if (!frame) throw new Error('Expected the Cal booking iframe to render')
-    return frame
-  }
+  it('passes the main-branch presentation and lead config to the official embed', async () => {
+    await act(async () => {
+      root.render(<DemoScheduler lead={LEAD} />)
+      await Promise.resolve()
+    })
 
-  it('builds the hosted embed URL with the lead and presentation prefilled', () => {
-    const url = new URL(createCalEmbedUrl(LEAD))
-
-    expect(url.origin).toBe('https://app.cal.com')
-    expect(url.pathname).toBe('/team/sim/demo/embed')
-    expect(Object.fromEntries(url.searchParams)).toEqual({
-      embed: 'demo',
-      name: LEAD.name,
-      email: LEAD.email,
-      notes: LEAD.notes,
-      theme: 'light',
-      'ui.color-scheme': 'light',
-      layout: 'month_view',
-      useSlotsViewOnSmallScreen: 'true',
+    expect(mockCalComponent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        namespace: 'demo',
+        calLink: 'team/sim/demo',
+        style: { width: '100%', height: '100%', overflow: 'auto' },
+        config: {
+          name: LEAD.name,
+          email: LEAD.email,
+          notes: LEAD.notes,
+          theme: 'light',
+          'ui.color-scheme': 'light',
+          layout: 'month_view',
+          useSlotsViewOnSmallScreen: 'true',
+        },
+      }),
+      undefined
+    )
+    expect(mockCal).toHaveBeenCalledWith('ui', {
+      hideEventTypeDetails: true,
+      styles: { branding: { brandColor: '#6f3dfa' } },
     })
   })
 
-  it('derives the trusted origin from a self-hosted event URL', () => {
-    const url = resolveCalLink('https://calendar.example.com/team/sim/demo')
-
-    expect(url.origin).toBe('https://calendar.example.com')
-    expect(url.pathname).toBe('/team/sim/demo')
-  })
-
-  it('rejects unsafe Cal embed protocols and credential-bearing URLs', () => {
-    expect(() => resolveCalLink('javascript:alert(1)')).toThrow(
-      'NEXT_PUBLIC_CAL_LINK must be an HTTP(S) URL or a Cal.com event path'
-    )
-    expect(() => resolveCalLink('https://user:secret@calendar.example.com/demo')).toThrow(
-      'NEXT_PUBLIC_CAL_LINK must be an HTTP(S) URL or a Cal.com event path'
-    )
-  })
-
-  it('warms the hosted booker only once while the preload frame remains mounted', () => {
-    preloadCalEmbed()
-    preloadCalEmbed()
-
-    const frames = document.querySelectorAll<HTMLIFrameElement>('iframe[hidden]')
-    expect(frames).toHaveLength(1)
-    expect(frames[0].src).toBe('https://app.cal.com/team/sim/demo?preload=true')
-  })
-
-  it('tracks a booking only when the message comes from the rendered Cal iframe', () => {
+  it('registers consent-aware booking analytics and removes the listener on unmount', async () => {
     const trackXEvent = vi.fn()
     window.twq = trackXEvent
-    const frame = renderScheduler()
-    const frameWindow = frame.contentWindow
-    expect(frameWindow).not.toBeNull()
 
-    act(() => {
-      window.dispatchEvent(
-        new MessageEvent('message', {
-          origin: 'https://malicious.example',
-          source: frameWindow,
-          data: { fullType: 'CAL:demo:bookingSuccessfulV2' },
-        })
-      )
-      window.dispatchEvent(
-        new MessageEvent('message', {
-          origin: 'https://app.cal.com',
-          source: frameWindow,
-          data: { fullType: 'CAL:demo:bookingSuccessfulV2' },
-        })
-      )
+    await act(async () => {
+      root.render(<DemoScheduler lead={LEAD} />)
+      await Promise.resolve()
     })
 
-    expect(mockTrackGoogleEvent).toHaveBeenCalledOnce()
+    const registration = mockCal.mock.calls.find(([method]) => method === 'on')?.[1] as
+      | { action: string; callback: () => void }
+      | undefined
+    expect(registration?.action).toBe('bookingSuccessfulV2')
+
+    registration?.callback()
     expect(mockTrackGoogleEvent).toHaveBeenCalledWith('get_a_demo', {
       page_path: '/demo',
       form_name: 'sim_demo',
       booking_status: 'scheduled',
     })
-    expect(trackXEvent).toHaveBeenCalledOnce()
     expect(trackXEvent).toHaveBeenCalledWith('event', 'demo-booked', {})
+
+    await act(async () => {
+      root.unmount()
+      await Promise.resolve()
+    })
+    expect(mockCal).toHaveBeenCalledWith('off', {
+      action: 'bookingSuccessfulV2',
+      callback: registration?.callback,
+    })
+    root = createRoot(container)
   })
 
-  it("completes Cal's ready handshake and reapplies the branded UI settings", () => {
-    const frame = renderScheduler()
-    const frameWindow = frame.contentWindow
-    expect(frameWindow).not.toBeNull()
-    if (!frameWindow) return
-    const postMessage = vi.spyOn(frameWindow, 'postMessage')
+  it('does not register booking analytics without measurement or marketing consent', async () => {
+    mockConsent.marketing = false
+    mockConsent.measurement = false
 
-    act(() => {
-      window.dispatchEvent(
-        new MessageEvent('message', {
-          origin: 'https://app.cal.com',
-          source: frameWindow,
-          data: { fullType: 'CAL:demo:__iframeReady' },
-        })
-      )
+    await act(async () => {
+      root.render(<DemoScheduler lead={LEAD} />)
+      await Promise.resolve()
     })
 
-    expect(postMessage).toHaveBeenNthCalledWith(
-      1,
-      { originator: 'CAL', method: 'parentKnowsIframeReady' },
-      'https://app.cal.com'
-    )
-    expect(postMessage).toHaveBeenNthCalledWith(
-      2,
-      {
-        originator: 'CAL',
-        method: 'ui',
-        arg: {
-          hideEventTypeDetails: true,
-          styles: { branding: { brandColor: '#6f3dfa' } },
-        },
-      },
-      'https://app.cal.com'
-    )
+    expect(mockCal).toHaveBeenCalledWith('ui', {
+      hideEventTypeDetails: true,
+      styles: { branding: { brandColor: '#6f3dfa' } },
+    })
+    expect(mockCal.mock.calls.some(([method]) => method === 'on')).toBe(false)
+  })
+
+  it('preloads the configured booker only once', async () => {
+    await act(async () => {
+      preloadCalEmbed()
+      preloadCalEmbed()
+      await Promise.resolve()
+    })
+
+    expect(mockGetCalApi).toHaveBeenCalledOnce()
+    expect(mockGetCalApi).toHaveBeenCalledWith({ namespace: 'demo' })
+    expect(mockCal).toHaveBeenCalledOnce()
+    expect(mockCal).toHaveBeenCalledWith('preload', { calLink: 'team/sim/demo' })
   })
 })
