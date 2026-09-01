@@ -1297,7 +1297,7 @@ export const v2ExecuteWorkflowBodySchema = z
       .max(100)
       .optional()
       .describe(
-        'Output references for streaming: `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>`, using normalized block names. Child references apply to every invocation. Requires `stream: true` and rejects synchronous or async requests. Use `selectedOutputs` with Get Workflow Run to narrow an existing run.'
+        'Block output references to include in the response. Use `<blockName>.<outputPath>` for the executed workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow; block names are normalized workflow reference names, and selecting a child workflow applies to every invocation of it. On a sync request the named outputs come back in `blockOutputs`, keyed by these selector strings; on a stream they shape the streamed envelope. Selectors that resolve to no block or no value are omitted. Rejected when `async` is true — a queued run has produced nothing to select; narrow the finished run via the run resource instead.'
       ),
     includeThinking: z
       .boolean()
@@ -1369,6 +1369,12 @@ export const v2ExecuteWorkflowDataSchema = z
       .enum(['completed', 'failed', 'paused', 'cancelled'])
       .describe('Terminal or paused run status.'),
     output: z.unknown().describe('Workflow output, including partial output on failure.'),
+    blockOutputs: z
+      .record(z.string(), z.unknown().describe('Output value produced by one workflow block.'))
+      .nullable()
+      .describe(
+        'Outputs of the blocks named by `selectedOutputs`, keyed by those selector strings, or null when none were requested. Selectors whose block did not run or whose path is absent are omitted; failed runs include the outputs of the blocks that did run.'
+      ),
     error: v2ExecutionErrorSchema
       .nullable()
       .describe('Structured execution failure, or null when none occurred.'),
