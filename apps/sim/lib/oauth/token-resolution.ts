@@ -1,4 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import {
+  resolvePrincipalSubject,
+  type WorkflowExecutionDelegatedPrincipal,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import {
   impersonateEmailSchema,
@@ -6,6 +10,10 @@ import {
 } from '@/lib/api/contracts/oauth-connections'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import type { AuthResult } from '@/lib/auth/hybrid'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
+import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/application/resolve-managed-oauth-token'
+import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
   getCredential,
@@ -19,7 +27,9 @@ import {
   MICROSOFT_DATAVERSE_PROVIDER_ID,
 } from '@/lib/oauth/microsoft-dataverse'
 import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
+import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { getToolMetadata } from '@/tools/metadata'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 
 const logger = createLogger('OAuthTokenResolution')
@@ -161,9 +171,10 @@ export async function completeOAuthCredentialToken(params: {
 }
 
 /**
- * Authorized application operation behind `POST /api/auth/oauth/token`. Every surface that
- * needs a credential token — the route and the in-process tool executor — goes through
- * here, so authorization, refresh, and audit cannot drift between them.
+ * Resolves a plain OAuth or service-account credential to a token for an
+ * authenticated caller. Managed OAuth credentials are dispatched one level up by
+ * {@link resolveCredentialAccessToken}, which every server surface goes through,
+ * so authorization, refresh, and audit cannot drift between surfaces.
  *
  * @param auth Result of authenticating the caller (session or internal JWT).
  */
@@ -306,5 +317,175 @@ export async function resolveCredentialToken(
   } catch (error) {
     logger.error(`[${requestId}] Error getting access token`, error)
     return { ok: false, status: 500, error: 'Internal server error' }
+  }
+}
+
+export interface ResolveCredentialAccessTokenInput {
+  /** Correlation id used by the credential service's own logging. */
+  requestId: string
+  credentialId?: string
+  workflowId?: string
+  /** Tool consuming the token; required by the managed-OAuth scope policy. */
+  toolId?: string
+  /** Canonical provider scopes, used only by service-account token minting. */
+  scopes?: string[]
+  /** Google domain-wide-delegation subject for service-account credentials. */
+  impersonateEmail?: string
+  /**
+   * Asserted acting user. When the caller authenticated with an internal JWT it
+   * must equal the token subject, so a forged assertion cannot widen access.
+   */
+  callerUserId?: string
+  auditRequest?: CredentialAuditRequest
+  /**
+   * Authenticates the caller for non-managed credentials. Invoked only when the
+   * credential is not managed OAuth, which authenticates through delegation instead.
+   */
+  authenticate: () => AuthResult | Promise<AuthResult>
+  /**
+   * Proves a workflow-execution delegation for one managed credential. The route
+   * verifies the delegation JWT header; the executor binds its delegation origin
+   * in-process. Absent, managed credentials are rejected with
+   * `MANAGED_CREDENTIAL_DELEGATION_REQUIRED`. Must throw
+   * {@link InvalidManagedOAuthDelegationError} on an invalid delegation.
+   */
+  resolveManagedPrincipal?: (credentialId: string) => Promise<WorkflowExecutionDelegatedPrincipal>
+}
+
+/**
+ * Authorized application dispatch behind `POST /api/auth/oauth/token`. Every server
+ * surface that needs a credential token — the route and the in-process tool
+ * executor — goes through here, so the managed / service-account / plain-OAuth
+ * dispatch, authorization, refresh, audit, and analytics cannot drift between them.
+ */
+export async function resolveCredentialAccessToken(
+  input: ResolveCredentialAccessTokenInput
+): Promise<ResolveCredentialTokenResult> {
+  const { requestId, credentialId, toolId, auditRequest } = input
+
+  const resolved = credentialId ? await resolveOAuthAccountId(credentialId) : null
+
+  if (resolved?.credentialType !== 'managed_oauth' || !resolved.credentialId) {
+    const auth = await input.authenticate()
+    return resolveCredentialToken(auth, {
+      requestId,
+      credentialId,
+      workflowId: input.workflowId,
+      scopes: input.scopes,
+      impersonateEmail: input.impersonateEmail,
+      callerUserId: input.callerUserId,
+      auditRequest,
+      resolvedCredential: resolved,
+    })
+  }
+
+  if (!input.resolveManagedPrincipal) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'MANAGED_CREDENTIAL_DELEGATION_REQUIRED',
+      error: 'Managed credentials can only be used by an authenticated workflow execution',
+    }
+  }
+
+  let principal: WorkflowExecutionDelegatedPrincipal
+  try {
+    principal = await input.resolveManagedPrincipal(resolved.credentialId)
+  } catch (error) {
+    if (!(error instanceof InvalidManagedOAuthDelegationError)) throw error
+    return {
+      ok: false,
+      status: 401,
+      code: 'MANAGED_CREDENTIAL_DELEGATION_INVALID',
+      error: error.message,
+    }
+  }
+
+  if (!toolId) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'MANAGED_CREDENTIAL_TOOL_REQUIRED',
+      error: 'A tool ID is required to use a managed credential',
+    }
+  }
+
+  const toolMetadata = getToolMetadata(toolId)
+  if (!toolMetadata?.oauth?.required) {
+    logger.error(`[${requestId}] Tool is not configured for managed OAuth`, { toolId })
+    return {
+      ok: false,
+      status: 500,
+      code: 'MANAGED_CREDENTIAL_TOOL_UNSUPPORTED',
+      error: 'This tool is not configured to use managed credentials',
+    }
+  }
+  const requiredScopes =
+    toolMetadata.oauth.requiredScopes ?? getCanonicalScopesForProvider(toolMetadata.oauth.provider)
+  if (requiredScopes.length === 0) {
+    logger.error(`[${requestId}] Tool has no trusted OAuth scope policy`, {
+      toolId,
+      providerId: toolMetadata.oauth.provider,
+    })
+    return {
+      ok: false,
+      status: 500,
+      code: 'MANAGED_CREDENTIAL_TOOL_UNSUPPORTED',
+      error: 'This tool is not configured to use managed credentials',
+    }
+  }
+
+  try {
+    const result = await resolveManagedOAuthCredentialToken.execute({
+      principal,
+      input: {
+        credentialId: resolved.credentialId,
+        expectedProviderId: toolMetadata.oauth.provider,
+        requiredScopes,
+        toolId,
+      },
+      ...(auditRequest ? { request: auditRequest } : {}),
+    })
+
+    const subject = resolvePrincipalSubject(principal)
+    if (subject?.kind === 'sim_user') {
+      captureServerEvent(
+        subject.userId,
+        'credential_used',
+        {
+          credential_type: 'managed_oauth',
+          provider_id: toolMetadata.oauth.provider,
+          workspace_id: principal.workspaceId,
+        },
+        { groups: { workspace: principal.workspaceId } }
+      )
+    }
+
+    return {
+      ok: true,
+      token: {
+        accessToken: result.accessToken,
+        ...(result.idToken ? { idToken: result.idToken } : {}),
+      },
+    }
+  } catch (error) {
+    if (error instanceof ManagedOAuthCredentialError) {
+      logger.warn(`[${requestId}] Managed OAuth credential rejected`, {
+        credentialId: resolved.credentialId,
+        code: error.code,
+      })
+      return { ok: false, status: error.statusCode, code: error.code, error: error.message }
+    }
+
+    const orchestrationError = asOrchestrationError(error)
+    if (orchestrationError) {
+      return {
+        ok: false,
+        status: statusForOrchestrationError(orchestrationError.code),
+        code: 'MANAGED_CREDENTIAL_UNAUTHORIZED',
+        error: orchestrationError.message,
+      }
+    }
+    throw error
   }
 }
