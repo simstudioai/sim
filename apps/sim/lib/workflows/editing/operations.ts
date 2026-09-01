@@ -31,13 +31,20 @@ import {
 const logger = createLogger('EditWorkflowServerTool')
 
 /**
+ * The container-type vocabulary the authoring surface accepts. The catalog's
+ * container descriptors build their options from these same constants, so the
+ * two surfaces cannot drift apart.
+ */
+export const VALID_LOOP_TYPES = ['for', 'forEach', 'while', 'doWhile'] as const
+export const VALID_PARALLEL_TYPES = ['count', 'collection'] as const
+
+/**
  * Applies loop/parallel container config from `inputs` onto a block state (data.loopType, etc.).
  */
 function applyLoopOrParallelContainerData(block: any, params: Record<string, any>): void {
   if (params.type === 'loop') {
-    const validLoopTypes = ['for', 'forEach', 'while', 'doWhile']
     const loopType =
-      params.inputs?.loopType && validLoopTypes.includes(params.inputs.loopType)
+      params.inputs?.loopType && VALID_LOOP_TYPES.includes(params.inputs.loopType)
         ? params.inputs.loopType
         : 'for'
     block.data = {
@@ -52,9 +59,8 @@ function applyLoopOrParallelContainerData(block: any, params: Record<string, any
         params.inputs?.condition && { doWhileCondition: params.inputs.condition }),
     }
   } else if (params.type === 'parallel') {
-    const validParallelTypes = ['count', 'collection']
     const parallelType =
-      params.inputs?.parallelType && validParallelTypes.includes(params.inputs.parallelType)
+      params.inputs?.parallelType && VALID_PARALLEL_TYPES.includes(params.inputs.parallelType)
         ? params.inputs.parallelType
         : 'count'
     block.data = {
