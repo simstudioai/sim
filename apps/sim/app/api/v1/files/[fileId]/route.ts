@@ -29,11 +29,12 @@ interface FileRouteParams {
 /**
  * GET /api/v1/files/[fileId] — Download file content.
  *
- * permission-group-exempt: none is declared here because this handler already
- * runs through the application funnel — `downloadWorkspaceFileStream` is the
- * `files.download` operation, which declares `files.use` and has it applied by
- * `authorizeWorkspaceOperation` for the personal-API-key principal. Adding a
- * middleware gate would check the same capability twice.
+ * permission-group-exempt: none — no separate ROUTE-level gate is needed, not
+ * because the policy is unstated. This handler runs through the application
+ * funnel: `downloadWorkspaceFileStream` is the `files.download` operation, which
+ * declares `files.use` and has it applied by `authorizeWorkspaceOperation` for
+ * the personal-API-key principal. A middleware gate here would check the same
+ * capability twice.
  */
 export const GET = withRouteHandler(async (request: NextRequest, context: FileRouteParams) => {
   const requestId = generateRequestId()
