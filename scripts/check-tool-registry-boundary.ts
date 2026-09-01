@@ -118,8 +118,17 @@ const ENTRY_SOURCES: readonly EntrySource[] = [
     reason: 'the public block catalog, which reads block metadata only',
   },
   {
+    /**
+     * The catalog routes only — `POST /tools/{toolId}/execute` is deliberately
+     * outside. Reading a tool and running one are different jobs: the reads
+     * project `params`/`outputs`, which `@/tools/metadata` covers, while
+     * execution has to reach the executable registry by definition. That is the
+     * same reason the ~122 execute/deploy/import/webhook routes are not covered
+     * wholesale, and it keeps the rule meaningful for its four siblings: a
+     * `getTool` import in the list or detail route is still always a mistake.
+     */
     root: 'app/api/v2/tools',
-    matches: isRouteEntry,
+    matches: (filename, fullPath) => isRouteEntry(filename) && !fullPath.includes('/execute/'),
     reason: 'the public tool catalog, which reads tool metadata only',
   },
   {

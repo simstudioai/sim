@@ -1,4 +1,5 @@
 import {
+  v2ExecuteToolContract,
   v2GetBlockContract,
   v2GetToolContract,
   v2ListBlocksContract,
@@ -37,6 +38,7 @@ import {
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
+  RESOURCE_MUTATION_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
@@ -207,6 +209,13 @@ const TOOL_SUMMARY_EXAMPLE = {
   version: '1.0.0',
   hostedApiKey: 'none',
   oauth: { required: true, provider: 'slack', requiredScopes: ['chat:write'] },
+} as const
+
+const TOOL_EXECUTION_EXAMPLE = {
+  toolId: 'slack_message',
+  status: 'succeeded',
+  output: { ts: '1718191234.004500' },
+  error: null,
 } as const
 
 const TOOL_DETAIL_EXAMPLE = {
@@ -1810,6 +1819,45 @@ const declaredRoutes = [
         'Get tool response',
         'One built-in tool with its parameters and outputs.',
         [{ data: TOOL_DETAIL_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ExecuteToolContract,
+    resourceOperation('Catalog', {
+      operationId: 'executeTool',
+      summary: 'Run Tool',
+      description: `Run one built-in tool and return what it produced. Supply \`input\` using the parameter ids \`GET /api/v2/tools/{toolId}\` publishes; Sim resolves the credential named by \`credentialId\`, injects a hosted API key for the tools it supplies one for, and substitutes environment-variable references, so the request carries arguments rather than secrets. A parameter the tool marks \`user-only\` also accepts \`{{VAR_NAME}}\` as its whole value, resolved server-side against the workspace environment; every other value is sent verbatim, so a literal secret passes through untouched. A tool that runs and refuses is a \`200\` carrying \`status: "failed"\` and the reason — the error envelope is reserved for failures of this API, not of the third party. A tool the workspace's visible blocks do not expose answers \`404\` identically to one that does not exist; one whose integration the workspace does not permit answers \`403\` with \`error.details.code\` \`INTEGRATION_NOT_ALLOWED\`. Hosted-key spend this call incurs is billed to the workspace. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_MUTATION_ERRORS,
+      success: { description: 'The outcome of the tool call.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ExecuteToolContract.params,
+        'ExecuteToolParams',
+        'Run tool path parameters',
+        'Tool to run. An unversioned name resolves to the newest version visible in the workspace.'
+      ),
+      query: v2ExecuteToolContract.query,
+      body: documentedSchema(
+        v2ExecuteToolContract.body,
+        'ExecuteToolRequest',
+        'Run tool request',
+        'Workspace, arguments, and the credential to authenticate with.',
+        [
+          {
+            workspaceId: WORKSPACE_ID,
+            input: { channel: 'C0123456789', text: 'Deploy finished.' },
+            credentialId: 'cred_01J8ZK3QW4M6X2R9T7B5C0V2',
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2ExecuteToolContract.response.schema,
+        'ExecuteToolResponse',
+        'Run tool response',
+        'What the tool produced, or why it did not succeed.',
+        [{ data: TOOL_EXECUTION_EXAMPLE }]
       ),
     }
   ),
