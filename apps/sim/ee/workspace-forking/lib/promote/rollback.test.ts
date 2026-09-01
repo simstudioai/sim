@@ -78,8 +78,8 @@ import { rollbackFork } from '@/ee/workspace-forking/lib/promote/rollback'
 
 const EDGE = { childWorkspaceId: 'child-ws', parentWorkspaceId: 'parent-ws' }
 
-/** A fake transaction whose existence query returns the given undeploy ids. */
-function makeTx(existingUndeployIds: string[] = []) {
+/** A fake transaction whose existence/update queries return the supplied workflow ids. */
+function makeTx(existingUndeployIds: string[] = [], unarchivedWorkflowIds: string[] = []) {
   return {
     select: vi.fn(() => ({
       from: vi.fn(() => ({
@@ -87,14 +87,21 @@ function makeTx(existingUndeployIds: string[] = []) {
       })),
     })),
     update: vi.fn(() => ({
-      set: vi.fn(() => ({ where: vi.fn(() => Promise.resolve(undefined)) })),
+      set: vi.fn(() => ({
+        where: vi.fn(() =>
+          Object.assign(Promise.resolve(undefined), {
+            returning: vi.fn().mockResolvedValue(unarchivedWorkflowIds.map((id) => ({ id }))),
+          })
+        ),
+      })),
     })),
   }
 }
 
-function setTx(existingUndeployIds: string[] = []) {
+function setTx(existingUndeployIds: string[] = [], unarchivedWorkflowIds: string[] = []) {
   vi.mocked(db.transaction).mockImplementation(
-    async (cb: (tx: unknown) => unknown) => cb(makeTx(existingUndeployIds)) as never
+    async (cb: (tx: unknown) => unknown) =>
+      cb(makeTx(existingUndeployIds, unarchivedWorkflowIds)) as never
   )
 }
 
@@ -165,6 +172,7 @@ describe('rollbackFork', () => {
   })
 
   it('un-archives and reactivates an archived orphan (prior version restored)', async () => {
+    setTx([], ['wf-x'])
     const run = makeRun({
       snapshot: { updated: [], created: [], archived: [{ workflowId: 'wf-x', priorVersion: 2 }] },
     })
@@ -185,6 +193,30 @@ describe('rollbackFork', () => {
     )
     expect(mockProcessOutbox).toHaveBeenCalledWith('evt-wf-x')
     expect(mockNotify).toHaveBeenCalledWith('wf-x')
+  })
+
+  it('refreshes workspace lists when an archived orphan had no prior deployment', async () => {
+    setTx([], ['wf-x'])
+    mockGetLatestRun.mockResolvedValue(
+      makeRun({
+        snapshot: {
+          updated: [],
+          created: [],
+          archived: [{ workflowId: 'wf-x', priorVersion: null }],
+        },
+      })
+    )
+
+    const result = await rollbackFork({
+      targetWorkspaceId: 'target-ws',
+      otherWorkspaceId: 'other-ws',
+      userId: 'user-1',
+    })
+
+    expect(result.unarchived).toBe(1)
+    expect(mockReactivate).not.toHaveBeenCalled()
+    expect(mockNotifyWorkspace).toHaveBeenCalledOnce()
+    expect(mockNotifyWorkspace).toHaveBeenCalledWith('target-ws')
   })
 
   it('aborts with 409 and writes nothing when a newer sync supersedes it mid-flight', async () => {

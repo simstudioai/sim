@@ -175,7 +175,7 @@ export const moveWorkflowsBulk = defineAuthorizedWorkflowUseCase({
     for (const workflowId of result.moved) {
       await notifyWorkflowUpdated(workflowId)
     }
-    if (result.moved.length > 0) {
+    if (result.changes.some((change) => change.previousFolderId !== result.folderId)) {
       await notifyWorkspaceWorkflowsChanged(context.workspaceId)
     }
   },

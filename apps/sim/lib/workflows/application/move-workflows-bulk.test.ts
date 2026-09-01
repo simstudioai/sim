@@ -126,6 +126,28 @@ describe('moveWorkflowsBulk', () => {
     expect(mocks.notifyWorkspace).toHaveBeenCalledWith('workspace-1')
   })
 
+  it('does not refresh workspace lists when every workflow is already in the destination', async () => {
+    queueTableRows(schemaMock.workflow, [{ id: 'workflow-1', name: 'One', folderId: 'folder-1' }])
+    dbChainMockFns.for.mockResolvedValueOnce([
+      { id: 'workflow-1', name: 'One', folderId: 'folder-1' },
+    ])
+    mocks.updateWorkflow.mockResolvedValue({
+      success: true,
+      workflow: { id: 'workflow-1', name: 'One', folderId: 'folder-1' },
+    })
+
+    await moveWorkflowsBulk.execute({
+      principal,
+      input: {
+        workspaceId: 'workspace-1',
+        workflowIds: ['workflow-1'],
+        folderId: 'folder-1',
+      },
+    })
+
+    expect(mocks.notifyWorkspace).not.toHaveBeenCalled()
+  })
+
   it('conceals cross-workspace workflow IDs as failed items', async () => {
     queueTableRows(schemaMock.workflow, [])
 

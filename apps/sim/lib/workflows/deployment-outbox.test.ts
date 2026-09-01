@@ -391,6 +391,46 @@ describe('versioned deployment preparation outbox', () => {
     expect(mockCleanupRetiredWebhookRegistrations).toHaveBeenCalledTimes(1)
   })
 
+  it('notifies workspace lists even when the fail-fast workflow socket notification fails', async () => {
+    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
+    mockGetDeploymentOperation.mockResolvedValue(operation({ status: 'active', completedAt: NOW }))
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (String(input).endsWith('/api/workflow-deployed')) {
+        throw new Error('workflow socket unavailable')
+      }
+      return new Response(null, { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const outboxContext = context()
+
+    await expect(
+      handler()(
+        {
+          ...payload(),
+          checkpoints: {
+            inactiveCleanupCompleted: true,
+            auditEmitted: true,
+            analyticsCaptured: true,
+          },
+        },
+        outboxContext
+      )
+    ).rejects.toThrow('workflow socket unavailable')
+
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual([
+      expect.stringMatching(/\/api\/workspace-workflows-changed$/),
+      expect.stringMatching(/\/api\/workflow-deployed$/),
+    ])
+    expect(outboxContext.checkpointPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkpoints: expect.objectContaining({ workspaceListNotified: true }),
+      })
+    )
+  })
+
   it('honors an aborted signal before starting any side effect', async () => {
     const controller = new AbortController()
     controller.abort()

@@ -131,6 +131,7 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
   const skipped = new Set<string>()
   const outboxEventIds: string[] = []
   const reactivations: Array<{ workflowId: string; operationId: string }> = []
+  const unarchivedWorkflowIds = new Set<string>()
 
   await db.transaction(async (tx) => {
     await setForkLockTimeout(tx)
@@ -151,7 +152,7 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
 
     // Un-archive the orphans the promote archived BEFORE reactivating them.
     if (archived.length > 0) {
-      await tx
+      const unarchived = await tx
         .update(workflow)
         .set({ archivedAt: null, updatedAt: now })
         .where(
@@ -160,6 +161,8 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
             archived.map((i) => i.workflowId)
           )
         )
+        .returning({ id: workflow.id })
+      for (const row of unarchived) unarchivedWorkflowIds.add(row.id)
     }
 
     // Which undeploy targets still exist (created targets can be hard-deleted after the
@@ -247,6 +250,12 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
       )
     }
   })
+
+  // The rollback is already durable. Refresh workspace lists before any downstream deployment
+  // side effect can fail, including archived workflows that had no prior deployment to reactivate.
+  if (unarchivedWorkflowIds.size > 0 || ops.some((op) => !skipped.has(op.workflowId))) {
+    await notifyWorkspaceWorkflowsChanged(targetWorkspaceId)
+  }
 
   // After commit: process the enqueued side-effects (webhooks / schedules / MCP). These
   // are durable outbox rows, so a crash here is recovered by the outbox cron/reaper -
@@ -342,7 +351,6 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
     if (!skipped.has(op.workflowId)) notifyIds.add(op.workflowId)
   }
   for (const workflowId of notifyIds) void notifyForkWorkflowChanged(workflowId)
-  if (notifyIds.size > 0) await notifyWorkspaceWorkflowsChanged(targetWorkspaceId)
 
   // Attribute each skip to its bucket (a workflow is in exactly one) so the counts
   // reflect what was actually restored, not the snapshot size.

@@ -730,6 +730,13 @@ async function emitPostActivationSideEffects(params: {
     await params.checkpoint({ analyticsCaptured: true })
   }
 
+  const workspaceId = params.workflow.workspaceId as string | null
+  if (workspaceId && !params.checkpoints.workspaceListNotified) {
+    params.context.signal.throwIfAborted()
+    await notifyWorkspaceWorkflowsChanged(workspaceId)
+    await params.checkpoint({ workspaceListNotified: true })
+  }
+
   if (!params.checkpoints.socketNotified) {
     params.context.signal.throwIfAborted()
     await notifySocketDeploymentChanged(params.payload.workflowId, {
@@ -738,13 +745,6 @@ async function emitPostActivationSideEffects(params: {
     })
     params.context.signal.throwIfAborted()
     await params.checkpoint({ socketNotified: true })
-  }
-
-  const workspaceId = params.workflow.workspaceId as string | null
-  if (workspaceId && !params.checkpoints.workspaceListNotified) {
-    params.context.signal.throwIfAborted()
-    await notifyWorkspaceWorkflowsChanged(workspaceId)
-    await params.checkpoint({ workspaceListNotified: true })
   }
 
   if (workspaceId && !params.checkpoints.workspaceEventEmitted) {
