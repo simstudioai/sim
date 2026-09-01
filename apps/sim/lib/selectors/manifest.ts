@@ -189,6 +189,7 @@ export const selectorManifest = {
   'pipedrive.pipelines': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },
+    listMode: 'paginated',
     detail: true,
   }),
   'trello.boards': providerSelector([], { detail: true }),
@@ -254,7 +255,11 @@ export const selectorManifest = {
   }),
   'onedrive.files': providerSelector(['mimeType'], { listMode: 'paginated', detail: true }),
   'onedrive.folders': providerSelector(['driveId'], { listMode: 'paginated', detail: true }),
-  'sharepoint.sites': providerSelector([], { detail: true }),
+  'sharepoint.sites': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
   'microsoft.excel': providerSelector(['driveId'], {
     listMode: 'paginated',
     search: true,
