@@ -1,28 +1,31 @@
 import { Buffer } from 'node:buffer'
 import { describe, expect, it, vi } from 'vitest'
+import { FILE_SEARCH_SEGMENT_CHARS } from '@/lib/workspace-files/search/constants'
+import { compileFileSearchPattern } from '@/lib/workspace-files/search/pattern'
 import {
   createFileSearchPreview,
-  escapeFileSearchLikePattern,
-  isFileSearchCaseSensitive,
   iterateLogicalLines,
   segmentLogicalLine,
   truncateUtf8ToBytes,
 } from '@/lib/workspace-files/search/text'
 
-describe('workspace file search text utilities', () => {
-  it('implements Unicode smart-case and escapes LIKE metacharacters', () => {
-    expect(isFileSearchCaseSensitive('résumé')).toBe(false)
-    expect(isFileSearchCaseSensitive('Résumé')).toBe(true)
-    expect(isFileSearchCaseSensitive('東京A')).toBe(true)
-    expect(escapeFileSearchLikePattern('100%_done\\')).toBe('100\\%\\_done\\\\')
-  })
+const literal = (query: string) => compileFileSearchPattern(query, 'exact')
 
+describe('workspace file search text utilities', () => {
   it('normalizes CRLF and preserves one-based logical line numbers', () => {
     expect([...iterateLogicalLines('first\r\nsecond\n')]).toEqual([
       { lineNumber: 1, text: 'first' },
       { lineNumber: 2, text: 'second' },
       { lineNumber: 3, text: '' },
     ])
+  })
+
+  it('splits a logical line into one segment exactly when it fits the segment width', () => {
+    const fits = { lineNumber: 1, text: 'a'.repeat(FILE_SEARCH_SEGMENT_CHARS) }
+    const overflows = { lineNumber: 1, text: 'a'.repeat(FILE_SEARCH_SEGMENT_CHARS + 1) }
+
+    expect([...segmentLogicalLine(fits)]).toHaveLength(1)
+    expect([...segmentLogicalLine(overflows)].length).toBeGreaterThan(1)
   })
 
   it('creates overlapping segments that preserve boundary matches', () => {
@@ -35,7 +38,7 @@ describe('workspace file search text utilities', () => {
 
   it('returns a match-centered UTF-8-safe bounded preview', () => {
     const line = `${'🙂'.repeat(800)}needle${'é'.repeat(800)}`
-    const preview = createFileSearchPreview(line, 'needle', false)
+    const preview = createFileSearchPreview(line, literal('needle'))
     expect(preview).toContain('needle')
     expect(preview.startsWith('…')).toBe(true)
     expect(preview.endsWith('…')).toBe(true)
@@ -45,7 +48,7 @@ describe('workspace file search text utilities', () => {
 
   it('maps case-folded offsets back to the original line', () => {
     const line = `${'İ'.repeat(1200)}needle${'x'.repeat(1200)}`
-    const preview = createFileSearchPreview(line, 'needle', false)
+    const preview = createFileSearchPreview(line, literal('needle'))
 
     expect(preview).toContain('needle')
     expect(Buffer.byteLength(preview, 'utf8')).toBeLessThanOrEqual(2048)
@@ -59,9 +62,9 @@ describe('workspace file search text utilities', () => {
       })
 
     try {
-      const line = `${'x'.repeat(1500)}I${'y'.repeat(1500)}`
-      const preview = createFileSearchPreview(line, 'i', false, 128)
-      expect(preview).toContain('I')
+      const line = `${'x'.repeat(1500)}aIb${'y'.repeat(1500)}`
+      const preview = createFileSearchPreview(line, literal('aib'), 128)
+      expect(preview).toContain('aIb')
     } finally {
       localeLowerCase.mockRestore()
     }
@@ -69,7 +72,7 @@ describe('workspace file search text utilities', () => {
 
   it('shows omitted logical-line content beyond the selected segment', () => {
     expect(
-      createFileSearchPreview('needle and nearby text', 'needle', false, 2048, {
+      createFileSearchPreview('needle and nearby text', literal('needle'), 2048, {
         prefixOmitted: true,
         suffixOmitted: true,
       })

@@ -908,7 +908,9 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   - Get Content is how you read file text. It accepts file objects or canonical file IDs and returns a "contents" array with one extracted text string per file (PDF, DOCX, CSV, etc. are parsed automatically).
   - To read the text of files produced by another block, chain into Get Content: set its file input to the upstream file output, e.g. <file.files>, <agent.files>, or <start.files>. Never assume Read (or any file-object output) already contains the text.
   - Get Content's "contents" can be large; it is persisted through the execution large-value system automatically, so prefer it over inlining file text any other way.
-  - Search finds literal text across all active workspace files and returns structured results with fileId, lineNumber, and text. Lowercase queries are case-insensitive; adding any uppercase letter makes the search case-sensitive.
+  - Search finds text across all active workspace files and returns structured results with fileId, lineNumber, and text. Lowercase queries are case-insensitive; adding any uppercase letter makes the search case-sensitive.
+  - Search reads the query as a line-oriented regular expression: quantifiers, character classes, \\d \\w \\s, alternation, groups, "^" and "$" anchors, and \\b word boundaries. Lookaround, backreferences and patterns spanning a line break are not supported, and a pattern needs at least 3 consecutive literal characters that every match will contain. Set Match to "Exact match" to search for the query text verbatim instead.
+  - Match is a builder setting, not an agent one: the agent writes the query, and Match decides how every query from that block is read.
   - Search is eventually consistent. Check "complete" and "indexStatus" when pending, failed, skipped, or partially indexed files matter to the task.
   - Use Fetch for external file URLs. Add headers for authenticated downloads, for example Slack private file URLs require an Authorization Bearer token.
   - Use Write to create a new workspace file and Append to add content to an existing one. Write adds a numeric suffix when the name is taken; turn on "Overwrite Existing File" to replace the contents of the file at that exact path (folder and name) instead — a same-named file in another folder is left alone.
@@ -1008,11 +1010,25 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       required: { field: 'operation', value: 'file_get_content' },
     },
     {
+      id: 'mode',
+      title: 'Match',
+      type: 'dropdown' as SubBlockType,
+      options: [
+        { label: 'Regular expression', id: 'regex' },
+        { label: 'Exact match', id: 'exact' },
+      ],
+      description:
+        'How the query is read. Regular expressions match one line at a time and need at least 3 consecutive literal characters.',
+      value: () => 'regex',
+      condition: { field: 'operation', value: 'file_search' },
+      paramVisibility: 'user-only',
+    },
+    {
       id: 'query',
       title: 'Query',
       type: 'short-input' as SubBlockType,
-      placeholder: 'Text to find across workspace files',
-      description: 'Literal search text, 3-512 characters. Leave blank for the agent to supply.',
+      placeholder: 'Pattern to find across workspace files',
+      description: 'Search pattern, 3-512 characters. Leave blank for the agent to supply.',
       condition: { field: 'operation', value: 'file_search' },
       required: { field: 'operation', value: 'file_search' },
       paramVisibility: 'user-or-llm',
@@ -1268,6 +1284,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           }
           return {
             query: params.query,
+            mode: params.mode === 'exact' ? 'exact' : 'regex',
             maxResults,
           }
         }
@@ -1500,7 +1517,11 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       type: 'string',
       description: 'Operation to perform (read, search, get content, fetch, write, or append)',
     },
-    query: { type: 'string', description: 'Literal workspace file search query' },
+    query: { type: 'string', description: 'Workspace file search query' },
+    mode: {
+      type: 'string',
+      description: 'How the search query is read: a regular expression (default) or an exact match',
+    },
     maxResults: { type: 'number', description: 'Hard maximum search results (1-200)' },
     readFileInput: {
       type: 'json',

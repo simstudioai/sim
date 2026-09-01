@@ -2,12 +2,17 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import {
+  compileFileSearchPattern,
+  type FileSearchMode,
+  FileSearchPatternError,
+} from '@/lib/workspace-files/search/pattern'
 import { searchWorkspaceFileIndex } from '@/lib/workspace-files/search/repository'
-import { isFileSearchCaseSensitive } from '@/lib/workspace-files/search/text'
 
 export interface SearchWorkspaceFileContentInput {
   workspaceId: string
   query: string
+  mode: FileSearchMode
   maxResults: number
   signal?: AbortSignal
 }
@@ -24,12 +29,24 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.searchContent,
   resolveContext: ({ input }: { input: SearchWorkspaceFileContentInput }) =>
     resolveSearchWorkspaceFileContext(input),
-  execute: ({ input, context }) =>
-    searchWorkspaceFileIndex({
-      workspaceId: context.workspaceId,
-      query: input.query,
-      maxResults: input.maxResults,
-      caseSensitive: isFileSearchCaseSensitive(input.query),
-      signal: input.signal,
-    }),
+  execute: async ({ input, context }) => {
+    try {
+      return await searchWorkspaceFileIndex({
+        workspaceId: context.workspaceId,
+        pattern: compileFileSearchPattern(input.query, input.mode),
+        maxResults: input.maxResults,
+        signal: input.signal,
+      })
+    } catch (error) {
+      /**
+       * A rejected or too-expensive pattern is the caller's to fix, and the
+       * message names the construct and the supported alternative — so it is
+       * classified rather than left to become the surface's generic failure text.
+       */
+      if (error instanceof FileSearchPatternError) {
+        throw new OrchestrationError('validation', error.message)
+      }
+      throw error
+    }
+  },
 })
