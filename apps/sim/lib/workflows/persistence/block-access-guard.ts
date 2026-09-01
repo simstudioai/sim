@@ -1,9 +1,9 @@
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import {
-  isBlockTypeAccessControlExempt,
   resolveAccessControlBlockType,
   toAccessControlAllowlist,
-} from '@/lib/permission-groups/block-access'
-import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+} from '@/lib/permission-groups/integration-allowlist'
 import { BlockType } from '@/executor/constants'
 
 /**

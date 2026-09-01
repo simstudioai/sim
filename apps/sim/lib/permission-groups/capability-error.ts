@@ -5,9 +5,11 @@ import type { PermissionGroupCapability } from '@/lib/permission-groups/capabili
  * The caller's permission group withholds a capability the request needs.
  *
  * Carries the capability so a log line or an audit entry can name it; the
- * message names it for the caller. One detail code covers every capability
- * because the remedy is the same for all of them — the closed code set is closed
- * over remedies, not over causes.
+ * message names it for the caller. The detail code comes from the capability's
+ * own rule rather than being fixed here — the closed code set is closed over
+ * remedies, so the handful of capabilities with a remedy of their own (a chat
+ * auth mode, public sharing, personal API keys) carry a code of their own and
+ * the rest share the generic one.
  *
  * Lives here rather than beside the authorization funnel so the assertion
  * helpers can throw it without importing the funnel, which imports them.

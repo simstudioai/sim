@@ -2,10 +2,8 @@ import type { Principal } from '@sim/auth/principal'
 import { getIntegrationTypesForOAuthServiceId } from '@sim/deployment-config/integration-availability'
 import { createLogger } from '@sim/logger'
 import { allowedIntegrationTypes } from '@/lib/integrations/principal-scope.server'
-import {
-  isBlockTypeAccessControlExempt,
-  resolveAccessControlBlockType,
-} from '@/lib/permission-groups/block-access'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
 import type {
   SelectorCredentialPolicy,
   ServerSelectorAttachment,

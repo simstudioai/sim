@@ -5,11 +5,7 @@ import {
   isInvitationsDisabled,
   isPublicApiDisabled,
 } from '@/lib/core/config/env-flags'
-import {
-  isBlockTypeAccessControlExempt,
-  resolveAccessControlBlockType,
-  toAccessControlAllowlist,
-} from '@/lib/permission-groups/block-access'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import {
   CAPABILITY_RULES,
   refuseCapability,
@@ -17,6 +13,10 @@ import {
 } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import {
+  resolveAccessControlBlockType,
+  toAccessControlAllowlist,
+} from '@/lib/permission-groups/integration-allowlist'
 import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import {
   getUserPermissionConfig,

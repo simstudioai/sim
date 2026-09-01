@@ -6,12 +6,12 @@ import {
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import {
+  intersectIntegrationAllowlists,
   resolveAccessControlBlockType,
   toAccessControlAllowlist,
-} from '@/lib/permission-groups/block-access'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+} from '@/lib/permission-groups/integration-allowlist'
 import {
   collectDeniedOperationIds,
   createToolAccessGate,
