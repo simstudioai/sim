@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { parseAsString, useQueryStates } from 'nuqs'
 import type {
   ResourceListPreference,
   ResourceListPreferenceConfig,
@@ -86,6 +87,12 @@ export function useResourceListPreferences({
   )
   const setPreference = useResourceListPreferencesStore((state) => state.setPreference)
   const removePreference = useResourceListPreferencesStore((state) => state.removePreference)
+  const preferenceQueryParsers = Object.fromEntries(
+    ['sort', 'dir', ...config.filterKeys].map((queryKey) => [queryKey, parseAsString])
+  )
+  const [preferenceQuery] = useQueryStates(preferenceQueryParsers, {
+    urlKeys: config.preferenceUrlKeys,
+  })
 
   const defaultPreference = useMemo(
     () => normalizePreference(config.defaultPreference, config),
@@ -100,6 +107,8 @@ export function useResourceListPreferences({
       defaultPreference &&
       !resourceListPreferencesEqual(currentPreference, defaultPreference)
   )
+  const hasExplicitUrlPreference = Object.values(preferenceQuery).some((value) => value !== null)
+  const hasUrlPreference = hasExplicitUrlPreference || hasEffectiveUrlPreference
 
   const rememberPreference = useCallback(
     (normalizedPreference: ResourceListPreference) => {
@@ -129,6 +138,10 @@ export function useResourceListPreferences({
       ) {
         setPendingRestoration(null)
         setReadyKey(key)
+      } else if (currentPreference && hasExplicitUrlPreference) {
+        setPendingRestoration(null)
+        rememberPreference(currentPreference)
+        setReadyKey(key)
       }
       return
     }
@@ -142,7 +155,7 @@ export function useResourceListPreferences({
       return
     }
 
-    if (!resourceListPreferencesEqual(currentPreference, defaultPreference)) {
+    if (hasUrlPreference) {
       rememberPreference(currentPreference)
       setReadyKey(key)
       return
@@ -163,7 +176,9 @@ export function useResourceListPreferences({
     currentPreference,
     defaultPreference,
     enabled,
+    hasExplicitUrlPreference,
     hasHydrated,
+    hasUrlPreference,
     key,
     pendingRestoration,
     rememberPreference,
@@ -215,10 +230,7 @@ export function useResourceListPreferences({
   }, [commitPreference, currentPreference, defaultPreference])
 
   return {
-    isReady:
-      !enabled ||
-      (pendingRestoration?.key !== key && hasEffectiveUrlPreference) ||
-      readyKey === key,
+    isReady: !enabled || (pendingRestoration?.key !== key && hasUrlPreference) || readyKey === key,
     commitPreference,
     setFilter,
     clearFilters,

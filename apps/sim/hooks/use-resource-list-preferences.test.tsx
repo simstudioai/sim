@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { filesListPreferenceConfig } from '@/app/workspace/[workspaceId]/files/search-params'
@@ -30,12 +31,13 @@ interface HookProps {
 
 const mountedRoots: Root[] = []
 
-function renderPreferenceHook(props: HookProps) {
+function renderPreferenceHook(props: HookProps, searchParams = '') {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   const root = createRoot(document.createElement('div'))
   mountedRoots.push(root)
   let result: ReturnType<typeof useResourceListPreferences>
   let currentProps = props
+  let currentSearchParams = searchParams
 
   function Probe() {
     result = useResourceListPreferences({
@@ -46,14 +48,21 @@ function renderPreferenceHook(props: HookProps) {
     return null
   }
 
-  act(() => root.render(<Probe />))
+  const renderProbe = () => (
+    <NuqsTestingAdapter hasMemory searchParams={currentSearchParams}>
+      <Probe />
+    </NuqsTestingAdapter>
+  )
+
+  act(() => root.render(renderProbe()))
   return {
     get current() {
       return result
     },
-    rerender(nextProps: HookProps) {
+    rerender(nextProps: HookProps, nextSearchParams = currentSearchParams) {
       currentProps = nextProps
-      act(() => root.render(<Probe />))
+      currentSearchParams = nextSearchParams
+      act(() => root.render(renderProbe()))
     },
   }
 }
@@ -112,6 +121,23 @@ describe('useResourceListPreferences', () => {
     expect(applyPreference).not.toHaveBeenCalled()
   })
 
+  it.each(['sort=updated&dir=desc', 'uploaded-by='])(
+    'honors explicitly default-valued URL state instead of restoring a saved preference (%s)',
+    async (searchParams) => {
+      seedPreference(filteredPreference)
+      const applyPreference = vi.fn()
+      const result = renderPreferenceHook(
+        { preference: defaultPreference, applyPreference },
+        searchParams
+      )
+
+      expect(result.current.isReady).toBe(true)
+      await flushEffects()
+      expect(applyPreference).not.toHaveBeenCalled()
+      expect(useResourceListPreferencesStore.getState().preferences).toEqual({})
+    }
+  )
+
   it('starts restoring a saved preference once on a clean visit', async () => {
     seedPreference(filteredPreference)
     const applyPreference = vi.fn()
@@ -138,6 +164,23 @@ describe('useResourceListPreferences', () => {
 
     expect(result.current.isReady).toBe(true)
     expect(applyPreference).toHaveBeenCalledOnce()
+  })
+
+  it('lets an explicit URL change cancel a pending saved-preference restoration', async () => {
+    seedPreference(filteredPreference)
+    const applyPreference = vi.fn()
+    const result = renderPreferenceHook({ preference: defaultPreference, applyPreference })
+
+    await flushEffects()
+    expect(result.current.isReady).toBe(false)
+    expect(applyPreference).toHaveBeenCalledWith(filteredPreference)
+
+    result.rerender({ preference: defaultPreference, applyPreference }, 'sort=updated&dir=desc')
+    await flushEffects()
+
+    expect(result.current.isReady).toBe(true)
+    expect(applyPreference).toHaveBeenCalledOnce()
+    expect(useResourceListPreferencesStore.getState().preferences).toEqual({})
   })
 
   it('stays unready while a clean entry waits for hydration', () => {
@@ -307,5 +350,9 @@ describe('module list preference configs', () => {
       sort: { column: 'updated', direction: 'desc' },
       filters: Object.fromEntries(keys.map((key) => [key, []])),
     })
+  })
+
+  it('reuses the Files filter URL alias when detecting explicit preferences', () => {
+    expect(filesListPreferenceConfig.preferenceUrlKeys).toEqual({ uploadedBy: 'uploaded-by' })
   })
 })

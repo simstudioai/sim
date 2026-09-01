@@ -53,8 +53,9 @@ Files, Tables, and Knowledge may persist their last-used filter/sort snapshot th
 
 - nuqs remains authoritative while the module is open.
 - Zustand is consulted once on a clean module entry, after persisted state hydrates.
-- Effective URL filter/sort state wins as one complete snapshot and becomes the remembered value;
-  omitted fields use URL defaults rather than merging with storage.
+- An explicit URL filter/sort parameter wins even when it resolves to the module default. The
+  complete resolved URL snapshot becomes the remembered value; omitted fields use URL defaults
+  rather than merging with storage.
 - Explicit filter/sort gestures commit the same complete snapshot to nuqs and Zustand together.
 - Never mirror subsequent URL changes with a synchronization effect or `popstate` listener.
 - Search and folder navigation remain URL-only and are excluded from the persisted snapshot.

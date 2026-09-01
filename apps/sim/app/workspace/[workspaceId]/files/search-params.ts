@@ -83,10 +83,13 @@ export const filesSortParams = createSortParams(FILE_SORT_COLUMNS, {
   direction: 'desc',
 })
 
+const filesFilterUrlKeyMap = { uploadedBy: 'uploaded-by' } as const
+
 export const filesListPreferenceConfig = {
   module: 'files',
   sortColumns: FILE_SORT_COLUMNS,
   filterKeys: ['type', 'size', 'uploadedBy'],
+  preferenceUrlKeys: filesFilterUrlKeyMap,
   defaultPreference: {
     sort: filesSortParams.default,
     filters: { type: [], size: [], uploadedBy: [] },
@@ -98,5 +101,5 @@ export const filesFilterUrlKeys = {
   history: 'replace',
   shallow: true,
   clearOnDefault: true,
-  urlKeys: { uploadedBy: 'uploaded-by' },
+  urlKeys: filesFilterUrlKeyMap,
 } as const

@@ -21,6 +21,7 @@ export interface ResourceListPreferenceConfig {
   module: ResourceListModule
   sortColumns: readonly string[]
   filterKeys: readonly string[]
+  preferenceUrlKeys?: Readonly<Record<string, string>>
   defaultPreference: ResourceListPreference
 }
 
