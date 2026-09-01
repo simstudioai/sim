@@ -43,6 +43,7 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   slack: 'slack_v2',
   starter: 'start_trigger',
   stt: 'stt_v2',
+  table: 'table_v2',
   textract: 'textract_v2',
   video_generator: 'video_generator_v3',
   video_generator_v2: 'video_generator_v3',
