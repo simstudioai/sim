@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { MULTI_SELECT_OPS, SINGLE_SELECT_OPS } from '@/lib/table/column-types'
 import { enrichTableToolDescription, enrichTableToolParameters } from '@/lib/table/llm/enrichment'
 import type { TableSummary } from '@/lib/table/types'
 
@@ -101,12 +102,23 @@ describe('select columns in the v2 description', () => {
 
   it('names the allowed operators on a single-select column', () => {
     expect(enriched).toContain(
-      'category (single-select; only eq, ne, in, nin, isEmpty, isNotEmpty)'
+      'category (single-select; only eq, ne, in, nin, isEmpty, isNotEmpty, isNull, isNotNull)'
     )
   })
 
   it('names the allowed operators on a multi-select column', () => {
-    expect(enriched).toContain('tags (multi-select; only contains, ncontains, isEmpty, isNotEmpty)')
+    expect(enriched).toContain(
+      'tags (multi-select; only contains, ncontains, isEmpty, isNotEmpty, isNull, isNotNull)'
+    )
+  })
+
+  /**
+   * The list is derived from the sets `fieldPredicate` gates on, so it cannot
+   * drift from the validator the way a hand-copied list did.
+   */
+  it('derives the operator list from the validator sets', () => {
+    for (const op of SINGLE_SELECT_OPS) expect(enriched).toContain(op)
+    for (const op of MULTI_SELECT_OPS) expect(enriched).toContain(op)
   })
 
   it('leaves non-select columns unannotated', () => {
@@ -118,7 +130,7 @@ describe('select columns in the v2 description', () => {
   })
 
   it('steers multi-select matching to contains rather than ilike', () => {
-    expect(enriched).toContain('match it with contains, never ilike')
+    expect(enriched).toContain('match it by option name with contains, never ilike')
   })
 })
 
@@ -153,6 +165,32 @@ describe('enrichTableToolParameters for table_query_rows_v2', () => {
 
   it('does not enrich a sort property that v2 does not have', () => {
     expect(properties.sort).toBeUndefined()
+  })
+
+  /**
+   * The parameter schema is what the model reads when deciding the filter's
+   * shape, so the select restriction has to appear there and not only in the
+   * tool description.
+   */
+  it('carries the select restriction into the filter parameter description', () => {
+    const withSelect = enrichTableToolParameters(
+      V2_SCHEMA,
+      {
+        name: 'Transactions',
+        columns: [
+          { name: 'category', type: 'select', multiple: false },
+          { name: 'tags', type: 'select', multiple: true },
+        ],
+      },
+      'table_query_rows_v2'
+    )
+    expect(withSelect.properties.filter.description).toContain('rejected outright')
+    expect(withSelect.properties.filter.description).toContain('category accept only')
+    expect(withSelect.properties.filter.description).toContain('tags hold a list')
+  })
+
+  it('omits the restriction note when no column restricts operators', () => {
+    expect(properties.filter.description).not.toContain('rejected outright')
   })
 })
 

@@ -242,7 +242,7 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
 - like/ilike use * as the wildcard (e.g. {"field":"name","op":"ilike","value":"*jo*"}).
 - Omit Limit to get the entire matching result in one response — the query fails with a clear error if it exceeds 5MB (narrow with a filter or set a Limit).
 - With a Limit, pages can end at the Limit or the 5MB byte budget, whichever comes first — pass nextCursor back as the cursor and loop until it is null; never infer completion from page size.
-- For substring matching on a text column use ilike with *x*. A select column accepts only a subset of the operators — eq/ne/in/nin when single, contains/ncontains when multi (a multi-select cell holds a list) — and the query is rejected outright on anything else.
+- For substring matching on a text column use ilike with *x*. A select column accepts only a subset of the operators — eq, ne, in, nin when single; contains, ncontains when multi (a multi-select cell holds a list, matched by option name) — plus isEmpty, isNotEmpty, isNull, isNotNull on both. The query is rejected outright on anything else.
 - Use Columns to Return to keep only the fields a downstream step needs (e.g. ["col_email","name"]) — the 5MB budget counts only the returned columns, so narrowing columns is another way to fit a large table; leave it empty for every column.`,
   docsLink: 'https://docs.sim.ai/integrations/table',
   category: 'blocks',

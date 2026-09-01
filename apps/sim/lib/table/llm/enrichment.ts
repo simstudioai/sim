@@ -1,11 +1,4 @@
-/**
- * LLM tool enrichment utilities for table operations.
- *
- * Provides functions to enrich tool descriptions and parameter schemas
- * with table-specific information so LLMs can construct proper queries.
- */
-
-import { columnTypeById } from '@/lib/table/column-types'
+import { columnTypeById, MULTI_SELECT_OPS, SINGLE_SELECT_OPS } from '@/lib/table/column-types'
 import type { TableSummary } from '@/lib/table/types'
 
 /**
@@ -33,6 +26,11 @@ export const FILTER_OPERATIONS = new Set([
  */
 const TABLE_QUERY_ROWS_V2 = 'table_query_rows_v2'
 
+/** The operators a select column actually accepts, read from the validator's own sets. */
+function selectOperatorList(multiple: boolean | undefined): string {
+  return Array.from(multiple ? MULTI_SELECT_OPS : SINGLE_SELECT_OPS).join(', ')
+}
+
 /**
  * Renders one column line for the v2 description.
  *
@@ -44,9 +42,34 @@ const TABLE_QUERY_ROWS_V2 = 'table_query_rows_v2'
  */
 function v2ColumnLine(column: TableSummary['columns'][number]): string {
   if (column.type !== 'select') return `  - ${column.name} (${column.type})`
-  const allowed = column.multiple ? 'contains, ncontains' : 'eq, ne, in, nin'
   const kind = column.multiple ? 'multi-select' : 'single-select'
-  return `  - ${column.name} (${kind}; only ${allowed}, isEmpty, isNotEmpty)`
+  return `  - ${column.name} (${kind}; only ${selectOperatorList(column.multiple)})`
+}
+
+/** Whether any column restricts its operators, i.e. whether the note is worth emitting. */
+function hasSelectColumn(table: TableSummary): boolean {
+  return table.columns.some((column) => column.type === 'select')
+}
+
+/**
+ * A one-line summary of the per-column restrictions, for the `filter` parameter
+ * description. The parameter schema is what a model reads when it is deciding
+ * the SHAPE of the filter, so the restriction has to appear there too and not
+ * only in the tool description.
+ */
+function selectRestrictionNote(table: TableSummary): string {
+  const single = table.columns.filter((c) => c.type === 'select' && !c.multiple).map((c) => c.name)
+  const multi = table.columns.filter((c) => c.type === 'select' && c.multiple).map((c) => c.name)
+  const parts: string[] = []
+  if (single.length > 0) {
+    parts.push(`${single.join(', ')} accept only ${selectOperatorList(false)}`)
+  }
+  if (multi.length > 0) {
+    parts.push(
+      `${multi.join(', ')} hold a list and accept only ${selectOperatorList(true)} (match by option name)`
+    )
+  }
+  return ` Restricted columns - a predicate using any other operator on one is rejected outright: ${parts.join('; ')}.`
 }
 
 /**
@@ -118,7 +141,7 @@ INSTRUCTIONS:
 3. For multiple conditions wrap them in {"all":[...]} for AND or {"any":[...]} for OR; groups nest
 4. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty
 5. like/ilike use * as the wildcard, e.g. {"field":"name","op":"ilike","value":"*jo*"}
-6. Any column listed below with a restricted operator set accepts ONLY those operators - the query is rejected outright otherwise. A multi-select cell holds a list, so match it with contains, never ilike
+6. Any column listed below with a restricted operator set accepts ONLY those operators - the query is rejected outright otherwise. A multi-select cell holds a list, so match it by option name with contains, never ilike
 7. For substring matching on a text column use ilike with *x*
 8. For ranking queries (highest, lowest, Nth, top N) set order and a small limit, e.g. limit 1 for the highest, 2 for the second highest
 9. Omit limit to return every matching row; the query fails if the result exceeds 5MB, so narrow with a filter instead of guessing a limit
@@ -233,7 +256,7 @@ export function enrichTableToolParameters(
     if (enrichedProperties.filter) {
       enrichedProperties.filter = {
         ...enrichedProperties.filter,
-        description: `Predicate built from the user's question using columns: ${columnNames}. One condition is {"field":"<column>","op":"<operator>","value":<value>}; combine with {"all":[...]} for AND or {"any":[...]} for OR. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Omit only to match every row.`,
+        description: `Predicate built from the user's question using columns: ${columnNames}. One condition is {"field":"<column>","op":"<operator>","value":<value>}; combine with {"all":[...]} for AND or {"any":[...]} for OR. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty.${hasSelectColumn(table) ? selectRestrictionNote(table) : ''} Omit only to match every row.`,
       }
     }
 
