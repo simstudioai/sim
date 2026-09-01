@@ -92,6 +92,18 @@ describe('handleSlackAgentSessionStopped', () => {
     await handleSlackAgentSessionStopped('credential-1', { kind: 'stop' })
 
     expect(mocks.cancel).toHaveBeenCalledTimes(2)
+    expect(mocks.cancel).toHaveBeenNthCalledWith(1, {
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      attributedUserId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+    expect(mocks.cancel).toHaveBeenNthCalledWith(2, {
+      executionId: 'execution-2',
+      workflowId: 'workflow-2',
+      attributedUserId: 'user-2',
+      workspaceId: 'workspace-1',
+    })
     expect(mocks.unregister).toHaveBeenCalledTimes(2)
     expect(mocks.setStatus).toHaveBeenCalledWith(
       'xoxb-test',

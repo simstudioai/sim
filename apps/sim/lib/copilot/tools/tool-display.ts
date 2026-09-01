@@ -550,6 +550,7 @@ const TOOL_TITLES: Record<string, string> = {
   prepare_file_edit: 'Editing file',
   apply_file_edit: 'Writing changes',
   create_workflow: 'Creating workflow',
+  cancel_workflow_run: 'Cancelling workflow run',
   edit_workflow: 'Editing workflow',
   manage_knowledge_base: 'Managing knowledge base',
   search_knowledge_base: 'Searching knowledge base',

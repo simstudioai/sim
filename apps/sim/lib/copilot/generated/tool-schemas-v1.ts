@@ -1560,6 +1560,20 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  cancel_workflow_run: {
+    parameters: {
+      type: 'object',
+      properties: {
+        executionId: {
+          type: 'string',
+          description:
+            'Required workflow execution ID returned by run_workflow with async:true or found with query_logs. This identifies a workflow run, not an agent invocation or chat request.',
+        },
+      },
+      required: ['executionId'],
+    },
+    resultSchema: undefined,
+  },
   connect_slack_bot: {
     parameters: {
       type: 'object',
@@ -4328,7 +4342,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
         },
         request: {
-          description: 'What to run or what logs to check.',
+          description:
+            'What to run or cancel, or what logs to check. Include a known workflow executionId when cancelling.',
           type: 'string',
         },
       },

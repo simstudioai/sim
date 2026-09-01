@@ -3,7 +3,6 @@ import {
   cancelWorkflowExecutionReasonSchema,
   executeWorkflowBodySchema,
   getWorkflowResponseDataSchema,
-  internalCancelWorkflowExecutionReasonSchema,
   updateWorkflowBodySchema,
   workflowListItemSchema,
   workflowStateSchema,
@@ -131,34 +130,16 @@ describe('workflow contracts', () => {
     expect(forkPolicySchema.parse({}).forkSyncExcluded).toBe(false)
   })
 
-  /**
-   * The v2 cancel endpoint presents `cancelWorkflowRun`'s result unchanged, and
-   * that use case delegates wholly to the cancellation service — so it cannot
-   * emit the outcomes the internal route resolves for itself. Folding those into
-   * the service enum would publish reasons v2 never returns, because the v2
-   * contract documents this enum value by value.
-   */
-  it('keeps internal-only cancellation reasons out of the enum v2 publishes', () => {
+  it('exposes the cancellation service vocabulary to every cancel surface', () => {
     for (const reason of [
+      'already_cancelled',
+      'already_completed',
+      'already_failed',
       'queue_cancelled',
       'active_resume_signal_failed',
       'cancellation_not_finalized',
     ]) {
-      expect(internalCancelWorkflowExecutionReasonSchema.options).toContain(reason)
-      expect(cancelWorkflowExecutionReasonSchema.options).not.toContain(reason)
-    }
-  })
-
-  /**
-   * Both surfaces answer a cancel against an already-terminal run, so both name
-   * it with the same member. The service observes the terminal status itself now
-   * — the internal route no longer owns `already_cancelled` privately — and
-   * without these the v2 contract rejects the very body v2 emits.
-   */
-  it('shares the terminal no-op vocabulary between both cancel surfaces', () => {
-    for (const reason of ['already_cancelled', 'already_completed', 'already_failed']) {
       expect(cancelWorkflowExecutionReasonSchema.options).toContain(reason)
-      expect(internalCancelWorkflowExecutionReasonSchema.options).toContain(reason)
     }
   })
 

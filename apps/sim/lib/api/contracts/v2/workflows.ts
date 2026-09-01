@@ -1869,15 +1869,10 @@ export const v2CancelWorkflowRunDataSchema = z
       ),
     locallyAborted: z.boolean().describe('Whether an in-process execution was aborted.'),
     pausedCancelled: z.boolean().describe('Whether a paused execution was cancelled.'),
-    /**
-     * Always emitted by the cancellation service — it is not a partial-failure
-     * marker. `recorded` is the full-success value; the `already_*` values name
-     * a terminal no-op; the rest name the step that degraded.
-     */
     reason: cancelWorkflowExecutionReasonSchema
       .optional()
       .describe(
-        'Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` is the success value. `already_cancelled`, `already_completed`, and `already_failed` mean the run had already reached that terminal state, so nothing was cancelled and `durablyRecorded` is false. `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal was not written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step for a paused run.'
+        'Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` and `queue_cancelled` are successful cancellation values. `already_cancelled`, `already_completed`, and `already_failed` mean the run had already reached that terminal state, so nothing was cancelled and `durablyRecorded` is false. The remaining values identify a degraded or incomplete cancellation step.'
       ),
   })
   .meta({
