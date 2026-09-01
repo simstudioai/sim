@@ -18,6 +18,7 @@ import { BackLink } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { ShareButton } from '@/app/(landing)/components/share-button'
+import { IntegrationComparisonSection } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-comparison-section/integration-comparison-section'
 import { IntegrationCtaButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-cta-button'
 import { TemplateCardButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/template-card-button'
 import { IntegrationIcon } from '@/app/(landing)/integrations/components/integration-icon'
@@ -391,10 +392,12 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
   const relatedIntegrations = relatedSlugs
     .map((s) => bySlug.get(s))
     .filter((i): i is Integration => i !== undefined)
-  const faqs = buildFAQs(
-    integration,
-    relatedIntegrations.map((i) => i.name)
-  )
+  const faqs =
+    seo?.faqs ??
+    buildFAQs(
+      integration,
+      relatedIntegrations.map((i) => i.name)
+    )
   const matchingTemplates = getTemplatesForBlock(integration.type)
     .sort(
       (a, b) =>
@@ -684,6 +687,13 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
         </section>
 
         <div className='h-px w-full bg-[var(--border)]' />
+
+        {seo?.comparison && (
+          <>
+            <IntegrationComparisonSection comparison={seo.comparison} />
+            <div className='h-px w-full bg-[var(--border)]' />
+          </>
+        )}
 
         {/* Triggers - rows */}
         {triggers.length > 0 && (
