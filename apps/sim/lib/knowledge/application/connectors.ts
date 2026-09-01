@@ -493,12 +493,33 @@ export const deleteKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   }),
 })
 
+/**
+ * Gated by `knowledge.connectors` on the *persisted* type, unlike
+ * {@link updateKnowledgeConnector}: a manual sync is a fresh act by a person
+ * pulling the external corpus in again, so an admin who has since removed the
+ * source from the allowlist has withdrawn it. Pausing and deleting stay
+ * available for the reason recorded on the update use case — nothing here
+ * strands a connector, it only stops a member re-running the pull by hand.
+ *
+ * Only the manual path passes through this use case. The scheduled continuation
+ * of an existing connector runs `executeSync` from the sync engine directly
+ * (`background/knowledge-connector-sync.ts`) and is untouched, matching the
+ * webhook precedent: passive continuation keeps running, a person re-initiating
+ * it is gated. An actorless caller resolves no group and passes through, as
+ * {@link assertConnectorTypeAllowed} documents.
+ */
 export const syncKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.syncConnector,
   resolveContext: ({ input }: { input: SyncKnowledgeConnectorInput }) =>
     resolveActiveKnowledgeConnectorContext(input),
   async execute({ principal, input, context, request }) {
     const workspaceId = requireConnectorWorkspaceId(context)
+    // permission-group-enforced: knowledge.connectors — needs the persisted connector type, which the funnel never sees
+    await assertConnectorTypeAllowed(
+      resolvePrincipalSubjectUserId(principal),
+      workspaceId,
+      context.connector.connectorType
+    )
     const outcome = await performSyncKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
       connectorId: context.connectorId,

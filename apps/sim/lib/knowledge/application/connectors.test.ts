@@ -746,5 +746,89 @@ describe('knowledge connector application use cases', () => {
 
       expect(mocks.createConnector).toHaveBeenCalledTimes(1)
     })
+
+    /**
+     * A manual sync re-runs the pull, so an admin who has since removed the
+     * source from the allowlist has withdrawn it. The type comes off the
+     * persisted connector, which is the only place the request names it.
+     */
+    describe('manual sync', () => {
+      const syncInput = {
+        knowledgeBaseId: 'knowledge-a',
+        connectorId: 'connector-b',
+        assertedWorkspaceId: 'workspace-a',
+        resolveBillingAttribution: mocks.resolveBilling,
+      }
+
+      beforeEach(() => {
+        mocks.resolveConnector.mockResolvedValue({
+          ...connectorContext,
+          workspaceId: 'workspace-a',
+          knowledgeBaseId: 'knowledge-a',
+          knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
+          connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
+        })
+      })
+
+      it('refuses a sync of a connector whose type the group no longer names', async () => {
+        allowOnly(['google_drive'])
+
+        await expect(
+          syncKnowledgeConnector.execute({ principal: delegatedPrincipal, input: syncInput })
+        ).rejects.toMatchObject({
+          code: 'forbidden',
+          message: capabilityRefusal('knowledge.connectors'),
+        })
+
+        expect(mocks.syncConnector).not.toHaveBeenCalled()
+        expect(mocks.recordAudit).not.toHaveBeenCalled()
+      })
+
+      it('permits the sync while the group still names the persisted type', async () => {
+        allowOnly(['confluence'])
+        mocks.syncConnector.mockResolvedValueOnce({ success: true })
+
+        await syncKnowledgeConnector.execute({
+          principal: delegatedPrincipal,
+          input: syncInput,
+        })
+
+        expect(mocks.syncConnector).toHaveBeenCalledTimes(1)
+      })
+
+      /**
+       * Pausing and deleting stay reachable: the point is to stop the member
+       * re-running the pull, never to strand the connector.
+       */
+      it('still lets the same caller pause and delete the withheld connector', async () => {
+        allowOnly(['google_drive'])
+        mocks.updateConnector.mockResolvedValueOnce({
+          success: true,
+          connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
+        })
+        mocks.deleteConnector.mockResolvedValueOnce({
+          success: true,
+          documentsDeleted: 0,
+          documentsKept: 1,
+        })
+
+        await updateKnowledgeConnector.execute({
+          principal: delegatedPrincipal,
+          input: {
+            connectorId: 'connector-b',
+            assertedWorkspaceId: 'workspace-a',
+            updates: { status: 'paused' },
+            resolveBillingAttribution: mocks.resolveBilling,
+          },
+        })
+        await deleteKnowledgeConnector.execute({
+          principal: delegatedPrincipal,
+          input: { connectorId: 'connector-b', assertedWorkspaceId: 'workspace-a' },
+        })
+
+        expect(mocks.updateConnector).toHaveBeenCalledTimes(1)
+        expect(mocks.deleteConnector).toHaveBeenCalledTimes(1)
+      })
+    })
   })
 })
