@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { downloadFile, headObject, uploadFile } from '@/lib/uploads/core/storage-service'
-import { MAX_RENDERED_DOCUMENT_BYTES } from '@/lib/uploads/utils/file-utils'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 const logger = createLogger('CopilotDocCompiledStore')
 
@@ -75,6 +75,12 @@ async function loadPublishedArtifactPointer(key: string): Promise<PublishedArtif
  * about the size of this. Bounding it here rather than on the finished response is
  * what keeps an oversized artifact from being materialized before it is refused.
  *
+ * The bound is the WIDEST ceiling any consumer of this funnel allows, because it is a
+ * memory backstop and not a policy: a consumer that permits less enforces its own
+ * limit on what it got back (the workspace download path holds artifacts to
+ * `MAX_RENDERED_DOCUMENT_BYTES`, half of this). Using the tighter figure here instead
+ * would reject artifacts the serving routes are willing to return.
+ *
  * A size breach is rethrown rather than folded into `null`: null means "not built
  * yet", which callers answer with "still being prepared, try again", and an artifact
  * that is too large would retry forever behind that.
@@ -87,7 +93,7 @@ export async function loadCompiledDoc(
 ): Promise<Buffer | null> {
   const key = compiledArtifactKey(workspaceId, source, ext, referencedInputIdentity)
   try {
-    return await downloadFile({ key, context: 'copilot', maxBytes: MAX_RENDERED_DOCUMENT_BYTES })
+    return await downloadFile({ key, context: 'copilot', maxBytes: MAX_BUFFERED_TRANSFER_BYTES })
   } catch (error) {
     if (isPayloadSizeLimitError(error)) throw error
     return null

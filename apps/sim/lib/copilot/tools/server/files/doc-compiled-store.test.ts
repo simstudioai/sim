@@ -20,7 +20,7 @@ import {
   storeCompiledDoc,
 } from '@/lib/copilot/tools/server/files/doc-compiled-store'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { MAX_RENDERED_DOCUMENT_BYTES } from '@/lib/uploads/utils/file-utils'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 describe('compiled document publication', () => {
   beforeEach(() => {
@@ -81,7 +81,7 @@ describe('compiled document publication', () => {
     // The artifact is fetched separately from the source that names it, so a source
     // that cleared its own ceiling says nothing about how large this is.
     expect(mockDownloadFile.mock.calls[1]?.[0]).toEqual(
-      expect.objectContaining({ maxBytes: MAX_RENDERED_DOCUMENT_BYTES })
+      expect.objectContaining({ maxBytes: MAX_BUFFERED_TRANSFER_BYTES })
     )
   })
 
@@ -95,8 +95,8 @@ describe('compiled document publication', () => {
     mockDownloadFile.mockRejectedValueOnce(
       new PayloadSizeLimitError({
         label: 'storage download',
-        maxBytes: MAX_RENDERED_DOCUMENT_BYTES,
-        observedBytes: MAX_RENDERED_DOCUMENT_BYTES + 1,
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+        observedBytes: MAX_BUFFERED_TRANSFER_BYTES + 1,
       })
     )
 
