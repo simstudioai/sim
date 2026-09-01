@@ -28,6 +28,13 @@ export interface AgentCliResult {
   stderr: string
 }
 
+/**
+ * Command-local flags parsed from the invocation: `--flag value` and
+ * `--flag=value` map to strings, a bare `--flag` maps to `true`. Global
+ * rendering flags (`--output`) are stripped before parsing and never appear.
+ */
+export type AgentCliFlags = ReadonlyMap<string, string | true>
+
 export interface AgentCliCommand {
   /** argv tokens that select this command, matched as a prefix (e.g. ['workflow', 'edges']). */
   path: readonly string[]
@@ -35,7 +42,7 @@ export interface AgentCliCommand {
   summary: string
   /** Full usage line, e.g. 'workflow edges <workflowId>'. */
   usage: string
-  execute(rest: string[], runtime: AgentCliRuntime): Promise<AgentCliResult>
+  execute(rest: string[], runtime: AgentCliRuntime, flags: AgentCliFlags): Promise<AgentCliResult>
 }
 
 export function agentCliOk(stdout: string): AgentCliResult {

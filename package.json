@@ -22,7 +22,7 @@
     "test:tool-request-boundary": "bunx vitest run scripts/check-tool-request-boundary.test.ts",
     "test:actorless-executor-operations": "bunx vitest run scripts/check-actorless-executor-operations.test.ts",
     "test:migrations-safety": "bunx vitest run scripts/check-migrations-safety.test.ts",
-    "test:generators": "bunx vitest run scripts/generate-v2-cli-api.test.ts scripts/generate-cli-docs.test.ts scripts/generate-docs.test.ts",
+    "test:generators": "bunx vitest run scripts/generate-v2-cli-api.test.ts scripts/generate-cli-docs.test.ts scripts/generate-docs.test.ts scripts/format-generated-source.test.ts",
     "format": "turbo run format",
     "format:check": "turbo run format:check",
     "lint": "turbo run lint",

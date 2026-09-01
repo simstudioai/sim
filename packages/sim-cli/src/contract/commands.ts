@@ -1428,14 +1428,13 @@ export const CLI_CONTRACT: CliContract = {
         hidden: true,
         describe: 'Low-level workflow state and entry-point selection',
       },
-      // Stream-only on the wire, so the requirement is stated where the flag
-      // is read rather than left to the 400. The dialect differs from the one
-      // `workflows runs get` takes, which is why both describes name theirs.
+      // The dialect differs from the one `workflows runs get` takes (names
+      // resolve here, ids only there), which is why both describes name theirs.
       selectedOutputs: {
         name: 'select-output',
         list: true,
         describe:
-          'Return streamed outputs as blockName.path or childWorkflowId.blockName.path; selecting a child workflow applies to every invocation, requires --follow',
+          'Return blockName.field values (e.g. agent_1.content), or childWorkflowId.blockName.field for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing fields are omitted. Not available with --async',
       },
       // SSE, not JSON — the generic client cannot consume it, so the response
       // encoding is chosen by `--follow`, which `workflow-run-follow.ts` adds to

@@ -179,6 +179,7 @@ const RUN_RESULT_EXAMPLE = {
     workflowId: WORKFLOW_ID,
     status: 'completed',
     output: { result: 'Ticket routed to Support' },
+    blockOutputs: null,
     error: null,
     startedAt: '2026-08-09T18:04:10.000Z',
     endedAt: '2026-08-09T18:04:11.000Z',

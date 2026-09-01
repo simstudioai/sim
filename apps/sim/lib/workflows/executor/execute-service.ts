@@ -43,7 +43,7 @@ import { workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
-import type { NormalizedBlockOutput } from '@/executor/types'
+import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
 import {
   classifyExecutionError,
   hasExecutionResult,
@@ -143,6 +143,8 @@ export interface ExecuteWorkflowServiceRun {
   aborted: 'client' | 'timeout' | null
   output: NormalizedBlockOutput | undefined
   error: StructuredExecutionError | null
+  /** Outputs of the blocks named by `selectedOutputs`, keyed by the caller's selector strings. */
+  blockOutputs?: Record<string, unknown> | null
   /** Trusted execution-local catalog used by internal callers to project model-visible output. */
   resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   hasResponseBlock: boolean
@@ -676,6 +678,10 @@ export async function executeWorkflowService(
           status: 'failed',
           aborted: 'timeout',
           output: compactTimeoutOutput,
+          blockOutputs: await compactServiceOutput(
+            pickRunBlockOutputs(selectedOutputs, workflowBlocks, result.logs),
+            compactionContext
+          ),
           error: { message: timeoutErrorMessage, code: 'TIMEOUT' },
           resolvedSecretTraceProvenance: result.executionState?.resolvedSecretTraceProvenance,
           hasResponseBlock: false,
@@ -703,6 +709,10 @@ export async function executeWorkflowService(
           : result.output
 
       const compactOutput = await compactServiceOutput(outputWithBase64, compactionContext)
+      const blockOutputs = await compactServiceOutput(
+        pickRunBlockOutputs(selectedOutputs, workflowBlocks, result.logs),
+        compactionContext
+      )
 
       const status: ExecuteWorkflowServiceRun['status'] =
         result.status === 'paused'
@@ -720,6 +730,7 @@ export async function executeWorkflowService(
         status,
         aborted: null,
         output: compactOutput,
+        blockOutputs,
         error:
           status === 'failed' || (status === 'cancelled' && result.error)
             ? classifyExecutionError(result.error ? new Error(result.error) : undefined, result)
@@ -767,9 +778,14 @@ export async function executeWorkflowService(
       reqLogger.error(`Execution failed: ${errorMessage}`)
 
       let compactErrorOutput: NormalizedBlockOutput | undefined
+      let compactErrorBlockOutputs: Record<string, unknown> | null = null
       if (executionResult && Object.hasOwn(executionResult, 'output')) {
         try {
           compactErrorOutput = await compactServiceOutput(executionResult.output, compactionContext)
+          compactErrorBlockOutputs = await compactServiceOutput(
+            pickRunBlockOutputs(selectedOutputs, workflowBlocks, executionResult.logs),
+            compactionContext
+          )
         } catch (compactError) {
           if (
             compactError instanceof PayloadSizeLimitError &&
@@ -795,6 +811,7 @@ export async function executeWorkflowService(
         status: 'failed',
         aborted: null,
         output: compactErrorOutput,
+        blockOutputs: compactErrorBlockOutputs,
         error: classifyExecutionError(error, executionResult),
         resolvedSecretTraceProvenance:
           executionResult?.executionState?.resolvedSecretTraceProvenance,
@@ -854,4 +871,70 @@ export async function resolveOutputIds(
     selectedOutputs,
     currentBlocks: blocks as Record<string, BlockState>,
   })
+}
+
+const UUID_LENGTH = 36
+
+function resolveOutputPath(value: unknown, path: string[]): unknown {
+  let current: unknown = value
+  for (const segment of path) {
+    if (current == null || typeof current !== 'object') return undefined
+    current = (current as Record<string, unknown>)[segment]
+  }
+  return current
+}
+
+/**
+ * Projects `selectedOutputs` onto a finished run's block logs, so a sync run
+ * answers with the named blocks' outputs in the same response — no second call
+ * to the run resource and no block-name→id translation for the caller.
+ *
+ * Keys are the caller's original selector strings. A selector whose block never
+ * ran, resolved to no block, or whose path is absent is omitted — the same
+ * missing-fields-are-omitted contract the streamed and finished-run selections
+ * follow. The last log per block wins, so a block inside a loop reports its
+ * final iteration's output.
+ */
+export function pickRunBlockOutputs(
+  selectedOutputs: string[] | undefined,
+  blocks: Record<string, unknown>,
+  logs: BlockLog[] | undefined
+): Record<string, unknown> | null {
+  if (!selectedOutputs || selectedOutputs.length === 0) return null
+
+  const outputByBlockId = new Map<string, unknown>()
+  for (const log of logs ?? []) {
+    if (log.output !== undefined) outputByBlockId.set(log.blockId, log.output)
+  }
+
+  const resolved = resolveOutputIds(selectedOutputs, blocks) ?? []
+  const picked: Record<string, unknown> = {}
+  for (let i = 0; i < selectedOutputs.length; i++) {
+    const selector = selectedOutputs[i]
+    const resolvedId = resolved[i]
+    if (!selector || !resolvedId) continue
+
+    let blockId: string
+    let path: string[]
+    if (isValidUuid(resolvedId)) {
+      blockId = resolvedId
+      path = []
+    } else if (
+      resolvedId.charAt(UUID_LENGTH) === '_' &&
+      isValidUuid(resolvedId.slice(0, UUID_LENGTH))
+    ) {
+      blockId = resolvedId.slice(0, UUID_LENGTH)
+      path = resolvedId.slice(UUID_LENGTH + 1).split('.')
+    } else {
+      continue
+    }
+
+    if (!outputByBlockId.has(blockId)) continue
+    const value =
+      path.length === 0
+        ? outputByBlockId.get(blockId)
+        : resolveOutputPath(outputByBlockId.get(blockId), path)
+    if (value !== undefined) picked[selector] = value
+  }
+  return picked
 }

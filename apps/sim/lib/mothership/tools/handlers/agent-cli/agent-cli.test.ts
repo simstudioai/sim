@@ -220,3 +220,130 @@ describe('workflow grep', () => {
     expect(result.stderr).toContain('Unexpected request')
   })
 })
+
+describe('flag parsing', () => {
+  it('collects --flag value, --flag=value, and bare flags without shifting positionals', () => {
+    const match = matchAgentCliCommand([
+      'logs',
+      'query',
+      'wf-1',
+      '--block',
+      'Router',
+      '--limit=5',
+      '--verbose',
+    ])
+    expect(match?.rest).toEqual(['wf-1'])
+    expect(match?.flags.get('block')).toBe('Router')
+    expect(match?.flags.get('limit')).toBe('5')
+    expect(match?.flags.get('verbose')).toBe(true)
+  })
+})
+
+describe('logs query', () => {
+  const RUNS_PATH = '/api/v2/workflows/wf-1/runs'
+  const runsResponse = {
+    data: [
+      { runId: 'run-1', status: 'completed', startedAt: 't1' },
+      { runId: 'run-2', status: 'completed', startedAt: 't2' },
+      { runId: 'run-3', status: 'failed', startedAt: 't3' },
+    ],
+  }
+  const routedTrace = {
+    data: {
+      traceSpans: [
+        {
+          name: 'Start',
+          children: [{ name: 'Router', status: 'success', output: { route: 'priority', n: 2 } }],
+        },
+      ],
+    },
+  }
+  const unroutedTrace = {
+    data: { traceSpans: [{ name: 'Start', output: {} }] },
+  }
+
+  it('emits one row per run with the block field dug from nested spans', async () => {
+    const match = matchAgentCliCommand([
+      'logs',
+      'query',
+      'wf-1',
+      '--block',
+      'Router',
+      '--field',
+      'output.route',
+    ])
+    const result = await executeAgentCliCommand(
+      match!,
+      runtimeWith({
+        [RUNS_PATH]: runsResponse,
+        '/api/v2/logs/run-1': routedTrace,
+        '/api/v2/logs/run-2': unroutedTrace,
+        '/api/v2/logs/run-3': routedTrace,
+      })
+    )
+    expect(result.exitCode).toBe(0)
+    const report = JSON.parse(result.stdout)
+    expect(report.runsScanned).toBe(3)
+    expect(report.rows).toEqual([
+      {
+        runId: 'run-1',
+        startedAt: 't1',
+        runStatus: 'completed',
+        hits: 1,
+        blockStatus: 'success',
+        value: 'priority',
+      },
+      { runId: 'run-2', startedAt: 't2', runStatus: 'completed', hits: 0, value: null },
+      {
+        runId: 'run-3',
+        startedAt: 't3',
+        runStatus: 'failed',
+        hits: 1,
+        blockStatus: 'success',
+        value: 'priority',
+      },
+    ])
+  })
+
+  it('filters rows with --where and reports unavailable traces instead of failing', async () => {
+    const match = matchAgentCliCommand([
+      'logs',
+      'query',
+      'wf-1',
+      '--block',
+      'Router',
+      '--where',
+      'output.route=priority',
+    ])
+    const result = await executeAgentCliCommand(
+      match!,
+      runtimeWith({
+        [RUNS_PATH]: runsResponse,
+        '/api/v2/logs/run-1': routedTrace,
+        '/api/v2/logs/run-2': unroutedTrace,
+      })
+    )
+    expect(result.exitCode).toBe(0)
+    const report = JSON.parse(result.stdout)
+    expect(report.missingTrace).toBe(1)
+    expect(report.rows).toEqual([
+      {
+        runId: 'run-1',
+        startedAt: 't1',
+        runStatus: 'completed',
+        hits: 1,
+        blockStatus: 'success',
+        value: { route: 'priority', n: 2 },
+      },
+      { runId: 'run-2', startedAt: 't2', runStatus: 'completed', hits: 0, value: null },
+      { runId: 'run-3', startedAt: 't3', runStatus: 'failed', note: 'trace unavailable' },
+    ])
+  })
+
+  it('fails usefully without a workflow id or --block', async () => {
+    const match = matchAgentCliCommand(['logs', 'query', 'wf-1'])
+    const result = await executeAgentCliCommand(match!, runtimeWith({}))
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('--block')
+  })
+})
