@@ -21,9 +21,9 @@ interface FileSearchResponse extends ToolResponse {
  */
 const TOOL_DESCRIPTIONS: Record<FileSearchMode, string> = {
   regex:
-    'Search every active workspace file for lines matching a regular expression, and return each match with its file ID and line number.',
+    'Search every active workspace file for lines matching a regular expression, and return each matching line once with its file ID and line number.',
   exact:
-    'Search every active workspace file for lines containing an exact piece of text, and return each match with its file ID and line number.',
+    'Search every active workspace file for lines containing an exact piece of text, and return each matching line once with its file ID and line number.',
 }
 
 const QUERY_DESCRIPTIONS: Record<FileSearchMode, string> = {

@@ -32,6 +32,16 @@ describe('analyzeFileSearchRegex', () => {
       expect(run('ab{3}cd')).toBe(6)
     })
 
+    /**
+     * `(?:a(?:x|y)bc){2}` matches `axbcaybc`, whose `bca` spans the join between
+     * the two copies — a run neither copy contains on its own.
+     */
+    it('credits the run a repetition creates where its copies meet', () => {
+      expect(run('(?:a(?:x|y)bc){2}')).toBe(3)
+      expect(run('(?:ab(?:x|y)c){3}')).toBe(3)
+      expect(run('(?:a(?:x|y)bc){1}')).toBe(2)
+    })
+
     /** `(?:ab){2,5}` cannot match without `abab` in it, so the run is 4, not 2. */
     it('credits a variable repeat with the copies its minimum forces', () => {
       expect(run('(?:ab){2,5}')).toBe(4)

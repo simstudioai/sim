@@ -90,6 +90,15 @@ function runLength(text: string): number {
   return [...text].length
 }
 
+/**
+ * A join of two capped strings is twice the cap, so scores are capped as well —
+ * it keeps `best` inside the same bound the strings are held to, and a run
+ * longer than the cap is still a run longer than the gate it is compared to.
+ */
+function boundedRun(text: string): number {
+  return Math.min(FILE_SEARCH_PATTERN_LITERAL_CAP, runLength(text))
+}
+
 function head(text: string): string {
   return text.length > FILE_SEARCH_PATTERN_LITERAL_CAP
     ? text.slice(0, FILE_SEARCH_PATTERN_LITERAL_CAP)
@@ -123,7 +132,7 @@ function concatenate(left: LiteralGuarantee, right: LiteralGuarantee): LiteralGu
     exact: left.exact !== null && right.exact !== null ? head(left.exact + right.exact) : null,
     prefix: head(left.exact !== null ? left.exact + right.prefix : left.prefix),
     suffix: tail(right.exact !== null ? left.suffix + right.exact : right.suffix),
-    best: Math.max(left.best, right.best, runLength(joined)),
+    best: Math.max(left.best, right.best, boundedRun(joined)),
     zeroWidth: left.zeroWidth && right.zeroWidth,
   }
 }
@@ -189,11 +198,17 @@ function repeat(atom: LiteralGuarantee, min: number, max: number): LiteralGuaran
       zeroWidth: false,
     }
   }
+  /**
+   * An atom with no fixed string still repeats back to back, so from two copies
+   * on, its own tail and head meet: every match of `(?:a(?:x|y)bc){2}` contains
+   * `bca`, which neither copy contains alone.
+   */
+  const acrossCopies = min >= 2 ? boundedRun(tail(atom.suffix) + head(atom.prefix)) : 0
   return {
     exact: null,
     prefix: atom.prefix,
     suffix: atom.suffix,
-    best: atom.best,
+    best: Math.max(atom.best, acrossCopies),
     zeroWidth: atom.zeroWidth,
   }
 }
