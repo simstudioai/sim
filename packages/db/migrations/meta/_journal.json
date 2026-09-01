@@ -2217,8 +2217,8 @@
     {
       "idx": 317,
       "version": "7",
-      "when": 1788256060672,
-      "tag": "0317_managed_mcp_external_identity",
+      "when": 1788284109673,
+      "tag": "0317_credential_group_managed_mcp",
       "breakpoints": true
     }
   ]

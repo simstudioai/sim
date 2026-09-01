@@ -1,6 +1,6 @@
 {
-  "id": "3e774f5a-401e-40b7-a59e-c97238a721b9",
-  "prevId": "cfa8e676-67d0-48f3-97ea-c5a3c3dfa594",
+  "id": "7d3eae54-bbe1-4cdb-b9d6-bf430c8396c6",
+  "prevId": "1fafbd78-3e0f-4cc8-9a51-053a3b11af9e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -13037,6 +13037,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "capability_governed_user_id": {
+          "name": "capability_governed_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "enrichment_details": {
           "name": "enrichment_details",
           "type": "jsonb",
@@ -13129,6 +13135,15 @@
           "columnsFrom": ["row_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "table_row_executions_capability_governed_user_id_user_id_fk": {
+          "name": "table_row_executions_capability_governed_user_id_user_id_fk",
+          "tableFrom": "table_row_executions",
+          "tableTo": "user",
+          "columnsFrom": ["capability_governed_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -13223,6 +13238,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "capability_governed_user_id": {
+          "name": "capability_governed_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "requested_at": {
           "name": "requested_at",
           "type": "timestamp",
@@ -13291,6 +13312,28 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "table_run_dispatches_governed_active_idx": {
+          "name": "table_run_dispatches_governed_active_idx",
+          "columns": [
+            {
+              "expression": "capability_governed_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"table_run_dispatches\".\"status\" IN ('pending', 'dispatching')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -13317,6 +13360,15 @@
           "tableFrom": "table_run_dispatches",
           "tableTo": "user",
           "columnsFrom": ["triggered_by_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "table_run_dispatches_capability_governed_user_id_user_id_fk": {
+          "name": "table_run_dispatches_capability_governed_user_id_user_id_fk",
+          "tableFrom": "table_run_dispatches",
+          "tableTo": "user",
+          "columnsFrom": ["capability_governed_user_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
