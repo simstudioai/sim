@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import {
+  collectDanglingBlockOutputReferences,
   collectWorkflowFieldIssues,
   lintEditedWorkflowState,
   type WorkflowLintReport,
@@ -56,6 +57,11 @@ export async function buildWorkflowLintReport(
   scope: WorkflowLintScope
 ): Promise<WorkflowLintReport> {
   const unresolvedReferences: WorkflowLintUnresolvedReference[] = []
+
+  // Pure graph check, so it runs for every caller: a dangling block-output
+  // reference passes literal text through at run time on the surfaces that
+  // do not fail loudly (API bodies, agent prompts).
+  unresolvedReferences.push(...collectDanglingBlockOutputReferences(graph))
 
   if (scope.subjectUserId) {
     for (const collect of [collectUnresolvedReferences, collectUnresolvedAgentToolReferences]) {
