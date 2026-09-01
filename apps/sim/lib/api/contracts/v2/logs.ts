@@ -245,6 +245,20 @@ export const v2LogDetailSchema = z
       .nullable()
       .describe('Total execution duration in milliseconds, or null while unavailable.'),
     files: v2LogFilesSchema,
+    /**
+     * The identity the run acted as, captured by the run itself rather than read
+     * from the workflow row. Supersedes the deprecated `workflow.ownerEmail`,
+     * which named whoever the workflow currently belongs to — a mutable pointer
+     * that member removal reassigns, so it could describe someone who had nothing
+     * to do with a run that happened months earlier and contributed nothing to it
+     * beyond a personal-variable fallback.
+     */
+    executedByEmail: z
+      .email()
+      .nullable()
+      .describe(
+        'Email of the identity the run executed as: the caller for an interactive or personal-API-key run, and the workspace billing account for a schedule, webhook, deployed chat, or public API call. Null when the run failed before an identity was resolved.'
+      ),
     workflow: z
       .object({
         id: z.string().nullable().describe('Workflow identifier, or null when unavailable.'),
@@ -255,10 +269,20 @@ export const v2LogDetailSchema = z
           .describe(
             'Canonical folder path of the workflow, in the same form `folderPaths` accepts as a filter: `/` for a workflow at the workspace root. Null only when the path cannot be resolved — the folder has been deleted, or the workflow itself no longer exists.'
           ),
+        /**
+         * Retained only because it was a required field of this schema before
+         * `executedByEmail` replaced it, and removing it would break typed
+         * clients. It answers a different question than most readers assume: who
+         * the workflow belongs to now, which member removal reassigns and which
+         * says nothing about who ran any particular execution.
+         */
         ownerEmail: z
           .email()
           .nullable()
-          .describe('Workflow owner email, or null when unavailable.'),
+          .describe(
+            "Deprecated — use the run-level `executedByEmail` instead. Email of the workflow's current owner, or null when unavailable. This is a property of the workflow as it stands today, not of the run: it changes when workflow ownership is reassigned, and the owner is not the identity a background run executes as."
+          )
+          .meta({ deprecated: true }),
         workspaceId: z
           .string()
           .nullable()

@@ -611,6 +611,8 @@ export async function checkWebhookPreprocessing(
     const preprocessResult = await preprocessExecution({
       workflowId: foundWorkflow.id,
       userId: foundWorkflow.userId,
+      // The workflow owner, not whoever sent this delivery — nobody sent it.
+      userIdIsStoredReference: true,
       triggerType: 'webhook',
       executionId,
       requestId,

@@ -20,6 +20,7 @@ import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservati
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
+  getWorkspaceBilledAccountUserId,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import {
@@ -596,7 +597,6 @@ async function handleExecutePost(
         .select({
           isPublicApi: workflowTable.isPublicApi,
           isDeployed: workflowTable.isDeployed,
-          userId: workflowTable.userId,
           workspaceId: workflowTable.workspaceId,
         })
         .from(workflowTable)
@@ -607,8 +607,21 @@ async function handleExecutePost(
         return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
       }
 
+      /**
+       * An anonymous public-API call has no caller, so it acts as the workspace
+       * billing account — the identity preprocessing elects for exactly this
+       * case. The workflow owner is only the personal-variable fallback, and a
+       * public run resolves no personal variables at all, so gating on the
+       * owner's governance config would fail a public endpoint the moment that
+       * stored pointer's access lapsed.
+       */
+      const billedAccountUserId = await getWorkspaceBilledAccountUserId(wf.workspaceId)
+      if (!billedAccountUserId) {
+        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+      }
+
       try {
-        await validatePublicApiAllowed(wf.userId, wf.workspaceId)
+        await validatePublicApiAllowed(billedAccountUserId, wf.workspaceId)
       } catch (err) {
         if (err instanceof PublicApiNotAllowedError) {
           return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
@@ -616,7 +629,7 @@ async function handleExecutePost(
         throw err
       }
 
-      userId = wf.userId
+      userId = billedAccountUserId
       isPublicApiAccess = true
     } else {
       userId = auth.userId

@@ -54,8 +54,12 @@ const {
   }
 })
 
-const mockGetEffectiveEnvironmentSnapshot =
-  environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
+/**
+ * The execution path resolves two identities (workflow owner for personal
+ * variables, run actor for workspace ones), so it goes through
+ * `getExecutionEnvironment` rather than the single-identity snapshot reader.
+ */
+const mockGetExecutionEnvironment = environmentUtilsMockFns.mockGetExecutionEnvironment
 
 afterAll(resetEnvironmentUtilsMock)
 
@@ -299,7 +303,7 @@ describe('executeWebhookJob fault vs error handling', () => {
       executionTimeout: { async: 120_000 },
     })
     mockResolveWebhookRecordProviderConfig.mockImplementation(async (record) => record)
-    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+    mockGetExecutionEnvironment.mockResolvedValue({
       personalEncrypted: {},
       workspaceEncrypted: {},
       personalDecrypted: {},
@@ -496,7 +500,7 @@ describe('executeWebhookJob fault vs error handling', () => {
   })
 
   it('does not pass provider-config provenance absent from the trigger input', async () => {
-    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+    mockGetExecutionEnvironment.mockResolvedValue({
       personalEncrypted: { WEBHOOK_SECRET: 'personal-ciphertext' },
       workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
       personalDecrypted: { WEBHOOK_SECRET: 'personal-value' },
@@ -550,7 +554,7 @@ describe('executeWebhookJob fault vs error handling', () => {
   })
 
   it('passes provider-config provenance when its value crosses in the trigger input', async () => {
-    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+    mockGetExecutionEnvironment.mockResolvedValue({
       personalEncrypted: {},
       workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
       personalDecrypted: {},
@@ -601,7 +605,7 @@ describe('executeWebhookJob fault vs error handling', () => {
   it('installs provenance before a post-resolution webhook setup failure', async () => {
     const rawMessage = 'Webhook handler exposed activated-secret-value'
     const rawError = new Error(rawMessage)
-    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+    mockGetExecutionEnvironment.mockResolvedValue({
       personalEncrypted: {},
       workspaceEncrypted: { WEBHOOK_SECRET: 'workspace-ciphertext' },
       personalDecrypted: {},
