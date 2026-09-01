@@ -25,39 +25,39 @@ const { stubHandlerModule } = vi.hoisted(() => ({
     ),
 }))
 
-vi.mock('@/lib/copilot/tools/handlers/deployment/custom-block', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/deployment/deploy', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/deployment/manage', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/function-execute', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/integration-tools', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/management/connect-slack-bot', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/management/manage-credential', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/management/manage-custom-tool', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/management/manage-mcp-tool', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/management/manage-sandbox', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/management/manage-skill', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/materialize-file', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/oauth', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/resources', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/restore-resource', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/run-code', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/vfs', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/vfs-mutate', stubHandlerModule)
-vi.mock('@/lib/copilot/tools/handlers/workflow/queries', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/deployment/custom-block', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/deployment/deploy', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/deployment/manage', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/function-execute', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/integration-tools', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/management/connect-slack-bot', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/management/manage-credential', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/management/manage-custom-tool', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/management/manage-mcp-tool', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/management/manage-sandbox', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/management/manage-skill', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/materialize-file', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/oauth', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/resources', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/restore-resource', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/run-code', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/vfs', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/vfs-mutate', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/workflow/queries', stubHandlerModule)
 
 /** Server-router tools are appended to the map from their own registry, which this test does not cover. */
-vi.mock('@/lib/copilot/tools/server/router', () => ({ getRegisteredServerToolNames: () => [] }))
+vi.mock('@/lib/mothership/tools/server/router', () => ({ getRegisteredServerToolNames: () => [] }))
 
-import { hasHandler } from '@/lib/copilot/tool-executor/executor'
-import { buildHandlerMap } from '@/lib/copilot/tool-executor/handler-map'
-import { ensureHandlersRegistered } from '@/lib/copilot/tool-executor/register-handlers'
+import { hasHandler } from '@/lib/mothership/tool-executor/executor'
+import { buildHandlerMap } from '@/lib/mothership/tool-executor/handler-map'
+import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
 import {
   getToolEntry,
   isSimExecuted,
   toolRequiresApproval,
   toolRequiresApprovalLane,
-} from '@/lib/copilot/tool-executor/router'
-import { executeCancelWorkflowRun } from '@/lib/copilot/tools/handlers/workflow/mutations'
+} from '@/lib/mothership/tool-executor/router'
+import { executeCancelWorkflowRun } from '@/lib/mothership/tools/handlers/workflow/mutations'
 
 describe('workflow-run cancellation tool routing', () => {
   it('routes cancellation through Sim with write permission and explicit approval', () => {
