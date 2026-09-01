@@ -349,7 +349,7 @@ describe('SailPoint internal tool handler', () => {
   it('sends the experimental header for account-selection discovery', async () => {
     mockFetch
       .mockResolvedValueOnce(tokenResponse())
-      .mockResolvedValueOnce(Response.json({ accountsSelections: [] }))
+      .mockResolvedValueOnce(Response.json({ identities: [] }))
     const response = await request('sailpoint_get_account_selections', {
       requestedFor: ['identity'],
       requestedItems: [{ type: 'ROLE', id: 'role' }],
@@ -361,12 +361,12 @@ describe('SailPoint internal tool handler', () => {
   })
 
   it.each([
-    ['sailpoint_get_account_selections', 'accountSelections', { accountsSelections: [] }],
+    ['sailpoint_get_account_selections', 'accountSelections', { identities: [] }],
     ['sailpoint_get_access_request_config', 'accessRequestConfig', { accessRequest: {} }],
     [
       'sailpoint_get_entitlement_request_config',
       'entitlementRequestConfig',
-      { grantRequestConfig: {} },
+      { accessRequestConfig: {} },
     ],
   ])('maps %s to its resource-named output', async (operation, outputKey, providerBody) => {
     clearSailPointTokenStateForTests()

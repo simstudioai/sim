@@ -95,6 +95,28 @@ describe('SailPoint exact input contracts', () => {
     ).toThrow('REVOKE_ACCESS allows at most one entitlement item')
   })
 
+  it('allows SailPoint to auto-resolve a machine revoke account when nativeIdentity is omitted', () => {
+    expect(
+      sailpointRequestAccessTool.operation.input({
+        ...credentials,
+        requestType: 'REVOKE_ACCESS',
+        requestedForWithRequestedItems: [
+          {
+            identityId: 'machine',
+            identityType: 'MACHINE',
+            requestedItems: [{ type: 'ENTITLEMENT', id: 'entitlement', comment: 'remove' }],
+          },
+        ],
+      })
+    ).toMatchObject({
+      requestedForWithRequestedItems: [
+        {
+          requestedItems: [{ type: 'ENTITLEMENT', id: 'entitlement', comment: 'remove' }],
+        },
+      ],
+    })
+  })
+
   it('supports account-selection discovery without a preselected account', () => {
     expect(
       sailpointGetAccountSelectionsTool.operation.input({
