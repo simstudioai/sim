@@ -87,6 +87,8 @@ const ROOM_WORKSPACE_RESOLVERS: Partial<Record<RoomType, RoomWorkspaceResolver>>
   [ROOM_TYPES.WORKSPACE_FILES]: resolveWorkspaceRoomWorkspace,
   // A workspace-tables room is addressed directly by its workspace id.
   [ROOM_TYPES.WORKSPACE_TABLES]: resolveWorkspaceRoomWorkspace,
+  // A workspace-workflows room is addressed directly by its workspace id.
+  [ROOM_TYPES.WORKSPACE_WORKFLOWS]: resolveWorkspaceRoomWorkspace,
   // A file-doc room is addressed by file id; resolve it to its workspace.
   [ROOM_TYPES.WORKSPACE_FILE_DOC]: resolveFileDocWorkspace,
   // A table room is addressed by table id; resolve it to its workspace.

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   resolveContext: vi.fn(),
   resolvePermission: vi.fn(),
   notify: vi.fn(),
+  notifyWorkspace: vi.fn(),
   restoreRecord: vi.fn(),
   folderIndex: vi.fn(),
 }))
@@ -33,7 +34,10 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 vi.mock('@/lib/workflows/application/context', () => ({
   resolveArchivedWorkflowApplicationContext: mocks.resolveContext,
 }))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkflowUpdated: mocks.notify,
+  notifyWorkspaceWorkflowsChanged: mocks.notifyWorkspace,
+}))
 vi.mock('@/lib/workflows/lifecycle', () => ({ restoreWorkflow: mocks.restoreRecord }))
 vi.mock('@/lib/folders/queries', () => ({ loadActiveFolderPathIndex: mocks.folderIndex }))
 

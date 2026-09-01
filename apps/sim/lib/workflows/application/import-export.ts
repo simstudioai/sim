@@ -5,6 +5,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -96,6 +97,7 @@ export const importWorkflow = defineAuthorizedWorkflowUseCase({
       },
     }
   },
+  afterSuccess: ({ result }) => notifyWorkspaceWorkflowsChanged(result.workflow.workspaceId),
 })
 
 export const exportWorkflow = defineAuthorizedWorkflowUseCase({

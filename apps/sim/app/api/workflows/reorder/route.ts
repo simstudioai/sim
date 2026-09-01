@@ -16,6 +16,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkflowReorderAPI')
@@ -82,6 +83,8 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
     logger.info(
       `[${requestId}] Reordered ${validUpdates.length} workflows in workspace ${workspaceId}`
     )
+
+    await notifyWorkspaceWorkflowsChanged(workspaceId)
 
     return NextResponse.json({ success: true, updated: validUpdates.length })
   } catch (error) {
