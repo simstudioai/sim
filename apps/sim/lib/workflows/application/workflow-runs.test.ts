@@ -34,7 +34,7 @@ vi.mock('@/lib/workflows/executor/execution-queries', () => ({
 }))
 
 vi.mock('@/lib/workflows/executor/execution-status', () => ({
-  getWorkflowExecutionStatus: mocks.getStatus,
+  getProjectedWorkflowExecutionStatus: mocks.getStatus,
 }))
 
 vi.mock('@/lib/workflows/executor/execution-run-files', () => ({
@@ -81,9 +81,8 @@ describe('workflow run application use cases', () => {
     mocks.resolveRunContext.mockResolvedValue(runContext)
     mocks.list.mockResolvedValue({ data: [], nextCursor: null })
     mocks.getStatus.mockResolvedValue({
-      executionId: 'run-1',
-      workflowId: 'workflow-1',
-      status: 'completed',
+      status: { executionId: 'run-1', workflowId: 'workflow-1', status: 'completed' },
+      projection: { hideTraceSpans: false, hideCostInfo: false },
     })
     mocks.getRunFiles.mockResolvedValue({
       terminal: true,

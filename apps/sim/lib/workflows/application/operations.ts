@@ -454,8 +454,22 @@ export const workflowOperations = {
    * the run resource does not; it keeps `readRun`'s policy because the resource
    * being authorized is still the run — a run file is reachable only through
    * the run that recorded it, never as a standalone workspace file.
+   *
+   * `logs.trace_spans` is deliberately not a gate here, and the distinction is
+   * the one that capability draws everywhere else: it withholds *fields* inside
+   * a run, not the right to read one. `readRun` therefore withholds the file
+   * *listing* from a viewer whose group hides execution data — the descriptors
+   * are that data, and `includeFileBase64` is its bytes — while this operation,
+   * which resolves one already-named file id, stays governed by workspace role.
+   * A run file id exists nowhere but the execution data the same projection
+   * withholds, so hiding the listing removes the way to name a file rather than
+   * the right to fetch a named one.
+   *
+   * If that ever needs to become a refusal rather than a projection, it belongs
+   * in `capability` on this operation, where the funnel applies it — not in a
+   * check at one of the surfaces that reach it.
    */
-  // permission-group-exempt: a run's own output bytes belong to the run its reader may already open; files.bulk_download withholds the workspace file store, not run artifacts
+  // permission-group-exempt: a run's own output bytes belong to the run its reader may already open; files.bulk_download withholds the workspace file store, and logs.trace_spans withholds the run's listed fields — including readRun's file list — not the right to fetch one named file
   downloadRunFile: defineWorkspaceOperation({
     id: 'workflows.download_run_file',
     minimumRole: 'read',

@@ -175,16 +175,29 @@ function projectExecutionStatus(
   }
 }
 
+/** A projected status resource together with the projection that produced it. */
+export interface ProjectedWorkflowExecutionStatus {
+  status: WorkflowExecutionStatusResponse
+  projection: LogFieldProjection
+}
+
 /**
- * Reads the execution status resource, projected for the viewer.
+ * Reads the execution status resource, projected for the viewer, and reports
+ * the projection alongside it.
  *
- * Projection lives in this shared read rather than in each of its two route
+ * Projection lives in this shared read rather than in each of its route
  * adapters so the rule has one copy and the next consumer inherits it, and it
  * runs after the caller's authorization, on whichever branch answered.
+ *
+ * The projection is returned rather than kept private because a caller that
+ * appends more of the run's execution data to this resource has to withhold it
+ * on the same terms — a run's output *files* are the clearest case. Deriving
+ * that answer from the applied projection is what keeps the two from drifting;
+ * resolving the viewer's group a second time would be a second copy of the rule.
  */
-export async function getWorkflowExecutionStatus(
+export async function getProjectedWorkflowExecutionStatus(
   input: GetWorkflowExecutionStatusInput
-): Promise<WorkflowExecutionStatusResponse | null> {
+): Promise<ProjectedWorkflowExecutionStatus | null> {
   const status = await readWorkflowExecutionStatus(input)
   if (!status) return null
   const projection = await resolveLogFieldProjection(
@@ -192,7 +205,17 @@ export async function getWorkflowExecutionStatus(
     input.workspaceId,
     input.workspaceOrganizationId
   )
-  return projectExecutionStatus(status, projection)
+  return { status: projectExecutionStatus(status, projection), projection }
+}
+
+/**
+ * The projected status resource alone, for a caller that renders nothing beyond
+ * it.
+ */
+export async function getWorkflowExecutionStatus(
+  input: GetWorkflowExecutionStatusInput
+): Promise<WorkflowExecutionStatusResponse | null> {
+  return (await getProjectedWorkflowExecutionStatus(input))?.status ?? null
 }
 
 async function readWorkflowExecutionStatus(

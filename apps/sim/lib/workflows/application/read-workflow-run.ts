@@ -13,7 +13,7 @@ import {
   getWorkflowRunFiles,
   type WorkflowRunFileDescriptor,
 } from '@/lib/workflows/executor/execution-run-files'
-import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
+import { getProjectedWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
 
 /**
  * Selectors this resource can never answer, so the caller hears about them.
@@ -68,7 +68,7 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
        * `undefined` and reads the run whole. Substituting the key's creator would
        * apply a bystander's group to every caller of a shared credential.
        */
-      const status = await getWorkflowExecutionStatus({
+      const projected = await getProjectedWorkflowExecutionStatus({
         workflowId: context.workflowId,
         executionId: context.runId,
         includeOutput: input.includeOutput,
@@ -77,7 +77,8 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         workspaceOrganizationId: context.workspaceOrganizationId,
         viewerUserId: resolvePrincipalSubjectUserId(principal),
       })
-      if (!status) throw new OrchestrationError('not_found', 'Run not found')
+      if (!projected) throw new OrchestrationError('not_found', 'Run not found')
+      const { status, projection } = projected
 
       /**
        * A run whose `blockOutputs` the viewer's group withholds joins the same
@@ -99,14 +100,24 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
        * a list it did not request. Derived from the run's own recording, which
        * is also where the download endpoint re-derives each storage key.
        *
+       * They follow the viewer's projection for the same reason. A run's output
+       * files *are* its execution data — the descriptors name them, and
+       * `includeFileBase64` hands back their bytes — so a group that withholds
+       * `finalOutput` and `blockOutputs` under `logs.trace_spans` and then let
+       * the file list through would return the withheld output one field over.
+       * The list is `null`, exactly as for a caller that asked for no output,
+       * and the read is skipped rather than performed and discarded.
+       *
        * This re-reads the run rather than reusing what the status read already
        * loaded, and must: the status read materializes execution data *for
        * display*, a projection that strips `key` and `context` — exactly the
        * fields a file descriptor needs — and it also answers from the job queue
        * for runs that have no log row yet.
+       *
+       * permission-group-enforced: logs.trace_spans
        */
       let files: WorkflowRunFileDescriptor[] | null = null
-      if (input.includeOutput) {
+      if (input.includeOutput && !projection.hideTraceSpans) {
         const runFiles = await getWorkflowRunFiles({
           workflowId: context.workflowId,
           runId: context.runId,
