@@ -1449,7 +1449,7 @@ describe('createStreamingResponse agent-events-v1', () => {
         selectedOutputs: ['agent-1_answer'],
       },
       executeFn: async ({ onStream }) => {
-        let sink: { onEvent: (event: unknown) => void | Promise<void> } | undefined
+        let sink: AgentStreamSink | undefined
         const onStreamPromise = onStream({
           blockId: 'agent-1',
           stream: new ReadableStream<Uint8Array>({
@@ -1459,7 +1459,7 @@ describe('createStreamingResponse agent-events-v1', () => {
             },
           }),
           streamFormat: 'text',
-          subscribe: (nextSink: { onEvent: (event: unknown) => void | Promise<void> }) => {
+          subscribe: (nextSink) => {
             sink = nextSink
             return () => {}
           },
@@ -1472,7 +1472,7 @@ describe('createStreamingResponse agent-events-v1', () => {
             logs: [],
             metadata: {},
           },
-        } as any)
+        })
 
         await sink?.onEvent({ type: 'text_delta', text: 'Live ', turn: 'pending' })
         await sink?.onEvent({ type: 'text_delta', text: 'answer', turn: 'pending' })
@@ -1483,7 +1483,7 @@ describe('createStreamingResponse agent-events-v1', () => {
           success: true,
           output: { answer: 'Live answer' },
           logs: [],
-        } as any
+        }
       },
     })
 
