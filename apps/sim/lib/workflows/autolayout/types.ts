@@ -1,6 +1,6 @@
 import type { BlockState, Position } from '@/stores/workflows/workflow/types'
 
-export type { Edge } from 'reactflow'
+export type { Edge } from '@xyflow/react'
 
 export interface LayoutOptions {
   horizontalSpacing?: number

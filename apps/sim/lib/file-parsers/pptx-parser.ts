@@ -2,15 +2,15 @@ import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import { FileParserError, isEncryptedOfficeParserError } from '@/lib/file-parsers/errors'
-import { loadParseOfficeAsync } from '@/lib/file-parsers/officeparser-module'
-import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
+import { parseOfficeText } from '@/lib/file-parsers/officeparser-module'
+import type { FileParseOptions, FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
 const logger = createLogger('PptxParser')
 
 export class PptxParser implements FileParser {
-  async parseFile(filePath: string): Promise<FileParseResult> {
+  async parseFile(filePath: string, options: FileParseOptions = {}): Promise<FileParseResult> {
     if (!filePath) {
       throw new Error('No file path provided')
     }
@@ -21,23 +21,22 @@ export class PptxParser implements FileParser {
 
     logger.info(`Parsing PowerPoint file: ${filePath}`)
 
-    const buffer = await readFile(filePath)
-    return this.parseBuffer(buffer)
+    const buffer = await readFile(filePath, { signal: options.signal })
+    return this.parseBuffer(buffer, options)
   }
 
-  async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
+  async parseBuffer(buffer: Buffer, options: FileParseOptions = {}): Promise<FileParseResult> {
     logger.info('Parsing PowerPoint buffer, size:', buffer.length)
 
+    options.signal?.throwIfAborted()
     if (!buffer || buffer.length === 0) {
       throw new FileParserError('empty_input', 'Empty buffer provided')
     }
 
     assertOoxmlArchiveWithinLimits(buffer)
 
-    const parseOfficeAsync = await loadParseOfficeAsync()
-
     try {
-      const result = await parseOfficeAsync(buffer)
+      const result = await parseOfficeText(buffer, options)
 
       if (!result || typeof result !== 'string') {
         return this.fallbackExtraction(buffer)
@@ -55,6 +54,7 @@ export class PptxParser implements FileParser {
         },
       }
     } catch (extractError) {
+      options.signal?.throwIfAborted()
       if (isEncryptedOfficeParserError(extractError)) {
         throw new FileParserError(
           'encrypted_file',

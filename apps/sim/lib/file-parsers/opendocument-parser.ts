@@ -2,8 +2,8 @@ import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import { FileParserError, isEncryptedOfficeParserError } from '@/lib/file-parsers/errors'
-import { loadParseOfficeAsync } from '@/lib/file-parsers/officeparser-module'
-import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
+import { parseOfficeText } from '@/lib/file-parsers/officeparser-module'
+import type { FileParseOptions, FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
@@ -24,7 +24,7 @@ const logger = createLogger('OpenDocumentParser')
  * and renders with per-sheet structure rather than one flat text run.
  */
 export class OpenDocumentParser implements FileParser {
-  async parseFile(filePath: string): Promise<FileParseResult> {
+  async parseFile(filePath: string, options: FileParseOptions = {}): Promise<FileParseResult> {
     if (!filePath) {
       throw new Error('No file path provided')
     }
@@ -33,11 +33,12 @@ export class OpenDocumentParser implements FileParser {
       throw new Error(`File not found: ${filePath}`)
     }
 
-    const buffer = await readFile(filePath)
-    return this.parseBuffer(buffer)
+    const buffer = await readFile(filePath, { signal: options.signal })
+    return this.parseBuffer(buffer, options)
   }
 
-  async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
+  async parseBuffer(buffer: Buffer, options: FileParseOptions = {}): Promise<FileParseResult> {
+    options.signal?.throwIfAborted()
     if (!buffer || buffer.length === 0) {
       throw new FileParserError('empty_input', 'Empty buffer provided')
     }
@@ -48,13 +49,12 @@ export class OpenDocumentParser implements FileParser {
      */
     assertOoxmlArchiveWithinLimits(buffer)
 
-    const parseOfficeAsync = await loadParseOfficeAsync()
-
     let extracted: string
     try {
-      const result = await parseOfficeAsync(buffer)
+      const result = await parseOfficeText(buffer, options)
       extracted = typeof result === 'string' ? result : ''
     } catch (error) {
+      options.signal?.throwIfAborted()
       logger.error('OpenDocument parsing failed', { error: (error as Error).message })
       if (isEncryptedOfficeParserError(error)) {
         throw new FileParserError(

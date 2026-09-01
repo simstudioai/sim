@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useUpdateNodeInternals } from 'reactflow'
+import { useUpdateNodeInternals } from '@xyflow/react'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface BlockDimensions {

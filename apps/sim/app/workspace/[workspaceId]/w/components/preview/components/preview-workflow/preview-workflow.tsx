@@ -1,17 +1,18 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
-import { useParams } from 'next/navigation'
-import ReactFlow, {
+import {
   ConnectionLineType,
   type Edge,
   type EdgeTypes,
   type Node,
   type NodeTypes,
+  ReactFlow,
   ReactFlowProvider,
   useReactFlow,
-} from 'reactflow'
-import 'reactflow/dist/style.css'
+} from '@xyflow/react'
+import { useParams } from 'next/navigation'
+import '@xyflow/react/dist/style.css'
 
 import { cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'

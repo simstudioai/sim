@@ -8,10 +8,10 @@ FROM oven/bun:1.3.14-slim AS base
 # the version is kept in lockstep with the `isolated-vm` pin in
 # apps/sim/package.json — Node 24 (ABI 137) requires isolated-vm 6.x.
 #
-# Only what the running container needs belongs here. ffmpeg backs the
-# `fluent-ffmpeg` serverExternalPackage; python3 is the node-gyp interpreter and
-# is kept because build-base inherits from this stage. The compiler toolchain
-# lives in build-base so the runner does not ship it.
+# Only what the running container needs belongs here. ffmpeg backs the media
+# subprocess adapter; python3 is the node-gyp interpreter and is kept because
+# build-base inherits from this stage. The compiler toolchain lives in build-base
+# so the runner does not ship it.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -39,15 +39,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 FROM build-base AS pruner
 WORKDIR /app
 
-RUN bun install -g turbo@2.9.6
-
 COPY . .
 
 # Read the package name from the app manifest. The published CLI also owns the
 # `sim` package name, so a hard-coded historical name can silently prune the CLI
 # instead of the application after either package is renamed.
 RUN APP_PACKAGE_NAME="$(bun -e "console.log(require('./apps/sim/package.json').name)")" && \
-    turbo prune "$APP_PACKAGE_NAME" --docker
+    TURBO_VERSION="$(bun -e "console.log(require('./package.json').devDependencies.turbo)")" && \
+    bunx --bun "turbo@${TURBO_VERSION}" prune "$APP_PACKAGE_NAME" --docker
 
 # ========================================
 # Dependencies Stage: Install Dependencies
@@ -76,7 +75,7 @@ COPY --from=pruner /app/bun.lock ./bun.lock
 # gate in bunfig.toml on every production image build.
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     --mount=type=cache,id=npm-cache,target=/root/.npm \
-    HUSKY=0 bun install --ignore-scripts --linker=hoisted && \
+    HUSKY=0 bun install --frozen-lockfile --ignore-scripts --linker=hoisted && \
     cd node_modules/isolated-vm && JOBS=4 /app/node_modules/.bin/node-gyp rebuild --release
 
 # ========================================

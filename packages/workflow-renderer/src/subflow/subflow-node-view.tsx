@@ -3,13 +3,12 @@ import { ChipTag, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
 import { Ban, Lock, Repeat, Split } from '@sim/emcn/icons'
 import {
   Handle,
-  internalsSymbol,
   Position,
   type ReactFlowState,
   useStore as useReactFlowStore,
   useStoreApi as useReactFlowStoreApi,
   useUpdateNodeInternals,
-} from 'reactflow'
+} from '@xyflow/react'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, HANDLE_POSITIONS } from '../dimensions'
 import { OverflowSpan } from '../lib/overflow-span'
 import type { DiffStatus } from '../types'
@@ -29,7 +28,7 @@ import {
 import { getWorkflowTypeAccent } from '../workflow-block/workflow-block-view'
 
 /** Data attached to loop/parallel container nodes. */
-export interface SubflowNodeData {
+export interface SubflowNodeData extends Record<string, unknown> {
   width?: number
   height?: number
   parentId?: string
@@ -176,7 +175,7 @@ export function SubflowStartView({
   )
 
   const getConnectionNodeId = useCallback(
-    () => reactFlowStore.getState().connectionNodeId,
+    () => reactFlowStore.getState().connection.fromNode?.id ?? null,
     [reactFlowStore]
   )
 
@@ -207,7 +206,7 @@ export function SubflowStartView({
     if (!handleElement || !nodeElement) return
 
     const state = reactFlowStore.getState()
-    const sourceBounds = state.nodeInternals.get(parentId)?.[internalsSymbol]?.handleBounds?.source
+    const sourceBounds = state.nodeLookup.get(parentId)?.internals.handleBounds?.source
     const handleId = handleElement.dataset.handleid
     const handlePosition = handleElement.dataset.handlepos as Position | undefined
     const zoom = state.transform[2]
@@ -218,6 +217,8 @@ export function SubflowStartView({
     const [originX, originY] = state.nodeOrigin
     const nextBounds = {
       id: handleId,
+      nodeId: parentId,
+      type: 'source' as const,
       position: handlePosition,
       x: (handleBounds.left - nodeBounds.left - nodeBounds.width * originX) / zoom,
       y: (handleBounds.top - nodeBounds.top - nodeBounds.height * originY) / zoom,
@@ -366,7 +367,7 @@ export function SubflowNodeView({
   const height = data.height ?? 300
 
   const getConnectionNodeId = useCallback(
-    () => reactFlowStore.getState().connectionNodeId,
+    () => reactFlowStore.getState().connection.fromNode?.id ?? null,
     [reactFlowStore]
   )
 
@@ -399,7 +400,7 @@ export function SubflowNodeView({
     if (!handleElement || !nodeElement) return
 
     const state = reactFlowStore.getState()
-    const sourceBounds = state.nodeInternals.get(id)?.[internalsSymbol]?.handleBounds?.source
+    const sourceBounds = state.nodeLookup.get(id)?.internals.handleBounds?.source
     const handleId = handleElement.dataset.handleid
     const handlePosition = handleElement.dataset.handlepos as Position | undefined
     const zoom = state.transform[2]
@@ -410,6 +411,8 @@ export function SubflowNodeView({
     const [originX, originY] = state.nodeOrigin
     const nextBounds = {
       id: handleId,
+      nodeId: id,
+      type: 'source' as const,
       position: handlePosition,
       x: (handleBounds.left - nodeBounds.left - nodeBounds.width * originX) / zoom,
       y: (handleBounds.top - nodeBounds.top - nodeBounds.height * originY) / zoom,

@@ -1,5 +1,5 @@
+import type { EdgeTypes, NodeTypes } from '@xyflow/react'
 import dynamic from 'next/dynamic'
-import type { EdgeTypes, NodeTypes } from 'reactflow'
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { ConnectionBlockSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/connection-block-selector/connection-block-selector'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'

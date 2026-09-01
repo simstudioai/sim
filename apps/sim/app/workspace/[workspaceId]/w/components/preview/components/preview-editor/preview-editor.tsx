@@ -27,8 +27,8 @@ import {
   X,
 } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
+import { ReactFlowProvider } from '@xyflow/react'
 import { useParams } from 'next/navigation'
-import { ReactFlowProvider } from 'reactflow'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndexForSurface,

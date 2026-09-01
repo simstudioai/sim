@@ -4,11 +4,20 @@
 import { describe, expect, it } from 'vitest'
 import {
   getArrowNavigationDirection,
+  getNodeDataDimension,
   isPositionalTriggerBlock,
   reconcileCanvasEdges,
   reconcileCanvasNodes,
   shouldHighlightContainerDropTarget,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-canvas-helpers'
+
+describe('getNodeDataDimension', () => {
+  it('reads explicit node dimensions without treating arbitrary data as numeric', () => {
+    expect(getNodeDataDimension({ data: { width: 640 } }, 'width', 500)).toBe(640)
+    expect(getNodeDataDimension({ data: { width: '640' } }, 'width', 500)).toBe(500)
+    expect(getNodeDataDimension({ data: { width: 0 } }, 'width', 500)).toBe(500)
+  })
+})
 
 describe('getArrowNavigationDirection', () => {
   it('moves once for a fresh horizontal arrow press', () => {

@@ -17,7 +17,12 @@ import { OpenDocumentParser } from '@/lib/file-parsers/opendocument-parser'
 import { PdfParser } from '@/lib/file-parsers/pdf-parser'
 import { PptxParser } from '@/lib/file-parsers/pptx-parser'
 import { TxtParser } from '@/lib/file-parsers/txt-parser'
-import type { FileParseResult, FileParser, SupportedFileType } from '@/lib/file-parsers/types'
+import type {
+  FileParseOptions,
+  FileParseResult,
+  FileParser,
+  SupportedFileType,
+} from '@/lib/file-parsers/types'
 import { XlsxParser } from '@/lib/file-parsers/xlsx-parser'
 import { parseYAML, parseYAMLBuffer } from '@/lib/file-parsers/yaml-parser'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
@@ -84,9 +89,13 @@ const SUPPORTED_EXTENSIONS_TEXT = [...PARSERS.keys()].join(', ')
 /**
  * Parse a file based on its extension
  * @param filePath Path to the file
+ * @param options Cancellation options for parsers that support them
  * @returns Parsed content and metadata
  */
-export async function parseFile(filePath: string): Promise<FileParseResult> {
+export async function parseFile(
+  filePath: string,
+  options: FileParseOptions = {}
+): Promise<FileParseResult> {
   try {
     if (!filePath) {
       throw new Error('No file path provided')
@@ -105,7 +114,7 @@ export async function parseFile(filePath: string): Promise<FileParseResult> {
       )
     }
 
-    return await parser.parseFile(filePath)
+    return await parser.parseFile(filePath, options)
   } catch (error) {
     logger.error('File parsing error:', error)
     throw error
@@ -116,6 +125,7 @@ export async function parseFile(filePath: string): Promise<FileParseResult> {
  * Parse a buffer based on file extension
  * @param buffer Buffer containing the file data
  * @param extension File extension without the dot (e.g., 'pdf', 'csv')
+ * @param options Cancellation options for parsers that support them
  * @returns Parsed content and metadata
  *
  * The zip-bomb guard runs here for every extension, not just the OOXML ones:
@@ -123,7 +133,11 @@ export async function parseFile(filePath: string): Promise<FileParseResult> {
  * for buffers that are not ZIP archives. Individual parsers still call it so a
  * direct `parser.parseBuffer` caller is covered too.
  */
-export async function parseBuffer(buffer: Buffer, extension: string): Promise<FileParseResult> {
+export async function parseBuffer(
+  buffer: Buffer,
+  extension: string,
+  options: FileParseOptions = {}
+): Promise<FileParseResult> {
   try {
     if (!buffer || buffer.length === 0) {
       throw new FileParserError('empty_input', 'Empty buffer provided')
@@ -152,7 +166,7 @@ export async function parseBuffer(buffer: Buffer, extension: string): Promise<Fi
       )
     }
 
-    return await parser.parseBuffer(buffer)
+    return await parser.parseBuffer(buffer, options)
   } catch (error) {
     logger.error('Buffer parsing error:', error)
     throw error
@@ -168,4 +182,4 @@ export function isSupportedFileType(extension: string): extension is SupportedFi
   return typeof extension === 'string' && PARSERS.has(extension.toLowerCase())
 }
 
-export type { FileParseResult, SupportedFileType }
+export type { FileParseOptions, FileParseResult, SupportedFileType }
