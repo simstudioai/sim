@@ -33,11 +33,9 @@ export interface RefreshDecision {
 }
 
 /**
- * The single staleness rule for OAuth credentials backed by the `account` table.
- *
- * Replaces three copies in `credential-service.ts`. `getOAuthToken`'s omitted the Microsoft
- * proactive-refresh arm, so credentials reached only that way could pass Microsoft's 90-day
- * inactivity deadline and die. Unifying on the stricter rule fixes that.
+ * The single staleness rule for OAuth credentials backed by the `account` table. Every
+ * resolution path must use it: a caller with its own copy is how Microsoft credentials
+ * once slipped past the 90-day inactivity deadline and died.
  */
 export function decideTokenRefresh(input: RefreshDecisionInput): RefreshDecision {
   const now = input.now ?? new Date()

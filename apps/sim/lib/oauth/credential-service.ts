@@ -80,20 +80,6 @@ export class ServiceAccountTokenError extends Error {
   }
 }
 
-interface AccountInsertData {
-  id: string
-  userId: string
-  providerId: string
-  accountId: string
-  accessToken: string
-  scope: string
-  createdAt: Date
-  updatedAt: Date
-  refreshToken?: string
-  idToken?: string
-  accessTokenExpiresAt?: Date
-}
-
 export interface ResolvedCredential {
   accountId: string
   workspaceId?: string
@@ -713,13 +699,10 @@ const OAUTH_CREDENTIAL_COLUMNS = {
 } as const
 
 /**
- * Finds the account row a provider's external identity maps to, projecting only its id.
- *
- * The connect flows that bypass Better Auth (Shopify, Instagram, Trello) each need this
- * before deciding between update and insert, and again to resolve the persisted row. They
- * must not select the whole row: that pulls the encrypted token columns for no reason.
+ * The id-only lookup {@link upsertProviderAccountTokens} runs on both sides of the upsert.
+ * Deliberately not a whole-row select: that would pull the token columns for no reason.
  */
-export async function findAccountIdByProviderAccount(params: {
+async function findAccountIdByProviderAccount(params: {
   userId: string
   providerId: string
   externalAccountId: string
@@ -736,29 +719,6 @@ export async function findAccountIdByProviderAccount(params: {
     )
     .limit(1)
   return row
-}
-
-/**
- * Safely inserts an account record, handling duplicate constraint violations gracefully.
- * If a duplicate is detected (unique constraint violation), logs a warning and returns success.
- */
-export async function safeAccountInsert(
-  data: AccountInsertData,
-  context: { provider: string; identifier?: string }
-): Promise<void> {
-  try {
-    await db.insert(account).values(await encryptAccountTokenColumns(data))
-    logger.info(`Created new ${context.provider} account for user`, { userId: data.userId })
-  } catch (error: any) {
-    if (getPostgresErrorCode(error) === '23505') {
-      logger.error(`Duplicate ${context.provider} account detected, credential already exists`, {
-        userId: data.userId,
-        identifier: context.identifier,
-      })
-    } else {
-      throw error
-    }
-  }
 }
 
 /**
@@ -801,22 +761,25 @@ export async function upsertProviderAccountTokens(params: {
     return { accountId: existing.id }
   }
 
-  await safeAccountInsert(
-    {
+  try {
+    await db.insert(account).values({
       id: generateId(),
       userId,
       providerId,
       accountId: externalAccountId,
       scope,
-      ...tokens,
+      ...(await encryptAccountTokenColumns(tokens)),
       ...(accessTokenExpiresAt ? { accessTokenExpiresAt } : {}),
       createdAt: now,
       updatedAt: now,
-    },
-    { provider: providerId, identifier }
-  )
+    })
+    logger.info(`Created new ${providerId} account`, { userId, identifier })
+  } catch (error) {
+    /** A concurrent connect may have won the unique-constraint race; the re-read below resolves it. */
+    if (getPostgresErrorCode(error) !== '23505') throw error
+    logger.warn(`Duplicate ${providerId} account detected`, { userId, identifier })
+  }
 
-  /** `safeAccountInsert` swallows a duplicate-key race, so the row may be someone else's insert. */
   const persisted = await findAccountIdByProviderAccount({ userId, providerId, externalAccountId })
   if (!persisted) {
     throw new Error(`${providerId} OAuth account ${externalAccountId} was not persisted`)
@@ -1233,7 +1196,8 @@ export type LoadedOAuthCredential = DecryptedAccount<{
 /** Loads an account row, decrypts it, and resolves its access token per the shared policy. */
 export async function resolveAccessTokenForAccount(
   requestId: string,
-  accountId: string
+  accountId: string,
+  options?: CredentialTokenResolutionOptions
 ): Promise<string | null> {
   const [row] = await db
     .select(OAUTH_CREDENTIAL_COLUMNS)
@@ -1241,18 +1205,19 @@ export async function resolveAccessTokenForAccount(
     .where(eq(account.id, accountId))
     .limit(1)
   if (!row) {
-    logger.warn(`[${requestId}] Account not found`, { accountId })
+    logger.warn(`[${requestId}] Account not found`, {
+      ...(options?.privacyMode === 'selector' ? {} : { accountId }),
+    })
     return null
   }
 
   const credential = await decryptAccountTokenColumns(row)
   try {
-    const { accessToken } = await refreshTokenIfNeeded(requestId, credential, accountId)
+    const { accessToken } = await refreshTokenIfNeeded(requestId, credential, accountId, options)
     return accessToken
   } catch (error) {
     logger.error(`[${requestId}] Failed to resolve access token`, {
-      accountId,
-      error: toError(error).message,
+      ...(options?.privacyMode === 'selector' ? {} : { accountId, error: toError(error).message }),
     })
     return null
   }
@@ -1280,7 +1245,7 @@ export async function refreshTokenIfNeeded(
   })
 
   if (!decision.shouldRefresh) {
-    /** Previously returned `{ accessToken: null }` — the parameter was `any` — and callers passed it to a provider. */
+    /** Throws rather than returning a null token: callers hand this value straight to a provider. */
     if (!credential.accessToken) {
       throw new Error('Credential has no access token and cannot be refreshed')
     }
@@ -1288,6 +1253,10 @@ export async function refreshTokenIfNeeded(
     return { accessToken: credential.accessToken, refreshed: false }
   }
 
+  logger.info(`[${requestId}] Refreshing access token`, {
+    providerId: credential.providerId,
+    reason: decision.reason,
+  })
   const fresh = await performCoalescedRefresh({
     accountId: resolvedCredentialId,
     providerId: credential.providerId,

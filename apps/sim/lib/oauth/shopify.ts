@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { upsertProviderAccountTokens } from '@/lib/oauth/credential-service'
 import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
-
-const logger = createLogger('ShopifyOAuth')
 
 interface CompleteShopifyOAuthConnectionParams {
   accessToken: string

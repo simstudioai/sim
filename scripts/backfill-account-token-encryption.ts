@@ -40,6 +40,7 @@ import postgres from 'postgres'
 import {
   ACCOUNT_TOKEN_FIELDS,
   type AccountTokenField,
+  decryptAccountToken,
   encryptAccountToken,
   fieldsNeedingEncryption,
 } from '../apps/sim/lib/oauth/account-token-crypto'
@@ -47,10 +48,11 @@ import { account } from '../packages/db/schema'
 
 type TokenRow = { id: string } & Record<AccountTokenField, string | null>
 
-function parseNumberArg(name: string, fallback: number): number {
+function parseNumberArg(name: string, fallback: number, min: number, max: number): number {
   const raw = process.argv.find((arg) => arg.startsWith(`--${name}=`))?.split('=')[1]
   const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(max, Math.max(min, parsed))
 }
 
 /** Fails before any row is read if this environment's AES-GCM does not round-trip. */
@@ -60,15 +62,15 @@ async function assertCryptoRoundTrip(): Promise<void> {
   if (!enveloped.startsWith('simenc:v1:')) {
     throw new Error(`Envelope prefix missing; got ${enveloped.slice(0, 16)}…`)
   }
-  const { decryptAccountToken } = await import('../apps/sim/lib/oauth/account-token-crypto')
   const recovered = await decryptAccountToken(enveloped, 'accessToken')
   if (recovered !== sample) throw new Error('AES-GCM round trip did not return the input')
 }
 
 async function main(): Promise<void> {
   const apply = process.argv.includes('--apply')
-  const batchSize = parseNumberArg('batch', 500)
-  const sleepMs = parseNumberArg('sleep', 250)
+  const batchSize = parseNumberArg('batch', 500, 1, 5000)
+  const sleepMs = parseNumberArg('sleep', 250, 0, 60_000)
+  console.log(`mode=${apply ? 'APPLY' : 'dry-run'} batch=${batchSize} sleep=${sleepMs}ms`)
 
   const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL
   if (!connectionString) {
@@ -111,21 +113,23 @@ async function main(): Promise<void> {
 
   /**
    * Pending when a token column holds a non-empty value that is not already one of our
-   * envelopes. Matched as `simenc:v%` rather than `simenc:%` to stay aligned with
-   * {@link isEncryptedAccountToken}: a legacy value that merely begins `simenc:` is not
-   * ours, so it must still be selected and enveloped rather than skipped forever.
+   * envelopes. The regex is the SQL twin of `ENVELOPE_HEADER_RE` in account-token-crypto:
+   * anything looser (`LIKE 'simenc:v%'`) would exclude a legacy value such as
+   * `simenc:vX:…` that the app classifies as plaintext — leaving it unencrypted forever
+   * while this script reports the table as done.
    */
   const pending = or(
     ...ACCOUNT_TOKEN_FIELDS.map((field) =>
       and(
         sql`${account[field]} IS NOT NULL`,
         sql`${account[field]} <> ''`,
-        sql`${account[field]} NOT LIKE 'simenc:v%'`
+        sql`${account[field]} !~ '^simenc:v[0-9]+:'`
       )
     )
   )
 
   const stats = { scanned: 0, updated: 0, raced: 0, failed: 0 }
+  let consecutiveFailures = 0
 
   try {
     const [{ count: before }] = await db
@@ -192,17 +196,22 @@ async function main(): Promise<void> {
 
           if (applied.length === 0) stats.raced += 1
           else stats.updated += 1
+          consecutiveFailures = 0
         } catch (error) {
           stats.failed += 1
+          consecutiveFailures += 1
           console.error(`  row ${row.id}: ${getErrorMessage(error)}`)
+          /** A run of failures is an environment problem, not per-row corruption — stop early. */
+          if (consecutiveFailures >= 25) {
+            throw new Error(`${consecutiveFailures} consecutive row failures; aborting the run`)
+          }
         }
       }
 
       console.log(
         `  scanned=${stats.scanned} ${apply ? 'updated' : 'would-encrypt'}=${stats.updated} raced=${stats.raced} failed=${stats.failed}`
       )
-      if (!apply) break
-      if (sleepMs > 0) await sleep(sleepMs)
+      if (apply && sleepMs > 0) await sleep(sleepMs)
     }
 
     const [{ count: after }] = await db

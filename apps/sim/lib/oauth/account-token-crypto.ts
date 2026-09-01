@@ -55,7 +55,7 @@ export function isEncryptedAccountToken(value: string): boolean {
  * batch safe.
  *
  * Empty strings pass through: `@better-auth/sso` writes `accessToken: ''` for SAML rows,
- * and enveloping that would make it truthy, flipping every `if (account.accessToken)` guard.
+ * and enveloping that would make it truthy, flipping every access-token truthiness guard.
  */
 export async function encryptAccountToken(plaintext: string): Promise<string> {
   if (!plaintext) return plaintext
@@ -100,7 +100,7 @@ export async function decryptAccountToken(
  * Shared by the accessor and by `scripts/backfill-account-token-encryption.ts` so the bulk
  * job and the live write path cannot disagree about what counts as already-encrypted.
  * Empty strings are excluded: SSO writes `accessToken: ''` for SAML rows, and enveloping
- * that would make it truthy, flipping every `if (account.accessToken)` guard in the app.
+ * that would make it truthy, flipping every access-token truthiness guard in the app.
  */
 export function fieldsNeedingEncryption(
   row: Partial<Record<AccountTokenField, string | null>>

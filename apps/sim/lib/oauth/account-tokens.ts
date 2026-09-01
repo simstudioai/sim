@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { hasUsableEncryptionKey } from '@/lib/core/security/encryption'
 import {
+  ACCOUNT_TOKEN_FIELDS,
   AccountTokenDecryptionError,
   type AccountTokenField,
   decryptAccountToken,
@@ -9,8 +10,6 @@ import {
 } from '@/lib/oauth/account-token-crypto'
 
 const logger = createLogger('AccountTokens')
-
-const TOKEN_FIELDS = ['accessToken', 'refreshToken', 'idToken'] as const
 
 /** The three protected columns on the `account` table. */
 export type AccountTokenColumns = {
@@ -63,11 +62,11 @@ function warnOnceAboutUnusableKey(): void {
 export async function encryptAccountTokenColumns<T extends Partial<AccountTokenColumns>>(
   data: T
 ): Promise<T> {
-  if (!TOKEN_FIELDS.some((field) => data[field])) return data
+  if (!ACCOUNT_TOKEN_FIELDS.some((field) => data[field])) return data
   if (!(await canEncryptAccountTokens())) return data
 
   const next = { ...data }
-  for (const field of TOKEN_FIELDS) {
+  for (const field of ACCOUNT_TOKEN_FIELDS) {
     const value = data[field]
     if (typeof value !== 'string' || value === '') continue
     /**
@@ -96,7 +95,7 @@ export async function decryptAccountTokenColumns<T extends Partial<AccountTokenC
 ): Promise<DecryptedAccount<T>> {
   const next = { ...row } as T
 
-  for (const field of TOKEN_FIELDS) {
+  for (const field of ACCOUNT_TOKEN_FIELDS) {
     const value = row[field]
     if (typeof value !== 'string' || value === '') continue
     try {

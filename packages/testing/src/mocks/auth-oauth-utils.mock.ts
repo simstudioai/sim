@@ -30,7 +30,6 @@ export class ServiceAccountTokenErrorMock extends Error {
 export const authOAuthUtilsMockFns = {
   mockResolveOAuthAccountId: vi.fn(),
   mockGetServiceAccountToken: vi.fn(),
-  mockSafeAccountInsert: vi.fn(),
   mockGetCredential: vi.fn(),
   mockGetOAuthToken: vi.fn(),
   mockRefreshAccessTokenIfNeeded: vi.fn(),
@@ -49,7 +48,6 @@ export const authOAuthUtilsMock = {
   ServiceAccountTokenError: ServiceAccountTokenErrorMock,
   resolveOAuthAccountId: authOAuthUtilsMockFns.mockResolveOAuthAccountId,
   getServiceAccountToken: authOAuthUtilsMockFns.mockGetServiceAccountToken,
-  safeAccountInsert: authOAuthUtilsMockFns.mockSafeAccountInsert,
   getCredential: authOAuthUtilsMockFns.mockGetCredential,
   getOAuthToken: authOAuthUtilsMockFns.mockGetOAuthToken,
   refreshAccessTokenIfNeeded: authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded,

@@ -32,15 +32,11 @@ const ROOT = resolve(SCRIPT_DIR, '..')
 const APP = resolve(ROOT, 'apps/sim')
 
 /**
- * The modules permitted to touch the token columns. Each either implements the envelope or
- * immediately decrypts what it selects.
- *
- * Keep this list short — its purpose is to stop a *new*, silent token read appearing anywhere
- * in the other ~4,000 files.
+ * The only modules permitted to touch the token columns; both immediately decrypt what
+ * they select and encrypt what they write. Keep this list short — its purpose is to stop
+ * a *new*, silent token read appearing anywhere else.
  */
 const TOKEN_AWARE_MODULES = new Set([
-  'apps/sim/lib/oauth/account-token-crypto.ts',
-  'apps/sim/lib/oauth/account-tokens.ts',
   'apps/sim/lib/oauth/credential-service.ts',
   'apps/sim/lib/oauth/slack.ts',
 ])

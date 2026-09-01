@@ -132,11 +132,7 @@ function buildOAuthTokenPayload(
  */
 export async function completeOAuthCredentialToken(params: {
   requestId: string
-  /**
-   * The decrypted row from `getCredential`. Previously declared as a narrow
-   * `{ providerId, scope?, idToken? }`, which only type-checked because
-   * `refreshTokenIfNeeded` took `any` — every caller has always passed the full row.
-   */
+  /** The decrypted row from `getCredential`; the brand guarantees the tokens are plaintext. */
   credential: LoadedOAuthCredential & { scope?: string | null }
   resolvedCredentialId: string
   actorId?: string

@@ -1,0 +1,28 @@
+/**
+ * Find-in-transcript highlights, painted through the CSS Custom Highlight API
+ * rather than by wrapping matches in elements. The transcript is virtualized
+ * markdown: threading a highlight term into `MessageContent` would re-parse
+ * every mounted message — and re-run its syntax highlighting — on each
+ * keystroke. Highlight ranges paint over the existing text instead, so typing
+ * costs no React render at all.
+ *
+ * Registry names are global by definition, so these selectors cannot be scoped
+ * to a module; `sim-chat-find` keeps them namespaced instead.
+ */
+
+::highlight(sim-chat-find) {
+  background-color: var(--highlight-match-bg);
+  color: var(--highlight-match-text);
+}
+
+/**
+ * The message the user is currently stepping through. `::highlight()` accepts
+ * only colour-ish properties — no outline or border — so the active state
+ * reads as a filled swatch rather than the selection ring the table and file
+ * grids use. `--brand-secondary` is the same value in both themes, so one rule
+ * covers light and dark.
+ */
+::highlight(sim-chat-find-active) {
+  background-color: var(--brand-secondary);
+  color: var(--white);
+}
