@@ -31,7 +31,12 @@ import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isAccessControlAllowlistRow } from '@/lib/permission-groups/block-access'
-import { PLATFORM_CATEGORY_ORDER, PLATFORM_FEATURES } from '@/lib/permission-groups/features'
+import {
+  isFeatureInertForGroup,
+  ORGANIZATION_SCOPED_FEATURE_NOTE,
+  PLATFORM_CATEGORY_ORDER,
+  PLATFORM_FEATURES,
+} from '@/lib/permission-groups/features'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
@@ -1439,7 +1444,20 @@ export function GroupDetail({
   const filteredProvidersAllAllowed = filteredProviders.every((id) => isProviderAllowed(id))
   const coreBlocksAllAllowed = filteredCoreBlocks.every((b) => isIntegrationAllowed(b.type))
   const toolBlocksAllAllowed = filteredToolBlocks.every((b) => isIntegrationAllowed(b.type))
-  const platformAllAllowed = filteredPlatformFeatures.every((f) => !editingConfig[f.configKey])
+  /**
+   * Rows this group cannot decide: an organization-scoped key is read from the
+   * organization's *default* group, so setting it on any other group changes
+   * nothing. They render inert, and every bulk action skips them — "Select All"
+   * writing a value the server would never read is the same false promise as
+   * the checkbox itself.
+   */
+  const editablePlatformFeatures = useMemo(
+    () =>
+      filteredPlatformFeatures.filter((f) => !isFeatureInertForGroup(f, viewingGroup.isDefault)),
+    [filteredPlatformFeatures, viewingGroup.isDefault]
+  )
+
+  const platformAllAllowed = editablePlatformFeatures.every((f) => !editingConfig[f.configKey])
 
   return (
     <>
@@ -1777,11 +1795,11 @@ export function GroupDetail({
                   setEditingConfig((prev) => ({
                     ...prev,
                     ...Object.fromEntries(
-                      filteredPlatformFeatures.map((f) => [f.configKey, platformAllAllowed])
+                      editablePlatformFeatures.map((f) => [f.configKey, platformAllAllowed])
                     ),
                   }))
                 }
-                disabled={filteredPlatformFeatures.length === 0}
+                disabled={editablePlatformFeatures.length === 0}
               >
                 {platformAllAllowed ? 'Deselect All' : 'Select All'}
               </Chip>
@@ -1794,32 +1812,46 @@ export function GroupDetail({
             {platformCategorySections.map(({ category, features }) => (
               <SettingsSection key={category} label={category}>
                 <div className='flex flex-col gap-0.5'>
-                  {features.map((feature) => (
-                    <div key={feature.id} className='flex flex-col'>
-                      <div className='flex items-center gap-1.5 rounded-md pr-2 transition-colors hover-hover:bg-[var(--surface-active)]'>
-                        <label
-                          htmlFor={feature.id}
-                          className='flex flex-1 cursor-pointer items-center gap-2 py-[5px] pl-2'
-                        >
-                          <Checkbox
-                            id={feature.id}
-                            checked={!editingConfig[feature.configKey]}
-                            onCheckedChange={(checked) =>
-                              setEditingConfig((prev) => ({
-                                ...prev,
-                                [feature.configKey]: checked !== true,
-                              }))
-                            }
-                          />
-                          <span className='font-normal text-sm'>{feature.label}</span>
-                        </label>
-                        <Info side='top' className='flex-shrink-0'>
-                          {feature.hint}
-                        </Info>
+                  {features.map((feature) => {
+                    const inert = isFeatureInertForGroup(feature, viewingGroup.isDefault)
+                    return (
+                      <div key={feature.id} className='flex flex-col'>
+                        <div className='flex items-center gap-1.5 rounded-md pr-2 transition-colors hover-hover:bg-[var(--surface-active)]'>
+                          <label
+                            htmlFor={feature.id}
+                            className={cn(
+                              'flex flex-1 items-center gap-2 py-[5px] pl-2',
+                              inert ? 'cursor-default opacity-60' : 'cursor-pointer'
+                            )}
+                          >
+                            <Checkbox
+                              id={feature.id}
+                              checked={!editingConfig[feature.configKey]}
+                              disabled={inert}
+                              onCheckedChange={(checked) =>
+                                setEditingConfig((prev) => ({
+                                  ...prev,
+                                  [feature.configKey]: checked !== true,
+                                }))
+                              }
+                            />
+                            <span className='font-normal text-sm'>{feature.label}</span>
+                            {inert && (
+                              <ChipTag variant='gray' className='flex-shrink-0'>
+                                Organization
+                              </ChipTag>
+                            )}
+                          </label>
+                          <Info side='top' className='flex-shrink-0'>
+                            {inert
+                              ? `${feature.hint} ${ORGANIZATION_SCOPED_FEATURE_NOTE}`
+                              : feature.hint}
+                          </Info>
+                        </div>
+                        {featureExtras[feature.id]}
                       </div>
-                      {featureExtras[feature.id]}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </SettingsSection>
             ))}

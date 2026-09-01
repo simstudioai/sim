@@ -54,8 +54,10 @@ interface FetchLogDetailArgs {
    * itemized ledger and the per-block and per-span costs are the figures the
    * restriction exists to withhold, and a hidden column withholds nothing from a
    * caller reading the route directly.
+   *
+   * Required for the same reason as {@link FetchLogDetailArgs.hideTraceSpans}.
    */
-  hideCostInfo?: boolean
+  hideCostInfo: boolean
 }
 
 /**
@@ -161,8 +163,8 @@ export async function readLogDetail({
   lookupColumn,
   lookupValue,
   signal,
-  hideTraceSpans = false,
-  hideCostInfo = false,
+  hideTraceSpans,
+  hideCostInfo,
 }: FetchLogDetailArgs): Promise<WorkflowLogDetail | null> {
   signal?.throwIfAborted()
   const workflowMatch: SQL =

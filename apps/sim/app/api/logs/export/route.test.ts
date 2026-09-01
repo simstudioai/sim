@@ -278,6 +278,23 @@ describe('GET /api/logs/export', () => {
     expect(dbChainMockFns.where).not.toHaveBeenCalled()
   })
 
+  /**
+   * The decision, pinned: `logs.export` has no admin exemption. The refusal is
+   * reached without reading a role at all — no organization membership, no
+   * workspace permission row — so an exemption cannot be added without this
+   * failing.
+   */
+  it("refuses the download without consulting the caller's role", async () => {
+    mockGetUserPermissionConfig.mockResolvedValue({ disableLogExport: true })
+    queueTableRows(workflowExecutionLogs, [logRow(0)])
+
+    const response = await GET(makeRequest())
+
+    expect(response.status).toBe(403)
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+  })
+
   it('exports normally when no group withholds log export', async () => {
     queueTableRows(workflowExecutionLogs, [logRow(0)])
 

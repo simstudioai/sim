@@ -32,7 +32,7 @@ vi.mock('@/lib/workflows/application/context', () => ({
   resolveActiveWorkflowRunApplicationContext: mocks.resolveContext,
 }))
 vi.mock('@/lib/workflows/executor/execution-status', () => ({
-  getWorkflowExecutionStatus: mocks.getStatus,
+  getProjectedWorkflowExecutionStatus: mocks.getStatus,
 }))
 vi.mock('@/lib/workflows/executor/execution-run-files', () => ({
   getWorkflowRunFiles: mocks.getRunFiles,
@@ -53,6 +53,8 @@ const context = {
 
 const principal = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
 
+const NO_PROJECTION = { hideTraceSpans: false, hideCostInfo: false }
+
 const BLOCK_ID = '2f9c2d4e-1a3b-4c5d-8e7f-0a1b2c3d4e5f'
 
 function input(selectedOutputs: string[]) {
@@ -72,7 +74,10 @@ describe('readWorkflowRun projection subject', () => {
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getRunFiles.mockResolvedValue(null)
-    mocks.getStatus.mockResolvedValue({ status: 'completed', blockOutputs: {} })
+    mocks.getStatus.mockResolvedValue({
+      status: { status: 'completed', blockOutputs: {} },
+      projection: NO_PROJECTION,
+    })
   })
 
   it('names the acting user as the projection subject', async () => {
@@ -108,13 +113,16 @@ describe('readWorkflowRun selector resolution', () => {
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getRunFiles.mockResolvedValue(null)
-    mocks.getStatus.mockResolvedValue({ status: 'completed', blockOutputs: {} })
+    mocks.getStatus.mockResolvedValue({
+      status: { status: 'completed', blockOutputs: {} },
+      projection: NO_PROJECTION,
+    })
   })
 
   it('rejects a block-name selector against a recorded output projection', async () => {
     mocks.getStatus.mockResolvedValue({
-      status: 'completed',
-      blockOutputs: { [BLOCK_ID]: { content: 'hi' } },
+      status: { status: 'completed', blockOutputs: { [BLOCK_ID]: { content: 'hi' } } },
+      projection: NO_PROJECTION,
     })
     await expect(
       readWorkflowRun.execute({ principal, input: input(['Agent 1']) })
@@ -130,14 +138,20 @@ describe('readWorkflowRun selector resolution', () => {
    * nothing selected — the silent empty answer the check exists to remove.
    */
   it('rejects a block-name selector on a run with no recorded output projection', async () => {
-    mocks.getStatus.mockResolvedValue({ status: 'queued', blockOutputs: null })
+    mocks.getStatus.mockResolvedValue({
+      status: { status: 'queued', blockOutputs: null },
+      projection: NO_PROJECTION,
+    })
     await expect(readWorkflowRun.execute({ principal, input: input(['Agent 1']) })).rejects.toThrow(
       /did not resolve to any block on this run: Agent 1/
     )
   })
 
   it('accepts a well-formed block id on a run with no recorded output projection', async () => {
-    mocks.getStatus.mockResolvedValue({ status: 'queued', blockOutputs: null })
+    mocks.getStatus.mockResolvedValue({
+      status: { status: 'queued', blockOutputs: null },
+      projection: NO_PROJECTION,
+    })
     await expect(
       readWorkflowRun.execute({ principal, input: input([`${BLOCK_ID}.content`]) })
     ).resolves.toMatchObject({ status: 'queued', blockOutputs: null })
@@ -147,5 +161,65 @@ describe('readWorkflowRun selector resolution', () => {
     await expect(
       readWorkflowRun.execute({ principal, input: input([BLOCK_ID]) })
     ).resolves.toMatchObject({ status: 'completed', blockOutputs: {} })
+  })
+})
+
+/**
+ * A run's output files are its execution data: the descriptors name what the
+ * run produced and `includeFileBase64` returns the bytes. When the viewer's
+ * group withholds execution data under `logs.trace_spans`, the file list has to
+ * go with `finalOutput` and `blockOutputs` — otherwise the withheld output
+ * comes back one field over.
+ */
+describe('readWorkflowRun file projection', () => {
+  const WITHHELD = { hideTraceSpans: true, hideCostInfo: false }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveContext.mockResolvedValue(context)
+    mocks.resolvePermission.mockResolvedValue('read')
+    mocks.getRunFiles.mockResolvedValue({
+      terminal: true,
+      workspaceId: 'workspace-1',
+      filesById: new Map([['file-1', { key: 'k', name: 'out.csv' }]]),
+    })
+    mocks.describeRunFiles.mockResolvedValue([{ id: 'file-1', name: 'out.csv' }])
+  })
+
+  it('lists the run files when nothing is withheld', async () => {
+    mocks.getStatus.mockResolvedValue({
+      status: { status: 'completed', blockOutputs: {}, finalOutput: { ok: true } },
+      projection: NO_PROJECTION,
+    })
+
+    await expect(readWorkflowRun.execute({ principal, input: input([]) })).resolves.toMatchObject({
+      files: [{ id: 'file-1' }],
+    })
+  })
+
+  it('withholds the file list when the group withholds execution data', async () => {
+    mocks.getStatus.mockResolvedValue({
+      status: { status: 'completed', blockOutputs: null, finalOutput: null },
+      projection: WITHHELD,
+    })
+
+    await expect(readWorkflowRun.execute({ principal, input: input([]) })).resolves.toMatchObject({
+      files: null,
+    })
+  })
+
+  it('does not read the run files at all when the group withholds execution data', async () => {
+    mocks.getStatus.mockResolvedValue({
+      status: { status: 'completed', blockOutputs: null, finalOutput: null },
+      projection: WITHHELD,
+    })
+
+    await readWorkflowRun.execute({
+      principal,
+      input: { ...input([]), includeFileBase64: true },
+    })
+
+    expect(mocks.getRunFiles).not.toHaveBeenCalled()
+    expect(mocks.describeRunFiles).not.toHaveBeenCalled()
   })
 })

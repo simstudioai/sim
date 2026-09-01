@@ -45,6 +45,7 @@ import {
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import {
   capabilityRefusal,
   isWorkspaceCapabilityWithheld,
@@ -230,7 +231,11 @@ export const POST = withRouteHandler(
 
       /**
        * permission-group-enforced: copilot.use — read off the operation so this
-       * route and the funnel can never name different capabilities.
+       * route and the funnel can never name different capabilities, and the
+       * error's `detailCode` off the rule for the same reason: a capability
+       * whose rule reports something other than the generic block (the way
+       * `personal_api_key.use` reports `PERSONAL_API_KEYS_DISABLED`) would
+       * otherwise be flattened by a constant spelled out here.
        *
        * A raw special route: `admitV2Request` authenticates and rate-limits but
        * never authorizes, so nothing else on this path applies the capability
@@ -246,7 +251,7 @@ export const POST = withRouteHandler(
         (await isWorkspaceCapabilityWithheld(userId, workspaceId, sendCapability))
       ) {
         return v2Error('FORBIDDEN', capabilityRefusal(sendCapability), {
-          details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
+          details: { code: CAPABILITY_RULES[sendCapability].detailCode },
         })
       }
 

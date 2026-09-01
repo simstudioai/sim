@@ -10,6 +10,10 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -32,6 +36,28 @@ export const PUT = withRouteHandler(
       const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (permission !== 'admin') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      /**
+       * permission-group-enforced: api_keys.manage — raw handler with inline
+       * queries, which the authorization funnel never sees.
+       *
+       * Gated like the list and the mint on the collection route, not exempted
+       * like the revocations. A rename grants no access — the body carries a
+       * `name` and nothing else, so no scope, workspace binding or expiry moves
+       * — but neither does reading the list, and this is the same "managing API
+       * keys" the group withheld. The revocation carve-out is narrower than it
+       * looks: it exists because withholding management must not withhold the
+       * one act that *removes* a credential. Renaming removes nothing, so it
+       * inherits nothing from it, and leaving it open would also answer whether
+       * a given key id exists to a caller the same group refuses the list.
+       *
+       * After the admin check, like every other capability assertion here: the
+       * refusal names an organization setting, and a non-admin should not hear
+       * it.
+       */
+      if (await isWorkspaceCapabilityWithheld(userId, workspaceId, 'api_keys.manage')) {
+        return NextResponse.json({ error: capabilityRefusal('api_keys.manage') }, { status: 403 })
       }
 
       const parsed = await parseRequest(updateWorkspaceApiKeyContract, request, context)
@@ -143,6 +169,12 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
+      /**
+       * Deliberately not capability-gated, for the reason the bulk delete on the
+       * collection route records at length: withholding key *management* must
+       * never withhold key *revocation*, or a group setting becomes the thing
+       * standing between an admin and a leaked credential.
+       */
       const deletedRows = await db
         .delete(apiKey)
         .where(
