@@ -19442,6 +19442,173 @@
       "tags": ["cloud", "automation"]
     },
     {
+      "type": "sailpoint",
+      "slug": "sailpoint",
+      "name": "SailPoint",
+      "description": "Govern identities and access in SailPoint Identity Security Cloud",
+      "longDescription": "Read and act on identity-governance data in SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT) exchanged through OAuth2 client credentials at https://TENANT.api.identitynow.com/oauth/token. SailPoint versions each service independently, so the integration uses the current service paths such as /search/v1, /identities/v1, and /access-requests/v1; there is no shared annual API-version setting. Use a PAT whose owner has the ISC user level required by each endpoint because many identity, role, access-profile, certification, approval, and access-request operations require user context in addition to scopes. Common read scopes are sp:search:read, idn:identity:read, idn:accounts:read, idn:entitlement:read, idn:role-unchecked:read or idn:role-checked:read, idn:access-profile:read, idn:sources:read, idn:campaign:read, idn:access-request-status:read, idn:task-management:read, and idn:access-request-approvals:read. Mutations additionally require idn:sources:manage for account aggregation, idn:entitlement:manage for entitlement aggregation, idn:campaign:manage for certification decisions and sign-off, idn:access-request:manage or idn:access-request-self:manage for access requests as permitted, and idn:access-request-approvals:manage for approval actions. A scope alone does not grant authority beyond the PAT owner's ISC permissions, and authorization failures may be returned as provider errors or filtered visibility depending on the endpoint and tenant policy.",
+      "bgColor": "#0033A1",
+      "iconName": "SailPointIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/sailpoint",
+      "operations": [
+        {
+          "name": "Search",
+          "description": "Search current SailPoint indices with every documented search query mode."
+        },
+        {
+          "name": "Search Count",
+          "description": "Count documents matching a complete SailPoint search body."
+        },
+        {
+          "name": "Search Aggregate",
+          "description": "Run an Elasticsearch DSL or SailPoint aggregation over current search indices."
+        },
+        {
+          "name": "List Identities",
+          "description": "List identities with documented filtering, sorting, and pagination."
+        },
+        {
+          "name": "Get Identity",
+          "description": "Get an identity from the current /identities/v1 service by ID."
+        },
+        {
+          "name": "List Accounts",
+          "description": "List accounts with documented filtering, sorting, detail, and pagination."
+        },
+        {
+          "name": "Get Account",
+          "description": "Get an account from the current /accounts/v1 service by ID."
+        },
+        {
+          "name": "Get Account Entitlements",
+          "description": "List entitlements granted to one account."
+        },
+        {
+          "name": "List Entitlements",
+          "description": "List entitlements with current segmentation, cursor, filter, and page controls."
+        },
+        {
+          "name": "Get Entitlement",
+          "description": "Get an entitlement by ID."
+        },
+        {
+          "name": "List Identity Entitlements",
+          "description": "List tagged entitlement references held by one identity."
+        },
+        {
+          "name": "List Roles",
+          "description": "List roles with current visibility, segmentation, filtering, and pagination controls."
+        },
+        {
+          "name": "Get Role",
+          "description": "Get a role by ID."
+        },
+        {
+          "name": "Get Role Entitlements",
+          "description": "List entitlements in one role using the current non-experimental roles service."
+        },
+        {
+          "name": "List Access Profiles",
+          "description": "List access profiles with current visibility and segmentation controls."
+        },
+        {
+          "name": "Get Access Profile",
+          "description": "Get an access profile by ID."
+        },
+        {
+          "name": "Get Access Profile Entitlements",
+          "description": "List entitlements in one access profile."
+        },
+        {
+          "name": "List Sources",
+          "description": "List identity sources with visibility, filtering, sorting, and pagination controls."
+        },
+        {
+          "name": "Get Source",
+          "description": "Get an identity source by ID."
+        },
+        {
+          "name": "List Account Activities",
+          "description": "List provisioning activities with identity, filter, sort, and page controls."
+        },
+        {
+          "name": "Get Account Activity",
+          "description": "Get an account activity by ID."
+        },
+        {
+          "name": "List Campaigns",
+          "description": "List certification campaigns with detail, filtering, sorting, and pagination."
+        },
+        {
+          "name": "Get Campaign",
+          "description": "Get a certification campaign by ID."
+        },
+        {
+          "name": "List Certifications",
+          "description": "List identity certifications assigned to a reviewer."
+        },
+        {
+          "name": "Get Certification",
+          "description": "Get an identity certification by ID."
+        },
+        {
+          "name": "List Certification Review Items",
+          "description": "List access-review items in one identity certification."
+        },
+        {
+          "name": "Decide Certification Review Items",
+          "description": "Approve or revoke 1-250 review items in an identity certification."
+        },
+        {
+          "name": "Sign Off Certification",
+          "description": "Sign off a completed identity certification."
+        },
+        {
+          "name": "Request Access",
+          "description": "Submit a current human or machine identity access request."
+        },
+        {
+          "name": "Cancel Access Request",
+          "description": "Cancel an access request that has not passed approval."
+        },
+        {
+          "name": "Get Access Request Status",
+          "description": "List requested-item status records for access requests."
+        },
+        {
+          "name": "List Pending Access Request Approvals",
+          "description": "List pending access-request approvals visible to the caller."
+        },
+        {
+          "name": "Approve Access Request",
+          "description": "Approve one pending access-request approval."
+        },
+        {
+          "name": "Reject Access Request",
+          "description": "Reject one pending access-request approval with a reviewer comment."
+        },
+        {
+          "name": "Load Accounts (CSV)",
+          "description": "Start account aggregation for a source, optionally using a CSV file."
+        },
+        {
+          "name": "Load Entitlements (CSV)",
+          "description": "Start entitlement aggregation for a source, optionally using a CSV file."
+        },
+        {
+          "name": "Get Task Status",
+          "description": "Get the current status of a SailPoint background task by ID."
+        }
+      ],
+      "operationCount": 37,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["identity", "automation"]
+    },
+    {
       "type": "salesforce",
       "slug": "salesforce",
       "name": "Salesforce",
