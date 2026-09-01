@@ -1,5 +1,7 @@
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/types/src/pdf'
+import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8, truncationNotice } from '@/lib/file-parsers/utils'
 
@@ -20,8 +22,8 @@ const PDF_EXTRACTION_TIMEOUT_MS = 60_000
 
 const PDF_TRUNCATION_WARNING = 'PDF text extraction stopped at a parser limit and is incomplete'
 
-type PdfDocumentProxy = Awaited<ReturnType<typeof import('unpdf')['getDocumentProxy']>>
-type PdfPageProxy = Awaited<ReturnType<PdfDocumentProxy['getPage']>>
+/** Stable metadata identifier retained for documents indexed before the parser swap. */
+const PDF_PARSER_SOURCE = 'unpdf'
 
 interface TextContentChunk {
   items?: Array<{ str?: unknown; hasEOL?: unknown }>
@@ -57,7 +59,7 @@ interface BoundedExtraction {
  * evaluator rather than letting it run the expansion to completion.
  */
 async function readPageWithinBudget(
-  page: PdfPageProxy,
+  page: PDFPageProxy,
   budget: number,
   deadline: number
 ): Promise<PageExtraction> {
@@ -111,7 +113,7 @@ async function readPageWithinBudget(
   return { text: parts.join(''), used: budget - remaining, completed }
 }
 
-async function extractTextWithinBudget(pdf: PdfDocumentProxy): Promise<BoundedExtraction> {
+async function extractTextWithinBudget(pdf: PDFDocumentProxy): Promise<BoundedExtraction> {
   const deadline = Date.now() + PDF_EXTRACTION_TIMEOUT_MS
   const totalPages = pdf.numPages
   const pageLimit = Math.min(totalPages, MAX_PDF_PAGES)
@@ -171,11 +173,8 @@ export class PdfParser implements FileParser {
     try {
       logger.info('Starting to parse buffer, size:', dataBuffer.length)
 
-      const { getDocumentProxy } = await import('unpdf')
-
       const uint8Array = new Uint8Array(dataBuffer)
-
-      const pdf = await getDocumentProxy(uint8Array)
+      const pdf = await openPdfDocument(uint8Array)
 
       try {
         const { text, totalPages, pagesRead, truncated } = await extractTextWithinBudget(pdf)
@@ -204,7 +203,7 @@ export class PdfParser implements FileParser {
           content: body + notice,
           metadata: {
             pageCount: totalPages,
-            source: 'unpdf',
+            source: PDF_PARSER_SOURCE,
             truncated,
             warning: truncated ? PDF_TRUNCATION_WARNING : undefined,
           },

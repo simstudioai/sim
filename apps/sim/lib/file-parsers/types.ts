@@ -31,9 +31,13 @@ export interface FileParseResult {
   metadata?: FileParseMetadata
 }
 
+export interface FileParseOptions {
+  signal?: AbortSignal
+}
+
 export interface FileParser {
-  parseFile(filePath: string): Promise<FileParseResult>
-  parseBuffer?(buffer: Buffer): Promise<FileParseResult>
+  parseFile(filePath: string, options?: FileParseOptions): Promise<FileParseResult>
+  parseBuffer?(buffer: Buffer, options?: FileParseOptions): Promise<FileParseResult>
 }
 
 export type SupportedFileType =

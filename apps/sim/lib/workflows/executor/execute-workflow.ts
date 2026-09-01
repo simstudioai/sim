@@ -12,7 +12,11 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
+import type {
+  BlockCompletionCallbackData,
+  ExecutionMetadata,
+  SerializableExecutionState,
+} from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 import { attachExecutionResult, hasExecutionResult } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -40,7 +44,7 @@ export interface ExecuteWorkflowOptions {
     blockType: string,
     executionOrder: number
   ) => Promise<void>
-  onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
+  onBlockComplete?: (blockId: string, output: unknown, outputBlockId?: string) => Promise<void>
   /** Transfers post-execution logging ownership to the streaming caller after execution succeeds. */
   skipLoggingComplete?: boolean
   includeFileBase64?: boolean
@@ -202,8 +206,13 @@ export async function executeWorkflow(
             }
           : undefined,
         onBlockComplete: streamConfig?.onBlockComplete
-          ? async (blockId: string, _blockName: string, _blockType: string, output: unknown) => {
-              await streamConfig.onBlockComplete!(blockId, output)
+          ? async (
+              blockId: string,
+              _blockName: string,
+              _blockType: string,
+              data: BlockCompletionCallbackData
+            ) => {
+              await streamConfig.onBlockComplete!(blockId, data.output, data.outputBlockId)
             }
           : undefined,
       },

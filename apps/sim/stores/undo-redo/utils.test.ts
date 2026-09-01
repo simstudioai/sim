@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 

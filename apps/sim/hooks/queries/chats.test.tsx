@@ -118,4 +118,25 @@ describe('chat mutations invalidate the deployment boundary', () => {
 
     expect(mockInvalidateDeploymentQueries).toHaveBeenCalledWith(expect.anything(), 'wf-1')
   })
+
+  it('normalizes a legacy empty output path to the deployed chat fallback', async () => {
+    const { getResult } = renderHookWithClient(() => useUpdateChat())
+
+    await act(async () => {
+      await getResult().mutateAsync({
+        chatId: 'chat-1',
+        workflowId: 'wf-1',
+        formData: { ...FORM_DATA, selectedOutputBlocks: ['agent-block_'] },
+      })
+    })
+
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: expect.objectContaining({
+          outputConfigs: [{ blockId: 'agent-block', path: 'content' }],
+        }),
+      })
+    )
+  })
 })

@@ -4608,6 +4608,7 @@ type GetWorkflowChatDeploymentResponseRef0 = {
 }
 
 type GetWorkflowChatDeploymentResponseRef1 = {
+  workflowId?: string
   blockId: string
   path: string
 }
@@ -5137,6 +5138,7 @@ type ListChatDeploymentsResponseRef0 = {
 }
 
 type ListChatDeploymentsResponseRef1 = {
+  workflowId?: string
   blockId: string
   path: string
 }
@@ -6875,6 +6877,7 @@ type ReplaceWorkflowChatDeploymentBodyRef0 = {
 }
 
 type ReplaceWorkflowChatDeploymentBodyRef1 = {
+  workflowId?: string
   blockId: string
   path: string
 }
@@ -6899,6 +6902,7 @@ type ReplaceWorkflowChatDeploymentResponseRef0 = {
 }
 
 type ReplaceWorkflowChatDeploymentResponseRef1 = {
+  workflowId?: string
   blockId: string
   path: string
 }
@@ -10743,7 +10747,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'array',
         describe:
-          'Block output references to include in a streamed response, as `blockId`, `blockId.path`, or `BlockName.path` (resolved against the live workflow). Requires `stream: true` — it shapes the streamed envelope only, so it is rejected on a sync request and when `async` is true. To narrow a finished run, pass `selectedOutputs` to the run resource instead.',
+          'Block output references to include in a streamed response. Use `<blockName>.<outputPath>` for the executed workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow; block names are normalized workflow reference names. Selecting a child workflow applies to every invocation of it. Requires `stream: true` — it shapes the streamed envelope only, so it is rejected on a sync request and when `async` is true. To narrow a finished run, pass `selectedOutputs` to the run resource instead.',
       },
       includeThinking: {
         kind: 'boolean',

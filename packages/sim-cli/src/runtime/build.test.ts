@@ -772,8 +772,8 @@ describe('commands parsed through commander', () => {
   it('runs a workflow without input and keeps output selection distinct from rendering', async () => {
     const help = commandAt('workflows', 'run').helpInformation()
     expect(help).toContain('--select-output <value...>')
-    expect(help).toContain('blockName.field')
-    expect(help).toContain('agent_1.content')
+    expect(help).toContain('blockName.path')
+    expect(help).toContain('childWorkflowId.blockName.path')
     expect(help).not.toContain('--output <value...>')
 
     const [, withoutInput] = await run(

@@ -1154,7 +1154,7 @@ export class BlockExecutor {
     selectedOutputs: string[],
     executionOrder?: number
   ): Promise<void> {
-    const blockId = node.id
+    const blockId = node.metadata?.originalBlockId ?? node.id
     const piiEnabled = Boolean(ctx.piiBlockOutputRedaction?.enabled)
     // Live-forward only when a client stream exists and PII redaction is off.
     const forwardToClient = Boolean(ctx.onStream) && !piiEnabled

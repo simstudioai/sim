@@ -1879,7 +1879,7 @@ async function executeToolImplementation(
           const actualCredentialKind =
             data.credentialType === 'service_account'
               ? 'service-account'
-              : data.credentialType === 'oauth'
+              : data.credentialType === 'oauth' || data.credentialType === 'managed_oauth'
                 ? 'oauth'
                 : null
           if (actualCredentialKind !== tool.oauth.credentialKind) {
@@ -1888,6 +1888,9 @@ async function executeToolImplementation(
         }
 
         contextParams.accessToken = data.accessToken
+        if (data.credentialType && tool.oauth?.authoritativeParams?.includes('credentialType')) {
+          contextParams.credentialType = data.credentialType
+        }
         if (data.idToken) {
           contextParams.idToken = data.idToken
         }

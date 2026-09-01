@@ -3,7 +3,7 @@ import type { BlockConfig } from '@/blocks/types'
 /**
  * Props for the WorkflowBlock component
  */
-export interface WorkflowBlockProps {
+export interface WorkflowBlockProps extends Record<string, unknown> {
   type: string
   config: BlockConfig
   name: string

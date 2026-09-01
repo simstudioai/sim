@@ -5,12 +5,14 @@ import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ZipBombError } from '@/lib/file-parsers/ooxml-limits'
 
-const { mockParseOfficeAsync, mockExtractRawText } = vi.hoisted(() => ({
-  mockParseOfficeAsync: vi.fn(),
+const { mockParseOfficeText, mockExtractRawText } = vi.hoisted(() => ({
+  mockParseOfficeText: vi.fn(),
   mockExtractRawText: vi.fn(),
 }))
 
-vi.mock('officeparser', () => ({ parseOfficeAsync: mockParseOfficeAsync }))
+vi.mock('@/lib/file-parsers/officeparser-module', () => ({
+  parseOfficeText: mockParseOfficeText,
+}))
 vi.mock('mammoth', () => ({
   default: { extractRawText: mockExtractRawText },
   extractRawText: mockExtractRawText,
@@ -61,7 +63,7 @@ describe('DocParser.parseBuffer', () => {
     const bomb = await buildDeclaredOversizeArchive(2 * 1024 * 1024 * 1024)
 
     await expect(new DocParser().parseBuffer(bomb)).rejects.toThrow()
-    expect(mockParseOfficeAsync).not.toHaveBeenCalled()
+    expect(mockParseOfficeText).not.toHaveBeenCalled()
     expect(mockExtractRawText).not.toHaveBeenCalled()
   })
 
@@ -87,7 +89,7 @@ describe('DocParser.parseBuffer', () => {
     }
 
     await expect(new DocParser().parseBuffer(lying)).rejects.toThrow(/do not match declared sizes/)
-    expect(mockParseOfficeAsync).not.toHaveBeenCalled()
+    expect(mockParseOfficeText).not.toHaveBeenCalled()
     expect(mockExtractRawText).not.toHaveBeenCalled()
   })
 
@@ -98,14 +100,14 @@ describe('DocParser.parseBuffer', () => {
     await expect(new DocParser().parseBuffer(buffer)).rejects.toThrow(
       /refusing to parse an unverifiable ZIP-shaped archive/
     )
-    expect(mockParseOfficeAsync).not.toHaveBeenCalled()
+    expect(mockParseOfficeText).not.toHaveBeenCalled()
   })
 
   it('still parses a well-formed OOXML archive renamed to .doc', async () => {
     const zip = new JSZip()
     zip.file('word/document.xml', '<w:document><w:body>hello</w:body></w:document>')
     const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
-    mockParseOfficeAsync.mockResolvedValue('hello')
+    mockParseOfficeText.mockResolvedValue('hello')
 
     const result = await new DocParser().parseBuffer(buffer)
 
@@ -114,11 +116,11 @@ describe('DocParser.parseBuffer', () => {
   })
 
   it('no-ops the guard for a legacy OLE .doc and parses it', async () => {
-    mockParseOfficeAsync.mockResolvedValue('legacy doc text')
+    mockParseOfficeText.mockResolvedValue('legacy doc text')
 
     const result = await new DocParser().parseBuffer(buildLegacyOleDoc())
 
-    expect(mockParseOfficeAsync).toHaveBeenCalledOnce()
+    expect(mockParseOfficeText).toHaveBeenCalledOnce()
     expect(result.content).toBe('legacy doc text')
   })
 

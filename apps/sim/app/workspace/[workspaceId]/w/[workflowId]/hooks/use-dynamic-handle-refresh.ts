@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { useUpdateNodeInternals } from 'reactflow'
+import { useUpdateNodeInternals } from '@xyflow/react'
 import {
   collectDynamicHandleTopologySignatures,
   getChangedDynamicHandleBlockIds,

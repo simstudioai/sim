@@ -20,10 +20,11 @@ import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/applica
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
 import { performChatDeploy, performChatUndeploy } from '@/lib/workflows/orchestration'
+import { formatInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
 import { validateChatDeployAuth } from '@/ee/access-control/utils/permission-check'
 
 type ChatAuthType = 'public' | 'password' | 'email' | 'sso'
-type ChatOutputConfig = { blockId: string; path: string }
+type ChatOutputConfig = { workflowId?: string; blockId: string; path: string }
 type ChatCustomizations = {
   primaryColor?: string
   welcomeMessage?: string
@@ -69,10 +70,20 @@ function parseChatOutputConfigs(value: unknown[] | undefined): ChatOutputConfig[
         'blockId' in entry &&
         typeof entry.blockId === 'string' &&
         entry.blockId.length > 0 &&
+        (!('workflowId' in entry) ||
+          entry.workflowId === undefined ||
+          (typeof entry.workflowId === 'string' && entry.workflowId.length > 0)) &&
         'path' in entry &&
         typeof entry.path === 'string'
     )
   ) {
+    throw new OrchestrationError('validation', 'Invalid chat output configuration')
+  }
+  try {
+    for (const config of value) {
+      formatInternalOutputSelector(config.blockId, config.path, config.workflowId)
+    }
+  } catch {
     throw new OrchestrationError('validation', 'Invalid chat output configuration')
   }
   return value

@@ -6,6 +6,7 @@ import {
   clearSailPointTokenStateForTests,
   getSailPointAccessToken,
   getSailPointTokenStateForTests,
+  readTotalCount,
   resolveSailPointHosts,
   sailpointFetch,
 } from '@/lib/internal/sailpoint/client'
@@ -65,6 +66,27 @@ describe('SailPoint client', () => {
     await expect(Promise.all([first, second])).resolves.toEqual(['shared', 'shared'])
   })
 
+  it('lets one token waiter abort without cancelling the shared exchange', async () => {
+    let release: ((response: Response) => void) | undefined
+    mockFetch.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve
+        })
+    )
+    const credentials = { tenant: 'acme', clientId: 'client', clientSecret: 'secret' }
+    const controller = new AbortController()
+    const first = getSailPointAccessToken(credentials, controller.signal)
+    const second = getSailPointAccessToken(credentials)
+
+    controller.abort(new Error('caller stopped'))
+    await expect(first).rejects.toThrow('caller stopped')
+    release?.(tokenResponse('shared'))
+    await expect(second).resolves.toBe('shared')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(getSailPointTokenStateForTests().exchangeSize).toBe(0)
+  })
+
   it('expires cached tokens before their provider expiry', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
@@ -105,5 +127,47 @@ describe('SailPoint client', () => {
         init: { method: 'GET' },
       }))
     ).rejects.toThrow(/maximum|limit|exceeds/i)
+  })
+
+  it('aborts during rate-limit backoff without another provider call', async () => {
+    mockFetch
+      .mockResolvedValueOnce(tokenResponse('token'))
+      .mockResolvedValueOnce(new Response(null, { status: 429, headers: { 'retry-after': '30' } }))
+    const controller = new AbortController()
+    const credentials = { tenant: 'acme', clientId: 'client', clientSecret: 'secret' }
+    const pending = sailpointFetch(
+      credentials,
+      (hosts) => ({
+        url: `${hosts.apiBaseUrl}/identities/v1`,
+        init: { method: 'GET' },
+      }),
+      { signal: controller.signal }
+    )
+
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2))
+    controller.abort(new Error('stop retrying'))
+    await expect(pending).rejects.toThrow('stop retrying')
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects redirects for token and authenticated provider requests', async () => {
+    mockFetch
+      .mockResolvedValueOnce(tokenResponse('token'))
+      .mockResolvedValueOnce(Response.json({ id: 'identity' }))
+    const credentials = { tenant: 'acme', clientId: 'client', clientSecret: 'secret' }
+
+    await sailpointFetch(credentials, (hosts) => ({
+      url: `${hosts.apiBaseUrl}/identities/v1/id`,
+      init: { method: 'GET' },
+    }))
+
+    expect(mockFetch.mock.calls[0][1]?.redirect).toBe('error')
+    expect(mockFetch.mock.calls[1][1]?.redirect).toBe('error')
+  })
+
+  it('accepts only non-negative integer total counts', () => {
+    expect(readTotalCount(new Headers({ 'x-total-count': '7' }))).toBe(7)
+    expect(readTotalCount(new Headers({ 'x-total-count': '1.5' }))).toBeNull()
+    expect(readTotalCount(new Headers({ 'x-total-count': '-1' }))).toBeNull()
   })
 })

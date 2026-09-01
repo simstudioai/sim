@@ -1,7 +1,6 @@
 import { ToastProvider } from '@sim/emcn'
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
-import { PublicEnvScript as RuntimePublicEnvScript } from 'next-runtime-env'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { BrandedLayout } from '@/components/branded-layout'
 import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'
@@ -21,7 +20,11 @@ import { QueryProvider } from '@/app/_shell/providers/query-provider'
 import { SessionProvider } from '@/app/_shell/providers/session-provider'
 import { ThemeProvider } from '@/app/_shell/providers/theme-provider'
 import { TooltipProvider } from '@/app/_shell/providers/tooltip-provider'
-import { PublicEnvScript, publicEnvHtmlAttributes } from '@/app/_shell/public-env-script'
+import {
+  PublicEnvScript,
+  publicEnvHtmlAttributes,
+  RuntimePublicEnvScript,
+} from '@/app/_shell/public-env-script'
 import { season } from '@/app/_styles/fonts/season/season'
 
 export const viewport: Viewport = {
@@ -116,7 +119,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   // Collapse comes from the cookie (independent of localStorage
                   // parsing); the persisted width is read defensively below. Match the
                   // value strictly so 'sidebar_collapsed=10' isn't read as collapsed.
-                  var cookieMatch = document.cookie.match(/(?:^|;\s*)sidebar_collapsed=([^;]*)/);
+                  var cookieMatch = document.cookie.match(/(?:^|;\\s*)sidebar_collapsed=([^;]*)/);
                   var hasCookie = cookieMatch !== null;
                   var collapsed = cookieMatch !== null && cookieMatch[1] === '1';
 
@@ -241,7 +244,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name='format-detection' content='telephone=no' />
         <meta httpEquiv='x-ua-compatible' content='ie=edge' />
 
-        {isHosted ? <PublicEnvScript /> : <RuntimePublicEnvScript disableNextScript />}
+        {isHosted ? <PublicEnvScript /> : <RuntimePublicEnvScript />}
       </head>
       <body className={`${season.variable} font-season`} suppressHydrationWarning>
         <HydrationErrorHandler />

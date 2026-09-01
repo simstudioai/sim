@@ -656,8 +656,10 @@ export interface ExecutionResult {
 }
 
 export interface StreamingExecution {
-  /** Workflow block invocation that owns this stream. */
+  /** Selected block identity: a root block ID or `childWorkflowId.blockRef`. */
   blockId?: string
+  /** Internal identity that disambiguates repeated invocations of one child workflow. */
+  childWorkflowInstanceId?: string
   /** Per-run invocation order, unique across loop and parallel executions. */
   executionOrder?: number
   /**
