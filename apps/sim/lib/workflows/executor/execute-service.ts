@@ -119,6 +119,8 @@ export interface ExecuteWorkflowServiceParams {
     startBlockId: string
     sourceSnapshot: SerializableExecutionState
     sourceExecutionId: string
+    /** Mocked upstream outputs (block name/id → output object) overlaid on the snapshot. */
+    variableInputs?: Record<string, unknown>
   }
 }
 

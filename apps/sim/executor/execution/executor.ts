@@ -25,6 +25,7 @@ import { type ClonedSubflowInfo, ParallelExpander } from '@/executor/utils/paral
 import { isResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   computeExecutionSets,
+  overlayVariableInputs,
   type RunFromBlockContext,
   resolveContainerToSentinelStart,
   validateRunFromBlock,
@@ -129,8 +130,12 @@ export class DAGExecutor {
   async executeFromBlock(
     workflowId: string,
     startBlockId: string,
-    sourceSnapshot: SerializableExecutionState
+    sourceSnapshot: SerializableExecutionState,
+    variableInputs?: Record<string, unknown>
   ): Promise<ExecutionResult> {
+    if (variableInputs && Object.keys(variableInputs).length > 0) {
+      sourceSnapshot = overlayVariableInputs(this.workflow, sourceSnapshot, variableInputs)
+    }
     // Build full DAG with all blocks to compute upstream set for snapshot filtering
     // includeAllBlocks is needed because the startBlockId might be a trigger not reachable from the main trigger
     const dag = this.dagBuilder.build(this.workflow, { includeAllBlocks: true })

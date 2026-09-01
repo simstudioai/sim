@@ -963,6 +963,8 @@ interface WorkflowExecutionOptions {
   runFromBlock?: {
     startBlockId: string
     executionId?: string
+    /** Mocked upstream outputs (block name/id → output object) overlaid server-side. */
+    variableInputs?: Record<string, unknown>
   }
 }
 
@@ -1036,6 +1038,9 @@ export async function executeWorkflowWithFullLogging(
           runFromBlock: {
             startBlockId: options.runFromBlock.startBlockId,
             executionId: options.runFromBlock.executionId || 'latest',
+            ...(options.runFromBlock.variableInputs
+              ? { variableInputs: options.runFromBlock.variableInputs }
+              : {}),
           },
         }
       : {}),

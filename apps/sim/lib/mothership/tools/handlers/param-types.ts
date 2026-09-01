@@ -83,6 +83,8 @@ export interface RunWorkflowUntilBlockParams {
 
 export interface RunFromBlockParams {
   workflowId?: string
+  /** Mocked upstream outputs (block name/id → output object) for an isolated run. */
+  variableInputs?: Record<string, unknown>
   /** The block ID to start execution from. */
   startBlockId: string
   /** Optional execution ID to load the snapshot from. If omitted, uses the latest execution. */
@@ -94,6 +96,8 @@ export interface RunFromBlockParams {
 
 export interface RunBlockParams {
   workflowId?: string
+  /** Mocked upstream outputs (block name/id → output object) for an isolated run. */
+  variableInputs?: Record<string, unknown>
   /** The block ID to run. Only this block executes using cached upstream outputs. */
   blockId: string
   /** Optional execution ID to load the snapshot from. If omitted, uses the latest execution. */

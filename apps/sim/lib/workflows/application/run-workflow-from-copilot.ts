@@ -30,6 +30,7 @@ import {
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
 import { attachAttemptedExecutionId, hasExecutionResult } from '@/executor/utils/errors'
+import { emptyRunFromBlockSnapshot } from '@/executor/utils/run-from-block'
 
 const logger = createLogger('CopilotWorkflowRun')
 
@@ -83,6 +84,8 @@ interface SnapshotCopilotRunInput extends BaseCopilotRunInput {
   blockId: string
   workflowInput?: unknown
   sourceExecutionId?: string
+  /** Mocked upstream outputs — lets the block run with no prior execution at all. */
+  variableInputs?: Record<string, unknown>
 }
 
 export interface RunFromBlockFromCopilotInput extends SnapshotCopilotRunInput {}
@@ -196,7 +199,7 @@ async function resolveTriggerExecution(params: {
 }
 
 async function resolveSourceSnapshot(input: SnapshotCopilotRunInput): Promise<{
-  executionId: string
+  executionId?: string
   snapshot: SerializableExecutionState
 }> {
   if (input.sourceExecutionId) {
@@ -209,9 +212,15 @@ async function resolveSourceSnapshot(input: SnapshotCopilotRunInput): Promise<{
   }
   const latest = await getLatestExecutionStateWithExecutionId(input.workflowId)
   if (latest?.state) return { executionId: latest.executionId, snapshot: latest.state }
+  // Pure-mock isolated run: with variableInputs the executor overlays every upstream
+  // output the block reads, so no prior execution is required. No executionId means
+  // the snapshot is treated as untrusted, exactly like a caller-supplied one.
+  if (input.variableInputs && Object.keys(input.variableInputs).length > 0) {
+    return { snapshot: emptyRunFromBlockSnapshot() }
+  }
   throw new OrchestrationError(
     'not_found',
-    `No execution state found for workflow ${input.workflowId}. Run the full workflow first to create a snapshot.`
+    `No execution state found for workflow ${input.workflowId}. Run the full workflow first to create a snapshot, or pass variableInputs mocking the upstream outputs.`
   )
 }
 
@@ -225,7 +234,8 @@ async function executeCopilotRun(params: {
   runFromBlock?: {
     startBlockId: string
     sourceSnapshot: SerializableExecutionState
-    sourceExecutionId: string
+    sourceExecutionId?: string
+    variableInputs?: Record<string, unknown>
   }
 }): Promise<ExecutionResult> {
   if (
@@ -441,7 +451,8 @@ function defineSnapshotRunUseCase<I extends SnapshotCopilotRunInput>(
         runFromBlock: {
           startBlockId: input.blockId,
           sourceSnapshot: source.snapshot,
-          sourceExecutionId: source.executionId,
+          ...(source.executionId ? { sourceExecutionId: source.executionId } : {}),
+          ...(input.variableInputs ? { variableInputs: input.variableInputs } : {}),
         },
         stopAfterBlockId: stopAtStartBlock ? input.blockId : undefined,
       })

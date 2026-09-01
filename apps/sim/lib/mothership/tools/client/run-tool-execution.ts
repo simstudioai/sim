@@ -496,16 +496,23 @@ async function doExecuteRunTool(
   })()
 
   const runFromBlock = (() => {
+    // Mocked upstream outputs ride through to the server, which overlays them on
+    // the latest snapshot — or runs purely from them when no execution exists.
+    const variableInputs = isPlainRecord(params.variableInputs)
+      ? (params.variableInputs as Record<string, unknown>)
+      : undefined
     if (toolName === RunFromBlock.id && params.startBlockId) {
       return {
         startBlockId: params.startBlockId as string,
         executionId: (params.executionId as string | undefined) || 'latest',
+        ...(variableInputs ? { variableInputs } : {}),
       }
     }
     if (toolName === RunBlock.id && params.blockId) {
       return {
         startBlockId: params.blockId as string,
         executionId: (params.executionId as string | undefined) || 'latest',
+        ...(variableInputs ? { variableInputs } : {}),
       }
     }
     return undefined

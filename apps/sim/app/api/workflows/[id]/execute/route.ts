@@ -165,6 +165,7 @@ import type {
 import type { BlockLog, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { getExecutionErrorStatus, hasExecutionResult } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
+import { emptyRunFromBlockSnapshot } from '@/executor/utils/run-from-block'
 import { Serializer } from '@/serializer'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -783,6 +784,7 @@ async function handleExecutePost(
           startBlockId: string
           sourceSnapshot: SerializableExecutionState
           sourceExecutionId?: string
+          variableInputs?: Record<string, unknown>
         }
       | undefined
     if (rawRunFromBlock) {
@@ -817,10 +819,17 @@ async function handleExecutePost(
               startBlockId: rawRunFromBlock.startBlockId,
               sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
             }
+          } else if (rawRunFromBlock.variableInputs && !isPublicApiAccess) {
+            // Pure-mock isolated run: no prior execution needed — the caller supplies
+            // every upstream output the block reads (the executor overlays them).
+            resolvedRunFromBlock = {
+              startBlockId: rawRunFromBlock.startBlockId,
+              sourceSnapshot: emptyRunFromBlockSnapshot(),
+            }
           } else {
             return NextResponse.json(
               {
-                error: `No execution state found for ${rawRunFromBlock.executionId === 'latest' ? 'workflow' : `execution ${rawRunFromBlock.executionId}`}. Run the full workflow first.`,
+                error: `No execution state found for ${rawRunFromBlock.executionId === 'latest' ? 'workflow' : `execution ${rawRunFromBlock.executionId}`}. Run the full workflow first, or pass variableInputs mocking the upstream outputs.`,
               },
               { status: 400 }
             )
@@ -839,11 +848,19 @@ async function handleExecutePost(
           startBlockId: rawRunFromBlock.startBlockId,
           sourceSnapshot: rawRunFromBlock.sourceSnapshot as SerializableExecutionState,
         }
+      } else if (rawRunFromBlock.variableInputs && !isPublicApiAccess) {
+        resolvedRunFromBlock = {
+          startBlockId: rawRunFromBlock.startBlockId,
+          sourceSnapshot: emptyRunFromBlockSnapshot(),
+        }
       } else {
         return NextResponse.json(
           { error: 'runFromBlock requires either sourceSnapshot or executionId' },
           { status: 400 }
         )
+      }
+      if (resolvedRunFromBlock && rawRunFromBlock.variableInputs && !isPublicApiAccess) {
+        resolvedRunFromBlock.variableInputs = rawRunFromBlock.variableInputs
       }
     }
 

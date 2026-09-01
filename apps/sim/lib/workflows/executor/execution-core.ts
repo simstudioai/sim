@@ -126,6 +126,8 @@ export interface ExecuteWorkflowCoreOptions {
     startBlockId: string
     sourceSnapshot: SerializableExecutionState
     sourceExecutionId?: string
+    /** Mocked upstream outputs (block name/id → output object) overlaid on the snapshot. */
+    variableInputs?: Record<string, unknown>
   }
 }
 
@@ -1055,7 +1057,8 @@ async function executeWorkflowCoreImpl(
       ? ((await executorInstance.executeFromBlock(
           workflowId,
           runFromBlock.startBlockId,
-          runFromBlock.sourceSnapshot
+          runFromBlock.sourceSnapshot,
+          runFromBlock.variableInputs
         )) as ExecutionResult)
       : ((await executorInstance.execute(workflowId, resolvedTriggerBlockId)) as ExecutionResult)
 
