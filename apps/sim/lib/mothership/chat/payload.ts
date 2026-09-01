@@ -420,7 +420,7 @@ export async function buildCopilotRequestPayload(
       : {}),
     messageId: userMessageId,
     ...(chatId ? { chatId } : {}),
-    ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
+    workspaceId: params.workspaceId,
     ...(workflowId ? { workflowId } : {}),
     ...(allContexts.length > 0 ? { context: allContexts } : {}),
     ...(integrationTools.length > 0 ? { integrationTools } : {}),
