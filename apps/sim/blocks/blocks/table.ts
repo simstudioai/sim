@@ -206,7 +206,7 @@ const SORT_FIELD = ['sortBuilder', 'sort'] as const
 
 export const TableBlock: BlockConfig<TableQueryResponse> = {
   type: 'table',
-  name: 'Table (Legacy)',
+  name: 'Table',
   description: 'User-defined data tables',
   longDescription:
     'Create and manage custom data tables. Store, query, and manipulate structured data within workflows. Query Rows returns every matching row when Limit is omitted and fails if the result exceeds 5MB.',
