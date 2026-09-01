@@ -494,6 +494,46 @@ describe('table import application use cases', () => {
       expect(mocks.createResource).not.toHaveBeenCalled()
     })
 
+    /**
+     * A run carries the role of whoever triggered it but not their
+     * capabilities — the same exemption `authorizeWorkspaceOperation` applies.
+     * Keying this check on the raw subject instead would re-apply a capability
+     * the funnel deliberately passed, failing an executor import under a group
+     * that withholds table creation from the person who started the workflow.
+     */
+    it('exempts an executor delegation carrying a subject, as the funnel does', async () => {
+      await expect(
+        createTableImportUseCase.execute({
+          principal: executor,
+          input: {
+            body: {
+              workspaceId: 'workspace-1',
+              source: record.source,
+              target: { type: 'new', name: 'People' },
+            },
+          },
+          request: new Request('http://localhost:3000/api/table/imports', { method: 'POST' }),
+        })
+      ).resolves.toBeDefined()
+
+      expect(mocks.createResource).toHaveBeenCalled()
+    })
+
+    it('exempts an executor delegation at completion too', async () => {
+      await expect(
+        completeTableImportUseCase.execute({
+          principal: executor,
+          input: {
+            importId: 'import-1',
+            workspaceId: 'workspace-1',
+            uploadToken: 'signed-token',
+          },
+        })
+      ).resolves.toBeDefined()
+
+      expect(mocks.startUploadedImport).toHaveBeenCalled()
+    })
+
     it('still allows importing into an existing table, which creates nothing', async () => {
       await expect(
         createTableImportUseCase.execute({
