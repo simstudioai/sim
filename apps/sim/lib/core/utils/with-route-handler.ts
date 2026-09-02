@@ -1,5 +1,5 @@
 import { createLogger, runWithRequestContext } from '@sim/logger'
-import { describeError, getErrorMessage, redactBoundParameters } from '@sim/utils/errors'
+import { describeError, findCause, getErrorMessage, redactBoundParameters } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getRateLimitHeaders } from '@/lib/api/server/rate-limit-context'
@@ -93,12 +93,20 @@ function traceIdFromTraceparent(header: string | null | undefined): string | und
  * message names the query. The shared describer reads the deepest cause and
  * strips bound parameter values, so user data never reaches the log.
  */
-function errorDetail(error: unknown): { cause?: string; code?: string } {
+function errorDetail(error: unknown): { cause?: string; code?: string; causeStack?: string } {
   if (!(error instanceof Error) || error.cause === undefined) return {}
   const described = describeError(error)
+  /** Outside production the deepest cause's stack says where a wrapped failure was raised. */
+  const deepest = findCause(
+    error,
+    (candidate): candidate is Error => candidate instanceof Error && candidate.cause === undefined
+  )
   return {
     cause: `${described.name}: ${described.message}`,
     ...(described.code ? { code: described.code } : {}),
+    ...(process.env.NODE_ENV !== 'production' && deepest?.stack
+      ? { causeStack: redactBoundParameters(deepest.stack) }
+      : {}),
   }
 }
 
