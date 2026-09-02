@@ -429,10 +429,37 @@ describe('file manage folder wiring', () => {
         })
       )
 
-      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
-        'workspace-1',
-        'a-people-self'
+      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-1', 'a-people-self')
+    })
+
+    /*
+     * The same lookalike hazard pointed the other way: the reference is a real
+     * file id, but for a file OUTSIDE the folder, while an in-scope file merely
+     * happens to be named like that id. Answering with the lookalike would edit
+     * a file the caller did not name.
+     */
+    it('refuses a real id that belongs outside the scope rather than matching a lookalike name', async () => {
+      mockListAllWorkspaceFiles.mockResolvedValue({
+        files: [
+          { ...workspaceFile('b-self'), name: 'self.md', folderId: 'user-b' },
+          { ...workspaceFile('in-scope'), name: 'b-self', folderId: 'user-a' },
+        ],
+      })
+
+      const response = await POST(
+        createMockRequest('POST', {
+          operation: 'edit',
+          workspaceId: 'workspace-1',
+          fileName: 'b-self',
+          folderPath: '/memory/user-a',
+          oldString: 'old',
+          newString: 'new',
+        })
       )
+
+      expect(response.status).toBe(404)
+      expect(String((await response.json()).error)).toContain('is not in /memory/user-a')
+      expect(mockEditWorkspaceFileContent).not.toHaveBeenCalled()
     })
 
     it('refuses an ambiguous name instead of editing an arbitrary file', async () => {

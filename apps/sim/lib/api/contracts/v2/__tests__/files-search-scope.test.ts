@@ -2,10 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import {
-  parseFolderPathList,
-  v2SearchFileContentQuerySchema,
-} from '@/lib/api/contracts/v2/files'
+import { parseFolderPathList, v2SearchFileContentQuerySchema } from '@/lib/api/contracts/v2/files'
 
 const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
 

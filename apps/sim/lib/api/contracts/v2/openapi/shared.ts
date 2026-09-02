@@ -148,14 +148,18 @@ export const ERROR_RESPONSES = {
   UnsupportedMediaType: errorResponse(415, 'The request uses an unsupported media type.', {
     message: 'Request body must be sent as application/json',
   }),
-  Locked: errorResponse(423, 'The resource is locked and cannot be modified.', {
-    /**
-     * Also domain-supplied. Workflows, tables and workspace files are the documents that carry
-     * a `423`; tables names its own four lock kinds through {@link withErrorExamples}, and files
-     * names the file and its search index.
-     */
-    message: 'Workflow is locked',
-  }),
+  Locked: errorResponse(
+    423,
+    'The resource is temporarily locked or unavailable; retry the request.',
+    {
+      /**
+       * Also domain-supplied. Workflows, tables and workspace files are the documents that carry
+       * a `423`; tables names its own four lock kinds through {@link withErrorExamples}, and files
+       * names the file and its search index.
+       */
+      message: 'Workflow is locked',
+    }
+  ),
   RateLimited: errorResponse(429, 'The caller exceeded the request rate limit.', {
     message: 'API rate limit exceeded',
     /** Mirrors `Retry-After`, which the description already sends callers to. */

@@ -2968,7 +2968,7 @@
         }
       },
       "Locked": {
-        "description": "The resource is locked and cannot be modified.",
+        "description": "The resource is temporarily locked or unavailable; retry the request.",
         "content": {
           "application/json": {
             "schema": {

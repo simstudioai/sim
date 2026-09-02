@@ -658,12 +658,19 @@ export function fileContentJsonResponse(
  * The scope resolution is shared with content search, which pushes the same
  * scope down into SQL rather than listing files; this is the file half of it.
  */
+/** The file fields folder expansion and reference resolution need. */
+interface WorkspaceFileSummary {
+  id: string
+  name: string
+  folderId?: string | null
+}
+
 async function expandFolderPathsToFiles(args: {
   principal: Principal
   workspaceId: string
   folderPaths: string[] | undefined
   includeSubfolders: boolean | undefined
-}): Promise<Array<{ id: string; name: string; folderId?: string | null }>> {
+}): Promise<WorkspaceFileSummary[]> {
   if (!args.folderPaths?.length) return []
 
   const [scope, { files }] = await Promise.all([
@@ -680,6 +687,34 @@ async function expandFolderPathsToFiles(args: {
   ])
 
   return files.filter((file) => isWithinFolderIdScope(file.folderId, scope))
+}
+
+/**
+ * The same expansion, keeping the whole workspace listing alongside the scoped
+ * one. Reference resolution needs both: to answer whether a reference is a real
+ * file id at all, it has to look past the scope, and the listing is already in
+ * hand rather than a second query.
+ */
+async function expandFolderPathsWithWorkspace(args: {
+  principal: Principal
+  workspaceId: string
+  folderPaths: string[]
+  includeSubfolders: boolean | undefined
+}): Promise<{ scoped: WorkspaceFileSummary[]; all: WorkspaceFileSummary[] }> {
+  const [scope, { files }] = await Promise.all([
+    resolveWorkspaceFolderScope({
+      principal: args.principal,
+      workspaceId: args.workspaceId,
+      folderPaths: args.folderPaths,
+      includeSubfolders: args.includeSubfolders,
+    }),
+    listAllWorkspaceFiles.execute({
+      principal: args.principal,
+      input: { workspaceId: args.workspaceId, scope: 'active' },
+    }),
+  ])
+
+  return { scoped: files.filter((file) => isWithinFolderIdScope(file.folderId, scope)), all: files }
 }
 
 async function expandFolderPathsToFileIds(args: {
@@ -715,7 +750,7 @@ async function resolveScopedFileReference(args: {
   const { fileName, folderPath } = args
   if (!folderPath) return fileName
 
-  const scoped = await expandFolderPathsToFiles({
+  const { scoped, all } = await expandFolderPathsWithWorkspace({
     principal: args.principal,
     workspaceId: args.workspaceId,
     folderPaths: [folderPath],
@@ -731,10 +766,20 @@ async function resolveScopedFileReference(args: {
   if (byId) return byId.id
 
   /*
-   * Only then by name — and still not inferring which kind the reference is
-   * from its shape, so a file genuinely named `wf_notes.md` resolves normally
-   * and an id belonging outside the scope is reported as not in it.
+   * A reference that IS a real file id, but for a file outside this folder, is
+   * out of scope — never a name match. Falling through would answer a caller
+   * who named one file exactly with a different file that happens to be called
+   * like that id, which is the same lookalike hazard pointed the other way.
+   *
+   * Decided by looking the id up rather than by its shape, because `wf_` is a
+   * legal filename prefix and inferring from it is what this resolution has
+   * twice been wrong about.
    */
+  if (all.some((file) => file.id === fileName)) {
+    throw new OrchestrationError('not_found', `File ${fileName} is not in ${folderPath}`)
+  }
+
+  /* Only then by name. */
   const matches = scoped.filter((file) => file.name === fileName)
   if (matches.length === 0) {
     throw new OrchestrationError('not_found', `No file named ${fileName} in ${folderPath}`)
