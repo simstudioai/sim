@@ -546,6 +546,111 @@ describe('path-owned folder mutations', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
+  /**
+   * `mv` semantics: `/xp-files` moved to an existing `/fx-archive` lands at
+   * `/fx-archive/xp-files` instead of being refused as a name collision, while
+   * a destination naming no folder is still the source's new full path.
+   */
+  it('moves a folder into a destination that names an existing folder', async () => {
+    const source = folderRow({ id: 'folder-1', name: 'xp-files' })
+    const archive = folderRow({ id: 'folder-2', name: 'fx-archive' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([
+        ['folder-1', source],
+        ['folder-2', archive],
+      ]),
+      pathById: new Map([
+        ['folder-1', '/xp-files'],
+        ['folder-2', '/fx-archive'],
+      ]),
+      idByPath: new Map([
+        ['/xp-files', 'folder-1'],
+        ['/fx-archive', 'folder-2'],
+      ]),
+    })
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      folderRow({ id: 'folder-1', name: 'xp-files', parentId: 'folder-2' }),
+    ])
+
+    const result = await relocateFolderByPath({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/xp-files',
+      destinationPath: '/fx-archive',
+    })
+
+    expect(result).toMatchObject({ success: true, path: '/fx-archive/xp-files' })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'xp-files', parentId: 'folder-2' })
+    )
+    expect(auditMock.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'Moved table folder to "/fx-archive/xp-files"',
+        metadata: expect.objectContaining({ destinationPath: '/fx-archive/xp-files' }),
+      })
+    )
+  })
+
+  it('renames a folder to a destination that names no folder', async () => {
+    const source = folderRow({ id: 'folder-1', name: 'xp-files' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([['folder-1', source]]),
+      pathById: new Map([['folder-1', '/xp-files']]),
+      idByPath: new Map([['/xp-files', 'folder-1']]),
+    })
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      folderRow({ id: 'folder-1', name: 'fx-archive' }),
+    ])
+
+    const result = await relocateFolderByPath({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/xp-files',
+      destinationPath: '/fx-archive',
+    })
+
+    expect(result).toMatchObject({ success: true, path: '/fx-archive' })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'fx-archive', parentId: null })
+    )
+  })
+
+  it('still refuses a move whose source already exists under the destination', async () => {
+    const source = folderRow({ id: 'folder-1', name: 'xp-files' })
+    const archive = folderRow({ id: 'folder-2', name: 'fx-archive' })
+    const taken = folderRow({ id: 'folder-3', name: 'xp-files', parentId: 'folder-2' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([
+        ['folder-1', source],
+        ['folder-2', archive],
+        ['folder-3', taken],
+      ]),
+      pathById: new Map([
+        ['folder-1', '/xp-files'],
+        ['folder-2', '/fx-archive'],
+        ['folder-3', '/fx-archive/xp-files'],
+      ]),
+      idByPath: new Map([
+        ['/xp-files', 'folder-1'],
+        ['/fx-archive', 'folder-2'],
+        ['/fx-archive/xp-files', 'folder-3'],
+      ]),
+    })
+
+    const result = await relocateFolderByPath({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/xp-files',
+      destinationPath: '/fx-archive',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
   it('requires recursive deletion when the path has descendant folders', async () => {
     const source = folderRow({ id: 'folder-1', name: 'Reports' })
     const child = folderRow({ id: 'folder-2', name: 'Q1', parentId: 'folder-1' })

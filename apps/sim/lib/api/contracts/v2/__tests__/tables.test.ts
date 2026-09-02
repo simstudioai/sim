@@ -16,12 +16,14 @@ import {
   v2ApiTableSchema,
   v2BulkDeleteTablesBodySchema,
   v2BulkUpdateRowsBodySchema,
+  v2CancelTableRunsBodySchema,
   v2CreateTableBodySchema,
   v2CreateTableColumnBodySchema,
   v2CreateTableImportBodySchema,
   v2CreateTableRowsBodySchema,
   v2CsvImportCreateColumnsSchema,
   v2CsvImportMappingSchema,
+  v2DeleteTableRowsBodySchema,
   v2GetTableDispatchContract,
   v2GetTableImportContract,
   v2GetTableRowQuerySchema,
@@ -30,11 +32,13 @@ import {
   v2QueryRowsBodySchema,
   v2QueryRowsCountBodySchema,
   v2RestoreTableContract,
+  v2RunColumnBodySchema,
   v2SearchRowsBodySchema,
   v2SearchRowsDataSchema,
   v2TableImportStatusSchema,
   v2TableRowsQuerySchema,
   v2TableUploadImportSourceSchema,
+  v2UpdateRowsByPredicateBodySchema,
   v2UpdateTableColumnBodySchema,
   v2UpdateWorkflowGroupBodySchema,
 } from '@/lib/api/contracts/v2/tables'
@@ -257,6 +261,30 @@ describe('v2 table request bodies', () => {
     expect(schema.parse({ workspaceId: WORKSPACE_ID, predicate: condition })).toMatchObject({
       predicate: { all: [condition] },
     })
+  })
+
+  /**
+   * One filter grammar across the rows endpoints. The bulk, run, cancel, and
+   * search bodies used to demand an `all`/`any` root while query and count took
+   * a bare condition, so the same predicate had to be spelled two ways depending
+   * on the endpoint. Every filter field now takes either form and normalizes a
+   * bare condition to `{ all: [condition] }`; a grouped filter still parses.
+   */
+  it.each([
+    ['batch-update', 'filter', v2UpdateRowsByPredicateBodySchema, { data: { status: 'done' } }],
+    ['batch-delete', 'filter', v2DeleteTableRowsBodySchema, {}],
+    ['run', 'filter', v2RunColumnBodySchema, { groupIds: ['group-1'] }],
+    ['cancel-runs', 'filter', v2CancelTableRunsBodySchema, { scope: 'all' }],
+    ['search', 'predicate', v2SearchRowsBodySchema, { q: 'needle' }],
+  ])('normalizes a bare condition on the rows %s body', (_name, key, schema, extra) => {
+    const condition = { field: 'status', op: 'eq', value: 'active' }
+
+    expect(schema.parse({ workspaceId: WORKSPACE_ID, ...extra, [key]: condition })).toMatchObject({
+      [key]: { all: [condition] },
+    })
+    expect(
+      schema.parse({ workspaceId: WORKSPACE_ID, ...extra, [key]: { any: [condition] } })
+    ).toMatchObject({ [key]: { any: [condition] } })
   })
 })
 

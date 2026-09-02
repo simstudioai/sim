@@ -952,6 +952,7 @@ export async function getTagUsageStats(
           )
         )
 
+      /** Counts live document tags instead of the denormalized copy on each chunk. */
       const chunkCountResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(embedding)
@@ -963,7 +964,7 @@ export async function getTagUsageStats(
             isNull(document.archivedAt),
             isNull(document.deletedAt),
             accessCondition,
-            sql`${sql.raw(`embedding.${tagSlot}`)} IS NOT NULL`
+            sql`${sql.raw(`document.${tagSlot}`)} IS NOT NULL`
           )
         )
 

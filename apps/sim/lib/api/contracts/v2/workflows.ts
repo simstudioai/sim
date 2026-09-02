@@ -367,6 +367,40 @@ export const v2DeploymentStateSchema = z
   })
 
 /**
+ * One public URL a live deployment receives events on.
+ *
+ * The block's own `webhookUrlDisplay` field is computed client-side and reads
+ * back as `null` through the API, so until this was published a caller that
+ * deployed a webhook-triggered workflow had no way to learn where to point the
+ * sender.
+ */
+export const v2DeployedWebhookSchema = z
+  .object({
+    blockId: z
+      .string()
+      .nullable()
+      .describe('Trigger block the URL delivers to, or null for a legacy row that recorded none.'),
+    provider: z
+      .string()
+      .nullable()
+      .describe(
+        'Webhook provider the endpoint verifies inbound requests against, e.g. `generic`, `github`, or `slack`.'
+      ),
+    url: z
+      .string()
+      .url()
+      .describe('Absolute URL for the external system to send events to.')
+      .meta({ examples: ['https://www.sim.ai/api/webhooks/trigger/leads'] }),
+  })
+  .strict()
+  .meta({
+    id: 'WorkflowDeploymentWebhook',
+    title: 'Deployed webhook',
+    description: 'The public delivery URL of one webhook the live deployment registered.',
+  })
+export type V2DeployedWebhook = z.output<typeof v2DeployedWebhookSchema>
+
+/**
  * Read-only deployment state. Extends the shared state with `needsRedeployment`,
  * which the mutation responses cannot carry: it compares the live graph against
  * the draft, and immediately after a deploy or rollback the two are equal by
@@ -384,6 +418,11 @@ export const v2WorkflowDeploymentSchema = v2DeploymentStateSchema
       .boolean()
       .describe(
         'Whether anyone with the execution URL can run the deployed workflow and consume billed usage without an API key. Change this with Update Workflow Public API Access.'
+      ),
+    webhooks: z
+      .array(v2DeployedWebhookSchema)
+      .describe(
+        'Public delivery URL of every webhook the live version registered, one per trigger block. Empty while nothing is deployed, and omits trigger blocks that receive events through a shared endpoint with no per-workflow URL.'
       ),
   })
   .meta({
@@ -2294,7 +2333,7 @@ export const v2ImportWorkflowDataSchema = z
     blocks: z
       .array(v2ImportedBlockSchema)
       .describe(
-        'Blocks the import created, in payload order. A summary only; `GET /workflows/{workflowId}/state` returns the full graph.'
+        'Blocks the import created, in payload order. A summary only; the workflow state read returns the full graph.'
       ),
   })
   .extend(v2OperationReportSchema.omit({ workspaceId: true }).partial().shape)

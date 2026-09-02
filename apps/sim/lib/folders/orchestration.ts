@@ -26,6 +26,7 @@ import {
   folderNameFromPath,
   parentFolderPath,
   requireNonRootFolderPath,
+  resolveFolderMoveDestination,
 } from '@/lib/folders/paths'
 import {
   assertFolderCollectionHasRoom,
@@ -297,18 +298,28 @@ async function executeRelocateFolderByPath(
   try {
     requireNonRootFolderPath(params.path)
     requireNonRootFolderPath(params.destinationPath)
-    const name = validatePathLeafName(params.destinationPath)
 
-    const folder = await withTransactionRetry(
+    const { folder, destinationPath } = await withTransactionRetry(
       async (tx) => {
         await acquireFolderMutationLock(tx, params.workspaceId, params.resourceType)
         const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx, {
           maxRows: params.maxFolderRows,
         })
         const folderId = resolveRequiredFolderId(index, params.path)
-        if (index.idByPath.has(params.destinationPath)) throw new Error(DUPLICATE_NAME_ERROR)
+        /**
+         * Resolved under the lock, against the same index the collision check
+         * reads: whether the destination names an existing folder decides
+         * whether this is a move into it or a rename onto it.
+         */
+        const destinationPath = resolveFolderMoveDestination(
+          index,
+          params.path,
+          params.destinationPath
+        )
+        if (index.idByPath.has(destinationPath)) throw new Error(DUPLICATE_NAME_ERROR)
+        const name = validatePathLeafName(destinationPath)
 
-        const destinationParentPath = parentFolderPath(params.destinationPath)
+        const destinationParentPath = parentFolderPath(destinationPath)
         if (
           destinationParentPath === params.path ||
           destinationParentPath.startsWith(`${params.path}/`)
@@ -342,7 +353,7 @@ async function executeRelocateFolderByPath(
           )
           .returning()
         if (!updated) throw new Error('Folder not found')
-        return updated
+        return { folder: updated, destinationPath }
       },
       { label: 'relocate-folder-by-path' }
     )
@@ -355,10 +366,10 @@ async function executeRelocateFolderByPath(
         resourceType: AuditResourceType.FOLDER,
         resourceId: folder.id,
         resourceName: folder.name,
-        description: `Moved ${folderResourceConfig(params.resourceType).label} folder to "${params.destinationPath}"`,
+        description: `Moved ${folderResourceConfig(params.resourceType).label} folder to "${destinationPath}"`,
         metadata: {
           sourcePath: params.path,
-          destinationPath: params.destinationPath,
+          destinationPath,
           folderResourceType: params.resourceType,
         },
       })
@@ -366,7 +377,7 @@ async function executeRelocateFolderByPath(
     if (params.effects !== false) {
       await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
     }
-    return { success: true, folder, path: params.destinationPath }
+    return { success: true, folder, path: destinationPath }
   } catch (error) {
     const result = pathMutationError(error)
     if (params.throwInfrastructure && result.errorCode === 'internal') throw error
@@ -374,7 +385,12 @@ async function executeRelocateFolderByPath(
   }
 }
 
-/** Renames, moves, or both by replacing one canonical path with another. */
+/**
+ * Renames, moves, or both. A destination naming an existing folder receives the
+ * source as a child (`mv` semantics, see {@link resolveFolderMoveDestination});
+ * any other destination becomes the source's new path. `path` on the result is
+ * where the folder actually landed.
+ */
 export async function relocateFolderByPath(
   params: RelocateFolderByPathParams
 ): Promise<FolderPathMutationResult> {

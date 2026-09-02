@@ -1008,6 +1008,31 @@ type CancelTableRunsBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 export type CancelTableRunsBody = {
   workspaceId: string
@@ -2191,6 +2216,31 @@ type CreateTableDispatchBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 export type CreateTableDispatchBody = {
   workspaceId: string
@@ -3221,6 +3271,31 @@ type DeleteTableRowsBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 export type DeleteTableRowsBody = {
   workspaceId: string
@@ -3924,6 +3999,7 @@ type GetBlockResponseRef0 = {
     id: string
     label?: string
     hasIcon?: boolean
+    hosted?: boolean
   }>
   min?: number
   max?: number
@@ -4553,6 +4629,19 @@ export type GetLogStatsQuery = {
   startDate?: string
   endDate?: string
   segmentCount?: number
+  includeEmpty?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
 }
 
 type GetLogStatsResponseRef0 = {
@@ -5320,6 +5409,12 @@ type GetWorkflowDeploymentResponseRef3 = {
 }
 
 type GetWorkflowDeploymentResponseRef4 = {
+  blockId: string | null
+  provider: string | null
+  url: string
+}
+
+type GetWorkflowDeploymentResponseRef5 = {
   id: string
   isDeployed: boolean
   deployedAt: string | null
@@ -5328,10 +5423,11 @@ type GetWorkflowDeploymentResponseRef4 = {
   latestDeploymentAttempt: GetWorkflowDeploymentResponseRef1 | null
   needsRedeployment: boolean
   isPublicApi: boolean
+  webhooks: Array<GetWorkflowDeploymentResponseRef4>
 }
 
 export type GetWorkflowDeploymentResponse = {
-  data: GetWorkflowDeploymentResponseRef4
+  data: GetWorkflowDeploymentResponseRef5
 }
 
 /** `GET /api/v2/workflow-mcp-servers/[serverId]` */
@@ -9682,6 +9778,31 @@ type SearchTableRowsBodyRef0 =
           }
       >
     }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
+    }
 
 export type SearchTableRowsBody = {
   workspaceId: string
@@ -10380,6 +10501,31 @@ type UpdateRowsByFilterBodyRef0 =
             value?: unknown
           }
       >
+    }
+  | {
+      field: string
+      op:
+        | 'eq'
+        | 'ne'
+        | 'gt'
+        | 'gte'
+        | 'lt'
+        | 'lte'
+        | 'in'
+        | 'nin'
+        | 'contains'
+        | 'ncontains'
+        | 'startsWith'
+        | 'endsWith'
+        | 'like'
+        | 'ilike'
+        | 'nlike'
+        | 'nilike'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isNull'
+        | 'isNotNull'
+      value?: unknown
     }
 
 type UpdateRowsByFilterBodyRef1 = Record<string, unknown>
@@ -12188,7 +12334,8 @@ export const V2_OPERATIONS = {
       description: { kind: 'string', describe: 'Optional credential description.' },
       id: {
         kind: 'string',
-        describe: 'Required only when provider discovery requests a client-generated ID.',
+        describe:
+          'Optional client-generated credential ID. The server mints one when it is omitted, so no provider requires it. A `slack-custom-bot` credential may supply one so its Slack Request URL, which embeds the ID, can be configured before the credential exists; every other provider ignores it.',
       },
       credentials: {
         kind: 'string',
