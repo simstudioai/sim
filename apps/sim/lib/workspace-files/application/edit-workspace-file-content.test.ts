@@ -180,7 +180,7 @@ describe('editWorkspaceFileContent', () => {
    * has no lines to edit.
    */
   it('refuses a file that is not text', async () => {
-    mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from([0x50, 0x4b, 0x03, 0x00, 0xff]))
+mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from([0x50, 0x4b, 0xff, 0xfe, 0x01]))
 
     await expect(edit({ mode: 'replace_string', oldString: 'PK', newString: 'x' })).rejects.toThrow(
       /not a text file/
