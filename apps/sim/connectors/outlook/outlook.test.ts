@@ -470,3 +470,91 @@ describe('getDocument folder exclusion', () => {
     expect(folderCalls).toHaveLength(2)
   })
 })
+
+describe('listDocuments conversation cap', () => {
+  function inboxMessagesRoute(count: number): [RegExp, () => Response] {
+    return [
+      /\/me\/mailFolders\/inbox\/messages\?/,
+      () =>
+        jsonResponse({
+          value: Array.from({ length: count }, (_, index) =>
+            message({ id: `m${index}`, conversationId: `conv-${index}`, parentFolderId: INBOX_ID })
+          ),
+        }),
+    ]
+  }
+
+  it('caps the listing at maxConversations and flags it capped', async () => {
+    routeFetch([inboxMessagesRoute(3)])
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await outlookConnector.listDocuments(
+      'token',
+      { folder: 'inbox', maxConversations: '2' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(2)
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
+  it('lists every conversation when the cap is 0', async () => {
+    routeFetch([inboxMessagesRoute(3)])
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await outlookConnector.listDocuments(
+      'token',
+      { folder: 'inbox', maxConversations: 0 },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(3)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('reads a folder Graph cannot find as a scope the caller cannot reach', async () => {
+    routeFetch([[/\/me\/mailFolders\/.*\/messages\?/, () => jsonResponse({}, { status: 404 })]])
+
+    const error = await outlookConnector
+      .listDocuments('token', { folder: 'missing-folder-id' })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(outlookConnector.isListingScopeUnavailableError!(error)).toBe(true)
+  })
+
+  it('keeps any other listing failure retryable', async () => {
+    routeFetch([[/\/me\/mailFolders\/inbox\/messages\?/, () => jsonResponse({}, { status: 500 })]])
+
+    const error = await outlookConnector
+      .listDocuments('token', { folder: 'inbox' })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(outlookConnector.isListingScopeUnavailableError!(error)).toBe(false)
+  })
+})
+
+describe('validateConfig conversation cap', () => {
+  it('accepts 0 as unlimited', async () => {
+    routeFetch([[/\/me\/mailFolders\/inbox\/messages\?/, () => jsonResponse({ value: [] })]])
+
+    await expect(
+      outlookConnector.validateConfig!('token', { folder: 'inbox', maxConversations: 0 })
+    ).resolves.toEqual({ valid: true })
+  })
+
+  it('rejects a fractional cap without calling Graph', async () => {
+    routeFetch([])
+
+    await expect(
+      outlookConnector.validateConfig!('token', { folder: 'inbox', maxConversations: '1.5' })
+    ).resolves.toEqual({
+      valid: false,
+      error: 'Max conversations must be a positive safe integer, or 0 for unlimited',
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})

@@ -412,3 +412,30 @@ describe('onedrive getDocument', () => {
     })
   })
 })
+
+describe('onedrive listing scope', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it.each([403, 404])(
+    'reads a %s on the configured folder as a scope the caller cannot reach',
+    async (status) => {
+      mockGraph({ [ROOT_URL]: { status, body: {} } })
+
+      const error = await onedriveConnector.listDocuments('token', {}).catch((e: unknown) => e)
+
+      expect(error).toBeInstanceOf(Error)
+      expect(onedriveConnector.isListingScopeUnavailableError!(error)).toBe(true)
+    }
+  )
+
+  it('keeps any other listing failure retryable', async () => {
+    mockGraph({ [ROOT_URL]: { status: 500, body: {} } })
+
+    const error = await onedriveConnector.listDocuments('token', {}).catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(onedriveConnector.isListingScopeUnavailableError!(error)).toBe(false)
+  })
+})

@@ -14,6 +14,8 @@ export const microsoftExcelConnectorMeta: ConnectorMeta = {
     requiredScopes: ['Files.ReadWrite'],
   },
 
+  /** Every worksheet of the one workbook is listed; nothing caps the listing. */
+  permissionScopedListing: { capFieldIds: [] },
   configFields: [
     {
       id: 'driveId',

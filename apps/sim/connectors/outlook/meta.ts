@@ -16,6 +16,7 @@ export const outlookConnectorMeta: ConnectorMeta = {
     requiredScopes: ['Mail.Read'],
   },
 
+  permissionScopedListing: { capFieldIds: ['maxConversations'] },
   configFields: [
     {
       id: 'folderSelector',

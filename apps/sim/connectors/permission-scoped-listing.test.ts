@@ -38,8 +38,13 @@ describe('permission-scoped connector listings', () => {
       'jira',
       'jsm',
       'linear',
+      'microsoft_excel',
+      'microsoft_teams',
       'monday',
+      'onedrive',
+      'outlook',
       'salesforce',
+      'sharepoint',
       'zoom',
     ])
   })
