@@ -307,7 +307,7 @@ describe('generated OpenAPI documents', () => {
     )
   })
 
-  it('publishes Agent tools as named integration, custom, and MCP schemas', () => {
+  it('publishes Agent tools as integration, custom, MCP tool, and advanced MCP schemas', () => {
     const workflowsSpec = generatedDocument(workflowsOpenApiDocument)
     const schemas = (workflowsSpec.components as JsonObject).schemas as JsonObject
     const agentToolInput = schemas.AgentToolInput as JsonObject
@@ -332,6 +332,7 @@ describe('generated OpenAPI documents', () => {
       { $ref: '#/components/schemas/AgentIntegrationTool' },
       { $ref: '#/components/schemas/AgentCustomTool' },
       { $ref: '#/components/schemas/AgentMcpTool' },
+      { $ref: '#/components/schemas/AgentMcpServerAdvanced' },
     ])
     expect(agentToolInput).toEqual(
       expect.objectContaining({ type: 'array', maxItems: MAX_AGENT_TOOLS_PER_BLOCK })
