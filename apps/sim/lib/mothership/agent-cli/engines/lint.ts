@@ -35,7 +35,7 @@ export const workflowLintCommand: AgentCliEngine = {
       ? formatWorkflowLintMessage(report)
       : undeclaredEnvVars.length > 0
         ? `Undeclared environment variables referenced: ${undeclaredEnvVars.map((v) => v.name).join(', ')} — an unresolved {{TOKEN}} resolves to an EMPTY STRING at run time, not an error.`
-        : 'No lint issues found.'
+        : 'No structural issues found (orphans, ports, required fields, references). Code and runtime behaviour are not checked — run it.'
     return agentCliOk(JSON.stringify({ summary, undeclaredEnvVars, ...report }, null, 2))
   },
 }

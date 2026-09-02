@@ -58,6 +58,8 @@ export interface RunWorkflowParams {
   inputFromExecutionId?: string
   /** When true, runs the deployed version instead of the draft. Default: false (draft). */
   useDeployedState?: boolean
+  /** Block outputs to return as `blockName.path` (name or id); when given, `logs` are omitted and `selected` carries only these. */
+  select?: string[]
 }
 
 export interface CancelWorkflowRunParams {
@@ -79,6 +81,8 @@ export interface RunWorkflowUntilBlockParams {
   stopAfterBlockId: string
   /** When true, runs the deployed version instead of the draft. Default: false (draft). */
   useDeployedState?: boolean
+  /** Block outputs to return as `blockName.path` (name or id); when given, `logs` are omitted and `selected` carries only these. */
+  select?: string[]
 }
 
 export interface RunFromBlockParams {
@@ -92,6 +96,8 @@ export interface RunFromBlockParams {
   workflow_input?: unknown
   input?: unknown
   useDeployedState?: boolean
+  /** Block outputs to return as `blockName.path` (name or id); when given, `logs` are omitted and `selected` carries only these. */
+  select?: string[]
 }
 
 export interface RunBlockParams {
@@ -105,6 +111,8 @@ export interface RunBlockParams {
   workflow_input?: unknown
   input?: unknown
   useDeployedState?: boolean
+  /** Block outputs to return as `blockName.path` (name or id); when given, `logs` are omitted and `selected` carries only these. */
+  select?: string[]
 }
 
 export interface GetDeployedWorkflowStateParams {
