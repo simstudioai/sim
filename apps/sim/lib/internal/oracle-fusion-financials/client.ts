@@ -15,6 +15,14 @@ const REQUEST_TIMEOUT_MS = 30_000
 const RESPONSE_MAX_BYTES = 5 * 1024 * 1024
 const MAX_RETRIES = 2
 const TRANSIENT_STATUSES = new Set([429, 503, 504])
+const TRANSIENT_TRANSPORT_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'EPIPE',
+  'ETIMEDOUT',
+])
 const LOSSLESS_DECIMAL_FIELDS = new Set([
   'InvoiceId',
   'InvoiceDistributionId',
@@ -95,6 +103,26 @@ function parseOracleFusionJson(body: string): unknown {
   })
 }
 
+function isTransientTransportError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  if (error.message === `Request timed out after ${REQUEST_TIMEOUT_MS}ms`) return true
+  return (
+    'code' in error && typeof error.code === 'string' && TRANSIENT_TRANSPORT_CODES.has(error.code)
+  )
+}
+
+async function waitForRetry(
+  attempt: number,
+  signal?: AbortSignal,
+  retryAfterMs: number | null = null
+) {
+  await interruptibleSleep(
+    backoffWithJitter(attempt + 1, retryAfterMs, { baseMs: 250, maxMs: 5_000 }),
+    signal
+  )
+  signal?.throwIfAborted()
+}
+
 export interface OracleFusionRequest {
   path: string
   query?: Record<string, string | number | boolean | undefined>
@@ -126,7 +154,7 @@ async function fetchAttempt(
   })
 }
 
-/** Executes one bounded, credential-bound Oracle GET with transient-status retries. */
+/** Executes one bounded, credential-bound Oracle GET with transient retries. */
 export async function requestOracleFusionJson(
   auth: Pick<OracleFusionAuthInput, 'accessToken' | 'instanceUrl'>,
   request: OracleFusionRequest,
@@ -154,27 +182,31 @@ export async function requestOracleFusionJson(
     let response: SecureFetchResponse
     try {
       response = await fetchAttempt(url, validation.resolvedIP, auth.accessToken, signal)
-    } catch {
+    } catch (error) {
       signal?.throwIfAborted()
+      if (isTransientTransportError(error) && attempt < MAX_RETRIES) {
+        await waitForRetry(attempt, signal)
+        continue
+      }
       throw new Error('Could not reach Oracle Fusion Financials')
     }
 
     if (TRANSIENT_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
       const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
       await consumeOrCancelBody(response)
-      await interruptibleSleep(
-        backoffWithJitter(attempt + 1, retryAfterMs, { baseMs: 250, maxMs: 5_000 }),
-        signal
-      )
-      signal?.throwIfAborted()
+      await waitForRetry(attempt, signal, retryAfterMs)
       continue
     }
 
     let body: string
     try {
       body = await response.text()
-    } catch {
+    } catch (error) {
       signal?.throwIfAborted()
+      if (isTransientTransportError(error) && attempt < MAX_RETRIES) {
+        await waitForRetry(attempt, signal)
+        continue
+      }
       throw new OracleFusionFinancialsProviderError(
         'Oracle Fusion Financials response could not be read',
         502

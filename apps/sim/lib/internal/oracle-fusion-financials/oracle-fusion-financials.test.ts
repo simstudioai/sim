@@ -1080,6 +1080,66 @@ describe('Oracle Fusion Financials provider', () => {
     expect(mockSleep).toHaveBeenCalledTimes(2)
   })
 
+  it('retries classified transient transport failures within the existing bound', async () => {
+    mockSecureFetch
+      .mockRejectedValueOnce(Object.assign(new Error('socket reset'), { code: 'ECONNRESET' }))
+      .mockRejectedValueOnce(new Error('Request timed out after 30000ms'))
+      .mockResolvedValueOnce(response(200, page([])))
+
+    await requestOracleFusionJson(AUTH, { path: `${RESOURCE_PATH}/invoices` })
+
+    expect(mockSecureFetch).toHaveBeenCalledTimes(3)
+    expect(mockBackoff).toHaveBeenNthCalledWith(1, 1, null, {
+      baseMs: 250,
+      maxMs: 5_000,
+    })
+    expect(mockBackoff).toHaveBeenNthCalledWith(2, 2, null, {
+      baseMs: 250,
+      maxMs: 5_000,
+    })
+    expect(mockSleep).toHaveBeenCalledTimes(2)
+  })
+
+  it('stops after two transient transport retries and keeps the failure sanitized', async () => {
+    const reset = () => Object.assign(new Error('provider-host-canary'), { code: 'ECONNRESET' })
+    mockSecureFetch
+      .mockRejectedValueOnce(reset())
+      .mockRejectedValueOnce(reset())
+      .mockRejectedValueOnce(reset())
+
+    await expect(
+      requestOracleFusionJson(AUTH, { path: `${RESOURCE_PATH}/invoices` })
+    ).rejects.toThrow('Could not reach Oracle Fusion Financials')
+    expect(mockSecureFetch).toHaveBeenCalledTimes(3)
+    expect(mockSleep).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a classified transport failure while reading the response body', async () => {
+    mockSecureFetch
+      .mockResolvedValueOnce({
+        ...response(200, {}),
+        text: async () => {
+          throw Object.assign(new Error('socket reset'), { code: 'ECONNRESET' })
+        },
+      })
+      .mockResolvedValueOnce(response(200, page([])))
+
+    await requestOracleFusionJson(AUTH, { path: `${RESOURCE_PATH}/invoices` })
+
+    expect(mockSecureFetch).toHaveBeenCalledTimes(2)
+    expect(mockSleep).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry unclassified transport failures', async () => {
+    mockSecureFetch.mockRejectedValueOnce(new TypeError('invalid pinned request'))
+
+    await expect(
+      requestOracleFusionJson(AUTH, { path: `${RESOURCE_PATH}/invoices` })
+    ).rejects.toThrow('Could not reach Oracle Fusion Financials')
+    expect(mockSecureFetch).toHaveBeenCalledTimes(1)
+    expect(mockSleep).not.toHaveBeenCalled()
+  })
+
   it('stops after two retries and surfaces a sanitized Oracle error', async () => {
     const accessToken = 'short/lived+access~token='
     const encodedAccessToken = encodeURIComponent(accessToken)
@@ -1127,6 +1187,22 @@ describe('Oracle Fusion Financials provider', () => {
       requestOracleFusionJson(AUTH, { path: `${RESOURCE_PATH}/invoices` }, duringRetry.signal)
     ).rejects.toMatchObject({ name: 'AbortError' })
     expect(mockSecureFetch).toHaveBeenCalledTimes(1)
+
+    const duringTransportRetry = new AbortController()
+    mockSecureFetch.mockRejectedValueOnce(
+      Object.assign(new Error('socket reset'), { code: 'ECONNRESET' })
+    )
+    mockSleep.mockImplementationOnce(async () => {
+      duringTransportRetry.abort(new DOMException('cancelled', 'AbortError'))
+    })
+    await expect(
+      requestOracleFusionJson(
+        AUTH,
+        { path: `${RESOURCE_PATH}/invoices` },
+        duringTransportRetry.signal
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(mockSecureFetch).toHaveBeenCalledTimes(2)
   })
 
   it('maps invalid caller input to 400 and malformed Oracle responses to a sanitized 502', async () => {
