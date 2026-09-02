@@ -44,6 +44,11 @@ const SYSTEM_BILLING_ATTRIBUTION = {
   payerSubscription: null,
 }
 
+/** The route's defaults depend on member-access availability; pin it so the local flag cannot change the expectations. */
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  isKnowledgeMemberAccessAvailable: async () => false,
+}))
+
 vi.mock('@/lib/knowledge/search/queries', () => ({
   executeKnowledgeSearch: mockExecuteKnowledgeSearch,
   getDocumentMetadataByIds: mockGetDocumentMetadataByIds,
