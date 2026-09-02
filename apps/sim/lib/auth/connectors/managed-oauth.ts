@@ -3,9 +3,11 @@ import { isRecordLike } from '@sim/utils/object'
 import type { OAuth2Tokens } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { OAuth2Client, type TokenPayload } from 'google-auth-library'
+import { createRemoteJWKSet, type JWTPayload, jwtVerify } from 'jose'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
+import { deriveMicrosoftEmailVerified, mapMicrosoftProfileToUser } from '@/lib/oauth/microsoft'
 import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { isTerminalRefreshError } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
@@ -21,6 +23,19 @@ const GMAIL_LABELS_SCOPE = 'https://www.googleapis.com/auth/gmail.labels'
 const ATLASSIAN_USER_INFO_URL = 'https://api.atlassian.com/me'
 const ATLASSIAN_USER_INFO_MAX_BYTES = 256 * 1024
 const ATLASSIAN_USER_INFO_TIMEOUT_MS = 10_000
+const MICROSOFT_JWKS_URL = 'https://login.microsoftonline.com/common/discovery/v2.0/keys'
+const MICROSOFT_OIDC_USER_INFO_URL = 'https://graph.microsoft.com/oidc/userinfo'
+const MICROSOFT_OIDC_USER_INFO_MAX_BYTES = 256 * 1024
+const MICROSOFT_OIDC_USER_INFO_TIMEOUT_MS = 10_000
+const MICROSOFT_GRAPH_SCOPE_PREFIX = 'https://graph.microsoft.com/'
+/** The Microsoft providers whose accounts a Credential Group can collect per person. */
+const MICROSOFT_MANAGED_OAUTH_PROVIDER_IDS = new Set([
+  'microsoft-teams',
+  'outlook',
+  'onedrive',
+  'sharepoint',
+  'microsoft-excel',
+])
 
 type AtlassianManagedOAuthProviderId = 'confluence' | 'jira'
 
@@ -224,6 +239,160 @@ export function createAtlassianManagedOAuthConnector(
     isTerminalRefreshError(errorCode) {
       return errorCode === 'invalid_grant'
     },
+  }
+}
+
+let microsoftJwks: ReturnType<typeof createRemoteJWKSet> | undefined
+
+/** The signing keys of the multi-tenant Microsoft identity platform, cached across verifications. */
+function getMicrosoftJwks(): ReturnType<typeof createRemoteJWKSet> {
+  microsoftJwks ??= createRemoteJWKSet(new URL(MICROSOFT_JWKS_URL))
+  return microsoftJwks
+}
+
+/**
+ * Graph delegated scopes compare by name regardless of case, and a token response may spell
+ * one as its resource-qualified form.
+ */
+function canonicalMicrosoftScope(scope: string): string {
+  const unqualified = scope.startsWith(MICROSOFT_GRAPH_SCOPE_PREFIX)
+    ? scope.slice(MICROSOFT_GRAPH_SCOPE_PREFIX.length)
+    : scope
+  return unqualified.toLowerCase()
+}
+
+interface MicrosoftIdentityClaims {
+  oid: string
+  tid: string
+  sub: string
+  email: string
+  name?: string
+  nonce?: string
+  claims: Record<string, unknown>
+}
+
+/**
+ * Reads the claims a verified Microsoft id_token must carry to bind an enrollment. `oid` and
+ * `tid` identify the person and their tenant stably across every Microsoft app; `sub` is the
+ * app-pairwise subject the OIDC userinfo endpoint echoes back. The issuer is checked against the
+ * token's own tenant because the multi-tenant `/common` authority signs for every tenant.
+ */
+function requireMicrosoftIdentityClaims(payload: JWTPayload): MicrosoftIdentityClaims {
+  const claims: Record<string, unknown> = { ...payload }
+  const { oid, tid, sub, iss, name, nonce } = claims
+  if (
+    typeof oid !== 'string' ||
+    !oid ||
+    typeof tid !== 'string' ||
+    !tid ||
+    typeof sub !== 'string' ||
+    !sub ||
+    iss !== `https://login.microsoftonline.com/${tid}/v2.0`
+  ) {
+    throw new Error('Microsoft returned an invalid identity token')
+  }
+  const email = [claims.email, claims.preferred_username, claims.upn].find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0
+  )
+  if (!email) {
+    throw new Error('Microsoft returned an identity token without an email')
+  }
+  return {
+    oid,
+    tid,
+    sub,
+    email,
+    ...(typeof name === 'string' && name.trim() ? { name } : {}),
+    ...(typeof nonce === 'string' && nonce ? { nonce } : {}),
+    claims,
+  }
+}
+
+/**
+ * The subject the access token resolves to at Microsoft's OIDC userinfo endpoint. It needs only
+ * the `openid` grant, so unlike Graph `/me` it does not fail for a tenant whose administrator has
+ * not consented to Graph.
+ */
+async function fetchMicrosoftAccessTokenSubject(accessToken: string): Promise<string> {
+  const response = await fetch(MICROSOFT_OIDC_USER_INFO_URL, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(MICROSOFT_OIDC_USER_INFO_TIMEOUT_MS),
+  })
+  const profile = await readResponseJsonWithLimit<unknown>(response, {
+    maxBytes: MICROSOFT_OIDC_USER_INFO_MAX_BYTES,
+    label: 'Microsoft user identity response',
+  })
+  if (!response.ok) {
+    throw new Error(`Microsoft user identity request failed with HTTP ${response.status}`)
+  }
+  if (!isRecordLike(profile) || typeof profile.sub !== 'string' || !profile.sub) {
+    throw new Error('Microsoft returned an invalid user identity')
+  }
+  return profile.sub
+}
+
+/**
+ * Managed enrollment policy for the providers that share Sim's Microsoft app registration.
+ *
+ * Identity comes from the id_token, verified against the identity platform's published keys and
+ * bound to the access token through the OIDC userinfo subject, the way the Google policy binds
+ * through tokeninfo. Microsoft never asserts `email_verified` for a work account, so the email
+ * counts as proven only through the claims Entra does vouch for: the verified-email claims, or
+ * `xms_edov` asserting the domain belongs to the account's own tenant.
+ */
+export function createMicrosoftManagedOAuthConnector(
+  providerId: string
+): ManagedOAuthConnectorConfig {
+  return {
+    additionalScopes: [],
+    requiresRefreshToken: true,
+    pkce: true,
+    nonceVerification: 'id_token',
+    includeLoginHint: true,
+    prompt: 'select_account',
+    getAuthorizationAppId(clientId) {
+      return `microsoft:${createHash('sha256').update(clientId).digest('hex')}`
+    },
+    async verifyIdentity({ tokens, clientId }) {
+      if (!tokens.idToken || !tokens.accessToken) {
+        throw new Error(`Microsoft ${providerId} returned an incomplete authorization`)
+      }
+      const { payload } = await jwtVerify(tokens.idToken, getMicrosoftJwks(), {
+        audience: clientId,
+      })
+      const identity = requireMicrosoftIdentityClaims(payload)
+      const accessTokenSubject = await fetchMicrosoftAccessTokenSubject(tokens.accessToken)
+      if (accessTokenSubject !== identity.sub) {
+        throw new Error('Microsoft returned an access token for another identity')
+      }
+      /**
+       * The token response's `scope` is not guaranteed to echo the OIDC scopes or
+       * `offline_access`, so each is counted only when the response itself proves the grant: an
+       * id_token for `openid`, its `name` and `email` claims for `profile` and `email`, and a
+       * refresh token for `offline_access`.
+       */
+      const grantedScopes = new Set(tokens.scopes ?? [])
+      grantedScopes.add('openid')
+      if (identity.name) grantedScopes.add('profile')
+      if (typeof identity.claims.email === 'string') grantedScopes.add('email')
+      if (tokens.refreshToken) grantedScopes.add('offline_access')
+      return {
+        providerSubjectId: identity.oid,
+        providerTenantId: identity.tid,
+        email: identity.email,
+        emailVerified:
+          deriveMicrosoftEmailVerified(identity.claims, identity.email) ||
+          mapMicrosoftProfileToUser(identity.claims).emailVerified === true,
+        ...(identity.name ? { displayName: identity.name } : {}),
+        ...(identity.nonce ? { nonce: identity.nonce } : {}),
+        grantedScopes: [...grantedScopes],
+      }
+    },
+    hasRequiredScopes(grantedScopes, requiredScopes) {
+      const granted = new Set(grantedScopes.map(canonicalMicrosoftScope))
+      return requiredScopes.every((scope) => granted.has(canonicalMicrosoftScope(scope)))
+    },
+    isTerminalRefreshError,
   }
 }
 
@@ -1132,6 +1301,9 @@ function resolveManagedOAuthPolicy(
   }
   if (providerId === 'confluence' || providerId === 'jira') {
     return () => createAtlassianManagedOAuthConnector(providerId)
+  }
+  if (MICROSOFT_MANAGED_OAUTH_PROVIDER_IDS.has(providerId)) {
+    return () => createMicrosoftManagedOAuthConnector(providerId)
   }
   return USER_INFO_MANAGED_OAUTH_CONNECTORS.get(providerId)
 }

@@ -801,3 +801,44 @@ describe('normalizeSegment', () => {
     expect(normalizeSegment('Reports')).toBe('reports')
   })
 })
+
+describe('listing scope', () => {
+  it.each([403, 404])(
+    'reads a %s on the configured site as a scope the caller cannot reach',
+    async (status) => {
+      mockGraph({ [`${GRAPH}/sites/${SITE_URL}`]: { status, body: {} } })
+
+      const error = await sharepointConnector
+        .listDocuments('token', { siteUrl: SITE_URL })
+        .catch((e: unknown) => e)
+
+      expect(error).toBeInstanceOf(Error)
+      expect(sharepointConnector.isListingScopeUnavailableError!(error)).toBe(true)
+    }
+  )
+
+  it('reads a folder Graph will not show the caller as a scope they cannot reach', async () => {
+    mockGraph({
+      ...defaultDriveRoute,
+      ...sitesDrivesRoute,
+      ...rootChildren(DEFAULT_DRIVE_ID, [folder('a', 'Archive')]),
+    })
+
+    const error = await resolve('Reports').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(String(error)).toMatch(/Folder not found: "Reports"/)
+    expect(sharepointConnector.isListingScopeUnavailableError!(error)).toBe(true)
+  })
+
+  it('keeps any other failure retryable', async () => {
+    mockGraph({ [`${GRAPH}/sites/${SITE_URL}`]: { status: 500, body: {} } })
+
+    const error = await sharepointConnector
+      .listDocuments('token', { siteUrl: SITE_URL })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(sharepointConnector.isListingScopeUnavailableError!(error)).toBe(false)
+  })
+})

@@ -10,6 +10,11 @@ export const CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS = [
   'google-chat',
   'google-meet',
   'google-sheets',
+  'microsoft-teams',
+  'outlook',
+  'onedrive',
+  'sharepoint',
+  'microsoft-excel',
   'confluence',
   'jira',
   'airtable',
@@ -90,6 +95,31 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
   'google-sheets': {
     serviceId: 'google-sheets',
     description: 'Let each person connect one Google Sheets account',
+    configuration: 'oauth',
+  },
+  'microsoft-teams': {
+    serviceId: 'microsoft-teams',
+    description: 'Let each person connect one Microsoft Teams account',
+    configuration: 'oauth',
+  },
+  outlook: {
+    serviceId: 'outlook',
+    description: 'Let each person connect one Outlook account',
+    configuration: 'oauth',
+  },
+  onedrive: {
+    serviceId: 'onedrive',
+    description: 'Let each person connect one OneDrive account',
+    configuration: 'oauth',
+  },
+  sharepoint: {
+    serviceId: 'sharepoint',
+    description: 'Let each person connect one SharePoint account',
+    configuration: 'oauth',
+  },
+  'microsoft-excel': {
+    serviceId: 'microsoft-excel',
+    description: 'Let each person connect one Microsoft Excel account',
     configuration: 'oauth',
   },
   confluence: {

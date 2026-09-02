@@ -7,8 +7,10 @@ import {
 } from '@/connectors/microsoft-teams/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
+  ConnectorListingScopeUnavailableError,
   computeContentHash,
   htmlToPlainText,
+  isListingScopeUnavailableError,
   parseMultiValue,
   parseTagDate,
 } from '@/connectors/utils'
@@ -313,6 +315,15 @@ async function resolveChannel(
 export const microsoftTeamsConnector: ConnectorConfig = {
   ...microsoftTeamsConnectorMeta,
 
+  /**
+   * Graph answers 403 for a team or private channel the caller is not a member
+   * of and 404 for one it will not show them; a channel the caller's channel
+   * list does not resolve is reported the same way.
+   */
+  isListingScopeUnavailableError: (error) =>
+    isListingScopeUnavailableError(error) ||
+    (error instanceof GraphApiError && (error.status === 403 || error.status === 404)),
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -341,7 +352,7 @@ export const microsoftTeamsConnector: ConnectorConfig = {
     for (const channelInput of channelInputs) {
       const channel = await resolveChannel(accessToken, teamId, channelInput)
       if (!channel) {
-        throw new Error(`Channel not found: ${channelInput}`)
+        throw new ConnectorListingScopeUnavailableError(`Channel not found: ${channelInput}`, 404)
       }
 
       const { threads, messageCount, lastActivityTs } = await fetchChannelMessages(

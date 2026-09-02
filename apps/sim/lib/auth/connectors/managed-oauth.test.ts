@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { exportJWK, generateKeyPair, SignJWT } from 'jose'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   createAtlassianManagedOAuthConnector,
   getManagedOAuthConnectorPolicy,
@@ -393,5 +394,227 @@ describe('userinfo-backed managed OAuth connectors', () => {
     })
 
     expect(identity.grantedScopes).toEqual(['data.records:read'])
+  })
+})
+
+describe('Microsoft managed OAuth connector', () => {
+  const CLIENT_ID = 'client-1'
+  const TENANT_ID = 'tenant-1'
+  const MICROSOFT_PROVIDER_IDS = [
+    'microsoft-teams',
+    'outlook',
+    'onedrive',
+    'sharepoint',
+    'microsoft-excel',
+  ]
+  let privateKey: CryptoKey
+  let jwks: { keys: unknown[] }
+
+  beforeAll(async () => {
+    const pair = await generateKeyPair('RS256', { extractable: true })
+    privateKey = pair.privateKey
+    jwks = {
+      keys: [{ ...(await exportJWK(pair.publicKey)), kid: 'kid-1', use: 'sig', alg: 'RS256' }],
+    }
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function json(body: unknown): Response {
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  async function signIdToken(
+    claims: Record<string, unknown>,
+    audience: string = CLIENT_ID
+  ): Promise<string> {
+    return new SignJWT({
+      oid: 'oid-1',
+      tid: TENANT_ID,
+      sub: 'pairwise-1',
+      email: 'person@example.com',
+      name: 'Person',
+      nonce: 'nonce-1',
+      ...claims,
+    })
+      .setProtectedHeader({ alg: 'RS256', kid: 'kid-1' })
+      .setIssuer(`https://login.microsoftonline.com/${TENANT_ID}/v2.0`)
+      .setAudience(audience)
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(privateKey)
+  }
+
+  function stubMicrosoft(userInfoSubject = 'pairwise-1'): ReturnType<typeof vi.fn> {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.startsWith('https://login.microsoftonline.com/common/discovery/v2.0/keys')) {
+        return json(jwks)
+      }
+      if (url === 'https://graph.microsoft.com/oidc/userinfo') return json({ sub: userInfoSubject })
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  function policyFor(providerId: string) {
+    const policy = getManagedOAuthConnectorPolicy(providerId)
+    if (!policy) throw new Error(`No managed OAuth policy registered for ${providerId}`)
+    return policy
+  }
+
+  it('governs every Microsoft provider through one app registration', () => {
+    const appIds = new Set(
+      MICROSOFT_PROVIDER_IDS.map((providerId) => {
+        const policy = policyFor(providerId)
+        expect(policy).toMatchObject({
+          requiresRefreshToken: true,
+          pkce: true,
+          nonceVerification: 'id_token',
+          includeLoginHint: true,
+          prompt: 'select_account',
+        })
+        return policy.getAuthorizationAppId(CLIENT_ID)
+      })
+    )
+    expect(appIds.size).toBe(1)
+    expect([...appIds][0]).toMatch(/^microsoft:[0-9a-f]{64}$/)
+    expect(getManagedOAuthConnectorPolicy('microsoft-word')).toBeUndefined()
+  })
+
+  it('verifies the id token, binds the access token to it, and reports what Entra proves', async () => {
+    const fetchMock = stubMicrosoft()
+
+    const identity = await policyFor('onedrive').verifyIdentity({
+      tokens: {
+        tokenType: 'Bearer',
+        accessToken: 'access-1',
+        refreshToken: 'refresh-1',
+        idToken: await signIdToken({}),
+        scopes: ['Files.Read', 'User.Read'],
+      },
+      clientId: CLIENT_ID,
+    })
+
+    expect(identity).toMatchObject({
+      providerSubjectId: 'oid-1',
+      providerTenantId: TENANT_ID,
+      email: 'person@example.com',
+      emailVerified: false,
+      displayName: 'Person',
+      nonce: 'nonce-1',
+    })
+    expect([...identity.grantedScopes].sort()).toEqual(
+      ['Files.Read', 'User.Read', 'email', 'offline_access', 'openid', 'profile'].sort()
+    )
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://graph.microsoft.com/oidc/userinfo',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer access-1' }),
+      })
+    )
+  })
+
+  it.each([
+    ['xms_edov', { xms_edov: true }],
+    ['email_verified', { email_verified: true }],
+  ])('counts the email verified when Entra asserts it through %s', async (_claim, claims) => {
+    stubMicrosoft()
+
+    const identity = await policyFor('outlook').verifyIdentity({
+      tokens: { tokenType: 'Bearer', accessToken: 'access-1', idToken: await signIdToken(claims) },
+      clientId: CLIENT_ID,
+    })
+
+    expect(identity.emailVerified).toBe(true)
+  })
+
+  it('does not count offline access as granted without a refresh token', async () => {
+    stubMicrosoft()
+
+    const identity = await policyFor('sharepoint').verifyIdentity({
+      tokens: { tokenType: 'Bearer', accessToken: 'access-1', idToken: await signIdToken({}) },
+      clientId: CLIENT_ID,
+    })
+
+    expect(identity.grantedScopes).not.toContain('offline_access')
+  })
+
+  it('rejects an access token that resolves to another subject', async () => {
+    stubMicrosoft('pairwise-2')
+
+    await expect(
+      policyFor('microsoft-teams').verifyIdentity({
+        tokens: { tokenType: 'Bearer', accessToken: 'access-1', idToken: await signIdToken({}) },
+        clientId: CLIENT_ID,
+      })
+    ).rejects.toThrow('Microsoft returned an access token for another identity')
+  })
+
+  it('rejects an id token issued for another client', async () => {
+    stubMicrosoft()
+
+    await expect(
+      policyFor('microsoft-excel').verifyIdentity({
+        tokens: {
+          tokenType: 'Bearer',
+          accessToken: 'access-1',
+          idToken: await signIdToken({}, 'client-2'),
+        },
+        clientId: CLIENT_ID,
+      })
+    ).rejects.toThrow()
+  })
+
+  it.each([
+    ['object id', { oid: undefined }],
+    ['tenant id', { tid: undefined }],
+    ['issuer of its own tenant', { tid: 'tenant-2' }],
+  ])('rejects an id token without the %s', async (_label, claims) => {
+    stubMicrosoft()
+
+    await expect(
+      policyFor('onedrive').verifyIdentity({
+        tokens: {
+          tokenType: 'Bearer',
+          accessToken: 'access-1',
+          idToken: await signIdToken(claims),
+        },
+        clientId: CLIENT_ID,
+      })
+    ).rejects.toThrow('Microsoft returned an invalid identity token')
+  })
+
+  it('rejects an id token that names no email to bind the invitation to', async () => {
+    stubMicrosoft()
+
+    await expect(
+      policyFor('onedrive').verifyIdentity({
+        tokens: {
+          tokenType: 'Bearer',
+          accessToken: 'access-1',
+          idToken: await signIdToken({ email: undefined }),
+        },
+        clientId: CLIENT_ID,
+      })
+    ).rejects.toThrow('Microsoft returned an identity token without an email')
+  })
+
+  it('compares scopes by name regardless of case or resource prefix', () => {
+    const policy = policyFor('onedrive')
+
+    expect(
+      policy.hasRequiredScopes(
+        ['https://graph.microsoft.com/Files.Read', 'MAIL.READ', 'offline_access'],
+        ['files.read', 'Mail.Read']
+      )
+    ).toBe(true)
+    expect(policy.hasRequiredScopes(['Files.Read'], ['Files.ReadWrite'])).toBe(false)
   })
 })
