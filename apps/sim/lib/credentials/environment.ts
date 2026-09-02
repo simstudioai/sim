@@ -876,6 +876,7 @@ export async function getEnrolledManagedOAuthCredentials(
     .where(
       and(
         eq(credential.workspaceId, workspaceId),
+        eq(credentialGroup.workspaceId, workspaceId),
         eq(credential.type, 'managed_oauth'),
         eq(user.id, userId),
         eq(user.emailVerified, true)
