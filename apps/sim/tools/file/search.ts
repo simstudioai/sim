@@ -7,6 +7,8 @@ interface FileSearchParams {
   query: string
   mode?: FileSearchMode
   maxResults?: number
+  folderPaths?: string[]
+  includeSubfolders?: boolean
 }
 
 interface FileSearchResponse extends ToolResponse {
@@ -21,9 +23,9 @@ interface FileSearchResponse extends ToolResponse {
  */
 const TOOL_DESCRIPTIONS: Record<FileSearchMode, string> = {
   regex:
-    'Search the indexed text of active workspace files for lines matching a regular expression, and return each matching line once with its file ID and line number. Coverage is what the index currently holds, so check "complete" and "indexStatus" before concluding that something is absent.',
+    'Search the indexed text of active workspace files for lines matching a regular expression, and return each matching line once with its file ID and line number. Coverage is what the index currently holds: when "complete" is false the index is still catching up, so a term that is not found is unknown rather than absent. Re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one folder tree, which also narrows "indexStatus" to that tree.',
   exact:
-    'Search the indexed text of active workspace files for lines containing an exact piece of text, and return each matching line once with its file ID and line number. Coverage is what the index currently holds, so check "complete" and "indexStatus" before concluding that something is absent.',
+    'Search the indexed text of active workspace files for lines containing an exact piece of text, and return each matching line once with its file ID and line number. Coverage is what the index currently holds: when "complete" is false the index is still catching up, so a term that is not found is unknown rather than absent. Re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one folder tree, which also narrows "indexStatus" to that tree.',
 }
 
 const QUERY_DESCRIPTIONS: Record<FileSearchMode, string> = {
@@ -98,6 +100,8 @@ export const fileSearchTool: InternalToolConfig<FileSearchParams, FileSearchResp
       query: params.query,
       mode: params.mode ?? 'regex',
       maxResults: params.maxResults ?? FILE_SEARCH_DEFAULT_MAX_RESULTS,
+      ...(params.folderPaths?.length ? { folderPaths: params.folderPaths } : {}),
+      ...(params.includeSubfolders === false ? { includeSubfolders: false } : {}),
     }),
   },
   transformResponse: async (response): Promise<FileSearchResponse> => {

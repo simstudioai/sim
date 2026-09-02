@@ -11,8 +11,8 @@ export interface SelectableFolder {
 }
 
 export type FolderPathSelection =
-  | { folderIds: Set<string>; missingPath?: undefined }
-  | { folderIds?: undefined; missingPath: string }
+  | { folderIds: Set<string>; includeRootFiles: boolean; missingPath?: undefined }
+  | { folderIds?: undefined; includeRootFiles?: undefined; missingPath: string }
 
 /**
  * Resolves canonical folder paths to the folder ids a run should read from.
@@ -28,17 +28,39 @@ export type FolderPathSelection =
  * A path that matches nothing comes back as `missingPath` instead of throwing,
  * so the caller decides how a missing folder is reported. Silently dropping it
  * would turn a typo into a quietly smaller read.
+ *
+ * The workspace root is reported as `includeRootFiles` rather than as an entry
+ * in `folderIds`, because the root is the *absence* of a folder id: a file at
+ * the root carries `null`, so there is no id to match. Encoding it as a
+ * sentinel string in a set of real ids would survive every type check and then
+ * match nothing the first time the set reached a SQL `in (...)`.
  */
 export function resolveFolderIdsForPaths(
   folders: readonly SelectableFolder[],
   folderPaths: readonly string[],
   options?: { includeSubfolders?: boolean }
 ): FolderPathSelection {
-  const maxDepth = options?.includeSubfolders === false ? 0 : undefined
+  const includeSubfolders = options?.includeSubfolders !== false
+  const maxDepth = includeSubfolders ? undefined : 0
   const folderIds = new Set<string>()
+  let includeRootFiles = false
 
   for (const folderPath of folderPaths) {
     const segments = parseFolderPath(folderPath)
+    /*
+     * The root decodes to no segments, and no folder row has an empty segment
+     * list, so it cannot go through the lookup below: it would resolve as a
+     * missing path. It selects the files that carry no folder id, plus every
+     * folder beneath it unless the scope is explicitly shallow.
+     */
+    if (segments.length === 0) {
+      includeRootFiles = true
+      if (includeSubfolders) {
+        for (const folder of folders) folderIds.add(folder.id)
+      }
+      continue
+    }
+
     const root = folders.find((folder) => {
       const folderSegments = folderPathSegments(folder.path)
       return (
@@ -54,7 +76,7 @@ export function resolveFolderIdsForPaths(
     }
   }
 
-  return { folderIds }
+  return { folderIds, includeRootFiles }
 }
 
 /**

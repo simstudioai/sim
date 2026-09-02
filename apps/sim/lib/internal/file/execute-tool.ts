@@ -4,6 +4,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { z } from 'zod'
 import { fileParseContract } from '@/lib/api/contracts/storage-transfer'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
+import { v2FolderPathInputSchema } from '@/lib/api/contracts/v2/shared'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
@@ -71,6 +72,9 @@ const fileSearchInputSchema = z
       .min(1)
       .max(FILE_SEARCH_MAX_RESULTS)
       .default(FILE_SEARCH_DEFAULT_MAX_RESULTS),
+    /** Same spelling and bound as the folder scope on read, content and compress. */
+    folderPaths: z.array(v2FolderPathInputSchema).max(64, 'Too many folders').optional(),
+    includeSubfolders: z.boolean().optional(),
   })
   .strict()
 
@@ -120,6 +124,8 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
           query: searchInput.data.query,
           mode: searchInput.data.mode,
           maxResults: searchInput.data.maxResults,
+          folderPaths: searchInput.data.folderPaths,
+          includeSubfolders: searchInput.data.includeSubfolders,
           signal: request.signal,
         },
       })

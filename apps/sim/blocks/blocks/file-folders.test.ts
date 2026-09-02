@@ -392,12 +392,77 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       }
     )
 
-    it('offers the folder on every operation whose picker it narrows', () => {
+    it('offers the folder on every operation it scopes', () => {
       const folder = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'folderSelection')
 
       expect(folder?.condition).toEqual({
         field: 'operation',
-        value: ['file_read', 'file_get_content', 'file_compress', 'file_append'],
+        value: ['file_read', 'file_get_content', 'file_compress', 'file_append', 'file_search'],
+      })
+    })
+
+    /**
+     * The three halves of the folder scope have to travel together: a picker
+     * whose recursion switch is hidden silently reverts to the default depth.
+     */
+    it.each(['manualFolderSelection', 'folderIncludeSubfolders'])(
+      'shows %s wherever the folder picker itself is shown',
+      (subBlockId) => {
+        const folder = FileV5Block.subBlocks.find((s) => s.id === 'folderSelection')
+        const other = FileV5Block.subBlocks.find((s) => s.id === subBlockId)
+
+        expect(other?.condition).toEqual(folder?.condition)
+      }
+    )
+
+    describe('search takes the folder as a filter, not a selection', () => {
+      it('searches the workspace when no folder is chosen', () => {
+        const params = paramsFor('file_search', { query: 'commitment' })
+
+        expect(params.folderPaths).toBeUndefined()
+        expect(params.includeSubfolders).toBeUndefined()
+      })
+
+      it('confines the search to a chosen folder', () => {
+        const params = paramsFor('file_search', {
+          query: 'commitment',
+          folderScopeRef: '/memory/user-a',
+        })
+
+        expect(params.folderPaths).toEqual(['/memory/user-a'])
+      })
+
+      /** The root means the whole workspace, which is what an unset folder already means. */
+      it('treats the workspace root as no scope at all', () => {
+        const params = paramsFor('file_search', { query: 'commitment', folderScopeRef: '/' })
+
+        expect(params.folderPaths).toBeUndefined()
+      })
+
+      it('sends the narrow scope only when subfolders are switched off', () => {
+        const recursive = paramsFor('file_search', {
+          query: 'commitment',
+          folderScopeRef: '/memory/user-a',
+          folderIncludeSubfolders: 'true',
+        })
+        const shallow = paramsFor('file_search', {
+          query: 'commitment',
+          folderScopeRef: '/memory/user-a',
+          folderIncludeSubfolders: 'false',
+        })
+
+        expect(recursive.includeSubfolders).toBeUndefined()
+        expect(shallow.includeSubfolders).toBe(false)
+      })
+
+      /** Without a folder there is nothing to be shallow about. */
+      it('does not send a recursion flag with no folder to apply it to', () => {
+        const params = paramsFor('file_search', {
+          query: 'commitment',
+          folderIncludeSubfolders: 'false',
+        })
+
+        expect(params.includeSubfolders).toBeUndefined()
       })
     })
 

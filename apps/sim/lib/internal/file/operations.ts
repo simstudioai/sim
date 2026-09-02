@@ -82,6 +82,10 @@ import {
 import { selectDirectoryEntries } from '@/lib/workspace-files/directory-listing'
 import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 import { resolveFolderIdsForPaths } from '@/lib/workspace-files/folder-path-selection'
+import {
+  isFileInWorkspaceFolderScope,
+  resolveWorkspaceFolderScope,
+} from '@/lib/workspace-files/folder-scope'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 import { isWorkspaceAccessDeniedError } from '@/lib/workspaces/permissions/utils'
 import type { UserFile } from '@/executor/types'
@@ -593,15 +597,10 @@ export function fileContentJsonResponse(
 }
 
 /**
- * Expands folder paths to the ids of every file beneath them.
+ * Expands folder paths to every file beneath them.
  *
- * Resolution happens here, at run time, rather than when the block is
- * configured: picking a folder means "whatever is in it when this runs", so a
- * file added tomorrow is read tomorrow. Expanding in the picker would freeze a
- * snapshot instead.
- *
- * Path resolution itself lives in {@link resolveFolderIdsForPaths}; this is the
- * IO around it.
+ * The scope resolution is shared with content search, which pushes the same
+ * scope down into SQL rather than listing files; this is the file half of it.
  */
 async function expandFolderPathsToFiles(args: {
   principal: Principal
@@ -611,10 +610,12 @@ async function expandFolderPathsToFiles(args: {
 }): Promise<Array<{ id: string; name: string; folderId?: string | null }>> {
   if (!args.folderPaths?.length) return []
 
-  const [{ folders }, { files }] = await Promise.all([
-    listWorkspaceFileFoldersOperation.execute({
+  const [scope, { files }] = await Promise.all([
+    resolveWorkspaceFolderScope({
       principal: args.principal,
-      input: { workspaceId: args.workspaceId },
+      workspaceId: args.workspaceId,
+      folderPaths: args.folderPaths,
+      includeSubfolders: args.includeSubfolders,
     }),
     listAllWorkspaceFiles.execute({
       principal: args.principal,
@@ -622,19 +623,7 @@ async function expandFolderPathsToFiles(args: {
     }),
   ])
 
-  const projected = folders.map((folder) => ({
-    ...toWorkspaceFileFolderPathView(folder),
-    id: folder.id,
-    parentId: folder.parentId,
-  }))
-  const selection = resolveFolderIdsForPaths(projected, args.folderPaths, {
-    includeSubfolders: args.includeSubfolders,
-  })
-  if (selection.missingPath !== undefined) {
-    throw new OrchestrationError('not_found', `Folder not found: ${selection.missingPath}`)
-  }
-
-  return files.filter((file) => file.folderId && selection.folderIds.has(file.folderId))
+  return files.filter((file) => isFileInWorkspaceFolderScope(file.folderId, scope))
 }
 
 async function expandFolderPathsToFileIds(args: {

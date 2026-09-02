@@ -21,6 +21,42 @@ const folders = [
 ]
 
 describe('resolveFolderIdsForPaths', () => {
+  /*
+   * A per-user memory tree makes the scope an isolation boundary rather than a
+   * filter, so the sibling cases below are the ones that matter: `user-a` and
+   * `user-a-2` share a prefix, and a resolver comparing raw strings instead of
+   * decoded segments would hand one user the other's notes.
+   */
+  const memory = [
+    { id: 'memory', parentId: null, path: 'memory' },
+    { id: 'a', parentId: 'memory', path: 'memory/user-a' },
+    { id: 'a-people', parentId: 'a', path: 'memory/user-a/people' },
+    { id: 'a-commitments', parentId: 'a', path: 'memory/user-a/commitments' },
+    { id: 'a2', parentId: 'memory', path: 'memory/user-a-2' },
+    { id: 'a2-people', parentId: 'a2', path: 'memory/user-a-2/people' },
+    { id: 'b', parentId: 'memory', path: 'memory/user-b' },
+    { id: 'b-people', parentId: 'b', path: 'memory/user-b/people' },
+  ]
+
+  it("keeps one user's subtree out of another's scope", () => {
+    const result = resolveFolderIdsForPaths(memory, ['/memory/user-a'])
+
+    expect([...(result.folderIds ?? [])].sort()).toEqual(['a', 'a-commitments', 'a-people'])
+  })
+
+  it('does not let a shared name prefix widen the scope', () => {
+    const result = resolveFolderIdsForPaths(memory, ['/memory/user-a'])
+
+    expect(result.folderIds?.has('a2')).toBe(false)
+    expect(result.folderIds?.has('a2-people')).toBe(false)
+  })
+
+  it('never climbs to a parent of the requested folder', () => {
+    const result = resolveFolderIdsForPaths(memory, ['/memory/user-a/people'])
+
+    expect([...(result.folderIds ?? [])]).toEqual(['a-people'])
+  })
+
   it('takes the whole subtree by default', () => {
     const result = resolveFolderIdsForPaths(folders, ['/Reports'])
 
@@ -126,5 +162,38 @@ describe('isFileInFolderScope', () => {
   it('takes everything when the scope is the workspace root', () => {
     expect(isFileInFolderScope(null, '/')).toBe(true)
     expect(isFileInFolderScope('Reports', '/')).toBe(true)
+  })
+})
+
+/*
+ * The root decodes to no segments and no folder row has an empty segment list,
+ * so before this it resolved as a missing path and every root-scoped read
+ * failed with "Folder not found: /".
+ */
+describe('the workspace root', () => {
+  it('selects files that carry no folder id', () => {
+    const result = resolveFolderIdsForPaths(folders, ['/'])
+
+    expect(result.missingPath).toBeUndefined()
+    expect(result.includeRootFiles).toBe(true)
+  })
+
+  it('takes every folder with it by default', () => {
+    const result = resolveFolderIdsForPaths(folders, ['/'])
+
+    expect([...(result.folderIds ?? [])].sort()).toEqual(folders.map((f) => f.id).sort())
+  })
+
+  it('takes only the loose files when subfolders are excluded', () => {
+    const result = resolveFolderIdsForPaths(folders, ['/'], { includeSubfolders: false })
+
+    expect([...(result.folderIds ?? [])]).toEqual([])
+    expect(result.includeRootFiles).toBe(true)
+  })
+
+  it('is not implied by an ordinary folder scope', () => {
+    const result = resolveFolderIdsForPaths(folders, ['/Reports'])
+
+    expect(result.includeRootFiles).toBe(false)
   })
 })

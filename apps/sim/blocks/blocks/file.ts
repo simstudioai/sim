@@ -1114,10 +1114,10 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       mode: 'basic',
       placeholder: 'Anywhere in the workspace',
       description:
-        'Narrows the file options below. Read, get content, and compress also take the whole folder when no file is picked.',
+        'Narrows the file options below. Read, get content, and compress also take the whole folder when no file is picked, and search is confined to it.',
       condition: {
         field: 'operation',
-        value: ['file_read', 'file_get_content', 'file_compress', 'file_append'],
+        value: ['file_read', 'file_get_content', 'file_compress', 'file_append', 'file_search'],
       },
     },
     {
@@ -1129,7 +1129,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       placeholder: '/Reports/Q3%20Results',
       condition: {
         field: 'operation',
-        value: ['file_read', 'file_get_content', 'file_compress', 'file_append'],
+        value: ['file_read', 'file_get_content', 'file_compress', 'file_append', 'file_search'],
       },
     },
     {
@@ -1139,7 +1139,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       value: () => 'true',
       condition: {
         field: 'operation',
-        value: ['file_read', 'file_get_content', 'file_compress', 'file_append'],
+        value: ['file_read', 'file_get_content', 'file_compress', 'file_append', 'file_search'],
       },
     },
     {
@@ -1626,10 +1626,20 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           if (!Number.isInteger(maxResults) || maxResults < 1 || maxResults > 200) {
             throw new Error('Maximum Results must be an integer between 1 and 200')
           }
+          /*
+           * A folder here is a filter rather than a selection: search always
+           * has its query, so an unset folder means the whole workspace and
+           * never an incomplete configuration.
+           */
+          const folderPath = folderScopePath(params.folderScopeRef)
           return {
             query: params.query,
             mode: params.mode === 'exact' ? 'exact' : 'regex',
             maxResults,
+            ...(folderPath ? { folderPaths: [folderPath] } : {}),
+            ...(folderPath && !switchValue(params.folderIncludeSubfolders, true)
+              ? { includeSubfolders: false }
+              : {}),
           }
         }
 

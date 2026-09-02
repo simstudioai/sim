@@ -2,6 +2,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/folder-scope'
 import {
   compileFileSearchPattern,
   type FileSearchMode,
@@ -17,6 +18,10 @@ export interface SearchWorkspaceFileContentInput {
   query: string
   mode: FileSearchMode
   maxResults: number
+  /** Canonical folder paths the search is confined to. Absent searches the workspace. */
+  folderPaths?: readonly string[]
+  /** Whether the scope descends into nested folders. Absent means yes. */
+  includeSubfolders?: boolean
   signal?: AbortSignal
 }
 
@@ -32,12 +37,29 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.searchContent,
   resolveContext: ({ input }: { input: SearchWorkspaceFileContentInput }) =>
     resolveSearchWorkspaceFileContext(input),
-  execute: async ({ input, context }) => {
+  execute: async ({ principal, input, context }) => {
+    /*
+     * Resolved here rather than at the surface so every caller (the File
+     * block, the v2 route) is confined by the same check. A folder tree
+     * holding one subtree per user makes this scope the isolation boundary,
+     * not a convenience filter.
+     */
+    const folderScope = input.folderPaths?.length
+      ? await resolveWorkspaceFolderScope({
+          principal,
+          workspaceId: context.workspaceId,
+          folderPaths: input.folderPaths,
+          includeSubfolders: input.includeSubfolders,
+        })
+      : undefined
+    input.signal?.throwIfAborted()
+
     try {
       return await searchWorkspaceFileIndex({
         workspaceId: context.workspaceId,
         pattern: compileFileSearchPattern(input.query, input.mode),
         maxResults: input.maxResults,
+        folderScope,
         signal: input.signal,
       })
     } catch (error) {
