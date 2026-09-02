@@ -3,8 +3,9 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetBlock } = vi.hoisted(() => ({
+const { mockGetBlock, mockLoadAllSelectorOptions } = vi.hoisted(() => ({
   mockGetBlock: vi.fn(),
+  mockLoadAllSelectorOptions: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/subblocks/visibility', () => ({
@@ -17,7 +18,7 @@ vi.mock('@/triggers/constants', () => ({
 }))
 
 vi.mock('@/blocks/types', () => ({
-  SELECTOR_TYPES_HYDRATION_REQUIRED: [],
+  SELECTOR_TYPES_HYDRATION_REQUIRED: ['channel-selector'],
 }))
 
 vi.mock('@/executor/constants', () => ({
@@ -37,7 +38,7 @@ vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
 
 vi.mock('@/lib/selectors/client/execute-selector', () => ({
   executeSelectorRequest: vi.fn(() => ({ kind: 'detail', item: null })),
-  loadAllSelectorOptions: vi.fn(() => []),
+  loadAllSelectorOptions: mockLoadAllSelectorOptions,
 }))
 
 import { WorkflowBuilder } from '@sim/testing'
@@ -47,7 +48,11 @@ import {
   formatDiffSummaryForDescription,
   formatDiffSummaryForDescriptionAsync,
 } from '@/lib/workflows/comparison/describe'
-import { formatValueForDisplay, resolveFieldLabel } from '@/lib/workflows/comparison/resolve-values'
+import {
+  formatValueForDisplay,
+  resolveFieldLabel,
+  resolveValueForDisplay,
+} from '@/lib/workflows/comparison/resolve-values'
 
 function emptyDiffSummary(overrides: Partial<WorkflowDiffSummary> = {}): WorkflowDiffSummary {
   return {
@@ -72,6 +77,7 @@ function emptyDiffSummary(overrides: Partial<WorkflowDiffSummary> = {}): Workflo
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockLoadAllSelectorOptions.mockResolvedValue({ items: [], truncated: false })
 })
 
 describe('resolveFieldLabel', () => {
@@ -121,6 +127,36 @@ describe('formatValueForDisplay', () => {
 
   it('handles empty string', () => {
     expect(formatValueForDisplay('')).toBe('(empty)')
+  })
+})
+
+describe('resolveValueForDisplay', () => {
+  it('preserves a raw selector ID when the loaded catalog is incomplete', async () => {
+    mockGetBlock.mockReturnValue({
+      subBlocks: [
+        {
+          id: 'channel',
+          title: 'Channel',
+          type: 'channel-selector',
+          selectorKey: 'slack.channels',
+        },
+      ],
+    })
+    mockLoadAllSelectorOptions.mockResolvedValue({ items: [], truncated: true })
+
+    const channelId = 'C12345678'
+    const result = await resolveValueForDisplay(channelId, {
+      blockType: 'slack',
+      subBlockId: 'channel',
+      workflowId: 'wf-1',
+      currentState: new WorkflowBuilder().build(),
+    })
+
+    expect(result).toEqual({
+      original: channelId,
+      displayLabel: channelId,
+      resolved: false,
+    })
   })
 })
 
