@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { Principal } from '@sim/auth/principal'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -133,8 +134,8 @@ function tagUniquenessConflict(error: unknown): never {
 
 export const listKnowledgeTags = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listTags,
-  resolveContext: ({ input }: { input: ListKnowledgeTagsInput }) =>
-    resolveActiveKnowledgeResourceContext(input),
+  resolveContext: ({ principal, input }: { principal: Principal; input: ListKnowledgeTagsInput }) =>
+    resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ context }) {
     return { tagDefinitions: await getDocumentTagDefinitions(context.knowledgeBaseId) }
   },
@@ -142,8 +143,13 @@ export const listKnowledgeTags = defineAuthorizedKnowledgeUseCase({
 
 export const createKnowledgeTag = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.createTag,
-  resolveContext: ({ input }: { input: CreateKnowledgeTagInput }) =>
-    resolveActiveKnowledgeResourceContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: CreateKnowledgeTagInput
+  }) => resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ input, context }): Promise<{
     tagDefinition: TagDefinition
     knowledgeBaseId: string
@@ -222,8 +228,13 @@ export const createKnowledgeTag = defineAuthorizedKnowledgeUseCase({
 
 export const updateKnowledgeTag = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.updateTag,
-  resolveContext: ({ input }: { input: UpdateKnowledgeTagInput }) =>
-    resolveActiveKnowledgeTagContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: UpdateKnowledgeTagInput
+  }) => resolveActiveKnowledgeTagContext(input, principal),
   async execute({ input, context }): Promise<{
     tagDefinition: TagDefinition
     knowledgeBaseId: string
@@ -308,8 +319,13 @@ export const updateKnowledgeTag = defineAuthorizedKnowledgeUseCase({
 
 export const deleteKnowledgeTag = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.deleteTag,
-  resolveContext: ({ input }: { input: DeleteKnowledgeTagInput }) =>
-    resolveActiveKnowledgeTagContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: DeleteKnowledgeTagInput
+  }) => resolveActiveKnowledgeTagContext(input, principal),
   async execute({ context }) {
     const deleted = await deleteTagDefinition(
       context.knowledgeBaseId,
@@ -335,8 +351,8 @@ export const deleteKnowledgeTag = defineAuthorizedKnowledgeUseCase({
 
 export const readKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readTagUsage,
-  resolveContext: ({ input }: { input: ListKnowledgeTagsInput }) =>
-    resolveActiveKnowledgeResourceContext(input),
+  resolveContext: ({ principal, input }: { principal: Principal; input: ListKnowledgeTagsInput }) =>
+    resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ context }) {
     return { usage: await getTagUsageStats(context.knowledgeBaseId, generateRequestId()) }
   },
@@ -344,17 +360,28 @@ export const readKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
 
 export const readDetailedKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readDetailedTagUsage,
-  resolveContext: ({ input }: { input: ListKnowledgeTagsInput }) =>
-    resolveActiveKnowledgeResourceContext(input),
+  resolveContext: ({ principal, input }: { principal: Principal; input: ListKnowledgeTagsInput }) =>
+    resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ context }) {
-    return { usage: await getTagUsage(context.knowledgeBaseId, generateRequestId()) }
+    return {
+      usage: await getTagUsage(
+        context.knowledgeBaseId,
+        generateRequestId(),
+        await context.access.get()
+      ),
+    }
   },
 })
 
 export const readNextKnowledgeTagSlot = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readNextTagSlot,
-  resolveContext: ({ input }: { input: ReadNextKnowledgeTagSlotInput }) =>
-    resolveActiveKnowledgeResourceContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ReadNextKnowledgeTagSlotInput
+  }) => resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ input, context }) {
     const fieldType = SUPPORTED_FIELD_TYPES.find((supported) => supported === input.fieldType)
     if (!fieldType) {
@@ -391,8 +418,13 @@ export const readNextKnowledgeTagSlot = defineAuthorizedKnowledgeUseCase({
 
 export const listKnowledgeDocumentTagDefinitions = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listTags,
-  resolveContext: ({ input }: { input: KnowledgeDocumentTagDefinitionsInput }) =>
-    resolveCanonicalActiveKnowledgeDocumentContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: KnowledgeDocumentTagDefinitionsInput
+  }) => resolveCanonicalActiveKnowledgeDocumentContext(input, principal),
   async execute({ context }) {
     return { tagDefinitions: await getDocumentTagDefinitions(context.knowledgeBaseId) }
   },
@@ -408,8 +440,13 @@ export const listKnowledgeDocumentTagDefinitions = defineAuthorizedKnowledgeUseC
  */
 export const saveKnowledgeDocumentTagDefinitions = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.saveDocumentTagDefinitions,
-  resolveContext: ({ input }: { input: SaveKnowledgeDocumentTagDefinitionsInput }) =>
-    resolveActiveKnowledgeResourceContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: SaveKnowledgeDocumentTagDefinitionsInput
+  }) => resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ input, context }) {
     for (const definition of input.definitions) {
       if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(definition.fieldType)) {
@@ -450,8 +487,13 @@ export const saveKnowledgeDocumentTagDefinitions = defineAuthorizedKnowledgeUseC
  */
 export const deleteKnowledgeDocumentTagDefinitions = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.deleteDocumentTagDefinitions,
-  resolveContext: ({ input }: { input: DeleteKnowledgeDocumentTagDefinitionsInput }) =>
-    resolveActiveKnowledgeResourceContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: DeleteKnowledgeDocumentTagDefinitionsInput
+  }) => resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ input, context }) {
     if (input.action === 'cleanup') {
       return {

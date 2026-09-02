@@ -12,6 +12,8 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import {
   getSlotsForFieldType,
   isValidSlotForFieldType,
@@ -803,7 +805,8 @@ export async function updateTagDefinition(
  */
 export async function getTagUsage(
   knowledgeBaseId: string,
-  requestId = 'api'
+  requestId: string,
+  access: KnowledgeAccessScope
 ): Promise<
   Array<{
     tagName: string
@@ -829,6 +832,7 @@ export async function getTagUsage(
       eq(document.userExcluded, false),
       isNull(document.archivedAt),
       isNull(document.deletedAt),
+      knowledgeAccessCondition(access),
       isNotNull(sql`${sql.raw(tagSlot)}`),
     ]
 

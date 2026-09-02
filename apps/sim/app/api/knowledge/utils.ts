@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { embedding, knowledgeBase } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
+import { resolveUserKnowledgeAccessScope } from '@/lib/knowledge/access/scope'
 import { getKnowledgeDocument } from '@/lib/knowledge/documents/service'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -244,7 +245,11 @@ async function resolveDocumentAccess(
     }
   }
 
-  const doc = await getKnowledgeDocument(knowledgeBaseId, documentId)
+  const doc = await getKnowledgeDocument(
+    knowledgeBaseId,
+    documentId,
+    await resolveUserKnowledgeAccessScope(userId, kbAccess.knowledgeBase?.workspaceId ?? undefined)
+  )
   if (!doc) {
     return { hasAccess: false, notFound: true, reason: 'Document not found' }
   }
@@ -301,7 +306,11 @@ async function resolveChunkAccess(
     }
   }
 
-  const doc = await getKnowledgeDocument(knowledgeBaseId, documentId)
+  const doc = await getKnowledgeDocument(
+    knowledgeBaseId,
+    documentId,
+    await resolveUserKnowledgeAccessScope(userId, kbAccess.knowledgeBase?.workspaceId ?? undefined)
+  )
   if (!doc) {
     return { hasAccess: false, notFound: true, reason: 'Document not found' }
   }

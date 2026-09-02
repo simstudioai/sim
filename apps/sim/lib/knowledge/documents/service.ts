@@ -76,6 +76,9 @@ import {
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
+import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import type { SystemAccessScope } from '@/lib/knowledge/access/system'
+import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import {
   assertDocumentChunkCountWithinLimit,
   isPermanentDocumentProcessingError,
@@ -2341,7 +2344,8 @@ export async function getDocuments(
     sortOrder?: SortOrder
     tagFilters?: TagFilterCondition[]
   },
-  requestId: string
+  requestId: string,
+  access: KnowledgeAccessScope | SystemAccessScope
 ): Promise<{
   documents: Array<{
     id: string
@@ -2402,6 +2406,7 @@ export async function getDocuments(
     eq(document.userExcluded, false),
     isNull(document.archivedAt),
     isNull(document.deletedAt),
+    knowledgeAccessCondition(access),
   ]
 
   if (enabledFilter === 'enabled') {
@@ -2555,10 +2560,15 @@ export type ActiveKnowledgeDocument = typeof document.$inferSelect & {
   connectorType: string | null
 }
 
-/** Loads one visible document and its connector metadata for every API adapter. */
+/**
+ * Loads one visible document and its connector metadata for every API adapter.
+ * A document the caller may not read is reported as absent, the same as one
+ * that does not exist, so no surface can confirm a restricted document exists.
+ */
 export async function getKnowledgeDocument(
   knowledgeBaseId: string,
-  documentId: string
+  documentId: string,
+  access: KnowledgeAccessScope | SystemAccessScope
 ): Promise<ActiveKnowledgeDocument | null> {
   const [row] = await db
     .select({
@@ -2573,7 +2583,8 @@ export async function getKnowledgeDocument(
         eq(document.knowledgeBaseId, knowledgeBaseId),
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
-        isNull(document.deletedAt)
+        isNull(document.deletedAt),
+        knowledgeAccessCondition(access)
       )
     )
     .limit(1)
@@ -2583,7 +2594,8 @@ export async function getKnowledgeDocument(
 
 /** Loads one visible document by its canonical ID before any asserted parent is trusted. */
 export async function getKnowledgeDocumentById(
-  documentId: string
+  documentId: string,
+  access: KnowledgeAccessScope | SystemAccessScope
 ): Promise<ActiveKnowledgeDocument | null> {
   const [row] = await db
     .select({
@@ -2597,7 +2609,8 @@ export async function getKnowledgeDocumentById(
         eq(document.id, documentId),
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
-        isNull(document.deletedAt)
+        isNull(document.deletedAt),
+        knowledgeAccessCondition(access)
       )
     )
     .limit(1)
@@ -3964,9 +3977,10 @@ export async function deleteDocument(
 export async function deleteKnowledgeDocumentInKnowledgeBase(
   knowledgeBaseId: string,
   documentId: string,
-  requestId: string
+  requestId: string,
+  access: KnowledgeAccessScope
 ): Promise<void> {
-  const current = await getKnowledgeDocument(knowledgeBaseId, documentId)
+  const current = await getKnowledgeDocument(knowledgeBaseId, documentId, access)
   if (!current) throw new OrchestrationError('not_found', 'Document not found')
   const affected = await deleteDocumentsByLifecyclePolicy([documentId], requestId, knowledgeBaseId)
   if (affected !== 1) throw new OrchestrationError('not_found', 'Document not found')

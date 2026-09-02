@@ -47,6 +47,7 @@ afterEach(() => {
   Object.assign(env, envSnapshot)
 })
 
+import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import {
   executeKeywordSearch,
   executeKnowledgeSearch,
@@ -117,6 +118,7 @@ describe('Knowledge Search Utils', () => {
     it('should throw error when no filters provided', async () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         structuredFilters: [],
       }
@@ -129,6 +131,7 @@ describe('Knowledge Search Utils', () => {
     it('should accept valid parameters for tag-only search', async () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api' }],
       }
@@ -145,6 +148,7 @@ describe('Knowledge Search Utils', () => {
     it('should throw error when queryVector not provided', async () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         distanceThreshold: 0.8,
       }
@@ -157,6 +161,7 @@ describe('Knowledge Search Utils', () => {
     it('should throw error when distanceThreshold not provided', async () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         queryVector: JSON.stringify([0.1, 0.2, 0.3]),
       }
@@ -169,6 +174,7 @@ describe('Knowledge Search Utils', () => {
     it('should accept valid parameters for vector-only search', async () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         queryVector: JSON.stringify([0.1, 0.2, 0.3]),
         distanceThreshold: 0.8,
@@ -186,6 +192,7 @@ describe('Knowledge Search Utils', () => {
     it('should throw error when no filters provided', async () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         structuredFilters: [],
         queryVector: JSON.stringify([0.1, 0.2, 0.3]),
@@ -200,6 +207,7 @@ describe('Knowledge Search Utils', () => {
     it('should throw error when queryVector not provided', async () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api' }],
         distanceThreshold: 0.8,
@@ -213,6 +221,7 @@ describe('Knowledge Search Utils', () => {
     it('should throw error when distanceThreshold not provided', async () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api' }],
         queryVector: JSON.stringify([0.1, 0.2, 0.3]),
@@ -226,6 +235,7 @@ describe('Knowledge Search Utils', () => {
     it('should accept valid parameters for tag and vector search', async () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api' }],
         queryVector: JSON.stringify([0.1, 0.2, 0.3]),
@@ -382,6 +392,7 @@ describe('Knowledge Search Utils', () => {
     it('returns nothing for a whitespace-only query without touching the database', async () => {
       const results = await executeKeywordSearch({
         knowledgeBaseIds: ['kb-123'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         query: '   ',
         queryVector: JSON.stringify([0.1, 0.2, 0.3]),
@@ -397,6 +408,7 @@ describe('Knowledge Search Utils', () => {
 
       await executeKeywordSearch({
         knowledgeBaseIds,
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         query: 'PROJ-1234',
         queryVector: JSON.stringify([0.1, 0.2, 0.3]),
@@ -416,6 +428,7 @@ describe('Knowledge Search Utils', () => {
 
       const results = await executeKeywordSearch({
         knowledgeBaseIds: ['kb-1'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         query: 'PROJ-1234',
         queryVector: JSON.stringify([0.1, 0.2, 0.3]),
@@ -441,6 +454,7 @@ describe('Knowledge Search Utils', () => {
 
       await executeKeywordSearch({
         knowledgeBaseIds,
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         query: 'PROJ-1234',
         queryVector: JSON.stringify([0.1, 0.2, 0.3]),
@@ -459,6 +473,7 @@ describe('Knowledge Search Utils', () => {
       await expect(
         executeKnowledgeSearch({
           knowledgeBaseIds: ['kb-123'],
+          access: WORKSPACE_ACCESS_SCOPE,
           topK: 10,
           searchMode: 'hybrid',
         })
@@ -469,6 +484,7 @@ describe('Knowledge Search Utils', () => {
       await expect(
         executeKnowledgeSearch({
           knowledgeBaseIds: ['kb-123'],
+          access: WORKSPACE_ACCESS_SCOPE,
           topK: 10,
           searchMode: 'hybrid',
           query: 'PROJ-1234',
@@ -481,6 +497,7 @@ describe('Knowledge Search Utils', () => {
 
       const results = await executeKnowledgeSearch({
         knowledgeBaseIds: ['kb-123'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         searchMode: 'vector',
         query: 'PROJ-1234',
@@ -492,13 +509,18 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('runs both legs and fuses them in hybrid mode', async () => {
-      // Vector leg, then the keyword leg's ranking pass, then its hydration pass.
-      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
+      /**
+       * Chains dequeue in creation order. The vector leg opens its transaction
+       * and applies the scan settings before selecting, so the keyword leg's
+       * ranking pass is built first, then the vector select, then hydration.
+       */
       queueTableRows(schemaMock.embedding, [{ id: 'keyword-hit', keywordRank: 0.9 }])
+      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
       queueTableRows(schemaMock.embedding, [makeResult('keyword-hit')])
 
       const results = await executeKnowledgeSearch({
         knowledgeBaseIds: ['kb-123'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         searchMode: 'hybrid',
         query: 'PROJ-1234',
@@ -510,6 +532,8 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('falls back to vector results when the keyword leg fails', async () => {
+      /** The failing ranking chain is still built first and takes the first queued set. */
+      queueTableRows(schemaMock.embedding, [{ id: 'never-ranked', keywordRank: 0 }])
       queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
 
       /**
@@ -529,6 +553,7 @@ describe('Knowledge Search Utils', () => {
 
       const results = await executeKnowledgeSearch({
         knowledgeBaseIds: ['kb-123'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         searchMode: 'hybrid',
         query: 'PROJ-1234',
@@ -543,6 +568,7 @@ describe('Knowledge Search Utils', () => {
 
       const results = await executeKnowledgeSearch({
         knowledgeBaseIds: ['kb-123'],
+        access: WORKSPACE_ACCESS_SCOPE,
         topK: 10,
         searchMode: 'hybrid',
         structuredFilters: [

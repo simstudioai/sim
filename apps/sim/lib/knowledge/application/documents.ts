@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document as documentTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -285,8 +286,13 @@ export interface UpsertKnowledgeDocumentInput extends UploadKnowledgeDocumentAdm
  */
 export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listDocuments,
-  resolveContext: ({ input }: { input: ListKnowledgeDocumentsInput }) =>
-    resolveActiveKnowledgeResourceContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ListKnowledgeDocumentsInput
+  }) => resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ input, context }) {
     const limit = input.limit ?? 50
     const offset = input.offset ?? 0
@@ -316,7 +322,8 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         sortOrder: input.sortOrder,
         tagFilters: tagFilters.length > 0 ? tagFilters : undefined,
       },
-      generateRequestId()
+      generateRequestId(),
+      await context.access.get()
     )
     return {
       ...result,
@@ -330,8 +337,13 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
 
 export const readKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readDocument,
-  resolveContext: ({ input }: { input: ReadKnowledgeDocumentInput }) =>
-    resolveActiveKnowledgeDocumentContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ReadKnowledgeDocumentInput
+  }) => resolveActiveKnowledgeDocumentContext(input, principal),
   async execute({ context }: { context: ActiveKnowledgeDocumentContext }) {
     return {
       document: context.document,
@@ -343,8 +355,13 @@ export const readKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
 
 export const admitKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadDocument,
-  resolveContext: ({ input }: { input: UploadKnowledgeDocumentAdmissionInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: UploadKnowledgeDocumentAdmissionInput
+  }) => resolveActiveKnowledgeBaseContext(input, principal),
   async execute({ principal, context }) {
     const billingAttribution = await resolveKnowledgeBillingAttribution(principal, context)
     const usage = await checkAttributedUsageLimits(billingAttribution)
@@ -363,8 +380,13 @@ export const admitKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
 
 export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadDocument,
-  resolveContext: ({ input }: { input: UploadKnowledgeDocumentInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: UploadKnowledgeDocumentInput
+  }) => resolveActiveKnowledgeBaseContext(input, principal),
   async execute({ principal, input, context }) {
     if (input.file.fileSize < 0 || input.file.fileSize > MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE) {
       throw new OrchestrationError(
@@ -416,7 +438,7 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       throw new Error('Knowledge document storage returned a path with an unexpected query')
     }
 
-    const registrationContext = await resolveActiveKnowledgeBaseContext(input)
+    const registrationContext = await resolveActiveKnowledgeBaseContext(input, principal)
     await authorizeWorkspaceOperation(
       principal,
       knowledgeOperations.uploadDocument,
@@ -476,8 +498,13 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
 
 export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadDocument,
-  resolveContext: ({ input }: { input: CreateKnowledgeDocumentsInput }) =>
-    resolveActiveKnowledgeResourceContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: CreateKnowledgeDocumentsInput
+  }) => resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ principal, input, context, request }) {
     if (input.documents.length === 0) {
       throw new OrchestrationError('validation', 'No documents specified')
@@ -611,8 +638,13 @@ export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
 
 export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadDocument,
-  resolveContext: ({ input }: { input: UpsertKnowledgeDocumentInput }) =>
-    resolveActiveKnowledgeResourceContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: UpsertKnowledgeDocumentInput
+  }) => resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ principal, input, context }) {
     const { billingAttribution, usage, userId } = await resolveKnowledgeUsageAdmission(
       principal,
@@ -731,13 +763,19 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
 
 export const deleteKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.deleteDocument,
-  resolveContext: ({ input }: { input: DeleteKnowledgeDocumentInput }) =>
-    resolveActiveKnowledgeDocumentContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: DeleteKnowledgeDocumentInput
+  }) => resolveActiveKnowledgeDocumentContext(input, principal),
   async execute({ context }: { context: ActiveKnowledgeDocumentContext }) {
     await deleteKnowledgeDocumentInKnowledgeBase(
       context.knowledgeBaseId,
       context.documentId,
-      generateRequestId()
+      generateRequestId(),
+      await context.access.get()
     )
     return {
       id: context.documentId,
@@ -768,8 +806,10 @@ export const deleteKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
 export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.bulkDeleteDocuments,
   async resolveContext({
+    principal,
     input,
   }: {
+    principal: Principal
     input: BulkDeleteKnowledgeDocumentsInput
   }): Promise<BulkDeleteKnowledgeDocumentsContext> {
     const documentIds = requireBoundedKnowledgeBatch(
@@ -778,7 +818,7 @@ export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       BULK_DELETE_KNOWLEDGE_DOCUMENTS_COST_POLICY.maxItems
     )
     return {
-      ...(await resolveActiveKnowledgeResourceContext(input)),
+      ...(await resolveActiveKnowledgeResourceContext(input, principal)),
       documentIds,
     }
   },
@@ -794,11 +834,14 @@ export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
     for (const documentId of context.documentIds) {
       if (input.cancellationSignal?.aborted) break
       try {
-        const canonical = await resolveCanonicalActiveKnowledgeDocumentContext({
-          knowledgeBaseId: context.knowledgeBaseId,
-          documentId,
-          assertedWorkspaceId: context.workspaceId,
-        })
+        const canonical = await resolveCanonicalActiveKnowledgeDocumentContext(
+          {
+            knowledgeBaseId: context.knowledgeBaseId,
+            documentId,
+            assertedWorkspaceId: context.workspaceId,
+          },
+          principal
+        )
         if (canonical.workspaceId) {
           await authorizeWorkspaceOperation(
             principal,
@@ -811,7 +854,8 @@ export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         await deleteKnowledgeDocumentInKnowledgeBase(
           canonical.knowledgeBaseId,
           canonical.documentId,
-          generateRequestId()
+          generateRequestId(),
+          await context.access.get()
         )
         deletedDocuments.push({
           id: canonical.documentId,
@@ -860,8 +904,13 @@ export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
 
 export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.updateDocument,
-  resolveContext: ({ input }: { input: UpdateKnowledgeDocumentInput }) =>
-    resolveCanonicalActiveKnowledgeDocumentContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: UpdateKnowledgeDocumentInput
+  }) => resolveCanonicalActiveKnowledgeDocumentContext(input, principal),
   async execute({ principal, input, context }) {
     if (input.markFailedDueToTimeout || input.retryProcessing) {
       const outcome = input.markFailedDueToTimeout
@@ -940,8 +989,13 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
 
 export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.bulkDocuments,
-  resolveContext: ({ input }: { input: BulkKnowledgeDocumentsInput }) =>
-    resolveActiveKnowledgeResourceContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: BulkKnowledgeDocumentsInput
+  }) => resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ input, context }) {
     const result = input.selectAll
       ? await bulkDocumentOperationByFilter(

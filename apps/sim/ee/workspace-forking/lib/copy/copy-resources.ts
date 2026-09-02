@@ -47,6 +47,7 @@ import {
   type DurableSecretProvenance,
   hashDurableSecretProvenanceValue,
 } from '@/lib/execution/durable-secret-provenance'
+import { WORKSPACE_ACCESS_TOKEN } from '@/lib/knowledge/access/types'
 import {
   createKnowledgeDocumentSourceValue,
   type KnowledgeDocumentSourceValue,
@@ -886,6 +887,7 @@ async function createForkDocumentPlaceholders(params: {
       fileSize: 0,
       deletedAt: null,
       archivedAt: now,
+      acl: [WORKSPACE_ACCESS_TOKEN],
     })
     record('knowledge_document', doc.id, childDocId)
     kbEntry.documentIdMap[doc.id] = childDocId
@@ -995,6 +997,7 @@ export async function planForkMappedKbDocumentCopies(params: {
         fileSize: 0,
         deletedAt: null,
         archivedAt: now,
+        acl: [WORKSPACE_ACCESS_TOKEN],
       })
     }
     docIdMap.set(doc.id, childDocId)
@@ -1597,6 +1600,7 @@ async function ensureKbDocumentPlaceholder(
       archivedAt: new Date(),
       deletedAt: null,
       uploadedBy: userId,
+      acl: [WORKSPACE_ACCESS_TOKEN],
     })
     .onConflictDoNothing({ target: document.id })
 }
@@ -1764,6 +1768,8 @@ async function copyKbDocument(params: {
     deletedAt: null,
     uploadedBy: userId,
     secretProvenanceVersion: sourceSecretContext.tracked ? 1 : null,
+    /** A copy has no connector and therefore no source-derived access; it is a workspace document. */
+    acl: [WORKSPACE_ACCESS_TOKEN],
   }
   const copiedSource = createKnowledgeDocumentSourceValue(copiedValues)
   const finalizedStorageKey = await finalizeKbDocument({

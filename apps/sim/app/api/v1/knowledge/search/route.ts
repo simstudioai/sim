@@ -19,7 +19,7 @@ import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
-import { handleError } from '@/app/api/v1/knowledge/utils'
+import { handleError, resolveV1KnowledgeAccessScope } from '@/app/api/v1/knowledge/utils'
 import {
   authenticateRequest,
   v1ValidationErrorResponse,
@@ -190,11 +190,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     let results: SearchResult[]
     let queryEmbeddingIsBYOK: boolean | null = null
+    const access = await resolveV1KnowledgeAccessScope(userId, rateLimit, workspaceId)
 
     if (!hasQuery && hasFilters) {
       results = await executeKnowledgeSearch({
         knowledgeBaseIds: accessibleKbIds,
         topK,
+        access,
         searchMode,
         structuredFilters,
       })
@@ -209,6 +211,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       results = await executeKnowledgeSearch({
         knowledgeBaseIds: accessibleKbIds,
         topK,
+        access,
         searchMode,
         query,
         queryVector,
@@ -253,7 +256,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     const documentIds = results.map((r) => r.documentId)
-    const documentMetadataMap = await getDocumentMetadataByIds(documentIds)
+    const documentMetadataMap = await getDocumentMetadataByIds(documentIds, access)
 
     return NextResponse.json({
       success: true,

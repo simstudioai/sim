@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
@@ -19,6 +20,8 @@ import {
   isDurableSecretProvenanceEnforced,
   reportUnrecordedDurableProvenance,
 } from '@/lib/execution/durable-secret-provenance-enforcement'
+import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
+import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   KnowledgeUsageLimitExceededError,
@@ -101,6 +104,8 @@ export interface SearchKnowledgeInput {
 
 type KnowledgeSearchContext = KnowledgeResourceContext & {
   knowledgeBases: KnowledgeBaseWithCounts[]
+  /** What the caller may read across the searched bases; resolved from the principal, never from input. */
+  access: KnowledgeAccessProvider
 }
 
 export interface KnowledgeSearchItem {
@@ -141,11 +146,14 @@ export interface SearchKnowledgeResult {
   cost?: KnowledgeSearchCost
   workspaceId?: string
   userId: string
+  /** Whether results were filtered as a person or as the workspace; telemetry only, never presented. */
+  accessScopeKind: 'user' | 'workspace'
   resultSecretRegistry?: ResolvedSecretTraceRegistry
 }
 
 async function resolveKnowledgeSearchContext(
-  input: SearchKnowledgeInput
+  input: SearchKnowledgeInput,
+  principal: Principal
 ): Promise<KnowledgeSearchContext> {
   if (
     input.knowledgeBaseIds.length < 1 ||
@@ -202,6 +210,7 @@ async function resolveKnowledgeSearchContext(
       workspaceId: undefined,
       legacyPersonalOwnerUserId,
       knowledgeBases: knowledgeBases as KnowledgeBaseWithCounts[],
+      access: createKnowledgeAccessProvider(principal, {}),
     }
   }
   const workspaceContext = await resolveKnowledgeWorkspaceContext({
@@ -210,13 +219,14 @@ async function resolveKnowledgeSearchContext(
   return {
     ...workspaceContext,
     knowledgeBases: knowledgeBases as KnowledgeBaseWithCounts[],
+    access: createKnowledgeAccessProvider(principal, { workspaceId: canonicalWorkspaceId }),
   }
 }
 
 export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.search,
-  resolveContext: ({ input }: { input: SearchKnowledgeInput }) =>
-    resolveKnowledgeSearchContext(input),
+  resolveContext: ({ principal, input }: { principal: Principal; input: SearchKnowledgeInput }) =>
+    resolveKnowledgeSearchContext(input, principal),
   async execute({ principal, input, context }) {
     const requestId = generateRequestId()
     const hasQuery = Boolean(input.query?.trim())
@@ -276,6 +286,8 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
           generateSearchEmbedding(input.query!, embeddingModel, context.workspaceId)
         )
       : Promise.resolve(null)
+    /** Resolved alongside the embedding call; both are needed before the first leg runs. */
+    const accessPromise = context.access.get()
     const useReranker = Boolean(input.rerankerEnabled && hasQuery)
     const candidateTopK = useReranker
       ? input.rerankerInputCount !== undefined
@@ -285,9 +297,11 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
           )
         : Math.min(KNOWLEDGE_SEARCH_COST_POLICY.maxTopK, input.topK * 4)
       : input.topK
+    const access = await accessPromise
     let rows = await executeKnowledgeSearch({
       knowledgeBaseIds,
       topK: candidateTopK,
+      access,
       searchMode: input.searchMode ?? 'vector',
       query: input.query,
       queryVector: hasQuery
@@ -462,7 +476,10 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     const tagMaps = new Map(tagDefinitionEntries)
     const basicDocumentMetadata = provenanceSnapshot
       ? {}
-      : await getDocumentMetadataByIds(rows.map((row) => row.documentId))
+      : await getDocumentMetadataByIds(
+          rows.map((row) => row.documentId),
+          access
+        )
     const results = rows.map((row): KnowledgeSearchItem => {
       const metadata: Record<string, unknown> = {}
       const tagMap = tagMaps.get(row.knowledgeBaseId)
@@ -563,6 +580,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       cost,
       ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
       userId,
+      accessScopeKind: access.kind,
       resultSecretRegistry: registry,
     }
   },
@@ -571,6 +589,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       knowledgeBaseId: result.knowledgeBaseId,
       resultsCount: result.totalResults,
       workspaceId: context.workspaceId,
+      accessScopeKind: result.accessScopeKind,
     })
   },
 })

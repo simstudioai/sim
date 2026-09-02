@@ -25,7 +25,10 @@ function embeds(...ids: string[]) {
   mockExtractEmbeddedFileRefs.mockReturnValue({ keys: [], ids })
 }
 
-vi.mock('@/lib/auth/hybrid', () => ({ checkSessionOrInternalAuth: mockCheckAuth }))
+vi.mock('@/lib/auth/hybrid', () => ({
+  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
+  checkSessionOrInternalAuth: mockCheckAuth,
+}))
 vi.mock('@/lib/uploads/server/metadata', () => ({
   getFileMetadataById: mockGetFileMetadataById,
 }))

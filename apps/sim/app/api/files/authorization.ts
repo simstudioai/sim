@@ -4,6 +4,12 @@ import { createLogger } from '@sim/logger'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import {
+  resolveUserKnowledgeAccessScope,
+  WORKSPACE_ACCESS_SCOPE,
+} from '@/lib/knowledge/access/scope'
+import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
@@ -141,7 +147,7 @@ export async function verifyFileAccess(
   customConfig?: StorageConfig,
   context?: StorageContext | 'general',
   isLocal?: boolean,
-  options?: { requireWrite?: boolean }
+  options?: { requireWrite?: boolean; knowledgeAccess?: KnowledgeFileAccess }
 ): Promise<boolean> {
   const requireWrite = options?.requireWrite ?? false
   try {
@@ -182,7 +188,7 @@ export async function verifyFileAccess(
 
     // 4. KB files: kb/filename
     if (inferredContext === 'knowledge-base') {
-      return await verifyKBFileAccess(cloudKey, userId, customConfig)
+      return await verifyKBFileAccess(cloudKey, userId, customConfig, options?.knowledgeAccess)
     }
 
     // 5. Chat files: chat/filename
@@ -485,7 +491,11 @@ async function verifyCopilotFileAccess(
  * signal only: it reflects whether the file is still part of a live KB, not who
  * owns it (ownership comes from the binding).
  */
-async function hasActiveKbDocumentForKey(cloudKey: string, workspaceId: string): Promise<boolean> {
+async function hasActiveKbDocumentForKey(
+  cloudKey: string,
+  workspaceId: string,
+  access: KnowledgeAccessScope
+): Promise<boolean> {
   const rows = await db
     .select({ id: document.id })
     .from(document)
@@ -497,12 +507,31 @@ async function hasActiveKbDocumentForKey(cloudKey: string, workspaceId: string):
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
         isNull(document.deletedAt),
-        isNull(knowledgeBase.deletedAt)
+        isNull(knowledgeBase.deletedAt),
+        knowledgeAccessCondition(access)
       )
     )
     .limit(1)
 
   return rows.length > 0
+}
+
+/**
+ * How a KB file read identifies the reader for document access. `'user'` is
+ * for a session-authenticated person; a resolved scope is for a caller that
+ * already holds one (an execution with a principal). Anything else — an
+ * internal token, a tool running with the workflow owner's id — reads as the
+ * workspace, never as the person whose id it happens to carry.
+ */
+export type KnowledgeFileAccess = 'user' | KnowledgeAccessScope
+
+async function resolveKnowledgeFileAccess(
+  knowledgeAccess: KnowledgeFileAccess | undefined,
+  userId: string,
+  workspaceId: string
+): Promise<KnowledgeAccessScope> {
+  if (knowledgeAccess === 'user') return resolveUserKnowledgeAccessScope(userId, workspaceId)
+  return knowledgeAccess ?? WORKSPACE_ACCESS_SCOPE
 }
 
 /**
@@ -522,7 +551,8 @@ async function hasActiveKbDocumentForKey(cloudKey: string, workspaceId: string):
 async function verifyKBFileAccess(
   cloudKey: string,
   userId: string,
-  customConfig?: StorageConfig
+  customConfig?: StorageConfig,
+  knowledgeAccess?: KnowledgeFileAccess
 ): Promise<boolean> {
   try {
     const binding = await getFileMetadataByKey(cloudKey, 'knowledge-base', {
@@ -552,10 +582,12 @@ async function verifyKBFileAccess(
       return false
     }
 
-    if (!(await hasActiveKbDocumentForKey(cloudKey, binding.workspaceId))) {
-      logger.warn('KB file access denied: no active document references the file', {
+    const access = await resolveKnowledgeFileAccess(knowledgeAccess, userId, binding.workspaceId)
+    if (!(await hasActiveKbDocumentForKey(cloudKey, binding.workspaceId, access))) {
+      logger.warn('KB file access denied: no readable document references the file', {
         userId,
         cloudKey,
+        accessScopeKind: access.kind,
       })
       return false
     }

@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { Principal } from '@sim/auth/principal'
 import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, knowledgeConnector, knowledgeConnectorSyncLog } from '@sim/db/schema'
@@ -270,8 +271,13 @@ async function validateConnectorSourceConfig(input: {
 
 export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listConnectors,
-  resolveContext: ({ input }: { input: ListKnowledgeConnectorsInput }) =>
-    resolveActiveKnowledgeResourceContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ListKnowledgeConnectorsInput
+  }) => resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ input, context }) {
     const sortOrder = input.sortOrder === 'asc' ? asc : desc
     const sortColumn =
@@ -309,8 +315,13 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
 
 export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readConnector,
-  resolveContext: ({ input }: { input: ReadKnowledgeConnectorInput }) =>
-    resolveActiveKnowledgeConnectorContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ReadKnowledgeConnectorInput
+  }) => resolveActiveKnowledgeConnectorContext(input, principal),
   async execute({ context }) {
     const connector = await getKnowledgeConnector(context.knowledgeBaseId, context.connectorId)
     if (!connector) throw new OrchestrationError('not_found', 'Connector not found')
@@ -327,8 +338,13 @@ export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
 
 export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.createConnector,
-  resolveContext: ({ input }: { input: CreateKnowledgeConnectorInput }) =>
-    resolveActiveKnowledgeResourceContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: CreateKnowledgeConnectorInput
+  }) => resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ principal, input, context, request }) {
     const requestId = generateRequestId()
     const workspaceId = requireConnectorWorkspaceId(context)
@@ -392,8 +408,13 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
  */
 export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.updateConnector,
-  resolveContext: ({ input }: { input: UpdateKnowledgeConnectorInput }) =>
-    resolveActiveKnowledgeConnectorContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: UpdateKnowledgeConnectorInput
+  }) => resolveActiveKnowledgeConnectorContext(input, principal),
   async execute({ principal, input, context, request }) {
     const requestId = generateRequestId()
     const actingUserId = resolveKnowledgeAttributedUserId(principal, context)
@@ -451,8 +472,13 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
 
 export const deleteKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.deleteConnector,
-  resolveContext: ({ input }: { input: DeleteKnowledgeConnectorInput }) =>
-    resolveActiveKnowledgeConnectorContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: DeleteKnowledgeConnectorInput
+  }) => resolveActiveKnowledgeConnectorContext(input, principal),
   async execute({ principal, input, context, request }) {
     const outcome = await performDeleteKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
@@ -510,8 +536,13 @@ export const deleteKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
  */
 export const syncKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.syncConnector,
-  resolveContext: ({ input }: { input: SyncKnowledgeConnectorInput }) =>
-    resolveActiveKnowledgeConnectorContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: SyncKnowledgeConnectorInput
+  }) => resolveActiveKnowledgeConnectorContext(input, principal),
   async execute({ principal, input, context, request }) {
     const workspaceId = requireConnectorWorkspaceId(context)
     // permission-group-enforced: knowledge.connectors — needs the persisted connector type, which the funnel never sees
@@ -572,8 +603,13 @@ const connectorDocumentSelection = {
 
 export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listConnectorDocuments,
-  resolveContext: ({ input }: { input: ListKnowledgeConnectorDocumentsInput }) =>
-    resolveActiveKnowledgeConnectorContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ListKnowledgeConnectorDocumentsInput
+  }) => resolveActiveKnowledgeConnectorContext(input, principal),
   async execute({ input, context }) {
     const limit = input.limit ?? DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE
     const offset = input.offset ?? 0
@@ -634,8 +670,13 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
 
 export const updateKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.updateConnectorDocuments,
-  resolveContext: ({ input }: { input: UpdateKnowledgeConnectorDocumentsInput }) =>
-    resolveActiveKnowledgeConnectorContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: UpdateKnowledgeConnectorDocumentsInput
+  }) => resolveActiveKnowledgeConnectorContext(input, principal),
   async execute({ input, context }) {
     if (input.documentIds.length === 0) {
       throw new OrchestrationError('validation', 'At least one connector document is required')

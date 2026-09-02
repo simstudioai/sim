@@ -9,6 +9,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.unmock('@sim/db/schema')
 vi.unmock('drizzle-orm')
 
+import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
+import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/system'
 import { queryChunks } from '@/lib/knowledge/chunks/service'
 import type { ChunkSortBy } from '@/lib/knowledge/chunks/types'
 
@@ -39,7 +41,8 @@ async function readPageSql(sortBy: ChunkSortBy, sortOrder: 'asc' | 'desc', curso
   await queryChunks(
     'document-1',
     { sortBy, sortOrder, limit: 10, cursorKeys: cursorKeys as never },
-    'request-1'
+    'request-1',
+    SYSTEM_ACCESS_SCOPE
   )
   return {
     where: render(dbChainMockFns.where.mock.calls[0]?.[0]),
@@ -90,10 +93,18 @@ describe('chunk list generated SQL', () => {
   )
 
   it('binds a search term with its LIKE wildcards escaped', async () => {
-    await queryChunks('document-1', { search: '100%_raw\\' }, 'request-1')
+    await queryChunks('document-1', { search: '100%_raw\\' }, 'request-1', SYSTEM_ACCESS_SCOPE)
 
     const where = render(dbChainMockFns.where.mock.calls[0]?.[0])
     expect(where.sql).toContain('"embedding"."content" ilike $')
     expect(where.params).toContain('%100\\%\\_raw\\\\%')
+  })
+
+  it('binds the caller access tokens as scalars against the document acl', async () => {
+    await queryChunks('document-1', {}, 'request-1', WORKSPACE_ACCESS_SCOPE)
+
+    const where = render(dbChainMockFns.where.mock.calls[0]?.[0])
+    expect(where.sql).toContain('"document"."acl" && ARRAY[$2, $3]::text[]')
+    expect(where.params).toEqual(['document-1', 'pub', 'ws'])
   })
 })

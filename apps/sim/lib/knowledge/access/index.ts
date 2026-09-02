@@ -3,8 +3,10 @@ export {
   createKnowledgeAccessProvider,
   type KnowledgeAccessScopeContext,
   resolveKnowledgeAccessScope,
+  resolveUserKnowledgeAccessScope,
   WORKSPACE_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/scope'
+export { SYSTEM_ACCESS_SCOPE, type SystemAccessScope } from '@/lib/knowledge/access/system'
 export {
   ACCESS_TOKEN_PATTERN,
   buildAclFromObservers,

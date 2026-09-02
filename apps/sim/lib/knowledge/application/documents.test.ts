@@ -103,6 +103,7 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import {
   bulkDeleteKnowledgeDocuments,
   createKnowledgeDocuments,
@@ -113,7 +114,11 @@ import {
   upsertKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
 
+/** Every mocked context carries the workspace read scope the resolvers would attach. */
+const knowledgeAccess = { get: async () => WORKSPACE_ACCESS_SCOPE }
+
 const context = {
+  access: knowledgeAccess,
   workspaceId: 'workspace-1',
   workspaceOrganizationId: null,
   allowPersonalApiKeys: true,
@@ -262,7 +267,8 @@ describe('knowledge document application use cases', () => {
     })
 
     expect(mocks.resolveKnowledgeBase).toHaveBeenCalledWith(
-      expect.objectContaining({ assertedWorkspaceId: 'workspace-1' })
+      expect.objectContaining({ assertedWorkspaceId: 'workspace-1' }),
+      expect.objectContaining({ kind: 'session' })
     )
     expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.getDocuments.mock.invocationCallOrder[0]
@@ -271,6 +277,7 @@ describe('knowledge document application use cases', () => {
 
   it('lets the owner list documents in a legacy personal knowledge base', async () => {
     mocks.resolveKnowledgeBase.mockResolvedValueOnce({
+      access: knowledgeAccess,
       workspaceId: undefined,
       legacyPersonalOwnerUserId: 'user-1',
       knowledgeBaseId: 'legacy-knowledge',
@@ -288,13 +295,15 @@ describe('knowledge document application use cases', () => {
     expect(mocks.getDocuments).toHaveBeenCalledWith(
       'legacy-knowledge',
       expect.any(Object),
-      expect.any(String)
+      expect.any(String),
+      WORKSPACE_ACCESS_SCOPE
     )
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
   it('projects mutation audit entries for an owning legacy personal principal', async () => {
     mocks.resolveDocument.mockResolvedValueOnce({
+      access: knowledgeAccess,
       workspaceId: undefined,
       legacyPersonalOwnerUserId: 'user-1',
       knowledgeBaseId: 'legacy-knowledge',
@@ -326,6 +335,7 @@ describe('knowledge document application use cases', () => {
 
   it('conceals legacy personal documents from a non-owner', async () => {
     mocks.resolveKnowledgeBase.mockResolvedValueOnce({
+      access: knowledgeAccess,
       workspaceId: undefined,
       legacyPersonalOwnerUserId: 'user-1',
       knowledgeBaseId: 'legacy-knowledge',
@@ -511,7 +521,8 @@ describe('knowledge document application use cases', () => {
     expect(mocks.deleteDocument).toHaveBeenCalledWith(
       'knowledge-1',
       'document-1',
-      expect.any(String)
+      expect.any(String),
+      WORKSPACE_ACCESS_SCOPE
     )
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({

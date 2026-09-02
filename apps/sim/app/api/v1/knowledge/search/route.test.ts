@@ -74,6 +74,9 @@ vi.mock('@/app/api/v1/middleware', () => ({
 }))
 
 vi.mock('@/app/api/v1/knowledge/utils', () => ({
+  resolveV1KnowledgeAccessScope: vi
+    .fn()
+    .mockResolvedValue({ kind: 'workspace', tokens: ['pub', 'ws'] }),
   handleError: (e: unknown) =>
     new Response(JSON.stringify({ error: getErrorMessage(e, 'error') }), {
       status: 500,

@@ -21,6 +21,7 @@ vi.mock('@/lib/knowledge/documents/processing-claim', () => ({
 
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
+import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/system'
 import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-outbox-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 
@@ -87,7 +88,11 @@ describe('knowledge document processing outbox handler', () => {
   it('dispatches the authoritative document with the stable outbox event id', async () => {
     await handler()(PAYLOAD, createContext('outbox-event-stable'))
 
-    expect(mocks.getKnowledgeDocument).toHaveBeenCalledWith('knowledge-base-1', 'document-1')
+    expect(mocks.getKnowledgeDocument).toHaveBeenCalledWith(
+      'knowledge-base-1',
+      'document-1',
+      SYSTEM_ACCESS_SCOPE
+    )
     expect(mocks.processDocumentsWithQueue).toHaveBeenCalledWith(
       [
         {
