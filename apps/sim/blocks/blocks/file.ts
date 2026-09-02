@@ -95,7 +95,7 @@ const SHARE_FILE_FIELD = ['shareFile', 'shareFileId'] as const
 /* Text and file are mutually exclusive sources, so the clause names whichever
    one the card actually carries. */
 const WRITE_CONTENT_FIELD = ['content', 'writeFile', 'writeFileId'] as const
-const FOLDER_SCOPE_FIELD = ['folderSelection', 'manualFolderSelection'] as const
+const FOLDER_SCOPE_FIELD = ['folderSelection'] as const
 const FOLDER_PATH_FIELD = ['folderPath', 'manualFolderPath'] as const
 const WRITE_FOLDER_FIELD = ['writeFolderPath', 'manualWriteFolderPath'] as const
 const CREATE_PARENT_FIELD = ['createParentPath', 'manualCreateParentPath'] as const
@@ -107,10 +107,19 @@ const MOVE_TARGET_FIELD = ['moveTargetFolderPath', 'manualMoveTargetFolderPath']
  * picker beside it needs them: a picker offering files outside the chosen
  * folder would let a selection be built that the run then ignores.
  */
+/**
+ * The folder that narrows a picker's options.
+ *
+ * One field rather than a basic/advanced pair: the scope is an advanced-only
+ * refinement, and a canonical pair always renders one of its halves, so a pair
+ * could not be kept out of the basic view.
+ *
+ * Always recursive — a folder stands for everything under it. The narrower
+ * reading stays available to API and agent callers through `includeSubfolders`;
+ * it is only the block that stops offering the choice.
+ */
 const FOLDER_SCOPE = {
   fieldId: 'folderSelection',
-  manualFieldId: 'manualFolderSelection',
-  recursiveFieldId: 'folderIncludeSubfolders',
 } as const
 
 /*
@@ -144,8 +153,7 @@ function toFileIdList(value: string | string[] | null | undefined): string[] {
 
 /** Only the fields {@link fileFamilyInput} reads, so a shape change fails here rather than at run time. */
 interface FileFamilyParams {
-  folderScopeRef?: unknown
-  folderIncludeSubfolders?: unknown
+  folderSelection?: unknown
   _context?: { workspaceId?: string }
 }
 
@@ -171,19 +179,12 @@ function fileFamilyInput(
   const normalized = pickerValue ? normalizeFileInput(pickerValue) : null
   if (normalized && normalized.length > 0) return { fileInput: normalized, workspaceId }
 
-  const folderPath = folderScopePath(params.folderScopeRef)
+  const folderPath = folderScopePath(params.folderSelection)
   if (!folderPath) {
     throw new Error(`File or folder is required for ${label}`)
   }
-  return {
-    folderPaths: [folderPath],
-    /*
-     * Absent already means "descend", so only the off case travels — a block
-     * saved before this switch existed keeps reading whole subtrees.
-     */
-    ...(switchValue(params.folderIncludeSubfolders, true) ? {} : { includeSubfolders: false }),
-    workspaceId,
-  }
+  /* Recursive by default, and the block no longer offers the narrower reading. */
+  return { folderPaths: [folderPath], workspaceId }
 }
 
 /**
@@ -201,7 +202,7 @@ function fileFamilyInput(
  * a picked file resolving to a different one.
  */
 function namedFileTarget(
-  params: FileFamilyParams & { folderScopeRef?: unknown },
+  params: FileFamilyParams & { folderSelection?: unknown },
   pickerValue: unknown,
   label: string
 ): { fileName: string; folderPath?: string; includeSubfolders?: false } {
@@ -238,8 +239,7 @@ function namedFileTarget(
    */
   if (resolvedById) return { fileName }
 
-  const recursive = switchValue(params.folderIncludeSubfolders, true)
-  const scope = readFolderPath(params.folderScopeRef)
+  const scope = readFolderPath(params.folderSelection)
   /*
    * `folderScopePath` drops the root, because for a whole-folder read the root
    * and no folder mean the same thing. For a NAMED target they never do:
@@ -253,11 +253,7 @@ function namedFileTarget(
    */
   const folderPath = scope === ROOT_FOLDER_PATH ? ROOT_FOLDER_PATH : folderScopePath(scope)
   if (!folderPath) return { fileName }
-  return {
-    fileName,
-    folderPath,
-    ...(recursive ? {} : { includeSubfolders: false }),
-  }
+  return { fileName, folderPath }
 }
 
 /**
@@ -1206,49 +1202,10 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       title: 'Folder',
       type: 'sim-folder-tree-selector' as SubBlockType,
       resourceType: 'file',
-      canonicalParamId: 'folderScopeRef',
-      mode: 'basic',
+      mode: 'advanced',
       placeholder: 'Anywhere in the workspace',
       description:
-        'Narrows the file options below. Read, get content, and compress also take the whole folder when no file is picked, and search is confined to it.',
-      condition: {
-        field: 'operation',
-        value: [
-          'file_read',
-          'file_get_content',
-          'file_compress',
-          'file_append',
-          'file_search',
-          'file_edit',
-          'file_insert',
-        ],
-      },
-    },
-    {
-      id: 'manualFolderSelection',
-      title: 'Folder Path',
-      type: 'short-input' as SubBlockType,
-      canonicalParamId: 'folderScopeRef',
-      mode: 'advanced',
-      placeholder: '/Reports/Q3%20Results',
-      condition: {
-        field: 'operation',
-        value: [
-          'file_read',
-          'file_get_content',
-          'file_compress',
-          'file_append',
-          'file_search',
-          'file_edit',
-          'file_insert',
-        ],
-      },
-    },
-    {
-      id: 'folderIncludeSubfolders',
-      title: 'Include Subfolders',
-      type: 'switch' as SubBlockType,
-      value: () => 'true',
+        'Narrows the file options below, including everything nested inside it. Read, get content, and compress also take the whole folder when no file is picked, and search is confined to it.',
       condition: {
         field: 'operation',
         value: [
@@ -1828,15 +1785,12 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
            * has its query, so an unset folder means the whole workspace and
            * never an incomplete configuration.
            */
-          const folderPath = folderScopePath(params.folderScopeRef)
+          const folderPath = folderScopePath(params.folderSelection)
           return {
             query: params.query,
             mode: params.mode === 'exact' ? 'exact' : 'regex',
             maxResults,
             ...(folderPath ? { folderPaths: [folderPath] } : {}),
-            ...(folderPath && !switchValue(params.folderIncludeSubfolders, true)
-              ? { includeSubfolders: false }
-              : {}),
           }
         }
 
@@ -2200,15 +2154,10 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       type: 'json',
       description: 'Selected workspace files or canonical file IDs to compress',
     },
-    folderIncludeSubfolders: {
-      type: 'boolean',
-      description:
-        'Whether the folder scope reaches into nested folders (read, get content, compress)',
-    },
-    folderScopeRef: {
+    folderSelection: {
       type: 'string',
       description:
-        'Folder the operation is scoped to, expanded at run time when no file is picked (read, get content, compress)',
+        'Folder the operation is scoped to, including everything nested inside it, expanded at run time when no file is picked (read, get content, compress, search, append, edit, insert)',
     },
     folderLimit: {
       type: 'number',

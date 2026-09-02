@@ -199,7 +199,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       const params = paramsFor('file_append', {
         appendFileInput: { id: 'wf_abc', name: 'notes.md' },
         appendContent: 'more',
-        folderScopeRef: '/Reports',
+        folderSelection: '/Reports',
       })
 
       expect(params.folderPath).toBeUndefined()
@@ -215,21 +215,21 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       const params = paramsFor('file_append', {
         appendFileInput: 'notes.md',
         appendContent: 'more',
-        folderScopeRef: '/Reports',
+        folderSelection: '/Reports',
       })
 
       expect(params.folderPath).toBe('/Reports')
     })
 
-    it('carries the subfolder scope with a name-based append', () => {
+    /* The block always scopes recursively, so it never sends the narrow reading. */
+    it('never narrows the scope on a name-based append', () => {
       expect(
         paramsFor('file_append', {
           appendFileInput: 'notes.md',
           appendContent: 'more',
-          folderScopeRef: '/Reports',
-          folderIncludeSubfolders: 'false',
+          folderSelection: '/Reports',
         }).includeSubfolders
-      ).toBe(false)
+      ).toBeUndefined()
     })
 
     it('still sends no folder when the pick carried an id', () => {
@@ -237,7 +237,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
         paramsFor('file_append', {
           appendFileInput: { id: 'wf_abc', name: 'notes.md' },
           appendContent: 'more',
-          folderScopeRef: '/Reports',
+          folderSelection: '/Reports',
         }).folderPath
       ).toBeUndefined()
     })
@@ -296,7 +296,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
     ])('%s sends the picked files alone', (operation, inputId) => {
       const params = paramsFor(operation, {
         [inputId]: '["wf_a","wf_b"]',
-        folderScopeRef: '/Reports',
+        folderSelection: '/Reports',
       })
 
       expect(params.fileId).toEqual(['wf_a', 'wf_b'])
@@ -306,7 +306,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
     it.each(['file_read', 'file_get_content', 'file_compress'])(
       '%s stands for the folder when no file is picked',
       (operation) => {
-        const params = paramsFor(operation, { folderScopeRef: '/Reports' })
+        const params = paramsFor(operation, { folderSelection: '/Reports' })
 
         expect(params.folderPaths).toEqual(['/Reports'])
         expect(params.fileId).toBeUndefined()
@@ -322,7 +322,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
     })
 
     it('reads the workspace root as no scope at all', () => {
-      expect(() => paramsFor('file_read', { folderScopeRef: '/' })).toThrow(
+      expect(() => paramsFor('file_read', { folderSelection: '/' })).toThrow(
         /File or folder is required/
       )
     })
@@ -333,29 +333,27 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
      */
     it('says nothing about scope while subfolders are included', () => {
       expect(
-        paramsFor('file_read', { folderScopeRef: '/Reports' }).includeSubfolders
+        paramsFor('file_read', { folderSelection: '/Reports' }).includeSubfolders
       ).toBeUndefined()
       expect(
-        paramsFor('file_read', { folderScopeRef: '/Reports', folderIncludeSubfolders: 'true' })
-          .includeSubfolders
+        paramsFor('file_read', { folderSelection: '/Reports' }).includeSubfolders
       ).toBeUndefined()
     })
 
+    /*
+     * The narrower reading is an API-level option, not a control on the block,
+     * so no operation may emit it from a block configuration.
+     */
     it.each(['file_read', 'file_get_content', 'file_compress'])(
-      '%s narrows to direct files when subfolders are switched off',
+      '%s never emits a narrowed scope',
       (operation) => {
-        expect(
-          paramsFor(operation, {
-            folderScopeRef: '/Reports',
-            folderIncludeSubfolders: 'false',
-          }).includeSubfolders
-        ).toBe(false)
+        expect(paramsFor(operation, { folderSelection: '/Reports' }).includeSubfolders).toBeUndefined()
       }
     )
 
     it('carries the archive name on compress', () => {
       expect(
-        paramsFor('file_compress', { folderScopeRef: '/Reports', archiveName: 'reports.zip' })
+        paramsFor('file_compress', { folderSelection: '/Reports', archiveName: 'reports.zip' })
           .archiveName
       ).toBe('reports.zip')
     })
@@ -372,11 +370,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       (pickerId) => {
         const picker = FileV5Block.subBlocks.find((subBlock) => subBlock.id === pickerId)
 
-        expect(picker?.folderScope).toEqual({
-          fieldId: 'folderSelection',
-          manualFieldId: 'manualFolderSelection',
-          recursiveFieldId: 'folderIncludeSubfolders',
-        })
+        expect(picker?.folderScope).toEqual({ fieldId: 'folderSelection' })
       }
     )
 
@@ -394,18 +388,22 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
     )
 
     /*
-     * Sub-block values are stored per sub-block id, so a picker that reads only
-     * the basic half is unscoped whenever the scope was typed into the advanced
-     * one - configured-looking and silently wrong.
+     * The scope is one advanced-only field rather than a canonical pair: a pair
+     * always renders one of its halves, so it could not be kept out of the
+     * basic view.
      */
-    it('names both halves of the folder pair so either can scope a picker', () => {
-      const picker = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'readFile')
+    it('keeps the folder scope out of the basic view', () => {
+      const folder = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'folderSelection')
 
-      expect(picker?.folderScope).toEqual({
-        fieldId: 'folderSelection',
-        manualFieldId: 'manualFolderSelection',
-        recursiveFieldId: 'folderIncludeSubfolders',
-      })
+      expect(folder?.mode).toBe('advanced')
+      expect(folder?.canonicalParamId).toBeUndefined()
+    })
+
+    it('has no manual twin and no recursion switch', () => {
+      const ids = FileV5Block.subBlocks.map((subBlock) => subBlock.id)
+
+      expect(ids).not.toContain('manualFolderSelection')
+      expect(ids).not.toContain('folderIncludeSubfolders')
     })
 
     it('offers the folder on every operation whose picker it narrows', () => {
@@ -425,49 +423,20 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       })
     })
 
-    /**
-     * The three halves of the folder scope have to travel together: a picker
-     * whose recursion switch is hidden silently reverts to the default depth.
-     */
-    it.each(['manualFolderSelection', 'folderIncludeSubfolders'])(
-      'shows %s wherever the folder picker itself is shown',
-      (subBlockId) => {
-        const folder = FileV5Block.subBlocks.find((s) => s.id === 'folderSelection')
-        const other = FileV5Block.subBlocks.find((s) => s.id === subBlockId)
-
-        expect(other?.condition).toEqual(folder?.condition)
-      }
-    )
-
     /*
      * Every one of these was declared in a contract and then not sent. A field
      * the block never emits is indistinguishable from a feature that does not
      * exist, which is the failure mode this group exists to catch.
      */
     describe('the fields the contracts declare actually travel', () => {
-      it('sends the recursion flag with an edit, so a nested same-named file stays out of scope', () => {
-        const params = paramsFor('file_edit', {
-          editFileInput: 'self.md',
-          folderScopeRef: '/memory/user-a',
-          folderIncludeSubfolders: 'false',
-          oldString: 'a',
-          newString: 'b',
-        })
+      it.each([
+        ['file_edit', { editFileInput: 'self.md', oldString: 'a', newString: 'b' }],
+        ['file_insert', { editFileInput: 'self.md', afterLine: '2', insertContent: 'x' }],
+      ])('sends the folder scope with %s, recursively', (operation, extra) => {
+        const params = paramsFor(operation, { ...extra, folderSelection: '/memory/user-a' })
 
         expect(params.folderPath).toBe('/memory/user-a')
-        expect(params.includeSubfolders).toBe(false)
-      })
-
-      it('sends the recursion flag with an insert', () => {
-        const params = paramsFor('file_insert', {
-          editFileInput: 'self.md',
-          folderScopeRef: '/memory/user-a',
-          folderIncludeSubfolders: 'false',
-          afterLine: '2',
-          insertContent: 'x',
-        })
-
-        expect(params.includeSubfolders).toBe(false)
+        expect(params.includeSubfolders).toBeUndefined()
       })
 
       it('sends a requested line range on get content', () => {
@@ -516,24 +485,8 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
         ['file_append', { appendFileInput: 'self.md', appendContent: 'x' }],
         ['file_edit', { editFileInput: 'self.md', oldString: 'a', newString: 'b' }],
         ['file_insert', { editFileInput: 'self.md', afterLine: '1', insertContent: 'x' }],
-      ])('keeps a shallow root on %s', (operation, extra) => {
-        const params = paramsFor(operation, {
-          ...extra,
-          folderScopeRef: '/',
-          folderIncludeSubfolders: 'false',
-        })
-
-        expect(params.folderPath).toBe('/')
-        expect(params.includeSubfolders).toBe(false)
-      })
-
-      it('keeps a recursive root too, so a duplicate name is refused not guessed', () => {
-        const params = paramsFor('file_append', {
-          appendFileInput: 'self.md',
-          appendContent: 'x',
-          folderScopeRef: '/',
-          folderIncludeSubfolders: 'true',
-        })
+      ])('keeps the root on %s, so a duplicate name is refused not guessed', (operation, extra) => {
+        const params = paramsFor(operation, { ...extra, folderSelection: '/' })
 
         expect(params.folderPath).toBe('/')
         expect(params.includeSubfolders).toBeUndefined()
@@ -544,7 +497,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
         const params = paramsFor('file_append', {
           appendFileInput: { id: 'wf_abc', name: 'self.md' },
           appendContent: 'x',
-          folderScopeRef: '/',
+          folderSelection: '/',
         })
 
         expect(params.folderPath).toBeUndefined()
@@ -562,7 +515,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       it('confines the search to a chosen folder', () => {
         const params = paramsFor('file_search', {
           query: 'commitment',
-          folderScopeRef: '/memory/user-a',
+          folderSelection: '/memory/user-a',
         })
 
         expect(params.folderPaths).toEqual(['/memory/user-a'])
@@ -570,32 +523,25 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
 
       /** The root means the whole workspace, which is what an unset folder already means. */
       it('treats the workspace root as no scope at all', () => {
-        const params = paramsFor('file_search', { query: 'commitment', folderScopeRef: '/' })
+        const params = paramsFor('file_search', { query: 'commitment', folderSelection: '/' })
 
         expect(params.folderPaths).toBeUndefined()
       })
 
-      it('sends the narrow scope only when subfolders are switched off', () => {
-        const recursive = paramsFor('file_search', {
+      it('scopes recursively, never narrowly', () => {
+        const params = paramsFor('file_search', {
           query: 'commitment',
-          folderScopeRef: '/memory/user-a',
-          folderIncludeSubfolders: 'true',
-        })
-        const shallow = paramsFor('file_search', {
-          query: 'commitment',
-          folderScopeRef: '/memory/user-a',
-          folderIncludeSubfolders: 'false',
+          folderSelection: '/memory/user-a',
         })
 
-        expect(recursive.includeSubfolders).toBeUndefined()
-        expect(shallow.includeSubfolders).toBe(false)
+        expect(params.folderPaths).toEqual(['/memory/user-a'])
+        expect(params.includeSubfolders).toBeUndefined()
       })
 
       /** Without a folder there is nothing to be shallow about. */
       it('does not send a recursion flag with no folder to apply it to', () => {
         const params = paramsFor('file_search', {
           query: 'commitment',
-          folderIncludeSubfolders: 'false',
         })
 
         expect(params.includeSubfolders).toBeUndefined()
@@ -623,7 +569,18 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
         'moveTargetFolderPath',
         'writeFolderPath',
       ])
+      /*
+       * Every tree that names an OPERAND is half of a basic/advanced pair, so a
+       * path can also be typed. The scope is the exception: it is advanced-only
+       * and unpaired, because a pair always renders one of its halves and so
+       * could not be kept out of the basic view.
+       */
       for (const picker of pickers) {
+        if (picker.id === 'folderSelection') {
+          expect(picker.canonicalParamId).toBeUndefined()
+          expect(picker.mode).toBe('advanced')
+          continue
+        }
         const pair = FileV5Block.subBlocks.filter(
           (subBlock) => subBlock.canonicalParamId === picker.canonicalParamId
         )

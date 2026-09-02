@@ -339,41 +339,17 @@ export function FileUpload({
    */
   const [folderScopeValue] = useSubBlockValue<unknown>(blockId, folderScope?.fieldId ?? subBlockId)
   /*
-   * The advanced half of the same canonical pair. Values are stored per
-   * sub-block id, so a scope typed into the advanced field lives under a
-   * different key and reading only the basic one left the picker unscoped
-   * while looking configured.
-   */
-  const [manualFolderScopeValue] = useSubBlockValue<unknown>(
-    blockId,
-    folderScope?.manualFieldId ?? folderScope?.fieldId ?? subBlockId
-  )
-  const [folderScopeRecursive] = useSubBlockValue<unknown>(
-    blockId,
-    folderScope?.recursiveFieldId ?? subBlockId
-  )
-  /*
    * Through `readFolderPath` rather than a `typeof === 'string'` check: a value
    * saved by the multi-select tree that preceded this one is a JSON array, and
    * its literal text passes a string check and then matches no folder, so every
    * file is filtered out of a picker that looks correctly configured.
    */
-  const folderScopePath = folderScope
-    ? readFolderPath(folderScopeValue) || readFolderPath(manualFolderScopeValue)
-    : ''
-  const folderScopeIncludesSubfolders =
-    !folderScope?.recursiveFieldId ||
-    folderScopeRecursive === undefined ||
-    folderScopeRecursive === null ||
-    folderScopeRecursive === '' ||
-    folderScopeRecursive === true ||
-    folderScopeRecursive === 'true'
+  const folderScopePath = folderScope ? readFolderPath(folderScopeValue) : ''
 
+  /* The scope always reaches nested folders; see `folderScope` on SubBlockConfig. */
   const scopedWorkspaceFiles = folderScopePath
     ? workspaceFiles.filter((workspaceFile) =>
-        isFileInFolderScope(workspaceFile.folderPath, folderScopePath, {
-          includeSubfolders: folderScopeIncludesSubfolders,
-        })
+        isFileInFolderScope(workspaceFile.folderPath, folderScopePath)
       )
     : workspaceFiles
 

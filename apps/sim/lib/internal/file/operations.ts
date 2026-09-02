@@ -741,7 +741,7 @@ async function resolveScopedFileReference(args: {
       'validation',
       `${matches.length} files named ${fileName} under ${folderPath}: ${matches
         .map((file) => file.id)
-        .join(', ')}. Narrow the folder, turn off Include Subfolders, or give the file ID.`
+        .join(', ')}. Give the file ID, name a deeper folder, or set includeSubfolders to false.`
     )
   }
   return matches[0].id

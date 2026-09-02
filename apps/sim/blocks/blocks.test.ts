@@ -199,12 +199,11 @@ describe.concurrent('Blocks Module', () => {
        */
       expect(block?.subBlocks.find((subBlock) => subBlock.id === 'readFile')?.folderScope).toEqual({
         fieldId: 'folderSelection',
-        manualFieldId: 'manualFolderSelection',
-        recursiveFieldId: 'folderIncludeSubfolders',
       })
-      expect(
-        block?.subBlocks.find((subBlock) => subBlock.id === 'folderSelection')?.canonicalParamId
-      ).toBe('folderScopeRef')
+      /* Advanced-only and unpaired: the scope is a refinement, not a primary input. */
+      expect(block?.subBlocks.find((subBlock) => subBlock.id === 'folderSelection')?.mode).toBe(
+        'advanced'
+      )
       expect(block?.tools.config?.tool({ operation: 'file_read' })).toBe('file_read')
       expect(block?.tools.config?.tool({ operation: 'file_get_content' })).toBe('file_get_content')
       expect(block?.tools.config?.tool({ operation: 'file_fetch' })).toBe('file_fetch')
