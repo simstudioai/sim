@@ -27,6 +27,7 @@ interface ColumnDropdownProps {
    *  the in-table column-header `<th>` trigger. Same dropdown content either way. */
   trigger: 'header' | 'inline-header'
   disabled: boolean
+  referenceColumnsEnabled: boolean
   onPickType: (type: ColumnDefinition['type']) => void
   onPickWorkflow: () => void
   onPickEnrichment: () => void
@@ -84,6 +85,7 @@ export function ColumnDropdown({
   tableRowTtlEnabled,
   trigger,
   disabled,
+  referenceColumnsEnabled,
   onPickType,
   onPickWorkflow,
   onPickEnrichment,
@@ -126,13 +128,15 @@ export function ColumnDropdown({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
       <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
-        {columnTypeOptionsForTable(columns, undefined, { tableRowTtlEnabled }).map((option) => {
-          const onSelect =
-            option.type === 'workflow'
-              ? onPickWorkflow
-              : () => onPickType(option.type as ColumnDefinition['type'])
-          return <ColumnTypeMenuItem key={option.type} option={option} onSelect={onSelect} />
-        })}
+        {columnTypeOptionsForTable(columns, undefined, { tableRowTtlEnabled })
+          .filter((option) => referenceColumnsEnabled || option.type !== 'reference')
+          .map((option) => {
+            const onSelect =
+              option.type === 'workflow'
+                ? onPickWorkflow
+                : () => onPickType(option.type as ColumnDefinition['type'])
+            return <ColumnTypeMenuItem key={option.type} option={option} onSelect={onSelect} />
+          })}
         <DropdownMenuItem onSelect={onPickEnrichment}>
           <Sparkles className='size-[14px] text-[var(--text-icon)]' />
           Enrichments

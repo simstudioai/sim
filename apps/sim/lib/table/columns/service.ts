@@ -39,6 +39,7 @@ import { COLUMN_TYPES, getMaxRowSizeBytes, NAME_PATTERN, TABLE_LIMITS } from '@/
 import { resolveCurrencyCode } from '@/lib/table/currency'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
+import { assertTableReferenceColumnsEnabled } from '@/lib/table/reference-columns/availability'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { assertValidSchema } from '@/lib/table/schema-invariants'
@@ -136,6 +137,7 @@ export async function addTableColumn(
   options?: ColumnMutationOptions
 ): Promise<TableDefinition> {
   if (column.type === 'ttl') await assertTableRowTtlEnabled()
+  if (column.type === 'reference') await assertTableReferenceColumnsEnabled()
 
   return withLockedTable(
     tableId,
@@ -868,6 +870,7 @@ export async function updateColumnType(
   options?: ColumnMutationOptions
 ): Promise<TableDefinition> {
   if (data.newType === 'ttl') await assertTableRowTtlEnabled()
+  if (data.newType === 'reference') await assertTableReferenceColumnsEnabled()
 
   return withLockedTable(
     data.tableId,
@@ -1491,6 +1494,8 @@ export async function updateColumnReference(
   requestId: string,
   options?: ColumnMutationOptions
 ): Promise<TableDefinition> {
+  await assertTableReferenceColumnsEnabled()
+
   return withLockedTable(
     data.tableId,
     async (table, trx) => {

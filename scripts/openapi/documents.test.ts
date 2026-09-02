@@ -280,7 +280,11 @@ describe('generated OpenAPI documents', () => {
   })
 
   it('omits feature-flagged table column types', () => {
-    expect(JSON.stringify(generatedDocument(tablesOpenApiDocument))).not.toContain('"ttl"')
+    const serializedDocument = JSON.stringify(generatedDocument(tablesOpenApiDocument))
+
+    expect(serializedDocument).not.toContain('"ttl"')
+    expect(serializedDocument).not.toContain('"reference"')
+    expect(serializedDocument).not.toContain('"referenceTableId"')
   })
 
   it('keeps billing as its own API reference group', () => {

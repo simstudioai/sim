@@ -4,6 +4,7 @@ import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspac
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
+import { areTableReferenceColumnsEnabled } from '@/lib/table/reference-columns/availability'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 /**
@@ -23,11 +24,12 @@ async function resolveWorkspaceHostContextForViewer(
   }
 
   const hostOrganizationId = access.workspace.organizationId
-  const [ownerBilling, hostOrganizationAccess] = await Promise.all([
+  const [ownerBilling, hostOrganizationAccess, referenceColumnsEnabled] = await Promise.all([
     getWorkspaceOwnerSubscriptionAccess(workspaceId),
     hostOrganizationId
       ? getOrganizationSettingsAccess(hostOrganizationId, userId)
       : Promise.resolve({ role: null, isMember: false, isAdmin: false }),
+    areTableReferenceColumnsEnabled(),
   ])
   const [credentialGroupsAvailable, knowledgeMemberAccessAvailable] = await Promise.all([
     isCredentialGroupsAvailable({ workspaceId, ownerBilling }),
@@ -53,6 +55,7 @@ async function resolveWorkspaceHostContextForViewer(
     features: {
       credentialGroups: credentialGroupsAvailable,
       knowledgeMemberAccess: knowledgeMemberAccessAvailable,
+      referenceColumns: referenceColumnsEnabled,
     },
   }
 }

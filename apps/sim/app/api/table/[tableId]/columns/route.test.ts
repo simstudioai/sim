@@ -55,6 +55,13 @@ vi.mock('@/lib/table/wire', () => ({
 vi.mock('@/app/api/table/utils', () => ({
   accessError: () => new Response('denied', { status: 403 }),
   checkAccess: mockCheckAccess,
+  orchestrationErrorResponse: (error: unknown) =>
+    error instanceof OrchestrationError
+      ? NextResponse.json(
+          { error: error.message },
+          { status: statusForOrchestrationError(error.code) }
+        )
+      : null,
   orchestrationOutcomeErrorResponse: (
     outcome: { error?: string; errorCode?: OrchestrationErrorCode },
     fallback: string
@@ -73,7 +80,7 @@ import {
   type OrchestrationErrorCode,
   statusForOrchestrationError,
 } from '@/lib/core/orchestration/types'
-import { PATCH } from '@/app/api/table/[tableId]/columns/route'
+import { PATCH, POST } from '@/app/api/table/[tableId]/columns/route'
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
 
@@ -87,6 +94,49 @@ function patch(updates: Record<string, unknown>) {
     { params: Promise.resolve({ tableId: 't1' }) }
   )
 }
+
+function post(column: Record<string, unknown>) {
+  return POST(
+    new NextRequest('http://localhost/api/table/t1/columns', {
+      method: 'POST',
+      body: JSON.stringify({ workspaceId: WORKSPACE_ID, column }),
+      headers: { 'content-type': 'application/json' },
+    }),
+    { params: Promise.resolve({ tableId: 't1' }) }
+  )
+}
+
+describe('POST /api/table/[tableId]/columns — Reference feature gate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      authType: 'session',
+    })
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: { workspaceId: WORKSPACE_ID, schema: { columns: [] } },
+    })
+  })
+
+  it('returns 403 when Reference columns are disabled', async () => {
+    mockAddTableColumn.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Reference columns are not enabled for this deployment')
+    )
+
+    const response = await post({
+      name: 'Account',
+      type: 'reference',
+      referenceTableId: 'tbl_accounts',
+    })
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({
+      error: 'Reference columns are not enabled for this deployment',
+    })
+  })
+})
 
 describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
   beforeEach(() => {

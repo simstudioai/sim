@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   migrationFrom: vi.fn(),
   migrationTo: vi.fn(),
   writeBackCoercedCells: vi.fn(),
+  assertTableReferenceColumnsEnabled: vi.fn(),
   set: vi.fn(),
   where: vi.fn(),
 }))
@@ -22,6 +23,9 @@ vi.mock('@/lib/table/column-types/registry.server', () => ({
   migrationFrom: mocks.migrationFrom,
   migrationTo: mocks.migrationTo,
   writeBackCoercedCells: mocks.writeBackCoercedCells,
+}))
+vi.mock('@/lib/table/reference-columns/availability', () => ({
+  assertTableReferenceColumnsEnabled: mocks.assertTableReferenceColumnsEnabled,
 }))
 
 import {
@@ -64,6 +68,7 @@ describe('reference column metadata persistence', () => {
     mocks.migrationFrom.mockReturnValue(undefined)
     mocks.migrationTo.mockReturnValue(undefined)
     mocks.writeBackCoercedCells.mockResolvedValue(undefined)
+    mocks.assertTableReferenceColumnsEnabled.mockResolvedValue(undefined)
     mocks.where.mockResolvedValue(undefined)
     mocks.set.mockReturnValue({ where: mocks.where })
   })
@@ -106,6 +111,55 @@ describe('reference column metadata persistence', () => {
       'ws_1',
       [expect.objectContaining({ referenceTableId: 'tbl_accounts' })]
     )
+  })
+
+  it('rejects Reference creation before locking when the feature is disabled', async () => {
+    mocks.assertTableReferenceColumnsEnabled.mockRejectedValueOnce({ code: 'forbidden' })
+
+    await expect(
+      addTableColumn(
+        'tbl_people',
+        { name: 'Account', type: 'reference', referenceTableId: 'tbl_accounts' },
+        'req_1'
+      )
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.withLockedTable).not.toHaveBeenCalled()
+  })
+
+  it('rejects conversion to Reference before locking when the feature is disabled', async () => {
+    mocks.assertTableReferenceColumnsEnabled.mockRejectedValueOnce({ code: 'forbidden' })
+
+    await expect(
+      updateColumnType(
+        {
+          tableId: 'tbl_people',
+          columnName: 'col_name',
+          newType: 'reference',
+          referenceTableId: 'tbl_accounts',
+        },
+        'req_1'
+      )
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.withLockedTable).not.toHaveBeenCalled()
+  })
+
+  it('rejects Reference retargeting before locking when the feature is disabled', async () => {
+    mocks.assertTableReferenceColumnsEnabled.mockRejectedValueOnce({ code: 'forbidden' })
+
+    await expect(
+      updateColumnReference(
+        {
+          tableId: 'tbl_people',
+          columnName: 'col_account',
+          referenceTableId: 'tbl_companies',
+        },
+        'req_1'
+      )
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.withLockedTable).not.toHaveBeenCalled()
   })
 
   it('retains the supplied target when converting a column to reference', async () => {

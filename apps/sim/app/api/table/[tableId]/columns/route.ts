@@ -17,6 +17,7 @@ import { normalizeColumn } from '@/lib/table/wire'
 import {
   accessError,
   checkAccess,
+  orchestrationErrorResponse,
   orchestrationOutcomeErrorResponse,
   rootErrorMessage,
   tableLockErrorResponse,
@@ -68,6 +69,9 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     if (isZodError(error)) {
       return validationErrorResponse(error, 'Invalid request data')
     }
+
+    const classified = orchestrationErrorResponse(error)
+    if (classified) return classified
 
     const msg = rootErrorMessage(error)
     if (

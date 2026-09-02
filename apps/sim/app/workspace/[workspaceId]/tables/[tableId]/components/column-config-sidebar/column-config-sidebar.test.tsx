@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 interface ComboboxOption {
   label: string
   value: string
+  disabled?: boolean
 }
 
 interface ComboboxProps {
@@ -16,6 +17,7 @@ interface ComboboxProps {
   placeholder?: string
   searchable?: boolean
   searchPlaceholder?: string
+  disabled?: boolean
   onChange?: (value: string) => void
 }
 
@@ -143,6 +145,7 @@ describe('ColumnConfigSidebar', () => {
           existingColumn={null}
           workspaceId='workspace-1'
           tableId='table-current'
+          referenceColumnsEnabled
         />
       )
     })
@@ -179,6 +182,7 @@ describe('ColumnConfigSidebar', () => {
           existingColumn={null}
           workspaceId='workspace-1'
           tableId='table-current'
+          referenceColumnsEnabled
         />
       )
     })
@@ -206,6 +210,7 @@ describe('ColumnConfigSidebar', () => {
           workspaceId='workspace-1'
           tableId='table-current'
           onColumnRename={onColumnRename}
+          referenceColumnsEnabled
         />
       )
     })
@@ -227,6 +232,32 @@ describe('ColumnConfigSidebar', () => {
     expect(onColumnRename).toHaveBeenCalledWith('col-reference', 'Renamed relation')
   })
 
+  it('keeps an existing Reference column visible but not retargetable when disabled', async () => {
+    await act(async () => {
+      root.render(
+        <ColumnConfigSidebar
+          config={{ mode: 'edit', columnName: 'col-reference' }}
+          onClose={vi.fn()}
+          existingColumn={{
+            id: 'col-reference',
+            name: 'Related row',
+            type: 'reference',
+            referenceTableId: 'table-current',
+          }}
+          workspaceId='workspace-1'
+          tableId='table-current'
+          referenceColumnsEnabled={false}
+        />
+      )
+    })
+
+    expect(mockUseTablesList).toHaveBeenCalledWith('workspace-1', 'active', { enabled: false })
+    expect(findCombobox('Select table')?.disabled).toBe(true)
+    expect(findCombobox('Select type')?.options).toContainEqual(
+      expect.objectContaining({ value: 'reference', disabled: true })
+    )
+  })
+
   it('keeps Select options in the edit sidebar', async () => {
     await act(async () => {
       root.render(
@@ -241,6 +272,7 @@ describe('ColumnConfigSidebar', () => {
           }}
           workspaceId='workspace-1'
           tableId='table-current'
+          referenceColumnsEnabled
         />
       )
     })

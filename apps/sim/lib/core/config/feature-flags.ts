@@ -68,6 +68,13 @@ const FEATURE_FLAGS = {
       'Global on/off only; existing TTL data remains readable when disabled.',
     fallback: 'TABLE_ROW_TTL',
   },
+  'table-reference-columns': {
+    description:
+      'Gate creation, conversion, and retargeting of table Reference columns plus their ' +
+      'picker and navigation UI. Existing Reference data remains readable and writable when ' +
+      'disabled. Off-AppConfig falls back to TABLE_REFERENCE_COLUMNS.',
+    fallback: 'TABLE_REFERENCE_COLUMNS',
+  },
   'credential-groups': {
     description:
       'Workspace-owned collections that gather managed OAuth credentials from external users. ' +

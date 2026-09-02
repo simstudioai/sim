@@ -53,6 +53,7 @@ import {
 import { assertSchemaMutable, TableLockedError } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import type { DbTransaction } from '@/lib/table/planner'
+import { assertTableReferenceColumnsEnabled } from '@/lib/table/reference-columns/availability'
 import {
   createExactEmptyTableRowSecretProvenance,
   mutateTableRowsWithSecretProvenance,
@@ -564,6 +565,9 @@ export async function createTable(
 
   if (data.schema.columns.some((column) => column.type === 'ttl')) {
     await assertTableRowTtlEnabled()
+  }
+  if (data.schema.columns.some((column) => column.type === 'reference')) {
+    await assertTableReferenceColumnsEnabled()
   }
 
   const tableId = `tbl_${generateId().replace(/-/g, '')}`

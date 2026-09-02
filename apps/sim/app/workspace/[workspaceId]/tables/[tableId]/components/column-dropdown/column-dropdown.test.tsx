@@ -33,6 +33,7 @@ describe('ColumnDropdown', () => {
           tableRowTtlEnabled
           trigger='header'
           disabled={false}
+          referenceColumnsEnabled
           onPickType={vi.fn()}
           onPickWorkflow={vi.fn()}
           onPickEnrichment={onPickEnrichment}
@@ -56,5 +57,34 @@ describe('ColumnDropdown', () => {
 
     act(() => items.at(-1)?.click())
     expect(onPickEnrichment).toHaveBeenCalledOnce()
+  })
+
+  it('omits Reference when the feature is disabled', () => {
+    act(() => {
+      root.render(
+        <ColumnDropdown
+          columns={[]}
+          tableRowTtlEnabled
+          trigger='header'
+          disabled={false}
+          referenceColumnsEnabled={false}
+          onPickType={vi.fn()}
+          onPickWorkflow={vi.fn()}
+          onPickEnrichment={vi.fn()}
+          blocked={false}
+          onBlocked={vi.fn()}
+        />
+      )
+    })
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button')
+        ?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    })
+
+    const labels = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].map(
+      (item) => item.textContent
+    )
+    expect(labels).not.toContain('Reference')
   })
 })
