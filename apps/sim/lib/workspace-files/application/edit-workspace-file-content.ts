@@ -72,7 +72,15 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
   async execute({ principal, input, context }): Promise<EditWorkspaceFileContentResult> {
     const lockKey = `file-edit:${context.workspaceId}:${context.fileId}`
     const lockValue = `${Date.now()}-${generateShortId()}`
-    const acquired = await acquireLock(lockKey, lockValue, EDIT_LOCK_SECONDS)
+    /*
+     * `reclaimOnFailure` because a throw here means this operation does no work
+     * at all: the try/finally that releases the lock has not started, so a
+     * Redis timeout after the key was set would strand the file for the full
+     * TTL with nothing holding it.
+     */
+    const acquired = await acquireLock(lockKey, lockValue, EDIT_LOCK_SECONDS, {
+      reclaimOnFailure: true,
+    })
     if (!acquired) {
       throw new OrchestrationError('locked', 'File is busy, please retry')
     }

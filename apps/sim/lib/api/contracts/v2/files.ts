@@ -1141,6 +1141,19 @@ export const v2EditedFileSchema = z
     description: 'A workspace file after an in-place content edit.',
   })
 
+/**
+ * Splits a comma-separated folder list, dropping blanks.
+ *
+ * Exported so the route splits exactly the way the schema validated, rather
+ * than each side keeping its own idea of the separator.
+ */
+export function splitFolderPathList(value: string): string[] {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
 export const v2SearchFileContentQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace to search.'),
@@ -1176,24 +1189,37 @@ export const v2SearchFileContentQuerySchema = z
      * would be refused before it ever reached a schema. Matches the sibling
      * selection lists on bulk download.
      */
+    /*
+     * Stays a comma-separated STRING through parsing, and is split by the
+     * route. A transform to an array here would validate correctly and then
+     * break serialization: the client's `appendQuery` runs over the PARSED
+     * value and repeat-appends a scalar array, which v2 rejects as duplicate
+     * query parameters — so every multi-folder search would answer 400.
+     */
     folderPaths: z
       .string()
       .optional()
-      .transform((value) =>
-        value === undefined
-          ? undefined
-          : value
-              .split(',')
-              .map((entry) => entry.trim())
-              .filter(Boolean)
-      )
-      .pipe(
-        z
-          .array(v2FolderPathInputSchema)
-          .min(1, 'folderPaths cannot be empty')
-          .max(64, 'folderPaths cannot contain more than 64 entries')
-          .optional()
-      )
+      .superRefine((value, ctx) => {
+        if (value === undefined) return
+        const entries = splitFolderPathList(value)
+        if (entries.length === 0) {
+          ctx.addIssue({ code: 'custom', message: 'folderPaths cannot be empty' })
+          return
+        }
+        if (entries.length > 64) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'folderPaths cannot contain more than 64 entries',
+          })
+          return
+        }
+        for (const entry of entries) {
+          const parsed = v2FolderPathInputSchema.safeParse(entry)
+          if (!parsed.success) {
+            ctx.addIssue({ code: 'custom', message: `${entry} is not a valid folder path` })
+          }
+        }
+      })
       .describe(
         'Folders the search is confined to, comma-separated. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.'
       ),

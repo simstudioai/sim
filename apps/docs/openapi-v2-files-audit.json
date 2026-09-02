@@ -2924,7 +2924,7 @@
             "example": {
               "error": {
                 "code": "CONFLICT",
-                "message": "File already exists"
+                "message": "File already exists, or it changed since it was read"
               }
             }
           }

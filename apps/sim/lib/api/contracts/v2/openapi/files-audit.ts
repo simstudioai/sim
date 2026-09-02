@@ -1125,8 +1125,14 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
   securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
   headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
+  /*
+   * One example serves every route in this document, so it has to name both
+   * kinds of conflict the file endpoints raise: a name that is already taken,
+   * and a write that lost a race. Naming only the first made an in-place edit's
+   * stale-write 409 read as a duplicate-name error.
+   */
   errorResponses: withErrorExamples({
-    Conflict: { message: 'File already exists' },
+    Conflict: { message: 'File already exists, or it changed since it was read' },
   }),
   routes,
 })
