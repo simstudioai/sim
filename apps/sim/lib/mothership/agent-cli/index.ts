@@ -2,7 +2,6 @@ import { createEmbeddedClient, type EmbeddedCliIdentity } from 'sim/embed'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 import { runEngine } from '@/lib/mothership/agent-cli/engines'
-import { applyPipeline } from '@/lib/mothership/agent-cli/pipeline'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { applySink } from '@/lib/mothership/agent-cli/sink'
 import { agentCliFail } from '@/lib/mothership/agent-cli/types'
@@ -39,7 +38,10 @@ export async function executeAgentCliRequest(
   const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null
 
   let result: AgentCliRawResult
-  if (request.invocation.kind === 'augmentation') {
+  if (request.invocation.kind === 'stdout') {
+    // Text the worker already holds (sliced, or worker-answered): only the sink applies.
+    result = { exitCode: 0, stdout: request.invocation.stdout, stderr: '' }
+  } else if (request.invocation.kind === 'augmentation') {
     result = await runEngine(
       request.invocation.name,
       request.invocation.positionals,
@@ -55,9 +57,6 @@ export async function executeAgentCliRequest(
     if (result.exitCode === 0 && request.curate === 'block') {
       result = await curateBlockDetail(result, context)
     }
-  }
-  if (result.exitCode === 0 && request.pipeline.length > 0) {
-    result = await applyPipeline(result, request.pipeline)
   }
   return request.sink ? applySink(request.sink, sessionKey, result) : result
 }
