@@ -12,8 +12,10 @@
  */
 
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { formatQuotedNameList } from '@sim/utils/string'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 import { COLUMN_TYPE_REGISTRY } from '@/lib/table/column-types/registry'
 import type { ColumnType } from '@/lib/table/column-types/types'
 import type {
@@ -22,7 +24,7 @@ import type {
 } from '@/lib/table/column-types/types.server'
 import type { DbTransaction } from '@/lib/table/planner'
 import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
-import type { ColumnDefinition, JsonValue, SelectOption } from '@/lib/table/types'
+import type { ColumnDefinition, JsonValue, SelectOption, TableSchema } from '@/lib/table/types'
 
 /**
  * Rewrites a column's cells from stored option **ids** to option **names**, for
@@ -295,7 +297,134 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
     ...COLUMN_TYPE_REGISTRY.reference,
     referencedTableIds: (column) =>
       typeof column.referenceTableId === 'string' ? [column.referenceTableId] : [],
+    remapReferencedTableIds: (column, tableIdMap) => {
+      const referenceTableId = column.referenceTableId
+      if (typeof referenceTableId !== 'string') return column
+      const remappedTableId = tableIdMap.get(referenceTableId)
+      return remappedTableId && remappedTableId !== referenceTableId
+        ? { ...column, referenceTableId: remappedTableId }
+        : column
+    },
   },
+}
+
+export function collectColumnReferencedTableIds(columns: readonly ColumnDefinition[]): string[] {
+  return [
+    ...new Set(
+      columns.flatMap(
+        (column) => COLUMN_TYPE_SERVER_REGISTRY[column.type].referencedTableIds?.(column) ?? []
+      )
+    ),
+  ]
+}
+
+export interface ActiveTableReferenceBlocker {
+  targetTableId: string
+  targetTableName: string
+  targetFolderId: string | null
+  referencingTableName: string
+}
+
+export function tableReferenceBlockerMessage(
+  targetTableName: string,
+  referencingTableNames: readonly string[]
+): string {
+  const uniqueNames = [...new Set(referencingTableNames)].sort()
+  const blockerLabel = uniqueNames.length === 1 ? 'table' : 'tables'
+  const columnLabel = uniqueNames.length === 1 ? 'column' : 'columns'
+  return `Cannot delete table "${targetTableName}" because it is referenced by ${blockerLabel} ${formatQuotedNameList(uniqueNames, uniqueNames.length)}. Remove the reference ${columnLabel} first.`
+}
+
+/**
+ * Finds active tables that point at any active table in the requested deletion selection.
+ *
+ * Reading the active definitions once avoids issuing one JSONB search per table in a deletion
+ * selection. Reference ownership still comes from the server column-type registry; this function
+ * does not duplicate knowledge of the `reference` column shape.
+ */
+export async function findActiveTableReferenceBlockers(
+  executor: DbOrTx,
+  workspaceId: string,
+  selection: { tableIds?: readonly string[]; folderIds?: ReadonlySet<string> }
+): Promise<ActiveTableReferenceBlocker[]> {
+  const selectedTableIds = new Set(selection.tableIds)
+  const selectedFolderIds = selection.folderIds ?? new Set<string>()
+  if (selectedTableIds.size === 0 && selectedFolderIds.size === 0) return []
+
+  const activeTables = await executor
+    .select({
+      id: userTableDefinitions.id,
+      name: userTableDefinitions.name,
+      folderId: userTableDefinitions.folderId,
+      schema: userTableDefinitions.schema,
+    })
+    .from(userTableDefinitions)
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
+
+  const selectedTargets = new Map(
+    activeTables
+      .filter(
+        (table) =>
+          selectedTableIds.has(table.id) ||
+          (table.folderId !== null && selectedFolderIds.has(table.folderId))
+      )
+      .map((table) => [table.id, table])
+  )
+  if (selectedTargets.size === 0) return []
+
+  const remainingTargetIds = new Set(selectedTargets.keys())
+  let referencingTables = activeTables.filter((table) => !remainingTargetIds.has(table.id))
+  const blockers: ActiveTableReferenceBlocker[] = []
+
+  while (referencingTables.length > 0 && remainingTargetIds.size > 0) {
+    const round: ActiveTableReferenceBlocker[] = []
+    const newlyBlockedTargetIds = new Set<string>()
+    for (const referencingTable of referencingTables) {
+      for (const referencedTableId of collectColumnReferencedTableIds(
+        (referencingTable.schema as TableSchema).columns
+      )) {
+        if (!remainingTargetIds.has(referencedTableId)) continue
+        const target = selectedTargets.get(referencedTableId)
+        if (!target) continue
+        round.push({
+          targetTableId: target.id,
+          targetTableName: target.name,
+          targetFolderId: target.folderId,
+          referencingTableName: referencingTable.name,
+        })
+        newlyBlockedTargetIds.add(target.id)
+      }
+    }
+    if (round.length === 0) break
+    blockers.push(...round)
+    for (const targetId of newlyBlockedTargetIds) remainingTargetIds.delete(targetId)
+    referencingTables = [...newlyBlockedTargetIds].flatMap((targetId) => {
+      const table = selectedTargets.get(targetId)
+      return table ? [table] : []
+    })
+  }
+
+  return blockers.sort(
+    (left, right) =>
+      left.targetTableName.localeCompare(right.targetTableName) ||
+      left.referencingTableName.localeCompare(right.referencingTableName)
+  )
+}
+
+export function remapColumnReferencedTableIds(
+  columns: readonly ColumnDefinition[],
+  tableIdMap: ReadonlyMap<string, string>
+): ColumnDefinition[] {
+  return columns.map(
+    (column) =>
+      COLUMN_TYPE_SERVER_REGISTRY[column.type].remapReferencedTableIds?.(column, tableIdMap) ??
+      column
+  )
 }
 
 /**
@@ -307,16 +436,21 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
 export async function assertColumnReferencesInWorkspace(
   trx: DbTransaction,
   workspaceId: string,
-  columns: readonly ColumnDefinition[]
+  columns: readonly ColumnDefinition[],
+  options?: { allowedArchivedTableIds?: ReadonlySet<string> }
 ): Promise<void> {
-  const referencedTableIds = [
-    ...new Set(
-      columns.flatMap(
-        (column) => COLUMN_TYPE_SERVER_REGISTRY[column.type].referencedTableIds?.(column) ?? []
-      )
-    ),
-  ]
+  const referencedTableIds = collectColumnReferencedTableIds(columns)
   if (referencedTableIds.length === 0) return
+  const allowedArchivedTableIds = referencedTableIds.filter((id) =>
+    options?.allowedArchivedTableIds?.has(id)
+  )
+  const availableTarget =
+    allowedArchivedTableIds.length > 0
+      ? or(
+          isNull(userTableDefinitions.archivedAt),
+          inArray(userTableDefinitions.id, allowedArchivedTableIds)
+        )
+      : isNull(userTableDefinitions.archivedAt)
 
   const targets = await trx
     .select({ id: userTableDefinitions.id })
@@ -325,9 +459,10 @@ export async function assertColumnReferencesInWorkspace(
       and(
         eq(userTableDefinitions.workspaceId, workspaceId),
         inArray(userTableDefinitions.id, referencedTableIds),
-        isNull(userTableDefinitions.archivedAt)
+        availableTarget
       )
     )
+    .for('key share')
   const foundIds = new Set(targets.map((target) => target.id))
   const missingId = referencedTableIds.find((id) => !foundIds.has(id))
   if (missingId) {

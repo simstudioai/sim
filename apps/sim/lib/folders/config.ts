@@ -305,8 +305,9 @@ async function restoreKnowledgeBaseChildren(context: CascadeChildrenContext): Pr
 
 /**
  * Archives the tables in a folder subtree through the canonical table delete, so the
- * `deleteLocked` guard in its WHERE clause still applies. {@link guardLockedTables} has
- * already refused the whole folder if any table is locked, so this should not encounter one.
+ * `deleteLocked` and inbound-reference guards still apply. {@link guardTableDeletion} has
+ * already refused the whole folder if any table cannot be deleted, so this should not
+ * encounter a partial cascade.
  */
 async function archiveTableChildren(context: CascadeChildrenContext): Promise<number> {
   const { deleteTable } = await import('@/lib/table/service')
@@ -332,11 +333,13 @@ async function restoreTableChildren(context: CascadeChildrenContext): Promise<nu
   const { restoreTable } = await import('@/lib/table/service')
   const ids = await selectChildIds(FOLDER_RESOURCES.table, context, 'archived')
   const restoringFolderIds = new Set(context.folderIds)
+  const restoringTableIds = new Set(ids)
 
   for (const id of ids) {
     // restoreFolder fires one folder-level live-list notify for the whole subtree.
     await restoreTable(id, `folder-cascade-${context.folderIds[0]}`, {
       restoringFolderIds,
+      restoringTableIds,
       skipNotify: true,
     })
   }
@@ -345,23 +348,27 @@ async function restoreTableChildren(context: CascadeChildrenContext): Promise<nu
 }
 
 /**
- * Refuses to delete a folder containing a delete-locked table.
+ * Refuses to delete a folder containing a table that cannot be deleted.
  *
- * `deleteTable` gates archiving on `deleteLocked` because archiving destroys access to every
- * row. Deleting the folder around it must not become a way to bypass that control. Checked
- * across the whole subtree up front so the cascade never archives half the tables and then
- * stops at a locked one.
+ * `deleteTable` gates archiving on both `deleteLocked` and active inbound references. Deleting
+ * the folder around a table must not become a way to bypass either control. Checked across the
+ * whole subtree up front so the cascade never archives half the tables and then stops.
  */
-async function guardLockedTables({
+async function guardTableDeletion({
   workspaceId,
   folderIds,
 }: {
   workspaceId: string
   folderIds: string[]
 }): Promise<FolderDeleteRejection | null> {
-  const [{ db }, { and, eq: eqOp, inArray, isNull }] = await Promise.all([
+  const [
+    { db },
+    { and, eq: eqOp, inArray, isNull },
+    { findActiveTableReferenceBlockers, tableReferenceBlockerMessage },
+  ] = await Promise.all([
     import('@sim/db'),
     import('drizzle-orm'),
+    import('@/lib/table/column-types/registry.server'),
   ])
 
   const locked = await db
@@ -376,12 +383,22 @@ async function guardLockedTables({
       )
     )
 
-  if (locked.length === 0) return null
+  if (locked.length > 0) {
+    const names = locked.map((row) => row.name).join(', ')
+    return {
+      error: `Cannot delete folder: ${locked.length === 1 ? 'table' : 'tables'} ${names} ${locked.length === 1 ? 'is' : 'are'} delete-locked`,
+      errorCode: 'locked',
+    }
+  }
 
-  const names = locked.map((row) => row.name).join(', ')
+  const [blocker] = await findActiveTableReferenceBlockers(db, workspaceId, {
+    folderIds: new Set(folderIds),
+  })
+  if (!blocker) return null
+
   return {
-    error: `Cannot delete folder: ${locked.length === 1 ? 'table' : 'tables'} ${names} ${locked.length === 1 ? 'is' : 'are'} delete-locked`,
-    errorCode: 'locked',
+    error: tableReferenceBlockerMessage(blocker.targetTableName, [blocker.referencingTableName]),
+    errorCode: 'conflict',
   }
 }
 
@@ -515,7 +532,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
       >,
     archiveChildren: archiveTableChildren,
     restoreChildren: restoreTableChildren,
-    guardDelete: guardLockedTables,
+    guardDelete: guardTableDeletion,
   },
 }
 

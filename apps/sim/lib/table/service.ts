@@ -13,7 +13,18 @@ import { tableJobs, tableViews, userTableDefinitions, userTableRows } from '@sim
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, type Column, count, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  type Column,
+  count,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import type { V2TableSortBy } from '@/lib/api/contracts/v2/tables'
 import type { ListSortOrder } from '@/lib/api/list-query'
 import {
@@ -36,10 +47,17 @@ import { resolveRestoredFolderId } from '@/lib/folders/queries'
 import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
-import { assertColumnReferencesInWorkspace } from '@/lib/table/column-types/registry.server'
+import {
+  type ActiveTableReferenceBlocker,
+  assertColumnReferencesInWorkspace,
+  collectColumnReferencedTableIds,
+  findActiveTableReferenceBlockers,
+  tableReferenceBlockerMessage,
+} from '@/lib/table/column-types/registry.server'
 import {
   COLUMN_TYPES,
   DEFAULT_TABLE_VIEW_NAME,
+  MAX_TABLE_BATCH_ITEMS,
   NAME_PATTERN,
   TABLE_LIMITS,
 } from '@/lib/table/constants'
@@ -358,6 +376,25 @@ export async function listTables(
     .orderBy(...listOrderBy(TABLE_SORTS[sortBy], sortOrder))
 
   return hydrateTableRows(tables)
+}
+
+/** Lists active table IDs and names without materializing their schemas. */
+export async function listActiveTableNames(
+  workspaceId: string,
+  tableIds: readonly string[]
+): Promise<Array<Pick<TableDefinition, 'id' | 'name'>>> {
+  if (tableIds.length === 0) return []
+
+  return db
+    .select({ id: userTableDefinitions.id, name: userTableDefinitions.name })
+    .from(userTableDefinitions)
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        inArray(userTableDefinitions.id, [...tableIds]),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
 }
 
 /** Loads at most two active exact-name matches so callers can fail on corrupt ambiguity. */
@@ -1155,32 +1192,11 @@ export async function deleteTable(
   options?: { archivedAt?: Date; skipNotify?: boolean; expectedWorkspaceId?: string }
 ): Promise<{ archived: { name: string; workspaceId: string | null } | null }> {
   const now = options?.archivedAt ?? new Date()
-  // Archiving destroys access to every row, so it is gated on the delete lock.
-  // The guard is inline in the WHERE (atomic — no separate read, no TOCTOU);
-  // a zero-row result is then disambiguated below (locked vs already-archived).
-  const result = await db
-    .update(userTableDefinitions)
-    .set({ archivedAt: now, updatedAt: now })
-    .where(
-      and(
-        eq(userTableDefinitions.id, tableId),
-        options?.expectedWorkspaceId
-          ? eq(userTableDefinitions.workspaceId, options.expectedWorkspaceId)
-          : undefined,
-        isNull(userTableDefinitions.archivedAt),
-        eq(userTableDefinitions.deleteLocked, false)
-      )
-    )
-    .returning({
-      createdBy: userTableDefinitions.createdBy,
-      workspaceId: userTableDefinitions.workspaceId,
-      name: userTableDefinitions.name,
-    })
-
-  const deleted = result[0]
-  if (!deleted) {
-    const [existing] = await db
+  const deleted = await db.transaction(async (trx) => {
+    await setTableTxTimeouts(trx)
+    const [existing] = await trx
       .select({
+        name: userTableDefinitions.name,
         archivedAt: userTableDefinitions.archivedAt,
         deleteLocked: userTableDefinitions.deleteLocked,
         workspaceId: userTableDefinitions.workspaceId,
@@ -1194,8 +1210,11 @@ export async function deleteTable(
             : undefined
         )
       )
+      .for('update')
       .limit(1)
-    if (existing && !existing.archivedAt && existing.deleteLocked) {
+
+    if (!existing || existing.archivedAt) return null
+    if (existing.deleteLocked) {
       logger.warn('Table mutation blocked by lock', {
         tableId,
         workspaceId: existing.workspaceId,
@@ -1203,8 +1222,39 @@ export async function deleteTable(
       })
       throw new TableLockedError('delete')
     }
-    // Otherwise the table is missing or already archived — a silent no-op, as before.
-  }
+
+    const blockers = existing.workspaceId
+      ? await findActiveTableReferenceBlockers(trx, existing.workspaceId, {
+          tableIds: [tableId],
+        })
+      : []
+    if (blockers.length > 0) {
+      throw new OrchestrationError(
+        'conflict',
+        tableReferenceBlockerMessage(
+          existing.name,
+          blockers.map((blocker) => blocker.referencingTableName)
+        )
+      )
+    }
+
+    const [archived] = await trx
+      .update(userTableDefinitions)
+      .set({ archivedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(userTableDefinitions.id, tableId),
+          isNull(userTableDefinitions.archivedAt),
+          eq(userTableDefinitions.deleteLocked, false)
+        )
+      )
+      .returning({
+        workspaceId: userTableDefinitions.workspaceId,
+        name: userTableDefinitions.name,
+      })
+    return archived ?? null
+  })
+
   logger.info(`[${requestId}] Archived table ${tableId}`)
   // Live tables list: only on a genuine archive (a no-op/already-archived delete changes nothing).
   // Skipped under a folder cascade — deleteFolder fires one folder-level notify for the whole subtree,
@@ -1215,6 +1265,240 @@ export async function deleteTable(
   // Null when the table was missing or already archived — a silent no-op. The
   // caller audits only a genuine archive, so a repeat delete logs nothing.
   return { archived: deleted ? { name: deleted.name, workspaceId: deleted.workspaceId } : null }
+}
+
+export interface DeleteTablesResult {
+  archived: { id: string; name: string; workspaceId: string }[]
+  failed: { id: string; name: string; reason: string }[]
+  notFound: string[]
+  terminalError?: unknown
+}
+
+interface ReferenceSafeArchivePlan<T> {
+  ordered: T[]
+  blockedByCycle: T[]
+}
+
+/**
+ * Orders selected tables so every referrer is archived before its target.
+ *
+ * Self-references are safe because the one row changes state atomically. Any
+ * rows left after the topological walk belong to a multi-table cycle or are
+ * targets reachable from one; none can be archived while a cycle member stays
+ * active.
+ */
+function planReferenceSafeArchiveOrder<T extends { id: string; schema: unknown }>(
+  candidates: readonly T[],
+  externallyBlockedIds: ReadonlySet<string>
+): ReferenceSafeArchivePlan<T> {
+  const deletable = candidates.filter((table) => !externallyBlockedIds.has(table.id))
+  const deletableById = new Map(deletable.map((table) => [table.id, table]))
+  const targetsByReferrer = new Map<string, string[]>()
+  const inboundReferenceCount = new Map(deletable.map((table) => [table.id, 0]))
+
+  for (const table of deletable) {
+    const targets = collectColumnReferencedTableIds((table.schema as TableSchema).columns).filter(
+      (targetId) => targetId !== table.id && deletableById.has(targetId)
+    )
+    targetsByReferrer.set(table.id, targets)
+    for (const targetId of targets) {
+      inboundReferenceCount.set(targetId, (inboundReferenceCount.get(targetId) ?? 0) + 1)
+    }
+  }
+
+  const ready = deletable.filter((table) => inboundReferenceCount.get(table.id) === 0)
+  const ordered: T[] = []
+  const orderedIds = new Set<string>()
+  for (let index = 0; index < ready.length; index++) {
+    const table = ready[index]
+    ordered.push(table)
+    orderedIds.add(table.id)
+    for (const targetId of targetsByReferrer.get(table.id) ?? []) {
+      const remaining = (inboundReferenceCount.get(targetId) ?? 0) - 1
+      inboundReferenceCount.set(targetId, remaining)
+      if (remaining === 0) {
+        const target = deletableById.get(targetId)
+        if (target) ready.push(target)
+      }
+    }
+  }
+
+  return {
+    ordered,
+    blockedByCycle: deletable.filter((table) => !orderedIds.has(table.id)),
+  }
+}
+
+function tableReferenceCycleMessage(tableName: string): string {
+  return `Cannot delete table "${tableName}" because the selected tables contain a reference cycle that cannot be restored safely. Remove a reference column first.`
+}
+
+/**
+ * Archives a bounded table selection after one reference-graph scan.
+ *
+ * All explicit targets are locked before the scan. Reference-column writes take a conflicting
+ * key-share lock on their target, so the scan and every archive in this transaction observe one
+ * stable reference graph. Per-table savepoints preserve the bulk API's committed-prefix behavior
+ * for statement failures that can roll back to a savepoint. A connection loss or other failure
+ * that invalidates the outer transaction rolls back the entire table phase.
+ */
+export async function deleteTables(
+  tableIds: readonly string[],
+  requestId: string,
+  options: {
+    expectedWorkspaceId: string
+    archivedAt?: Date
+    skipNotify?: boolean
+  }
+): Promise<DeleteTablesResult> {
+  const requestedIds = [...new Set(tableIds)]
+  if (requestedIds.length > MAX_TABLE_BATCH_ITEMS) {
+    throw new OrchestrationError(
+      'validation',
+      `Cannot delete more than ${MAX_TABLE_BATCH_ITEMS} tables at once`
+    )
+  }
+  if (requestedIds.length === 0) {
+    return { archived: [], failed: [], notFound: [] }
+  }
+  const now = options.archivedAt ?? new Date()
+  const result = await db.transaction(async (trx): Promise<DeleteTablesResult> => {
+    await setTableTxTimeouts(trx)
+    const advisoryLockIds = [...requestedIds].sort()
+    await trx.execute(sql`
+      SELECT pg_advisory_xact_lock(hashtextextended('user_table_schema:' || requested_id, 0))
+      FROM unnest(${advisoryLockIds}::text[]) AS requested(requested_id)
+      ORDER BY requested_id
+    `)
+    const existing = await trx
+      .select({
+        id: userTableDefinitions.id,
+        name: userTableDefinitions.name,
+        schema: userTableDefinitions.schema,
+        archivedAt: userTableDefinitions.archivedAt,
+        deleteLocked: userTableDefinitions.deleteLocked,
+        workspaceId: userTableDefinitions.workspaceId,
+      })
+      .from(userTableDefinitions)
+      .where(
+        and(
+          eq(userTableDefinitions.workspaceId, options.expectedWorkspaceId),
+          inArray(userTableDefinitions.id, requestedIds)
+        )
+      )
+      .orderBy(asc(userTableDefinitions.id))
+      .for('update')
+
+    const existingById = new Map(existing.map((table) => [table.id, table]))
+    const notFound: string[] = []
+    const failed: DeleteTablesResult['failed'] = []
+    const candidates: typeof existing = []
+    for (const tableId of requestedIds) {
+      const table = existingById.get(tableId)
+      if (!table || table.archivedAt) {
+        notFound.push(tableId)
+        continue
+      }
+      if (table.deleteLocked) {
+        failed.push({
+          id: table.id,
+          name: table.name,
+          reason: new TableLockedError('delete').message,
+        })
+        continue
+      }
+      candidates.push(table)
+    }
+
+    const referenceBlockers = await findActiveTableReferenceBlockers(
+      trx,
+      options.expectedWorkspaceId,
+      {
+        tableIds: candidates.map((table) => table.id),
+      }
+    )
+    const blockersByTargetId = new Map<string, ActiveTableReferenceBlocker[]>()
+    for (const blocker of referenceBlockers) {
+      const targetBlockers = blockersByTargetId.get(blocker.targetTableId) ?? []
+      targetBlockers.push(blocker)
+      blockersByTargetId.set(blocker.targetTableId, targetBlockers)
+    }
+
+    const externallyBlockedIds = new Set(blockersByTargetId.keys())
+    const archivePlan = planReferenceSafeArchiveOrder(candidates, externallyBlockedIds)
+    const cycleBlockedIds = new Set(archivePlan.blockedByCycle.map((table) => table.id))
+    for (const table of candidates) {
+      const blockers = blockersByTargetId.get(table.id)
+      if (blockers && blockers.length > 0) {
+        failed.push({
+          id: table.id,
+          name: table.name,
+          reason: tableReferenceBlockerMessage(
+            table.name,
+            blockers.map((blocker) => blocker.referencingTableName)
+          ),
+        })
+        continue
+      }
+      if (cycleBlockedIds.has(table.id)) {
+        failed.push({
+          id: table.id,
+          name: table.name,
+          reason: tableReferenceCycleMessage(table.name),
+        })
+      }
+    }
+
+    const archived: DeleteTablesResult['archived'] = []
+    let terminalError: unknown
+    for (const table of archivePlan.ordered) {
+      try {
+        const [updated] = await trx.transaction((savepoint) =>
+          savepoint
+            .update(userTableDefinitions)
+            .set({ archivedAt: now, updatedAt: now })
+            .where(
+              and(
+                eq(userTableDefinitions.id, table.id),
+                eq(userTableDefinitions.workspaceId, options.expectedWorkspaceId),
+                isNull(userTableDefinitions.archivedAt),
+                eq(userTableDefinitions.deleteLocked, false)
+              )
+            )
+            .returning({
+              id: userTableDefinitions.id,
+              workspaceId: userTableDefinitions.workspaceId,
+              name: userTableDefinitions.name,
+            })
+        )
+        if (!updated) {
+          notFound.push(table.id)
+          terminalError = new OrchestrationError(
+            'internal',
+            `Table "${table.id}" could not be archived after its deletion lock was acquired`
+          )
+          break
+        }
+        archived.push(updated)
+      } catch (error) {
+        terminalError = error
+        break
+      }
+    }
+
+    return {
+      archived,
+      failed,
+      notFound,
+      ...(terminalError !== undefined ? { terminalError } : {}),
+    }
+  })
+
+  logger.info(`[${requestId}] Archived ${result.archived.length} tables in batch`)
+  if (result.archived.length > 0 && !options.skipNotify) {
+    await notifyWorkspaceTablesChanged(options.expectedWorkspaceId)
+  }
+  return result
 }
 
 /**
@@ -1229,7 +1513,11 @@ export async function deleteTable(
 export async function restoreTable(
   tableId: string,
   requestId: string,
-  options?: { restoringFolderIds?: ReadonlySet<string>; skipNotify?: boolean }
+  options?: {
+    restoringFolderIds?: ReadonlySet<string>
+    restoringTableIds?: ReadonlySet<string>
+    skipNotify?: boolean
+  }
 ): Promise<void> {
   const table = await getTableById(tableId, { includeArchived: true })
   if (!table) {
@@ -1274,7 +1562,25 @@ export async function restoreTable(
     try {
       await db.transaction(async (tx) => {
         await setTableTxTimeouts(tx)
-        await tx.execute(sql`SELECT 1 FROM user_table_definitions WHERE id = ${tableId} FOR UPDATE`)
+        const [currentTable] = await tx
+          .select({
+            workspaceId: userTableDefinitions.workspaceId,
+            schema: userTableDefinitions.schema,
+          })
+          .from(userTableDefinitions)
+          .where(eq(userTableDefinitions.id, tableId))
+          .for('update')
+          .limit(1)
+        if (!currentTable) throw new OrchestrationError('not_found', 'Table not found')
+
+        const allowedArchivedTableIds = new Set(options?.restoringTableIds)
+        allowedArchivedTableIds.add(tableId)
+        await assertColumnReferencesInWorkspace(
+          tx,
+          currentTable.workspaceId,
+          (currentTable.schema as TableSchema).columns,
+          { allowedArchivedTableIds }
+        )
 
         attemptedRestoreName = await generateRestoreName(table.name, async (candidate) => {
           const [match] = await tx

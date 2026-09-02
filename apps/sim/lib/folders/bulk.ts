@@ -35,6 +35,8 @@ export interface FolderSelectionPlan {
    * acted on a second time.
    */
   covered: Set<string>
+  /** The covered subtree for each top-level selected folder, used for per-folder preflight. */
+  coveredBySelected: Map<string, Set<string>>
 }
 
 /**
@@ -52,7 +54,13 @@ export async function planFolderSelection(
   folderIds: readonly string[]
 ): Promise<FolderSelectionPlan> {
   if (folderIds.length === 0) {
-    return { selected: [], notFound: [], contained: [], covered: new Set() }
+    return {
+      selected: [],
+      notFound: [],
+      contained: [],
+      covered: new Set(),
+      coveredBySelected: new Map(),
+    }
   }
 
   const rows = await listActiveFolderRows(workspaceId, resourceType, {
@@ -64,6 +72,7 @@ export async function planFolderSelection(
   const notFound: string[] = []
   const contained: BulkFolderAffected[] = []
   const covered = new Set<string>()
+  const coveredBySelected = new Map<string, Set<string>>()
 
   const requested = new Set<string>()
   for (const folderId of folderIds) {
@@ -111,8 +120,9 @@ export async function planFolderSelection(
     }
     if (covered.has(folderId)) continue
     selected.push(entry)
-    covered.add(folderId)
-    for (const descendantId of descendantsOf.get(folderId) ?? []) covered.add(descendantId)
+    const selectedCoverage = new Set([folderId, ...(descendantsOf.get(folderId) ?? [])])
+    coveredBySelected.set(folderId, selectedCoverage)
+    for (const coveredId of selectedCoverage) covered.add(coveredId)
   }
 
   /**
@@ -126,7 +136,7 @@ export async function planFolderSelection(
     for (const descendantId of descendantsOf.get(folder.id) ?? []) covered.add(descendantId)
   }
 
-  return { selected, notFound, contained, covered }
+  return { selected, notFound, contained, covered, coveredBySelected }
 }
 
 /**

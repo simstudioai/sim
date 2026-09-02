@@ -1,10 +1,14 @@
 'use client'
 
 import type { RowExecutionMetadata } from '@/lib/table'
+import {
+  CellRender,
+  type ReferenceCellAction,
+  resolveCellRender,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/cells/cell-render'
 import type { TimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'
 import type { DisplayColumn } from '../types'
-import { CellRender, resolveCellRender } from './cell-render'
 import { InlineEditor } from './inline-editors'
 
 interface CellContentProps {
@@ -16,6 +20,7 @@ interface CellContentProps {
   workspaceId: string
   timeZone: string
   timezoneStatus: TimezoneState['status']
+  referenceColumnsEnabled: boolean
   isEditing: boolean
   initialCharacter?: string | null
   onSave: (value: unknown, reason: SaveReason) => void
@@ -28,6 +33,7 @@ interface CellContentProps {
   waitingOnLabels?: string[]
   /** Column is an enrichment output — a completed-but-empty cell renders "Not found". */
   isEnrichmentOutput?: boolean
+  referenceAction?: ReferenceCellAction
 }
 
 /**
@@ -43,12 +49,14 @@ export function CellContent({
   workspaceId,
   timeZone,
   timezoneStatus,
+  referenceColumnsEnabled,
   isEditing,
   initialCharacter,
   onSave,
   onCancel,
   waitingOnLabels,
   isEnrichmentOutput,
+  referenceAction,
 }: CellContentProps) {
   const kind = resolveCellRender({
     value,
@@ -59,6 +67,7 @@ export function CellContent({
     currentWorkspaceId: workspaceId,
     timeZone,
     timezoneStatus,
+    referenceColumnsEnabled,
   })
 
   return (
@@ -74,7 +83,7 @@ export function CellContent({
           />
         </div>
       )}
-      <CellRender kind={kind} isEditing={isEditing} />
+      <CellRender kind={kind} isEditing={isEditing} referenceAction={referenceAction} />
     </>
   )
 }

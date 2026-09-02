@@ -936,6 +936,36 @@ export const listTablesContract = defineRouteContract({
 })
 export type ListTablesResponse = ContractJsonResponse<typeof listTablesContract>
 
+export const listTableNamesBodySchema = z.object({
+  workspaceId: workspaceIdSchema,
+  tableIds: z
+    .array(referenceTableIdSchema)
+    .min(1, 'At least one table ID is required')
+    .max(
+      TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
+      `Cannot request more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} table names`
+    ),
+})
+export type ListTableNamesBodyInput = z.input<typeof listTableNamesBodySchema>
+
+export const listTableNamesContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/names',
+  body: listTableNamesBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        tables: z.array(
+          z.object({
+            id: z.string().min(1).max(MAX_ID_LENGTH),
+            name: tableNameSchema,
+          })
+        ),
+      })
+    ),
+  },
+})
 export const createTableContract = defineRouteContract({
   method: 'POST',
   path: '/api/table',
@@ -1466,6 +1496,8 @@ export const getTableRowContract = defineRouteContract({
     schema: successResponseSchema(z.object({ row: tableRowWireSchema })),
   },
 })
+
+export type GetTableRowResponse = ContractJsonResponse<typeof getTableRowContract>
 
 export const updateTableRowContract = defineRouteContract({
   method: 'PATCH',

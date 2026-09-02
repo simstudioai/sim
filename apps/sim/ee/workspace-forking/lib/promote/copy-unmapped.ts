@@ -232,6 +232,7 @@ export async function copyPromoteUnmappedResources(params: {
     // A sync can rename env vars, so a copied custom tool's `code` must have its `{{ENV}}` refs
     // rewritten through the same plan resolver that remaps subblock-value env refs.
     resolveEnvName: (key) => resolver('env-var', key),
+    resolveMappedTableReference: (sourceTableId) => resolver('table', sourceTableId),
     resolveBlockId,
     documentMappingContext: {
       edgeChildWorkspaceId: edge.childWorkspaceId,

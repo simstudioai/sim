@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { flattenMockConditions, hasMockCondition } from '@sim/testing'
+import {
+  flattenMockConditions,
+  hasMockCondition,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   archiveFolderCascade,
@@ -538,5 +544,50 @@ describe('knowledge_base and table folder resources', () => {
     // Only the workflow tree interleaves folders and rows in one user-ordered list.
     expect(knowledgeConfig.sortOrderColumn).toBeUndefined()
     expect(tableConfig.sortOrderColumn).toBeUndefined()
+  })
+})
+
+describe('table folder deletion guard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('refuses the whole folder before a referenced table can be archived', async () => {
+    queueTableRows(schemaMock.userTableDefinitions, [])
+    queueTableRows(schemaMock.userTableDefinitions, [
+      {
+        id: 'tbl_customers',
+        name: 'Customers',
+        folderId: 'folder-child',
+        schema: { columns: [{ id: 'name', name: 'Name', type: 'string' }] },
+      },
+      {
+        id: 'tbl_orders',
+        name: 'Orders',
+        folderId: null,
+        schema: {
+          columns: [
+            {
+              id: 'customer',
+              name: 'Customer',
+              type: 'reference',
+              referenceTableId: 'tbl_customers',
+            },
+          ],
+        },
+      },
+    ])
+
+    await expect(
+      FOLDER_RESOURCES.table.guardDelete?.({
+        workspaceId: 'ws-1',
+        folderIds: ['folder-root', 'folder-child'],
+      })
+    ).resolves.toEqual({
+      error:
+        'Cannot delete table "Customers" because it is referenced by table "Orders". Remove the reference column first.',
+      errorCode: 'conflict',
+    })
   })
 })

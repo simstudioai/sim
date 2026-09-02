@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getTableById: vi.fn(),
   getLimits: vi.fn(),
   listDefinitions: vi.fn(),
+  listNames: vi.fn(),
   loadFolderIndex: vi.fn(),
   queryTables: vi.fn(),
   resolveArchivedContext: vi.fn(),
@@ -49,6 +50,7 @@ vi.mock('@/lib/table', () => ({
   deleteTable: vi.fn(),
   getTableById: mocks.getTableById,
   getWorkspaceTableLimits: mocks.getLimits,
+  listActiveTableNames: mocks.listNames,
   listTables: mocks.listDefinitions,
   moveTableToFolder: vi.fn(),
   queryTables: mocks.queryTables,
@@ -82,6 +84,7 @@ vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal })
 
 import {
   listTableDefinitionsUseCase,
+  listTableNamesUseCase,
   listTablesUseCase,
   readTableDefinitionUseCase,
   readTableDetailsUseCase,
@@ -220,6 +223,7 @@ describe('internal table compatibility reads', () => {
       table: active,
     })
     mocks.listDefinitions.mockResolvedValue([active])
+    mocks.listNames.mockResolvedValue([{ id: active.id, name: active.name }])
     mocks.getLimits.mockResolvedValue({ maxRowsPerTable: 2500 })
   })
 
@@ -232,6 +236,17 @@ describe('internal table compatibility reads', () => {
     expect(mocks.listDefinitions).toHaveBeenCalledWith(WORKSPACE.workspaceId, { scope: 'all' })
     expect(result.tables).toEqual([active])
     expect(mocks.loadFolderIndex).not.toHaveBeenCalled()
+  })
+
+  it('lists only active table names for lightweight display lookups', async () => {
+    const result = await listTableNamesUseCase.execute({
+      principal: PRINCIPAL,
+      input: { workspaceId: WORKSPACE.workspaceId, tableIds: ['table-1', 'table-2'] },
+    })
+
+    expect(mocks.listNames).toHaveBeenCalledWith(WORKSPACE.workspaceId, ['table-1', 'table-2'])
+    expect(result.tables).toEqual([{ id: active.id, name: active.name }])
+    expect(mocks.listDefinitions).not.toHaveBeenCalled()
   })
 
   it('reads schema-only metadata without loading folders or plan limits', async () => {
