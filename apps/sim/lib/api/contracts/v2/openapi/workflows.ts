@@ -884,6 +884,7 @@ const declaredRoutes = [
               warnings: [],
               activeDeployment: null,
               latestDeploymentAttempt: null,
+              archivedMcpTools: [],
             },
           },
         ]
@@ -940,7 +941,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'exportWorkflow',
       summary: 'Export Workflow',
-      description: `Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. Exporting records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Export a portable, secret-sanitized workflow. Workspace-scoped bindings (table, knowledge base, document, and other resource selectors) are cleared by default and must be selected again after import; send \`includeWorkspaceBindings=true\` to keep them for a round trip into the same workspace. Credentials and secrets are cleared either way. Exporting records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow export payload.'),
     }),
@@ -1003,6 +1004,7 @@ const declaredRoutes = [
                 { id: 'block_triage', type: 'agent', name: 'Triage' },
                 { id: 'block_reply', type: 'response', name: 'Reply' },
               ],
+              warnings: ['Triage: knowledgeBaseId was stripped by export; set it before running'],
             },
           },
         ]
@@ -1011,6 +1013,7 @@ const declaredRoutes = [
   ),
   defineOpenApiRoute(
     v2ListChatDeploymentsContract,
+
     workflowOperation({
       operationId: 'listChatDeployments',
       summary: 'List Chat Deployments',

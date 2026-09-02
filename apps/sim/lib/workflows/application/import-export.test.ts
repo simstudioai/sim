@@ -130,7 +130,7 @@ describe('workflow import and export application operations', () => {
       ) => callback({})
     )
     mocks.loadIndex.mockResolvedValue(folderIndex)
-    mocks.importTransition.mockResolvedValue({ success: true, workflow: imported })
+    mocks.importTransition.mockResolvedValue({ success: true, workflow: imported, warnings: [] })
     mocks.buildExport.mockResolvedValue(exportPayload)
   })
 
@@ -144,7 +144,7 @@ describe('workflow import and export application operations', () => {
       },
     })
 
-    expect(result).toEqual({ workflow: imported, folderPath: '/Reports' })
+    expect(result).toEqual({ workflow: imported, folderPath: '/Reports', warnings: [] })
     expect(mocks.importTransition).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceId: 'ws-1',
@@ -165,6 +165,23 @@ describe('workflow import and export application operations', () => {
       })
     )
     expect(mocks.notifyWorkspace).toHaveBeenCalledWith('ws-1')
+  })
+
+  /**
+   * Export clears workspace bindings; the operation reports the required ones
+   * that arrived empty, and the use case must hand that through untouched so a
+   * round-tripped workflow never silently cannot run.
+   */
+  it('passes the stripped-binding warnings through to the caller', async () => {
+    const warnings = ['Lookup: tableId was stripped by export; set it before running']
+    mocks.importTransition.mockResolvedValue({ success: true, workflow: imported, warnings })
+
+    const result = await importWorkflow.execute({
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      input: { workspaceId: 'ws-1', workflow: { blocks: {}, edges: [] } },
+    })
+
+    expect(result.warnings).toEqual(warnings)
   })
 
   it('preserves classified import details and does not audit a failure', async () => {
@@ -197,7 +214,10 @@ describe('workflow import and export application operations', () => {
     })
 
     expect(mocks.resolveWorkflow).toHaveBeenCalledWith({ workflowId: 'workflow-1' })
-    expect(mocks.buildExport).toHaveBeenCalledWith(workflowRecord)
+    /** Sharing-safe by default: bindings are cleared unless the caller opts in. */
+    expect(mocks.buildExport).toHaveBeenCalledWith(workflowRecord, {
+      includeWorkspaceBindings: false,
+    })
     expect(mocks.loadIndex).toHaveBeenCalledWith('ws-1', 'workflow', undefined, {
       maxRows: MAX_FOLDERS_PER_WORKSPACE,
     })
@@ -207,6 +227,22 @@ describe('workflow import and export application operations', () => {
       expect.objectContaining({
         resourceId: 'workflow-1',
         metadata: expect.objectContaining({ blocksCount: 0, edgesCount: 0 }),
+      })
+    )
+  })
+
+  it('keeps workspace bindings only when asked, and says so in the audit', async () => {
+    await exportWorkflow.execute({
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      input: { workflowId: 'workflow-1', includeWorkspaceBindings: true },
+    })
+
+    expect(mocks.buildExport).toHaveBeenCalledWith(workflowRecord, {
+      includeWorkspaceBindings: true,
+    })
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ includeWorkspaceBindings: true }),
       })
     )
   })

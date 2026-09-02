@@ -65,10 +65,15 @@ export function toV2WorkflowMcpTool(row: WorkflowMcpToolRow, updated: boolean): 
   })
 }
 
-/** {@link toV2WorkflowMcpTool} for a read, which has no publish outcome to report. */
+/**
+ * {@link toV2WorkflowMcpTool} for a read, which has no publish outcome to report.
+ * An archived row is a registration an undeploy withdrew: published as
+ * `inactive` rather than omitted, so the inventory explains itself.
+ */
 export function toV2WorkflowMcpToolListItem(row: WorkflowMcpToolRow): V2WorkflowMcpToolListItem {
   return v2WorkflowMcpToolListItemSchema.parse({
     ...row,
+    status: row.archivedAt ? 'inactive' : 'active',
     mcpServerUrl: buildWorkflowMcpServerUrl(row.serverId),
     apiEndpoint: buildWorkflowMcpApiEndpoint(row.workflowId),
     createdAt: row.createdAt.toISOString(),

@@ -68,6 +68,35 @@ describe('universal grep', () => {
     expect(world.stdout).toContain('blocks/slack_v2:')
   })
 
+  it('refuses a prefixed --in selector before materializing any world', async () => {
+    /** An empty runtime throws on any request, so the exact message proves nothing was fetched. */
+    const result = await runEngine('grep', ['id'], runtimeWith({}), { in: 'workflow:abc-123' })
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('Unknown --in selector "workflow:abc-123"')
+    expect(result.stderr).toContain('e.g. blocks/table_v2')
+  })
+
+  it('refuses an --in selector no resource in the searched worlds answers to', async () => {
+    const bare = await runEngine('grep', ['id'], runtimeWith(CATALOG), {
+      scope: 'blocks',
+      in: 'nope-not-here',
+    })
+    expect(bare.exitCode).toBe(1)
+    expect(bare.stderr).toContain('Unknown --in selector "nope-not-here"')
+    const byPath = await runEngine('grep', ['id'], runtimeWith(CATALOG), { in: 'blocks/nope' })
+    expect(byPath.exitCode).toBe(1)
+    expect(byPath.stderr).toContain('Unknown --in selector "blocks/nope"')
+  })
+
+  it('still reports no matches for a resource that exists but has no hits', async () => {
+    const result = await runEngine('grep', ['zzz-nope'], runtimeWith(CATALOG), {
+      scope: 'blocks',
+      in: 'agent',
+    })
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('No matches for "zzz-nope" in blocks within "agent"')
+  })
+
   it('refuses an unknown scope with a did-you-mean and the scope list', async () => {
     const result = await runEngine('grep', ['x'], runtimeWith({}), { scope: 'block' })
     expect(result.exitCode).toBe(1)

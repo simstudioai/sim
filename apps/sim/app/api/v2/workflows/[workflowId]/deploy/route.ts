@@ -58,8 +58,10 @@ export const DELETE = defineV2JsonRoute({
       warnings: result.warnings ?? [],
       activeDeployment: null,
       latestDeploymentAttempt: null,
+      archivedMcpTools: result.archivedMcpTools,
     },
   }),
+
   /**
    * Telemetry only. `workflowOperations.undeploy` denies a workspace API key at
    * admission, so a non-personal principal cannot reach here — and this hook runs

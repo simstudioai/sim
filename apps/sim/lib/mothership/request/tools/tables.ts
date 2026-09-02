@@ -23,12 +23,23 @@ const RETURN_ROWS_HINT = 'JavaScript: `return [...]`; Python: assign `__sim_resu
 const ARRAY_OF_OBJECTS_ERROR = `outputTable requires the code to return an array of objects (${RETURN_ROWS_HINT})`
 
 /**
+ * The sandbox export receipt `execute-request` places beside the returned value
+ * (`output.exported.files`), or the bare `files` an older receipt carried at the
+ * top level. Empty when the run exported nothing.
+ */
+function exportedFiles(rawOutput: unknown): Record<string, unknown>[] {
+  if (!isRecordLike(rawOutput)) return []
+  const files = isRecordLike(rawOutput.exported) ? rawOutput.exported.files : rawOutput.files
+  return Array.isArray(files) ? files.filter(isRecordLike) : []
+}
+
+/**
  * Declared output files are written before the table step runs, so a table
  * failure after them is a partial success. The error result keeps the written
  * files so the caller sees what landed instead of re-running the code for it.
  */
 function outputTableFailure(error: string, rawOutput: unknown): ToolCallResult {
-  const files = isRecordLike(rawOutput) && Array.isArray(rawOutput.files) ? rawOutput.files : []
+  const files = exportedFiles(rawOutput)
   if (files.length === 0) return { success: false, error }
   return {
     success: false,
@@ -156,12 +167,28 @@ export async function maybeWriteOutputToTable(
           deletedCount: replaceResult.deletedCount,
         })
         span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.Wrote)
+        /**
+         * The table result replaces the run's output, so the export receipt rides along
+         * or the agent has to `files list` to confirm a write it already made.
+         */
+        const exported = exportedFiles(rawOutput)
+        const exportNote =
+          exported.length > 0
+            ? ` and exported ${exported.length} ${exported.length === 1 ? 'file' : 'files'}: ${exported
+                .map((file) =>
+                  typeof file.vfsPath === 'string'
+                    ? file.vfsPath
+                    : String(file.fileName ?? file.fileId)
+                )
+                .join(', ')}`
+            : ''
         return {
           success: true,
           output: {
-            message: `Wrote ${replaceResult.insertedCount} rows to table ${outputTable}`,
+            message: `Wrote ${replaceResult.insertedCount} rows to table ${outputTable}${exportNote}`,
             tableId: outputTable,
             rowCount: replaceResult.insertedCount,
+            ...(exported.length > 0 ? { exported: { files: exported } } : {}),
           },
         }
       } catch (err) {

@@ -14,6 +14,7 @@ const { MockWorkflowLockedError, mocks } = vi.hoisted(() => {
       audit: vi.fn(),
       deploy: vi.fn(),
       findPrevious: vi.fn(),
+      listMcpTools: vi.fn(),
       notifyReverted: vi.fn(),
       revert: vi.fn(),
       resolveContext: vi.fn(),
@@ -65,6 +66,10 @@ vi.mock('@/lib/workflows/persistence/utils', () => ({
 
 vi.mock('@/lib/realtime/notify', () => ({
   notifyWorkflowReverted: mocks.notifyReverted,
+}))
+
+vi.mock('@/lib/mcp/queries', () => ({
+  listLiveWorkflowMcpToolsForWorkflow: mocks.listMcpTools,
 }))
 
 vi.mock('@/lib/workflows/deployment-status', () => ({
@@ -132,6 +137,7 @@ describe('workflow deployment application use cases', () => {
       warnings: [],
     })
     mocks.undeploy.mockResolvedValue({ success: true, warnings: [] })
+    mocks.listMcpTools.mockResolvedValue([])
     mocks.activate.mockResolvedValue({
       success: true,
       deployedAt: new Date('2026-08-08T00:01:00Z'),
@@ -271,6 +277,26 @@ describe('workflow deployment application use cases', () => {
         metadata: expect.objectContaining({ operation: 'workflows.undeploy' }),
       })
     )
+  })
+
+  /**
+   * Undeploying archives every MCP tool that published the workflow. The live
+   * set is read before the undeploy runs, so the caller learns which tools went
+   * inactive instead of finding them missing from the server's tool list.
+   */
+  it('reports the MCP tools an undeploy takes inactive', async () => {
+    mocks.listMcpTools.mockResolvedValue([{ serverId: 'wfmcp-1', toolName: 'triage_ticket' }])
+
+    const result = await undeployWorkflow.execute({
+      principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
+      input: { workflowId: 'workflow-1', requestId: 'request-2' },
+    })
+
+    expect(mocks.listMcpTools).toHaveBeenCalledWith('workflow-1')
+    expect(mocks.listMcpTools.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.undeploy.mock.invocationCallOrder[0]
+    )
+    expect(result.archivedMcpTools).toEqual([{ serverId: 'wfmcp-1', toolName: 'triage_ticket' }])
   })
 
   it('projects revert audit and notification exactly once outside legacy orchestration', async () => {

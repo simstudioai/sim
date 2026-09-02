@@ -25,6 +25,7 @@ import {
   type FolderPathIndex,
   folderNameFromPath,
   parentFolderPath,
+  parseFolderPath,
   requireNonRootFolderPath,
   resolveFolderMoveDestination,
 } from '@/lib/folders/paths'
@@ -297,7 +298,8 @@ async function executeRelocateFolderByPath(
 ): Promise<FolderPathMutationResult> {
   try {
     requireNonRootFolderPath(params.path)
-    requireNonRootFolderPath(params.destinationPath)
+    /** The root is a valid destination — "move to the top level" — so only canonical form is checked here. */
+    parseFolderPath(params.destinationPath)
 
     const { folder, destinationPath } = await withTransactionRetry(
       async (tx) => {
@@ -386,10 +388,10 @@ async function executeRelocateFolderByPath(
 }
 
 /**
- * Renames, moves, or both. A destination naming an existing folder receives the
- * source as a child (`mv` semantics, see {@link resolveFolderMoveDestination});
- * any other destination becomes the source's new path. `path` on the result is
- * where the folder actually landed.
+ * Renames, moves, or both. A destination naming an existing folder — the root
+ * included — receives the source as a child (`mv` semantics, see
+ * {@link resolveFolderMoveDestination}); any other destination becomes the
+ * source's new path. `path` on the result is where the folder actually landed.
  */
 export async function relocateFolderByPath(
   params: RelocateFolderByPathParams

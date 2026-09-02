@@ -152,7 +152,7 @@ Show run status (requested outputs are included in JSON or YAML output)
 | --- | --- | --- |
 | `--workflow <workflowId>` | Yes | Workflow ID. |
 | `--include-output` | No | Include the final output in JSON or YAML output. |
-| `--select-output <value...>` | No | Include blockId or blockId.path values in JSON or YAML output; block names are not resolved on a finished run (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--select-output <value...>` | No | Include blockName.path or blockId.path values (e.g. agent_1.content) in JSON or YAML output; names resolve against the workflow’s current blocks, and missing paths are omitted (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Per-file inline ceiling, lowering but never raising the server limit of 16 MiB. |
@@ -551,7 +551,7 @@ sim workflows run <workflowId> [options]
 ## Print a workflow as a portable JSON document
 
 ```bash
-sim workflows export <workflowId>
+sim workflows export <workflowId> [options]
 ```
 
 **Arguments**
@@ -561,6 +561,17 @@ sim workflows export <workflowId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--include-workspace-bindings` | No | Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way. |
+| `--no-include-workspace-bindings` | No | Send --include-workspace-bindings as false. |
 
 </CommandTable>
 

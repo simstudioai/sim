@@ -203,15 +203,17 @@ export const relocateWorkflowFolder = defineAuthorizedWorkflowUseCase({
     return { folder: result.folder, index }
   },
   projectAudit({ input, result }) {
+    /** Where the folder landed — inside an existing destination, or at the root, rather than the path as typed. */
+    const destinationPath = result.index.pathById.get(result.folder.id) ?? input.destinationPath
     return {
       action: AuditAction.FOLDER_MOVED,
       resourceType: AuditResourceType.FOLDER,
       resourceId: result.folder.id,
       resourceName: result.folder.name,
-      description: `Moved workflow folder to "${input.destinationPath}"`,
+      description: `Moved workflow folder to "${destinationPath}"`,
       metadata: {
         sourcePath: input.path,
-        destinationPath: input.destinationPath,
+        destinationPath,
         folderResourceType: 'workflow',
       },
     }

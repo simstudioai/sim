@@ -108,6 +108,49 @@ describe('GET /api/v2/logs/[runId]', () => {
     })
   })
 
+  /**
+   * Stored spans carry only `duration`; the contract publishes `durationMs`
+   * beside it, and readers that trusted the documented name found it empty on
+   * every span. The projection fills it, nested spans included.
+   */
+  it('publishes durationMs on every span from the stored duration', async () => {
+    mocks.execute.mockResolvedValue({
+      log,
+      workflowFolderPath: '/agents',
+      executionData: {
+        traceSpans: [
+          {
+            id: 'workflow-execution',
+            name: 'Workflow Execution',
+            type: 'workflow',
+            duration: 120,
+            startTime: '2026-08-06T00:00:00.000Z',
+            endTime: '2026-08-06T00:00:00.120Z',
+            children: [
+              {
+                id: 'agent-1',
+                name: 'Agent',
+                type: 'agent',
+                duration: 80,
+                startTime: '2026-08-06T00:00:00.010Z',
+                endTime: '2026-08-06T00:00:00.090Z',
+              },
+            ],
+          },
+        ],
+        finalOutput: null,
+      },
+    })
+
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
+      params: Promise.resolve({ runId: 'run-1' }),
+    })
+
+    const [root] = (await response.json()).data.traceSpans
+    expect(root).toMatchObject({ duration: 120, durationMs: 120 })
+    expect(root.children[0]).toMatchObject({ duration: 80, durationMs: 80 })
+  })
+
   it('serves a run whose persisted status is paused', async () => {
     mocks.execute.mockResolvedValue({
       log: { ...log, status: 'paused' },

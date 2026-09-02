@@ -253,12 +253,49 @@ export async function listLiveWorkflowMcpTools(
 }
 
 /**
+ * Every tool a server publishes, archived registrations included, tool-name
+ * ordered and bounded like {@link listLiveWorkflowMcpTools}.
+ *
+ * An undeploy archives a workflow's registrations rather than deleting them
+ * (`removeMcpToolsForWorkflow`), and the next deploy brings them back. A caller
+ * reconciling a server's inventory must see those rows as inactive rather than
+ * as vanished — otherwise every undeploy read as a tool silently unpublished.
+ */
+export async function listWorkflowMcpToolsIncludingArchived(
+  serverId: string,
+  limit: number
+): Promise<{ tools: WorkflowMcpToolRow[]; truncated: boolean }> {
+  const rows = await db
+    .select()
+    .from(workflowMcpTool)
+    .where(eq(workflowMcpTool.serverId, serverId))
+    .orderBy(asc(workflowMcpTool.toolName))
+    .limit(limit + 1)
+  return { tools: rows.slice(0, limit), truncated: rows.length > limit }
+}
+
+/**
+ * The live registrations of one workflow across every server, ordered by
+ * server then tool name — exactly the set an undeploy is about to archive.
+ */
+export async function listLiveWorkflowMcpToolsForWorkflow(
+  workflowId: string
+): Promise<Array<{ serverId: string; toolName: string }>> {
+  return db
+    .select({ serverId: workflowMcpTool.serverId, toolName: workflowMcpTool.toolName })
+    .from(workflowMcpTool)
+    .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
+    .orderBy(asc(workflowMcpTool.serverId), asc(workflowMcpTool.toolName))
+}
+
+/**
  * The live tool publishing a workflow on a server, or null.
  *
  * A server carries at most one unarchived tool per workflow — the partial unique
  * index on `(server_id, workflow_id)` — so the pair is an identity, which is why
  * the public surface addresses a tool by workflow rather than by tool id.
  */
+
 export async function getLiveWorkflowMcpTool(
   serverId: string,
   workflowId: string

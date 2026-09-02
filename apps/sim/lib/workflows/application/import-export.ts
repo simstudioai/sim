@@ -36,10 +36,14 @@ export interface ImportWorkflowInput {
 export interface ImportWorkflowResult {
   workflow: ImportedWorkflow
   folderPath: string
+  /** Required workspace bindings the payload carried empty; see the import operation. */
+  warnings: string[]
 }
 
 export interface ExportWorkflowInput {
   workflowId: string
+  /** Keep workspace-scoped bindings for a same-workspace round trip; secrets are cleared either way. */
+  includeWorkspaceBindings?: boolean
 }
 
 export interface ExportWorkflowResult {
@@ -82,6 +86,7 @@ export const importWorkflow = defineAuthorizedWorkflowUseCase({
     return {
       workflow: result.workflow,
       folderPath: workflowFolderPathForId(resolution.index, result.workflow.folderId),
+      warnings: result.warnings,
     }
   },
   projectAudit({ result }) {
@@ -108,8 +113,10 @@ export const exportWorkflow = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.export,
   resolveContext: ({ input }: { input: ExportWorkflowInput }) =>
     resolveActiveWorkflowApplicationContext({ workflowId: input.workflowId }),
-  async execute({ context }): Promise<ExportWorkflowResult> {
-    const payload = await buildWorkflowExportPayload(context.workflow)
+  async execute({ input, context }): Promise<ExportWorkflowResult> {
+    const payload = await buildWorkflowExportPayload(context.workflow, {
+      includeWorkspaceBindings: input.includeWorkspaceBindings === true,
+    })
     if (!payload) throw new OrchestrationError('not_found', 'Workflow state not found')
     const folderIndex = await loadActiveFolderPathIndex(
       context.workspaceId,
@@ -122,7 +129,7 @@ export const exportWorkflow = defineAuthorizedWorkflowUseCase({
       folderPath: workflowFolderPathForId(folderIndex, context.workflow.folderId),
     }
   },
-  projectAudit({ context, result }) {
+  projectAudit({ input, context, result }) {
     return {
       action: AuditAction.WORKFLOW_EXPORTED,
       resourceType: AuditResourceType.WORKFLOW,
@@ -134,6 +141,7 @@ export const exportWorkflow = defineAuthorizedWorkflowUseCase({
         folderPath: result.folderPath,
         blocksCount: Object.keys(result.payload.state.blocks).length,
         edgesCount: result.payload.state.edges.length,
+        includeWorkspaceBindings: input.includeWorkspaceBindings === true,
       },
     }
   },

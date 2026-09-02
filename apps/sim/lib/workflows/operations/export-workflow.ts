@@ -36,6 +36,17 @@ export interface WorkflowExportEdge {
   markerEnd?: string
 }
 
+export interface BuildWorkflowExportPayloadOptions {
+  /**
+   * Keep workspace-scoped resource bindings (table, knowledge base, document,
+   * folder, channel, and every other selector) so the payload round-trips into
+   * the workspace it came from without re-entering them. Credentials, passwords,
+   * and opaque table values are cleared regardless, so the default stays the
+   * sharing-safe export and this only widens a same-workspace copy.
+   */
+  includeWorkspaceBindings?: boolean
+}
+
 export interface WorkflowExportPayload {
   version: '1.0'
   exportedAt: string
@@ -103,7 +114,10 @@ function toExportedEdge(edge: Edge): WorkflowExportEdge {
  *
  * The last two classes mean an export is **not** a byte-for-byte clone even when
  * re-imported into the same workspace: those bindings and every table come back
- * empty and must be re-entered. This matches the in-app export.
+ * empty and must be re-entered. This matches the in-app export. The one
+ * relaxation is `includeWorkspaceBindings`, which keeps the workspace-scoped
+ * bindings — and only those — for a same-workspace round trip; the import
+ * reports whichever required bindings still arrive empty as warnings.
  *
  * Workflow **variables** are emitted as stored: they are plaintext workflow
  * configuration readable by anyone with workspace read (the same permission the
@@ -111,22 +125,26 @@ function toExportedEdge(edge: Edge): WorkflowExportEdge {
  * as unresolved `{{ENV_VAR}}` references.
  */
 export async function buildWorkflowExportPayload(
-  workflowData: ExportableWorkflowRecord
+  workflowData: ExportableWorkflowRecord,
+  options: BuildWorkflowExportPayloadOptions = {}
 ): Promise<WorkflowExportPayload | null> {
   const normalizedData = await loadWorkflowFromNormalizedTables(workflowData.id)
   if (!normalizedData) return null
 
-  const sanitized = sanitizeForExport({
-    blocks: normalizedData.blocks,
-    edges: normalizedData.edges,
-    loops: normalizedData.loops,
-    parallels: normalizedData.parallels,
-    metadata: {
-      name: workflowData.name,
-      description: workflowData.description ?? undefined,
+  const sanitized = sanitizeForExport(
+    {
+      blocks: normalizedData.blocks,
+      edges: normalizedData.edges,
+      loops: normalizedData.loops,
+      parallels: normalizedData.parallels,
+      metadata: {
+        name: workflowData.name,
+        description: workflowData.description ?? undefined,
+      },
+      variables: parseWorkflowVariables(workflowData.variables),
     },
-    variables: parseWorkflowVariables(workflowData.variables),
-  })
+    { preserveWorkspaceBindings: options.includeWorkspaceBindings === true }
+  )
 
   return {
     version: '1.0',
