@@ -1044,6 +1044,30 @@ describe('single-resource rendering', () => {
     expect(printed.join('\n')).toMatch(/Deepwiki/)
   })
 
+  it('prints the API data verbatim for machine output, envelope included', async () => {
+    // `--output json` is what scripts and the agent reference card (generated from the
+    // OpenAPI response shapes) consume: the single-key unwrap above is a table-only
+    // convenience, so JSON keeps `mcpServer` exactly as the API returned it.
+    const printed = await lines(
+      [
+        'mcp-servers',
+        'create',
+        '--name',
+        'Deepwiki',
+        '--transport',
+        'streamable-http',
+        '--url',
+        'https://mcp.deepwiki.com/mcp',
+      ],
+      { mcpServer: { id: 'mcp-1', name: 'Deepwiki', enabled: true } },
+      'json'
+    )
+
+    expect(JSON.parse(printed.join('\n'))).toEqual({
+      mcpServer: { id: 'mcp-1', name: 'Deepwiki', enabled: true },
+    })
+  })
+
   it('renders nested fields instead of dropping them', async () => {
     // `workflows export` printed `version` and `exportedAt` and nothing else:
     // the record builder kept only scalars, so `workflow` and `state` — the

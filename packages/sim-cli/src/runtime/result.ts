@@ -458,7 +458,10 @@ export function renderResult(
     return
   }
 
-  const data = unwrapResource(raw)
+  // The single-key unwrap exists for the human table: `{ mcpServer: {...} }` rendered as-is
+  // printed nothing. Machine formats print the API's data verbatim, so `--output json`
+  // matches the OpenAPI shape the docs and the agent reference card are generated from.
+  const data = format === 'json' || format === 'yaml' ? raw : unwrapResource(raw)
   if (spec.itemsPath) {
     const items = at(data, spec.itemsPath)
     if (!Array.isArray(items)) {
