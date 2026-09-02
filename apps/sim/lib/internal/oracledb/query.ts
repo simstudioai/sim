@@ -328,6 +328,13 @@ export function validateOracleWhere(where: string): ValidationResult {
   if (scan.error) return invalid(scan.error)
   if (scan.hasComment) return invalid('WHERE clause cannot contain SQL comments or hints')
   if (scan.semicolonIndex !== undefined) return invalid('WHERE clause cannot contain a semicolon')
+  // Oracle also uses `:` in JSON_OBJECT; a parenthesized value is the documented
+  // form that keeps client drivers from interpreting the separator as a bind.
+  if (/:(?!\s*\()/.test(scan.masked)) {
+    return invalid(
+      'Structured WHERE clauses cannot contain bind placeholders; use literal predicates or Execute with named binds'
+    )
+  }
   if (ORACLE_WHERE_MASKED_PATTERNS.some((pattern) => pattern.test(scan.masked))) {
     return invalid('WHERE clause contains a disallowed or always-true expression')
   }

@@ -11,6 +11,7 @@ import {
   oracleQueryTool,
   oracleUpdateTool,
 } from '@/tools/oracledb'
+import type { OracleQueryParams } from '@/tools/oracledb/types'
 
 const CONNECTION_FIELDS = [
   'host',
@@ -112,6 +113,23 @@ describe('Oracle Database public integration contract', () => {
       port: 1522,
       connectionTimeout: 30000,
       data: { CUSTOMER_ID: 42, NAME: 'Ada' },
+    })
+  })
+
+  it('accepts the defaulted connection fields as optional in the exported contract', () => {
+    const minimal = {
+      host: 'db.example.com',
+      serviceName: 'FREEPDB1',
+      username: 'application',
+      password: 'secret',
+      query: 'SELECT 1 FROM DUAL',
+    } satisfies OracleQueryParams
+
+    expect(oracleQueryTool.operation.input(minimal)).toMatchObject({
+      port: 1521,
+      protocol: 'tcp',
+      connectionType: 'serviceName',
+      connectionTimeout: 15000,
     })
   })
 

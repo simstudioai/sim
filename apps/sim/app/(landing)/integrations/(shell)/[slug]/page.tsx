@@ -110,7 +110,7 @@ const AUTH_STEP: Record<AuthType, (name: string) => string> = {
     `Connect your ${name} account with one-click OAuth, with no credentials to copy.`,
   'api-key': (name) =>
     `Paste your ${name} API key to authenticate. You can find it in your ${name} account settings.`,
-  none: () => 'No authentication is needed, so the block works as soon as you drop it in.',
+  none: () => 'Configure the block directly; no separate account connection is needed.',
 }
 
 /** Human-readable catalog refresh date for the visible last-updated line. */
@@ -503,7 +503,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             ? `${name} connects with one-click OAuth.`
             : authType === 'api-key'
               ? `${name} connects with an API key.`
-              : `${name} requires no authentication.`}{' '}
+              : `${name} is configured directly in its workflow block.`}{' '}
           Free to start at sim.ai.
         </p>
 
@@ -658,7 +658,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                     ? `Open your workspace, drag ${articleFor(name)} ${name} block onto the workflow builder, and connect your account with one-click OAuth.`
                     : authType === 'api-key'
                       ? `Open your workspace, drag ${articleFor(name)} ${name} block onto the workflow builder, and paste in your ${name} API key.`
-                      : `Open your workspace, drag ${articleFor(name)} ${name} block onto the workflow builder. No authentication is needed.`,
+                      : `Open your workspace, drag ${articleFor(name)} ${name} block onto the workflow builder, and configure its inputs directly. No separate account connection is needed.`,
               },
               {
                 step: '03',

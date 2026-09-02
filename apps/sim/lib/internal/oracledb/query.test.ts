@@ -129,9 +129,27 @@ describe('Oracle SQL validation and builders', () => {
     ).toThrow('always-true')
   })
 
-  it('accepts ordinary function, range, and q-quoted predicates', () => {
+  it('rejects unbound placeholders in structured WHERE clauses', () => {
+    expect(() => buildOracleUpdate(undefined, 'Users', { active: 0 }, 'id = :b1')).toThrow(
+      'bind placeholders'
+    )
+    expect(() => buildOracleDelete(undefined, 'Users', 'id = :id')).toThrow('bind placeholders')
+  })
+
+  it('accepts ordinary function, range, quoted-colon, and q-quoted predicates', () => {
     expect(() =>
-      buildOracleDelete(undefined, 'Users', "UPPER(name) = UPPER(q'[Ada]') AND id BETWEEN 1 AND 10")
+      buildOracleDelete(
+        undefined,
+        'Users',
+        "UPPER(name) = UPPER(q'[Ada]') AND note = 'a:b' AND id BETWEEN 1 AND 10"
+      )
+    ).not.toThrow()
+    expect(() =>
+      buildOracleDelete(
+        undefined,
+        'Users',
+        `JSON_OBJECT('id':(id) RETURNING VARCHAR2) = '{"id":42}'`
+      )
     ).not.toThrow()
   })
 })

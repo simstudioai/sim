@@ -8,9 +8,9 @@ export type OracleBinds = Record<string, OracleBindScalar>
 /** Connection fields accepted by every Oracle Database tool. */
 export interface OracleConnectionConfig {
   host: string
-  port: number
-  protocol: OracleProtocol
-  connectionType: OracleConnectionType
+  port?: number
+  protocol?: OracleProtocol
+  connectionType?: OracleConnectionType
   serviceName?: string
   sid?: string
   username: string
