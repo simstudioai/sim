@@ -74,6 +74,12 @@ interface TableBlockParams {
   folderSearch?: string
   folderLimit?: string
   deleteFolderRecursive?: unknown
+  /* Model-supplied tool params, present when the block runs as an Agent tool. */
+  path?: string
+  destinationPath?: string
+  search?: string
+  depth?: string
+  limit?: string
 }
 
 /**
@@ -202,13 +208,40 @@ function folderPathPrefix(parentPath: string | undefined): string {
   return parentPath && parentPath !== ROOT_FOLDER_PATH ? parentPath : ''
 }
 
+/**
+ * The canvas value if the author set one, else the value the model supplied.
+ *
+ * A block used as an Agent tool is handed the TOOL's schema, not this block's
+ * subblock ids (`createLLMToolSchema(toolConfig, ...)` in `providers/utils.ts`),
+ * so a model answers with `path` / `folderPath` while the canvas stores
+ * `folderRef` / `moveTargetRef`. Reading only the canvas id drops the model's
+ * answer — and on move the tool then substitutes the workspace root, turning
+ * "move into /Reports" into "move to the root". Same precedent as `columns`
+ * above.
+ */
+function canvasOrModel<T>(canvas: T | undefined, model: T | undefined): T | undefined {
+  return canvas !== undefined ? canvas : model
+}
+
+/** A switch the author never touched arrives empty; only then does the model's answer count. */
+function switchOrModel(canvas: unknown, model: unknown): boolean {
+  const authored = canvas !== undefined && canvas !== null && canvas !== ''
+  return switchValue(authored ? canvas : model)
+}
+
 const paramTransformers: Record<string, (params: TableBlockParams) => ParsedParams> = {
   list_folders: (params) => ({
-    path: folderRefPath(params.folderRef),
-    recursive: switchValue(params.folderRecursive),
-    depth: parseOptionalNumberInput(params.folderDepth, 'Max Depth', { integer: true, min: 1 }),
-    search: optionalText(params.folderSearch),
-    limit: parseOptionalNumberInput(params.folderLimit, 'Limit', { integer: true, min: 1 }),
+    path: canvasOrModel(folderRefPath(params.folderRef), optionalText(params.path)),
+    recursive: switchOrModel(params.folderRecursive, params.recursive),
+    depth: canvasOrModel(
+      parseOptionalNumberInput(params.folderDepth, 'Max Depth', { integer: true, min: 1 }),
+      parseOptionalNumberInput(params.depth, 'Max Depth', { integer: true, min: 1 })
+    ),
+    search: canvasOrModel(optionalText(params.folderSearch), optionalText(params.search)),
+    limit: canvasOrModel(
+      parseOptionalNumberInput(params.folderLimit, 'Limit', { integer: true, min: 1 }),
+      parseOptionalNumberInput(params.limit, 'Limit', { integer: true, min: 1 })
+    ),
   }),
 
   /*
@@ -221,7 +254,10 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
     const name = optionalText(params.folderName)
     const parentPrefix = folderPathPrefix(folderRefPath(params.createParentRef))
     return {
-      path: name ? `${parentPrefix}/${encodeFolderPathSegment(name)}` : undefined,
+      path: canvasOrModel(
+        name ? `${parentPrefix}/${encodeFolderPathSegment(name)}` : undefined,
+        optionalText(params.path)
+      ),
     }
   },
 
@@ -233,27 +269,43 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
    * and is not offered here.
    */
   update_folder: (params) => {
-    const sourcePath = folderRefPath(params.folderRef)
-    const segment = sourcePath?.split('/').pop()
-    const parentPrefix = folderPathPrefix(folderRefPath(params.destinationParentRef))
+    const canvasSource = folderRefPath(params.folderRef)
+    if (canvasSource) {
+      /*
+       * Canvas mode: the destination is composed, because the path the folder
+       * WILL have does not exist yet and cannot be picked. An unset parent is
+       * the workspace root, which is a real destination, not a missing one.
+       */
+      const segment = canvasSource.split('/').pop()
+      const parentPrefix = folderPathPrefix(folderRefPath(params.destinationParentRef))
+      return {
+        path: canvasSource,
+        destinationPath: segment ? `${parentPrefix}/${segment}` : undefined,
+      }
+    }
+    /* Agent mode: the model addresses both ends directly. */
     return {
-      path: sourcePath,
-      destinationPath: segment ? `${parentPrefix}/${segment}` : undefined,
+      path: optionalText(params.path),
+      destinationPath: optionalText(params.destinationPath),
     }
   },
 
   delete_folder: (params) => ({
-    path: folderRefPath(params.folderRef),
+    path: canvasOrModel(folderRefPath(params.folderRef), optionalText(params.path)),
+    /*
+     * No model fallback: the cascade is `user-only` on both the tool param and
+     * the subblock, so a model must never be able to supply it.
+     */
     recursive: switchValue(params.deleteFolderRecursive),
   }),
 
   restore_folder: (params) => ({
-    path: optionalText(params.restoreFolderPath),
+    path: canvasOrModel(optionalText(params.restoreFolderPath), optionalText(params.path)),
   }),
 
   move: (params) => ({
     tableId: params.tableId,
-    folderPath: folderRefPath(params.moveTargetRef),
+    folderPath: canvasOrModel(folderRefPath(params.moveTargetRef), optionalText(params.folderPath)),
   }),
 
   insert_row: (params) => ({

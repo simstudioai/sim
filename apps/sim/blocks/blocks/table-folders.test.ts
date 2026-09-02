@@ -258,3 +258,92 @@ describe('table_v2 names every operation on the canvas', () => {
     }
   })
 })
+
+/*
+ * A block used as an Agent tool is handed the TOOL's schema, not this block's
+ * subblock ids, so a model answers with `path` / `folderPath` while the canvas
+ * stores `folderRef` / `moveTargetRef`. Reading only the canvas id dropped the
+ * model's answer — and on move the tool's root fallback then turned "move into
+ * /Reports" into "move to the root", silently.
+ */
+describe('table_v2 keeps the destination a model asked for', () => {
+  it('moves the table where the model said, not to the workspace root', () => {
+    const params = paramsFor('move', { tableId: 'table-1', folderPath: '/Reports' })
+
+    expect(params.folderPath).toBe('/Reports')
+    expect(tableMoveSchemas.body.safeParse(params).success).toBe(true)
+  })
+
+  it('lets the canvas destination win when the author picked one', () => {
+    const params = paramsFor('move', {
+      tableId: 'table-1',
+      moveTargetRef: '/Archive',
+      folderPath: '/Reports',
+    })
+
+    expect(params.folderPath).toBe('/Archive')
+  })
+
+  it('still reads an unset canvas destination as the workspace root', () => {
+    /* No model answer either, so the tool's root fallback is the only signal. */
+    expect(paramsFor('move', { tableId: 'table-1', moveTargetRef: '' }).folderPath).toBeUndefined()
+  })
+
+  it.each([
+    ['list_folders', { path: '/Reports' }, 'path'],
+    ['create_folder', { path: '/Reports/Q3' }, 'path'],
+    ['delete_folder', { path: '/Reports' }, 'path'],
+    ['restore_folder', { path: '/Reports/Q3' }, 'path'],
+  ] as const)('carries a model-supplied path through %s', (operation, modelParams, field) => {
+    expect(paramsFor(operation, modelParams)[field]).toBe(modelParams.path)
+  })
+
+  it('carries both ends of a model-driven folder move', () => {
+    const params = paramsFor('update_folder', {
+      path: '/Reports/Q3',
+      destinationPath: '/Archive/Q3',
+    })
+
+    expect(params).toMatchObject({ path: '/Reports/Q3', destinationPath: '/Archive/Q3' })
+    expect(tableUpdateFolderSchemas.body.safeParse(params).success).toBe(true)
+  })
+
+  it('keeps composing from the canvas when the author picked a source folder', () => {
+    /* Canvas mode still moves to the root when no destination parent is set. */
+    const params = paramsFor('update_folder', {
+      folderRef: '/Reports/Q3',
+      destinationParentRef: '',
+      destinationPath: '/Ignored/Q3',
+    })
+
+    expect(params).toMatchObject({ path: '/Reports/Q3', destinationPath: '/Q3' })
+  })
+
+  it('carries model-supplied listing options', () => {
+    const params = paramsFor('list_folders', {
+      path: '/Reports',
+      recursive: true,
+      depth: 2,
+      search: 'Q3',
+      limit: 25,
+    })
+
+    expect(params).toMatchObject({ recursive: true, depth: 2, search: 'Q3', limit: 25 })
+    expect(tableListFoldersSchemas.body.safeParse(params).success).toBe(true)
+  })
+
+  it('never takes the delete cascade from a model', () => {
+    /*
+     * `recursive` is user-only on the tool param AND on the subblock, so a model
+     * answer must not reach the use case even if one is somehow present.
+     */
+    const params = paramsFor('delete_folder', { path: '/Reports', recursive: true })
+
+    expect(params.recursive).toBe(false)
+  })
+
+  it('marks the delete cascade user-only on the subblock, not just the tool', () => {
+    /* The block's own schema is what an Agent tool surface is built from. */
+    expect(subBlock('deleteFolderRecursive')?.paramVisibility).toBe('user-only')
+  })
+})

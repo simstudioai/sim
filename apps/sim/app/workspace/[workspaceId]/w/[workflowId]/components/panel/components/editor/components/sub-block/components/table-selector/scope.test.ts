@@ -106,3 +106,45 @@ describe('parseFolderScope', () => {
     expect(isTableInFolderScope({ folderId: 'archive' }, FOLDERS, null)).toBe(true)
   })
 })
+
+/*
+ * The clearing rule the component applies when a scope change hides the current
+ * selection. Expressed here as the predicate the effect guards on, so the
+ * "don't clear a table that merely has not loaded" case is pinned.
+ */
+describe('a selection hidden by a scope change', () => {
+  const TABLES = [
+    { id: 'in-scope', folderId: 'q3' },
+    { id: 'out-of-scope', folderId: 'archive' },
+  ]
+
+  function shouldClear(tableId: string, scope: string): boolean {
+    const loaded = TABLES.some((t) => t.id === tableId)
+    if (!loaded) return false
+    const segments = parseFolderScope(scope)
+    return !TABLES.filter((t) => isTableInFolderScope(t, FOLDERS, segments)).some(
+      (t) => t.id === tableId
+    )
+  }
+
+  it('clears a loaded table the new scope excludes', () => {
+    expect(shouldClear('out-of-scope', '/Reports')).toBe(true)
+  })
+
+  it('keeps a table the scope still admits', () => {
+    expect(shouldClear('in-scope', '/Reports')).toBe(false)
+  })
+
+  it('keeps everything when the scope is cleared', () => {
+    expect(shouldClear('out-of-scope', '')).toBe(false)
+  })
+
+  it('never clears a table that is not in the loaded list', () => {
+    /* Still loading, or deleted - clearing there would destroy a valid config. */
+    expect(shouldClear('not-loaded', '/Reports')).toBe(false)
+  })
+
+  it('never clears on a scope that cannot be parsed', () => {
+    expect(shouldClear('out-of-scope', 'Reports')).toBe(false)
+  })
+})
