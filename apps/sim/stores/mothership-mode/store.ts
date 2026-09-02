@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
-export const MOTHERSHIP_MODES = ['build', 'search'] as const
+export const MOTHERSHIP_MODES = ['build', 'ask', 'search'] as const
 
 export type MothershipMode = (typeof MOTHERSHIP_MODES)[number]
 
@@ -14,8 +14,10 @@ interface MothershipModeState {
 const initialState: Pick<MothershipModeState, 'mode'> = { mode: 'build' }
 
 /**
- * The chat composer's mode — Build (default) or Search — read by the input's
- * mode switcher and by the suggested actions beneath the input.
+ * The chat composer's mode — Build (default), Ask, or Search — read by the
+ * input's mode switcher and by the suggested actions beneath the input. Ask is
+ * a turn of the agent grounded in the searched sources; Search answers with
+ * documents and no turn at all.
  *
  * A store rather than `Home` state because `Home` remounts per chat
  * (`key={chatId}`) and the new-chat → `/chat/[chatId]` handoff must carry the

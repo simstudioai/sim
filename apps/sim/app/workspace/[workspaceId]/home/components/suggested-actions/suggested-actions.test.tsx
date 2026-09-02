@@ -128,4 +128,14 @@ describe('SuggestedActions', () => {
     expect(document.querySelector('[data-testid="search-sources"]')).not.toBeNull()
     expect(rows()).toHaveLength(0)
   })
+
+  it('shows the sources in Ask mode, which answers from them', () => {
+    mount()
+
+    act(() => useMothershipModeStore.getState().setMode('ask'))
+
+    expect(heading()).toBe('Sources')
+    expect(document.querySelector('[data-testid="search-sources"]')).not.toBeNull()
+    expect(rows()).toHaveLength(0)
+  })
 })

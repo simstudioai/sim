@@ -21,6 +21,7 @@ import { useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
+import type { KnowledgeBaseData } from '@/lib/api/contracts/knowledge/base'
 import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
@@ -33,6 +34,10 @@ import {
   type MothershipSendMessageDetail,
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
+import {
+  searchedKnowledgeBases,
+  withSearchedKnowledgeContexts,
+} from '@/lib/sim-search/knowledge-bases'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 /**
  * Imported from its own folder, not the components barrel: the workflow copilot
@@ -57,6 +62,7 @@ import {
   searchQueryParam,
 } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
+import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
@@ -86,6 +92,9 @@ import type {
 } from './types'
 
 const logger = createLogger('Home')
+
+/** Stable empty list, so a missing base list never rebuilds what reads it. */
+const EMPTY_KNOWLEDGE_BASES: KnowledgeBaseData[] = []
 
 /**
  * The resource preview panel pulls in the file-viewer stack (rich-markdown
@@ -182,6 +191,12 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     if (initialSearchQuery) useMothershipModeStore.getState().setMode('search')
   }, [initialSearchQuery])
   const composerMode = useMothershipModeStore((state) => state.mode)
+  /** The bases an Ask turn is grounded in; read through a ref so a list refresh never rebuilds the submit handler. */
+  const { data: knowledgeBases = EMPTY_KNOWLEDGE_BASES } = useKnowledgeBasesQuery(workspaceId)
+  const knowledgeBasesRef = useRef(knowledgeBases)
+  useEffect(() => {
+    knowledgeBasesRef.current = knowledgeBases
+  }, [knowledgeBases])
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
   const initialViewUserInputRef = useRef<UserInputHandle>(null)
@@ -473,7 +488,8 @@ export function Home({ chatId, userName, userId }: HomeProps) {
        * Search mode answers with documents, not a turn of the agent, and only
        * a query can be answered: attachments alone have nothing to search for.
        */
-      if (useMothershipModeStore.getState().mode === 'search') {
+      const mode = useMothershipModeStore.getState().mode
+      if (mode === 'search') {
         if (trimmed) setSearchQuery(trimmed)
         return
       }
@@ -483,7 +499,15 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       }
 
       prepareResourceViewForAgentTurn()
-      sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
+      /** Ask is a turn of the agent grounded in the searched sources. */
+      const turnContexts =
+        mode === 'ask'
+          ? withSearchedKnowledgeContexts(
+              contexts,
+              searchedKnowledgeBases(knowledgeBasesRef.current, workspaceId)
+            )
+          : contexts
+      sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, turnContexts)
     },
     [workspaceId, chatId, prepareResourceViewForAgentTurn, sendMessage, setSearchQuery]
   )
@@ -491,22 +515,23 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   /** An emptied search box returns to the sources; nothing else reads the cleared query. */
   const clearSearch = useCallback(() => setSearchQuery(''), [setSearchQuery])
 
-  /** Summarize on a result: hand the document to the agent in Build mode. */
+  /** Summarize or Answer on a result: hand the question to the agent in Ask mode. */
   const handleSummarize = useCallback(
     (prompt: string) => {
-      useMothershipModeStore.getState().setMode('build')
+      useMothershipModeStore.getState().setMode('ask')
       setSearchQuery('')
       handleSubmit(prompt)
     },
     [handleSubmit, setSearchQuery]
   )
   /**
-   * A chat that already exists opens in Build: its transcript is a
-   * conversation, and search results never join it. A new chat keeps whatever
-   * mode the person used last.
+   * A chat that already exists never opens in Search: its transcript is a
+   * conversation, and search results never join it. Build and Ask both carry
+   * over, so a follow-up question stays grounded in the sources.
    */
   useEffect(() => {
-    if (chatId) useMothershipModeStore.getState().setMode('build')
+    const store = useMothershipModeStore.getState()
+    if (chatId && store.mode === 'search') store.setMode('build')
   }, [chatId])
   const showSearchResults = composerMode === 'search' && searchQuery.trim().length > 0
   const searchResults = showSearchResults ? (

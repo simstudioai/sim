@@ -8,6 +8,7 @@ import { useQueryStates } from 'nuqs'
 import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowledge'
 import { matchSnippet } from '@/lib/knowledge/search/snippet'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
+import { searchedKnowledgeBases } from '@/lib/sim-search/knowledge-bases'
 import {
   highlightTerms,
   SOURCE_ROW_CLASSES,
@@ -33,8 +34,6 @@ import { useKnowledgeBasesQuery, useWorkspaceKnowledgeSearch } from '@/hooks/que
 
 const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
 
-/** A search spans at most this many knowledge bases. */
-const MAX_SEARCHED_KNOWLEDGE_BASES = 20
 /** Filters appear only once a list is long and mixed enough for them to help. */
 const FILTERS_MIN_RESULTS = 10
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -178,14 +177,7 @@ export function KnowledgeSearchResults({
     isPending: basesPending,
     error: basesError,
   } = useKnowledgeBasesQuery(workspaceId)
-  /**
-   * The list also carries the viewer's legacy personal bases, which have no
-   * workspace; a search names one workspace and refuses a base outside it.
-   */
-  const knowledgeBaseIds = knowledgeBases
-    .filter((kb) => kb.workspaceId === workspaceId)
-    .slice(0, MAX_SEARCHED_KNOWLEDGE_BASES)
-    .map((kb) => kb.id)
+  const knowledgeBaseIds = searchedKnowledgeBases(knowledgeBases, workspaceId).map((kb) => kb.id)
   const {
     data: results,
     isPending,
