@@ -19,7 +19,10 @@ vi.mock('sim/embed', () => ({
   createEmbeddedClient: vi.fn(),
 }))
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: mockMint }))
-vi.mock('@/lib/core/utils/urls', () => ({ getInternalApiBaseUrl: () => 'http://internal' }))
+vi.mock('@/lib/core/utils/urls', () => ({
+  getInternalApiBaseUrl: () => 'http://internal',
+  SITE_URL: 'http://sim.test',
+}))
 
 import type { AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
