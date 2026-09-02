@@ -261,9 +261,11 @@ The main environment variables are:
 | `SIM_DEBUG` | Print request diagnostics to stderr |
 | `SIM_NO_UPDATE_CHECK` | Turn off the update notice |
 
-Once a day, at an interactive terminal, `sim` asks `registry.npmjs.org` which
-version is published under the tag it was installed from, and prints one line on
-stderr when a newer one exists. It sends nothing but its own version and never
+Once a day, at an interactive terminal, `sim` asks `registry.npmjs.org` what is
+published under the `latest` tag and prints one line on stderr when a newer
+version exists. Prerelease installs are skipped entirely. The once-a-day pace
+depends on a writable `~/.sim`; without one the check runs per command, still
+bounded by a one-second timeout. It sends nothing but its own version and never
 your Sim API key. If `npm_config_registry` points at a private mirror, the check
 goes there instead and carries whatever credentials that URL embeds, since the
 mirror would otherwise refuse it. Set `SIM_NO_UPDATE_CHECK=1` to turn it off;

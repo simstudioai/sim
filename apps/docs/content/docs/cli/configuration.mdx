@@ -124,8 +124,9 @@ shared profile cannot also set its own endpoint or API key.
 ## Update notices
 
 At most once a day, and only when stderr is a terminal, the CLI asks
-`registry.npmjs.org` which version is published under the dist-tag it was
-installed from. When a newer one exists it prints a single line on stderr naming
+`registry.npmjs.org` what is published under the `latest` tag. Prerelease
+installs are skipped entirely rather than compared against their own channel,
+so a `-preview` or `-dev` build is never told to upgrade. When a newer one exists it prints a single line on stderr naming
 both versions and the command that upgrades:
 
 ```
@@ -153,6 +154,12 @@ The notice is skipped entirely when:
 - the CLI is running from a checkout of the sim repository, whose version
   deliberately trails the published one
 - the installed version is a prerelease from the `staging` or `dev` channel
+
+The once-a-day pace comes from a timestamp in `~/.sim/update-check.json`. If
+that file cannot be written — a read-only home in a container, or a `~/.sim`
+left root-owned by an earlier `sudo` install — the pace cannot be remembered,
+so the check runs once per command instead of once per day. It stays bounded by
+the same one-second timeout, and `SIM_NO_UPDATE_CHECK=1` still turns it off.
 
 Set `npm_config_registry` to ask a mirror instead; its path and query are
 preserved, so a token-authenticated Artifactory or Nexus base works.
