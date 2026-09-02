@@ -53,7 +53,7 @@ export async function executeAgentCliRequest(
     result = await runCli(request.invocation.argv, identity, sessionKey)
   }
   if (result.exitCode === 0 && request.pipeline.length > 0) {
-    result = { ...result, stdout: applyPipeline(result.stdout, request.pipeline) }
+    result = await applyPipeline(result, request.pipeline)
   }
   return request.sink ? applySink(request.sink, sessionKey, result) : result
 }
