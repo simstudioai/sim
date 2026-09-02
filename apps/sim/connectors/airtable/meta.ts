@@ -14,6 +14,11 @@ export const airtableConnectorMeta: ConnectorMeta = {
     requiredScopes: ['data.records:read', 'schema.bases:read'],
   },
 
+  /**
+   * The listing is one configured table's records under the caller's own
+   * token, which reaches only the bases that member granted and can read.
+   */
+  permissionScopedListing: { capFieldIds: ['maxRecords'] },
   configFields: [
     {
       id: 'baseSelector',

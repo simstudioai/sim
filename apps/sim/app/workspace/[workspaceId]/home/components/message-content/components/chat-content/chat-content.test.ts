@@ -15,6 +15,14 @@ describe('sanitizeChatDisplayContent', () => {
     )
   })
 
+  it('unwraps source tags from inline code spans', () => {
+    const content = '`Block them first. <source>{"url":"https://docs.github.com/a"}</source>`'
+
+    expect(sanitizeChatDisplayContent(content)).toBe(
+      'Block them first. <source>{"url":"https://docs.github.com/a"}</source>'
+    )
+  })
+
   it('removes hidden internal references wrapped in inline code', () => {
     const content = 'Read `internal/tool-results/read-1.md` and found the issue.'
 

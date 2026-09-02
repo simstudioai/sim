@@ -4,7 +4,13 @@ import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { microsoftExcelConnectorMeta } from '@/connectors/microsoft-excel/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { markSkipped, parseTagDate, readBodyWithLimit } from '@/connectors/utils'
+import {
+  ConnectorListingScopeUnavailableError,
+  isListingScopeUnavailableError,
+  markSkipped,
+  parseTagDate,
+  readBodyWithLimit,
+} from '@/connectors/utils'
 import type { ExcelCellValue } from '@/tools/microsoft_excel/types'
 import {
   escapeODataString,
@@ -221,11 +227,18 @@ function worksheetUrl(basePath: string, sheetName: string): string {
   return `${basePath}/workbook/worksheets('${encodeURIComponent(escapeODataString(sheetName))}')`
 }
 
-/** Throws a Graph-formatted error for a failed response. */
+/**
+ * Throws a Graph-formatted error for a failed response. A workbook Graph will
+ * not open for the caller (403 `accessDenied`, 404 `itemNotFound`) is a scope
+ * they cannot reach rather than a fault to retry.
+ */
 async function graphError(response: Response, context: string): Promise<never> {
   const body = await response.text().catch(() => '')
   const detail = parseGraphErrorMessage(response.status, response.statusText, body)
-  throw new Error(`${context}: ${detail}`)
+  const message = `${context}: ${detail}`
+  throw response.status === 403 || response.status === 404
+    ? new ConnectorListingScopeUnavailableError(message, response.status)
+    : new Error(message)
 }
 
 /** Fetches the workbook drive item (name, webUrl, lastModifiedDateTime). */
@@ -489,6 +502,8 @@ function resolveBasePath(sourceConfig: Record<string, unknown>): {
 
 export const microsoftExcelConnector: ConnectorConfig = {
   ...microsoftExcelConnectorMeta,
+
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
 
   listDocuments: async (
     accessToken: string,

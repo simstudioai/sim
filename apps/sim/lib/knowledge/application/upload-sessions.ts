@@ -88,11 +88,20 @@ export interface CompleteKnowledgeDocumentUploadResult {
 
 export const createKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadCreate,
-  resolveContext: ({ input }: { input: CreateKnowledgeDocumentUploadInput }) =>
-    resolveActiveKnowledgeBaseContext({
-      knowledgeBaseId: input.knowledgeBaseId,
-      assertedWorkspaceId: input.assertedWorkspaceId,
-    }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: CreateKnowledgeDocumentUploadInput
+  }) =>
+    resolveActiveKnowledgeBaseContext(
+      {
+        knowledgeBaseId: input.knowledgeBaseId,
+        assertedWorkspaceId: input.assertedWorkspaceId,
+      },
+      principal
+    ),
   async execute({ principal, input, context, request }) {
     if (!request) throw new Error('Knowledge upload creation requires a request context')
     const billingAttribution = await resolveKnowledgeBillingAttribution(principal, context)
@@ -140,11 +149,20 @@ export const createKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
 
 export const issueKnowledgeDocumentUploadParts = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadParts,
-  resolveContext: ({ input }: { input: IssueKnowledgeDocumentUploadPartsInput }) =>
-    resolveActiveKnowledgeBaseContext({
-      knowledgeBaseId: input.knowledgeBaseId,
-      assertedWorkspaceId: input.assertedWorkspaceId,
-    }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: IssueKnowledgeDocumentUploadPartsInput
+  }) =>
+    resolveActiveKnowledgeBaseContext(
+      {
+        knowledgeBaseId: input.knowledgeBaseId,
+        assertedWorkspaceId: input.assertedWorkspaceId,
+      },
+      principal
+    ),
   async execute({ principal, input, context, request }) {
     if (!request) throw new Error('Knowledge upload part issuance requires a request context')
     const session = await loadBoundKnowledgeDocumentUpload(principal, input, context)
@@ -161,11 +179,20 @@ export const issueKnowledgeDocumentUploadParts = defineAuthorizedKnowledgeUseCas
 
 export const cancelKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadCancel,
-  resolveContext: ({ input }: { input: KnowledgeDocumentUploadControlInput }) =>
-    resolveActiveKnowledgeBaseContext({
-      knowledgeBaseId: input.knowledgeBaseId,
-      assertedWorkspaceId: input.assertedWorkspaceId,
-    }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: KnowledgeDocumentUploadControlInput
+  }) =>
+    resolveActiveKnowledgeBaseContext(
+      {
+        knowledgeBaseId: input.knowledgeBaseId,
+        assertedWorkspaceId: input.assertedWorkspaceId,
+      },
+      principal
+    ),
   async execute({ principal, input, context }) {
     const session = await loadBoundKnowledgeDocumentUpload(principal, input, context)
     await reauthorizeKnowledgeDocumentUpload(principal, session, knowledgeOperations.uploadCancel)
@@ -183,11 +210,20 @@ export const cancelKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
 
 export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadComplete,
-  resolveContext: ({ input }: { input: CompleteKnowledgeDocumentUploadInput }) =>
-    resolveActiveKnowledgeBaseContext({
-      knowledgeBaseId: input.knowledgeBaseId,
-      assertedWorkspaceId: input.assertedWorkspaceId,
-    }),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: CompleteKnowledgeDocumentUploadInput
+  }) =>
+    resolveActiveKnowledgeBaseContext(
+      {
+        knowledgeBaseId: input.knowledgeBaseId,
+        assertedWorkspaceId: input.assertedWorkspaceId,
+      },
+      principal
+    ),
   async execute({
     principal,
     input,
@@ -446,10 +482,13 @@ async function reauthorizeKnowledgeDocumentUpload(
     throw new OrchestrationError('not_found', 'Upload session not found')
   }
   assertUploadSessionAuthBinding(session, principal)
-  const context = await resolveActiveKnowledgeBaseContext({
-    knowledgeBaseId: session.knowledgeBaseId,
-    assertedWorkspaceId: session.workspaceId,
-  })
+  const context = await resolveActiveKnowledgeBaseContext(
+    {
+      knowledgeBaseId: session.knowledgeBaseId,
+      assertedWorkspaceId: session.workspaceId,
+    },
+    principal
+  )
   await authorizeWorkspaceOperation(principal, operation, context, {
     delegation: knowledgeDelegationPolicy,
   })

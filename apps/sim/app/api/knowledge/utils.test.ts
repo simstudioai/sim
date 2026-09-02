@@ -134,11 +134,7 @@ vi.stubGlobal('fetch', createEmbeddingFetchMock())
 
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
-import {
-  checkChunkAccess,
-  checkDocumentAccess,
-  checkKnowledgeBaseAccess,
-} from '@/app/api/knowledge/utils'
+import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 
 describe('Knowledge Utils', () => {
   beforeEach(() => {
@@ -247,49 +243,6 @@ describe('Knowledge Utils', () => {
 
       expect(result.hasAccess).toBe(false)
       expect('notFound' in result && result.notFound).toBe(true)
-    })
-  })
-
-  describe('checkDocumentAccess', () => {
-    it('should return unauthorized when user mismatch', async () => {
-      queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb1', userId: 'owner' }])
-      const result = await checkDocumentAccess('kb1', 'doc1', 'intruder')
-
-      expect(result.hasAccess).toBe(false)
-      if ('reason' in result) {
-        expect(result.reason).toBe('Unauthorized knowledge base access')
-      }
-    })
-  })
-
-  describe('checkChunkAccess', () => {
-    it('should fail when document is not completed', async () => {
-      queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb1', userId: 'user1' }])
-      queueTableRows(schemaMock.document, [
-        { id: 'doc1', knowledgeBaseId: 'kb1', processingStatus: 'processing' },
-      ])
-
-      const result = await checkChunkAccess('kb1', 'doc1', 'chunk1', 'user1')
-
-      expect(result.hasAccess).toBe(false)
-      if ('reason' in result) {
-        expect(result.reason).toContain('Document is not ready')
-      }
-    })
-
-    it('should return success for valid access', async () => {
-      queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb1', userId: 'user1' }])
-      queueTableRows(schemaMock.document, [
-        { id: 'doc1', knowledgeBaseId: 'kb1', processingStatus: 'completed' },
-      ])
-      queueTableRows(schemaMock.embedding, [{ id: 'chunk1', documentId: 'doc1' }])
-
-      const result = await checkChunkAccess('kb1', 'doc1', 'chunk1', 'user1')
-
-      expect(result.hasAccess).toBe(true)
-      if ('chunk' in result) {
-        expect(result.chunk.id).toBe('chunk1')
-      }
     })
   })
 

@@ -1730,6 +1730,7 @@ export class AgentBlockHandler implements BlockHandler {
         fileKeys: ctx.fileKeys,
         allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
         userId: ctx.userId,
+        principal: ctx.principal,
         logger,
         maxBytes: inlineMaxBytes,
         onServableFileContributors: async (file, contributors) => {

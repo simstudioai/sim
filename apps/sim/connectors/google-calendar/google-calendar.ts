@@ -3,7 +3,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_EVENTS, googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseMultiValue, parseTagDate } from '@/connectors/utils'
+import {
+  isListingScopeUnavailableError,
+  isPerMemberListing,
+  listingRequestError,
+  parseMultiValue,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('GoogleCalendarConnector')
 
@@ -301,6 +307,8 @@ function eventToDocument(
 export const googleCalendarConnector: ConnectorConfig = {
   ...googleCalendarConnectorMeta,
 
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -341,9 +349,9 @@ export const googleCalendarConnector: ConnectorConfig = {
     const calendarId = calendarIds[calendarIndex]
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
-    const rawMaxEvents = sourceConfig.maxEvents
-      ? Number(sourceConfig.maxEvents)
-      : DEFAULT_MAX_EVENTS
+    /** Absent means the default cap; an explicit 0 (a per-member sync) means unlimited. */
+    const rawMaxEvents =
+      sourceConfig.maxEvents === undefined ? DEFAULT_MAX_EVENTS : Number(sourceConfig.maxEvents)
     const maxEvents = Number.isFinite(rawMaxEvents) ? rawMaxEvents : 0
     const isCapped = maxEvents > 0
     /**
@@ -397,7 +405,33 @@ export const googleCalendarConnector: ConnectorConfig = {
         calendarId,
         error: errorText,
       })
-      throw new Error(`Failed to list Google Calendar events: ${response.status}`)
+      const error = listingRequestError('Failed to list Google Calendar events', response.status)
+      /**
+       * One of several calendars a member cannot reach is absent from their
+       * listing, not the end of it: move on to the next calendar so the rest of
+       * their access survives. A sole unreachable calendar is the whole scope,
+       * which the members-mode crawl reads as a complete listing of nothing, and
+       * a shared credential still fails the sync rather than silently dropping
+       * the calendar's events.
+       */
+      if (
+        isListingScopeUnavailableError(error) &&
+        calendarIds.length > 1 &&
+        isPerMemberListing(syncContext)
+      ) {
+        logger.warn('Skipping a Google Calendar the member cannot reach', {
+          calendarId,
+          status: response.status,
+        })
+        return calendarIndex + 1 < calendarIds.length
+          ? {
+              documents: [],
+              nextCursor: JSON.stringify({ calendarIndex: calendarIndex + 1 }),
+              hasMore: true,
+            }
+          : { documents: [], hasMore: false }
+      }
+      throw error
     }
 
     const data = await response.json()

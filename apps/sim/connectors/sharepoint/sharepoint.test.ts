@@ -22,6 +22,7 @@ import {
   appendPendingMicrosoftGraphFolders,
   encodeMicrosoftGraphTraversalCursor,
   MICROSOFT_GRAPH_MAX_PENDING_FOLDERS,
+  PER_MEMBER_LISTING_CONTEXT,
 } from '@/connectors/utils'
 
 const GRAPH = 'https://graph.microsoft.com/v1.0'
@@ -479,6 +480,52 @@ describe('listDocuments', () => {
     expect(syncContext.listingCapped).toBeUndefined()
   })
 
+  it('skips a subfolder the member cannot reach and keeps their listing complete', async () => {
+    mockGraph({
+      ...childrenRoute(DEFAULT_DRIVE_ID, null, [
+        file('f1', 'a.txt'),
+        folder('open', 'Open'),
+        folder('locked', 'Locked'),
+      ]),
+      [`${GRAPH}/drives/${DEFAULT_DRIVE_ID}/items/locked/children?$top=200&$select=${ITEM_SELECT}`]:
+        { status: 403, body: {} },
+      ...childrenRoute(DEFAULT_DRIVE_ID, 'open', [file('f2', 'b.txt')]),
+    })
+    const syncContext = { ...listContext(), ...PER_MEMBER_LISTING_CONTEXT }
+
+    const result = await list(undefined, syncContext)
+
+    expect(result.documents.map((doc) => doc.externalId)).toEqual(['f1', 'f2'])
+    expect(result.hasMore).toBe(false)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('still fails a shared listing on a subfolder it cannot reach', async () => {
+    mockGraph({
+      ...childrenRoute(DEFAULT_DRIVE_ID, null, [file('f1', 'a.txt'), folder('locked', 'Locked')]),
+    })
+
+    const error = await list(undefined, listContext()).catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(sharepointConnector.isListingScopeUnavailableError!(error)).toBe(true)
+  })
+
+  it('reads an unreachable root as the whole scope under a per-member listing', async () => {
+    mockGraph({
+      [`${GRAPH}/drives/${DEFAULT_DRIVE_ID}/root/children?$top=200&$select=${ITEM_SELECT}`]: {
+        status: 403,
+        body: {},
+      },
+    })
+    const syncContext = { ...listContext(), ...PER_MEMBER_LISTING_CONTEXT }
+
+    const error = await list(undefined, syncContext).catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(sharepointConnector.isListingScopeUnavailableError!(error)).toBe(true)
+  })
+
   it('drains subfolders within a single call instead of one folder per page', async () => {
     mockGraph({
       ...childrenRoute(DEFAULT_DRIVE_ID, null, [file('f1', 'a.txt'), folder('sub', 'Sub')]),
@@ -799,5 +846,46 @@ describe('normalizeSegment', () => {
 
   it('leaves an ordinary name unchanged apart from case', () => {
     expect(normalizeSegment('Reports')).toBe('reports')
+  })
+})
+
+describe('listing scope', () => {
+  it.each([403, 404])(
+    'reads a %s on the configured site as a scope the caller cannot reach',
+    async (status) => {
+      mockGraph({ [`${GRAPH}/sites/${SITE_URL}`]: { status, body: {} } })
+
+      const error = await sharepointConnector
+        .listDocuments('token', { siteUrl: SITE_URL })
+        .catch((e: unknown) => e)
+
+      expect(error).toBeInstanceOf(Error)
+      expect(sharepointConnector.isListingScopeUnavailableError!(error)).toBe(true)
+    }
+  )
+
+  it('reads a folder Graph will not show the caller as a scope they cannot reach', async () => {
+    mockGraph({
+      ...defaultDriveRoute,
+      ...sitesDrivesRoute,
+      ...rootChildren(DEFAULT_DRIVE_ID, [folder('a', 'Archive')]),
+    })
+
+    const error = await resolve('Reports').catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(String(error)).toMatch(/Folder not found: "Reports"/)
+    expect(sharepointConnector.isListingScopeUnavailableError!(error)).toBe(true)
+  })
+
+  it('keeps any other failure retryable', async () => {
+    mockGraph({ [`${GRAPH}/sites/${SITE_URL}`]: { status: 500, body: {} } })
+
+    const error = await sharepointConnector
+      .listDocuments('token', { siteUrl: SITE_URL })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(sharepointConnector.isListingScopeUnavailableError!(error)).toBe(false)
   })
 })

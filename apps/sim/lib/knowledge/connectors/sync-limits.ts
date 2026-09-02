@@ -92,3 +92,74 @@ export function connectorFailureBackoffMinutes(failures: number): number {
  * negligible against the work a sync does between beats.
  */
 export const SYNC_LOCK_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000
+
+/**
+ * Wall-clock ceiling for one members-mode run, which crawls the source once per
+ * member. It does not have to cover every member: the run claims members one at
+ * a time until {@link MEMBER_SYNC_SOFT_BUDGET_SECONDS} and re-dispatches itself
+ * while any remain due, so a large group drains across consecutive runs.
+ */
+export const MEMBER_SYNC_MAX_DURATION_SECONDS = 3600
+
+/**
+ * When a members-mode run stops claiming new members. Leaves headroom below
+ * {@link MEMBER_SYNC_MAX_DURATION_SECONDS} for the member in flight to finish
+ * its page, write observations, and rematerialise ACLs before the platform
+ * kills the run.
+ */
+export const MEMBER_SYNC_SOFT_BUDGET_SECONDS = 2700
+
+/** Reclaim TTL for a members-mode lease; the same reasoning as {@link CONNECTOR_SYNC_STALE_LOCK_TTL_MS}. */
+export const MEMBER_SYNC_STALE_LOCK_TTL_MS = MEMBER_SYNC_MAX_DURATION_SECONDS * 2 * 1000
+
+/**
+ * Pages one member's change-feed pass may consume in one run. The feed's
+ * cursor is stored past every page read, so a pass the cap stops is recorded
+ * as incomplete — additions are kept, removals are withheld — and the next
+ * run continues from where it left off; a single huge feed can never
+ * monopolise a run or lose a change.
+ *
+ * Deliberately not applied to a listing pass, which has no cursor to resume
+ * from: capping it would relist the same first pages every run and never
+ * grant access to the documents behind them. A listing is bounded by the run
+ * deadline instead, and a member no run can finish alone backs off through
+ * `exhaustedRunAlone`.
+ */
+export const MEMBER_SYNC_MAX_PAGES_PER_MEMBER = 200
+
+/**
+ * How often each member gets a full (non-incremental) listing. Only a full
+ * listing can grant access to a document newly shared with the member or
+ * remove access to one unshared, because permission changes do not move the
+ * source's modified timestamps.
+ */
+export const MEMBER_FULL_RECRAWL_MINUTES = 720
+
+/**
+ * The full-listing cadence for a member whose connector keeps a change feed.
+ * The feed reports what they gain, lose, and see modified between listings,
+ * so the full listing is only a periodic check that the feed missed nothing.
+ */
+export const MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES = 7 * 24 * 60
+
+/**
+ * A member whose crawls have neither started nor completed for this long is
+ * treated as gone: their observations are removed and the documents only they
+ * observed go dark. Measured against the schedule, not the wall clock, so
+ * queue lag in a large group never triggers it.
+ */
+export const MEMBER_OBSERVATION_STALE_AFTER_HOURS = 24
+
+/**
+ * How long a suspended member (credential needs re-auth, enrollment revoked,
+ * option disabled) keeps their observations before the row is purged.
+ * Suspension already removes their token from every ACL; this window exists so
+ * a routine re-auth restores access without re-crawling and re-hydrating.
+ */
+export const MEMBER_SUSPENDED_PURGE_DAYS = 30
+
+/** Days a members-mode document stays tombstoned with no observer before it is hard deleted. */
+export const MEMBER_TOMBSTONE_PURGE_DAYS = 7
+
+/** Hard deletes one members-mode run may perform; bounds the blast radius of a bad run. */
+export const MEMBER_PURGE_MAX_PER_RUN = 1000

@@ -14,6 +14,7 @@ export const googleDocsConnectorMeta: ConnectorMeta = {
     requiredScopes: ['https://www.googleapis.com/auth/drive'],
   },
 
+  permissionScopedListing: { capFieldIds: ['maxDocs'] },
   configFields: [
     {
       id: 'folderSelector',

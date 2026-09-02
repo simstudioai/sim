@@ -20,6 +20,7 @@ import {
   markInsideTriggerRun,
   resetInsideTriggerRunForTests,
 } from '@/lib/core/config/trigger-runtime'
+import { SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
@@ -1058,5 +1059,70 @@ describe('processDocumentsWithQueue attempt refund', () => {
         (call) => (call[0] as Record<string, unknown> | undefined)?.processingQueuedAt === null
       )
     ).toBe(false)
+  })
+})
+
+describe('processDocumentsWithQueue under a connector sync lease', () => {
+  const lease = {
+    connectorId: 'connector-1',
+    stillHeld: () => ({ type: 'lease' }) as never,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockBatchTrigger.mockResolvedValue({ batchId: 'batch-1' })
+    mockResolveTriggerRegion.mockResolvedValue('us-east-1')
+    for (const key of Object.keys(env)) {
+      delete (env as Record<string, unknown>)[key]
+    }
+    Object.assign(env, { ...defaultMockEnv, TRIGGER_SECRET_KEY: 'trigger-secret' })
+  })
+
+  /**
+   * The document writes proved the lease in their own transactions; the queue
+   * write is a later one. A run reclaimed in between must not install a
+   * processing generation, spend an attempt, or dispatch beside the
+   * replacement run's own dispatch for the same document.
+   */
+  it('neither marks nor dispatches processing once the lease was reclaimed', async () => {
+    dbChainMockFns.for.mockResolvedValueOnce([])
+
+    await expect(
+      processDocumentsWithQueue(
+        [DOCUMENT],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        BILLING_ATTRIBUTION,
+        lease
+      )
+    ).rejects.toBeInstanceOf(SyncLockLostException)
+
+    expect(dbChainMockFns.where).toHaveBeenCalledWith(lease.stillHeld())
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockBatchTrigger).not.toHaveBeenCalled()
+  })
+
+  it('queues and dispatches while the lease is still held', async () => {
+    dbChainMockFns.for.mockResolvedValueOnce([{ id: 'connector-1' }])
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { userId: 'knowledge-owner', workspaceId: 'workspace-1' },
+    ])
+
+    await expect(
+      processDocumentsWithQueue(
+        [DOCUMENT],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        BILLING_ATTRIBUTION,
+        lease
+      )
+    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
+
+    expect(dbChainMockFns.where).toHaveBeenCalledWith(lease.stillHeld())
+    expect(mockBatchTrigger).toHaveBeenCalledTimes(1)
   })
 })

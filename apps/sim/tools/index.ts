@@ -1894,6 +1894,9 @@ async function executeToolImplementation(
             impersonateEmail,
             enforceCredentialAccess,
             executorDelegationOrigin: executionContext?.executorDelegationOrigin,
+            ...(operationContext?.copilotToolExecution
+              ? { copilotExecutionContext: operationContext }
+              : {}),
           })
         } else {
           data = await fetchCredentialTokenFromRoute({

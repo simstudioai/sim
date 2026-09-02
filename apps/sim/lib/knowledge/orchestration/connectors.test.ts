@@ -15,11 +15,17 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockCaptureServerEvent,
   mockDispatchSync,
+  mockDispatchMemberSync,
+  mockGrant,
+  mockRevoke,
   mockHasWorkspaceLiveSyncAccess,
   mockRecordAudit,
 } = vi.hoisted(() => ({
   mockCaptureServerEvent: vi.fn(),
   mockDispatchSync: vi.fn(),
+  mockDispatchMemberSync: vi.fn(),
+  mockGrant: vi.fn(),
+  mockRevoke: vi.fn(),
   mockHasWorkspaceLiveSyncAccess: vi.fn(),
   mockRecordAudit: vi.fn(),
 }))
@@ -39,6 +45,14 @@ vi.mock('@/lib/billing/core/subscription', () => ({
   hasWorkspaceLiveSyncAccess: mockHasWorkspaceLiveSyncAccess,
 }))
 vi.mock('@/lib/knowledge/connectors/queue', () => ({ dispatchSync: mockDispatchSync }))
+vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
+  dispatchMemberSync: mockDispatchMemberSync,
+}))
+vi.mock('@/lib/knowledge/connectors/member-access', () => ({
+  grantKnowledgeConnectorCredentialAccess: mockGrant,
+  revokeKnowledgeConnectorCredentialAccess: mockRevoke,
+  findListingCapViolation: vi.fn(() => null),
+}))
 vi.mock('@/lib/knowledge/documents/service', () => ({
   deleteDocumentStorageFiles: vi.fn().mockResolvedValue(undefined),
 }))
@@ -51,6 +65,12 @@ vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
     notion: {
       auth: { mode: 'apiKey', optional: true },
+      validateConfig: vi.fn().mockResolvedValue({ valid: true }),
+    },
+    google_drive: {
+      name: 'Google Drive',
+      auth: { mode: 'oauth', provider: 'google-drive' },
+      permissionScopedListing: { capFieldIds: [] },
       validateConfig: vi.fn().mockResolvedValue({ valid: true }),
     },
   },
@@ -917,5 +937,329 @@ describe('performSyncKnowledgeConnector', () => {
     })
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+})
+
+describe('members-mode connectors', () => {
+  const MEMBERS_CONNECTOR = {
+    id: 'c-1',
+    knowledgeBaseId: 'kb-1',
+    connectorType: 'notion',
+    credentialId: null,
+    encryptedApiKey: null,
+    sourceConfig: {},
+    syncMode: 'full',
+    syncIntervalMinutes: 1440,
+    status: 'active',
+    accessMode: 'members',
+    credentialGroupId: 'group-1',
+    credentialGroupOptionId: 'option-1',
+    memberSyncStatus: 'idle',
+    lastMemberSyncError: null,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockDispatchSync.mockResolvedValue({ queued: true })
+    mockDispatchMemberSync.mockResolvedValue({ queued: true })
+    mockGrant.mockResolvedValue(undefined)
+    mockRevoke.mockResolvedValue(undefined)
+  })
+
+  it('refuses to keep the documents of a connector that syncs per member', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
+
+    const outcome = await performDeleteKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      deleteDocuments: false,
+      ...ACTOR,
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+
+  it('revokes the credential grant once the connector and its documents are gone', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
+    queueTableRows(schemaMock.document, [])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+
+    const outcome = await performDeleteKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      deleteDocuments: true,
+      ...ACTOR,
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    expect(mockRevoke).toHaveBeenCalledWith(
+      { workspaceId: 'ws-1', credentialGroupId: 'group-1', connectorId: 'c-1' },
+      'user-1'
+    )
+  })
+
+  it('routes a manual sync of a members-mode connector to the member queue', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
+
+    const outcome = await performSyncKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      resolveBillingAttribution,
+      ...ACTOR,
+    })
+
+    expect(outcome).toEqual({ success: true })
+    expect(mockDispatchMemberSync).toHaveBeenCalledWith('c-1', {
+      billingAttribution: BILLING,
+      requestId: 'req-1',
+    })
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
+
+  it('refuses a manual sync while a member run is queued or running', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { ...MEMBERS_CONNECTOR, memberSyncStatus: 'running' },
+    ])
+
+    const outcome = await performSyncKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      resolveBillingAttribution,
+      ...ACTOR,
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(mockDispatchMemberSync).not.toHaveBeenCalled()
+  })
+
+  /** A CAS clause of the last connector update, found by shape since the mock evaluates nothing. */
+  function updateCasHas(predicate: (node: MockCondition) => boolean): boolean {
+    return hasMockCondition(dbChainMockFns.where.mock.calls.at(-1)?.[0], predicate)
+  }
+
+  it('writes an interval change to the member schedule, which is what the member scheduler reads', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { ...MEMBERS_CONNECTOR, nextSyncAt: null, nextMemberSyncAt: null },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([MEMBERS_CONNECTOR])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      updates: { syncIntervalMinutes: 60 },
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    const values = dbChainMockFns.set.mock.calls[0][0]
+    expect(values).toMatchObject({ syncIntervalMinutes: 60, nextMemberSyncAt: expect.any(Date) })
+    expect(values).not.toHaveProperty('nextSyncAt')
+    expect(
+      updateCasHas(
+        (node) =>
+          node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.nextMemberSyncAt
+      )
+    ).toBe(true)
+    expect(mockDispatchMemberSync).not.toHaveBeenCalled()
+  })
+
+  it('clears the member schedule when scheduled sync is turned off', async () => {
+    const scheduled = new Date(Date.now() + 60 * 60 * 1000)
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { ...MEMBERS_CONNECTOR, nextSyncAt: null, nextMemberSyncAt: scheduled },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([MEMBERS_CONNECTOR])
+
+    await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      updates: { syncIntervalMinutes: 0 },
+      resolveBillingAttribution,
+    })
+
+    expect(dbChainMockFns.set.mock.calls[0][0]).toMatchObject({
+      syncIntervalMinutes: 0,
+      nextMemberSyncAt: null,
+    })
+    expect(
+      updateCasHas(
+        (node) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.nextMemberSyncAt &&
+          node.right === scheduled
+      )
+    ).toBe(true)
+  })
+
+  it('resumes a paused members-mode connector by making its member run due', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { ...MEMBERS_CONNECTOR, status: 'paused', nextSyncAt: null, nextMemberSyncAt: null },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([MEMBERS_CONNECTOR])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      updates: { status: 'active' },
+      resolveBillingAttribution,
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    const values = dbChainMockFns.set.mock.calls[0][0]
+    expect(values).toMatchObject({ status: 'active', nextMemberSyncAt: expect.any(Date) })
+    expect(values).not.toHaveProperty('nextSyncAt')
+  })
+
+  it('refuses any edit while a member run is running', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { ...MEMBERS_CONNECTOR, memberSyncStatus: 'running' },
+    ])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      updates: { sourceConfig: { database: 'other' } },
+      resolveBillingAttribution,
+    })
+
+    /**
+     * The member run reads `sourceConfig` once at its start and reconciles
+     * against it, exactly as the content engine does; `status` stays `active`
+     * throughout, so only the member lease shows the row is owned.
+     */
+    expect(outcome).toMatchObject({
+      success: false,
+      errorCode: 'conflict',
+      error: 'Sync already in progress',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('refuses a config edit while a member run is queued, but lets a pause release the entry', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { ...MEMBERS_CONNECTOR, memberSyncStatus: 'pending', memberSyncLockToken: 'd-1' },
+    ])
+
+    const refused = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      updates: { syncIntervalMinutes: 30 },
+      resolveBillingAttribution,
+    })
+    expect(refused).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { ...MEMBERS_CONNECTOR, memberSyncStatus: 'pending', memberSyncLockToken: 'd-1' },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...MEMBERS_CONNECTOR, status: 'paused' }])
+
+    const paused = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      updates: { status: 'paused' },
+      resolveBillingAttribution,
+    })
+
+    /**
+     * The queued task starts without re-checking `status`, so the entry has to
+     * go for the pause to hold; the CAS keeps that off a run that has started.
+     */
+    expect(paused).toMatchObject({ success: true })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'paused',
+        memberSyncStatus: 'idle',
+        memberSyncLockToken: null,
+        memberSyncLockLeaseAt: null,
+      })
+    )
+    expect(
+      updateCasHas(
+        (node) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeConnector.memberSyncStatus &&
+          node.right === 'pending'
+      )
+    ).toBe(true)
+  })
+
+  it('binds a new members-mode connector under the group lock', async () => {
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.credentialGroup, [{ options: [{ id: 'option-1' }] }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { ...MEMBERS_CONNECTOR, connectorType: 'google_drive' },
+    ])
+
+    const outcome = await performCreateKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorType: 'google_drive',
+      sourceConfig: {},
+      syncIntervalMinutes: 1440,
+      membersBinding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
+      resolveBillingAttribution,
+      resolveAccessToken: vi.fn(),
+      ...ACTOR,
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(dbChainMockFns.insert).toHaveBeenCalledOnce()
+    expect(mockRevoke).not.toHaveBeenCalled()
+  })
+
+  it('refuses to create a members-mode connector on an option removed before the group was locked', async () => {
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.credentialGroup, [{ options: [{ id: 'option-2' }] }])
+
+    const outcome = await performCreateKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorType: 'google_drive',
+      sourceConfig: {},
+      syncIntervalMinutes: 1440,
+      membersBinding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
+      resolveBillingAttribution,
+      resolveAccessToken: vi.fn(),
+      ...ACTOR,
+    })
+
+    /**
+     * The group's option edit refuses while a connector row is bound to what it
+     * removes, and this row is written under the same lock, so the two can
+     * never both commit: the grant is undone and no row is inserted.
+     */
+    expect(outcome).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(mockRevoke).toHaveBeenCalledWith(
+      { workspaceId: 'ws-1', credentialGroupId: 'group-1', connectorId: expect.any(String) },
+      'user-1'
+    )
+  })
+
+  it('refuses members mode for a connector whose listing is not permission scoped, before any grant', async () => {
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([MEMBERS_CONNECTOR])
+
+    const outcome = await performCreateKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorType: 'notion',
+      sourceConfig: {},
+      syncIntervalMinutes: 1440,
+      membersBinding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
+      resolveBillingAttribution,
+      resolveAccessToken: vi.fn(),
+      ...ACTOR,
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(mockGrant).not.toHaveBeenCalled()
   })
 })

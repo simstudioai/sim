@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   cancelQueries: vi.fn(),
   getQueryData: vi.fn(),
   setQueryData: vi.fn(),
+  setQueriesData: vi.fn(),
   invalidateQueries: vi.fn(),
 }))
 
@@ -24,6 +25,7 @@ vi.mock('@tanstack/react-query', () => ({
     cancelQueries: mocks.cancelQueries,
     getQueryData: mocks.getQueryData,
     setQueryData: mocks.setQueryData,
+    setQueriesData: mocks.setQueriesData,
     invalidateQueries: mocks.invalidateQueries,
   })),
 }))
@@ -41,13 +43,30 @@ import {
   CONNECTOR_SYNC_POLL_INTERVAL_MS,
   connectorKeys,
   isConnectorSyncingOrPending,
+  memberConnectorKeys,
   useConnectorDetail,
   useConnectorDocuments,
   useConnectorList,
   useTriggerSync,
+  type WorkspaceMemberConnector,
 } from '@/hooks/queries/kb/connectors'
 
 const KB_ID = 'kb-1'
+
+function makeMemberConnector(
+  overrides: Partial<WorkspaceMemberConnector> = {}
+): WorkspaceMemberConnector {
+  return {
+    knowledgeBaseId: KB_ID,
+    knowledgeBaseName: 'Sim Search',
+    connectorId: 'connector-1',
+    connectorType: 'hubspot',
+    memberSyncStatus: 'idle',
+    viewerMembership: 'connected',
+    viewerDocumentCount: 0,
+    ...overrides,
+  }
+}
 
 function makeConnector(overrides: Partial<ConnectorData> = {}): ConnectorData {
   return {
@@ -249,6 +268,63 @@ describe('useTriggerSync optimistic state', () => {
     const rolledBack = lastListStatusUpdater()(concurrent)
     expect(rolledBack?.find((c) => c.id === 'connector-1')?.status).toBe('active')
     expect(rolledBack?.find((c) => c.id === 'connector-2')?.status).toBe('pending')
+  })
+
+  /**
+   * The Search surface reads the member sync status from the workspace
+   * member-connector list, which has no poll of its own, so a members-mode
+   * trigger patches that cache too and a refused trigger refetches it.
+   */
+  it('queues a members connector in the workspace member-connector list as well', async () => {
+    const existing = [
+      makeConnector({ id: 'connector-1', accessMode: 'members', memberSyncStatus: 'idle' }),
+    ]
+    mocks.getQueryData.mockReturnValue(existing)
+
+    useTriggerSync()
+    const options = capturedMutationOptions()
+    const context = await options.onMutate({ knowledgeBaseId: KB_ID, connectorId: 'connector-1' })
+
+    expect(mocks.setQueriesData).toHaveBeenCalledWith(
+      { queryKey: memberConnectorKeys.lists() },
+      expect.any(Function)
+    )
+    const patchMemberList = mocks.setQueriesData.mock.calls.at(-1)?.[1] as (
+      connectors: WorkspaceMemberConnector[] | undefined
+    ) => WorkspaceMemberConnector[] | undefined
+    const memberList = [
+      makeMemberConnector({ connectorId: 'connector-1', memberSyncStatus: 'idle' }),
+      makeMemberConnector({ connectorId: 'connector-2', memberSyncStatus: 'idle' }),
+    ]
+    expect(patchMemberList(memberList)?.map((c) => c.memberSyncStatus)).toEqual(['pending', 'idle'])
+    expect(patchMemberList(undefined)).toBeUndefined()
+
+    options.onError(
+      new Error('boom'),
+      { knowledgeBaseId: KB_ID, connectorId: 'connector-1' },
+      context
+    )
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: memberConnectorKeys.lists(),
+    })
+  })
+
+  it('leaves the workspace member-connector list alone for a workspace connector', async () => {
+    mocks.getQueryData.mockReturnValue([makeConnector({ status: 'active' })])
+
+    useTriggerSync()
+    const options = capturedMutationOptions()
+    const context = await options.onMutate({ knowledgeBaseId: KB_ID, connectorId: 'connector-1' })
+    options.onError(
+      new Error('boom'),
+      { knowledgeBaseId: KB_ID, connectorId: 'connector-1' },
+      context
+    )
+
+    expect(mocks.setQueriesData).not.toHaveBeenCalled()
+    expect(mocks.invalidateQueries).not.toHaveBeenCalledWith({
+      queryKey: memberConnectorKeys.lists(),
+    })
   })
 })
 

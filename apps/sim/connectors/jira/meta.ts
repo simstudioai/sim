@@ -10,6 +10,7 @@ export const jiraConnectorMeta: ConnectorMeta = {
 
   auth: { mode: 'oauth', provider: 'jira', requiredScopes: ['read:jira-work', 'offline_access'] },
 
+  permissionScopedListing: { capFieldIds: ['maxIssues'] },
   configFields: [
     {
       id: 'domain',

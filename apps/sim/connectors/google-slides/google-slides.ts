@@ -7,7 +7,9 @@ import {
   buildDriveParentsClause,
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
+  isListingScopeUnavailableError,
   joinTagArray,
+  listingRequestError,
   markSkipped,
   parseMultiValue,
   parseTagDate,
@@ -286,6 +288,8 @@ function buildQuery(sourceConfig: Record<string, unknown>, lastSyncAt?: Date): s
 export const googleSlidesConnector: ConnectorConfig = {
   ...googleSlidesConnectorMeta,
 
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -339,7 +343,7 @@ export const googleSlidesConnector: ConnectorConfig = {
         status: response.status,
         error: errorText,
       })
-      throw new Error(`Failed to list Google Slides presentations: ${response.status}`)
+      throw listingRequestError('Failed to list Google Slides presentations', response.status)
     }
 
     const data = await response.json()

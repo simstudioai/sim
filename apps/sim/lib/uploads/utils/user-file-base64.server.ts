@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
@@ -163,6 +164,13 @@ export interface Base64HydrationOptions {
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
+  /**
+   * The principal behind the run. A knowledge-base file is read as them, so a
+   * document shared with only this person still hydrates; `userId` alone may
+   * be the workflow owner standing in for an actorless run and must not widen
+   * what the run can read.
+   */
+  principal?: Principal
   logger?: Logger
   maxBytes?: number
   allowUnknownSize?: boolean
@@ -454,6 +462,7 @@ async function resolveBase64(
       fileKeys: options.fileKeys,
       allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
       userId: options.userId,
+      principal: options.principal,
       encoding: 'base64',
       maxBytes,
     })
@@ -487,6 +496,7 @@ async function hydrateUserFile(
         fileKeys: options.fileKeys,
         allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
         userId: options.userId,
+        principal: options.principal,
         logger,
       })
     } catch (error) {

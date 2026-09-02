@@ -16,7 +16,7 @@ import { isHiddenUnder } from '@/blocks/visibility/context'
 
 export interface IntegrationCredentialIdentity {
   providerId: string
-  type?: 'oauth' | 'service_account'
+  type?: 'oauth' | 'service_account' | 'managed_oauth'
 }
 
 interface IntegrationCredentialVisibilityOptions {

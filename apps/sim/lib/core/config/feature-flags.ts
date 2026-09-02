@@ -29,16 +29,6 @@ export type FeatureFlagsConfig = Record<string, FeatureFlagRule>
 export type FeatureFlagContext = AppConfigGateContext
 
 /**
- * Registry of known feature flags. Each maps to the secret consulted ONLY when
- * AppConfig is not the source of truth (self-hosted/OSS, local dev, or hosted
- * without APPCONFIG_*). A truthy secret turns the flag on globally.
- *
- * Gating by workspace/org/user/admin is available ONLY through the hosted AppConfig document
- * — it deliberately cannot be expressed here, so no environment can grant (e.g.)
- * admin access from a code literal. To add a flag, register its name and the secret
- * to fall back on.
- */
-/**
  * The single definition of a feature flag. Everything about a flag lives in one
  * place: its name (the registry key), a human-readable `description`, and the
  * `fallback` secret consulted when AppConfig isn't the source of truth (truthy ⇒ on
@@ -84,6 +74,17 @@ const FEATURE_FLAGS = {
       'Gated by workspaceId via AppConfig (or globally); hosted workspaces must also have an ' +
       'Enterprise subscription. Off-AppConfig falls back to CREDENTIAL_GROUPS.',
     fallback: 'CREDENTIAL_GROUPS',
+  },
+  'knowledge-member-access': {
+    description:
+      'Permission-aware knowledge bases: lets a workspace admin sync a connector once per ' +
+      'Credential Group member so each person sees only what their own account can read, and ' +
+      'makes hybrid retrieval with a source-recency boost the default for searches in that ' +
+      'workspace. Gated by workspaceId via AppConfig for members mode, which is judged by the ' +
+      'workspace alone; the adminEnabled clause additionally opens the retrieval default to a ' +
+      'platform admin anywhere. Off-AppConfig falls back to KNOWLEDGE_MEMBER_ACCESS. Requires ' +
+      'the credential-groups flag for the connector side to do anything.',
+    fallback: 'KNOWLEDGE_MEMBER_ACCESS',
   },
 } satisfies Record<string, FeatureFlagDefinition>
 

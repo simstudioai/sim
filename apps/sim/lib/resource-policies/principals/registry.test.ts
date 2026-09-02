@@ -42,6 +42,27 @@ describe('resource policy principal registry', () => {
     ).toBe(false)
   })
 
+  it('registers the internal knowledge connector principal', () => {
+    expect(RESOURCE_POLICY_PRINCIPAL_DEFINITIONS.knowledge_connector.selector).toEqual({
+      type: 'internal',
+    })
+    expect(
+      matchResourcePolicyPrincipal(
+        { type: 'knowledge_connector', connectorId: 'connector-1' },
+        { currentKnowledgeConnector: { connectorId: 'connector-1' } }
+      )
+    ).toBe(true)
+    expect(
+      matchResourcePolicyPrincipal(
+        { type: 'knowledge_connector', connectorId: 'connector-1' },
+        { currentKnowledgeConnector: { connectorId: 'connector-2' } }
+      )
+    ).toBe(false)
+    expect(
+      matchResourcePolicyPrincipal({ type: 'knowledge_connector', connectorId: 'connector-1' }, {})
+    ).toBe(false)
+  })
+
   it('fails fast for an unregistered principal type', () => {
     expect(() => requireResourcePolicyPrincipalDefinition('user')).toThrow(
       'Resource policy principal type user is not registered'

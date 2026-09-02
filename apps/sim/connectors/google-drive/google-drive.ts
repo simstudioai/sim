@@ -14,7 +14,13 @@ import {
   readGoogleDriveApiError,
 } from '@/connectors/google-drive/google-drive-errors'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
-import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
+import type {
+  ConnectorConfig,
+  ExternalChange,
+  ExternalChangeList,
+  ExternalDocument,
+  ExternalDocumentList,
+} from '@/connectors/types'
 import {
   buildDriveParentsClause,
   CONNECTOR_MAX_FILE_BYTES,
@@ -203,6 +209,20 @@ interface DriveFile {
   size?: string
   starred?: boolean
   trashed?: boolean
+  parents?: string[]
+}
+
+interface DriveChange {
+  changeType?: string
+  removed?: boolean
+  fileId?: string
+  file?: DriveFile
+}
+
+interface DriveChangeListResponse {
+  changes: DriveChange[]
+  nextPageToken?: string
+  newStartPageToken?: string
 }
 
 interface DriveFileListResponse {
@@ -273,11 +293,119 @@ function parseDriveFileMetadata(value: unknown, expectedId: string): DriveFile {
   return value
 }
 
-function buildQuery(sourceConfig: Record<string, unknown>): string {
+function parseDriveChangeListResponse(value: unknown): DriveChangeListResponse {
+  if (!isPlainRecord(value)) {
+    throw new Error('Google Drive API returned malformed change-list metadata')
+  }
+  const rawChanges = value.changes
+  if (rawChanges !== undefined && !Array.isArray(rawChanges)) {
+    throw new Error('Google Drive API returned malformed change-list metadata')
+  }
+  const changes: DriveChange[] = []
+  for (const raw of rawChanges ?? []) {
+    if (!isPlainRecord(raw) || typeof raw.fileId !== 'string' || raw.fileId.length === 0) {
+      /** Shared-drive membership changes carry no fileId and are not files. */
+      if (isPlainRecord(raw) && raw.changeType === 'drive') continue
+      throw new Error('Google Drive API returned malformed change-list metadata')
+    }
+    if (raw.file !== undefined && !isDriveFileListItem(raw.file)) {
+      throw new Error('Google Drive API returned malformed change-list metadata')
+    }
+    changes.push({
+      changeType: typeof raw.changeType === 'string' ? raw.changeType : undefined,
+      removed: raw.removed === true,
+      fileId: raw.fileId,
+      file: raw.file,
+    })
+  }
+  for (const key of ['nextPageToken', 'newStartPageToken'] as const) {
+    const token = value[key]
+    if (token !== undefined && (typeof token !== 'string' || token.length === 0)) {
+      throw new Error('Google Drive API returned malformed change-list metadata')
+    }
+  }
+  return {
+    changes,
+    nextPageToken: typeof value.nextPageToken === 'string' ? value.nextPageToken : undefined,
+    newStartPageToken:
+      typeof value.newStartPageToken === 'string' ? value.newStartPageToken : undefined,
+  }
+}
+
+/** The MIME types the `fileType` setting admits, mirroring {@link buildQuery}. */
+function matchesFileType(fileType: string, mimeType: string): boolean {
+  switch (fileType) {
+    case 'documents':
+      return mimeType === 'application/vnd.google-apps.document'
+    case 'spreadsheets':
+      return mimeType === 'application/vnd.google-apps.spreadsheet'
+    case 'presentations':
+      return mimeType === 'application/vnd.google-apps.presentation'
+    case 'text':
+      return SUPPORTED_TEXT_MIME_TYPES.includes(mimeType)
+    default:
+      return isGoogleWorkspaceFile(mimeType) || isSupportedTextFile(mimeType)
+  }
+}
+
+/**
+ * Whether a file reported by the change feed belongs to the configured
+ * source. A listing applies these as a query; the feed reports every change
+ * the account can see, so they are applied here instead. A file that left the
+ * scope reads as removed, exactly as a listing would no longer return it.
+ */
+function isFileInScope(file: DriveFile, sourceConfig: Record<string, unknown>): boolean {
+  if (file.trashed) return false
+  if (!matchesFileType((sourceConfig.fileType as string) || 'all', file.mimeType)) return false
+  const folderIds = parseMultiValue(sourceConfig.folderId)
+  if (folderIds.length === 0) return true
+  return (file.parents ?? []).some((parent) => folderIds.includes(parent))
+}
+
+function driveChangeToExternal(
+  change: DriveChange,
+  sourceConfig: Record<string, unknown>
+): ExternalChange | null {
+  if (change.changeType !== undefined && change.changeType !== 'file') return null
+  const externalId = change.fileId
+  if (!externalId) return null
+  const file = change.file
+  if (change.removed || !file || !isFileInScope(file, sourceConfig)) {
+    return { kind: 'removed', externalId }
+  }
+  return {
+    kind: 'upsert',
+    externalId,
+    document: stubOrSkipBySize(
+      fileToStub(file),
+      Number(file.size) || undefined,
+      CONNECTOR_MAX_FILE_BYTES
+    ),
+  }
+}
+
+/**
+ * Drive rejects an expired or foreign page token as a bad request rather than
+ * with a dedicated status; a 404 or 410 is the same signal on other endpoints.
+ * Reopening the feed from a full listing is the safe answer to all of them.
+ */
+function isDriveChangeCursorInvalidError(error: unknown): boolean {
+  if (!(error instanceof GoogleDriveApiError)) return false
+  if (error.status === 404 || error.status === 410) return true
+  return (
+    error.status === 400 &&
+    (error.reasons.length === 0 ||
+      error.reasons.some((reason) => reason === 'invalid' || reason === 'badRequest'))
+  )
+}
+
+function buildQuery(sourceConfig: Record<string, unknown>, lastSyncAt?: Date): string {
   const parts: string[] = ['trashed = false']
 
   const parentsClause = buildDriveParentsClause(parseMultiValue(sourceConfig.folderId))
   if (parentsClause) parts.push(parentsClause)
+
+  if (lastSyncAt) parts.push(`modifiedTime > '${lastSyncAt.toISOString()}'`)
 
   const fileType = (sourceConfig.fileType as string) || 'all'
   switch (fileType) {
@@ -339,9 +467,10 @@ export const googleDriveConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     cursor?: string,
-    syncContext?: Record<string, unknown>
+    syncContext?: Record<string, unknown>,
+    lastSyncAt?: Date
   ): Promise<ExternalDocumentList> => {
-    const query = buildQuery(sourceConfig)
+    const query = buildQuery(sourceConfig, lastSyncAt)
     const pageSize = 100
 
     const maxFiles = parseMaxFiles(sourceConfig.maxFiles)
@@ -359,7 +488,7 @@ export const googleDriveConnector: ConnectorConfig = {
       pageSize: String(effectivePageSize),
       orderBy: 'modifiedTime desc',
       fields:
-        'kind,nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred)',
+        'kind,nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,parents)',
       supportsAllDrives: 'true',
       includeItemsFromAllDrives: 'true',
     })
@@ -612,4 +741,78 @@ export const googleDriveConnector: ConnectorConfig = {
 
     return result
   },
+
+  /**
+   * Drive answers `notFound` for a `parents` query on a folder the caller
+   * cannot open, so a member who was never given the folder lists nothing.
+   */
+  isListingScopeUnavailableError: (error) =>
+    error instanceof GoogleDriveApiError && error.kind === 'not_found',
+
+  getChangeCursor: async (accessToken: string): Promise<string> => {
+    const url = 'https://www.googleapis.com/drive/v3/changes/startPageToken?supportsAllDrives=true'
+    const response = await fetchGoogleDriveWithRetry(url, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    })
+    const data: unknown = await response.json()
+    if (
+      !isPlainRecord(data) ||
+      typeof data.startPageToken !== 'string' ||
+      data.startPageToken.length === 0
+    ) {
+      throw new Error('Google Drive API returned malformed change-cursor metadata')
+    }
+    return data.startPageToken
+  },
+
+  /**
+   * Reads `changes.list` for the account behind the token. Drive reports a
+   * file the account lost access to with `removed: true`, and a file newly
+   * shared with it as an ordinary change, so one feed carries both content
+   * and permission changes for that account.
+   */
+  listChanges: async (
+    accessToken: string,
+    sourceConfig: Record<string, unknown>,
+    cursor: string
+  ): Promise<ExternalChangeList> => {
+    const queryParams = new URLSearchParams({
+      pageToken: cursor,
+      pageSize: '100',
+      includeRemoved: 'true',
+      supportsAllDrives: 'true',
+      includeItemsFromAllDrives: 'true',
+      restrictToMyDrive: 'false',
+      spaces: 'drive',
+      fields:
+        'nextPageToken,newStartPageToken,changes(changeType,removed,fileId,file(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,trashed,parents))',
+    })
+    const url = `https://www.googleapis.com/drive/v3/changes?${queryParams.toString()}`
+
+    let response: Response
+    try {
+      response = await fetchGoogleDriveWithRetry(url, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+      })
+    } catch (error) {
+      logger.error('Failed to list Google Drive changes', googleDriveErrorLogFields(error))
+      throw error
+    }
+
+    const data = parseDriveChangeListResponse(await response.json())
+    const changes: ExternalChange[] = []
+    for (const change of data.changes) {
+      const mapped = driveChangeToExternal(change, sourceConfig)
+      if (mapped) changes.push(mapped)
+    }
+    const nextCursor = data.nextPageToken ?? data.newStartPageToken
+    if (!nextCursor) {
+      throw new Error('Google Drive API returned malformed change-list metadata')
+    }
+    return { changes, nextCursor, hasMore: Boolean(data.nextPageToken) }
+  },
+
+  isChangeCursorInvalidError: isDriveChangeCursorInvalidError,
 }

@@ -248,7 +248,7 @@ export async function requirePersonalApiKeysAllowed(
  * raising a role, rather than chasing an admin about a group setting that is
  * not why they were refused.
  */
-async function requireCurrentHumanRole<C extends WorkspaceAuthorizationContext>(
+export async function requireCurrentHumanRole<C extends WorkspaceAuthorizationContext>(
   userId: string,
   context: C,
   required: PermissionType,
@@ -264,6 +264,13 @@ async function requireCurrentHumanRole<C extends WorkspaceAuthorizationContext>(
   requirePermission(permission, required)
 }
 
+/**
+ * A use case's own escalation: refuses unless the person holds `required` in
+ * the workspace right now. For an operation whose minimum role fits most of
+ * its inputs but one variant needs more — a connector that crawls as every
+ * enrolled member is an admin decision even though creating a connector is
+ * not — so the operation keeps its role and the variant asserts its own.
+ */
 async function requireCurrentHumanAccess<C extends WorkspaceAuthorizationContext>(
   userId: string,
   context: C,

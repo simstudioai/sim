@@ -6,6 +6,8 @@ export const CREDENTIAL_GROUP_POLICY_DOCUMENT_MAX_BYTES = 32 * 1024
 
 const ACTOR_ACCESS_SID = 'CredentialGroupActorCredentialAccess'
 const WORKFLOW_ACCESS_SID = 'WorkflowCredentialAccess'
+/** Statements the knowledge module writes for connectors crawling through an option. */
+const KNOWLEDGE_CONNECTOR_ACCESS_SID_PREFIX = 'KnowledgeConnectorCredentialAccess:'
 const CREDENTIAL_USE_ACTION = 'credential_groups.credentials.use'
 const ACTOR_OWNS_CREDENTIAL_CONDITION_KEY = 'credential_group:ActorOwnsCredential'
 const DEPLOYMENT_MODE_CONDITION_KEY = 'execution:WorkflowMode'
@@ -34,6 +36,16 @@ interface CredentialGroupWorkflowAccessStatement {
   }
 }
 
+/**
+ * A statement the knowledge module writes so one of its connectors can crawl
+ * through a group option. The knowledge module owns and validates its shape;
+ * this package only carries it through unchanged.
+ */
+interface CredentialGroupKnowledgeConnectorAccessStatement {
+  sid: `${typeof KNOWLEDGE_CONNECTOR_ACCESS_SID_PREFIX}${string}`
+  [key: string]: unknown
+}
+
 export interface CredentialGroupWorkflowAccessPolicyDocument {
   version: 1
   resource: {
@@ -41,8 +53,12 @@ export interface CredentialGroupWorkflowAccessPolicyDocument {
     id: string
   }
   statements:
-    | [CredentialGroupActorAccessStatement]
-    | [CredentialGroupActorAccessStatement, CredentialGroupWorkflowAccessStatement]
+    | [CredentialGroupActorAccessStatement, ...CredentialGroupKnowledgeConnectorAccessStatement[]]
+    | [
+        CredentialGroupActorAccessStatement,
+        CredentialGroupWorkflowAccessStatement,
+        ...CredentialGroupKnowledgeConnectorAccessStatement[],
+      ]
 }
 
 export interface MissingCredentialGroupPolicyRow {
@@ -144,6 +160,15 @@ export function createDefaultCredentialGroupPolicyDocument(
   }
 }
 
+function isKnowledgeConnectorAccessStatement(
+  statement: Record<string, unknown>
+): statement is CredentialGroupKnowledgeConnectorAccessStatement {
+  return (
+    typeof statement.sid === 'string' &&
+    statement.sid.startsWith(KNOWLEDGE_CONNECTOR_ACCESS_SID_PREFIX)
+  )
+}
+
 export function parseCredentialGroupPolicyDocument(
   value: unknown,
   expectedResourceId: string
@@ -166,17 +191,29 @@ export function parseCredentialGroupPolicyDocument(
     throw new Error('Credential Group policy resource does not match its canonical resource')
   }
 
-  if (
-    !Array.isArray(document.statements) ||
-    document.statements.length < 1 ||
-    document.statements.length > 2
-  ) {
+  if (!Array.isArray(document.statements) || document.statements.length < 1) {
+    throw new Error('Credential Group policy must contain its actor statement')
+  }
+  /**
+   * Knowledge connectors that crawl through this group's options carry their
+   * own statements after the actor and workflow ones. They are owned by the
+   * knowledge module, so this canonicaliser passes them through untouched
+   * rather than rewriting or dropping them.
+   */
+  const knowledgeStatements: CredentialGroupKnowledgeConnectorAccessStatement[] = []
+  const ownStatements: unknown[] = []
+  for (const statement of document.statements) {
+    const record = requireRecord(statement, 'Credential Group statement')
+    if (isKnowledgeConnectorAccessStatement(record)) knowledgeStatements.push(record)
+    else ownStatements.push(statement)
+  }
+  if (ownStatements.length > 2) {
     throw new Error(
       'Credential Group policy must contain its actor statement and optional workflow statement'
     )
   }
 
-  const actorStatement = requireRecord(document.statements[0], 'Credential Group actor statement')
+  const actorStatement = requireRecord(ownStatements[0], 'Credential Group actor statement')
   requireExactKeys(
     actorStatement,
     ['sid', 'effect', 'actions', 'principals', 'condition'],
@@ -219,15 +256,15 @@ export function parseCredentialGroupPolicyDocument(
   }
 
   const canonicalActorStatement = createCredentialGroupActorAccessStatement()
-  if (document.statements.length === 1) {
+  if (ownStatements.length === 1) {
     return {
       version: 1,
       resource: { type: 'credential_group', id: canonicalResourceId },
-      statements: [canonicalActorStatement],
+      statements: [canonicalActorStatement, ...knowledgeStatements],
     }
   }
 
-  const statement = requireRecord(document.statements[1], 'Credential Group workflow statement')
+  const statement = requireRecord(ownStatements[1], 'Credential Group workflow statement')
   requireExactKeys(
     statement,
     ['sid', 'effect', 'actions', 'principals', 'condition'],
@@ -311,6 +348,7 @@ export function parseCredentialGroupPolicyDocument(
           },
         },
       },
+      ...knowledgeStatements,
     ],
   }
 }
