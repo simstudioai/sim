@@ -28,6 +28,12 @@ export const agentCliRequestSchema = z.object({
       flags: z.record(z.string(), z.union([z.string(), z.literal(true)])),
     }),
   ]),
-  pipeline: z.array(grepStageSchema),
+  pipeline: z.array(
+    z.discriminatedUnion('kind', [
+      grepStageSchema,
+      z.object({ kind: z.literal('jq'), expression: z.string().min(1).max(4_000) }),
+      z.object({ kind: z.literal('outline') }),
+    ])
+  ),
   sink: z.object({ kind: z.literal('sandbox-file'), path: z.string().min(1).max(300) }).optional(),
 }) satisfies z.ZodType<AgentCliRequest>
