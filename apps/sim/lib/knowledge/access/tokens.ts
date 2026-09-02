@@ -66,15 +66,3 @@ export function sortAccessTokens(tokens: Iterable<string>): string[] {
  * observers. Rejects anything that is not a well-formed token so a malformed
  * value fails here rather than denying access silently.
  */
-export function buildAclFromObservers(tokens: Iterable<string>): string[] {
-  const sorted = sortAccessTokens(tokens)
-  for (const token of sorted) {
-    if (!isAccessToken(token)) throw new Error(`Access token is malformed: ${token}`)
-  }
-  return sorted
-}
-
-/** Whether a scope's token set grants nothing beyond what every workspace member holds. */
-export function isWorkspaceOnlyTokenSet(tokens: readonly string[]): boolean {
-  return tokens.every((token) => token === WORKSPACE_ACCESS_TOKEN || token === PUBLIC_ACCESS_TOKEN)
-}

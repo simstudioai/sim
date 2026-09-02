@@ -4,9 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ACCESS_TOKEN_PATTERN,
-  buildAclFromObservers,
   isAccessToken,
-  isWorkspaceOnlyTokenSet,
   sortAccessTokens,
   subjectToken,
 } from '@/lib/knowledge/access/tokens'
@@ -81,7 +79,7 @@ describe('subjectToken', () => {
   })
 })
 
-describe('sortAccessTokens / buildAclFromObservers', () => {
+describe('sortAccessTokens', () => {
   it('sorts by code unit and dedupes', () => {
     expect(sortAccessTokens(['ws', 'pub', 's:b:-:1', 'pub', 's:B:-:1'])).toEqual([
       'pub',
@@ -93,21 +91,5 @@ describe('sortAccessTokens / buildAclFromObservers', () => {
 
   it('never uses locale ordering', () => {
     expect(sortAccessTokens(['s:x:-:b', 's:x:-:B'])).toEqual(['s:x:-:B', 's:x:-:b'])
-  })
-
-  it('builds an empty ACL from no observers and rejects malformed tokens', () => {
-    expect(buildAclFromObservers([])).toEqual([])
-    expect(buildAclFromObservers(['s:confluence:-:2', 's:confluence:-:1'])).toEqual([
-      's:confluence:-:1',
-      's:confluence:-:2',
-    ])
-    expect(() => buildAclFromObservers(['s:confluence:-:1', 'bogus'])).toThrow('malformed')
-  })
-})
-
-describe('isWorkspaceOnlyTokenSet', () => {
-  it('distinguishes the workspace pair from a personal set', () => {
-    expect(isWorkspaceOnlyTokenSet(['pub', 'ws'])).toBe(true)
-    expect(isWorkspaceOnlyTokenSet(['pub', 's:confluence:-:1', 'ws'])).toBe(false)
   })
 })

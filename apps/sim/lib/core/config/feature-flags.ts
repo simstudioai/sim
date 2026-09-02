@@ -29,16 +29,6 @@ export type FeatureFlagsConfig = Record<string, FeatureFlagRule>
 export type FeatureFlagContext = AppConfigGateContext
 
 /**
- * Registry of known feature flags. Each maps to the secret consulted ONLY when
- * AppConfig is not the source of truth (self-hosted/OSS, local dev, or hosted
- * without APPCONFIG_*). A truthy secret turns the flag on globally.
- *
- * Gating by workspace/org/user/admin is available ONLY through the hosted AppConfig document
- * — it deliberately cannot be expressed here, so no environment can grant (e.g.)
- * admin access from a code literal. To add a flag, register its name and the secret
- * to fall back on.
- */
-/**
  * The single definition of a feature flag. Everything about a flag lives in one
  * place: its name (the registry key), a human-readable `description`, and the
  * `fallback` secret consulted when AppConfig isn't the source of truth (truthy ⇒ on

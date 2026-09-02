@@ -35,6 +35,7 @@ import {
   CONNECTOR_SYNC_STALE_LOCK_TTL_MS,
   MEMBER_SYNC_STALE_LOCK_TTL_MS,
 } from '@/lib/knowledge/connectors/sync-limits'
+import type { MemberSyncStatus } from '@/lib/knowledge/types'
 import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
@@ -99,7 +100,7 @@ const MEMBER_SYNC_STATUS_AS_CONNECTOR_STATUS = {
   running: 'syncing',
   error: 'error',
   disabled: 'disabled',
-} as const satisfies Record<string, keyof typeof STATUS_CONFIG>
+} as const satisfies Record<MemberSyncStatus, keyof typeof STATUS_CONFIG>
 
 const CONNECTOR_ACTION_BUTTON_CLASSES =
   'size-7 rounded-lg p-0 text-[var(--text-muted)] hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
@@ -316,9 +317,7 @@ function ConnectorCard({
    */
   const effectiveStatus =
     connector.accessMode === 'members' && connector.status === 'active'
-      ? (MEMBER_SYNC_STATUS_AS_CONNECTOR_STATUS[
-          connector.memberSyncStatus as keyof typeof MEMBER_SYNC_STATUS_AS_CONNECTOR_STATUS
-        ] ?? 'active')
+      ? MEMBER_SYNC_STATUS_AS_CONNECTOR_STATUS[connector.memberSyncStatus]
       : connector.status
   const statusConfig =
     STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.active

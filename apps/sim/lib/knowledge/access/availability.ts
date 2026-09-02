@@ -1,4 +1,7 @@
-import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
+import {
+  getWorkspaceOwnerSubscriptionAccess,
+  type WorkspaceOwnerSubscriptionAccess,
+} from '@/lib/billing/core/workspace-access'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 
@@ -13,6 +16,8 @@ import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availabilit
 export interface KnowledgeMemberAccessContext {
   workspaceId: string
   userId?: string
+  /** The workspace owner's plan, when the caller already holds it. */
+  ownerBilling?: WorkspaceOwnerSubscriptionAccess
 }
 
 /**
@@ -30,6 +35,7 @@ export async function isKnowledgeMemberAccessAvailable(
   context: KnowledgeMemberAccessContext
 ): Promise<boolean> {
   if (!(await isFeatureEnabled('knowledge-member-access', context))) return false
-  const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(context.workspaceId)
+  const ownerBilling =
+    context.ownerBilling ?? (await getWorkspaceOwnerSubscriptionAccess(context.workspaceId))
   return isCredentialGroupsAvailable({ workspaceId: context.workspaceId, ownerBilling })
 }

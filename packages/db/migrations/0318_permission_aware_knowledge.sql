@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS "knowledge_connector_member" (
 	"last_error" text,
 	"member_synced_through" timestamp,
 	"change_cursor" text,
-	"change_cursor_at" timestamp,
 	"suspended_at" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,

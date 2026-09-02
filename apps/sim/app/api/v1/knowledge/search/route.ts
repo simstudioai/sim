@@ -8,11 +8,10 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
-import { recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
+import { generateSearchEmbedding, recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import {
   executeKnowledgeSearch,
-  generateSearchEmbedding,
   getDocumentMetadataByIds,
   type SearchResult,
 } from '@/lib/knowledge/search/queries'

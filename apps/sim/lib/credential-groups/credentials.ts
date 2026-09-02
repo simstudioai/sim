@@ -68,7 +68,10 @@ export interface ManagedCredentialGroupBinding {
  * credential itself.
  */
 export function isManagedCredentialGroupBindingLive(
-  binding: ManagedCredentialGroupBinding
+  binding: Pick<
+    ManagedCredentialGroupBinding,
+    'managedOauthStatus' | 'enrollmentStatus' | 'groupStatus' | 'optionStatus'
+  >
 ): boolean {
   return (
     binding.managedOauthStatus === 'active' &&

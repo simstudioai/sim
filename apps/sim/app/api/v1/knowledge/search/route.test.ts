@@ -46,7 +46,6 @@ const SYSTEM_BILLING_ATTRIBUTION = {
 
 vi.mock('@/lib/knowledge/search/queries', () => ({
   executeKnowledgeSearch: mockExecuteKnowledgeSearch,
-  generateSearchEmbedding: mockGenerateSearchEmbedding,
   getDocumentMetadataByIds: mockGetDocumentMetadataByIds,
 }))
 
@@ -63,6 +62,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 }))
 
 vi.mock('@/lib/knowledge/embeddings', () => ({
+  generateSearchEmbedding: mockGenerateSearchEmbedding,
   recordSearchEmbeddingUsage: mockRecordSearchEmbeddingUsage,
 }))
 

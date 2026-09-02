@@ -16,7 +16,7 @@ process.env.DATABASE_URL ??= 'postgresql://user:pass@localhost:5432/test'
 
 const { PgDialect } = await import('drizzle-orm/pg-core')
 const { knowledgeAccessCondition } = await import('@/lib/knowledge/access/predicate')
-const { SYSTEM_ACCESS_SCOPE } = await import('@/lib/knowledge/access/system')
+const { SYSTEM_ACCESS_SCOPE } = await import('@/lib/knowledge/access/types')
 
 function render(condition: ReturnType<typeof knowledgeAccessCondition>) {
   return new PgDialect().sqlToQuery(condition)

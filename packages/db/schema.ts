@@ -4811,7 +4811,6 @@ export const knowledgeConnectorMember = pgTable(
      * has to be reopened.
      */
     changeCursor: text('change_cursor'),
-    changeCursorAt: timestamp('change_cursor_at'),
     suspendedAt: timestamp('suspended_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

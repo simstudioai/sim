@@ -16,6 +16,7 @@ import {
 } from '@/lib/knowledge/application/connectors'
 import { resolveActiveKnowledgeConnectorContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { createViewerConnectorEnrollmentLink } from '@/lib/knowledge/connectors/member-provisioning'
 import {
   performUpdateKnowledgeConnectorAccess,
   resolveKnowledgeConnectorMembersBinding,
@@ -23,11 +24,6 @@ import {
 import { getKnowledgeConnector } from '@/lib/knowledge/orchestration/connectors'
 import type { KnowledgeOperationSource } from '@/lib/knowledge/orchestration/shared'
 import { getConnectorMeta } from '@/connectors/registry'
-
-/** The enrollment link needs the credential-group services; loaded only when a member connects. */
-async function loadMemberProvisioning() {
-  return import('@/lib/knowledge/connectors/member-provisioning')
-}
 
 export interface StartKnowledgeConnectorMemberEnrollmentInput {
   knowledgeBaseId: string
@@ -64,7 +60,7 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
         'Per-member access is not available for this workspace'
       )
     }
-    const url = await (await loadMemberProvisioning()).createViewerConnectorEnrollmentLink({
+    const url = await createViewerConnectorEnrollmentLink({
       userId,
       workspaceId,
       credentialGroupId: connector.credentialGroupId,
@@ -183,8 +179,8 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
 
 /**
  * Workspace mode needs a credential the caller may use, and one that yields a
- * token, since the connector syncs as it from then on. An API-key connector
- * has no credential to name and keeps its stored key.
+ * token, since the connector syncs as it from then on. Only an OAuth connector
+ * can change modes: an API-key connector has no account to sync per member.
  */
 async function requireUsableCredential(input: {
   credentialId: string | undefined

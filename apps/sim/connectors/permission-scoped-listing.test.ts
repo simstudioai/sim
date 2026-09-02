@@ -39,7 +39,6 @@ describe('permission-scoped connector listings', () => {
       'jsm',
       'linear',
       'monday',
-      'notion',
       'salesforce',
       'zoom',
     ])

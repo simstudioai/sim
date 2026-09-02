@@ -9,6 +9,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
+  resolveSystemBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
@@ -317,4 +318,42 @@ export async function dispatchMemberSync(
     await releaseFailedMemberDispatch(connectorId, dispatchToken, error)
   })
   return { queued: true }
+}
+
+/**
+ * Queues a member run for every connector that crawls through the option a
+ * member just connected, so their documents arrive within minutes rather
+ * than at the next scheduled run. Best effort: a refused dispatch is logged
+ * and the schedule catches up.
+ */
+export async function dispatchMemberSyncsForCredentialOption(input: {
+  workspaceId: string
+  credentialGroupOptionId: string
+}): Promise<void> {
+  const connectors = await db
+    .select({ id: knowledgeConnector.id })
+    .from(knowledgeConnector)
+    .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
+    .where(
+      and(
+        eq(knowledgeBase.workspaceId, input.workspaceId),
+        isNull(knowledgeBase.deletedAt),
+        eq(knowledgeConnector.accessMode, 'members'),
+        eq(knowledgeConnector.credentialGroupOptionId, input.credentialGroupOptionId),
+        inArray(knowledgeConnector.status, ['active', 'error']),
+        isNull(knowledgeConnector.archivedAt),
+        isNull(knowledgeConnector.deletedAt)
+      )
+    )
+  if (connectors.length === 0) return
+  const billingAttribution = await resolveSystemBillingAttribution(input.workspaceId)
+  for (const connector of connectors) {
+    const dispatch = await dispatchMemberSync(connector.id, { billingAttribution })
+    if (!dispatch.queued) {
+      logger.info('Member sync after a member connected was not queued', {
+        connectorId: connector.id,
+        reason: dispatch.reason,
+      })
+    }
+  }
 }

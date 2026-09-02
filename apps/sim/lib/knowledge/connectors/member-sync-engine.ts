@@ -17,6 +17,7 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import {
   type CredentialGroupOptionCredentialReference,
+  isManagedCredentialGroupBindingLive,
   loadCredentialGroupCredentialListContext,
 } from '@/lib/credential-groups/credentials'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
@@ -204,12 +205,12 @@ export function deriveMemberActive(
   >,
   option: { groupActive: boolean; optionActive: boolean }
 ): boolean {
-  return (
-    option.groupActive &&
-    option.optionActive &&
-    credential.managedOauthStatus === 'active' &&
-    (credential.enrollmentStatus === 'in_progress' || credential.enrollmentStatus === 'completed')
-  )
+  return isManagedCredentialGroupBindingLive({
+    managedOauthStatus: credential.managedOauthStatus,
+    enrollmentStatus: credential.enrollmentStatus,
+    groupStatus: option.groupActive ? 'active' : 'disabled',
+    optionStatus: option.optionActive ? 'active' : 'disabled',
+  })
 }
 
 /**
@@ -909,12 +910,7 @@ async function applyMemberListing(
         ...(outcome.mode === 'changes' && outcome.complete
           ? { memberSyncedThrough: outcome.listingStartedAt }
           : {}),
-        ...(outcome.changeCursor !== undefined
-          ? {
-              changeCursor: outcome.changeCursor,
-              changeCursorAt: outcome.changeCursor === null ? null : now,
-            }
-          : {}),
+        ...(outcome.changeCursor !== undefined ? { changeCursor: outcome.changeCursor } : {}),
         updatedAt: now,
       })
       .where(eq(knowledgeConnectorMember.id, outcome.member.id))
@@ -1068,8 +1064,10 @@ async function failMemberSyncLog(runId: string, result: MemberSyncResult, errorM
 /**
  * Ends a run without doing anything because the feature is not available to
  * the workspace right now. The connector keeps its members and their
- * observations, records nothing as a failure, and is looked at again on its
- * next schedule; a manual-only connector waits for the next manual sync.
+ * observations, and its failure ladder does not advance; the reason is left
+ * on the connector and the run's log so an admin can see why nothing syncs.
+ * It is looked at again on its next schedule; a manual-only connector waits
+ * for the next manual sync.
  */
 async function deferMemberSync(run: MemberSyncRun, syncIntervalMinutes: number): Promise<void> {
   const now = new Date()

@@ -77,8 +77,7 @@ import {
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
-import type { SystemAccessScope } from '@/lib/knowledge/access/system'
-import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
+import type { KnowledgeAccessScope, SystemAccessScope } from '@/lib/knowledge/access/types'
 import {
   assertDocumentChunkCountWithinLimit,
   isPermanentDocumentProcessingError,

@@ -48,18 +48,18 @@ afterEach(() => {
 })
 
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
+import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 import {
   executeKeywordSearch,
   executeKnowledgeSearch,
   fuseByReciprocalRank,
-  generateSearchEmbedding,
   getQueryStrategy,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
   handleVectorOnlySearch,
   type SearchResult,
 } from '@/lib/knowledge/search/queries'
-import { RRF_K } from '@/lib/knowledge/search/rank'
+import { RRF_K } from '@/lib/knowledge/search/recency'
 
 /** Minimal SearchResult builder — only the fields fusion and ordering read. */
 function makeResult(id: string, distance = 0.1): SearchResult {

@@ -107,6 +107,19 @@ vi.mock('@/hooks/queries/credentials', () => ({
   }),
 }))
 
+vi.mock('@/hooks/queries/kb/connectors', () => ({
+  memberConnectorKeys: { list: (workspaceId?: string) => ['member-connectors', workspaceId] },
+  useWorkspaceMemberConnectors: () => ({ data: [] }),
+}))
+vi.mock('@/hooks/use-member-enrollment', () => ({
+  useMemberEnrollment: () => ({
+    connect: vi.fn(),
+    isAwaiting: () => false,
+    isPending: false,
+    error: null,
+  }),
+}))
+
 import { Search } from '@/app/workspace/[workspaceId]/search/search'
 
 let root: Root | null = null

@@ -148,7 +148,6 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
     ).resolves.toEqual({
       credentialGroupId: 'group-9',
       credentialGroupOptionId: 'option-9',
-      workspaceId: 'ws-1',
       sourceConfig: {},
     })
     expect(mocks.provision).toHaveBeenCalledWith({

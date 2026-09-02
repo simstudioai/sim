@@ -5,8 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
-import { RRF_K } from '@/lib/knowledge/search/rank'
-import { applyRecencyBoost } from '@/lib/knowledge/search/recency'
+import { applyRecencyBoost, RRF_K } from '@/lib/knowledge/search/recency'
 import {
   coerceTagFilterValue,
   escapeLikePattern,
@@ -144,8 +143,6 @@ export interface SearchParams {
   queryVector?: string
   distanceThreshold?: number
 }
-
-export { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
 /** All valid tag slot keys */
 const TAG_SLOT_KEYS = [

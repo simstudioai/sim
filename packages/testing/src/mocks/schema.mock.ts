@@ -1426,7 +1426,6 @@ export const schemaMock = {
     lastError: 'knowledgeConnectorMember.lastError',
     memberSyncedThrough: 'knowledgeConnectorMember.memberSyncedThrough',
     changeCursor: 'knowledgeConnectorMember.changeCursor',
-    changeCursorAt: 'knowledgeConnectorMember.changeCursorAt',
     suspendedAt: 'knowledgeConnectorMember.suspendedAt',
     createdAt: 'knowledgeConnectorMember.createdAt',
     updatedAt: 'knowledgeConnectorMember.updatedAt',

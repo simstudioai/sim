@@ -8257,12 +8257,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "change_cursor_at": {
-          "name": "change_cursor_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "suspended_at": {
           "name": "suspended_at",
           "type": "timestamp",

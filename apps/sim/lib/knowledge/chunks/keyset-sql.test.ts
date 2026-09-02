@@ -10,7 +10,7 @@ vi.unmock('@sim/db/schema')
 vi.unmock('drizzle-orm')
 
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
-import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/system'
+import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import { queryChunks } from '@/lib/knowledge/chunks/service'
 import type { ChunkSortBy } from '@/lib/knowledge/chunks/types'
 

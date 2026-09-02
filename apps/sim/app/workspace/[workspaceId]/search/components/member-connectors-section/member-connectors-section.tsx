@@ -78,42 +78,44 @@ export function MemberConnectorsSection({ workspaceId, search }: MemberConnector
   if (visible.length === 0) return null
 
   return (
-    <IntegrationSection label={SHARED_WITH_YOU_LABEL}>
-      {visible.map((connector) => {
-        const meta = CONNECTOR_META_REGISTRY[connector.connectorType]
-        const waiting = isAwaiting(connector.connectorId)
-        const connectable = CONNECTABLE.has(connector.viewerMembership)
-        return (
-          <SettingsResourceRow
-            key={connector.connectorId}
-            iconVariant='custom'
-            icon={
-              meta ? (
-                <IntegrationTile blockType={connector.connectorType} icon={meta.icon} />
-              ) : undefined
-            }
-            title={meta?.name ?? connector.connectorType}
-            description={describe(connector, waiting)}
-            trailing={
-              connectable ? (
-                <Button
-                  variant='primary'
-                  size='sm'
-                  onClick={() => connect(connector.knowledgeBaseId, connector.connectorId)}
-                  disabled={isPending}
-                >
-                  {waiting
-                    ? 'Open again'
-                    : connector.viewerMembership === 'needs_reauth'
-                      ? 'Reconnect'
-                      : 'Connect'}
-                </Button>
-              ) : undefined
-            }
-          />
-        )
-      })}
+    <>
+      <IntegrationSection label={SHARED_WITH_YOU_LABEL}>
+        {visible.map((connector) => {
+          const meta = CONNECTOR_META_REGISTRY[connector.connectorType]
+          const waiting = isAwaiting(connector.connectorId)
+          const connectable = CONNECTABLE.has(connector.viewerMembership)
+          return (
+            <SettingsResourceRow
+              key={connector.connectorId}
+              iconVariant='custom'
+              icon={
+                meta ? (
+                  <IntegrationTile blockType={connector.connectorType} icon={meta.icon} />
+                ) : undefined
+              }
+              title={meta?.name ?? connector.connectorType}
+              description={describe(connector, waiting)}
+              trailing={
+                connectable ? (
+                  <Button
+                    variant='primary'
+                    size='sm'
+                    onClick={() => connect(connector.knowledgeBaseId, connector.connectorId)}
+                    disabled={isPending}
+                  >
+                    {waiting
+                      ? 'Open again'
+                      : connector.viewerMembership === 'needs_reauth'
+                        ? 'Reconnect'
+                        : 'Connect'}
+                  </Button>
+                ) : undefined
+              }
+            />
+          )
+        })}
+      </IntegrationSection>
       {error && <p className='text-[var(--text-error)] text-caption'>{error}</p>}
-    </IntegrationSection>
+    </>
   )
 }

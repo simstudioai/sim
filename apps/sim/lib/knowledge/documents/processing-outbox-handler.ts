@@ -1,6 +1,6 @@
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { OutboxHandler, OutboxHandlerRegistry } from '@/lib/core/outbox/service'
-import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/system'
+import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import { reclaimStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
 import {
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,

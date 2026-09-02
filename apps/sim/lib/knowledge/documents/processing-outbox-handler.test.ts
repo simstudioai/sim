@@ -21,7 +21,7 @@ vi.mock('@/lib/knowledge/documents/processing-claim', () => ({
 
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
-import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/system'
+import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-outbox-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 

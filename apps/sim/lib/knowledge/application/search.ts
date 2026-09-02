@@ -35,13 +35,13 @@ import {
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
+import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import {
   executeKnowledgeSearch,
-  generateSearchEmbedding,
   getDocumentMetadataByIds,
   type SearchResult,
 } from '@/lib/knowledge/search/queries'

@@ -304,7 +304,7 @@ async function persistGrant(
    * Loaded lazily: credential groups do not otherwise depend on knowledge.
    */
   const { dispatchMemberSyncsForCredentialOption } = await import(
-    '@/lib/knowledge/connectors/member-provisioning'
+    '@/lib/knowledge/connectors/member-queue'
   )
   await dispatchMemberSyncsForCredentialOption({
     workspaceId: context.workspaceId,

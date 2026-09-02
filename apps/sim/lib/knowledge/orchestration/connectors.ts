@@ -304,7 +304,12 @@ export async function performCreateKnowledgeConnector(
   if (membersBinding) {
     try {
       await grantKnowledgeConnectorCredentialAccess(
-        { workspaceId, ...membersBinding, connectorId },
+        {
+          workspaceId,
+          credentialGroupId: membersBinding.credentialGroupId,
+          credentialGroupOptionId: membersBinding.credentialGroupOptionId,
+          connectorId,
+        },
         params.userId
       )
     } catch (error) {

@@ -176,9 +176,9 @@ function setCachedConnectorStatus(
  * which is all `onError` needs to undo it — the mutation variables already
  * carry the ids.
  *
- * Both status-changing mutations resolve into the same list, so they share this
- * write instead of each keeping a local `Set` of in-flight ids alongside it —
- * that duplicated the server's own state and could not survive a remount.
+ * The pause and resume mutations share this write instead of each keeping a
+ * local `Set` of in-flight ids alongside it — that duplicated the server's own
+ * state and could not survive a remount.
  *
  * Deliberately not a snapshot of the whole array: two connectors can be in
  * flight at once, and restoring a whole-list snapshot would roll the other
@@ -335,12 +335,6 @@ async function updateConnectorAccess({
   return result.data
 }
 
-/**
- * Moves a connector between workspace and members mode. The switch rewrites
- * document access, so everything under the base is refetched: the connector
- * list and detail for the new mode and member state, and the document lists
- * whose rows may have become hidden or visible.
- */
 interface StartConnectorMemberEnrollmentParams {
   knowledgeBaseId: string
   connectorId: string
@@ -391,6 +385,12 @@ export function useStartConnectorMemberEnrollment() {
   return useMutation({ mutationFn: startConnectorMemberEnrollment })
 }
 
+/**
+ * Moves a connector between workspace and members mode. The switch rewrites
+ * document access, so everything under the base is refetched: the connector
+ * list and detail for the new mode and member state, and the document lists
+ * whose rows may have become hidden or visible.
+ */
 export function useUpdateConnectorAccess() {
   const queryClient = useQueryClient()
 

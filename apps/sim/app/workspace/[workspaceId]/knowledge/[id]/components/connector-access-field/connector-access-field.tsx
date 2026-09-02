@@ -62,7 +62,7 @@ export function ConnectorAccessField({
     if (value.accessMode !== 'members') return null
     return (
       <ChipModalField type='custom' title='Access'>
-        <ButtonGroup value='members' onValueChange={() => undefined}>
+        <ButtonGroup value='members'>
           <ButtonGroupItem value='workspace' disabled>
             Workspace
           </ButtonGroupItem>

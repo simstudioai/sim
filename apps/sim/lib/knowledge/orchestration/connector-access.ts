@@ -16,6 +16,7 @@ import {
   stripListingCapFields,
   validateKnowledgeConnectorMembersBinding,
 } from '@/lib/knowledge/connectors/member-access'
+import { provisionKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-provisioning'
 import {
   type ConnectorWithoutSecret,
   getKnowledgeConnector,
@@ -61,7 +62,6 @@ export interface KnowledgeConnectorMembersBinding {
 }
 
 export interface ResolvedMembersBinding extends KnowledgeConnectorMembersBinding {
-  workspaceId: string
   /** The connector's source config with the listing caps cleared, which members mode stores. */
   sourceConfig: Record<string, unknown>
 }
@@ -99,9 +99,7 @@ export async function resolveKnowledgeConnectorMembersBinding(input: {
   const sourceConfig = stripListingCapFields(input.connectorMeta, input.sourceConfig)
   const binding =
     input.binding ??
-    (await (
-      await import('@/lib/knowledge/connectors/member-provisioning')
-    ).provisionKnowledgeConnectorMembersBinding({
+    (await provisionKnowledgeConnectorMembersBinding({
       workspaceId: input.workspaceId,
       connectorMeta: input.connectorMeta,
       userId: input.actingUserId,
@@ -117,7 +115,7 @@ export async function resolveKnowledgeConnectorMembersBinding(input: {
     sourceConfig,
   })
   if (!validation.ok) throw new OrchestrationError('validation', validation.message)
-  return { ...binding, workspaceId: input.workspaceId, sourceConfig }
+  return { ...binding, sourceConfig }
 }
 
 /**

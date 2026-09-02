@@ -7,7 +7,9 @@ import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/
 import {
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
+  ConnectorListingScopeUnavailableError,
   htmlToPlainText,
+  isListingScopeUnavailableError,
   isSkippedDocument,
   markSkipped,
   parseTagDate,
@@ -426,6 +428,8 @@ async function listFolderPage(
 export const boxConnector: ConnectorConfig = {
   ...boxConnectorMeta,
 
+  isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -453,8 +457,9 @@ export const boxConnector: ConnectorConfig = {
        * reporting a successful sync that indexed nothing.
        */
       if (!page && position.folderId === rootFolderId) {
-        throw new Error(
-          `Box denied access to folder ${rootFolderId}. Reconnect the Box account or choose another folder.`
+        throw new ConnectorListingScopeUnavailableError(
+          `Box denied access to folder ${rootFolderId}. Reconnect the Box account or choose another folder.`,
+          403
         )
       }
 

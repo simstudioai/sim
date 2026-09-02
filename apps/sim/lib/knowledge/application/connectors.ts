@@ -34,13 +34,17 @@ import {
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { resolveViewerConnectorMemberships } from '@/lib/knowledge/connectors/member-provisioning'
 import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
 import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
 } from '@/lib/knowledge/constants'
-import { resolveKnowledgeConnectorMembersBinding } from '@/lib/knowledge/orchestration/connector-access'
+import {
+  type ResolvedMembersBinding,
+  resolveKnowledgeConnectorMembersBinding,
+} from '@/lib/knowledge/orchestration/connector-access'
 import {
   getKnowledgeConnector,
   type KnowledgeConnectorRow,
@@ -63,11 +67,6 @@ import { getConnectorMeta } from '@/connectors/registry'
 interface KnowledgeConnectorApplicationInput {
   assertedWorkspaceId?: string
   source?: KnowledgeOperationSource
-}
-
-/** The viewer's standing with per-member connectors; loaded only when the list holds one. */
-async function loadMemberProvisioning() {
-  return import('@/lib/knowledge/connectors/member-provisioning')
 }
 
 export interface ListKnowledgeConnectorsInput extends KnowledgeConnectorApplicationInput {
@@ -330,7 +329,7 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
     const viewerUserId = resolvePrincipalSubjectUserId(principal)
     const memberships =
       viewerUserId && context.workspaceId
-        ? await (await loadMemberProvisioning()).resolveViewerConnectorMemberships({
+        ? await resolveViewerConnectorMemberships({
             userId: viewerUserId,
             workspaceId: context.workspaceId,
             connectors: page,
@@ -388,7 +387,7 @@ export const listWorkspaceMemberConnectors = defineAuthorizedKnowledgeUseCase({
         )
       )
       .orderBy(asc(knowledgeBase.name), asc(knowledgeConnector.createdAt))
-    const memberships = await (await loadMemberProvisioning()).resolveViewerConnectorMemberships({
+    const memberships = await resolveViewerConnectorMemberships({
       userId: viewerUserId,
       workspaceId: context.workspaceId,
       connectors: rows,
@@ -447,7 +446,7 @@ export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
     const viewerUserId = resolvePrincipalSubjectUserId(principal)
     const memberships =
       viewerUserId && context.workspaceId
-        ? await (await loadMemberProvisioning()).resolveViewerConnectorMemberships({
+        ? await resolveViewerConnectorMemberships({
             userId: viewerUserId,
             workspaceId: context.workspaceId,
             connectors: [connector],
@@ -512,7 +511,7 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       workspaceId,
       input.connectorType
     )
-    let membersBinding: { credentialGroupId: string; credentialGroupOptionId: string } | undefined
+    let membersBinding: ResolvedMembersBinding | undefined
     if (input.accessMode === 'members') {
       /**
        * Members mode grants the connector every enrolled member's credential,
@@ -555,7 +554,8 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       connectorType: input.connectorType,
       credentialId: input.credentialId,
       apiKey: input.apiKey,
-      sourceConfig: input.sourceConfig,
+      /** Members mode stores the config with its listing caps cleared. */
+      sourceConfig: membersBinding?.sourceConfig ?? input.sourceConfig,
       syncIntervalMinutes: input.syncIntervalMinutes,
       membersBinding,
       resolveBillingAttribution: () =>

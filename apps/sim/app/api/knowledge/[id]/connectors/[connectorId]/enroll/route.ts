@@ -1,15 +1,16 @@
 import { startKnowledgeConnectorMemberEnrollmentContract } from '@/lib/api/contracts/knowledge'
-import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
 import {
-  internalKnowledgeErrorPolicies,
-  internalKnowledgeSessionOrExecutorAuth,
-} from '@/lib/knowledge/api/route-policies'
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { internalKnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { startKnowledgeConnectorMemberEnrollment } from '@/lib/knowledge/application/connector-access'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 
 export const POST = defineInternalJsonRoute({
   contract: startKnowledgeConnectorMemberEnrollmentContract,
-  auth: internalKnowledgeSessionOrExecutorAuth,
+  auth: internalSessionAuth,
   operation: knowledgeOperations.enrollConnectorMember,
   rateLimit: internalRateLimits.none({
     reason:

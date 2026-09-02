@@ -21,6 +21,7 @@ vi.mock('@/lib/credential-groups/service', () => ({
 vi.mock('@/lib/workspaces/permissions/utils', () => ({ getUsersWithPermissions: vi.fn() }))
 
 import {
+  chooseSharedMembersBinding,
   deriveViewerConnectorMembership,
   pickProvisionedGroupName,
 } from '@/lib/knowledge/connectors/member-provisioning'
@@ -43,6 +44,24 @@ describe('pickProvisionedGroupName', () => {
       'Google Drive 5',
     ]
     expect(() => pickProvisionedGroupName('Google Drive', taken)).toThrow('Settings')
+  })
+})
+
+describe('chooseSharedMembersBinding', () => {
+  const a = { credentialGroupId: 'g1', credentialGroupOptionId: 'o1' }
+  const b = { credentialGroupId: 'g2', credentialGroupOptionId: 'o2' }
+
+  it('reuses the option other members-mode connectors sync through', () => {
+    expect(chooseSharedMembersBinding([a, b], new Set(['o2']))).toBe(b)
+  })
+
+  it('creates a new group rather than repurpose one nobody syncs through', () => {
+    expect(chooseSharedMembersBinding([a, b], new Set())).toBeUndefined()
+    expect(chooseSharedMembersBinding([], new Set())).toBeUndefined()
+  })
+
+  it('leaves two shared options for the caller to choose between', () => {
+    expect(chooseSharedMembersBinding([a, b], new Set(['o1', 'o2']))).toBeNull()
   })
 })
 

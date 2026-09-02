@@ -192,22 +192,6 @@ export async function materializeDocumentAcls(
   return updated
 }
 
-/** Rewrites every drifted document ACL of the connector; used when membership changes wholesale. */
-export async function materializeAllDocumentAcls(connectorId: string): Promise<number> {
-  const rows = await db
-    .update(document)
-    .set({ acl: observedAcl() })
-    .where(
-      and(
-        eq(document.connectorId, connectorId),
-        isNull(document.archivedAt),
-        sql`${document.acl} IS DISTINCT FROM ${observedAcl()}`
-      )
-    )
-    .returning({ id: document.id })
-  return rows.length
-}
-
 export interface MemberDocumentLifecycleResult {
   tombstoned: number
   resurrected: number

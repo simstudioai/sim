@@ -1,19 +1,20 @@
 import { updateKnowledgeConnectorAccessContract } from '@/lib/api/contracts/knowledge'
-import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
 import {
   resolveInternalKnowledgeBillingAttribution,
   toInternalKnowledgeConnector,
 } from '@/lib/knowledge/api/internal-route'
-import {
-  internalKnowledgeErrorPolicies,
-  internalKnowledgeSessionOrExecutorAuth,
-} from '@/lib/knowledge/api/route-policies'
+import { internalKnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { updateKnowledgeConnectorAccess } from '@/lib/knowledge/application/connector-access'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 
 export const PATCH = defineInternalJsonRoute({
   contract: updateKnowledgeConnectorAccessContract,
-  auth: internalKnowledgeSessionOrExecutorAuth,
+  auth: internalSessionAuth,
   operation: knowledgeOperations.updateConnectorAccess,
   rateLimit: internalRateLimits.none({
     reason: 'A settings action an admin performs by hand; the switch itself is bounded',

@@ -8,8 +8,8 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { resolveSystemBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createCredentialGroupInvitationLink,
@@ -22,7 +22,6 @@ import {
 } from '@/lib/credential-groups/providers'
 import { createCredentialGroup, listCredentialGroups } from '@/lib/credential-groups/service'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
-import { dispatchMemberSync } from '@/lib/knowledge/connectors/member-queue'
 import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
 import type { ConnectorMeta } from '@/connectors/types'
 
@@ -59,10 +58,49 @@ export function pickProvisionedGroupName(
 }
 
 /**
+ * Among the workspace's active options collecting the connector's accounts,
+ * the one other members-mode connectors already sync through, so one
+ * connection serves every connector of a provider. A group nobody syncs
+ * through is never reused: it was curated for something else, and joining
+ * it would invite the whole workspace to it. Returns `undefined` when a new
+ * group is needed and `null` when two shared options make the choice
+ * ambiguous.
+ */
+export function chooseSharedMembersBinding(
+  candidates: readonly ProvisionedMembersBinding[],
+  optionIdsServingMemberConnectors: ReadonlySet<string>
+): ProvisionedMembersBinding | null | undefined {
+  const shared = candidates.filter((candidate) =>
+    optionIdsServingMemberConnectors.has(candidate.credentialGroupOptionId)
+  )
+  if (shared.length === 1) return shared[0]
+  return shared.length > 1 ? null : undefined
+}
+
+async function listOptionIdsServingMemberConnectors(
+  workspaceId: string,
+  optionIds: readonly string[]
+): Promise<ReadonlySet<string>> {
+  if (optionIds.length === 0) return new Set()
+  const rows = await db
+    .select({ optionId: knowledgeConnector.credentialGroupOptionId })
+    .from(knowledgeConnector)
+    .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
+    .where(
+      and(
+        eq(knowledgeBase.workspaceId, workspaceId),
+        eq(knowledgeConnector.accessMode, 'members'),
+        inArray(knowledgeConnector.credentialGroupOptionId, [...optionIds]),
+        isNull(knowledgeConnector.deletedAt)
+      )
+    )
+  return new Set(rows.flatMap((row) => (row.optionId ? [row.optionId] : [])))
+}
+
+/**
  * The Credential Group option a members-mode connector crawls through when
- * the caller named none: the workspace's one active option collecting the
- * connector's accounts, or a group created for the purpose. Two or more
- * candidate options is an ambiguity the caller has to resolve by naming one.
+ * the caller named none: the option this provider's other members-mode
+ * connectors share, or a group created for the purpose.
  */
 export async function provisionKnowledgeConnectorMembersBinding(input: {
   workspaceId: string
@@ -95,11 +133,18 @@ export async function provisionKnowledgeConnectorMembersBinding(input: {
       candidates.push({ credentialGroupId: group.id, credentialGroupOptionId: option.id })
     }
   }
-  if (candidates.length === 1) return candidates[0]
-  if (candidates.length > 1) {
+  const shared = chooseSharedMembersBinding(
+    candidates,
+    await listOptionIdsServingMemberConnectors(
+      input.workspaceId,
+      candidates.map((candidate) => candidate.credentialGroupOptionId)
+    )
+  )
+  if (shared) return shared
+  if (shared === null) {
     throw new OrchestrationError(
       'validation',
-      `Several Credential Groups collect ${connectorMeta.name} accounts; choose which one this connector syncs through`
+      `Several Credential Groups collect ${connectorMeta.name} accounts for other connectors; choose which one this connector syncs through`
     )
   }
 
@@ -145,10 +190,10 @@ export async function inviteWorkspaceMembersToCredentialGroup(input: {
       .from(credentialGroupEnrollment)
       .where(eq(credentialGroupEnrollment.credentialGroupId, input.credentialGroupId)),
   ])
-  const enrolledEmails = new Set(enrolled.map((row) => row.email.trim().toLocaleLowerCase()))
-  const pending = [
-    ...new Set(members.map((member) => member.email.trim().toLocaleLowerCase())),
-  ].filter((email) => email && !enrolledEmails.has(email))
+  const enrolledEmails = new Set(enrolled.map((row) => normalizeEmail(row.email)))
+  const pending = [...new Set(members.map((member) => normalizeEmail(member.email)))].filter(
+    (email) => email && !enrolledEmails.has(email)
+  )
 
   const result: InviteWorkspaceMembersResult = { invited: 0, failed: 0 }
   for (let offset = 0; offset < pending.length; offset += INVITATION_BATCH_SIZE) {
@@ -232,7 +277,7 @@ export async function resolveViewerConnectorMemberships(input: {
     .where(eq(user.id, input.userId))
     .limit(1)
   if (!viewer) return result
-  const email = viewer.email.trim().toLocaleLowerCase()
+  const email = normalizeEmail(viewer.email)
   const groupIds = [...new Set(memberConnectors.map((connector) => connector.credentialGroupId!))]
   const rows = await db
     .select({
@@ -300,7 +345,7 @@ export async function createViewerConnectorEnrollmentLink(input: {
       'Verify your email address before connecting an account'
     )
   }
-  const email = viewer.email.trim().toLocaleLowerCase()
+  const email = normalizeEmail(viewer.email)
   const [enrollment] = await db
     .select({ status: credentialGroupEnrollment.status })
     .from(credentialGroupEnrollment)
@@ -324,46 +369,4 @@ export async function createViewerConnectorEnrollmentLink(input: {
     email
   )
   return invitationLink
-}
-
-/**
- * Queues a member run for every connector that crawls through the option a
- * member just connected, so their documents arrive within minutes rather
- * than at the next scheduled run. Best effort: a refused dispatch is logged
- * and the schedule catches up.
- */
-export async function dispatchMemberSyncsForCredentialOption(input: {
-  workspaceId: string
-  credentialGroupOptionId: string
-  requestId?: string
-}): Promise<void> {
-  const connectors = await db
-    .select({ id: knowledgeConnector.id })
-    .from(knowledgeConnector)
-    .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
-    .where(
-      and(
-        eq(knowledgeBase.workspaceId, input.workspaceId),
-        isNull(knowledgeBase.deletedAt),
-        eq(knowledgeConnector.accessMode, 'members'),
-        eq(knowledgeConnector.credentialGroupOptionId, input.credentialGroupOptionId),
-        eq(knowledgeConnector.status, 'active'),
-        isNull(knowledgeConnector.archivedAt),
-        isNull(knowledgeConnector.deletedAt)
-      )
-    )
-  if (connectors.length === 0) return
-  const billingAttribution = await resolveSystemBillingAttribution(input.workspaceId)
-  for (const connector of connectors) {
-    const dispatch = await dispatchMemberSync(connector.id, {
-      billingAttribution,
-      requestId: input.requestId,
-    })
-    if (!dispatch.queued) {
-      logger.info('Member sync after a member connected was not queued', {
-        connectorId: connector.id,
-        reason: dispatch.reason,
-      })
-    }
-  }
 }

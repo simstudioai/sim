@@ -1,7 +1,6 @@
 import { document } from '@sim/db/schema'
 import { type SQL, sql } from 'drizzle-orm'
-import type { SystemAccessScope } from '@/lib/knowledge/access/system'
-import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
+import type { KnowledgeAccessScope, SystemAccessScope } from '@/lib/knowledge/access/types'
 
 /**
  * The single read-side access predicate: the document's ACL overlaps the
