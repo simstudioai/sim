@@ -416,6 +416,39 @@ describe('Chat Identifier API Route', () => {
       )
     }, 10000)
 
+    it('executes with the email proven by the chat authentication gate', async () => {
+      mockValidateChatAuth.mockResolvedValueOnce({
+        authorized: true,
+        authenticatedEmail: 'person@example.com',
+      })
+      const req = createMockNextRequest('POST', { input: 'Hello world' })
+
+      const response = await POST(req, {
+        params: Promise.resolve({ identifier: 'test-chat' }),
+      })
+      expect(response.status).toBe(200)
+
+      const streamOptions = vi.mocked(createStreamingResponse).mock.calls[0][0]
+      await streamOptions.executeFn({
+        onStream: vi.fn(),
+        onBlockComplete: vi.fn(),
+        abortSignal: new AbortController().signal,
+      })
+
+      expect(vi.mocked(executeWorkflow).mock.calls[0][4]).toMatchObject({
+        principal: {
+          kind: 'system',
+          serviceId: 'chat',
+          workspaceId: 'test-workspace-id',
+          workflowId: 'workflow-id',
+          subject: {
+            kind: 'authenticated_email',
+            email: 'person@example.com',
+          },
+        },
+      })
+    }, 10000)
+
     /**
      * A row predating the column has no tool policy, so it has not opted in.
      * Thinking must not drag tool frames along with it.

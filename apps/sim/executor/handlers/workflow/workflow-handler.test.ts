@@ -801,6 +801,7 @@ describe('WorkflowBlockHandler', () => {
       const ctx = {
         ...mockContext,
         userId: 'consumer-1',
+        principal: { kind: 'session', userId: 'consumer-1', sessionId: 'session-consumer' },
         workspaceId: 'workspace-consumer',
         executionId: 'exec-1',
       } as ExecutionContext
@@ -873,7 +874,11 @@ describe('WorkflowBlockHandler', () => {
       expect(executorOptions).toHaveLength(1)
       const startRunMetadata = executorOptions[0].contextExtensions.startRunMetadata
       expect(startRunMetadata).toMatchObject({
-        userEmail: 'a@corp.com',
+        subject: {
+          kind: 'sim_user',
+          userId: 'consumer-1',
+          email: 'a@corp.com',
+        },
         workspaceId: 'workspace-consumer',
         workflowId: 'parent-workflow-id',
         executionId: 'exec-1',
@@ -891,7 +896,11 @@ describe('WorkflowBlockHandler', () => {
         metadata: { id: 'custom_block_abc', name: 'Published Block' },
       }
       const inheritedMetadata = {
-        userEmail: 'original@corp.com',
+        subject: {
+          kind: 'sim_user' as const,
+          userId: 'original-user',
+          email: 'original@corp.com',
+        },
         workspaceId: 'workspace-original',
         workflowId: 'workflow-original',
         executionId: 'exec-1',
@@ -971,7 +980,11 @@ describe('WorkflowBlockHandler', () => {
 
       expect(executorOptions).toHaveLength(1)
       expect(executorOptions[0].contextExtensions.startRunMetadata).toMatchObject({
-        userEmail: 'original@corp.com',
+        subject: {
+          kind: 'sim_user',
+          userId: 'original-user',
+          email: 'original@corp.com',
+        },
         workspaceId: 'workspace-original',
         workflowId: 'workflow-original',
         executionMode: 'async',
@@ -979,13 +992,13 @@ describe('WorkflowBlockHandler', () => {
       expect(mockGetUserEmailById).not.toHaveBeenCalled()
     })
 
-    it('preserves a fail-soft null inherited email instead of re-resolving it', async () => {
+    it('preserves an actorless inherited subject instead of inventing an identity', async () => {
       const ctx = {
         ...mockContext,
         userId: 'publisher-1',
         workspaceId: 'workspace-parent',
         startRunMetadata: {
-          userEmail: null,
+          subject: null,
           workspaceId: 'workspace-original',
           workflowId: 'workflow-original',
         },
@@ -1025,13 +1038,16 @@ describe('WorkflowBlockHandler', () => {
       await handler.execute(ctx, mockBlock, inputs)
 
       expect(executorOptions).toHaveLength(1)
-      expect(executorOptions[0].contextExtensions.startRunMetadata.userEmail).toBeNull()
+      expect(executorOptions[0].contextExtensions.startRunMetadata.subject).toBeNull()
       expect(mockGetUserEmailById).not.toHaveBeenCalled()
     })
 
     it('recovers inherited metadata from the seeded start-block state after resume', async () => {
       const seededMetadata = {
-        userEmail: 'original@corp.com',
+        subject: {
+          kind: 'authenticated_email' as const,
+          email: 'original@corp.com',
+        },
         workspaceId: 'workspace-original',
         workflowId: 'workflow-original',
         executionMode: 'sync',
@@ -1093,7 +1109,10 @@ describe('WorkflowBlockHandler', () => {
 
       expect(executorOptions).toHaveLength(1)
       expect(executorOptions[0].contextExtensions.startRunMetadata).toMatchObject({
-        userEmail: 'original@corp.com',
+        subject: {
+          kind: 'authenticated_email',
+          email: 'original@corp.com',
+        },
         workspaceId: 'workspace-original',
         workflowId: 'workflow-original',
       })
@@ -1102,7 +1121,10 @@ describe('WorkflowBlockHandler', () => {
 
     it('passes inherited metadata through a toggle-off child so deeper children keep it', async () => {
       const inheritedMetadata = {
-        userEmail: 'original@corp.com',
+        subject: {
+          kind: 'authenticated_email' as const,
+          email: 'original@corp.com',
+        },
         workspaceId: 'workspace-original',
         workflowId: 'workflow-original',
       }
