@@ -55,9 +55,13 @@ vi.mock('@/lib/table/application/context', () => ({
   resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
 }))
 
-import { restoreFolder } from '@/lib/folders/orchestration'
+import { relocateFolderByPathTransition, restoreFolder } from '@/lib/folders/orchestration'
 import { findArchivedFolderIdByPath } from '@/lib/folders/queries'
-import { listTableFoldersUseCase, restoreTableFolderUseCase } from '@/lib/table/application/folders'
+import {
+  listTableFoldersUseCase,
+  restoreTableFolderUseCase,
+  updateTableFolderUseCase,
+} from '@/lib/table/application/folders'
 
 const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
 
@@ -173,5 +177,51 @@ describe('restoreTableFolderUseCase', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
 
     expect(restoreFolder).not.toHaveBeenCalled()
+  })
+})
+
+describe('updateTableFolderUseCase', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveWorkspaceContext.mockResolvedValue({
+      workspaceId: 'ws-1',
+      billedAccountUserId: 'owner-1',
+    })
+    mocks.resolvePermission.mockResolvedValue('admin')
+    mocks.loadFolderIndex.mockResolvedValue({
+      idByPath: new Map(),
+      pathById: new Map(),
+      rowById: new Map(),
+    })
+  })
+
+  /**
+   * `mv` semantics are decided in the shared orchestration, under its lock, so
+   * the use case reports where the folder actually landed rather than echoing
+   * the destination it was asked for.
+   */
+  it('reports the resolved path when the destination named an existing folder', async () => {
+    const folder = { id: 'folder-1', name: 'xp-files', parentId: 'folder-2' }
+    vi.mocked(relocateFolderByPathTransition).mockResolvedValue({
+      success: true,
+      folder,
+      path: '/fx-archive/xp-files',
+    } as never)
+
+    const result = await updateTableFolderUseCase.execute({
+      principal,
+      input: { workspaceId: 'ws-1', path: '/xp-files', destinationPath: '/fx-archive' },
+    })
+
+    expect(relocateFolderByPathTransition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resourceType: 'table',
+        path: '/xp-files',
+        destinationPath: '/fx-archive',
+      })
+    )
+    expect(result.path).toBe('/fx-archive/xp-files')
+    expect(result.sourcePath).toBe('/xp-files')
+    expect(result.folder).toBe(folder)
   })
 })

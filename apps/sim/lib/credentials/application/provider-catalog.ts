@@ -158,7 +158,13 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
       name: 'Slack custom bot',
       description: 'Connect a reusable Slack app with its signing secret and bot token.',
       docsUrl: 'https://docs.sim.ai/integrations/slack',
-      requiresClientGeneratedCredentialId: true,
+      /**
+       * The Request URL embeds the credential id, so the first-party modal
+       * pre-generates one to show the URL before saving. That is a convenience,
+       * not a requirement: creation mints an id when none is supplied, and an
+       * API caller configures Slack from the id the create response returns.
+       */
+      requiresClientGeneratedCredentialId: false,
       fields: [
         {
           id: 'signingSecret',

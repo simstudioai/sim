@@ -499,6 +499,59 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<source.result>', ctx)).toBe(RESOLVED_EMPTY)
     })
 
+    describe('implicit error output', () => {
+      /**
+       * `RESOLVED_EMPTY` is what the variable resolver renders as `null` in
+       * Function and Condition code and as an empty string in every other field,
+       * so a successful block's `.error` reads as absent rather than failing the
+       * referencing block.
+       */
+      it.concurrent('resolves empty on a successful block whose schema omits error', () => {
+        const workflow = createTestWorkflow([{ id: 'guard', type: 'function' }])
+        const resolver = new BlockResolver(workflow)
+        const ctx = createTestContext('current', {
+          guard: { result: { ok: true }, stdout: '' },
+        })
+
+        expect(resolver.resolve('<guard.error>', ctx)).toBe(RESOLVED_EMPTY)
+      })
+
+      it.concurrent('resolves the message on a failed block', () => {
+        const workflow = createTestWorkflow([{ id: 'guard', type: 'function' }])
+        const resolver = new BlockResolver(workflow)
+        const ctx = createTestContext('current', {
+          guard: { error: 'Guard rejected the payload' },
+        })
+
+        expect(resolver.resolve('<guard.error>', ctx)).toBe('Guard rejected the payload')
+      })
+
+      it.concurrent('resolves empty through the async path too', async () => {
+        const workflow = createTestWorkflow([{ id: 'guard', type: 'function' }], {})
+        const resolver = new BlockResolver(workflow, navigatePathAsync)
+        const ctx = createTestContext('current', {
+          guard: { result: { ok: true } },
+        })
+
+        await expect(resolver.resolveAsync('<guard.error>', ctx)).resolves.toBe(RESOLVED_EMPTY)
+      })
+
+      it.concurrent('still rejects an unrelated unknown field', () => {
+        const workflow = createTestWorkflow([{ id: 'guard', type: 'function' }])
+        const resolver = new BlockResolver(workflow)
+        const ctx = createTestContext('current', {
+          guard: { result: { ok: true } },
+        })
+
+        expect(() => resolver.resolve('<guard.errors>', ctx)).toThrow(
+          '"errors" doesn\'t exist on block "guard". Available fields: result, stdout'
+        )
+        expect(() => resolver.resolve('<guard.error.code>', ctx)).toThrow(
+          /"error.code" doesn't exist on block "guard"/
+        )
+      })
+    })
+
     it.concurrent(
       'should allow hiddenFromDisplay fields for pre-execution schema validation',
       () => {

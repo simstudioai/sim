@@ -6538,7 +6538,7 @@
               },
               "requiresClientGeneratedCredentialId": {
                 "type": "boolean",
-                "description": "Whether the caller must generate and submit the credential ID before setup."
+                "description": "Whether the caller must generate and submit the credential ID before setup. False for every provider: credential creation mints an ID when none is supplied, and a Slack custom bot may still send one to configure its Request URL ahead of time."
               },
               "fields": {
                 "minItems": 1,
@@ -6795,7 +6795,7 @@
             "maxLength": 500
           },
           "id": {
-            "description": "Required only when provider discovery requests a client-generated ID.",
+            "description": "Optional client-generated credential ID. The server mints one when it is omitted, so no provider requires it. A `slack-custom-bot` credential may supply one so its Slack Request URL, which embeds the ID, can be configured before the credential exists; every other provider ignores it.",
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
@@ -8321,7 +8321,7 @@
             "type": "string"
           },
           "required": {
-            "description": "Whether a value must be supplied. A conditionally required field reports `true` and carries `requiredWhen`.",
+            "description": "Whether a value must always be supplied. A field required only under some configuration reports `false` and carries `requiredWhen`.",
             "type": "boolean"
           },
           "requiredWhen": {
@@ -8349,7 +8349,7 @@
             "$ref": "#/components/schemas/V2CatalogCondition"
           },
           "options": {
-            "description": "Selectable options. Absent on fields whose options are fetched per workspace at edit time.",
+            "description": "Selectable options. Absent on fields whose options are fetched per workspace at edit time. A `model` field always carries its options, with `hosted` marking the models a hosted deployment runs without an author-supplied key.",
             "type": "array",
             "items": {
               "type": "object",
@@ -8364,6 +8364,10 @@
                 },
                 "hasIcon": {
                   "description": "Whether the option renders with an icon. The icon itself is not published.",
+                  "type": "boolean"
+                },
+                "hosted": {
+                  "description": "Model options only: whether Sim runs the model with its own key on a hosted deployment, so no provider API key is needed for it.",
                   "type": "boolean"
                 }
               },

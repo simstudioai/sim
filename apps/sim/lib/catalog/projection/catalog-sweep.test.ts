@@ -39,6 +39,7 @@ import { projectToolDetail, projectToolSummaryById } from '@/lib/catalog/project
 import { buildCustomBlockConfig } from '@/blocks/custom/build-config'
 import { getBlockRegistry } from '@/blocks/registry'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import { getHostedModels } from '@/providers/models'
 import { getToolIds } from '@/tools/tool-ids'
 
 /** Hosted deployment: the state under which every declared hosted key is published. */
@@ -144,6 +145,42 @@ describe('block detail regressions', () => {
     expect(inputKeys).toContain('filter')
     expect(inputKeys).not.toContain('filterInput')
     expect(inputKeys).not.toContain('sortInput')
+  })
+
+  /**
+   * `blocks get agent` reported `apiKey`, `vertexCredential`, `bedrockAccessKeyId`,
+   * `conversationId`, … as `required: true`, because each is authored
+   * `required: true` behind a condition the projection flattened away. A field
+   * required only under some configuration is optional at the block level, and
+   * the condition that requires it is published alongside.
+   */
+  it('publishes the agent’s conditionally required fields as optional with their condition', () => {
+    const detail = projectBlockDetail(registered('agent'), { deployment: HOSTED })
+    const byId = new Map(detail.inputSchema.map((field) => [field.id, field]))
+
+    for (const id of ['apiKey', 'vertexCredential', 'vertexProject', 'bedrockAccessKeyId']) {
+      const field = byId.get(id)
+      expect(field, id).toBeDefined()
+      expect(field?.required, id).toBe(false)
+      expect(field?.requiredWhen, id).toMatchObject({ field: expect.any(String) })
+    }
+    expect(byId.get('conversationId')).toMatchObject({
+      required: false,
+      requiredWhen: { field: expect.any(String) },
+    })
+    expect(detail.inputSchema.some((field) => field.required === true)).toBe(true)
+  })
+
+  it('publishes the agent model picker’s options with the hosted models marked', () => {
+    const detail = projectBlockDetail(registered('agent'), { deployment: HOSTED })
+    const model = detail.inputSchema.find((field) => field.id === 'model')
+    const hosted = new Set(getHostedModels().map((id) => id.toLowerCase()))
+
+    expect(model?.options?.length).toBeGreaterThan(10)
+    expect(model?.options?.some((option) => option.hosted === true)).toBe(true)
+    for (const option of model?.options ?? []) {
+      expect(option.hosted === true, option.id).toBe(hosted.has(option.id.toLowerCase()))
+    }
   })
 
   it('publishes a triggers-category block’s trigger-mode fields as its input schema', () => {

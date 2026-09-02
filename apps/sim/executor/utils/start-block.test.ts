@@ -5,6 +5,7 @@ import {
   buildResolutionFromBlock,
   buildStartBlockOutput,
   resolveExecutorStartBlock,
+  StartInputValidationError,
 } from '@/executor/utils/start-block'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -938,6 +939,80 @@ describe('start-block utilities', () => {
       })
 
       expect(output.metadata).toEqual(runMetadata)
+    })
+  })
+
+  describe('declared field type validation', () => {
+    function unifiedResolution(inputFormat: Array<Record<string, unknown>>) {
+      const block = createBlock('start_trigger', 'start', {
+        subBlocks: { inputFormat: { value: inputFormat } },
+      })
+      return { blockId: 'start', block, path: StartBlockPath.UNIFIED } as const
+    }
+
+    it.concurrent(
+      'fails the run at start when a number field receives a non-numeric string',
+      () => {
+        const resolution = unifiedResolution([{ name: 'count', type: 'number' }])
+
+        expect(() =>
+          buildStartBlockOutput({ resolution, workflowInput: { count: 'not-a-number' } })
+        ).toThrow(StartInputValidationError)
+        expect(() =>
+          buildStartBlockOutput({ resolution, workflowInput: { count: 'not-a-number' } })
+        ).toThrow(
+          'Start block "block-start_trigger" field "count" expects a number but received "not-a-number"'
+        )
+        expect(() =>
+          buildStartBlockOutput({ resolution, workflowInput: { count: 'Infinity' } })
+        ).toThrow(StartInputValidationError)
+      }
+    )
+
+    it.concurrent(
+      'fails the run at start when a boolean field receives an arbitrary string',
+      () => {
+        const resolution = unifiedResolution([{ name: 'enabled', type: 'boolean' }])
+
+        expect(() =>
+          buildStartBlockOutput({ resolution, workflowInput: { enabled: 'yes' } })
+        ).toThrow(
+          'Start block "block-start_trigger" field "enabled" expects true or false but received "yes"'
+        )
+      }
+    )
+
+    it.concurrent(
+      'still coerces well-formed strings and keeps the unset-default path lenient',
+      () => {
+        const resolution = unifiedResolution([
+          { name: 'count', type: 'number', value: '' },
+          { name: 'enabled', type: 'boolean', value: '' },
+        ])
+
+        const coerced = buildStartBlockOutput({
+          resolution,
+          workflowInput: { count: '42', enabled: 'false' },
+        })
+        expect(coerced.count).toBe(42)
+        expect(coerced.enabled).toBe(false)
+
+        expect(() => buildStartBlockOutput({ resolution, workflowInput: {} })).not.toThrow()
+      }
+    )
+
+    it.concurrent('does not validate an input format the chat path never reads', () => {
+      const block = createBlock('chat_trigger', 'chat', {
+        subBlocks: { inputFormat: { value: [{ name: 'count', type: 'number' }] } },
+      })
+      const resolution = { blockId: 'chat', block, path: StartBlockPath.SPLIT_CHAT } as const
+
+      expect(() =>
+        buildStartBlockOutput({
+          resolution,
+          workflowInput: { input: 'hi', count: 'not-a-number' },
+        })
+      ).not.toThrow()
     })
   })
 })

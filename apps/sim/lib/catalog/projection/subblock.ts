@@ -1,5 +1,6 @@
 import type { SubBlockConfig } from '@/blocks/types'
-import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
+import { DYNAMIC_MODEL_PROVIDERS, getHostedModels, PROVIDER_DEFINITIONS } from '@/providers/models'
+import { useProvidersStore } from '@/stores/providers'
 
 /**
  * Surface-neutral projection of a block's sub-block (its configuration fields)
@@ -17,6 +18,11 @@ export interface CatalogSubBlockOption {
   label?: string
   /** Whether the option renders with an icon. The icon component itself is never published. */
   hasIcon?: boolean
+  /**
+   * Model options only: whether Sim runs the model with its own key on a hosted
+   * deployment, so the author need not supply a provider API key for it.
+   */
+  hosted?: boolean
 }
 
 /** Scalar a condition compares against. */
@@ -47,7 +53,10 @@ export interface CatalogSubBlock {
   id: string
   type: string
   title?: string
-  /** Whether the field must be supplied. A conditionally-required field reports `true`. */
+  /**
+   * Whether the field must always be supplied. A field whose requirement
+   * depends on other values reports `false` and carries `requiredWhen`.
+   */
   required?: boolean
   /** The condition under which the field is required, when requirement is conditional. */
   requiredWhen?: CatalogCondition
@@ -103,20 +112,66 @@ export function normalizeCondition(
 }
 
 /**
+ * Whether a condition gates its field on the selected operation.
+ *
+ * An operation gate is not a conditional requirement: the detail projection
+ * files such a field under the operation that reveals it, where it is required
+ * outright. Mirrors `operationGate` in `block-detail`.
+ */
+function isOperationGate(condition: CatalogCondition): boolean {
+  return condition.field === 'operation' && !condition.not
+}
+
+/**
  * Whether a field is required, and under what condition.
  *
- * `required` shares the condition shape with `condition`, so a conditionally
- * required field resolves to `required: true` plus the clause that decides it —
- * never the raw object or function, which is not serializable.
+ * Two authored shapes mean "required only sometimes", and both resolve to
+ * `required: false` plus the clause that decides it, never the raw object or
+ * function, which is not serializable:
+ *
+ * - `required` declared as a condition, which shares its shape with `condition`.
+ * - `required: true` on a field that only *applies* under a `condition` other
+ *   than an operation gate. The agent block's `apiKey` is required, but only
+ *   for a model the platform does not host; `bedrockAccessKeyId` only for a
+ *   Bedrock model; `conversationId` only with memory enabled. Publishing those
+ *   as `required: true` told a caller reading the block that every one of them
+ *   had to be supplied on every agent.
  */
-function normalizeRequired(required: SubBlockConfig['required']): {
+function normalizeRequired(
+  required: SubBlockConfig['required'],
+  condition: CatalogCondition | undefined
+): {
   required?: boolean
   requiredWhen?: CatalogCondition
 } {
   if (required === undefined) return {}
-  if (typeof required === 'boolean') return { required }
+  if (typeof required === 'boolean') {
+    if (required && condition && !isOperationGate(condition)) {
+      return { required: false, requiredWhen: condition }
+    }
+    return { required }
+  }
   const requiredWhen = typeof required === 'function' ? required() : required
-  return { required: true, requiredWhen }
+  return { required: false, requiredWhen }
+}
+
+/** Whether a field is a model picker: the `model` field whose options come from a function. */
+function isModelPickerField(subBlock: SubBlockConfig): boolean {
+  return subBlock.id === 'model' && typeof subBlock.options === 'function'
+}
+
+/**
+ * Marks the options a hosted deployment runs on the platform's own keys.
+ *
+ * Published only on model pickers, where it answers the question an author
+ * has when choosing a model — "do I need to bring an API key for this one?" —
+ * which the block otherwise expresses only through `apiKey`'s condition.
+ */
+function markHostedModels(options: CatalogSubBlockOption[]): CatalogSubBlockOption[] {
+  const hosted = new Set(getHostedModels().map((id) => id.toLowerCase()))
+  return options.map((option) =>
+    hosted.has(option.id.toLowerCase()) ? { ...option, hosted: true } : option
+  )
 }
 
 /**
@@ -152,6 +207,8 @@ const DYNAMIC_MODEL_PROVIDER_IDS = new Set<string>(DYNAMIC_MODEL_PROVIDERS)
 interface ProvidersStateLike {
   providers: Record<string, { models: string[] }>
 }
+
+type ProvidersState = ReturnType<typeof useProvidersStore.getState>
 
 /**
  * Thrown when an options function breaks the synchronous precondition below.
@@ -200,18 +257,15 @@ function callOptionsWithFallback(
     },
   }
 
-  let store: { useProvidersStore?: { getState: () => unknown } } | undefined
-  let originalGetState: (() => unknown) | undefined
-
-  try {
-    store = require('@/stores/providers')
-    if (store?.useProvidersStore?.getState) {
-      originalGetState = store.useProvidersStore.getState
-      store.useProvidersStore.getState = () => substituteState
-    }
-  } catch {
-    /* The store module is unavailable in this environment; the fallback stands alone. */
-  }
+  /**
+   * Swapped through the statically imported store rather than a `require` at
+   * call time. The dynamic form resolved in tests and failed silently in the
+   * bundled server, where the options function then read the real, empty
+   * server-side store and every model picker published no options at all.
+   */
+  const originalGetState = useProvidersStore.getState
+  // double-cast-allowed: the substitute carries only the `providers` slice the options functions read; the store's actions are never called during the synchronous body
+  useProvidersStore.getState = () => substituteState as unknown as ProvidersState
 
   try {
     const options = optionsFn()
@@ -225,9 +279,7 @@ function callOptionsWithFallback(
     }
     return options
   } finally {
-    if (store?.useProvidersStore && originalGetState) {
-      store.useProvidersStore.getState = originalGetState
-    }
+    useProvidersStore.getState = originalGetState
   }
 }
 
@@ -321,17 +373,26 @@ export function projectSubBlock(subBlock: SubBlockConfig): CatalogSubBlock {
   if (subBlock.columns) projected.columns = [...subBlock.columns]
   if (subBlock.dependsOn) projected.dependsOn = copyDependsOn(subBlock.dependsOn)
 
-  const { required, requiredWhen } = normalizeRequired(subBlock.required)
-  assignDefined(projected, 'required', required)
-  assignDefined(projected, 'requiredWhen', requiredWhen)
-
   const condition = normalizeCondition(subBlock.condition)
   if (condition !== undefined) projected.condition = condition
 
+  const { required, requiredWhen } = normalizeRequired(subBlock.required, condition)
+  assignDefined(projected, 'required', required)
+  assignDefined(projected, 'requiredWhen', requiredWhen)
+
   if (typeof subBlock.value === 'function') projected.hasComputedDefault = true
 
-  const options = resolveSubBlockOptions(subBlock)
-  if (options) projected.options = options
+  /**
+   * A model picker always publishes its choices: when its options function
+   * yields nothing — the failure that left an agent grepping the raw block
+   * definition for model ids — the code-defined model list stands in for it.
+   */
+  const resolved = resolveSubBlockOptions(subBlock)
+  if (isModelPickerField(subBlock)) {
+    projected.options = markHostedModels(resolved ?? staticModelOptions())
+  } else if (resolved) {
+    projected.options = resolved
+  }
 
   return projected
 }

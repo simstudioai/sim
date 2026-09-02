@@ -1,4 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
+import { HttpError } from '@/lib/core/utils/http-error'
 import {
   extractWorkspaceIdFromStorageKey,
   inferContextFromKey,
@@ -274,15 +276,88 @@ export function coerceValue(type: string | null | undefined, value: unknown): un
   }
 }
 
+/**
+ * A Start input the declared field type cannot represent.
+ *
+ * Raised before any block runs, so the run fails at start naming the field and
+ * the value it received instead of continuing on a value of the wrong type —
+ * a `number` field handed `"not-a-number"` used to keep the string and branch
+ * downstream conditions on it. 400 because the payload, not the workflow, is
+ * what is malformed; the message names only caller-authored values.
+ */
+export class StartInputValidationError extends HttpError {
+  readonly statusCode = 400
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'StartInputValidationError'
+  }
+}
+
+/** Maximum characters of a rejected value quoted back in the error message. */
+const REJECTED_VALUE_PREVIEW_LENGTH = 80
+
+function describeRejectedValue(value: unknown): string {
+  const encoded = typeof value === 'string' ? JSON.stringify(value) : String(value)
+  return truncate(encoded, REJECTED_VALUE_PREVIEW_LENGTH)
+}
+
+/**
+ * Coerces one declared Start field and rejects a value its type cannot hold.
+ *
+ * {@link coerceValue} is deliberately lenient (it also seeds editor defaults),
+ * so on its own a `number` field given `"abc"` kept the string and a `boolean`
+ * field given `"yes"` kept that. Here the coerced value is held to the declared
+ * type. An empty string is left to the lenient path because the editor stores
+ * `''` as a field's unset default, so rejecting it would fail every run that
+ * omits an optional field.
+ */
+function coerceDeclaredValue(
+  field: InputFormatField,
+  fieldName: string,
+  value: unknown,
+  block: SerializedBlock | undefined
+): unknown {
+  const coerced = coerceValue(field.type, value)
+  if (block === undefined || coerced === undefined || coerced === null) {
+    return coerced
+  }
+  if (typeof value === 'string' && value.trim() === '') {
+    return coerced
+  }
+
+  const holdsDeclaredType =
+    field.type === 'number'
+      ? typeof coerced === 'number' && Number.isFinite(coerced)
+      : field.type === 'boolean'
+        ? typeof coerced === 'boolean'
+        : true
+  if (holdsDeclaredType) {
+    return coerced
+  }
+
+  const blockName = block.metadata?.name ?? block.id
+  const expected = field.type === 'number' ? 'a number' : 'true or false'
+  throw new StartInputValidationError(
+    `Start block "${blockName}" field "${fieldName}" expects ${expected} but received ${describeRejectedValue(value)}. Send ${expected} or omit the field.`
+  )
+}
+
 interface DerivedInputResult {
   structuredInput: Record<string, unknown>
   finalInput: unknown
   hasStructured: boolean
 }
 
+/**
+ * `validatingBlock` is the Start block whose declared field types the values
+ * are held to; `undefined` keeps the lenient coercion for paths that never read
+ * the structured input (the chat path ignores its `inputFormat` entirely).
+ */
 function deriveInputFromFormat(
   inputFormat: InputFormatField[],
-  workflowInput: unknown
+  workflowInput: unknown,
+  validatingBlock: SerializedBlock | undefined
 ): DerivedInputResult {
   const structuredInput: Record<string, unknown> = {}
 
@@ -315,7 +390,7 @@ function deriveInputFromFormat(
       fieldValue = field.value
     }
 
-    structuredInput[fieldName] = coerceValue(field.type, fieldValue)
+    structuredInput[fieldName] = coerceDeclaredValue(field, fieldName, fieldValue, validatingBlock)
   }
 
   const hasStructured = Object.keys(structuredInput).length > 0
@@ -672,7 +747,8 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
       ? getSerializedLegacyStarterMode(resolution.block)
       : null
 
-  if (pathConsumesInputFormat(resolution.path, legacyStarterMode)) {
+  const consumesInputFormat = pathConsumesInputFormat(resolution.path, legacyStarterMode)
+  if (consumesInputFormat) {
     assertNoReservedInputFormatFields(inputFormat, resolution.block)
     if (runMetadataEnabled) {
       assertNoMetadataInputFormatField(inputFormat, resolution.block)
@@ -681,7 +757,8 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
 
   const { finalInput, structuredInput, hasStructured } = deriveInputFromFormat(
     inputFormat,
-    workflowInput
+    workflowInput,
+    consumesInputFormat ? resolution.block : undefined
   )
 
   let output: NormalizedBlockOutput

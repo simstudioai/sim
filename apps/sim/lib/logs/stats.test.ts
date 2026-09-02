@@ -280,6 +280,41 @@ describe('buildDashboardStats', () => {
     expect(stats.workflows).toHaveLength(1)
   })
 
+  /**
+   * Five runs on the default 72-bucket window answered with 67 zero rows per
+   * series — tens of kilobytes carrying nothing the totals did not. The sparse
+   * form keeps every bucket that holds a run, at its dense-form timestamp, and
+   * never exceeds `segmentCount`.
+   */
+  it('omits buckets with no runs when includeEmpty is false', () => {
+    const { stats } = buildDashboardStats(
+      [row({ segmentIndex: 1, totalExecutions: 3, successfulExecutions: 2 })],
+      window,
+      2,
+      { includeEmpty: false }
+    )
+
+    expect(stats.workflows[0].segments).toEqual([
+      {
+        timestamp: '2026-01-15T01:00:00.000Z',
+        totalExecutions: 3,
+        successfulExecutions: 2,
+        avgDurationMs: 100,
+      },
+    ])
+    expect(stats.aggregateSegments).toEqual(stats.workflows[0].segments)
+    expect(stats.totalRuns).toBe(3)
+    expect(stats.totalErrors).toBe(1)
+    expect(stats.segmentMs).toBe(window.segmentMs)
+  })
+
+  it('publishes no buckets at all for a workspace with no runs when empties are omitted', () => {
+    const { stats } = buildDashboardStats([], window, 2, { includeEmpty: false })
+
+    expect(stats.aggregateSegments).toEqual([])
+    expect(stats.totalRuns).toBe(0)
+  })
+
   it('returns an empty-but-shaped response for a workspace with no runs', () => {
     const { stats } = buildDashboardStats([], window, 2)
 

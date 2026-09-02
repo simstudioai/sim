@@ -142,7 +142,9 @@ export const v2ServiceAccountCredentialProviderSchema = z
     helpText: z.string().min(1).max(2000).optional().describe('Provider-specific setup guidance.'),
     requiresClientGeneratedCredentialId: z
       .boolean()
-      .describe('Whether the caller must generate and submit the credential ID before setup.'),
+      .describe(
+        'Whether the caller must generate and submit the credential ID before setup. False for every provider: credential creation mints an ID when none is supplied, and a Slack custom bot may still send one to configure its Request URL ahead of time.'
+      ),
     fields: z
       .array(v2CredentialProviderFieldSchema)
       .min(1)
@@ -421,7 +423,9 @@ export const v2CreateServiceAccountCredentialBodySchema = z
       .string()
       .uuid('id must be a valid UUID')
       .optional()
-      .describe('Required only when provider discovery requests a client-generated ID.'),
+      .describe(
+        `Optional client-generated credential ID. The server mints one when it is omitted, so no provider requires it. A \`${SLACK_CUSTOM_BOT_PROVIDER_ID}\` credential may supply one so its Slack Request URL, which embeds the ID, can be configured before the credential exists; every other provider ignores it.`
+      ),
     credentials: v2ServiceAccountCredentialsJsonSchema,
   })
   .strict()
@@ -433,13 +437,6 @@ export const v2CreateServiceAccountCredentialBodySchema = z
         message: `Unknown service-account provider: ${body.providerId}`,
       })
       return
-    }
-    if (body.providerId === SLACK_CUSTOM_BOT_PROVIDER_ID && !body.id) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['id'],
-        message: `id is required for ${SLACK_CUSTOM_BOT_PROVIDER_ID} credentials`,
-      })
     }
     for (const field of getServiceAccountRequiredFields(body.providerId)) {
       if (!body.credentials[field]) {

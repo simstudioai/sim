@@ -32,6 +32,7 @@ export const GET = defineV2JsonRoute({
     },
     folderPaths: parseUnorderedList(query.folderPaths),
     segmentCount: query.segmentCount,
+    includeEmpty: query.includeEmpty,
   }),
   useCase: getLogStats,
   present: ({ stats, workflowsTruncated }) => ({ data: { ...stats, workflowsTruncated } }),

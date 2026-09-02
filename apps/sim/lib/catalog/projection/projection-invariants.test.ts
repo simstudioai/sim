@@ -133,6 +133,73 @@ describe('projections never hand out registry state', () => {
   })
 })
 
+describe('conditional requirement is published as a condition, not as required', () => {
+  const field = (overrides: Partial<SubBlockConfig>): SubBlockConfig =>
+    ({ id: 'apiKey', type: 'short-input', ...overrides }) as SubBlockConfig
+
+  it('reports a required field gated by a non-operation condition as optional with requiredWhen', () => {
+    const projected = projectSubBlock(
+      field({ required: true, condition: { field: 'model', value: ['gpt-4o'], not: true } })
+    )
+
+    expect(projected.required).toBe(false)
+    expect(projected.requiredWhen).toEqual({ field: 'model', value: ['gpt-4o'], not: true })
+    expect(projected.condition).toEqual({ field: 'model', value: ['gpt-4o'], not: true })
+  })
+
+  it('resolves a condition-shaped required to optional plus the clause', () => {
+    const projected = projectSubBlock(
+      field({ required: () => ({ field: 'memoryType', value: 'conversation' }) })
+    )
+
+    expect(projected.required).toBe(false)
+    expect(projected.requiredWhen).toEqual({ field: 'memoryType', value: 'conversation' })
+  })
+
+  it('keeps a field required outright behind an operation gate and with no condition', () => {
+    expect(
+      projectSubBlock(field({ required: true, condition: { field: 'operation', value: 'send' } }))
+        .required
+    ).toBe(true)
+    expect(projectSubBlock(field({ required: true })).required).toBe(true)
+    expect(
+      projectSubBlock(field({ required: false, condition: { field: 'x', value: 1 } }))
+    ).not.toHaveProperty('requiredWhen')
+  })
+})
+
+describe('model picker options', () => {
+  it('falls back to the code-defined model list when the options function yields nothing', () => {
+    const projected = projectSubBlock({
+      id: 'model',
+      type: 'combobox',
+      options: () => [],
+    } as unknown as SubBlockConfig)
+
+    expect(projected.options?.length).toBeGreaterThan(10)
+    expect(projected.options?.some((option) => option.hosted === true)).toBe(true)
+  })
+
+  it('marks hosted models on a resolved option list and leaves other pickers alone', () => {
+    const model = projectSubBlock({
+      id: 'model',
+      type: 'combobox',
+      options: () => [{ id: 'gpt-4o', label: 'gpt-4o' }, { id: 'my-local-model' }],
+    } as unknown as SubBlockConfig)
+    expect(model.options).toEqual([
+      { id: 'gpt-4o', label: 'gpt-4o', hosted: true },
+      { id: 'my-local-model' },
+    ])
+
+    const other = projectSubBlock({
+      id: 'voice',
+      type: 'dropdown',
+      options: [{ id: 'gpt-4o', label: 'gpt-4o' }],
+    } as unknown as SubBlockConfig)
+    expect(other.options).toEqual([{ id: 'gpt-4o', label: 'gpt-4o' }])
+  })
+})
+
 describe('options functions must be synchronous', () => {
   /**
    * The providers store is substituted process-wide for the duration of the

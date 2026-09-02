@@ -20,6 +20,7 @@ const { MockPublicApiNotAllowedError, mocks } = vi.hoisted(() => {
       resolvePermission: vi.fn(),
       resolveWorkflowContext: vi.fn(),
       getWorkflowDeploymentSummary: vi.fn(),
+      listWebhookUrls: vi.fn(),
       checkNeedsRedeployment: vi.fn(),
       validatePublicApiAllowed: vi.fn(),
       updatePublicApiRow: vi.fn(),
@@ -69,6 +70,9 @@ vi.mock('@/lib/workflows/orchestration/deploy', () => ({
 }))
 vi.mock('@/lib/workflows/deployment-status', () => ({
   checkNeedsRedeployment: mocks.checkNeedsRedeployment,
+}))
+vi.mock('@/lib/webhooks/deployed-urls', () => ({
+  listDeployedWebhookUrls: mocks.listWebhookUrls,
 }))
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
@@ -146,6 +150,7 @@ describe('GET /api/v2/workflows/[workflowId]/deployment', () => {
       warnings: undefined,
     })
     mocks.checkNeedsRedeployment.mockResolvedValue(true)
+    mocks.listWebhookUrls.mockResolvedValue([])
   })
 
   it('publishes draft-versus-live drift and the latest attempt after canonical authorization', async () => {
@@ -162,9 +167,51 @@ describe('GET /api/v2/workflows/[workflowId]/deployment', () => {
         warnings: [],
         activeDeployment,
         latestDeploymentAttempt,
+        webhooks: [],
       },
     })
     expect(mocks.resolveWorkflowContext).toHaveBeenCalledBefore(mocks.getWorkflowDeploymentSummary)
+  })
+
+  /**
+   * `webhookUrlDisplay` reads back as `null` after a successful deploy, so the
+   * deployment read is where a caller learns the URL the deploy started
+   * serving. Only a live deployment has one; nothing is read while undeployed.
+   */
+  it('publishes the resolved delivery URL of every live webhook', async () => {
+    mocks.listWebhookUrls.mockResolvedValue([
+      {
+        blockId: 'block-1',
+        provider: 'generic',
+        url: 'https://sim.test/api/webhooks/trigger/leads',
+      },
+    ])
+
+    const response = await get()
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.webhooks).toEqual([
+      {
+        blockId: 'block-1',
+        provider: 'generic',
+        url: 'https://sim.test/api/webhooks/trigger/leads',
+      },
+    ])
+    expect(mocks.listWebhookUrls).toHaveBeenCalledWith('workflow-1')
+  })
+
+  it('publishes no webhook URLs, and reads none, while nothing is live', async () => {
+    mocks.getWorkflowDeploymentSummary.mockResolvedValue({
+      activeDeployment: null,
+      latestDeploymentAttempt: null,
+      warnings: [],
+    })
+
+    const body = await (await get()).json()
+
+    expect(body.data.webhooks).toEqual([])
+    expect(mocks.listWebhookUrls).not.toHaveBeenCalled()
   })
 
   it('carries the failed attempt error payload when nothing is live', async () => {

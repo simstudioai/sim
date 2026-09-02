@@ -3,7 +3,9 @@ import { MAX_STATS_SEGMENT_COUNT, MAX_STATS_WORKFLOWS } from '@/lib/api/contract
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  V2_FALSE_VALUES,
   V2_FOLDER_FILTER_MISS,
+  V2_TRUE_VALUES,
   v2DataResponse,
   v2FolderPathInputSchema,
   v2RunWindowBoundSchema,
@@ -34,8 +36,27 @@ const v2SegmentCountSchema = z.coerce
   .optional()
   .default(DEFAULT_SEGMENT_COUNT)
   .describe(
-    `Number of equal time buckets to divide the window into, from 1 to ${MAX_STATS_SEGMENT_COUNT}. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.`
+    `Number of equal time buckets to divide the window into, from 1 to ${MAX_STATS_SEGMENT_COUNT}. It is the ceiling on how many buckets a series carries: with \`includeEmpty=true\` exactly this many are returned, otherwise only the buckets holding at least one run. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.`
   )
+
+/**
+ * Whether buckets with no runs are published.
+ *
+ * Off by default: five runs on the default 72-bucket window used to answer
+ * with 67 zero rows per series, tens of kilobytes that carried no information
+ * the totals did not. A caller charting the series can ask for the dense form.
+ * `z.stringbool({ case: 'sensitive' })` rather than `z.coerce.boolean()`, which
+ * reads `includeEmpty=false` as `true` — see `booleanQueryFlagSchema` in
+ * `contracts/primitives.ts`.
+ */
+const v2IncludeEmptySegmentsSchema = z
+  .stringbool({ case: 'sensitive' })
+  .optional()
+  .default(false)
+  .describe(
+    'Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.'
+  )
+  .meta({ enum: [...V2_TRUE_VALUES, ...V2_FALSE_VALUES] })
 
 const v2LogSegmentSchema = z
   .object({
@@ -64,7 +85,9 @@ const v2WorkflowLogStatsSchema = z
     workflowName: z.string().describe('Workflow name, or `Deleted Workflow`.'),
     segments: z
       .array(v2LogSegmentSchema)
-      .describe('One entry per bucket, in order, including buckets with no runs.'),
+      .describe(
+        'Buckets in time order. Only the buckets with at least one run unless `includeEmpty` was set, in which case every bucket appears, empty ones included.'
+      ),
     totalExecutions: z.number().describe('Runs for this workflow across the window.'),
     totalSuccessful: z.number().describe('Runs for this workflow that did not error.'),
     overallSuccessRate: z
@@ -93,7 +116,9 @@ export const v2LogStatsSchema = z
       ),
     aggregateSegments: z
       .array(v2LogSegmentSchema)
-      .describe('Workspace-wide totals per bucket, in the same order as each workflow series.'),
+      .describe(
+        'Workspace-wide totals per bucket, in time order. Subject to the same `includeEmpty` rule as each workflow series: empty buckets are omitted unless asked for.'
+      ),
     totalRuns: z.number().describe('Runs in the window across the whole workspace.'),
     totalErrors: z.number().describe('Runs in the window that errored.'),
     avgLatency: z
@@ -186,6 +211,7 @@ export const v2LogStatsQuerySchema = z
     startDate: v2RunWindowBoundSchema('startDate').optional(),
     endDate: v2RunWindowBoundSchema('endDate').optional(),
     segmentCount: v2SegmentCountSchema,
+    includeEmpty: v2IncludeEmptySegmentsSchema,
   })
   .strict()
   .refine(

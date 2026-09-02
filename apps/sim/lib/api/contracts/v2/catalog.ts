@@ -98,7 +98,7 @@ export const v2BlockFieldSchema = z
       .boolean()
       .optional()
       .describe(
-        'Whether a value must be supplied. A conditionally required field reports `true` and carries `requiredWhen`.'
+        'Whether a value must always be supplied. A field required only under some configuration reports `false` and carries `requiredWhen`.'
       ),
     requiredWhen: v2CatalogConditionSchema
       .optional()
@@ -124,11 +124,17 @@ export const v2BlockFieldSchema = z
             .boolean()
             .optional()
             .describe('Whether the option renders with an icon. The icon itself is not published.'),
+          hosted: z
+            .boolean()
+            .optional()
+            .describe(
+              'Model options only: whether Sim runs the model with its own key on a hosted deployment, so no provider API key is needed for it.'
+            ),
         })
       )
       .optional()
       .describe(
-        'Selectable options. Absent on fields whose options are fetched per workspace at edit time.'
+        'Selectable options. Absent on fields whose options are fetched per workspace at edit time. A `model` field always carries its options, with `hosted` marking the models a hosted deployment runs without an author-supplied key.'
       ),
     min: z.number().optional().describe('Minimum accepted numeric value.'),
     max: z.number().optional().describe('Maximum accepted numeric value.'),

@@ -6073,420 +6073,6 @@
         "title": "Update table rows response",
         "description": "Updated row count and identifiers."
       },
-      "TablePredicate": {
-        "title": "Table predicate",
-        "description": "Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so \"not X\" is not the complement of \"X\" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.",
-        "type": "object",
-        "oneOf": [
-          {
-            "type": "object",
-            "description": "Matches a row when every member matches.",
-            "properties": {
-              "all": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 100,
-                "description": "Members combined with AND. An empty group is rejected, because it would compile to no filter at all.",
-                "items": {
-                  "description": "A nested group, or a single condition.",
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/TablePredicate"
-                    },
-                    {
-                      "type": "object",
-                      "title": "Predicate condition",
-                      "description": "One column comparison.",
-                      "properties": {
-                        "field": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 128,
-                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
-                        },
-                        "op": {
-                          "type": "string",
-                          "enum": [
-                            "eq",
-                            "ne",
-                            "gt",
-                            "gte",
-                            "lt",
-                            "lte",
-                            "in",
-                            "nin",
-                            "contains",
-                            "ncontains",
-                            "startsWith",
-                            "endsWith",
-                            "like",
-                            "ilike",
-                            "nlike",
-                            "nilike",
-                            "isEmpty",
-                            "isNotEmpty",
-                            "isNull",
-                            "isNotNull"
-                          ],
-                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
-                        },
-                        "value": {
-                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
-                        }
-                      },
-                      "required": ["field", "op"],
-                      "additionalProperties": false
-                    }
-                  ]
-                }
-              }
-            },
-            "required": ["all"],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "description": "Matches a row when at least one member matches.",
-            "properties": {
-              "any": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 100,
-                "description": "Members combined with OR. An empty group is rejected, because it would compile to no filter at all.",
-                "items": {
-                  "description": "A nested group, or a single condition.",
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/TablePredicate"
-                    },
-                    {
-                      "type": "object",
-                      "title": "Predicate condition",
-                      "description": "One column comparison.",
-                      "properties": {
-                        "field": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 128,
-                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
-                        },
-                        "op": {
-                          "type": "string",
-                          "enum": [
-                            "eq",
-                            "ne",
-                            "gt",
-                            "gte",
-                            "lt",
-                            "lte",
-                            "in",
-                            "nin",
-                            "contains",
-                            "ncontains",
-                            "startsWith",
-                            "endsWith",
-                            "like",
-                            "ilike",
-                            "nlike",
-                            "nilike",
-                            "isEmpty",
-                            "isNotEmpty",
-                            "isNull",
-                            "isNotNull"
-                          ],
-                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
-                        },
-                        "value": {
-                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
-                        }
-                      },
-                      "required": ["field", "op"],
-                      "additionalProperties": false
-                    }
-                  ]
-                }
-              }
-            },
-            "required": ["any"],
-            "additionalProperties": false
-          }
-        ]
-      },
-      "UpdateTableRowsRequest": {
-        "type": "object",
-        "properties": {
-          "workspaceId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128,
-            "description": "Unique workspace identifier."
-          },
-          "filter": {
-            "$ref": "#/components/schemas/TablePredicate"
-          },
-          "data": {
-            "description": "Row-data patch applied to every matching row.",
-            "$ref": "#/components/schemas/V2TableRowData"
-          },
-          "limit": {
-            "description": "Maximum matching rows to update.",
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 1000
-          }
-        },
-        "required": ["workspaceId", "filter", "data"],
-        "additionalProperties": false,
-        "title": "Update table rows request",
-        "description": "Workspace scope, typed predicate, and row-data patch."
-      },
-      "V2DeleteRowsData": {
-        "type": "object",
-        "properties": {
-          "deletedCount": {
-            "type": "number",
-            "description": "Number of deleted rows."
-          },
-          "deletedRowIds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Identifiers of deleted rows."
-          },
-          "requestedCount": {
-            "description": "Number of row identifiers requested.",
-            "type": "number"
-          },
-          "missingRowIds": {
-            "description": "Requested row identifiers not found.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": ["deletedCount", "deletedRowIds"],
-        "additionalProperties": false,
-        "title": "Delete rows data",
-        "description": "Result of a bulk row deletion."
-      },
-      "V2DeleteTableRowsResponse": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "description": "Response data.",
-            "$ref": "#/components/schemas/V2DeleteRowsData"
-          }
-        },
-        "required": ["data"],
-        "additionalProperties": false,
-        "title": "Delete table rows response",
-        "description": "Deleted row counts, identifiers, and optional missing identifiers."
-      },
-      "DeleteTableRowsRequest": {
-        "type": "object",
-        "properties": {
-          "workspaceId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128,
-            "description": "Unique workspace identifier."
-          },
-          "filter": {
-            "$ref": "#/components/schemas/TablePredicate"
-          },
-          "limit": {
-            "description": "Maximum matching rows to delete.",
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 1000
-          },
-          "rowIds": {
-            "description": "Explicit row identifiers to delete.",
-            "minItems": 1,
-            "maxItems": 1000,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        },
-        "required": ["workspaceId"],
-        "additionalProperties": false,
-        "title": "Delete table rows request",
-        "description": "Workspace scope and exactly one of a predicate or row identifier list.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "rowIds": ["row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93"]
-          }
-        ]
-      },
-      "V2TableRowResponse": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "description": "Response data.",
-            "$ref": "#/components/schemas/V2ApiTableRow"
-          }
-        },
-        "required": ["data"],
-        "additionalProperties": false,
-        "title": "Table row response",
-        "description": "A single table row."
-      },
-      "UpdateTableRowRequest": {
-        "type": "object",
-        "properties": {
-          "workspaceId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128,
-            "description": "Unique workspace identifier."
-          },
-          "data": {
-            "description": "Partial row-data patch keyed by column name.",
-            "$ref": "#/components/schemas/V2TableRowData"
-          }
-        },
-        "required": ["workspaceId", "data"],
-        "additionalProperties": false,
-        "title": "Update table row request",
-        "description": "Workspace scope and row-data patch keyed by column name.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "data": {
-              "status": "active"
-            }
-          }
-        ]
-      },
-      "V2DeleteRowData": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Identifier of the deleted row."
-          },
-          "deleted": {
-            "type": "boolean",
-            "const": true,
-            "description": "Confirms that the row was deleted."
-          }
-        },
-        "required": ["id", "deleted"],
-        "additionalProperties": false,
-        "title": "Delete row data",
-        "description": "Row deletion acknowledgement."
-      },
-      "V2DeleteTableRowResponse": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "description": "Response data.",
-            "$ref": "#/components/schemas/V2DeleteRowData"
-          }
-        },
-        "required": ["data"],
-        "additionalProperties": false,
-        "title": "Delete table row response",
-        "description": "Row deletion acknowledgement."
-      },
-      "V2UpsertRowData": {
-        "type": "object",
-        "properties": {
-          "row": {
-            "description": "The inserted or updated table row.",
-            "$ref": "#/components/schemas/V2ApiTableRow"
-          },
-          "operation": {
-            "type": "string",
-            "enum": ["insert", "update"],
-            "description": "Whether the row was inserted or updated."
-          }
-        },
-        "required": ["row", "operation"],
-        "additionalProperties": false,
-        "title": "Upsert row data",
-        "description": "Row returned by an upsert and the operation performed."
-      },
-      "V2UpsertTableRowResponse": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "description": "Response data.",
-            "$ref": "#/components/schemas/V2UpsertRowData"
-          }
-        },
-        "required": ["data"],
-        "additionalProperties": false,
-        "title": "Upsert table row response",
-        "description": "The resulting row and whether it was inserted or updated."
-      },
-      "UpsertTableRowRequest": {
-        "type": "object",
-        "properties": {
-          "workspaceId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128,
-            "description": "Unique workspace identifier."
-          },
-          "data": {
-            "description": "Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike a single-row update, which merges.",
-            "$ref": "#/components/schemas/V2TableRowData"
-          },
-          "conflictTarget": {
-            "description": "Unique column used to detect a conflict.",
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": ["workspaceId", "data"],
-        "additionalProperties": false,
-        "title": "Upsert table row request",
-        "description": "Workspace scope, row data, and optional unique-column conflict target.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "data": {
-              "email": "jane@example.com",
-              "status": "active"
-            },
-            "conflictTarget": "email"
-          }
-        ]
-      },
-      "V2QueryTableRowsResponse": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/V2ApiTableRow"
-            },
-            "description": "Items in the current page."
-          },
-          "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
-          }
-        },
-        "required": ["data", "nextCursor"],
-        "additionalProperties": false,
-        "title": "Query table rows response",
-        "description": "A cursor-paginated page of matching table rows."
-      },
       "TablePredicateInput": {
         "title": "Table predicate input",
         "description": "A single `{ field, op, value }` condition or a recursive `all`/`any` group; either form is normalized to a grouped predicate after validation. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so \"not X\" is not the complement of \"X\" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.",
@@ -6668,6 +6254,275 @@
             "additionalProperties": false
           }
         ]
+      },
+      "UpdateTableRowsRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Unique workspace identifier."
+          },
+          "filter": {
+            "$ref": "#/components/schemas/TablePredicateInput"
+          },
+          "data": {
+            "description": "Row-data patch applied to every matching row.",
+            "$ref": "#/components/schemas/V2TableRowData"
+          },
+          "limit": {
+            "description": "Maximum matching rows to update.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          }
+        },
+        "required": ["workspaceId", "filter", "data"],
+        "additionalProperties": false,
+        "title": "Update table rows request",
+        "description": "Workspace scope, typed predicate, and row-data patch."
+      },
+      "V2DeleteRowsData": {
+        "type": "object",
+        "properties": {
+          "deletedCount": {
+            "type": "number",
+            "description": "Number of deleted rows."
+          },
+          "deletedRowIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of deleted rows."
+          },
+          "requestedCount": {
+            "description": "Number of row identifiers requested.",
+            "type": "number"
+          },
+          "missingRowIds": {
+            "description": "Requested row identifiers not found.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["deletedCount", "deletedRowIds"],
+        "additionalProperties": false,
+        "title": "Delete rows data",
+        "description": "Result of a bulk row deletion."
+      },
+      "V2DeleteTableRowsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2DeleteRowsData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete table rows response",
+        "description": "Deleted row counts, identifiers, and optional missing identifiers."
+      },
+      "DeleteTableRowsRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Unique workspace identifier."
+          },
+          "filter": {
+            "$ref": "#/components/schemas/TablePredicateInput"
+          },
+          "limit": {
+            "description": "Maximum matching rows to delete.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "rowIds": {
+            "description": "Explicit row identifiers to delete.",
+            "minItems": 1,
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Delete table rows request",
+        "description": "Workspace scope and exactly one of a predicate or row identifier list."
+      },
+      "V2TableRowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2ApiTableRow"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Table row response",
+        "description": "A single table row."
+      },
+      "UpdateTableRowRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Unique workspace identifier."
+          },
+          "data": {
+            "description": "Partial row-data patch keyed by column name.",
+            "$ref": "#/components/schemas/V2TableRowData"
+          }
+        },
+        "required": ["workspaceId", "data"],
+        "additionalProperties": false,
+        "title": "Update table row request",
+        "description": "Workspace scope and row-data patch keyed by column name.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "data": {
+              "status": "active"
+            }
+          }
+        ]
+      },
+      "V2DeleteRowData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the deleted row."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Confirms that the row was deleted."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete row data",
+        "description": "Row deletion acknowledgement."
+      },
+      "V2DeleteTableRowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2DeleteRowData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete table row response",
+        "description": "Row deletion acknowledgement."
+      },
+      "V2UpsertRowData": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "description": "The inserted or updated table row.",
+            "$ref": "#/components/schemas/V2ApiTableRow"
+          },
+          "operation": {
+            "type": "string",
+            "enum": ["insert", "update"],
+            "description": "Whether the row was inserted or updated."
+          }
+        },
+        "required": ["row", "operation"],
+        "additionalProperties": false,
+        "title": "Upsert row data",
+        "description": "Row returned by an upsert and the operation performed."
+      },
+      "V2UpsertTableRowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2UpsertRowData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Upsert table row response",
+        "description": "The resulting row and whether it was inserted or updated."
+      },
+      "UpsertTableRowRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Unique workspace identifier."
+          },
+          "data": {
+            "description": "Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike a single-row update, which merges.",
+            "$ref": "#/components/schemas/V2TableRowData"
+          },
+          "conflictTarget": {
+            "description": "Unique column used to detect a conflict.",
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["workspaceId", "data"],
+        "additionalProperties": false,
+        "title": "Upsert table row request",
+        "description": "Workspace scope, row data, and optional unique-column conflict target.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "data": {
+              "email": "jane@example.com",
+              "status": "active"
+            },
+            "conflictTarget": "email"
+          }
+        ]
+      },
+      "V2QueryTableRowsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2ApiTableRow"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Query table rows response",
+        "description": "A cursor-paginated page of matching table rows."
       },
       "QueryTableRowsRequest": {
         "type": "object",
@@ -8097,7 +7952,7 @@
             }
           },
           "filter": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           },
           "excludeRowIds": {
             "description": "Rows excluded from a select-all run scope.",
@@ -8130,13 +7985,7 @@
         "required": ["workspaceId", "groupIds"],
         "additionalProperties": false,
         "title": "Create table dispatch request",
-        "description": "Workspace scope, producer groups, execution mode, and optional row scope.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "groupIds": ["grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204"]
-          }
-        ]
+        "description": "Workspace scope, producer groups, execution mode, and optional row scope."
       },
       "V2RunRowEnrichmentResponse": {
         "type": "object",
@@ -8242,7 +8091,7 @@
             "description": "Case-insensitive cell substring to find."
           },
           "predicate": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           },
           "sort": {
             "description": "Ordered table-row sort specification.",
@@ -8271,22 +8120,7 @@
         "required": ["workspaceId", "q"],
         "additionalProperties": false,
         "title": "Search table rows request",
-        "description": "Workspace scope, substring query, and optional predicate and sort.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "q": "acme",
-            "predicate": {
-              "all": [
-                {
-                  "field": "status",
-                  "op": "eq",
-                  "value": "active"
-                }
-              ]
-            }
-          }
-        ]
+        "description": "Workspace scope, substring query, and optional predicate and sort."
       },
       "V2TableUploadImportSource": {
         "type": "object",
@@ -9461,7 +9295,7 @@
             "minLength": 1
           },
           "filter": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           },
           "excludeRowIds": {
             "description": "Rows excluded from an all-scope cancellation.",
@@ -9476,14 +9310,7 @@
         "required": ["workspaceId", "scope"],
         "additionalProperties": false,
         "title": "Cancel table runs request",
-        "description": "Workspace scope, cancellation scope, and optional predicate or producer groups.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "scope": "row",
-            "rowId": "row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93"
-          }
-        ]
+        "description": "Workspace scope, cancellation scope, and optional predicate or producer groups."
       },
       "V2Folder": {
         "type": "object",

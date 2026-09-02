@@ -116,7 +116,13 @@ export const updateTableFolderUseCase = defineAuthorizedTableUseCase({
     const index = await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
       maxRows: MAX_FOLDERS_PER_WORKSPACE,
     })
-    return { folder: result.folder, index, path: input.destinationPath, sourcePath: input.path }
+    return {
+      folder: result.folder,
+      index,
+      /** Where the folder landed: the destination itself, or inside it when it already existed. */
+      path: result.path ?? input.destinationPath,
+      sourcePath: input.path,
+    }
   },
   projectAudit({ result }) {
     return {
