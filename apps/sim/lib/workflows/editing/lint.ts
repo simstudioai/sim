@@ -112,6 +112,13 @@ function isWorkflowEntryBlock(block: BlockState) {
   return block.type !== undefined && getBlock(block.type)?.category === 'triggers'
 }
 
+/** Whether any block in the graph can start a run (see {@link isWorkflowEntryBlock}). */
+export function hasWorkflowEntryBlock(
+  blocks: WorkflowState['blocks'] | Record<string, unknown> | undefined
+): boolean {
+  return Object.values(blocks || {}).some((block) => isWorkflowEntryBlock(block as BlockState))
+}
+
 function requiredSubflowStartPort(block: BlockState) {
   if (block.type === 'loop') {
     return { handle: 'loop-start-source', label: 'loop-start-source' }
@@ -249,9 +256,12 @@ export function lintEditedWorkflowState(workflowState: Pick<WorkflowState, 'bloc
 
 /**
  * Tier-1 config lint: per-block required-field and canonical-mode (inactive
- * member) issues. Pure/sync. Uses the shared collector so results match the
- * runtime serializer's required-field semantics. Skips notes and subflow
- * containers, and blocks with no registry config.
+ * member) issues. Pure/sync. Uses the shared collector in `lint` mode, so every
+ * required, visible sub-block is reported whatever the tool-level visibility of
+ * its parameter — execution defers `user-or-llm` params to the tool's own late
+ * validation, which is how a missing knowledge base id went unreported while a
+ * missing table id was not. Skips notes and subflow containers, and blocks with
+ * no registry config.
  */
 export function collectWorkflowFieldIssues(
   blocks: WorkflowState['blocks'] | Record<string, unknown> | undefined
@@ -273,7 +283,8 @@ export function collectWorkflowFieldIssues(
     const { missingRequiredFields, inactiveModeValues } = collectBlockFieldIssues(
       block as any,
       blockConfig,
-      params
+      params,
+      { mode: 'lint' }
     )
     if (missingRequiredFields.length > 0 || inactiveModeValues.length > 0) {
       results.push({

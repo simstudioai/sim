@@ -95,7 +95,10 @@ describe('/api/v2/workflows/[workflowId]/deploy route definitions', () => {
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
       warnings: [],
+      archivedMcpTools: [{ serverId: 'wfmcp-1', toolName: 'triage_ticket' }],
     })
     expect(v2UndeployWorkflowContract.response.schema.parse(body)).toEqual(body)
+    /** Undeploying takes the workflow's MCP tools inactive; the caller must see which. */
+    expect(body.data.archivedMcpTools).toEqual([{ serverId: 'wfmcp-1', toolName: 'triage_ticket' }])
   })
 })

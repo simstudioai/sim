@@ -49,6 +49,7 @@ const PAGED_LISTS = [
   'GET /api/v2/billing/logs',
   'GET /api/v2/blocks',
   'GET /api/v2/chat-deployments',
+  'GET /api/v2/connector-types',
   'GET /api/v2/credentials',
   'GET /api/v2/custom-tools',
   'GET /api/v2/files',
@@ -103,7 +104,6 @@ const PAGED_LISTS = [
  *   never listed.
  */
 const FULL_SET_LISTS = [
-  'GET /api/v2/connector-types',
   'GET /api/v2/credentials/providers',
   'GET /api/v2/files/folders',
   'GET /api/v2/knowledge/[knowledgeBaseId]/tags',
@@ -160,6 +160,7 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
     'sortBy',
     'sortOrder',
   ],
+  'GET /api/v2/connector-types': ['workspaceId', 'search', 'detail'],
   'GET /api/v2/credentials': ['workspaceId', 'type', 'providerId', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/custom-tools': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/files': [

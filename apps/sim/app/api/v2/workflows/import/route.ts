@@ -23,7 +23,7 @@ export const POST = defineV2JsonRoute({
     workflow: body.workflow,
   }),
   useCase: importWorkflow,
-  present: ({ workflow, folderPath }) => ({
+  present: ({ workflow, folderPath, warnings }) => ({
     data: {
       id: workflow.id,
       name: workflow.name,
@@ -33,6 +33,7 @@ export const POST = defineV2JsonRoute({
       createdAt: workflow.createdAt.toISOString(),
       updatedAt: workflow.updatedAt.toISOString(),
       blocks: workflow.blocks,
+      warnings,
     },
   }),
 })

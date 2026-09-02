@@ -10,7 +10,7 @@ import {
 import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
 
 /**
- * `grep <pattern> [--scope a,b] [--in <id|name>] [-i] [-C n] [--count] [--limit n]` —
+ * `grep <pattern> [--scope a,b] [--in <world|id|name|world/id>] [-i] [-C n] [--count] [--limit n]` —
  * ONE search over the materialized text of every world the agent can see (18-agent-
  * surface.md A2). Each resource is rendered to pretty-printed JSON exactly as its
  * `get` command returns it, so a hit names the same path the model would read next:
@@ -41,6 +41,8 @@ const FETCH_CONCURRENCY = 8
 const MAX_FILES = 300
 const FILE_READ_CONCURRENCY = 5
 const MAX_BYTES_PER_FILE = 262_144
+/** `workflow:<uuid>` — a prefixed form no world or resource ever prints as its path. */
+const PREFIX_SELECTOR = /^\w+:/
 /** The block catalog is platform-owned and changes only on deploy; per-workspace visibility keys it. */
 const catalogCache = new LRUCache<string, Materialized[]>({ max: 500, ttl: 10 * 60_000 })
 
@@ -236,6 +238,11 @@ function didYouMean(scope: string): string {
   return close.length > 0 ? ` Did you mean ${close.join(' or ')}?` : ''
 }
 
+/** The `--in` forms a match line teaches: a world, a bare id or name, or world/resource. */
+function unknownWithin(selector: string): string {
+  return `Unknown --in selector ${JSON.stringify(selector)}. Pass a world (workflows, blocks, …), a resource's bare id or name, or world/resource as a match line prints it (e.g. blocks/table_v2).`
+}
+
 function parseScopes(flags: AgentCliFlags): Scope[] | string {
   const raw = flags.scope
   if (raw === undefined || raw === true) return [...SCOPES]
@@ -287,12 +294,19 @@ export const universalGrepCommand: AgentCliEngine = {
     // `--in tables` reads as "search the tables world", so a world name narrows the scope;
     // `--in blocks/table_v2` is the path a match line prints (world, then resource); a bare
     // value is a resource id or name inside the searched worlds.
-    const within = typeof flags.in === 'string' ? flags.in.toLowerCase() : undefined
-    const [withinHead, ...withinRest] = within ? within.split('/') : []
+    const within = typeof flags.in === 'string' ? flags.in : undefined
+    const [withinHead, ...withinRest] = within ? within.toLowerCase().split('/') : []
     const withinScope = SCOPES.find((scope) => scope === withinHead)
-    const withinResource = withinScope ? withinRest.join('/') : within
+    const withinResource = withinScope ? withinRest.join('/') : within?.toLowerCase()
     const searched: Scope[] = withinScope ? [withinScope] : scopes
     const nameFilter = withinResource || undefined
+    /**
+     * Refused before any fetch: the model learns the accepted forms without paying for
+     * a full materialization it would only get an empty result from.
+     */
+    if (within && nameFilter && PREFIX_SELECTOR.test(nameFilter)) {
+      return agentCliFail(unknownWithin(within))
+    }
     const matches = compilePattern(pattern, ignoreCase)
 
     const materialized = (
@@ -303,6 +317,13 @@ export const universalGrepCommand: AgentCliEngine = {
           (m) => m.id.toLowerCase() === nameFilter || m.label.toLowerCase().includes(nameFilter)
         )
       : materialized
+    /**
+     * A resource nothing in the searched worlds answers to is a wrong selector, not a
+     * search with no hits — a silent "No matches" would hide the misspelling.
+     */
+    if (within && nameFilter && candidates.length === 0) {
+      return agentCliFail(unknownWithin(within))
+    }
 
     const out: string[] = []
     let total = 0

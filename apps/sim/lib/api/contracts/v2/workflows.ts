@@ -447,12 +447,33 @@ export const v2DeployWorkflowDataSchema = v2DeploymentStateSchema
   })
 export type V2DeployWorkflowData = z.output<typeof v2DeployWorkflowDataSchema>
 
-export const v2UndeployWorkflowDataSchema = v2DeploymentStateSchema.extend({}).meta({
-  id: 'UndeployResult',
-  title: 'Undeploy result',
-  description:
-    'Deployment state after a successful undeploy. `isDeployed` is false and no workflow version is active.',
-})
+export const v2ArchivedWorkflowMcpToolSchema = z
+  .object({
+    serverId: z.string().describe('Workflow-MCP server the tool is published on.'),
+    toolName: z.string().describe('Name MCP clients called the tool by.'),
+  })
+  .meta({
+    id: 'ArchivedWorkflowMcpTool',
+    title: 'Archived workflow MCP tool',
+    description: 'A workflow-MCP tool registration an undeploy took inactive.',
+  })
+export type V2ArchivedWorkflowMcpTool = z.output<typeof v2ArchivedWorkflowMcpToolSchema>
+
+export const v2UndeployWorkflowDataSchema = v2DeploymentStateSchema
+  .extend({
+    archivedMcpTools: z
+      .array(v2ArchivedWorkflowMcpToolSchema)
+      .describe(
+        'MCP tool registrations this undeploy archived. Each appears in its server’s tool list with `status: "inactive"` until the workflow is deployed again, which restores it; unpublishing one while it is inactive removes it for good. Empty when no server published the workflow.'
+      ),
+  })
+  .meta({
+    id: 'UndeployResult',
+    title: 'Undeploy result',
+    description:
+      'Deployment state after a successful undeploy. `isDeployed` is false and no workflow version is active. Undeploying also takes every MCP tool that published the workflow inactive; `archivedMcpTools` names them so the effect is not silent.',
+  })
+
 export type V2UndeployWorkflowData = z.output<typeof v2UndeployWorkflowDataSchema>
 
 export const v2RollbackWorkflowDataSchema = v2DeploymentStateSchema
@@ -2079,18 +2100,42 @@ export const v2ImportWorkflowDataSchema = z
       .describe(
         'Blocks the import created, in payload order. A summary only; the workflow state read returns the full graph.'
       ),
+    warnings: z
+      .array(z.string())
+      .describe(
+        'One line per required workspace binding — a table, knowledge base, document, or other selector — that the payload carried empty, as `<block name>: <field> was stripped by export; set it before running`. Export clears those bindings unless `includeWorkspaceBindings=true` was sent, so a round-tripped workflow arrives unable to run until they are set again. Empty when nothing is missing.'
+      ),
   })
   .meta({
     id: 'ImportedWorkflow',
     title: 'Imported workflow',
-    description: 'Workflow created by an import operation.',
+    description:
+      'Workflow created by an import operation, with the required workspace bindings it arrived without.',
   })
+
+export const v2ExportWorkflowQuerySchema = z
+  .object({
+    includeWorkspaceBindings: booleanQueryFlagSchema
+      .describe(
+        'Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way.'
+      )
+      .optional()
+      .default(false),
+  })
+  .strict()
+  .meta({
+    id: 'ExportWorkflowQuery',
+    title: 'Export workflow query',
+    description: 'Whether the export keeps workspace-scoped bindings.',
+  })
+export type V2ExportWorkflowQuery = z.output<typeof v2ExportWorkflowQuerySchema>
 
 export const v2ExportWorkflowContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[workflowId]/export',
-  query: noInputSchema,
+  query: v2ExportWorkflowQuerySchema,
   params: v2WorkflowIdParamsSchema,
+
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowExportPayloadSchema),

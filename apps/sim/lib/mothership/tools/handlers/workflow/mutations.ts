@@ -187,9 +187,35 @@ function buildExecutionOutput(
       ...(lifted ? { outputFrom: lifted.outputFrom } : {}),
       ...(selected ? { selected, logsOmitted: true } : { logs }),
     },
-    error: result.success ? undefined : result.error || 'Workflow execution failed',
+    error: result.success
+      ? undefined
+      : result.error || failedBlockError(logs) || 'Workflow execution failed',
     effect: executionEffect(phase, executionId),
   }
+}
+
+/**
+ * The failing block's own message when the executor result carries none — a block that
+ * threw inside `run_block` otherwise reached the agent as the bare fallback and the
+ * reason had to be dug out of the run log.
+ */
+function failedBlockError(logs: unknown): string | undefined {
+  if (!Array.isArray(logs)) return undefined
+  for (let index = logs.length - 1; index >= 0; index -= 1) {
+    const entry = logs[index]
+    if (!isRecordLike(entry)) continue
+    const log = entry as Record<string, unknown>
+    if (typeof log.error === 'string' && log.error.length > 0) {
+      const name =
+        typeof log.blockName === 'string'
+          ? log.blockName
+          : typeof log.blockId === 'string'
+            ? log.blockId
+            : 'block'
+      return `${name}: ${log.error}`
+    }
+  }
+  return undefined
 }
 
 /** The executor's block-name rule: lowercase, whitespace and dots removed. */

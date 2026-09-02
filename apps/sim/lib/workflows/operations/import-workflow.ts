@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/contracts/v1/workflows'
 import { workflowStateSchema } from '@/lib/api/contracts/workflows'
 import { serializeZodIssues } from '@/lib/api/server'
+import { collectStrippedWorkspaceBindings } from '@/lib/workflows/credentials/credential-extractor'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import {
   type PerformCreateWorkflowParams,
@@ -84,8 +85,29 @@ export interface ImportedWorkflow {
 }
 
 export type ImportWorkflowResult =
-  | { success: true; workflow: ImportedWorkflow }
+  | {
+      success: true
+      workflow: ImportedWorkflow
+      /**
+       * One line per required workspace binding the payload carried empty —
+       * what the export cleared and this import could not restore. The
+       * workflow was created; it cannot run until these are set.
+       */
+      warnings: string[]
+    }
   | { success: false; status: number; error: string; details?: unknown }
+
+/**
+ * The import-side half of the export contract: export clears every
+ * workspace-scoped binding, so a round trip lands a workflow whose table and
+ * knowledge-base selections are empty. Saying so in the response is what keeps
+ * that from being discovered at the first failed run.
+ */
+export function describeStrippedWorkspaceBindings(state: WorkflowState): string[] {
+  return collectStrippedWorkspaceBindings(state).map(
+    ({ blockName, field }) => `${blockName}: ${field} was stripped by export; set it before running`
+  )
+}
 
 /**
  * Caps a payload-derived string at `maxLength` *including* the ellipsis.
@@ -387,6 +409,7 @@ async function executeImportWorkflowIntoWorkspace(
         name: block.name,
       })),
     },
+    warnings: describeStrippedWorkspaceBindings(workflowState),
   }
 }
 

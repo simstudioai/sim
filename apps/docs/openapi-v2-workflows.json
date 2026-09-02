@@ -1947,7 +1947,7 @@
       "get": {
         "operationId": "exportWorkflow",
         "summary": "Export Workflow",
-        "description": "Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. Exporting records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. A workspace folder tree over 10,000 folders is a `413`.",
+        "description": "Export a portable, secret-sanitized workflow. Workspace-scoped bindings (table, knowledge base, document, and other resource selectors) are cleared by default and must be selected again after import; send `includeWorkspaceBindings=true` to keep them for a round trip into the same workspace. Credentials and secrets are cleared either way. Exporting records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -1960,6 +1960,16 @@
               "minLength": 1,
               "description": "Unique workflow identifier.",
               "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          },
+          {
+            "name": "includeWorkspaceBindings",
+            "in": "query",
+            "required": false,
+            "description": "Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way.",
+            "schema": {
+              "description": "Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way.",
+              "type": "boolean"
             }
           }
         ],
@@ -8182,6 +8192,23 @@
         },
         "additionalProperties": false
       },
+      "ArchivedWorkflowMcpTool": {
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "description": "Workflow-MCP server the tool is published on."
+          },
+          "toolName": {
+            "type": "string",
+            "description": "Name MCP clients called the tool by."
+          }
+        },
+        "required": ["serverId", "toolName"],
+        "additionalProperties": false,
+        "title": "Archived workflow MCP tool",
+        "description": "A workflow-MCP tool registration an undeploy took inactive."
+      },
       "UndeployResult": {
         "type": "object",
         "properties": {
@@ -8235,6 +8262,13 @@
               }
             ],
             "description": "Most recent deployment lifecycle attempt, or null when none is available."
+          },
+          "archivedMcpTools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchivedWorkflowMcpTool"
+            },
+            "description": "MCP tool registrations this undeploy archived. Each appears in its server’s tool list with `status: \"inactive\"` until the workflow is deployed again, which restores it; unpublishing one while it is inactive removes it for good. Empty when no server published the workflow."
           }
         },
         "required": [
@@ -8243,11 +8277,12 @@
           "deployedAt",
           "warnings",
           "activeDeployment",
-          "latestDeploymentAttempt"
+          "latestDeploymentAttempt",
+          "archivedMcpTools"
         ],
         "additionalProperties": false,
         "title": "Undeploy result",
-        "description": "Deployment state after a successful undeploy. `isDeployed` is false and no workflow version is active."
+        "description": "Deployment state after a successful undeploy. `isDeployed` is false and no workflow version is active. Undeploying also takes every MCP tool that published the workflow inactive; `archivedMcpTools` names them so the effect is not silent."
       },
       "UndeployWorkflowResponse": {
         "type": "object",
@@ -8269,7 +8304,8 @@
               "deployedAt": null,
               "warnings": [],
               "activeDeployment": null,
-              "latestDeploymentAttempt": null
+              "latestDeploymentAttempt": null,
+              "archivedMcpTools": []
             }
           }
         ]
@@ -8504,6 +8540,13 @@
               "$ref": "#/components/schemas/ImportedWorkflowBlock"
             },
             "description": "Blocks the import created, in payload order. A summary only; the workflow state read returns the full graph."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "One line per required workspace binding — a table, knowledge base, document, or other selector — that the payload carried empty, as `<block name>: <field> was stripped by export; set it before running`. Export clears those bindings unless `includeWorkspaceBindings=true` was sent, so a round-tripped workflow arrives unable to run until they are set again. Empty when nothing is missing."
           }
         },
         "required": [
@@ -8514,11 +8557,12 @@
           "folderPath",
           "createdAt",
           "updatedAt",
-          "blocks"
+          "blocks",
+          "warnings"
         ],
         "additionalProperties": false,
         "title": "Imported workflow",
-        "description": "Workflow created by an import operation."
+        "description": "Workflow created by an import operation, with the required workspace bindings it arrived without."
       },
       "ImportWorkflowResponse": {
         "type": "object",
@@ -8558,7 +8602,8 @@
                   "type": "response",
                   "name": "Reply"
                 }
-              ]
+              ],
+              "warnings": ["Triage: knowledgeBaseId was stripped by export; set it before running"]
             }
           }
         ]
@@ -10355,8 +10400,8 @@
             "$ref": "#/components/schemas/NonRootFolderPathInput"
           },
           "destinationPath": {
-            "description": "New full path for the folder and its descendants.",
-            "$ref": "#/components/schemas/NonRootFolderPathInput"
+            "description": "Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).",
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId", "path", "destinationPath"],

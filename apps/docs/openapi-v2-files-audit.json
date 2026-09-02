@@ -4485,8 +4485,8 @@
             "$ref": "#/components/schemas/NonRootFolderPathInput"
           },
           "destinationPath": {
-            "description": "New full path for the folder and its descendants.",
-            "$ref": "#/components/schemas/NonRootFolderPathInput"
+            "description": "Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).",
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId", "path", "destinationPath"],

@@ -612,8 +612,8 @@ export const v2RelocateFolderBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace containing the folder.'),
     path: v2NonRootFolderPathInputSchema.describe('Current folder path.'),
-    destinationPath: v2NonRootFolderPathInputSchema.describe(
-      'New full path for the folder and its descendants.'
+    destinationPath: v2FolderPathInputSchema.describe(
+      'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).'
     ),
   })
   .strict()

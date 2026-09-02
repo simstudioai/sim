@@ -95,10 +95,10 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "description": "Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 25.",
             "schema": {
-              "default": 50,
-              "description": "Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "default": 25,
+              "description": "Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 25.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100
@@ -3352,7 +3352,7 @@
       "get": {
         "operationId": "listWorkflowMcpTools",
         "summary": "List Workflow MCP Tools",
-        "description": "Every tool a server publishes, tool-name ordered. The server list reports tool *names* only, so this is where a caller reads the `workflowId` that `DELETE /api/v2/workflow-mcp-servers/{serverId}/tools/{workflowId}` addresses. Returned in one page rather than paged — so `nextCursor` is always null — and capped at 2,000 tools, which is far above any real server's inventory. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Every tool a server publishes, tool-name ordered. The server list reports tool *names* only, so this is where a caller reads the `workflowId` that `DELETE /api/v2/workflow-mcp-servers/{serverId}/tools/{workflowId}` addresses. Registrations that undeploying their workflow archived are included with `status: \"inactive\"` rather than omitted; deploying the workflow again makes them `active`. Returned in one page rather than paged — so `nextCursor` is always null — and capped at 2,000 tools, which is far above any real server's inventory. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -4043,7 +4043,7 @@
       "get": {
         "operationId": "listConnectorTypes",
         "summary": "List Connector Types",
-        "description": "List every knowledge-base connector type and the source configuration each accepts. Two properties of a config field decide how its value is sent and are not inferable from the rest: a field with `multi: true` stores a `string[]` rather than a `string`, and a `canonicalParamId` links a picker field to a manual-entry field that write the SAME configuration key — send exactly one of the pair, keyed by `canonicalParamId` rather than by the field's own `id`. The bounded set is returned in one page; `nextCursor` is always null.",
+        "description": "List knowledge-base connector types with opaque cursor pagination, 25 to a page by default. Each item is a summary — identifier, name, description, and auth mode — unless `detail=full` is sent, which adds the source configuration each type accepts. Two properties of a config field decide how its value is sent and are not inferable from the rest: a field with `multi: true` stores a `string[]` rather than a `string`, and a `canonicalParamId` links a picker field to a manual-entry field that write the SAME configuration key — send exactly one of the pair, keyed by `canonicalParamId` rather than by the field's own `id`.",
         "tags": ["Catalog"],
         "parameters": [
           {
@@ -4069,11 +4069,47 @@
               "minLength": 1,
               "maxLength": 200
             }
+          },
+          {
+            "name": "detail",
+            "in": "query",
+            "required": false,
+            "description": "Projection of each item. `summary` (the default) carries the identifier, name, description, and auth mode; `full` adds the version, the complete auth settings, the `sourceConfig` field schema, incremental-sync support, and tag definitions.",
+            "schema": {
+              "default": "summary",
+              "description": "Projection of each item. `summary` (the default) carries the identifier, name, description, and auth mode; `full` adds the version, the complete auth settings, the `sourceConfig` field schema, incremental-sync support, and tag definitions.",
+              "type": "string",
+              "enum": ["summary", "full"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum connector types to return per page. Must be a whole number from 1 to 100. Defaults to 25.",
+            "schema": {
+              "default": 25,
+              "description": "Maximum connector types to return per page. Must be a whole number from 1 to 100. Defaults to 25.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "The connector-type catalog.",
+            "description": "One page of the connector-type catalog.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -7626,6 +7662,11 @@
             "type": "string",
             "description": "ISO 8601 timestamp when the tool was last modified.",
             "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "inactive"],
+            "description": "Whether MCP clients can call the tool. `inactive` is a registration that undeploying its workflow archived: it is not callable and its name stays reserved on the server, and the next deploy of the workflow makes it `active` again. Unpublishing an inactive tool removes it for good."
           }
         },
         "required": [
@@ -7637,11 +7678,12 @@
           "mcpServerUrl",
           "apiEndpoint",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "status"
         ],
         "additionalProperties": false,
         "title": "Workflow MCP tool list item",
-        "description": "A tool a server publishes, as returned by a read."
+        "description": "A tool a server publishes, as returned by a read. Archived registrations are included with `status: \"inactive\"`."
       },
       "ListWorkflowMcpToolsResponse": {
         "type": "object",
@@ -7685,7 +7727,8 @@
                 "mcpServerUrl": "https://www.sim.ai/api/mcp/serve/wfmcp_01J8ZK3QW4M6X2R9T7B5C0V2",
                 "apiEndpoint": "https://www.sim.ai/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/execute",
                 "createdAt": "2026-06-12T10:30:00.000Z",
-                "updatedAt": "2026-06-12T10:30:00.000Z"
+                "updatedAt": "2026-06-12T10:30:00.000Z",
+                "status": "active"
               }
             ],
             "nextCursor": null,
@@ -9700,13 +9743,54 @@
         "title": "Connector config field",
         "description": "One field of a knowledge-base connector’s source configuration."
       },
+      "V2ConnectorTypeSummary": {
+        "type": "object",
+        "properties": {
+          "connectorType": {
+            "type": "string",
+            "description": "Exact identifier to send when creating a connector of this type."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "description": {
+            "type": "string",
+            "description": "What the connector syncs."
+          },
+          "auth": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": ["oauth", "apiKey"],
+                "description": "How the connector authenticates against its source."
+              }
+            },
+            "required": ["mode"],
+            "additionalProperties": false,
+            "description": "Authentication mode only. `detail=full` adds the OAuth provider and scopes, or the API-key field labels."
+          }
+        },
+        "required": ["connectorType", "name", "description", "auth"],
+        "additionalProperties": false,
+        "title": "Connector type summary",
+        "description": "A knowledge-base connector type without its configuration schema. Request `detail=full` for the config fields and tag definitions."
+      },
       "ListConnectorTypesResponse": {
         "type": "object",
         "properties": {
           "data": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/V2ConnectorType"
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/V2ConnectorType"
+                },
+                {
+                  "$ref": "#/components/schemas/V2ConnectorTypeSummary"
+                }
+              ]
             },
             "description": "Items in the current page."
           },
@@ -9719,14 +9803,27 @@
                 "type": "null"
               }
             ],
-            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
         "additionalProperties": false,
         "title": "List connector types response",
-        "description": "Knowledge-base connector types and their configuration fields.",
+        "description": "Knowledge-base connector types, as summaries or with their configuration fields.",
         "examples": [
+          {
+            "data": [
+              {
+                "connectorType": "google_drive",
+                "name": "Google Drive",
+                "description": "Sync documents from a Google Drive folder.",
+                "auth": {
+                  "mode": "oauth"
+                }
+              }
+            ],
+            "nextCursor": null
+          },
           {
             "data": [
               {

@@ -153,6 +153,13 @@ const BLOCK_DETAIL_EXAMPLE = {
   outputs: { ts: { type: 'string', description: 'Message timestamp.' } },
 } as const
 
+const CONNECTOR_TYPE_SUMMARY_EXAMPLE = {
+  connectorType: 'google_drive',
+  name: 'Google Drive',
+  description: 'Sync documents from a Google Drive folder.',
+  auth: { mode: 'oauth' },
+} as const
+
 const CONNECTOR_TYPE_EXAMPLE = {
   connectorType: 'google_drive',
   name: 'Google Drive',
@@ -247,9 +254,12 @@ const WORKFLOW_MCP_TOOL_EXAMPLE = {
   updatedAt: '2026-06-12T10:30:00.000Z',
 } as const
 
-/** The publish example as a read returns it: `updated` is a publish outcome, not a field of the tool. */
+/**
+ * The publish example as a read returns it: `updated` is a publish outcome, not
+ * a field of the tool, and `status` is a fact only a read can report.
+ */
 function omitUpdated({ updated: _updated, ...tool }: typeof WORKFLOW_MCP_TOOL_EXAMPLE) {
-  return tool
+  return { ...tool, status: 'active' as const }
 }
 
 const WORKSPACE_ID = 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64'
@@ -1542,7 +1552,8 @@ const declaredRoutes = [
     resourceOperation('MCP Servers', {
       operationId: 'listWorkflowMcpTools',
       summary: 'List Workflow MCP Tools',
-      description: `Every tool a server publishes, tool-name ordered. The server list reports tool *names* only, so this is where a caller reads the \`workflowId\` that \`DELETE /api/v2/workflow-mcp-servers/{serverId}/tools/{workflowId}\` addresses. Returned in one page rather than paged — so \`nextCursor\` is always null — and capped at 2,000 tools, which is far above any real server's inventory. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Every tool a server publishes, tool-name ordered. The server list reports tool *names* only, so this is where a caller reads the \`workflowId\` that \`DELETE /api/v2/workflow-mcp-servers/{serverId}/tools/{workflowId}\` addresses. Registrations that undeploying their workflow archived are included with \`status: "inactive"\` rather than omitted; deploying the workflow again makes them \`active\`. Returned in one page rather than paged — so \`nextCursor\` is always null — and capped at 2,000 tools, which is far above any real server's inventory. ${WORKSPACE_API_KEY_DENIED}`,
+
       errors: RESOURCE_ERRORS,
       success: { description: 'The tools this server publishes.' },
     }),
@@ -1818,23 +1829,26 @@ const declaredRoutes = [
     resourceOperation('Catalog', {
       operationId: 'listConnectorTypes',
       summary: 'List Connector Types',
-      description: `List every knowledge-base connector type and the source configuration each accepts. Two properties of a config field decide how its value is sent and are not inferable from the rest: a field with \`multi: true\` stores a \`string[]\` rather than a \`string\`, and a \`canonicalParamId\` links a picker field to a manual-entry field that write the SAME configuration key — send exactly one of the pair, keyed by \`canonicalParamId\` rather than by the field's own \`id\`. ${FULL_SET_LIST}`,
+      description: `List knowledge-base connector types with opaque cursor pagination, 25 to a page by default. Each item is a summary — identifier, name, description, and auth mode — unless \`detail=full\` is sent, which adds the source configuration each type accepts. Two properties of a config field decide how its value is sent and are not inferable from the rest: a field with \`multi: true\` stores a \`string[]\` rather than a \`string\`, and a \`canonicalParamId\` links a picker field to a manual-entry field that write the SAME configuration key — send exactly one of the pair, keyed by \`canonicalParamId\` rather than by the field's own \`id\`.`,
       errors: RESOURCE_ERRORS,
-      success: { description: 'The connector-type catalog.' },
+      success: { description: 'One page of the connector-type catalog.' },
     }),
     {
       query: documentedSchema(
         v2ListConnectorTypesContract.query,
         'ListConnectorTypesQuery',
         'List connector types query',
-        'Workspace scope and optional connector-name search.'
+        'Workspace scope, projection, optional connector-name search, and pagination.'
       ),
       response: documentedSchema(
         v2ListConnectorTypesContract.response.schema,
         'ListConnectorTypesResponse',
         'List connector types response',
-        'Knowledge-base connector types and their configuration fields.',
-        [{ data: [CONNECTOR_TYPE_EXAMPLE], nextCursor: null }]
+        'Knowledge-base connector types, as summaries or with their configuration fields.',
+        [
+          { data: [CONNECTOR_TYPE_SUMMARY_EXAMPLE], nextCursor: null },
+          { data: [CONNECTOR_TYPE_EXAMPLE], nextCursor: null },
+        ]
       ),
     }
   ),

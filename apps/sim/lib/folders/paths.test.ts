@@ -13,6 +13,7 @@ import {
   MAX_FOLDER_PATH_SEGMENTS,
   parseFolderPath,
   ROOT_FOLDER_PATH,
+  resolveFolderMoveDestination,
 } from '@/lib/folders/paths'
 
 describe('canonical folder paths', () => {
@@ -106,6 +107,41 @@ describe('canonical folder paths', () => {
       buildFolderPath(Array.from({ length: MAX_FOLDER_PATH_SEGMENTS + 1 }, () => 'x'))
     ).toThrow('segments')
     expect(() => buildFolderPath(['x'.repeat(4096)])).toThrow('bytes')
+  })
+
+  it('resolves a move destination with mv semantics, the root included', () => {
+    const index = {
+      idByPath: new Map([
+        ['/fx-archive', 'folder-1'],
+        ['/fx-archive/xp-docs', 'folder-2'],
+      ]),
+    }
+
+    expect(resolveFolderMoveDestination(index, '/fx-archive/xp-docs', ROOT_FOLDER_PATH)).toBe(
+      '/xp-docs'
+    )
+    expect(resolveFolderMoveDestination(index, '/xp-files', '/fx-archive')).toBe(
+      '/fx-archive/xp-files'
+    )
+    expect(resolveFolderMoveDestination(index, '/xp-files', '/renamed')).toBe('/renamed')
+    expect(resolveFolderMoveDestination(index, '/fx-archive', '/fx-archive')).toBe('/fx-archive')
+  })
+
+  it('accepts the root as a relocation destination but never as the source', () => {
+    expect(
+      v2RelocateFolderBodySchema.parse({
+        workspaceId: 'workspace-1',
+        path: '/Reports/Q1',
+        destinationPath: '/',
+      }).destinationPath
+    ).toBe('/')
+    expect(
+      v2RelocateFolderBodySchema.safeParse({
+        workspaceId: 'workspace-1',
+        path: '/',
+        destinationPath: '/Reports',
+      }).success
+    ).toBe(false)
   })
 
   it('keeps public folder mutations path-only and rejects the virtual root', () => {

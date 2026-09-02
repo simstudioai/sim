@@ -19,8 +19,8 @@ import {
   getWorkflowMcpPublishableWorkflow,
   getWorkflowMcpServerById,
   getWorkflowMcpToolIncludingArchived,
-  listLiveWorkflowMcpTools,
   listWorkflowMcpToolNames,
+  listWorkflowMcpToolsIncludingArchived,
   listWorkspaceWorkflowMcpServers,
   type WorkflowMcpServerSortBy,
 } from '@/lib/mcp/queries'
@@ -171,11 +171,15 @@ export interface ListWorkflowMcpDeploymentToolsInput {
 }
 
 /**
- * Every tool a server publishes.
+ * Every tool a server publishes, archived registrations included.
  *
  * Without this a caller could publish and unpublish tools but never enumerate
  * them: the server list reports tool *names* only, so nothing returned the
  * `workflowId` that addresses a tool for deletion.
+ *
+ * Archived rows are the registrations an undeploy withdrew; the presenter
+ * reports them as `inactive`. Listing only live rows made an undeployed
+ * workflow's tools vanish from the inventory with nothing to say why.
  */
 export const listWorkflowMcpDeploymentTools = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.listWorkflowDeploymentTools,
@@ -183,7 +187,7 @@ export const listWorkflowMcpDeploymentTools = defineAuthorizedWorkspaceUseCase({
     resolveServerContext(input.serverId),
   authorizationOptions,
   async execute({ context }) {
-    const { tools, truncated } = await listLiveWorkflowMcpTools(
+    const { tools, truncated } = await listWorkflowMcpToolsIncludingArchived(
       context.server.id,
       MAX_LISTED_WORKFLOW_MCP_TOOLS
     )

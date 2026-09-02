@@ -238,6 +238,23 @@ describe('workflow mutation Copilot adapters', () => {
     expect(output).not.toHaveProperty('outputFrom')
   })
 
+  it('names the failing block and its error when the executor result carries no message', async () => {
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: false,
+      output: {},
+      logs: [
+        { blockId: 'start', blockName: 'Start', output: { input: 'x' } },
+        { blockId: 'probe', blockName: 'Probe Step', error: 'boom: injected fault', output: {} },
+      ],
+      metadata: { executionId: 'execution-1' },
+    })
+
+    const result = await executeRunBlock({ workflowId: 'workflow-1', blockId: 'probe' }, context)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Probe Step: boom: injected fault')
+  })
+
   it('returns only the selected block outputs and omits the logs when select is given', async () => {
     mocks.executeWorkflowUseCase.mockResolvedValue({
       success: true,

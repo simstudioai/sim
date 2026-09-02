@@ -338,8 +338,26 @@ describe('relocateWorkspaceFileFolderByPath', () => {
     )
   })
 
+  it('moves a nested folder back to the root when the destination is /', async () => {
+    const nested = { ...source, id: 'folder-nested', name: 'xp-docs', parentId: 'folder-archive' }
+    queueTableRows(schemaMock.folder, [archive, nested])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...nested, parentId: null }])
+
+    const result = await relocateWorkspaceFileFolderByPath({
+      workspaceId: 'workspace-1',
+      path: '/fx-archive/xp-docs',
+      destinationPath: '/',
+    })
+
+    expect(result.path).toBe('/xp-docs')
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'xp-docs', parentId: null })
+    )
+  })
+
   it('still refuses a move whose source already exists under the destination', async () => {
     const taken = { ...source, id: 'folder-taken', parentId: 'folder-archive' }
+
     queueTableRows(schemaMock.folder, [source, archive, taken])
 
     await expect(

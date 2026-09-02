@@ -629,6 +629,45 @@ export const v2ConnectorTypeSchema = z
   })
 export type V2ConnectorType = z.output<typeof v2ConnectorTypeSchema>
 
+/**
+ * The projection `GET /api/v2/connector-types` returns unless asked for
+ * `detail=full`. Sixty-odd connector types with every config field, option
+ * list, and tag definition came to well over 100 KB for a caller that only
+ * needed to pick one; the summary is what that decision takes, and the full
+ * shape is one `detail=full` away.
+ */
+export const v2ConnectorTypeSummarySchema = z
+  .object({
+    connectorType: v2ConnectorTypeSchema.shape.connectorType,
+    name: v2ConnectorTypeSchema.shape.name,
+    description: v2ConnectorTypeSchema.shape.description,
+    auth: z
+      .object({
+        mode: z
+          .enum(['oauth', 'apiKey'])
+          .describe('How the connector authenticates against its source.'),
+      })
+      .describe(
+        'Authentication mode only. `detail=full` adds the OAuth provider and scopes, or the API-key field labels.'
+      ),
+  })
+  .meta({
+    id: 'V2ConnectorTypeSummary',
+    title: 'Connector type summary',
+    description:
+      'A knowledge-base connector type without its configuration schema. Request `detail=full` for the config fields and tag definitions.',
+  })
+export type V2ConnectorTypeSummary = z.output<typeof v2ConnectorTypeSummarySchema>
+
+export const v2ConnectorTypeDetailSchema = z.enum(['summary', 'full'])
+export type V2ConnectorTypeDetail = z.output<typeof v2ConnectorTypeDetailSchema>
+
+/**
+ * Smaller than the v2 default of 50: the summary is the point of the default
+ * projection, and a page of 25 keeps the full projection readable too.
+ */
+export const V2_CONNECTOR_TYPES_DEFAULT_PAGE_SIZE = 25
+
 export const v2BlockSortFields = ['id', 'name', 'category'] as const
 export const v2ToolSortFields = ['id', 'name'] as const
 
@@ -696,6 +735,16 @@ export type V2GetToolParams = z.output<typeof v2GetToolParamsSchema>
 export const v2ListConnectorTypesQuerySchema = catalogWorkspaceQuerySchema
   .extend({
     search: v2SearchSchema.describe('Case-insensitive substring match against the connector name.'),
+    detail: v2ConnectorTypeDetailSchema
+      .optional()
+      .default('summary')
+      .describe(
+        'Projection of each item. `summary` (the default) carries the identifier, name, description, and auth mode; `full` adds the version, the complete auth settings, the `sourceConfig` field schema, incremental-sync support, and tag definitions.'
+      ),
+    ...v2PaginationFields({
+      description: 'Maximum connector types to return per page.',
+      fallback: V2_CONNECTOR_TYPES_DEFAULT_PAGE_SIZE,
+    }),
   })
   .strict()
 export type V2ListConnectorTypesQuery = z.output<typeof v2ListConnectorTypesQuerySchema>
@@ -742,12 +791,19 @@ export const v2GetToolContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2ToolDetailSchema) },
 })
 
+/**
+ * Connector-type list, paginated by the same offset cursor as the block and
+ * tool lists: the sequence is the code-defined connector registry filtered in
+ * memory, so there is no ordered SQL read for a keyset predicate to act on.
+ * Items are the summary projection unless `detail=full` is sent; the full
+ * schema is listed first so a full item is never narrowed to a summary.
+ */
 export const v2ListConnectorTypesContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/connector-types',
   query: v2ListConnectorTypesQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2ConnectorTypeSchema, { paged: false }),
+    schema: v2CursorListResponse(z.union([v2ConnectorTypeSchema, v2ConnectorTypeSummarySchema])),
   },
 })
