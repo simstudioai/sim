@@ -293,6 +293,42 @@ describe('POST /api/v2/credentials', () => {
     })
   })
 
+  it('forwards OCI Object Storage credential fields without returning secrets', async () => {
+    const request = new NextRequest('http://localhost:3000/api/v2/credentials', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        workspaceId: WORKSPACE_ID,
+        type: 'service_account',
+        providerId: 'oci-object-storage-service-account',
+        credentials: JSON.stringify({
+          accessKeyId: 'access-key-canary',
+          secretAccessKey: 'secret-key-canary',
+          namespace: 'namespace1',
+          region: 'us-ashburn-1',
+        }),
+      }),
+    })
+    const response = await POST(request)
+    const body = await response.text()
+
+    expect(response.status).toBe(201)
+    expect(body).not.toContain('key-canary')
+    expect(body).not.toContain('namespace1')
+    expect(mocks.create).toHaveBeenCalledWith({
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      input: expect.objectContaining({
+        workspaceId: WORKSPACE_ID,
+        providerId: 'oci-object-storage-service-account',
+        accessKeyId: 'access-key-canary',
+        secretAccessKey: 'secret-key-canary',
+        namespace: 'namespace1',
+        region: 'us-ashburn-1',
+      }),
+      request,
+    })
+  })
+
   it('rejects an unknown service-account provider before the use case', async () => {
     const response = await POST(
       new NextRequest('http://localhost:3000/api/v2/credentials', {
