@@ -20,6 +20,11 @@ const mocks = vi.hoisted(() => ({
   dispatchMemberSync: vi.fn(),
   memberAccessAvailable: vi.fn(),
   provision: vi.fn(),
+  rewriteAcls: vi.fn(),
+}))
+
+vi.mock('@/lib/knowledge/connectors/member-observations', () => ({
+  rewriteConnectorAcls: mocks.rewriteAcls,
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -242,6 +247,7 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mocks.rewriteAcls.mockResolvedValue(true)
     mocks.grant.mockResolvedValue(undefined)
     mocks.revoke.mockResolvedValue(undefined)
     mocks.dispatchSync.mockResolvedValue({ queued: true })
@@ -277,14 +283,21 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
     queueGroupRow('option-1')
     dbChainMockFns.returning
       .mockResolvedValueOnce([{ ...WORKSPACE_CONNECTOR, status: 'syncing', syncLockToken: 's-1' }])
-      /** The rewrite finds nothing left, the flip lands under the lease, then the release. */
-      .mockResolvedValueOnce([])
+      /** The flip lands under the lease, then the release. */
       .mockResolvedValueOnce([{ id: 'c-1' }])
       .mockResolvedValueOnce([{ ...MEMBERS_CONNECTOR, nextMemberSyncAt: new Date() }])
 
     const outcome = await switchTo({ accessMode: 'members', binding: BINDING })
 
     expect(outcome).toMatchObject({ success: true, changed: true })
+    /** The rewrite hides every document and proves the switch lease inside each batch. */
+    expect(mocks.rewriteAcls).toHaveBeenCalledWith(
+      'c-1',
+      [],
+      expect.objectContaining({
+        lease: expect.objectContaining({ stillHeld: expect.any(Function) }),
+      })
+    )
     expect(mocks.grant).toHaveBeenCalledWith(
       {
         workspaceId: 'ws-1',
@@ -294,7 +307,6 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
       },
       'admin-1'
     )
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ acl: [] }))
     /** The flip is written inside the group's row lock. */
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
     expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
@@ -325,9 +337,9 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
   it('refuses the flip, and undoes the grant, when the option is gone by the time the group is locked', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [WORKSPACE_CONNECTOR])
     queueGroupRow()
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ ...WORKSPACE_CONNECTOR, status: 'syncing', syncLockToken: 's-1' }])
-      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { ...WORKSPACE_CONNECTOR, status: 'syncing', syncLockToken: 's-1' },
+    ])
 
     const outcome = await switchTo({ accessMode: 'members', binding: BINDING })
 
@@ -348,7 +360,6 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
     queueGroupRow('option-2')
     dbChainMockFns.returning
       .mockResolvedValueOnce([{ ...MEMBERS_CONNECTOR, status: 'syncing', syncLockToken: 's-1' }])
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'c-1' }])
       .mockResolvedValueOnce([
         { ...MEMBERS_CONNECTOR, credentialGroupId: 'group-2', credentialGroupOptionId: 'option-2' },
@@ -384,16 +395,22 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
     queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
     dbChainMockFns.returning
       .mockResolvedValueOnce([{ ...MEMBERS_CONNECTOR, status: 'syncing', syncLockToken: 's-1' }])
-      /** The flip lands under the lease, then the rewrite finds nothing left, then the release. */
+      /** The flip lands under the lease, then the release. */
       .mockResolvedValueOnce([{ id: 'c-1' }])
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ ...WORKSPACE_CONNECTOR, credentialId: 'cred-2' }])
 
     const outcome = await switchTo({ accessMode: 'workspace', credentialId: 'cred-2' })
 
     expect(outcome).toMatchObject({ success: true, changed: true })
     expect(dbChainMockFns.delete).toHaveBeenCalled()
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ acl: ['ws'] }))
+    /** Workspace access is restored under the switch lease, proved inside each batch. */
+    expect(mocks.rewriteAcls).toHaveBeenCalledWith(
+      'c-1',
+      ['ws'],
+      expect.objectContaining({
+        lease: expect.objectContaining({ stillHeld: expect.any(Function) }),
+      })
+    )
     expect(mocks.revoke).toHaveBeenCalledWith(
       { workspaceId: 'ws-1', credentialGroupId: 'group-1', connectorId: 'c-1' },
       'admin-1'
@@ -509,7 +526,6 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
     queueGroupRow('option-1')
     dbChainMockFns.returning
       .mockResolvedValueOnce([{ ...WORKSPACE_CONNECTOR, status: 'paused' }])
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'c-1' }])
       .mockResolvedValueOnce([{ ...MEMBERS_CONNECTOR, status: 'paused' }])
 

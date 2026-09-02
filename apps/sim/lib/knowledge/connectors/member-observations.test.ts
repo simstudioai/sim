@@ -9,10 +9,12 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 }))
 
 import {
+  rewriteConnectorAcls,
   staleMemberWindowMs,
   sweepStaleMemberObservations,
 } from '@/lib/knowledge/connectors/member-observations'
 import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
+import { SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 
 const NOW = new Date('2026-09-01T12:00:00Z')
 const STALE_MEMBER = { id: 'm-1', connectorId: 'c-1', syncIntervalMinutes: 60 }
@@ -86,5 +88,35 @@ describe('sweepStaleMemberObservations', () => {
     expect(dbChainMockFns.for).toHaveBeenCalledWith('share')
     expect(dbChainMockFns.for).not.toHaveBeenCalledWith('update')
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+})
+
+describe('rewriteConnectorAcls', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('proves the lease inside each batch transaction before rewriting', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'd-1' }])
+
+    await expect(
+      rewriteConnectorAcls('c-1', [], { lease: { stillHeld: () => 'held' as never } })
+    ).resolves.toBe(true)
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('share')
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.document)
+  })
+
+  it('stops without writing once the lease is gone', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [])
+
+    await expect(
+      rewriteConnectorAcls('c-1', [], { lease: { stillHeld: () => 'lost' as never } })
+    ).rejects.toBeInstanceOf(SyncLockLostException)
+
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })

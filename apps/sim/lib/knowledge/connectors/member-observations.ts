@@ -27,9 +27,11 @@ import {
   MEMBER_TOMBSTONE_PURGE_DAYS,
 } from '@/lib/knowledge/connectors/sync-limits'
 import {
+  assertSyncLeaseHeldInTx,
   connectorIsLive,
   MEMBER_LOCKABLE_CONNECTOR_STATUSES,
   type SyncRunLease,
+  type SyncWriteLease,
 } from '@/lib/knowledge/connectors/sync-lock'
 import {
   type ConnectorSyncDeletionGuard,
@@ -184,7 +186,17 @@ const ACCESS_REWRITE_BATCH_SIZE = 1000
 export async function rewriteConnectorAcls(
   connectorId: string,
   target: readonly string[],
-  options: { deadlineAt?: number; beforeBatch?: () => Promise<void> } = {}
+  options: {
+    deadlineAt?: number
+    beforeBatch?: () => Promise<void>
+    /**
+     * The lease the caller holds on the connector, proved inside each batch's
+     * transaction: a heartbeat before the batch only says the lease was held
+     * then, and a run reclaimed mid-rewrite must not land an empty ACL over
+     * what its replacement has since materialised.
+     */
+    lease?: SyncWriteLease
+  } = {}
 ): Promise<boolean> {
   const mismatch =
     target.length === 0
@@ -192,20 +204,23 @@ export async function rewriteConnectorAcls(
       : sql`${document.acl} <> ${textArrayLiteral(target)}`
   for (;;) {
     await options.beforeBatch?.()
-    const rewritten = await db
-      .update(document)
-      .set({ acl: [...target] })
-      .where(
-        eq(
-          document.id,
-          sql`ANY(ARRAY(
-            SELECT ${document.id} FROM ${document}
-            WHERE ${document.connectorId} = ${connectorId} AND ${mismatch}
-            LIMIT ${ACCESS_REWRITE_BATCH_SIZE}
-          ))`
+    const rewritten = await db.transaction(async (tx) => {
+      if (options.lease) await assertSyncLeaseHeldInTx(tx, connectorId, options.lease)
+      return tx
+        .update(document)
+        .set({ acl: [...target] })
+        .where(
+          eq(
+            document.id,
+            sql`ANY(ARRAY(
+              SELECT ${document.id} FROM ${document}
+              WHERE ${document.connectorId} = ${connectorId} AND ${mismatch}
+              LIMIT ${ACCESS_REWRITE_BATCH_SIZE}
+            ))`
+          )
         )
-      )
-      .returning({ id: document.id })
+        .returning({ id: document.id })
+    })
     if (rewritten.length < ACCESS_REWRITE_BATCH_SIZE) return true
     if (options.deadlineAt !== undefined && Date.now() >= options.deadlineAt) return false
   }

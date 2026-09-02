@@ -467,7 +467,10 @@ async function insertMemberSyncLog(runId: string, connectorId: string, startedAt
  * makes it visible again.
  */
 async function finishPendingAccessRewrite(run: MemberSyncRun): Promise<void> {
-  await rewriteConnectorAcls(run.connectorId, EMPTY_ACL, { beforeBatch: run.lease.beatIfDue })
+  await rewriteConnectorAcls(run.connectorId, EMPTY_ACL, {
+    beforeBatch: run.lease.beatIfDue,
+    lease: run.lease,
+  })
   await db
     .update(knowledgeConnector)
     .set({ accessRewritePending: false, updatedAt: new Date() })

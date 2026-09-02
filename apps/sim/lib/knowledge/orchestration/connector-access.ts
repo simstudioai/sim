@@ -335,6 +335,7 @@ export async function performUpdateKnowledgeConnectorAccess(
       try {
         const rewritten = await rewriteConnectorAcls(connectorId, EMPTY_ACL, {
           deadlineAt: deadlineAt,
+          lease: { stillHeld: () => switchLeaseHeld(connectorId, switchId) },
         })
         /**
          * The flip lands under the group's row lock, which the group's option
@@ -475,6 +476,7 @@ export async function performUpdateKnowledgeConnectorAccess(
     })
     const rewritten = await rewriteConnectorAcls(connectorId, WORKSPACE_ACL, {
       deadlineAt: deadlineAt,
+      lease: { stillHeld: () => switchLeaseHeld(connectorId, switchId) },
     })
     if (existing.credentialGroupId) {
       await revokeKnowledgeConnectorCredentialAccess(
