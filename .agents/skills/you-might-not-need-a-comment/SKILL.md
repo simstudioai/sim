@@ -32,7 +32,7 @@ This codebase's convention: **TSDoc for documentation, no non-TSDoc comments, no
 
 - A `//` comment that explains a **non-obvious why**: a workaround for an upstream bug, an ordering constraint, a perf reason, a spec/edge-case the code can't self-document (`// first-match wins — matches the old find() semantics`).
 - Existing TSDoc `/** ... */` blocks on declarations — leave them (only tighten if verbose).
-- `// boundary-raw-fetch:`, `// double-cast-allowed:`, `// boundary-raw-json:`, `// untyped-response:`, `// migration-safe:`, `// rq-lint-allow:`, `// client-boundary-allow:` and any other `// <kebab-tag>: <reason>` annotation a script under `scripts/` greps for — these are load-bearing, never touch them.
+- `// boundary-raw-fetch:`, `// double-cast-allowed:`, `// boundary-raw-json:`, `// untyped-response:`, `// migration-safe:`, `// rq-lint-allow:`, `// client-boundary-allow:` and any other `<kebab-tag>: <reason>` annotation a script under `scripts/` greps for, in line-comment or block-comment form (e.g. the `/** svg-path-precision-exception: ... */` directive on icon paths) — these are load-bearing, never touch them.
 - `// biome-ignore`, `// eslint-disable`, `// @ts-expect-error` and other tooling directives.
 - `// TODO` / `// FIXME` that point at real, still-open work.
 

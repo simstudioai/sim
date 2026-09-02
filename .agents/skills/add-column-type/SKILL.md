@@ -8,7 +8,7 @@ argument-hint: <type-name>
 
 A column type is **one file** in `apps/sim/lib/table/column-types/` plus a registry entry. Everything that varies per type — label, icon, storage cast, coercion, validation, conversion compatibility, formatting, editor, filter operators — lives on that one object, so no consumer needs editing.
 
-A `case 'yourtype':` outside `column-types/` fails **silently** when missed (a wrong `jsonbCast` breaks every filter on the column). The registry exists to make that impossible, so the rule is absolute: **if you find yourself adding a `case 'yourtype':` anywhere outside `column-types/`, the registry is missing a field. Add the field instead.**
+A `case 'yourtype':` outside `column-types/` fails **silently** when missed (a wrong `jsonbCast` breaks every filter on the column). The registry exists to make that impossible, so the rule is absolute with one documented exception (`import.ts`'s `coerceValue`, see "Traps" below): **if you find yourself adding a `case 'yourtype':` anywhere else outside `column-types/`, the registry is missing a field. Add the field instead.**
 
 ## Hard Rule: the compiler tells you what to do
 

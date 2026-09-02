@@ -222,7 +222,7 @@ After reporting, fix every **critical** and **warning** issue. Apply **suggestio
 After fixing, confirm:
 1. `bun run type-check` passes
 2. Re-read all modified files to verify fixes are correct
-3. Provider handler tests pass (if they exist): `bun run --cwd apps/sim test lib/webhooks/providers/{service}`
+3. Provider handler tests pass (if they exist): `bun run --cwd apps/sim test lib/webhooks/providers/<handler-basename>` — handler files are kebab-case (`azure-devops.ts`) while trigger directories are snake_case (`azure_devops`), so use the handler's actual basename
 4. Any remaining unknown webhook payload schemas were explicitly reported to the user instead of guessed
 
 ## Checklist Summary

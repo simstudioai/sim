@@ -49,11 +49,11 @@ Use a precise WebFetch prompt: *"Extract for {model_id}: exact model id string, 
 |---|---|---|
 | `temperature` | All providers (passed through if set) | Safe but inert on always-reasoning models that reject it |
 | `toolUsageControl` | All providers (provider-level, not per-model) | n/a — set on `ProviderDefinition`, not models |
-| `reasoningEffort` | `openai/core.ts`, `azure-openai`, `xai/index.ts`, `deepseek/index.ts`, `groq/index.ts` | Not read by anthropic/gemini (they use `thinking`) or by mistral, cerebras, openrouter, fireworks, vertex — re-grep before assuming |
+| `reasoningEffort` | `openai/core.ts`, `azure-openai`, `xai`, `deepseek`, `groq`, `zai`, `meta`, `litellm` (each `index.ts`) | Not read by anthropic/gemini (they use `thinking`) or by mistral, cerebras, openrouter, fireworks, vertex — re-grep before assuming |
 | `verbosity` | `openai/core.ts`, `azure-openai/index.ts` only | Dead elsewhere |
-| `thinking` | `anthropic/core.ts`, `gemini/core.ts`; `deepseek/index.ts` and `groq/index.ts` read the resolved `thinkingLevel` | Dead elsewhere |
+| `thinking` | `anthropic/core.ts`, `gemini/core.ts`; `deepseek`, `groq`, `zai`, `kimi` (each `index.ts`) read the resolved `thinkingLevel` | Dead elsewhere |
 | `thinking.streamed` | Docs generator + `getThinkingStreamVisibility` (`models.ts`); `anthropic/core.ts` uses `'summary'` to request `display: 'summarized'` on agent-events runs | **Mandatory on Anthropic-family thinking models** (`agent-stream-docs:check` fails without it); other families fall back to provider defaults |
-| `nativeStructuredOutputs` | `anthropic/core.ts`, `bedrock/index.ts`, `fireworks/index.ts`, `openrouter/index.ts`, `baseten/index.ts`, `together/index.ts` (via `supportsNativeStructuredOutputs`) | Dead on openai, xai, google, vertex, azure-openai, deepseek, mistral, groq, cerebras |
+| `nativeStructuredOutputs` | `anthropic/core.ts`, `bedrock/index.ts` (via `models.ts` `supportsNativeStructuredOutputs`, which reads the flag) | Dead elsewhere — fireworks/baseten/together/openrouter call their own provider-level `supportsNativeStructuredOutputs` that ignores the model flag (always on, always off, or OpenRouter API metadata) |
 | `maxOutputTokens` | Read by UI + executor for token estimation | Always meaningful — set if provider documents a cap |
 | `computerUse` | `providers/utils.ts` (`getComputerUseModels` → `computerUseModels` routing) | Set only on actual computer-use SKUs |
 | `deepResearch` | UI flag for routing to deep-research SKUs | Set only on actual deep-research model IDs |
@@ -114,9 +114,9 @@ Adding the `models.ts` entry is most of the job because nearly every consumer is
 
 ### Hosted = auto-billed, by provider
 
-`getHostedModels()` in `apps/sim/providers/models.ts` decides which providers are served with Sim's rotating hosted key and billed to the workspace via `shouldBillModelUsage()` (`providers/utils.ts`). Read the function before inserting — the list changes (it currently includes several non-big-three providers and a static Fireworks catalog). Before you insert:
+`getHostedModels()` in `apps/sim/providers/models.ts` returns the model IDs served with Sim's rotating hosted key and billed to the workspace via `shouldBillModelUsage()` (`providers/utils.ts`). It builds that list by expanding whole providers (`getProviderModels('openai')`, `'anthropic'`, `'google'`, and others) plus the static Fireworks catalog, so any model added under one of those providers is hosted automatically. Read the function before inserting — the provider set changes. Before you insert:
 
-- **If the model should be BYOK-only / never-billed**, do not add it under a provider listed in `getHostedModels()` — that silently enrolls it in hosted billing. Confirm hosting/billing intent with the user. (Ollama Cloud is a deliberately separate `isReseller` provider specifically to stay BYOK-only/never-billed.)
+- **If the model should be BYOK-only / never-billed**, do not add it under a provider that `getHostedModels()` expands — that silently enrolls it in hosted billing. After inserting, verify with `getHostedModels().includes('<new-model-id>')` (a one-line `bun -e` or the assertion in `providers/utils.test.ts`). Confirm hosting/billing intent with the user. (Ollama Cloud is a deliberately separate `isReseller` provider specifically to stay BYOK-only/never-billed.)
 - **If the model should be hosted**, the deployment must actually have a key for it — the provider's `{PREFIX}_COUNT` / `{PREFIX}_1..N` env vars must be set, or hosted runs fail at execution time.
 - State the hosted/billing status explicitly in the verification report.
 
@@ -158,7 +158,7 @@ bun run lint
 bun run agent-stream-docs:generate   # only when the entry has thinking/reasoningEffort
 ```
 
-Lint must pass before you report done.
+Lint must pass before you report done — fix the entry you wrote, never delete it to make lint pass.
 
 ## Step 6: Verification report (mandatory format)
 
@@ -177,7 +177,7 @@ End with this exact structure:
 | `capabilities.temperature` | `{ min: 0, max: 1 }` | matches sibling entries | — pattern-match only |
 | `capabilities.reasoningEffort` | NOT SET | provider docs say API rejects it for this model | ✓ correctly omitted |
 | `releaseDate` | 2026-04-30 | https://docs.x.ai/... announcement | ✓ verified |
-| hosted/billing | hosted (provider is in `getHostedModels`) or BYOK-only | `providers/models.ts` | — confirmed intent |
+| hosted/billing | hosted (`getHostedModels().includes(id)`) or BYOK-only | `providers/models.ts` | — confirmed intent |
 
 **Disagreements**
 - _none_ OR _OpenRouter says X, provider docs say Y — used Y per provider rule_

@@ -65,7 +65,7 @@ Add a subtle 1px low-opacity outline to images (`outline-black/10` light, `outli
 
 ### 12. Scale on Press
 
-A subtle scale-down (about 0.96-0.97) on press gives tactile feedback. In this repo it lives in the emcn `Button`/`Chip` chrome, not consumer classes; add a `static` prop to opt out where motion distracts.
+A subtle scale-down (about 0.96-0.97) on press gives tactile feedback. In this repo a press affordance belongs in the emcn `Button`/`Chip` chrome (`packages/emcn`), not in consumer classes — neither component implements one today, so propose it there rather than adding per-call-site transforms.
 
 ### 13. Skip Animation on Page Load
 
@@ -89,7 +89,7 @@ Interactive elements need at least 40×40px hit area. Extend with a pseudo-eleme
 | --- | --- |
 | Same border radius on parent and child | Calculate `outerRadius = innerRadius + padding` |
 | Icons look off-center | Adjust optically with padding or fix SVG directly |
-| Hard borders between sections | Use layered `box-shadow` with transparency |
+| Hard borders between sections | In this repo, the `--border` hairline token; elsewhere, layered `box-shadow` with transparency |
 | Jarring enter/exit animations | Split, stagger, and keep exits subtle |
 | Numbers cause layout shift | Apply `tabular-nums` |
 | Heavy text on macOS | Apply `antialiased` to root |

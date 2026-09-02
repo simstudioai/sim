@@ -437,7 +437,7 @@ When your integration handles file uploads or downloads, follow these patterns t
 
 ### What is a UserFile?
 
-`UserFile` (`apps/sim/executor/types.ts`) is the standard file representation in Sim — id, name, presigned `url`, size, MIME `type`, storage `key`, and optional inline `base64` / provider file handles. Read the interface rather than relying on a copy here.
+`UserFile` (`apps/sim/executor/types.ts`) is the standard file representation in Sim — id, name, an access `url` (not guaranteed presigned — `remoteUrl` is the short-lived signed one, set only for providers that fetch by URL), size, MIME `type`, storage `key`, and optional inline `base64` / provider file handles. Read file bytes through the documented upload helpers, never by fetching `url` directly. Read the interface rather than relying on a copy here.
 
 ### File Input Pattern (Uploads)
 

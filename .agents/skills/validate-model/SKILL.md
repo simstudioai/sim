@@ -81,7 +81,7 @@ For each model, evaluate every row. Statuses: ✓ matches docs, ✗ disagrees, �
 - [ ] `speedOptimized: true` — only on smallest/fastest tier (nano / flash-lite / haiku class)
 
 ### Hosting / billing
-- [ ] If the model's provider is listed in `getHostedModels()` (read the function in `providers/models.ts`; it is more than openai/anthropic/google), the model is served with Sim's rotating key and billed via `shouldBillModelUsage()`. Confirm that is the intent (a BYOK-only model parked under a hosted provider is a billing bug — warning).
+- [ ] If `getHostedModels()` includes the model ID (`providers/models.ts` expands whole providers — more than openai/anthropic/google — plus the static Fireworks catalog), the model is served with Sim's rotating key and billed via `shouldBillModelUsage()`. Confirm that is the intent (a BYOK-only model parked under a hosted provider is a billing bug — warning).
 - [ ] If the model is hosted, the deployment is expected to have its `{PREFIX}_COUNT` / `{PREFIX}_1..N` env vars set (ops concern; note if it looks unset for a model claiming hosted support).
 
 ## Step 5: Report (mandatory format)

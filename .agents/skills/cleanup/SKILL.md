@@ -14,7 +14,7 @@ User arguments: $ARGUMENTS
 
 ## Step 1 — Parallel analysis (read-only)
 
-Parse `$ARGUMENTS` into `scope` and `fix` (defaults: current changes, `true`). `fix` is consumed by Step 3 only — the passes below always run `fix=false`.
+Parse `$ARGUMENTS` into `scope` and `fix`: extract the `fix=true|false` token wherever it appears in the string and strip it from `scope`; defaults are the current changes and `fix=true`. `fix` is consumed by Step 3 only — the passes below always run `fix=false`.
 
 Spawn all eight passes concurrently as subagents in a **single message** (multiple Agent tool calls). Each runs its skill on the parsed `scope` with `fix=false` — analysis and proposals ONLY, no edits. Instruct each agent to return its findings as a structured list: for every proposed change, the file path, line range, a one-line description of the change, and the exact before/after so the orchestrator can apply it without re-deriving.
 

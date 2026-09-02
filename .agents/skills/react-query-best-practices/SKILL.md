@@ -27,7 +27,7 @@ Read these before analyzing:
 
 ### Query keys and hooks
 Enforce CLAUDE.md "React Query" and `.claude/rules/sim-queries.md` (key factory with `all` + plural prefixes, `signal` forwarding, named `staleTime` constants reused by prefetches, `keepPreviousData` only on variable keys, `requestJson` boundary). Additionally:
-- Key factories live next to their hooks — except a factory (or standalone fetcher/mapper) that a server module imports, which must live in `hooks/queries/utils/<entity>-keys.ts` / `fetch-*.ts` per `.claude/rules/sim-queries.md` (a `'use client'` export called from the server crashes SSR)
+- Key factories live next to their hooks — except a factory, standalone fetcher/mapper, or `staleTime` constant that a server module (a `prefetch.ts`, route, block, trigger) imports, which must live in a non-`'use client'` module under `hooks/queries/utils/` per `.claude/rules/sim-queries.md` (a `'use client'` export called from the server crashes SSR)
 - Use `enabled` to prevent queries from running without required params
 - Warm data for hover/focus intent with `queryClient.prefetchQuery` and shared `queryOptions`; never temporarily enable a mounted hidden observer, which can remain active after focus restoration and refetch data for closed UI
 - When gating a query by view or modal state, move every consumer to the active query too: imperative refresh/pagination, loading and error feedback, and data-derived controls must never read a disabled query or placeholder data from a previous key

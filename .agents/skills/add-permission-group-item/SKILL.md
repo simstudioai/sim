@@ -215,7 +215,7 @@ cd apps/sim && bunx vitest run lib/permission-groups
 
 Also `bun run check:api-validation` if you touched a contract or the group routes. `bun run check:audits` runs all of these; it derives its list from the `check:*` scripts in `package.json`, so a new audit is opted *out* deliberately rather than opted in.
 
-Read the success lines, not the exit codes — the operation and capability counts should each have grown by one:
+Read the success lines, not the exit codes — compare the counts against the previous run and check they grew by exactly what you added: an operation-declared capability adds one operation and one capability; a raw-route or parameterized capability adds one capability and no operation; an executor-gated or UI-only item adds neither:
 
 ```
 ✓ permission-group enforcement: <N> operations declare a capability, <M> capabilities all enforced

@@ -223,8 +223,9 @@ and leave the field unannotated.
   formatter parses it; keep formatter behavior deterministic when a whole-value placeholder is not
   valid in the serialized grammar. Do not introduce a second hard-rejection path.
 - **Opaque model input owned by an in-process operation** such as inline audio, image, video, or
-  document bytes: add `privateProvenance` to the operation model-input declaration, or use
-  `mode: 'private-provenance'` when there is no textual projection. Do not select storage keys,
+  document bytes: add `privateInputPaths` to the `mode: 'project'` operation model-input
+  declaration, or use `mode: 'private-provenance'` with `inputPaths` when there is no textual
+  projection (see the `modelInput` union in `apps/sim/tools/types.ts`). Do not select storage keys,
   paths, signed URLs, or ordinary remote URLs as byte provenance; the owning operation must
   authorize stored bytes independently at model egress. The operation must call
   `validateOpaqueModelInputProvenance` before downloading or sending content to the model and must

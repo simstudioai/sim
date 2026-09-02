@@ -4,7 +4,7 @@ source: https://github.com/leonxlnx/taste-skill — skills/taste-skill/SKILL.md
 description: Anti-slop frontend skill for landing pages, portfolios, and redesigns. The agent reads the brief, infers the right design direction, and ships interfaces that do not look templated. Real design systems when applicable, audit-first on redesigns, strict pre-flight check.
 ---
 
-> **In this repo:** Tailwind 3.4 (`apps/sim/tailwind.config.ts`), `framer-motion`, icons from `@sim/emcn/icons`, colors through the CSS-variable tokens in `.claude/rules/sim-styling.md` (no hardcoded `text-gray-*`/hex, no paired `dark:` utilities). Where Section 3 or 8 names a different stack, this note wins.
+> **In this repo:** Tailwind 3.4 (`apps/sim/tailwind.config.ts`); animation via `import { motion } from 'framer-motion'` (not `motion/react` — rewrite every `motion/react` import in the samples below); icons from `@sim/emcn/icons`; colors through the CSS-variable tokens in `.claude/rules/sim-styling.md` (no hardcoded `text-gray-*`/hex/`zinc` utilities, no paired `dark:` utilities). This note overrides any conflicting guidance or code sample anywhere in this file.
 
 # tasteskill: Anti-Slop Frontend Skill
 
@@ -132,7 +132,7 @@ Unless the design read picks a real design system (Section 2.A), these are the d
   * **INTERACTIVITY ISOLATION:** Any component using Motion, scroll listeners, or pointer physics MUST be an isolated leaf with `'use client'` at the top. Server Components render static layouts only.
 * **Styling:** **Tailwind v4** (default). Tailwind v3 only if the existing project demands it.
   * For v4: do NOT use `tailwindcss` plugin in `postcss.config.js`. Use `@tailwindcss/postcss` or the Vite plugin.
-* **Animation:** **Motion** (the library formerly known as Framer Motion). Import from `motion/react` (`import { motion } from "motion/react"`). The `framer-motion` package still works as a legacy alias - prefer `motion/react` in new code.
+* **Animation:** **Motion** (the library formerly known as Framer Motion). Outside this repo import from `motion/react`; in this repo import from `framer-motion` (see the note at the top).
 * **Fonts:** Always use `next/font` (Next.js) or self-host with `@font-face` + `font-display: swap`. Never link Google Fonts via `<link>` in production.
 
 ### 3.B State
