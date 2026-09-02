@@ -209,13 +209,14 @@ export async function rewriteConnectorAcls(
 
 export async function materializeDocumentAcls(
   connectorId: string,
-  documentIds: Iterable<string>
+  documentIds: Iterable<string>,
+  executor: DbOrTx = db
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   let updated = 0
   for (let offset = 0; offset < ids.length; offset += MATERIALIZE_BATCH_SIZE) {
     const batch = ids.slice(offset, offset + MATERIALIZE_BATCH_SIZE)
-    const rows = await db
+    const rows = await executor
       .update(document)
       .set({ acl: observedAcl() })
       .where(

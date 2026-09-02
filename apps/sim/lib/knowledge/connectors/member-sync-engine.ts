@@ -22,6 +22,7 @@ import {
   isManagedCredentialGroupBindingLive,
   loadCredentialGroupCredentialListContext,
 } from '@/lib/credential-groups/credentials'
+import type { DbOrTx } from '@/lib/db/types'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { EMPTY_ACL, subjectToken } from '@/lib/knowledge/access/tokens'
 import {
@@ -397,6 +398,28 @@ function createMemberTokenCache(input: {
   }
 }
 
+/**
+ * Runs `fn` in a transaction that first proves this run still holds the
+ * connector's member lease, taking the connector row's lock so the scheduler
+ * cannot reclaim the lease mid-transaction. A run that stalled past the lease
+ * TTL and resumed after a replacement took over therefore never lands its
+ * observations or ACLs over the replacement's; it ends as superseded.
+ */
+async function withMemberLease<T>(
+  run: Pick<MemberSyncRun, 'connectorId' | 'runId'>,
+  fn: (tx: DbOrTx) => Promise<T>
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    const [held] = await tx
+      .select({ id: knowledgeConnector.id })
+      .from(knowledgeConnector)
+      .where(stillHoldsMemberSyncLock(run.connectorId, run.runId))
+      .for('update')
+    if (!held) throw new SyncLockLostException(run.connectorId)
+    return fn(tx)
+  })
+}
+
 async function acquireMemberSyncLock(
   connectorId: string,
   runId: string,
@@ -525,6 +548,10 @@ async function reconcileMembership(
 
   const inserts: (typeof knowledgeConnectorMember.$inferInsert)[] = []
   const affectedMemberIds: string[] = []
+  const updates: Array<{
+    id: string
+    values: Partial<typeof knowledgeConnectorMember.$inferInsert>
+  }> = []
   const deleteMemberIds: string[] = []
 
   for (const snapshot of snapshots.values()) {
@@ -558,17 +585,17 @@ async function reconcileMembership(
     const tokenChanged = row.subjectToken !== snapshot.subjectToken
     const statusChanged = row.status !== status
     if (!tokenChanged && !statusChanged) continue
-    await db
-      .update(knowledgeConnectorMember)
-      .set({
+    updates.push({
+      id: row.id,
+      values: {
         subjectToken: snapshot.subjectToken,
         status,
         suspendedAt: snapshot.active ? null : (row.suspendedAt ?? now),
         /** A reactivated member is due immediately; their observations may be stale. */
         ...(statusChanged && snapshot.active ? { nextAttemptAt: now, consecutiveFailures: 0 } : {}),
         updatedAt: now,
-      })
-      .where(eq(knowledgeConnectorMember.id, row.id))
+      },
+    })
     affectedMemberIds.push(row.id)
   }
 
@@ -585,18 +612,28 @@ async function reconcileMembership(
       affectedDocumentIds.add(documentId)
     }
   }
-  if (deleteMemberIds.length > 0) {
-    await db
-      .delete(knowledgeConnectorMember)
-      .where(
-        and(
-          eq(knowledgeConnectorMember.connectorId, run.connectorId),
-          inArray(knowledgeConnectorMember.id, deleteMemberIds)
-        )
-      )
-  }
-  if (inserts.length > 0) {
-    await db.insert(knowledgeConnectorMember).values(inserts).onConflictDoNothing()
+  if (updates.length > 0 || deleteMemberIds.length > 0 || inserts.length > 0) {
+    await withMemberLease(run, async (tx) => {
+      for (const update of updates) {
+        await tx
+          .update(knowledgeConnectorMember)
+          .set(update.values)
+          .where(eq(knowledgeConnectorMember.id, update.id))
+      }
+      if (deleteMemberIds.length > 0) {
+        await tx
+          .delete(knowledgeConnectorMember)
+          .where(
+            and(
+              eq(knowledgeConnectorMember.connectorId, run.connectorId),
+              inArray(knowledgeConnectorMember.id, deleteMemberIds)
+            )
+          )
+      }
+      if (inserts.length > 0) {
+        await tx.insert(knowledgeConnectorMember).values(inserts).onConflictDoNothing()
+      }
+    })
   }
 
   logger.info('Reconciled members-mode membership', {
@@ -895,7 +932,7 @@ async function applyMemberListing(
   const exhaustedFailures = (outcome.member.consecutiveFailures ?? 0) + 1
   const now = new Date()
 
-  await db.transaction(async (tx) => {
+  await withMemberLease(run, async (tx) => {
     const added = await recordMemberObservations(tx, outcome.member.id, seenDocumentIds, run.runId)
     run.result.observationsAdded += added
     /**
@@ -1145,7 +1182,7 @@ async function disableMemberSync(run: MemberSyncRun, reason: string): Promise<vo
       db,
       suspended.map((row) => row.id)
     )
-    await materializeDocumentAcls(run.connectorId, affected)
+    await withMemberLease(run, (tx) => materializeDocumentAcls(run.connectorId, affected, tx))
   }
   await failMemberSyncLog(run.runId, run.result, reason)
   await db
@@ -1472,7 +1509,9 @@ export async function executeMemberSync(
       for (const documentId of affected) affectedDocumentIds.add(documentId)
     }
 
-    await materializeDocumentAcls(connectorId, affectedDocumentIds)
+    await withMemberLease(run, (tx) =>
+      materializeDocumentAcls(connectorId, affectedDocumentIds, tx)
+    )
 
     /**
      * Nobody has completed a listing yet — a connector that just entered
