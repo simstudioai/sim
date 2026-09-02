@@ -256,7 +256,6 @@ export function Tables() {
     dir: sortDirection,
     activeSort,
     onSort: applyUrlSort,
-    onClear: clearUrlSort,
   } = useUrlSort(tablesSortParams, tablesUrlKeys)
 
   const currentListPreference = useMemo<ResourceListPreference>(
@@ -273,17 +272,9 @@ export function Tables() {
         rows: [...preference.filters.rows],
         owner: [...preference.filters.owner],
       })
-      const defaultSort = tablesListPreferenceConfig.defaultPreference.sort
-      if (
-        preference.sort.column === defaultSort.column &&
-        preference.sort.direction === defaultSort.direction
-      ) {
-        clearUrlSort()
-      } else {
-        applyUrlSort(preference.sort.column, preference.sort.direction)
-      }
+      applyUrlSort(preference.sort.column, preference.sort.direction)
     },
-    [applyUrlSort, clearUrlSort, setTableFilters]
+    [applyUrlSort, setTableFilters]
   )
 
   const {

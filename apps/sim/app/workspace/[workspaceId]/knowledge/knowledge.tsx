@@ -285,7 +285,6 @@ export function Knowledge() {
     dir: sortDirection,
     activeSort,
     onSort: applyUrlSort,
-    onClear: clearUrlSort,
   } = useUrlSort(knowledgeSortParams, knowledgeUrlKeys)
 
   const currentListPreference = useMemo<ResourceListPreference>(
@@ -307,17 +306,9 @@ export function Knowledge() {
         content: [...preference.filters.content],
         owner: [...preference.filters.owner],
       })
-      const defaultSort = knowledgeListPreferenceConfig.defaultPreference.sort
-      if (
-        preference.sort.column === defaultSort.column &&
-        preference.sort.direction === defaultSort.direction
-      ) {
-        clearUrlSort()
-      } else {
-        applyUrlSort(preference.sort.column, preference.sort.direction)
-      }
+      applyUrlSort(preference.sort.column, preference.sort.direction)
     },
-    [applyUrlSort, clearUrlSort, setKnowledgeFilters]
+    [applyUrlSort, setKnowledgeFilters]
   )
 
   const {

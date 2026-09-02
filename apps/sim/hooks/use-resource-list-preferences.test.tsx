@@ -247,14 +247,18 @@ describe('useResourceListPreferences', () => {
     await flushEffects()
     expect(useResourceListPreferencesStore.getState()._hasHydrated).toBe(true)
 
-    act(() => result.current.commitPreference(filteredPreference))
+    act(() => result.current.setFilter('type', ['document']))
 
-    expect(applyPreference).toHaveBeenCalledWith(filteredPreference)
+    const filterPreference: ResourceListPreference = {
+      ...defaultPreference,
+      filters: { ...defaultPreference.filters, type: ['document'] },
+    }
+    expect(applyPreference).toHaveBeenCalledWith(filterPreference)
     expect(useResourceListPreferencesStore.getState().preferences).toEqual({
-      'workspace-1': { files: filteredPreference },
+      'workspace-1': { files: filterPreference },
     })
 
-    act(() => result.current.commitPreference(defaultPreference))
+    act(() => result.current.clearFilters())
 
     expect(applyPreference).toHaveBeenCalledWith(defaultPreference)
     expect(useResourceListPreferencesStore.getState().preferences).toEqual({})

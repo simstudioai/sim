@@ -425,7 +425,6 @@ export function Files() {
     dir: sortDirection,
     activeSort,
     onSort: applyUrlSort,
-    onClear: clearUrlSort,
   } = useUrlSort(filesSortParams, filesFilterUrlKeys)
 
   const currentListPreference = useMemo<ResourceListPreference>(
@@ -447,17 +446,9 @@ export function Files() {
         size: [...preference.filters.size],
         uploadedBy: [...preference.filters.uploadedBy],
       })
-      const defaultSort = filesListPreferenceConfig.defaultPreference.sort
-      if (
-        preference.sort.column === defaultSort.column &&
-        preference.sort.direction === defaultSort.direction
-      ) {
-        clearUrlSort()
-      } else {
-        applyUrlSort(preference.sort.column, preference.sort.direction)
-      }
+      applyUrlSort(preference.sort.column, preference.sort.direction)
     },
-    [applyUrlSort, clearUrlSort, setFileFilters]
+    [applyUrlSort, setFileFilters]
   )
 
   const {

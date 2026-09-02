@@ -19,7 +19,6 @@ interface UseResourceListPreferencesProps {
 
 interface UseResourceListPreferencesReturn {
   isReady: boolean
-  commitPreference: (preference: ResourceListPreference) => void
   setFilter: (filterKey: string, values: string[]) => void
   clearFilters: () => void
   setSort: (column: string, direction: ResourceListPreference['sort']['direction']) => void
@@ -231,7 +230,6 @@ export function useResourceListPreferences({
 
   return {
     isReady: !enabled || (pendingRestoration?.key !== key && hasUrlPreference) || readyKey === key,
-    commitPreference,
     setFilter,
     clearFilters,
     setSort,
