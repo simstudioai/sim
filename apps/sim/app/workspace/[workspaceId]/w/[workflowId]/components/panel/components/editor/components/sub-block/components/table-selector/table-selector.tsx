@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { Combobox, type ComboboxOption } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -76,6 +76,31 @@ export function TableSelector({
   const value = isPreview ? previewValue : storeValue
   const tableId = typeof value === 'string' ? value : null
 
+  const scoped = useMemo(() => {
+    /* Decode the scope once for the whole list rather than per row. */
+    const scopeSegments = parseFolderScope(folderScopePath)
+    return scopeSegments?.length
+      ? tables.filter((table) => isTableInFolderScope(table, tableFolders, scopeSegments))
+      : tables
+  }, [tables, tableFolders, folderScopePath])
+
+  /*
+   * Narrowing the folder must not leave a selection the picker no longer shows.
+   * Filtering alone would render the placeholder while the block kept running
+   * against the hidden table — the config would say one thing and the run do
+   * another. Dropping the value makes the empty picker true.
+   *
+   * Only a table that IS loaded and IS out of scope is cleared. A table absent
+   * from the list is a different situation (still loading, or deleted) and
+   * clearing there would destroy a valid config over a transient cache state.
+   */
+  useEffect(() => {
+    if (isPreview || disabled || isLoading || !tableId) return
+    if (!tables.some((table) => table.id === tableId)) return
+    if (scoped.some((table) => table.id === tableId)) return
+    setStoreValue('')
+  }, [isPreview, disabled, isLoading, tableId, tables, scoped, setStoreValue])
+
   /**
    * Two tables can share a name in different folders, so a colliding name is
    * suffixed with its folder path. Table names are lowercased for display (the
@@ -84,11 +109,6 @@ export function TableSelector({
    * disambiguated too. The folder path keeps its authored casing.
    */
   const options = useMemo<ComboboxOption[]>(() => {
-    /* Decode the scope once for the whole list rather than per row. */
-    const scopeSegments = parseFolderScope(folderScopePath)
-    const scoped = scopeSegments?.length
-      ? tables.filter((table) => isTableInFolderScope(table, tableFolders, scopeSegments))
-      : tables
     const duplicateNames = collectDuplicateNames(scoped.map((table) => table.name.toLowerCase()))
     return scoped.map((table) => ({
       label: disambiguateLabelByFolder(
@@ -99,7 +119,7 @@ export function TableSelector({
       ),
       value: table.id,
     }))
-  }, [tables, tableFolders, folderScopePath])
+  }, [scoped, tableFolders])
 
   const handleChange = useCallback(
     (selectedValue: string) => {
