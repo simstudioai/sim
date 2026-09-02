@@ -1073,6 +1073,7 @@ describe('parser properties', () => {
       '<usage_upgrade>{"reason":"monthly cap","action":"upgrade_plan","message":"You hit your limit."}</usage_upgrade>',
     'mothership-error':
       '<mothership-error>{"message":"The tool call failed.","code":"E_TOOL"}</mothership-error>',
+    source: '<source>{"url":"https://docs.github.com/en/x","siteName":"GitHub Docs"}</source>',
   }
 
   /** Renders nothing rather than a card, so it cannot carry a card invariant. */
@@ -1372,5 +1373,54 @@ describe('ordinary JSON in prose is never turned into a card', () => {
     const { segments } = parseSpecialTags(content, false)
     expect(segments.some((s) => s.type === 'options' || s.type === 'question')).toBe(false)
     expect(segments.some((s) => s.type === 'text')).toBe(true)
+  })
+})
+
+describe('source tag', () => {
+  it('parses a complete source tag into a source segment', () => {
+    const { segments } = parseSpecialTags(
+      'Remove them first. <source>{"url":"https://docs.github.com/en/x","siteName":"GitHub Docs","title":"Blocking users"}</source> Then block.',
+      false
+    )
+
+    expect(segments).toEqual([
+      { type: 'text', content: 'Remove them first. ' },
+      {
+        type: 'source',
+        data: {
+          url: 'https://docs.github.com/en/x',
+          siteName: 'GitHub Docs',
+          title: 'Blocking users',
+        },
+      },
+      { type: 'text', content: ' Then block.' },
+    ])
+  })
+
+  it('keeps adjacent source tags as separate segments', () => {
+    const { segments } = parseSpecialTags(
+      'Done. <source>{"url":"https://a.example/1"}</source><source>{"url":"https://b.example/2"}</source>',
+      false
+    )
+
+    expect(segments.filter((segment) => segment.type === 'source')).toHaveLength(2)
+  })
+
+  it('rejects a source without an absolute http(s) url', () => {
+    for (const url of ['docs/internal.md', 'https://?', 'ftp://host/x', 'https://a b.example/x']) {
+      const { segments } = parseSpecialTags(
+        `See <source>{"url":"${url}","siteName":"Docs"}</source>.`,
+        false
+      )
+
+      expect(segments.some((segment) => segment.type === 'source')).toBe(false)
+    }
+  })
+
+  it('hides a half-arrived source opener while streaming', () => {
+    const { segments, hasPendingTag } = parseSpecialTags('Block them. <sou', true)
+
+    expect(segments).toEqual([{ type: 'text', content: 'Block them. ' }])
+    expect(hasPendingTag).toBe(true)
   })
 })

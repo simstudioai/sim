@@ -26,8 +26,15 @@ import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
 import type { AgentGroupItem } from './components'
-import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
-import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
+import {
+  AgentGroup,
+  ChatContent,
+  CircleStop,
+  MessageSources,
+  Options,
+  PendingTagIndicator,
+} from './components'
+import { collectMessageSources, deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 
 const FILE_SUBAGENT_ID = 'file'
 /** Quiet period before the shimmer takes the slot back from streamed output. */
@@ -872,12 +879,28 @@ function MessageContentInner({
   }, [])
   const [isStreamIdle, setIsStreamIdle] = useState(false)
 
-  const segments: MessageSegment[] =
-    parsed.length > 0
-      ? parsed
-      : fallbackContent?.trim()
-        ? [{ type: 'text' as const, id: 'text-fallback', content: fallbackContent }]
-        : []
+  const segments = useMemo<MessageSegment[]>(
+    () =>
+      parsed.length > 0
+        ? parsed
+        : fallbackContent?.trim()
+          ? [{ type: 'text', id: 'text-fallback', content: fallbackContent }]
+          : [],
+    [parsed, fallbackContent]
+  )
+  /**
+   * Collected from the segments that render, not the raw blocks: that is the
+   * same text the inline chips come from, so the footer agrees with them — it
+   * covers the fallback text of a block-less message and leaves out lane text
+   * that `parseBlocks` folds into agent groups.
+   */
+  const sources = useMemo(
+    () =>
+      collectMessageSources(
+        segments.flatMap((segment) => (segment.type === 'text' ? [segment.content] : []))
+      ),
+    [segments]
+  )
   const visibleStreamActivityKey = getVisibleStreamActivityKey(segments)
 
   // Every visible stream update restarts the quiet-period clock. A layout
@@ -1004,6 +1027,11 @@ function MessageContentInner({
               return null
           }
         })}
+        {sources.length > 0 && (
+          <div className={isStreaming ? 'animate-stream-fade-in' : undefined}>
+            <MessageSources sources={sources} />
+          </div>
+        )}
       </div>
       {thinkingExpanded && isLast ? (
         // Fixed-height placeholder for the NEXT piece of output: the shimmer

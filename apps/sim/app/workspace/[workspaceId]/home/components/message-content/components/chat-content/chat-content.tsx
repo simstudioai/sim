@@ -1,6 +1,15 @@
 'use client'
 
-import { type ComponentPropsWithoutRef, memo, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ComponentPropsWithoutRef,
+  createContext,
+  memo,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 // prismjs core must load before its language components — they register on the
@@ -16,9 +25,14 @@ import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
+  SourceChip,
+  sourceLabel,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
+import {
   type ContentSegment,
   type CredentialSubmissionPayload,
   parseSpecialTags,
+  type SourceTagData,
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import type {
@@ -108,7 +122,36 @@ function nextInlineSegmentLabel(segment?: ContentSegment): string {
   // Thinking segments are never rendered, so they contribute no following text.
   if (segment.type === 'text') return segment.content
   if (segment.type === 'workspace_resource') return segment.data.title || segment.data.id || ''
+  if (segment.type === 'source') return sourceLabel(segment.data)
   return ''
+}
+
+/**
+ * The `<source>` payloads of the segment being rendered, in emission order. An
+ * inline citation is written into the markdown as a link to a sentinel
+ * fragment carrying the payload's index, so it flows with its paragraph, and
+ * the link renderer resolves the index back through this context — the
+ * component map is static, so it is the one channel from segment data into it.
+ */
+const SourceRefsContext = createContext<readonly SourceTagData[]>([])
+
+/**
+ * Fragment prefix of a generated citation link. Internal — never navigated —
+ * and deliberately not a name the model would write on its own; an index that
+ * resolves to no parsed source falls back to the link text.
+ */
+const SOURCE_LINK_PREFIX = '#sim-source-ref-'
+
+interface SourceReferenceProps {
+  index: number
+  children?: React.ReactNode
+}
+
+/** The inline citation chip; a dangling index falls back to the link text. */
+function SourceReference({ index, children }: SourceReferenceProps) {
+  const source = useContext(SourceRefsContext)[index]
+  if (!source) return <>{children}</>
+  return <SourceChip source={source} />
 }
 
 function appendInlineReferenceMarkdown(
@@ -263,6 +306,13 @@ const MARKDOWN_COMPONENTS = {
     )
   },
   a({ children, href }: { children?: React.ReactNode; href?: string }) {
+    if (href?.startsWith(SOURCE_LINK_PREFIX)) {
+      return (
+        <SourceReference index={Number(href.slice(SOURCE_LINK_PREFIX.length))}>
+          {children}
+        </SourceReference>
+      )
+    }
     if (href?.startsWith('#wsres-')) {
       const match = href.match(/^#wsres-(\w+)-(.+)$/)
       const type = match?.[1]
@@ -566,14 +616,20 @@ function ChatContentInner({
 
   type BlockSegment = Exclude<
     ContentSegment,
-    { type: 'text' } | { type: 'thinking' } | { type: 'workspace_resource' }
+    { type: 'text' } | { type: 'thinking' } | { type: 'workspace_resource' } | { type: 'source' }
   >
   type RenderGroup =
     | { kind: 'inline'; markdown: string }
     | { kind: 'block'; segment: BlockSegment; index: number }
 
+  const sourceRefs = useMemo(
+    () => parsed.segments.flatMap((segment) => (segment.type === 'source' ? [segment.data] : [])),
+    [parsed]
+  )
+
   const groups: RenderGroup[] = []
   let pendingMarkdown = ''
+  let sourceIndex = 0
 
   const flushMarkdown = () => {
     if (pendingMarkdown.trim()) {
@@ -594,6 +650,16 @@ function ChatContentInner({
       pendingMarkdown = appendInlineReferenceMarkdown(
         pendingMarkdown,
         `[${label}](<#wsres-${s.data.type}-${ref}>)`,
+        nextSegment
+      )
+    } else if (s.type === 'source') {
+      // A citation always stands off from the sentence it supports, even when
+      // the model closes the sentence on punctuation the word-boundary rule
+      // would otherwise glue the chip to.
+      if (pendingMarkdown && !/\s$/.test(pendingMarkdown)) pendingMarkdown += ' '
+      pendingMarkdown = appendInlineReferenceMarkdown(
+        pendingMarkdown,
+        `[${sourceLabel(s.data)}](<${SOURCE_LINK_PREFIX}${sourceIndex++}>)`,
         nextSegment
       )
     } else if (s.type === 'thinking') {
@@ -621,40 +687,42 @@ function ChatContentInner({
    * the new special block mounts.
    */
   return (
-    <div className='space-y-3'>
-      {groups.map((group, i) => {
-        if (group.kind === 'inline') {
-          return (
-            <div
-              key={`inline-${i}`}
-              className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
-            >
-              <Streamdown
-                key={streamingTree ? 'stream' : 'settled'}
-                mode={parserTree ? undefined : 'static'}
-                animated={fadeActive ? STREAM_ANIMATION : false}
-                isAnimating={streamingTree}
-                components={MARKDOWN_COMPONENTS}
+    <SourceRefsContext.Provider value={sourceRefs}>
+      <div className='space-y-3'>
+        {groups.map((group, i) => {
+          if (group.kind === 'inline') {
+            return (
+              <div
+                key={`inline-${i}`}
+                className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
               >
-                {group.markdown}
-              </Streamdown>
-            </div>
+                <Streamdown
+                  key={streamingTree ? 'stream' : 'settled'}
+                  mode={parserTree ? undefined : 'static'}
+                  animated={fadeActive ? STREAM_ANIMATION : false}
+                  isAnimating={streamingTree}
+                  components={MARKDOWN_COMPONENTS}
+                >
+                  {group.markdown}
+                </Streamdown>
+              </div>
+            )
+          }
+          return (
+            <SpecialTags
+              key={`special-${group.index}`}
+              segment={group.segment}
+              interactionId={`${messageId ?? 'message'}:${group.index}`}
+              questionAnswers={questionAnswers}
+              credentialSubmission={credentialSubmission}
+              credentialAbandoned={credentialAbandoned}
+              onOptionSelect={onOptionSelect}
+              onQuestionDismiss={onQuestionDismiss}
+            />
           )
-        }
-        return (
-          <SpecialTags
-            key={`special-${group.index}`}
-            segment={group.segment}
-            interactionId={`${messageId ?? 'message'}:${group.index}`}
-            questionAnswers={questionAnswers}
-            credentialSubmission={credentialSubmission}
-            credentialAbandoned={credentialAbandoned}
-            onOptionSelect={onOptionSelect}
-            onQuestionDismiss={onQuestionDismiss}
-          />
-        )
-      })}
-    </div>
+        })}
+      </div>
+    </SourceRefsContext.Provider>
   )
 }
 

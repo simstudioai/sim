@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { deriveMessagePhase, resolveToolDisplayState } from './utils'
+import { collectMessageSources, deriveMessagePhase, resolveToolDisplayState } from './utils'
 
 describe('deriveMessagePhase', () => {
   it('is streaming whenever the transport is live', () => {
@@ -34,5 +34,27 @@ describe('resolveToolDisplayState', () => {
     expect(resolveToolDisplayState('error')).toBe('icon')
     expect(resolveToolDisplayState('skipped')).toBe('icon')
     expect(resolveToolDisplayState('rejected')).toBe('icon')
+  })
+})
+
+describe('collectMessageSources', () => {
+  const source = (url: string, extra = '') => `<source>{"url":"${url}"${extra}}</source>`
+
+  it('collects every distinct source across the given text, in first-cited order', () => {
+    const texts = [
+      `First point. ${source('https://a.example/1', ',"siteName":"A"')} Second. ${source('https://b.example/2')}`,
+      `Again. ${source('https://a.example/1')} New. ${source('https://c.example/3')}`,
+    ]
+
+    expect(collectMessageSources(texts).map((entry) => entry.url)).toEqual([
+      'https://a.example/1',
+      'https://b.example/2',
+      'https://c.example/3',
+    ])
+    expect(collectMessageSources(texts)[0].siteName).toBe('A')
+  })
+
+  it('returns nothing for prose without sources', () => {
+    expect(collectMessageSources(['Plain prose.', ''])).toEqual([])
   })
 })

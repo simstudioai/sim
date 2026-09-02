@@ -35,6 +35,14 @@ import {
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+/**
+ * Imported from its own folder, not the components barrel: the workflow copilot
+ * panel imports that barrel for the chat pieces, and a barrel edge to this
+ * component would drag the Sim Search connector catalog — every connector
+ * meta — into the workflow editor's graph. See sim-imports.md, "Code-splitting
+ * through barrels".
+ */
+import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import {
   resolveResourceEventPresentation,
@@ -52,7 +60,6 @@ import {
   CreditsChip,
   MothershipChat,
   MothershipResourcesProvider,
-  SuggestedActions,
   UserInput,
   type UserInputHandle,
 } from './components'

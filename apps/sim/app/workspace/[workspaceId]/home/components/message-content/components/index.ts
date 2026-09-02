@@ -1,6 +1,8 @@
 export type { AgentGroupItem, NestedAgentGroup } from './agent-group'
 export { AgentGroup, CircleStop, isAgentGroupResolved } from './agent-group'
 export { ChatContent } from './chat-content'
+export { MessageSources } from './message-sources'
 export { Options } from './options'
 export { QuestionDisplay } from './question'
+export { SourceChip, sourceLabel } from './source-chip'
 export { PendingTagIndicator, parseSpecialTags, SpecialTags } from './special-tags'

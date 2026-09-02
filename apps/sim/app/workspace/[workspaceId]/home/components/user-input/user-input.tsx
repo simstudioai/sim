@@ -25,6 +25,7 @@ import {
   DropOverlay,
   MicButton,
   MicrophonePermissionHelp,
+  ModeSwitcher,
   PromptEditor,
   SendButton,
   usePromptEditor,
@@ -512,8 +513,12 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     return () => window.cancelAnimationFrame(raf)
   }, [textareaRef])
 
+  /**
+   * Menu rows are excluded alongside buttons: the mode switcher's items are
+   * portaled, so their clicks still bubble here through the React tree.
+   */
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest('button, [role="dialog"]')) return
+    if ((e.target as HTMLElement).closest('button, [role="dialog"], [role="menu"]')) return
     textareaRef.current?.focus()
   }
 
@@ -678,6 +683,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
           </Tooltip.Root>
         </div>
         <div className='flex items-center gap-1.5'>
+          <ModeSwitcher />
           {isSttSupported && (
             <MicButton
               audioLevelsRef={audioLevelsRef}

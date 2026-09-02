@@ -13,6 +13,7 @@ export type {
   QuestionTagData,
   QuestionType,
   RuntimeSpecialTagName,
+  SourceTagData,
   UsageUpgradeAction,
   UsageUpgradeTagData,
   WorkspaceResourceTagData,

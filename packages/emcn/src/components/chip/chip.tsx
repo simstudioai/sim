@@ -16,9 +16,10 @@ import {
   chipContentIconClass,
   chipContentLabelClass,
   chipFilledFillTokens,
-  chipGeometryClass,
+  chipGeometryUnroundedClass,
   chipHoverSurfaceClass,
   chipPrimaryFillTokens,
+  chipRadiusClass,
 } from './chip-chrome'
 
 /**
@@ -40,6 +41,9 @@ import {
  * no CSS border, no fill).
  * `active` renders the default/filled chip in its selected state — `--surface-active`, held through hover.
  * `fullWidth` swaps `inline-flex` for block-level `flex`.
+ * `shape` picks the corner radius: the implicit `default` is the `rounded-lg` pill; `round` is fully round
+ * (`rounded-full`) for a chip sitting in a row of round controls. The radius lives in this variant rather than
+ * in the base string so a raw `chipVariants({ shape: 'round' })` consumer emits exactly one radius.
  *
  * The chip carries NO outer margin — spacing between chips belongs to the parent, as a `gap`. It used to ship a
  * default `mx-0.5` "cluster margin" with a `flush` prop to switch it off, which meant a chip's visual box was not
@@ -55,7 +59,7 @@ import {
  * {@link chipHoverSurfaceClass}.
  */
 const chipVariants = cva(
-  `group cursor-pointer ${chipGeometryClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
+  `group cursor-pointer ${chipGeometryUnroundedClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
   {
     variants: {
       variant: {
@@ -68,6 +72,7 @@ const chipVariants = cva(
           'bg-[var(--surface-2)] shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-3)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)] dark:hover-hover:bg-[var(--surface-4)]',
         border: `shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] ${chipHoverSurfaceClass} dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)]`,
       },
+      shape: { default: chipRadiusClass, round: 'rounded-full' },
       active: { true: '', false: '' },
       fullWidth: { true: 'flex w-full', false: 'inline-flex' },
     },
@@ -75,7 +80,7 @@ const chipVariants = cva(
       { variant: ['default', 'filled'], active: false, className: chipHoverSurfaceClass },
       { variant: ['default', 'filled'], active: true, className: chipActiveSurfaceClass },
     ],
-    defaultVariants: { variant: 'default', active: false, fullWidth: false },
+    defaultVariants: { variant: 'default', shape: 'default', active: false, fullWidth: false },
   }
 )
 
@@ -141,6 +146,7 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
   {
     className,
     variant,
+    shape,
     active,
     fullWidth,
     leftIcon,
@@ -156,7 +162,7 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
     <button
       ref={ref}
       type={type ?? 'button'}
-      className={cn(chipVariants({ variant, active, fullWidth }), className)}
+      className={cn(chipVariants({ variant, shape, active, fullWidth }), className)}
       {...props}
     >
       <ChipContent
@@ -180,13 +186,24 @@ interface ChipLinkProps
  * @example <ChipLink href='/integrations' active={isCurrent} leftIcon={ArrowLeft}>Integrations</ChipLink>
  */
 const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
-  { className, variant, active, fullWidth, leftIcon, leftAdornment, rightIcon, children, ...props },
+  {
+    className,
+    variant,
+    shape,
+    active,
+    fullWidth,
+    leftIcon,
+    leftAdornment,
+    rightIcon,
+    children,
+    ...props
+  },
   ref
 ) {
   return (
     <Link
       ref={ref}
-      className={cn(chipVariants({ variant, active, fullWidth }), className)}
+      className={cn(chipVariants({ variant, shape, active, fullWidth }), className)}
       {...props}
     >
       <ChipContent
