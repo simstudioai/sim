@@ -16009,6 +16009,49 @@
       "tags": ["microsoft-365", "cloud", "document-processing"]
     },
     {
+      "type": "oracledb",
+      "slug": "oracle-database",
+      "name": "Oracle Database",
+      "description": "Connect directly to an Oracle Database",
+      "longDescription": "Query, modify, and inspect Oracle Database over Oracle Net using TCP or verified TCPS, with optional in-memory PEM wallet authentication.",
+      "bgColor": "#FFFFFF",
+      "iconName": "OracleDatabaseIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracledb",
+      "operations": [
+        {
+          "name": "Query (SELECT)",
+          "description": "Run one read-only Oracle SELECT statement or ordinary SELECT CTE with optional named IN binds"
+        },
+        {
+          "name": "Insert Data",
+          "description": "Insert one JSON object as a row in an Oracle Database table using bound values"
+        },
+        {
+          "name": "Update Data",
+          "description": "Update Oracle Database rows selected by a required WHERE expression, using bound values for changed columns"
+        },
+        {
+          "name": "Delete Data",
+          "description": "Delete Oracle Database rows selected by a required WHERE expression"
+        },
+        {
+          "name": "Execute SQL",
+          "description": "Execute one allowed Oracle SQL statement: SELECT, INSERT, UPDATE, DELETE, MERGE, CREATE, ALTER, DROP, or EXPLAIN PLAN"
+        },
+        {
+          "name": "Introspect Schema",
+          "description": "Inspect accessible Oracle tables, columns, keys, non-primary-key indexes, and table-owning schemas using ALL_* dictionary views"
+        }
+      ],
+      "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "none",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["data-analytics"]
+    },
+    {
       "type": "netsuite",
       "slug": "oracle-netsuite",
       "name": "Oracle NetSuite",

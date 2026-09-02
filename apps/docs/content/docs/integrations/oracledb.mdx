@@ -1,0 +1,263 @@
+---
+title: Oracle Database
+description: Connect directly to an Oracle Database
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracledb"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Oracle Database](https://www.oracle.com/database/) is a relational database reached here directly over Oracle Net. The integration can query rows, run a supported SQL statement, insert/update/delete structured data with bound values, and inspect the schemas visible to the connected account.
+
+The integration uses node-oracledb Thin mode and supports Oracle Database 12.1 or later. Hosted, Docker, Trigger.dev, and devcontainer runtimes include Node.js 24; native local execution also requires `node` 24 on `PATH` for Oracle Database blocks.
+
+### Connection setup
+
+- **TCP** sends database traffic without TLS. Use it only on a network whose confidentiality you control.
+- **TCPS** encrypts the connection and always verifies both the server certificate and hostname. Without a wallet it uses the runtime's system trust store; there is no option to disable verification.
+- Choose **Service Name** for a database service (the normal choice for pluggable and managed databases). Choose **SID** only when the listener is configured for an older instance SID. Supply exactly the matching field.
+- For mutual TLS, obtain the database wallet, extract it locally if it was delivered as a ZIP, and paste the complete contents of `ewallet.pem` into **PEM Wallet Content**. Add **Wallet Password** only when that PEM private key is encrypted. The PEM value is accepted only with TCPS, is limited to 1 MiB, and is passed to the Oracle Thin driver in memory rather than written to disk.
+
+### SQL and result behavior
+
+Use named binds such as `:customer_id` for values in Query and Execute. Structured inserts and updates bind every value, while schema, table, and column identifiers are validated and quoted. Update and Delete keep a raw WHERE-expression interface for compatibility with the other database blocks, but reject comments, stacked statements, subqueries, and other unsafe constructs. Preview broad writes with Query first.
+
+Structured operations quote identifiers exactly, so names are case-sensitive. Use schema, table, and column names from Introspect; conventionally created Oracle identifiers are normally returned in uppercase.
+
+Query accepts one read-only `SELECT`, including an ordinary CTE. Execute accepts one supported SQL statement, including DML, `MERGE`, DDL, and `EXPLAIN PLAN`. PL/SQL blocks, stored-procedure calls, explicit transaction statements, OUT binds, and `RETURNING INTO` are not supported. Writes autocommit, Oracle DDL keeps its implicit-commit behavior, and a transaction cannot span workflow blocks.
+
+Oracle treats zero-length character values as `NULL`. Oracle `NUMBER` results are returned as strings to avoid JavaScript precision loss, dates are ISO strings, and binary values are tagged base64 objects. CLOB and BLOB values are streamed. Native Oracle JSON, LONG-family values, VECTOR, nested cursors, object/collection columns, BFILE, and XMLTYPE are rejected in v1 because the driver cannot materialize them inside the same cleanup and memory guarantees. To read a native JSON column safely, select `JSON_SERIALIZE(column_name RETURNING CLOB)` so it is streamed as text. Results are capped at 10,000 rows or 10 MiB of final JSON. Use deterministic ordering with keyset pagination where possible, or Oracle `OFFSET ... FETCH` for page-based reads, and inspect `truncated` before assuming a result is complete.
+
+Introspection reads privilege-scoped `ALL_*` dictionary views, not `DBA_*` views. Its `schemas` list contains table owners visible through `ALL_TABLES` plus the selected or current schema; it is not a list of every Oracle user. Cross-version introspection leaves column defaults as `null` because Oracle exposes the compatible `DATA_DEFAULT` field as a non-streamable LONG. Reported indexes exclude indexes backing primary keys. Introspection is capped at 1,000 tables, 10,000 columns, and 10 MiB, so use a schema filter for large accounts. Prefer a dedicated least-privilege database user with only the object permissions each workflow needs; grant write or DDL privileges only when those operations are intentional.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Query, modify, and inspect Oracle Database over Oracle Net using TCP or verified TCPS, with optional in-memory PEM wallet authentication.
+
+
+
+## Actions
+
+### Oracle Database Query
+
+Run one read-only Oracle SELECT statement or ordinary SELECT CTE with optional named IN binds
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Oracle Database hostname or IP address |
+| `port` | number | No | Oracle Net listener port \(default: 1521\) |
+| `protocol` | string | No | Oracle Net transport: tcp sends traffic without TLS, while tcps requires TLS with hostname and certificate verification \(default: tcp\) |
+| `connectionType` | string | No | Connection identifier type: serviceName or sid \(default: serviceName\) |
+| `serviceName` | string | No | Oracle service name, required when connectionType is serviceName |
+| `sid` | string | No | Oracle system identifier, required when connectionType is sid |
+| `username` | string | Yes | Oracle Database username |
+| `password` | string | Yes | Oracle Database password |
+| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `walletContent` | string | No | PEM content copied from ewallet.pem for TCPS mutual TLS authentication \(maximum: 1 MiB\) |
+| `walletPassword` | string | No | Password for an encrypted PEM wallet, when required |
+| `query` | string | Yes | One Oracle SELECT statement without a trailing semicolon. Mutating statements, SELECT FOR UPDATE, sequence changes, database links, comments, hints, and PL/SQL are rejected. |
+| `binds` | json | No | Optional named IN bind values keyed without the colon prefix; values may be strings, finite numbers, or null |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Normalized rows returned by the statement, when it produces a result set |
+| `rowCount` | number | Number of rows returned or affected |
+| `truncated` | boolean | True when rows were dropped to stay inside the row or byte ceiling |
+| `truncationReason` | string | The response ceiling that was reached |
+
+### Oracle Database Insert
+
+Insert one JSON object as a row in an Oracle Database table using bound values
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Oracle Database hostname or IP address |
+| `port` | number | No | Oracle Net listener port \(default: 1521\) |
+| `protocol` | string | No | Oracle Net transport: tcp sends traffic without TLS, while tcps requires TLS with hostname and certificate verification \(default: tcp\) |
+| `connectionType` | string | No | Connection identifier type: serviceName or sid \(default: serviceName\) |
+| `serviceName` | string | No | Oracle service name, required when connectionType is serviceName |
+| `sid` | string | No | Oracle system identifier, required when connectionType is sid |
+| `username` | string | Yes | Oracle Database username |
+| `password` | string | Yes | Oracle Database password |
+| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `walletContent` | string | No | PEM content copied from ewallet.pem for TCPS mutual TLS authentication \(maximum: 1 MiB\) |
+| `walletPassword` | string | No | Password for an encrypted PEM wallet, when required |
+| `schema` | string | No | Optional exact, case-sensitive owning schema; omit it to use the connection current schema |
+| `table` | string | Yes | Exact, case-sensitive Oracle table name; use the name returned by introspection |
+| `data` | json | Yes | JSON object whose keys are exact, case-sensitive column names and whose values are inserted with IN binds |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Normalized rows returned by the statement, when it produces a result set |
+| `rowCount` | number | Number of rows returned or affected |
+| `truncated` | boolean | True when rows were dropped to stay inside the row or byte ceiling |
+| `truncationReason` | string | The response ceiling that was reached |
+
+### Oracle Database Update
+
+Update Oracle Database rows selected by a required WHERE expression, using bound values for changed columns
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Oracle Database hostname or IP address |
+| `port` | number | No | Oracle Net listener port \(default: 1521\) |
+| `protocol` | string | No | Oracle Net transport: tcp sends traffic without TLS, while tcps requires TLS with hostname and certificate verification \(default: tcp\) |
+| `connectionType` | string | No | Connection identifier type: serviceName or sid \(default: serviceName\) |
+| `serviceName` | string | No | Oracle service name, required when connectionType is serviceName |
+| `sid` | string | No | Oracle system identifier, required when connectionType is sid |
+| `username` | string | Yes | Oracle Database username |
+| `password` | string | Yes | Oracle Database password |
+| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `walletContent` | string | No | PEM content copied from ewallet.pem for TCPS mutual TLS authentication \(maximum: 1 MiB\) |
+| `walletPassword` | string | No | Password for an encrypted PEM wallet, when required |
+| `schema` | string | No | Optional exact, case-sensitive owning schema; omit it to use the connection current schema |
+| `table` | string | Yes | Exact, case-sensitive Oracle table name; use the name returned by introspection |
+| `data` | json | Yes | JSON object whose keys are exact, case-sensitive column names and whose values are assigned with IN binds |
+| `where` | string | Yes | Non-empty WHERE expression without the WHERE keyword |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Normalized rows returned by the statement, when it produces a result set |
+| `rowCount` | number | Number of rows returned or affected |
+| `truncated` | boolean | True when rows were dropped to stay inside the row or byte ceiling |
+| `truncationReason` | string | The response ceiling that was reached |
+
+### Oracle Database Delete
+
+Delete Oracle Database rows selected by a required WHERE expression
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Oracle Database hostname or IP address |
+| `port` | number | No | Oracle Net listener port \(default: 1521\) |
+| `protocol` | string | No | Oracle Net transport: tcp sends traffic without TLS, while tcps requires TLS with hostname and certificate verification \(default: tcp\) |
+| `connectionType` | string | No | Connection identifier type: serviceName or sid \(default: serviceName\) |
+| `serviceName` | string | No | Oracle service name, required when connectionType is serviceName |
+| `sid` | string | No | Oracle system identifier, required when connectionType is sid |
+| `username` | string | Yes | Oracle Database username |
+| `password` | string | Yes | Oracle Database password |
+| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `walletContent` | string | No | PEM content copied from ewallet.pem for TCPS mutual TLS authentication \(maximum: 1 MiB\) |
+| `walletPassword` | string | No | Password for an encrypted PEM wallet, when required |
+| `schema` | string | No | Optional exact, case-sensitive owning schema; omit it to use the connection current schema |
+| `table` | string | Yes | Exact, case-sensitive Oracle table name; use the name returned by introspection |
+| `where` | string | Yes | Non-empty WHERE expression without the WHERE keyword |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Normalized rows returned by the statement, when it produces a result set |
+| `rowCount` | number | Number of rows returned or affected |
+| `truncated` | boolean | True when rows were dropped to stay inside the row or byte ceiling |
+| `truncationReason` | string | The response ceiling that was reached |
+
+### Oracle Database Execute
+
+Execute one allowed Oracle SQL statement: SELECT, INSERT, UPDATE, DELETE, MERGE, CREATE, ALTER, DROP, or EXPLAIN PLAN
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Oracle Database hostname or IP address |
+| `port` | number | No | Oracle Net listener port \(default: 1521\) |
+| `protocol` | string | No | Oracle Net transport: tcp sends traffic without TLS, while tcps requires TLS with hostname and certificate verification \(default: tcp\) |
+| `connectionType` | string | No | Connection identifier type: serviceName or sid \(default: serviceName\) |
+| `serviceName` | string | No | Oracle service name, required when connectionType is serviceName |
+| `sid` | string | No | Oracle system identifier, required when connectionType is sid |
+| `username` | string | Yes | Oracle Database username |
+| `password` | string | Yes | Oracle Database password |
+| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `walletContent` | string | No | PEM content copied from ewallet.pem for TCPS mutual TLS authentication \(maximum: 1 MiB\) |
+| `walletPassword` | string | No | Password for an encrypted PEM wallet, when required |
+| `query` | string | Yes | One allowed Oracle SQL statement without a trailing semicolon. SELECT FOR UPDATE, PL/SQL, transaction control, OUT binds, RETURNING INTO, and stacked statements are rejected. |
+| `binds` | json | No | Optional named IN bind values keyed without the colon prefix; values may be strings, finite numbers, or null. Oracle does not allow bind variables in DDL. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Normalized rows returned by the statement, when it produces a result set |
+| `rowCount` | number | Number of rows returned or affected |
+| `truncated` | boolean | True when rows were dropped to stay inside the row or byte ceiling |
+| `truncationReason` | string | The response ceiling that was reached |
+
+### Oracle Database Introspect
+
+Inspect accessible Oracle tables, columns, keys, non-primary-key indexes, and table-owning schemas using ALL_* dictionary views
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Oracle Database hostname or IP address |
+| `port` | number | No | Oracle Net listener port \(default: 1521\) |
+| `protocol` | string | No | Oracle Net transport: tcp sends traffic without TLS, while tcps requires TLS with hostname and certificate verification \(default: tcp\) |
+| `connectionType` | string | No | Connection identifier type: serviceName or sid \(default: serviceName\) |
+| `serviceName` | string | No | Oracle service name, required when connectionType is serviceName |
+| `sid` | string | No | Oracle system identifier, required when connectionType is sid |
+| `username` | string | Yes | Oracle Database username |
+| `password` | string | Yes | Oracle Database password |
+| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `walletContent` | string | No | PEM content copied from ewallet.pem for TCPS mutual TLS authentication \(maximum: 1 MiB\) |
+| `walletPassword` | string | No | Password for an encrypted PEM wallet, when required |
+| `schema` | string | No | Optional schema to inspect; omit it to inspect CURRENT_SCHEMA and list table owners visible through ALL_TABLES |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `tables` | array | Accessible table schemas with columns, keys, and indexes |
+|   ↳ `name` | string | Table name |
+|   ↳ `schema` | string | Owning Oracle schema |
+|   ↳ `columns` | array | Table columns in ordinal position order |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Oracle data type, including length or precision |
+|     ↳ `nullable` | boolean | Whether the column allows NULL values |
+|     ↳ `default` | string | Default value expression |
+|     ↳ `isPrimaryKey` | boolean | Whether the column is part of the primary key |
+|     ↳ `isForeignKey` | boolean | Whether the column is a foreign key |
+|     ↳ `references` | object | Cross-schema foreign key reference information |
+|       ↳ `schema` | string | Referenced schema name |
+|       ↳ `table` | string | Referenced table name |
+|       ↳ `column` | string | Referenced column name |
+|   ↳ `primaryKey` | array | Primary key column names in constraint order |
+|   ↳ `foreignKeys` | array | Foreign key columns declared on the table |
+|     ↳ `column` | string | Local column name |
+|     ↳ `referencesSchema` | string | Referenced schema name |
+|     ↳ `referencesTable` | string | Referenced table name |
+|     ↳ `referencesColumn` | string | Referenced column name |
+|   ↳ `indexes` | array | Non-primary-key indexes on the table |
+|     ↳ `name` | string | Index name |
+|     ↳ `columns` | array | Indexed columns in column-position order |
+|     ↳ `unique` | boolean | Whether the index is declared UNIQUE |
+| `schemas` | array | Table-owning schemas visible through ALL_TABLES, plus the selected or current schema |
+
+

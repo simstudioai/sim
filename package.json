@@ -137,6 +137,9 @@
     "socket.io-parser": "4.2.7",
     "ws": "8.21.3"
   },
+  "patchedDependencies": {
+    "oracledb@7.0.1": "patches/oracledb@7.0.1.patch"
+  },
   "optionalDependencies": {
     "@next/swc-darwin-arm64": "16.3.1",
     "@next/swc-darwin-x64": "16.3.1",

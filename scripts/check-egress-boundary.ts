@@ -72,6 +72,10 @@ const TRANSPORTS = new Set([
 const ALLOWED = new Set([
   // The guard itself: resolves, classifies, pins, and follows redirects.
   'apps/sim/lib/core/security/input-validation.server.ts',
+  // Request-scoped loopback CONNECT guard for Oracle Net. Every upstream
+  // target is classified by validateDatabaseHost and dialed by its pinned IP;
+  // the HTTP server itself listens only on 127.0.0.1.
+  'apps/sim/lib/internal/oracledb/connect-proxy.ts',
   // Streaming MCP transport, built on the guard's pinned dispatcher.
   'apps/sim/lib/mcp/pinned-fetch.ts',
   // Builds a dispatcher to carry a caller's deadline; issues no request itself.
