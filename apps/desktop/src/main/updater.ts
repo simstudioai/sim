@@ -394,12 +394,17 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     let installInFlight = false
     let installConfirmationInFlight = false
 
-    const quitAndInstall = () => {
+    const quitAndInstall = (version: string | undefined) => {
       if (installInFlight) return
       installInFlight = true
       void Promise.resolve()
         .then(() => deps.beforeInstall?.())
         .then(() => {
+          if (state.status !== 'ready' || state.version !== version) {
+            autoUpdater.autoInstallOnAppQuit = false
+            installInFlight = false
+            return
+          }
           deps.setRelaunchPending?.(true)
           autoUpdater.quitAndInstall()
         })
@@ -435,7 +440,7 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       void confirmation
         .then(({ response }) => {
           if (response === 1 && state.status === 'ready' && state.version === version) {
-            quitAndInstall()
+            quitAndInstall(version)
           }
         })
         .catch((error) => {

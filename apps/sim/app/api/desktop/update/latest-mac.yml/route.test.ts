@@ -18,6 +18,7 @@ const PRERELEASE_RELEASES_URL = releasesApiUrl(DESKTOP_PRERELEASE_REPOSITORY, 1)
 const FEED_STATUS_HEADER = 'x-sim-desktop-update-feed'
 
 function release(tag: string) {
+  const version = tag.replace(/^v/, '')
   return {
     tag_name: tag,
     draft: false,
@@ -26,6 +27,14 @@ function release(tag: string) {
       {
         name: MANIFEST_ASSET_NAME,
         browser_download_url: `https://downloads.example/${tag}/${MANIFEST_ASSET_NAME}`,
+      },
+      {
+        name: `Sim-${version}-universal.zip`,
+        browser_download_url: `https://downloads.example/${tag}/Sim-${version}-universal.zip`,
+      },
+      {
+        name: `Sim-${version}-universal.dmg`,
+        browser_download_url: `https://downloads.example/${tag}/Sim-${version}-universal.dmg`,
       },
     ],
   }
@@ -224,6 +233,28 @@ describe('desktop update manifest route', () => {
     expect(response.status).toBe(502)
     expect(await response.json()).toMatchObject({ error: 'Release manifest unavailable' })
     expect(fetchMock).toHaveBeenNthCalledWith(1, PRERELEASE_RELEASES_URL, expect.any(Object))
+  })
+
+  it('falls back when the newest release has an invalid manifest', async () => {
+    setEnv({ APPCONFIG_ENVIRONMENT: 'dev' })
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url === PRERELEASE_RELEASES_URL) {
+        return Response.json([release('v1.2.0-dev.5'), release('v1.2.0-dev.4')])
+      }
+      if (url === `https://downloads.example/v1.2.0-dev.5/${MANIFEST_ASSET_NAME}`) {
+        return new Response(manifest('1.2.0-staging.5'))
+      }
+      if (url === `https://downloads.example/v1.2.0-dev.4/${MANIFEST_ASSET_NAME}`) {
+        return new Response(manifest('1.2.0-dev.4'))
+      }
+      return new Response(null, { status: 404 })
+    })
+
+    const response = await getFeed('www.dev.sim.ai')
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('version: 1.2.0-dev.4')
   })
 
   it('rejects an oversized updater manifest', async () => {

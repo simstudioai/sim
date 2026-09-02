@@ -147,7 +147,12 @@ describe('rewriteManifestUrls', () => {
       'sha512: abc',
       "releaseDate: '2026-07-23T00:00:00.000Z'",
     ].join('\n')
-    const rewritten = rewriteManifestUrls(manifest, 'v0.5.24', repository)
+    const rewritten = rewriteManifestUrls(
+      manifest,
+      'v0.5.24',
+      repository,
+      new Set(['Sim-0.5.24-universal.zip'])
+    )
     expect(rewritten).toContain(
       `  - url: https://github.com/${repository}/releases/download/v0.5.24/Sim-0.5.24-universal.zip`
     )
@@ -159,13 +164,34 @@ describe('rewriteManifestUrls', () => {
 
   it('canonicalizes an expected absolute asset URL', () => {
     const manifest = '  - url: https://cdn.example.com/Sim-0.5.24-universal.zip'
-    expect(rewriteManifestUrls(manifest, 'v0.5.24', DESKTOP_STABLE_RELEASE_REPOSITORY)).toBe(
+    expect(
+      rewriteManifestUrls(
+        manifest,
+        'v0.5.24',
+        DESKTOP_STABLE_RELEASE_REPOSITORY,
+        new Set(['Sim-0.5.24-universal.zip'])
+      )
+    ).toBe(
       `  - url: https://github.com/${DESKTOP_STABLE_RELEASE_REPOSITORY}/releases/download/v0.5.24/Sim-0.5.24-universal.zip`
     )
   })
 
   it('rejects unexpected manifest asset names', () => {
     const manifest = '  - url: https://cdn.example.com/unreviewed.zip'
-    expect(rewriteManifestUrls(manifest, 'v0.5.24', DESKTOP_STABLE_RELEASE_REPOSITORY)).toBeNull()
+    expect(
+      rewriteManifestUrls(
+        manifest,
+        'v0.5.24',
+        DESKTOP_STABLE_RELEASE_REPOSITORY,
+        new Set(['Sim-0.5.24-universal.zip'])
+      )
+    ).toBeNull()
+  })
+
+  it('rejects an expected artifact that is absent from the release', () => {
+    const manifest = '  - url: Sim-0.5.24-universal.zip'
+    expect(
+      rewriteManifestUrls(manifest, 'v0.5.24', DESKTOP_STABLE_RELEASE_REPOSITORY, new Set())
+    ).toBeNull()
   })
 })

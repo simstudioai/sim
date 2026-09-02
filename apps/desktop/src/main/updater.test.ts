@@ -353,6 +353,37 @@ describe('initUpdater state machine', () => {
     expect(autoUpdaterMock.quitAndInstall).toHaveBeenCalledTimes(1)
   })
 
+  it('does not install when the updater fails during pre-install teardown', async () => {
+    let finishTeardown: (() => void) | undefined
+    const setRelaunchPending = vi.fn()
+    const { handle } = await createUpdater({
+      beforeInstall: () =>
+        new Promise<void>((resolve) => {
+          finishTeardown = resolve
+        }),
+      setRelaunchPending,
+    })
+
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    emit('update-available', { version: '2.0.0' })
+    emit('update-downloaded', { version: '2.0.0' })
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
+      response: 1,
+      checkboxChecked: false,
+    })
+    handle.install()
+    await vi.advanceTimersByTimeAsync(0)
+
+    emit('error', new Error('native staging failed'))
+    finishTeardown?.()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(handle.getState()).toEqual({ status: 'error', version: '2.0.0' })
+    expect(setRelaunchPending).not.toHaveBeenCalledWith(true)
+    expect(autoUpdaterMock.quitAndInstall).not.toHaveBeenCalled()
+  })
+
   it('bypasses renderer unload guards only after teardown succeeds', async () => {
     const setRelaunchPending = vi.fn()
     vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({

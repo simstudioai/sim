@@ -9,7 +9,7 @@ import {
   releaseRepositoryForChannel,
   releasesApiUrl,
   resolveLatestRelease,
-  selectInstallerAsset,
+  resolveReleaseAssets,
 } from '@/lib/desktop/update-feed'
 
 const logger = createLogger('DesktopUpdateDownloadAPI')
@@ -36,52 +36,64 @@ export const GET = withRouteHandler(async (_request: NextRequest): Promise<Respo
   const releaseRepository = releaseRepositoryForChannel(channel)
 
   const githubToken = env.GITHUB_TOKEN
-  const resolved = await resolveLatestRelease(channel, async (page) => {
-    try {
-      const response = await fetch(releasesApiUrl(releaseRepository, page), {
-        headers: {
-          accept: 'application/vnd.github+json',
-          ...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}),
-        },
-        next: { revalidate: REVALIDATE_SECONDS },
-      })
-      if (!response.ok) {
-        logger.error('GitHub releases lookup failed', {
-          status: response.status,
+  const resolved = await resolveLatestRelease(
+    channel,
+    async (page) => {
+      try {
+        const response = await fetch(releasesApiUrl(releaseRepository, page), {
+          headers: {
+            accept: 'application/vnd.github+json',
+            ...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}),
+          },
+          next: { revalidate: REVALIDATE_SECONDS },
+        })
+        if (!response.ok) {
+          logger.error('GitHub releases lookup failed', {
+            status: response.status,
+            page,
+            channel,
+            releaseRepository,
+          })
+          return null
+        }
+        return (await response.json()) as DesktopReleaseCandidate[]
+      } catch (error) {
+        logger.error('GitHub releases response could not be read', {
+          message: getErrorMessage(error),
           page,
           channel,
           releaseRepository,
         })
         return null
       }
-      return (await response.json()) as DesktopReleaseCandidate[]
-    } catch (error) {
-      logger.error('GitHub releases response could not be read', {
-        message: getErrorMessage(error),
-        page,
-        channel,
-        releaseRepository,
-      })
-      return null
+    },
+    async (release) => {
+      const assets = await resolveReleaseAssets(release, releaseRepository, (url) =>
+        fetch(url, {
+          next: { revalidate: REVALIDATE_SECONDS },
+        })
+      )
+      if (!assets) {
+        logger.warn('Skipping incomplete or invalid desktop release', {
+          tag: release.tag_name,
+          channel,
+        })
+      }
+      return assets?.installer ?? null
     }
-  })
+  )
   if ('error' in resolved) {
     return NextResponse.json({ error: 'Release feed unavailable' }, { status: 502 })
   }
 
-  const release = resolved.release
-  const asset = release ? selectInstallerAsset(release, releaseRepository) : null
-  if (!release || !asset) {
-    if (release) {
-      logger.error('Release has no installer artifact', { tag: release.tag_name, channel })
-    }
+  if (!resolved.release) {
     return NextResponse.json(
       { error: `No desktop release for channel ${channel}` },
       { status: 404 }
     )
   }
 
-  return NextResponse.redirect(asset.browser_download_url, {
+  return NextResponse.redirect(resolved.value.browser_download_url, {
     status: 302,
     headers: { 'cache-control': `public, max-age=${REVALIDATE_SECONDS}` },
   })
