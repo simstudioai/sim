@@ -84,8 +84,23 @@ const TRANSPORT_FAILURE_MESSAGE_PATTERNS = [
   /load failed/,
 ] as const
 
+/**
+ * Errors the stream layer raises itself carry their own meaning (an HTTP
+ * rejection, a handler failure, an already classified drop), so their message
+ * text must never be mistaken for a transport failure.
+ */
+function isStreamLayerError(error: unknown): boolean {
+  return (
+    error instanceof ExecutionStreamHttpError ||
+    error instanceof SSEEventHandlerError ||
+    error instanceof SSEStreamInterruptedError
+  )
+}
+
 function isRecoverableStreamError(error: unknown): boolean {
-  if (!isRecordLike(error) || isClientDisconnectError(error)) return false
+  if (!isRecordLike(error) || isClientDisconnectError(error) || isStreamLayerError(error)) {
+    return false
+  }
   const msg = typeof error.message === 'string' ? error.message.toLowerCase() : ''
   return TRANSPORT_FAILURE_MESSAGE_PATTERNS.some((pattern) => pattern.test(msg))
 }

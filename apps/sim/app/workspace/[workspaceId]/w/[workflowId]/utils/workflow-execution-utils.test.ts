@@ -14,7 +14,8 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import type { BlockLog } from '@/executor/types'
 import {
-  type ExecutionStreamHttpError,
+  ExecutionStreamHttpError,
+  SSEEventHandlerError,
   SSEStreamInterruptedError,
 } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution'
@@ -131,6 +132,20 @@ describe('workflow-execution-utils', () => {
     it.each([
       ['a nullish rejection', null],
       ['a client abort', new DOMException('Aborted', 'AbortError')],
+      [
+        'an HTTP rejection whose message mentions a transport phrase',
+        new ExecutionStreamHttpError('Failed to fetch workflow state', 500),
+      ],
+      [
+        'a handler failure whose message mentions a transport phrase',
+        new SSEEventHandlerError(
+          'network error while persisting console rows',
+          'block:completed',
+          3,
+          'exec-server',
+          new Error('persist failed')
+        ),
+      ],
       [
         'the run tool stop reason, which aborts with a plain string',
         'user_stop:cancelRunToolExecution',
