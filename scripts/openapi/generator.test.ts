@@ -194,6 +194,35 @@ describe('OpenAPI generator', () => {
     })
   })
 
+  it('omits feature-flagged enum values from generated schemas', () => {
+    const columnType = z.enum(['string', 'ttl']).meta({ omitEnumValuesFromOpenApi: ['ttl'] })
+    const body = z
+      .object({ type: columnType.describe('Column data type.') })
+      .meta({ id: 'HiddenEnumRequest', title: 'Hidden enum request', description: 'Request body.' })
+    const response = z
+      .object({ ok: z.boolean().describe('Whether the request succeeded.') })
+      .meta({ id: 'HiddenEnumResponse', title: 'Hidden enum response', description: 'Response.' })
+    const contract = defineRouteContract({
+      method: 'POST',
+      path: '/hidden-enum',
+      body,
+      response: { mode: 'json', schema: response },
+    })
+    const route = defineOpenApiRoute(
+      contract,
+      operation('hiddenEnum', { description: 'Response.' }),
+      { body, response }
+    )
+    const spec = generateOpenApiDocument(document([route]))
+    const schemas = (spec.components as JsonObject).schemas as JsonObject
+    const requestProperties = (schemas.HiddenEnumRequest as JsonObject).properties as JsonObject
+    const documentedColumnType = requestProperties.type as JsonObject
+
+    expect(columnType.safeParse('ttl').success).toBe(true)
+    expect(documentedColumnType.enum).toEqual(['string'])
+    expect(documentedColumnType).not.toHaveProperty('omitEnumValuesFromOpenApi')
+  })
+
   it('handles every route response mode and media type', () => {
     const emptyContract = defineRouteContract({
       method: 'DELETE',
