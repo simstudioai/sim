@@ -199,6 +199,7 @@ describe.concurrent('Blocks Module', () => {
        */
       expect(block?.subBlocks.find((subBlock) => subBlock.id === 'readFile')?.folderScope).toEqual({
         fieldId: 'folderSelection',
+        recursiveFieldId: 'folderIncludeSubfolders',
       })
       /* Advanced-only and unpaired: the scope is a refinement, not a primary input. */
       expect(block?.subBlocks.find((subBlock) => subBlock.id === 'folderSelection')?.mode).toBe(

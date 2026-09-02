@@ -300,13 +300,10 @@ export interface SubBlockConfig {
    * folder reaches.
    */
   /**
-   * Narrows this control's options to a folder chosen elsewhere on the block.
-   *
-   * The scope always reaches into nested folders; a folder stands for everything
-   * under it, and the narrower reading is an API-level option rather than a
-   * control on the block.
+   * Narrows this control's options to a folder chosen elsewhere on the block,
+   * and the field saying whether that scope reaches into nested folders.
    */
-  folderScope?: { fieldId: string }
+  folderScope?: { fieldId: string; recursiveFieldId?: string }
   /** Controls parameter visibility in agent/tool-input context */
   paramVisibility?: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'
   /**

@@ -346,10 +346,27 @@ export function FileUpload({
    */
   const folderScopePath = folderScope ? readFolderPath(folderScopeValue) : ''
 
-  /* The scope always reaches nested folders; see `folderScope` on SubBlockConfig. */
+  const [folderScopeRecursive] = useSubBlockValue<unknown>(
+    blockId,
+    folderScope?.recursiveFieldId ?? subBlockId
+  )
+  /*
+   * Absent means "descend", matching the switch's own default, so an unset or
+   * not-yet-rendered value never narrows the options behind the user's back.
+   */
+  const folderScopeIncludesSubfolders =
+    !folderScope?.recursiveFieldId ||
+    folderScopeRecursive === undefined ||
+    folderScopeRecursive === null ||
+    folderScopeRecursive === '' ||
+    folderScopeRecursive === true ||
+    folderScopeRecursive === 'true'
+
   const scopedWorkspaceFiles = folderScopePath
     ? workspaceFiles.filter((workspaceFile) =>
-        isFileInFolderScope(workspaceFile.folderPath, folderScopePath)
+        isFileInFolderScope(workspaceFile.folderPath, folderScopePath, {
+          includeSubfolders: folderScopeIncludesSubfolders,
+        })
       )
     : workspaceFiles
 

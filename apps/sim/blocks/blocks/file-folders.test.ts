@@ -221,15 +221,15 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       expect(params.folderPath).toBe('/Reports')
     })
 
-    /* The block always scopes recursively, so it never sends the narrow reading. */
-    it('never narrows the scope on a name-based append', () => {
+    it('carries the narrowed scope with a name-based append', () => {
       expect(
         paramsFor('file_append', {
           appendFileInput: 'notes.md',
           appendContent: 'more',
           folderSelection: '/Reports',
+          folderIncludeSubfolders: 'false',
         }).includeSubfolders
-      ).toBeUndefined()
+      ).toBe(false)
     })
 
     it('still sends no folder when the pick carried an id', () => {
@@ -340,14 +340,16 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       ).toBeUndefined()
     })
 
-    /*
-     * The narrower reading is an API-level option, not a control on the block,
-     * so no operation may emit it from a block configuration.
-     */
+    /* Absent already means descend, so only the off case travels. */
     it.each(['file_read', 'file_get_content', 'file_compress'])(
-      '%s never emits a narrowed scope',
+      '%s narrows to direct files when subfolders are switched off',
       (operation) => {
-        expect(paramsFor(operation, { folderSelection: '/Reports' }).includeSubfolders).toBeUndefined()
+        expect(
+          paramsFor(operation, {
+            folderSelection: '/Reports',
+            folderIncludeSubfolders: 'false',
+          }).includeSubfolders
+        ).toBe(false)
       }
     )
 
@@ -370,7 +372,10 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       (pickerId) => {
         const picker = FileV5Block.subBlocks.find((subBlock) => subBlock.id === pickerId)
 
-        expect(picker?.folderScope).toEqual({ fieldId: 'folderSelection' })
+        expect(picker?.folderScope).toEqual({
+          fieldId: 'folderSelection',
+          recursiveFieldId: 'folderIncludeSubfolders',
+        })
       }
     )
 
@@ -399,11 +404,23 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       expect(folder?.canonicalParamId).toBeUndefined()
     })
 
-    it('has no manual twin and no recursion switch', () => {
+    it('has no manual twin, since the scope is not a canonical pair', () => {
       const ids = FileV5Block.subBlocks.map((subBlock) => subBlock.id)
 
       expect(ids).not.toContain('manualFolderSelection')
-      expect(ids).not.toContain('folderIncludeSubfolders')
+    })
+
+    /*
+     * The switch has to be shown wherever the folder is, and in the same mode:
+     * a scope whose depth control is hidden silently reverts to descending.
+     */
+    it('shows the recursion switch beside the folder, in the same mode', () => {
+      const folder = FileV5Block.subBlocks.find((s) => s.id === 'folderSelection')
+      const recursive = FileV5Block.subBlocks.find((s) => s.id === 'folderIncludeSubfolders')
+
+      expect(recursive?.mode).toBe('advanced')
+      expect(recursive?.mode).toBe(folder?.mode)
+      expect(recursive?.condition).toEqual(folder?.condition)
     })
 
     it('offers the folder on every operation whose picker it narrows', () => {
@@ -432,12 +449,19 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       it.each([
         ['file_edit', { editFileInput: 'self.md', oldString: 'a', newString: 'b' }],
         ['file_insert', { editFileInput: 'self.md', afterLine: '2', insertContent: 'x' }],
-      ])('sends the folder scope with %s, recursively', (operation, extra) => {
-        const params = paramsFor(operation, { ...extra, folderSelection: '/memory/user-a' })
+      ])(
+        'sends the recursion flag with %s, so a nested same-named file stays out of scope',
+        (operation, extra) => {
+          const params = paramsFor(operation, {
+            ...extra,
+            folderSelection: '/memory/user-a',
+            folderIncludeSubfolders: 'false',
+          })
 
-        expect(params.folderPath).toBe('/memory/user-a')
-        expect(params.includeSubfolders).toBeUndefined()
-      })
+          expect(params.folderPath).toBe('/memory/user-a')
+          expect(params.includeSubfolders).toBe(false)
+        }
+      )
 
       it('sends a requested line range on get content', () => {
         const params = paramsFor('file_get_content', {
@@ -486,10 +510,18 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
         ['file_edit', { editFileInput: 'self.md', oldString: 'a', newString: 'b' }],
         ['file_insert', { editFileInput: 'self.md', afterLine: '1', insertContent: 'x' }],
       ])('keeps the root on %s, so a duplicate name is refused not guessed', (operation, extra) => {
-        const params = paramsFor(operation, { ...extra, folderSelection: '/' })
+        const recursive = paramsFor(operation, { ...extra, folderSelection: '/' })
+        const shallow = paramsFor(operation, {
+          ...extra,
+          folderSelection: '/',
+          folderIncludeSubfolders: 'false',
+        })
 
-        expect(params.folderPath).toBe('/')
-        expect(params.includeSubfolders).toBeUndefined()
+        expect(recursive.folderPath).toBe('/')
+        expect(recursive.includeSubfolders).toBeUndefined()
+        /* A shallow root means the file sitting AT the root, not the workspace. */
+        expect(shallow.folderPath).toBe('/')
+        expect(shallow.includeSubfolders).toBe(false)
       })
 
       /* A picked file is already exact, so no folder rides along with it. */
@@ -528,13 +560,29 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
         expect(params.folderPaths).toBeUndefined()
       })
 
-      it('scopes recursively, never narrowly', () => {
-        const params = paramsFor('file_search', {
+      it('sends the narrow scope only when subfolders are switched off', () => {
+        const recursive = paramsFor('file_search', {
           query: 'commitment',
           folderSelection: '/memory/user-a',
         })
+        const shallow = paramsFor('file_search', {
+          query: 'commitment',
+          folderSelection: '/memory/user-a',
+          folderIncludeSubfolders: 'false',
+        })
 
-        expect(params.folderPaths).toEqual(['/memory/user-a'])
+        expect(recursive.folderPaths).toEqual(['/memory/user-a'])
+        expect(recursive.includeSubfolders).toBeUndefined()
+        expect(shallow.includeSubfolders).toBe(false)
+      })
+
+      /* Without a folder there is nothing to be shallow about. */
+      it('does not send a recursion flag with no folder to apply it to', () => {
+        const params = paramsFor('file_search', {
+          query: 'commitment',
+          folderIncludeSubfolders: 'false',
+        })
+
         expect(params.includeSubfolders).toBeUndefined()
       })
 
