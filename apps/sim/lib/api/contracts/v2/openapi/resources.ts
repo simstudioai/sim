@@ -38,7 +38,6 @@ import {
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
-  RESOURCE_MUTATION_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
@@ -1828,7 +1827,7 @@ const declaredRoutes = [
       operationId: 'executeTool',
       summary: 'Run Tool',
       description: `Run one built-in tool and return what it produced. Supply \`input\` using the parameter ids \`GET /api/v2/tools/{toolId}\` publishes; Sim resolves the credential named by \`credentialId\`, injects a hosted API key for the tools it supplies one for, and substitutes environment-variable references, so the request carries arguments rather than secrets. A parameter the tool marks \`user-only\` also accepts \`{{VAR_NAME}}\` as its whole value, resolved server-side against the workspace environment; every other value is sent verbatim, so a literal secret passes through untouched. A tool that runs and refuses is a \`200\` carrying \`status: "failed"\` and the reason — the error envelope is reserved for failures of this API, not of the third party. A tool the workspace's visible blocks do not expose answers \`404\` identically to one that does not exist; one whose integration the workspace does not permit answers \`403\` with \`error.details.code\` \`INTEGRATION_NOT_ALLOWED\`. Hosted-key spend this call incurs is billed to the workspace. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_MUTATION_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'The outcome of the tool call.' },
     }),
     {

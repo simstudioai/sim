@@ -283,7 +283,7 @@ describe('executeToolForCaller', () => {
   })
 
   it('resolves an unversioned name to the newest visible version', async () => {
-    await expect(run({ toolId: 'confluence_read' })).resolves.toMatchObject({
+    await expect(run({ toolId: 'confluence_read', input: {} })).resolves.toMatchObject({
       toolId: 'confluence_read_v2',
     })
   })
@@ -396,7 +396,9 @@ describe('executeToolForCaller', () => {
   })
 
   it('refuses a reserved argument rather than dropping it', async () => {
-    await expect(run({ input: { _context: { userId: 'someone-else' } } })).rejects.toMatchObject({
+    await expect(
+      run({ input: { url: 'https://a.co', _context: { userId: 'someone-else' } } })
+    ).rejects.toMatchObject({
       code: 'validation',
       message: expect.stringContaining('_context'),
     })
@@ -404,16 +406,64 @@ describe('executeToolForCaller', () => {
   })
 
   it('refuses a hosted-key flag smuggled in as an argument', async () => {
-    await expect(run({ input: { __usingHostedKey: true } })).rejects.toMatchObject({
+    await expect(
+      run({ input: { url: 'https://a.co', __usingHostedKey: true } })
+    ).rejects.toMatchObject({
       code: 'validation',
     })
   })
 
+  /**
+   * The executor reads this straight out of params and forwards it to
+   * credential-token resolution as an impersonation request. No tool declares
+   * it, which is why the check is a declared-parameter allowlist rather than a
+   * list of names someone remembered.
+   */
+  it('refuses an undeclared impersonation field', async () => {
+    await expect(
+      run({ input: { url: 'https://a.co', impersonateUserEmail: 'someone@example.com' } })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('impersonateUserEmail'),
+    })
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+  })
+
+  it('refuses any other undeclared input, naming it', async () => {
+    await expect(run({ input: { url: 'https://a.co', nope: 1 } })).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('input.nope'),
+    })
+  })
+
   it('refuses a credential named inline instead of at the top level', async () => {
-    await expect(run({ input: { credential: 'cred-1' } })).rejects.toMatchObject({
+    await expect(
+      run({ input: { url: 'https://a.co', credential: 'cred-1' } })
+    ).rejects.toMatchObject({
       code: 'validation',
       message: expect.stringContaining('credentialId'),
     })
+  })
+
+  /**
+   * The ledger de-duplicates on `eventKey`, and the derived key is a hash of
+   * actor, workspace, source and description — identical for every call to the
+   * same tool. Without a per-call id, `onConflictDoNothing` billed the first
+   * hosted-key call and silently dropped every one after it.
+   */
+  it('gives each call its own ledger event so repeat calls all bill', async () => {
+    mocks.executeRegistryTool.mockResolvedValue({
+      success: true,
+      output: { cost: { total: 0.004 } },
+    })
+
+    await run()
+    await run()
+
+    const keys = mocks.recordUsage.mock.calls.map((call) => call[0].entries[0].eventKey)
+    expect(keys).toHaveLength(2)
+    expect(keys[0]).toBeTruthy()
+    expect(keys[0]).not.toBe(keys[1])
   })
 
   it('refuses a workspace API key: the call runs under a person or not at all', async () => {

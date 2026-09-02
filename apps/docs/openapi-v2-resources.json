@@ -4104,17 +4104,11 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
-          },
-          "423": {
-            "$ref": "#/components/responses/Locked"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -4378,22 +4372,6 @@
               "error": {
                 "code": "UNSUPPORTED_MEDIA_TYPE",
                 "message": "Request body must be sent as application/json"
-              }
-            }
-          }
-        }
-      },
-      "Locked": {
-        "description": "The resource is locked and cannot be modified.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            },
-            "example": {
-              "error": {
-                "code": "LOCKED",
-                "message": "Workflow is locked"
               }
             }
           }

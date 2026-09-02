@@ -11,6 +11,7 @@ import * as blocksBarrel from '@/blocks'
 import { getBlock as getRealBlock } from '@/blocks/registry'
 import {
   backfillCanonicalModes,
+  migrateCanonicalModeIds,
   migrateSubblockIds,
   SUBBLOCK_ID_MIGRATIONS,
 } from './subblock-migrations'
@@ -740,6 +741,73 @@ describe('migrateSubblockIds', () => {
     }
 
     const { migrated } = migrateSubblockIds(input)
+
+    expect(migrated).toBe(false)
+  })
+})
+
+describe('migrateCanonicalModeIds', () => {
+  function mistralBlock(data: Record<string, unknown>, subBlocks: Record<string, unknown>) {
+    return makeBlock({ type: 'mistral_parse_v3', data, subBlocks } as never)
+  }
+
+  it('carries the selection across the document -> file rename', () => {
+    const { blocks, migrated } = migrateCanonicalModeIds({
+      b1: mistralBlock({ canonicalModes: { document: 'advanced' } }, {}),
+    })
+
+    expect(migrated).toBe(true)
+    const modes = blocks.b1.data?.canonicalModes as Record<string, string>
+    expect(modes).toEqual({ file: 'advanced' })
+  })
+
+  /**
+   * The case the backfill alone cannot recover. `setBlockCanonicalMode` writes
+   * the mode without clearing the sibling, so a workflow that uploaded a file,
+   * switched to advanced, then typed a reference holds both values — and
+   * `resolveCanonicalMode` prefers basic whenever the basic side is populated.
+   * Without the rename the run would silently switch to the uploaded file.
+   */
+  it('preserves advanced when both sides hold a value, which the backfill would not', () => {
+    const both = {
+      fileUpload: { id: 'fileUpload', type: 'file-upload', value: { name: 'a.pdf' } },
+      fileReference: { id: 'fileReference', type: 'short-input', value: '<block.file>' },
+    }
+
+    const { blocks } = migrateCanonicalModeIds({
+      b1: mistralBlock({ canonicalModes: { document: 'advanced' } }, both),
+    })
+    expect((blocks.b1.data?.canonicalModes as Record<string, string>).file).toBe('advanced')
+
+    // Same input through the backfill alone resolves to basic — the regression
+    // this migration exists to prevent.
+    const { blocks: backfilled } = backfillCanonicalModes({
+      b1: mistralBlock({ canonicalModes: {} }, both),
+    })
+    expect((backfilled.b1.data?.canonicalModes as Record<string, string>).file).toBe('basic')
+  })
+
+  it('leaves a block that already stores the current id alone', () => {
+    const { blocks, migrated } = migrateCanonicalModeIds({
+      b1: mistralBlock({ canonicalModes: { file: 'basic' } }, {}),
+    })
+
+    expect(migrated).toBe(false)
+    expect(blocks.b1.data?.canonicalModes).toEqual({ file: 'basic' })
+  })
+
+  it('prefers a value already written under the current id over the legacy one', () => {
+    const { blocks } = migrateCanonicalModeIds({
+      b1: mistralBlock({ canonicalModes: { document: 'advanced', file: 'basic' } }, {}),
+    })
+
+    expect(blocks.b1.data?.canonicalModes).toEqual({ file: 'basic' })
+  })
+
+  it('does not touch a block type with no canonical rename', () => {
+    const { migrated } = migrateCanonicalModeIds({
+      b1: makeBlock({ type: 'knowledge', data: { canonicalModes: { document: 'advanced' } } }),
+    })
 
     expect(migrated).toBe(false)
   })

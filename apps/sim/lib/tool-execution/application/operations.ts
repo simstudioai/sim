@@ -28,7 +28,7 @@ import { defineWorkspaceOperation } from '@/lib/core/application'
  * kinds ahead of a surface that uses them.
  */
 export const toolExecutionOperations = {
-  // permission-group-exempt: no static capability names running one built-in tool — the per-tool denial is the deniedTools key, applied inside @/tools against the resolved id, and the per-integration denial is the parameterized allowedIntegrations key, which the funnel cannot apply because it never sees which integration a tool id reaches. That decision is enforced from the use case by the owning-block-type check in executeToolForCaller, ahead of dispatch.
+  // permission-group-exempt: declares capability: 'none' because no static capability names running one built-in tool — the per-tool denial is the deniedTools key, applied inside @/tools against the resolved id, and the per-integration denial is the parameterized allowedIntegrations key, which the funnel cannot apply because it never sees which integration a tool id reaches. That decision is enforced from the use case by the owning-block-type check in executeToolForCaller, ahead of dispatch.
   execute: defineWorkspaceOperation({
     id: 'tools.execute',
     minimumRole: 'write',

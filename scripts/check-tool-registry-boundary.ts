@@ -84,6 +84,12 @@ function hasDefaultExport(file: string): boolean {
 const isWorkspaceEntry = (filename: string, fullPath: string) =>
   WORKSPACE_ENTRY_FILENAMES.has(filename) && hasDefaultExport(fullPath)
 const isRouteEntry = (filename: string) => filename === 'route.ts'
+/**
+ * Split on both separators: `join`/`relative` emit backslashes on Windows, so a
+ * `'/execute/'` substring test silently stops excluding the route there and the
+ * audit fails on every run for a Windows contributor.
+ */
+const isUnderExecute = (fullPath: string) => fullPath.split(/[/\\]/).includes('execute')
 const isSourceModule = (filename: string) =>
   filename.endsWith('.ts') && !filename.endsWith('.test.ts')
 
@@ -128,7 +134,7 @@ const ENTRY_SOURCES: readonly EntrySource[] = [
      * `getTool` import in the list or detail route is still always a mistake.
      */
     root: 'app/api/v2/tools',
-    matches: (filename, fullPath) => isRouteEntry(filename) && !fullPath.includes('/execute/'),
+    matches: (filename, fullPath) => isRouteEntry(filename) && !isUnderExecute(fullPath),
     reason: 'the public tool catalog, which reads tool metadata only',
   },
   {

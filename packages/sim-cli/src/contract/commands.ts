@@ -1439,6 +1439,10 @@ export const CLI_CONTRACT: CliContract = {
     fields: [
       { path: 'toolId', header: 'Tool' },
       { path: 'status', header: 'Status' },
+      // The command's whole purpose. Human formats one-line and clamp it, which
+      // is why `--output json` exists; omitting it entirely printed a status and
+      // nothing the caller asked for.
+      { path: 'output', header: 'Output' },
       { path: 'error.message', header: 'Error' },
     ],
   },

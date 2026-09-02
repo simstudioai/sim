@@ -63,7 +63,6 @@ import type { ToolConfig } from '../apps/sim/tools/types'
  */
 const CREDENTIAL_FILLED = new Set([
   'accessToken',
-  'credentialType',
   'idToken',
   'instanceUrl',
   'apiDomain',
@@ -71,6 +70,14 @@ const CREDENTIAL_FILLED = new Set([
   'domain',
   'authStyle',
 ])
+
+/**
+ * `credentialType` is the one credential field the resolver gates on more than
+ * the credential carrying it: it is assigned only when the tool lists it in
+ * `oauth.authoritativeParams`. Exempting it unconditionally would pass a future
+ * required-hidden `credentialType` that execution leaves `undefined`.
+ */
+const AUTHORITATIVE_ONLY = 'credentialType'
 
 interface Finding {
   toolId: string
@@ -82,11 +89,24 @@ function findUnreachableParams(): Finding[] {
   const findings: Finding[] = []
 
   for (const [toolId, config] of Object.entries(tools as Record<string, ToolConfig>)) {
-    const hostedKeyParam = config.hosting?.apiKeyParam
+    /**
+     * Only unconditional hosting is a guarantee. A `hosting.enabled` predicate
+     * can decline for a given parameter combination, and this audit has no
+     * params to evaluate it against — so a conditionally-hosted key is treated
+     * as unfilled, which is the answer that fails closed.
+     */
+    const hostedKeyParam = config.hosting?.enabled ? undefined : config.hosting?.apiKeyParam
 
     for (const [param, declaration] of Object.entries(config.params ?? {})) {
       if (!declaration || declaration.visibility !== 'hidden' || !declaration.required) continue
       if (config.oauth && CREDENTIAL_FILLED.has(param)) continue
+      if (
+        config.oauth &&
+        param === AUTHORITATIVE_ONLY &&
+        config.oauth.authoritativeParams?.includes(AUTHORITATIVE_ONLY)
+      ) {
+        continue
+      }
       if (hostedKeyParam && param === hostedKeyParam) continue
 
       findings.push({
@@ -94,9 +114,11 @@ function findUnreachableParams(): Finding[] {
         param,
         reason: config.oauth
           ? `declares oauth (${config.oauth.provider}), which does not supply '${param}'`
-          : config.hosting
-            ? `hosting supplies '${hostedKeyParam}', not '${param}'`
-            : 'declares neither oauth nor hosting',
+          : config.hosting?.enabled
+            ? `hosting is conditional, so it is not a guarantee for '${param}'`
+            : config.hosting
+              ? `hosting supplies '${config.hosting.apiKeyParam}', not '${param}'`
+              : 'declares neither oauth nor hosting',
       })
     }
   }

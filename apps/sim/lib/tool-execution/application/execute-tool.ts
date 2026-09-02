@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/billing-attribution'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
@@ -41,44 +42,46 @@ export interface ExecuteToolResult {
 }
 
 /**
- * Keys the caller may not set, because the execution path assigns them.
+ * Refuses an input key the tool does not declare.
  *
- * `_context` carries the acting identity and `enforceCredentialAccess`, and the
- * `__`-prefixed fields are the reserved transient channel `stripInternalFields`
- * documents — `__usingHostedKey` among them, which decides whether a tool bills
- * its call as hosted spend. No tool in the registry declares a parameter
- * starting with `_`, so one rule covers both and cannot collide with a real
- * argument. Refused rather than silently dropped: a caller who believed it set
- * something must not be told the call succeeded as sent.
+ * Strict rather than a denylist, because the denylist was already wrong twice
+ * over. `_context` carries the acting identity and `enforceCredentialAccess`;
+ * the `__`-prefixed fields are the reserved transient channel, `__usingHostedKey`
+ * among them, which decides whether a call bills as hosted spend; and
+ * `impersonateUserEmail` is read straight out of params by the executor and
+ * forwarded to credential-token resolution as an impersonation request. Naming
+ * those three is guesswork about a surface that keeps growing — a declared
+ * parameter list is the actual boundary, and it is what
+ * `GET /api/v2/tools/{toolId}` already publishes.
+ *
+ * Also collapses the credential spellings. The executor accepts `credential`,
+ * `credentialId` and `oauthCredential` interchangeably, which is fine where one
+ * caller writes one of them and wrong on a public contract: three spellings with
+ * undefined precedence is a shape no client can reason about. The credential is
+ * named once, at the top level.
  */
-function assertNoReservedArguments(args: Record<string, unknown>): void {
-  const reserved = Object.keys(args).find((key) => key.startsWith('_'))
-  if (reserved) {
+function assertNoUndeclaredInputs(
+  tool: ExecutableToolConfig,
+  toolId: string,
+  args: Record<string, unknown>
+): void {
+  const undeclared = Object.keys(args).filter((key) => !Object.hasOwn(tool.params ?? {}, key))
+  if (undeclared.length === 0) return
+
+  const credentialAlias = undeclared.find((key) =>
+    ['credential', 'credentialId', 'oauthCredential'].includes(key)
+  )
+  if (credentialAlias) {
     throw new OrchestrationError(
       'validation',
-      `input.${reserved} is reserved and cannot be supplied; Sim sets it from the authenticated caller`
+      `input.${credentialAlias} is not accepted; pass the credential as the top-level credentialId field`
     )
   }
-}
 
-/**
- * Credential fields are named once, at the top level.
- *
- * The registry accepts three spellings of the same selection — `credential`,
- * `credentialId`, `oauthCredential` — which is fine inside the executor, where
- * one caller writes one of them, and wrong on a public contract, where three
- * spellings with undefined precedence is a shape no client can reason about.
- */
-const CREDENTIAL_ARGUMENT_ALIASES = ['credential', 'credentialId', 'oauthCredential'] as const
-
-function assertNoInlineCredential(args: Record<string, unknown>): void {
-  const alias = CREDENTIAL_ARGUMENT_ALIASES.find((key) => key in args)
-  if (alias) {
-    throw new OrchestrationError(
-      'validation',
-      `input.${alias} is not accepted; pass the credential as the top-level credentialId field`
-    )
-  }
+  throw new OrchestrationError(
+    'validation',
+    `${toolId} does not accept ${undeclared.map((key) => `input.${key}`).join(', ')}`
+  )
 }
 
 /**
@@ -171,9 +174,6 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
     loadCatalogWorkspaceContext(input.workspaceId),
   authorizationOptions: {},
   execute: async ({ principal, input, context }): Promise<ExecuteToolResult> => {
-    assertNoReservedArguments(input.input)
-    assertNoInlineCredential(input.input)
-
     const gate = await resolveCatalogGate(principal, context)
 
     /**
@@ -205,6 +205,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
         `credentialId is required: ${toolId} authenticates with a ${tool.oauth.provider} credential`
       )
     }
+    assertNoUndeclaredInputs(tool, toolId, input.input)
     assertRequiredCallerInputsPresent(tool, toolId, input.input)
 
     const userId = principalUserId(principal)
@@ -234,6 +235,16 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       },
     }
 
+    /**
+     * The ledger de-duplicates on `eventKey`, and the derived key is a hash of
+     * actor, workspace, source and description — identical for every call to the
+     * same tool. Without a per-call id `onConflictDoNothing` silently billed the
+     * first hosted-key call and nothing after it. A workflow run has an
+     * `executionId` to distinguish its rows; a direct call has nothing, so it
+     * mints one.
+     */
+    const callId = generateId()
+
     const result = await executeRegistryTool(toolId, params, {
       signal: AbortSignal.timeout((input.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS) * 1000),
       operationContext: {
@@ -251,6 +262,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
     })
 
     await meterHostedKeySpend({
+      callId,
       toolId,
       userId,
       workspaceId: context.workspaceId,
@@ -282,6 +294,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
  * `applyHostedKeyCostToResult` makes one layer down.
  */
 async function meterHostedKeySpend(args: {
+  callId: string
   toolId: string
   userId: string
   workspaceId: string
@@ -304,6 +317,7 @@ async function meterHostedKeySpend(args: {
           source: 'api-tool',
           description: `Tool call: ${args.toolId}`,
           cost,
+          eventKey: args.callId,
         },
       ],
     })
