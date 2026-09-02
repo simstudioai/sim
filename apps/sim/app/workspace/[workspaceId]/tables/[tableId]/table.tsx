@@ -383,9 +383,13 @@ export function Table({
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
   const deleteViewMutation = useDeleteTableView({ workspaceId, tableId })
 
-  /** Resolve the default synchronously so the grid, autosave owner, and menu all
-   *  agree before the URL effect records the adopted view id. */
-  const { selectedView, defaultView, activeView } = resolveTableViewSelection(views, activeViewId)
+  /** Resolve the restored or default view synchronously so the grid, autosave
+   *  owner, and menu agree before the URL effect records the adopted view id. */
+  const { selectedView, defaultView, activeView } = resolveTableViewSelection(
+    views,
+    activeViewId,
+    embedded ? initialViewId : undefined
+  )
   const activeViewConfig = useMemo(
     () => resolveTableViewConfig(tableData?.metadata, activeView?.config ?? null),
     [tableData?.metadata, activeView?.config]
@@ -662,6 +666,9 @@ export function Table({
       return
     }
 
+    if (activeView && activeViewId === null) {
+      setTableParams({ view: activeView.id })
+    }
     const nextViewRevision = getTableViewRevision(activeView)
     if (
       !shouldApplyTableViewRevision(
@@ -678,7 +685,7 @@ export function Table({
     if (preserved && preserved.viewId !== nextViewId) {
       preservedViewStateRef.current = null
     }
-    if (activeView && (activeViewId === null || activeViewId === ALL_VIEW_PARAM)) {
+    if (activeView && activeViewId === ALL_VIEW_PARAM) {
       setTableParams({ view: activeView.id })
     }
     const keep = preserved?.viewId === nextViewId ? preserved.keep : undefined

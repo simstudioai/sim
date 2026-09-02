@@ -910,10 +910,19 @@ function markMessageStopped(message: PersistedMessage): PersistedMessage {
   })
 }
 
+function buildChatResourceHydrationKey(resource: MothershipResource): string {
+  return JSON.stringify([
+    resource.type,
+    resource.id,
+    resource.title,
+    resource.path ?? null,
+    resource.viewId ?? null,
+    resource.executionId ?? null,
+  ])
+}
+
 function buildChatHistoryHydrationKey(chatHistory: MothershipChatHistory): string {
-  const resourceKey = chatHistory.resources
-    .map((resource) => `${resource.type}:${resource.id}:${resource.title}`)
-    .join('|')
+  const resourceKey = chatHistory.resources.map(buildChatResourceHydrationKey).join('|')
   const messageKey = chatHistory.messages.map((message) => message.id).join('|')
   const streamSnapshot = chatHistory.streamSnapshot
   const snapshotKey = streamSnapshot
@@ -1841,6 +1850,28 @@ export function useChat(
         (r) => r.type === resourceUpdate.type && r.id === resourceUpdate.id
       )
       const resource = mergeChatResource(existing, resourceUpdate)
+      const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
+      if (persistChatId && !isEphemeralResource(resource)) {
+        queryClient.setQueryData<MothershipChatHistory>(
+          mothershipChatKeys.detail(persistChatId),
+          (current) => {
+            if (!current) return current
+            const cached = current.resources.find(
+              (item) => item.type === resource.type && item.id === resource.id
+            )
+            const merged = mergeChatResource(cached, resourceUpdate)
+            if (cached === merged) return current
+            return {
+              ...current,
+              resources: cached
+                ? current.resources.map((item) =>
+                    item.type === resource.type && item.id === resource.id ? merged : item
+                  )
+                : [...current.resources, merged],
+            }
+          }
+        )
+      }
       if (existing && resource === existing && resourceUpdate.clearViewId !== true) {
         return false
       }
@@ -1859,12 +1890,11 @@ export function useChat(
         return true
       }
 
-      const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
       const persistenceScopeId = persistChatId ?? pendingChatKeyRef.current
       resourcePersistenceQueue.enqueue(resourceUpdate, persistChatId, existing, persistenceScopeId)
       return existing === undefined
     },
-    [resourcePersistenceQueue]
+    [queryClient, resourcePersistenceQueue]
   )
 
   const removeResource = useCallback(
@@ -2456,9 +2486,8 @@ export function useChat(
       mergedResources.length === resourcesRef.current.length &&
       mergedResources.every(
         (resource, index) =>
-          resourcesRef.current[index].type === resource.type &&
-          resourcesRef.current[index].id === resource.id &&
-          resourcesRef.current[index].title === resource.title
+          buildChatResourceHydrationKey(resourcesRef.current[index]) ===
+          buildChatResourceHydrationKey(resource)
       )
 
     if (mergedResources.length > 0) {

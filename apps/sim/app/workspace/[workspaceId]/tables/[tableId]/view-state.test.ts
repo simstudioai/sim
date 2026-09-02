@@ -45,6 +45,13 @@ const DEFAULT_VIEW: TableViewWire = {
   updatedAt: new Date('2026-08-15T01:10:00.000Z'),
 }
 
+const PINNED_VIEW: TableViewWire = {
+  ...DEFAULT_VIEW,
+  id: 'view-pinned',
+  name: 'Pinned',
+  isDefault: false,
+}
+
 describe('resolveTableViewSelection', () => {
   it('makes the persisted default active before its URL id is adopted', () => {
     expect(resolveTableViewSelection([DEFAULT_VIEW], null)).toEqual({
@@ -73,6 +80,19 @@ describe('resolveTableViewSelection', () => {
       defaultView: DEFAULT_VIEW,
       activeView: null,
     })
+  })
+
+  it('keeps a restored embedded view active while the host URL is absent', () => {
+    expect(
+      resolveTableViewSelection([DEFAULT_VIEW, PINNED_VIEW], null, PINNED_VIEW.id).activeView
+    ).toBe(PINNED_VIEW)
+  })
+
+  it('lets an explicit URL selection override the restored embedded view', () => {
+    expect(
+      resolveTableViewSelection([DEFAULT_VIEW, PINNED_VIEW], DEFAULT_VIEW.id, PINNED_VIEW.id)
+        .activeView
+    ).toBe(DEFAULT_VIEW)
   })
 
   it('upgrades the legacy All sentinel when a persisted default exists', () => {

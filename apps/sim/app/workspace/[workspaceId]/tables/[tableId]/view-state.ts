@@ -21,26 +21,33 @@ export function resolveTableViewConfig(
 }
 
 /**
- * Resolves the persisted default synchronously when the URL has not selected a
- * view yet. The URL effect still records that choice, but render-time consumers
- * all see the same owner while that update is pending.
+ * Resolves a restored embedded view, then the persisted default, while the URL
+ * has no selection. The URL effect still records that choice, but render-time
+ * consumers all see the same owner while that update is pending.
  */
 export function resolveTableViewSelection(
   views: TableViewWire[],
-  activeViewId: string | null
+  activeViewId: string | null,
+  restoredViewId?: string
 ): TableViewSelection {
   let selectedView: TableViewWire | null = null
   let defaultView: TableViewWire | null = null
+  let restoredView: TableViewWire | null = null
   for (const view of views) {
     if (view.id === activeViewId) selectedView = view
     if (view.isDefault) defaultView = view
+    if (view.id === restoredViewId) restoredView = view
   }
   return {
     selectedView,
     defaultView,
     activeView:
       selectedView ??
-      (activeViewId === null || activeViewId === ALL_VIEW_PARAM ? defaultView : null),
+      (activeViewId === null
+        ? (restoredView ?? defaultView)
+        : activeViewId === ALL_VIEW_PARAM
+          ? defaultView
+          : null),
   }
 }
 
