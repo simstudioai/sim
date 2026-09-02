@@ -78,13 +78,13 @@ export const USAGE_TAB_EMPTY_COPY: Record<UsageBreakdownDimension, string> = {
 /**
  * Rows per breakdown before and after the `Other` row is expanded.
  *
- * The collapsed count keeps a tab to one screen; the expanded one is the contract's
- * own ceiling (`usageLimitSchema(50, 10)`), so asking for more would be refused. A
- * dimension with more than {@link EXPANDED_ROW_COUNT} distinct rows still shows an
- * `Other` row after expanding, which is the honest result rather than a bug.
+ * Both counts match the contract's ceiling (`usageLimitSchema(50, 10)`), so each tab
+ * shows up to 50 rows immediately. A dimension with more than
+ * {@link EXPANDED_ROW_COUNT} distinct rows still shows an `Other` row, which is the
+ * honest result rather than a bug.
  */
-export const COLLAPSED_ROW_COUNT = 10
 export const EXPANDED_ROW_COUNT = 50
+export const COLLAPSED_ROW_COUNT = EXPANDED_ROW_COUNT
 
 export const DEFAULT_USAGE_PRESET = 'current-period' as const
 export const DEFAULT_USAGE_TAB = USAGE_OVERVIEW_TAB
