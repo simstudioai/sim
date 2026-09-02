@@ -1,5 +1,5 @@
 import { createMockFetch, resetEnvMock, setEnv } from '@sim/testing'
-import { getOAuth2Tokens } from 'better-auth/oauth2'
+import { createAuthorizationURL, getOAuth2Tokens } from 'better-auth/oauth2'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
@@ -50,7 +50,7 @@ beforeAll(() => {
     SALESFORCE_CLIENT_ID: 'salesforce_client_id',
     SALESFORCE_CLIENT_SECRET: 'salesforce_client_secret',
     ZOHO_CLIENT_ID: 'zoho_client_id',
-    ZOHO_CLIENT_SECRET: 'zoho_client_secret',
+    ZOHO_CLIENT_SECRET: undefined,
     SHOPIFY_CLIENT_ID: 'shopify_client_id',
     SHOPIFY_CLIENT_SECRET: 'shopify_client_secret',
     ZOOM_CLIENT_ID: 'zoom_client_id',
@@ -61,7 +61,7 @@ beforeAll(() => {
     SPOTIFY_CLIENT_SECRET: 'spotify_client_secret',
     CALCOM_CLIENT_ID: 'calcom_client_id',
     MONDAY_CLIENT_ID: 'monday_client_id',
-    MONDAY_CLIENT_SECRET: undefined,
+    MONDAY_CLIENT_SECRET: 'monday_client_secret',
   })
 })
 
@@ -91,6 +91,12 @@ const defaultOAuthResponse = {
     expires_in: 3600,
     refresh_token: 'new_refresh_token',
   },
+}
+
+function oauthTestJwt(payload: Record<string, unknown>): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url')
+  return `${header}.${body}.signature`
 }
 
 /**
@@ -144,6 +150,74 @@ describe('Atlassian OAuth connectors', () => {
       )
     }
   )
+})
+
+function getMondayConnector() {
+  const connector = buildConnectorProviders().find((candidate) => candidate.providerId === 'monday')
+  if (!connector) throw new Error('Monday OAuth connector is not configured in this test')
+  return connector
+}
+
+describe('Monday OAuth connector', () => {
+  it('generates the OAuth 2.1 authorization request from the connector contract', async () => {
+    const connector = getMondayConnector()
+    expect(connector).toMatchObject({
+      providerId: 'monday',
+      authorizationUrl: 'https://auth.monday.com/oauth2/authorize',
+      tokenUrl: 'https://auth.monday.com/oauth_ms/oauth/token',
+      scopes: [
+        'boards:read',
+        'boards:write',
+        'updates:read',
+        'updates:write',
+        'webhooks:read',
+        'webhooks:write',
+        'me:read',
+      ],
+      responseType: 'code',
+      pkce: true,
+      authentication: 'post',
+      redirectURI: 'http://localhost:3000/api/auth/oauth2/callback/monday',
+    })
+    const authorizationUrl = await createAuthorizationURL({
+      id: connector.providerId,
+      options: {
+        clientId: connector.clientId,
+        clientSecret: connector.clientSecret,
+        redirectURI: connector.redirectURI,
+      },
+      authorizationEndpoint: connector.authorizationUrl!,
+      state: 'state-1',
+      codeVerifier: 'a'.repeat(128),
+      scopes: connector.scopes,
+      redirectURI: connector.redirectURI!,
+      responseType: connector.responseType,
+    })
+
+    expect(authorizationUrl.searchParams.get('redirect_uri')).toBe(
+      'http://localhost:3000/api/auth/oauth2/callback/monday'
+    )
+    expect(authorizationUrl.searchParams.get('scope')).toBe(connector.scopes?.join(' '))
+    expect(authorizationUrl.searchParams.get('code_challenge_method')).toBe('S256')
+    expect(authorizationUrl.searchParams.get('code_challenge')).toBeTruthy()
+  })
+
+  it('rejects GraphQL errors returned with HTTP 200 during user-info lookup', async () => {
+    const getUserInfo = getMondayConnector().getUserInfo
+    if (!getUserInfo) throw new Error('Monday OAuth connector must define getUserInfo')
+
+    const userInfo = await withMockFetch(
+      createMockFetch({
+        json: {
+          data: { me: { id: 'user-1', name: 'Person', email: 'person@example.com' } },
+          errors: [{ message: 'Permission denied' }],
+        },
+      }),
+      () => getUserInfo({ accessToken: 'access-token' })
+    )
+
+    expect(userInfo).toBeNull()
+  })
 })
 
 describe('Microsoft Dataverse OAuth connector', () => {
@@ -645,13 +719,13 @@ describe('OAuth Token Refresh', () => {
       const mockFetch = createMockFetch(defaultOAuthResponse)
 
       const result = await withMockFetch(mockFetch, () =>
-        refreshOAuthToken('monday', 'test_refresh_token')
+        refreshOAuthToken('zoho-desk', 'test_refresh_token')
       )
 
       expect(result).toEqual({
         ok: false,
         message:
-          'OAuth client monday is partially configured — missing MONDAY_CLIENT_SECRET. Run npx sim-setup add integration monday.',
+          'OAuth client zoho-desk is partially configured — missing ZOHO_CLIENT_SECRET. Run npx sim-setup add integration zoho-desk.',
       })
       expect(mockFetch).not.toHaveBeenCalled()
     })
@@ -824,6 +898,59 @@ describe('OAuth Token Refresh', () => {
         accessToken: 'new_access_token',
         expiresIn: 3600,
         refreshToken: newRefreshToken,
+      })
+    })
+
+    it.concurrent('refreshes Monday with JSON body credentials and rotates its token', async () => {
+      const expiresAtSeconds = Math.floor(Date.now() / 1000) + 2700
+      const mockFetch = createMockFetch({
+        json: {
+          access_token: oauthTestJwt({ exp: expiresAtSeconds }),
+          refresh_token: 'rotated-monday-refresh-token',
+          token_type: 'Bearer',
+          scope: 'boards:read me:read',
+        },
+      })
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('monday', 'old-monday-refresh-token')
+      )
+
+      expect(result).toMatchObject({
+        ok: true,
+        refreshToken: 'rotated-monday-refresh-token',
+      })
+      if (result.ok) {
+        expect(result.expiresIn).toBeGreaterThanOrEqual(2699)
+        expect(result.expiresIn).toBeLessThanOrEqual(2700)
+      }
+
+      const [endpoint, request] = mockFetch.mock.calls[0] as [string, RequestInit]
+      expect(endpoint).toBe('https://auth.monday.com/oauth_ms/oauth/token')
+      expect(request.headers).toMatchObject({ 'Content-Type': 'application/json' })
+      expect(JSON.parse(request.body as string)).toEqual({
+        grant_type: 'refresh_token',
+        refresh_token: 'old-monday-refresh-token',
+        client_id: 'monday_client_id',
+        client_secret: 'monday_client_secret',
+      })
+    })
+
+    it.concurrent('rejects a Monday refresh response that omits token rotation', async () => {
+      const mockFetch = createMockFetch({
+        json: {
+          access_token: oauthTestJwt({ exp: Math.floor(Date.now() / 1000) + 3600 }),
+          token_type: 'Bearer',
+        },
+      })
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('monday', 'old-monday-refresh-token')
+      )
+
+      expect(result).toEqual({
+        ok: false,
+        message: 'Invalid Monday token refresh response',
       })
     })
 
