@@ -110,7 +110,7 @@ const workspaceContext = {
 const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
 const existingConnector = { knowledgeBaseId: 'kb-search', connectorId: 'connector-drive' }
 
-/** The first lookup runs outside the setup lock and the second inside it. */
+/** The first lookup runs before the coalesced creation and the second inside it. */
 function queueConnectorLookups(...results: Array<typeof existingConnector | null>) {
   for (const result of results) {
     queueTableRows(knowledgeConnector, result ? [result] : [])
@@ -216,7 +216,7 @@ describe('connectSimSearchConnector', () => {
         }),
       })
     )
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(result).toEqual({
       knowledgeBaseId: 'kb-new',
       connectorId: 'connector-new',
@@ -240,9 +240,10 @@ describe('connectSimSearchConnector', () => {
     expect(mocks.createKnowledgeBase).not.toHaveBeenCalled()
   })
 
-  it('reuses the connector another first connect created while it waited for the lock', async () => {
+  it('reuses the connector another first connect created while it waited', async () => {
     mocks.resolvePermission.mockResolvedValue('admin')
     queueConnectorLookups(null, existingConnector)
+    queueTableRows(knowledgeBase, [{ id: existingConnector.knowledgeBaseId }])
 
     const result = await connectSimSearchConnector.execute({
       principal,

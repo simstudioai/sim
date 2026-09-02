@@ -1,13 +1,13 @@
 import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
-import { and, asc, eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, isNull } from 'drizzle-orm'
+import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import {
   InsufficientWorkspacePermissionsError,
   requireCurrentHumanRole,
 } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { startKnowledgeConnectorMemberEnrollment } from '@/lib/knowledge/application/connector-access'
@@ -29,8 +29,6 @@ const SIM_SEARCH_KNOWLEDGE_BASE_DESCRIPTION =
   'What each person can open in the sources they connected, searched as them.'
 /** Between runs the change feeds keep deletions and unshares fresh; the hourly run fills the rest. */
 const SIM_SEARCH_SYNC_INTERVAL_MINUTES = 60
-/** How long a first connect waits for another first connect of the same workspace to finish. */
-const SIM_SEARCH_SETUP_LOCK_TIMEOUT_MS = 10_000
 
 export interface ConnectSimSearchConnectorInput {
   workspaceId: string
@@ -47,12 +45,8 @@ export interface ConnectSimSearchConnectorResult {
   url: string
 }
 
-async function findSimSearchConnector(
-  executor: DbOrTx,
-  workspaceId: string,
-  connectorType: string
-) {
-  const [row] = await executor
+async function findSimSearchConnector(workspaceId: string, connectorType: string) {
+  const [row] = await db
     .select({ knowledgeBaseId: knowledgeBase.id, connectorId: knowledgeConnector.id })
     .from(knowledgeConnector)
     .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
@@ -72,8 +66,8 @@ async function findSimSearchConnector(
   return row ?? null
 }
 
-async function findSimSearchKnowledgeBase(executor: DbOrTx, workspaceId: string) {
-  const [row] = await executor
+async function findSimSearchKnowledgeBase(workspaceId: string) {
+  const [row] = await db
     .select({ id: knowledgeBase.id })
     .from(knowledgeBase)
     .where(
@@ -118,11 +112,11 @@ async function requireSimSearchSetupAdmin(
  * fields when it has any; every connect after that only enrolls. The OAuth
  * completion queues the member run, so indexing starts on its own.
  *
- * The creating branch runs under a per-workspace advisory lock and re-checks
- * for the connector once it holds it: nothing in the schema keeps two
- * concurrent first connects from each creating a Sim Search base and a
- * connector of the same source, and the second would index the same
- * accounts twice.
+ * The creating branch shares one creation per workspace base and per source
+ * within the process and re-checks before creating: nothing in the schema
+ * keeps two concurrent first connects from each creating a Sim Search base
+ * and a connector of the same source. The nested use cases query the pool,
+ * so this cannot hold a transaction across them.
  */
 export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.simSearchConnect,
@@ -137,7 +131,7 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
       )
     }
     const workspaceId = context.workspaceId
-    let target = await findSimSearchConnector(db, workspaceId, input.connectorType)
+    let target = await findSimSearchConnector(workspaceId, input.connectorType)
     if (!target) {
       const userId = resolvePrincipalSubjectUserId(principal)
       if (!userId) throw new OrchestrationError('forbidden', 'Sign in to connect your account')
@@ -157,17 +151,17 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
         requireKnowledgeMemberAccessAvailable({ workspaceId }),
         requireSimSearchSetupAdmin(userId, context, meta.name),
       ])
-      target = await db.transaction(async (tx) => {
-        await tx.execute(
-          sql`select set_config('lock_timeout', ${`${SIM_SEARCH_SETUP_LOCK_TIMEOUT_MS}ms`}, true)`
-        )
-        await tx.execute(
-          sql`select pg_advisory_xact_lock(hashtextextended(${`sim-search:connect:${workspaceId}`}, 0))`
-        )
-        const existing = await findSimSearchConnector(tx, workspaceId, input.connectorType)
-        if (existing) return existing
-        const knowledgeBaseId =
-          (await findSimSearchKnowledgeBase(tx, workspaceId))?.id ??
+      /**
+       * Concurrent first connects in this process share one creation per
+       * workspace base and per source, and each re-checks before creating.
+       * Two instances can still race in the same instant; both then converge
+       * on the oldest row, which every lookup here orders by, and the stray
+       * one is inert.
+       */
+      const knowledgeBaseId = await coalesceLocally(
+        `sim-search:base:${workspaceId}`,
+        async () =>
+          (await findSimSearchKnowledgeBase(workspaceId))?.id ??
           (
             await createKnowledgeBase.execute({
               principal,
@@ -180,21 +174,28 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
               request,
             })
           ).knowledgeBase.id
-        const created = await createKnowledgeConnector.execute({
-          principal,
-          input: {
-            knowledgeBaseId,
-            assertedWorkspaceId: workspaceId,
-            connectorType: input.connectorType,
-            sourceConfig,
-            syncIntervalMinutes: SIM_SEARCH_SYNC_INTERVAL_MINUTES,
-            accessMode: 'members',
-            source: 'ui',
-          },
-          request,
-        })
-        return { knowledgeBaseId, connectorId: created.connector.id }
-      })
+      )
+      target = await coalesceLocally(
+        `sim-search:connect:${workspaceId}:${input.connectorType}`,
+        async () => {
+          const existing = await findSimSearchConnector(workspaceId, input.connectorType)
+          if (existing) return existing
+          const created = await createKnowledgeConnector.execute({
+            principal,
+            input: {
+              knowledgeBaseId,
+              assertedWorkspaceId: workspaceId,
+              connectorType: input.connectorType,
+              sourceConfig,
+              syncIntervalMinutes: SIM_SEARCH_SYNC_INTERVAL_MINUTES,
+              accessMode: 'members',
+              source: 'ui',
+            },
+            request,
+          })
+          return { knowledgeBaseId, connectorId: created.connector.id }
+        }
+      )
     }
     const { url } = await startKnowledgeConnectorMemberEnrollment.execute({
       principal,
