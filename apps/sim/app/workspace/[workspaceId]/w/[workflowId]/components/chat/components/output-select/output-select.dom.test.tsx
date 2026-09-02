@@ -134,6 +134,26 @@ afterEach(() => {
 })
 
 describe('OutputSelect DOM interaction', () => {
+  it('selects a workflow block field without entering its child workflow', () => {
+    renderPicker()
+
+    const trigger = document.querySelector<HTMLElement>('[role="combobox"]')
+    if (!trigger) throw new Error('Output picker trigger did not render')
+    act(() => trigger.click())
+
+    const resultOption = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(
+      (candidate) => candidate.textContent === 'result'
+    )
+    if (!resultOption) throw new Error('Workflow block result output did not render')
+
+    act(() => resultOption.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+
+    expect(trigger.textContent).toContain('1 output')
+    expect(document.body.textContent).toContain('Selected')
+    expect(document.body.textContent).toContain('invokeChild.result')
+    expect(document.body.textContent).not.toContain('researchAgent')
+  })
+
   it('drills into and selects a child workflow output through the real medium combobox', () => {
     renderPicker()
 
@@ -143,16 +163,20 @@ describe('OutputSelect DOM interaction', () => {
 
     expect(document.body.textContent).toContain('invokeChild')
     const rootOptions = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
-    const folderOption = rootOptions.find((candidate) => candidate.textContent === 'Outputs')
-    if (!folderOption) throw new Error('Child workflow folder did not render')
-    expect(rootOptions.indexOf(folderOption)).toBeLessThan(
+    expect(document.body.textContent).toContain('Subworkflows')
+    const subworkflowOption = rootOptions.find(
+      (candidate) => candidate.textContent === 'invokeChild'
+    )
+    if (!subworkflowOption) throw new Error('Child workflow navigation did not render')
+    expect(rootOptions.indexOf(subworkflowOption)).toBeLessThan(
       rootOptions.findIndex((candidate) => candidate.textContent === 'result')
     )
-    const floatingSurface = folderOption.closest<HTMLElement>('[data-native-surface-overlay]')
+
+    const floatingSurface = subworkflowOption.closest<HTMLElement>('[data-native-surface-overlay]')
     if (!floatingSurface) throw new Error('Output picker floating surface did not render')
 
     expect(floatingSurface.className).toContain('pointer-events-auto')
-    act(() => folderOption.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+    act(() => subworkflowOption.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
 
     expect(document.body.textContent).toContain('researchAgent')
     const outputOption = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(
@@ -164,6 +188,6 @@ describe('OutputSelect DOM interaction', () => {
 
     expect(trigger.textContent).toContain('1 output')
     expect(document.body.textContent).toContain('Selected')
-    expect(document.body.textContent).toContain('invokeChild / researchAgent / content')
+    expect(document.body.textContent).toContain('invokeChild / researchAgent.content')
   })
 })

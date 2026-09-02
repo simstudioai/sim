@@ -256,7 +256,8 @@ describe('OutputSelect nested workflow menu', () => {
     expect(document.body.textContent).toContain('Research')
     expect(document.body.textContent).not.toContain('Writer')
 
-    clickOption('Outputs')
+    expect([...document.querySelectorAll('[data-section]')][0]?.textContent).toBe('Subworkflows')
+    clickOption('Research')
     expect(document.body.textContent).toContain('Back')
     expect(document.body.textContent).toContain('Writer')
     expect(document.body.textContent).toContain('answer')
@@ -291,7 +292,7 @@ describe('OutputSelect nested workflow menu', () => {
 
   it('keeps workflow-scoped values when toggling nested outputs', () => {
     const onOutputSelect = renderOutputSelect([])
-    clickOption('Outputs')
+    clickOption('Research')
     clickOption('answer')
 
     expect(onOutputSelect).toHaveBeenCalledWith(['child-workflow.agent_answer'])
@@ -302,16 +303,16 @@ describe('OutputSelect nested workflow menu', () => {
 
     const sections = [...document.querySelectorAll('[data-section]')]
     expect(sections[0]?.textContent).toBe('Selected')
-    expect(document.body.textContent).toContain('Research / Writer / answer')
+    expect(document.body.textContent).toContain('Research / Writer.answer')
 
-    clickOption('Research / Writer / answer')
+    clickOption('Research / Writer.answer')
     expect(onOutputSelect).toHaveBeenCalledWith([])
   })
 
   it('preserves existing selections when choosing a nested output', () => {
     const onOutputSelect = renderOutputSelect(['summary_content'])
 
-    clickOption('Outputs')
+    clickOption('Research')
     clickOption('answer')
 
     expect(onOutputSelect).toHaveBeenCalledWith(['summary_content', 'child-workflow.agent_answer'])
@@ -332,14 +333,14 @@ describe('OutputSelect nested workflow menu', () => {
     clickOption('content')
     expect(onOutputSelect).toHaveBeenCalledWith(['summarizer.content'])
 
-    clickOption('Outputs')
+    clickOption('Research')
     clickOption('answer')
     expect(onOutputSelect).toHaveBeenCalledWith(['child-workflow.writer.answer'])
   })
 
   it('returns to the root menu when the owning workflow changes', () => {
     const onOutputSelect = renderOutputSelect([])
-    clickOption('Outputs')
+    clickOption('Research')
 
     rerenderOutputSelect('replacement', [], onOutputSelect)
 
@@ -349,7 +350,7 @@ describe('OutputSelect nested workflow menu', () => {
 
   it('returns to the root menu when a workflow edit invalidates the active path', () => {
     const onOutputSelect = renderOutputSelect([])
-    clickOption('Outputs')
+    clickOption('Research')
 
     outputMenuState.includeNestedWorkflow = false
     rerenderOutputSelect('root', [], onOutputSelect)

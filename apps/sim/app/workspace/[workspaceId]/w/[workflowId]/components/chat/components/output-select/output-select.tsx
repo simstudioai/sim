@@ -274,9 +274,9 @@ function OutputSelectMenu({
     }
   }
 
-  const folderOption = (node: WorkflowOutputMenuNode): ComboboxOption => ({
-    label: 'Outputs',
-    value: `folder:${node.blockId}`,
+  const subworkflowOption = (node: WorkflowOutputMenuNode): ComboboxOption => ({
+    label: node.blockName,
+    value: `subworkflow:${node.blockId}`,
     suffixElement: <ChevronRight className='size-[12px] text-[var(--text-tertiary)]' />,
     onSelect: () => setMenuPath((currentPath) => [...currentPath, node.blockId]),
     keepOpen: true,
@@ -293,38 +293,50 @@ function OutputSelectMenu({
         <span className='text-small'>{node.blockName}</span>
       </div>
     ),
-    items: [
-      ...(node.children.length > 0 ? [folderOption(node)] : []),
-      ...node.outputs
-        .filter((output) => !selectedValueSet.has(getOutputValue(output, valueMode)))
-        .map((output) => outputOption(output)),
-    ],
+    items: node.outputs
+      .filter((output) => !selectedValueSet.has(getOutputValue(output, valueMode)))
+      .map((output) => outputOption(output)),
   })
 
-  const menuGroups: ComboboxOptionGroup[] = activeMenuNode
-    ? [
-        {
-          section: activeMenuNode.blockName,
-          items: [
-            {
-              label: 'Back',
-              value: `back:${activeMenuNode.blockId}`,
-              iconElement: <ArrowLeft className='size-[14px] text-[var(--text-tertiary)]' />,
-              onSelect: () => setMenuPath((currentPath) => currentPath.slice(0, -1)),
-              keepOpen: true,
-            },
-          ],
-        },
-        ...activeMenuNode.children.map(outputGroup),
-      ]
-    : outputMenu.map(outputGroup)
+  const menuNodes = activeMenuNode ? activeMenuNode.children : outputMenu
+  const subworkflowNodes = menuNodes.filter((node) => node.children.length > 0)
+  const availableOutputNodes = menuNodes.filter((node) =>
+    node.outputs.some((output) => !selectedValueSet.has(getOutputValue(output, valueMode)))
+  )
+  const menuGroups: ComboboxOptionGroup[] = [
+    ...(activeMenuNode
+      ? [
+          {
+            section: activeMenuNode.blockName,
+            items: [
+              {
+                label: 'Back',
+                value: `back:${activeMenuNode.blockId}`,
+                iconElement: <ArrowLeft className='size-[14px] text-[var(--text-tertiary)]' />,
+                onSelect: () => setMenuPath((currentPath) => currentPath.slice(0, -1)),
+                keepOpen: true,
+              },
+            ],
+          },
+        ]
+      : []),
+    ...(subworkflowNodes.length > 0
+      ? [
+          {
+            section: 'Subworkflows',
+            items: subworkflowNodes.map(subworkflowOption),
+          },
+        ]
+      : []),
+    ...availableOutputNodes.map(outputGroup),
+  ]
   const selectedGroup: ComboboxOptionGroup[] =
     selectedOutputOptions.length > 0
       ? [
           {
             section: 'Selected',
             items: selectedOutputOptions.map((output) =>
-              outputOption(output, `${output.groupLabel} / ${output.path}`)
+              outputOption(output, `${output.groupLabel}.${output.path}`)
             ),
           },
         ]
