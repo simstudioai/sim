@@ -16,6 +16,7 @@ import type { Command } from 'commander'
 import { CLI_CONTRACT } from '../src/contract/commands'
 import { V2_OPERATIONS } from '../src/generated/v2-api'
 import { buildProgram } from '../src/program'
+import { deriveCommandPath } from '../src/runtime/derive'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
 const HELP_COMMAND = 'help'
@@ -35,6 +36,8 @@ interface InventoryOption {
   required: boolean
   description: string
   defaultValue?: string
+  /** Allowed values when the option is an enum (commander `choices`). */
+  choices?: string[]
 }
 
 interface InventoryShapeField {
@@ -49,6 +52,11 @@ interface InventoryCommand {
   options: InventoryOption[]
   /** Top-level fields of the JSON response's `data`, when the operation is known. */
   shape?: InventoryShapeField[]
+  /**
+   * Fields of the JSON request body, two levels deep, for commands that take a
+   * `<json|@file>` option — the nested payloads an agent otherwise learns from errors.
+   */
+  body?: InventoryShapeField[]
 }
 
 function isHiddenCommand(command: Command): boolean {
@@ -67,8 +75,15 @@ function collectLeaves(command: Command, prefix: string[]): { path: string[]; co
   return children.flatMap((child) => collectLeaves(child, [...prefix, child.name()]))
 }
 
-/** Command path → v2 operation name, through the contract's declared command strings. */
+/**
+ * Command path → v2 operation name. Every operation names its command the way the
+ * program builder does (`deriveCommandPath`); a contract entry's explicit `command`
+ * string overrides that, exactly as it does when the program is built.
+ */
 const OPERATION_BY_PATH = new Map<string, string>()
+for (const operation of Object.keys(V2_OPERATIONS) as (keyof typeof V2_OPERATIONS)[]) {
+  OPERATION_BY_PATH.set(deriveCommandPath(operation).join(' '), operation)
+}
 for (const [operation, spec] of Object.entries(CLI_CONTRACT)) {
   if (spec && 'command' in spec && typeof spec.command === 'string') {
     OPERATION_BY_PATH.set(spec.command, operation)
@@ -85,6 +100,8 @@ type JsonSchema = {
   allOf?: JsonSchema[]
   nullable?: boolean
   enum?: unknown[]
+  const?: unknown
+  required?: string[]
 }
 
 interface OpenApiDoc {
@@ -92,7 +109,10 @@ interface OpenApiDoc {
     string,
     Record<
       string,
-      { responses?: Record<string, { content?: Record<string, { schema?: JsonSchema }> }> }
+      {
+        responses?: Record<string, { content?: Record<string, { schema?: JsonSchema }> }>
+        requestBody?: { content?: Record<string, { schema?: JsonSchema }> }
+      }
     >
   >
   components?: { schemas?: Record<string, JsonSchema> }
@@ -114,19 +134,44 @@ function resolveRef(doc: OpenApiDoc, schema: JsonSchema | undefined): JsonSchema
   return current
 }
 
-function typeLabel(doc: OpenApiDoc, schema: JsonSchema | undefined): string {
+/**
+ * A compact type for one schema. `depth` is how many object levels render their fields
+ * with types (`{name:string,options:{id,name}[]}`); below it an object lists key names
+ * only, as the response shapes always have.
+ */
+function typeLabel(
+  doc: OpenApiDoc,
+  schema: JsonSchema | undefined,
+  depth = 0,
+  enums: 'full' | 'brief' = 'full'
+): string {
   const resolved = resolveRef(doc, schema)
   if (!resolved) return 'unknown'
-  if (resolved.enum) return resolved.enum.map((v) => JSON.stringify(v)).join('|')
+  if (resolved.const !== undefined) return JSON.stringify(resolved.const)
+  if (resolved.enum) {
+    // A response is read, not written: one value and the count is enough to recognise
+    // the field; a request body needs every legal value.
+    if (enums === 'brief' && resolved.enum.length > 2) {
+      return `${JSON.stringify(resolved.enum[0])}|…(${resolved.enum.length})`
+    }
+    return resolved.enum.map((v) => JSON.stringify(v)).join('|')
+  }
   const variants = resolved.anyOf ?? resolved.oneOf
-  if (variants) return variants.map((v) => typeLabel(doc, v)).join('|')
+  if (variants) return variants.map((v) => typeLabel(doc, v, depth, enums)).join('|')
   const type = Array.isArray(resolved.type) ? resolved.type.join('|') : resolved.type
-  if (type === 'array') return `${typeLabel(doc, resolved.items)}[]`
+  if (type === 'array') return `${typeLabel(doc, resolved.items, depth, enums)}[]`
   if (type === 'object' || resolved.properties) {
-    const keys = Object.keys(resolved.properties ?? {})
-    return keys.length > 0
-      ? `{${keys.slice(0, 8).join(',')}${keys.length > 8 ? ',…' : ''}}`
-      : 'object'
+    const props = resolved.properties ?? {}
+    const keys = Object.keys(props)
+    if (keys.length === 0) return 'object'
+    if (depth > 0) {
+      const required = new Set(resolved.required ?? [])
+      return `{${keys
+        .slice(0, 12)
+        .map((k) => `${k}${required.has(k) ? '' : '?'}:${typeLabel(doc, props[k], depth - 1)}`)
+        .join(',')}${keys.length > 12 ? ',…' : ''}}`
+    }
+    return `{${keys.slice(0, 8).join(',')}${keys.length > 8 ? ',…' : ''}}`
   }
   return type ?? 'unknown'
 }
@@ -145,13 +190,51 @@ function responseShape(operation: string): InventoryShapeField[] | undefined {
     if (!props) {
       const items = resolveRef(doc, data.items)
       if (items?.properties) {
-        return [{ name: '[]', type: typeLabel(doc, items) }]
+        return [{ name: '[]', type: typeLabel(doc, items, 0, 'brief') }]
       }
       return undefined
     }
-    return Object.entries(props).map(([name, s]) => ({ name, type: typeLabel(doc, s) }))
+    return Object.entries(props).map(([name, s]) => ({
+      name,
+      type: typeLabel(doc, s, 0, 'brief'),
+    }))
   }
   return undefined
+}
+
+/** The JSON request body's fields, two levels deep — only asked for commands with a `<json|@file>` option. */
+function requestShape(
+  operation: string,
+  jsonFields: Set<string>
+): InventoryShapeField[] | undefined {
+  const op = V2_OPERATIONS[operation as keyof typeof V2_OPERATIONS]
+  if (!op) return undefined
+  const docPath = op.path.replace(/\[([^\]]+)\]/g, '{$1}')
+  for (const doc of OPENAPI_DOCS) {
+    const entry = doc.paths[docPath]?.[op.method.toLowerCase()]
+    const schema = entry?.requestBody?.content?.['application/json']?.schema
+    const resolved = resolveRef(doc, schema)
+    if (!resolved?.properties) continue
+    const required = new Set(resolved.required ?? [])
+    const entries = Object.entries(resolved.properties)
+      // The CLI injects the workspace; the model never writes it.
+      .filter(([name]) => name !== 'workspaceId')
+    // Scalar flags are already on the signature; the card carries the JSON-valued
+    // fields only (the ones whose shape is otherwise learned from error messages).
+    const nested = entries.filter(([name]) => jsonFields.has(name))
+    return (nested.length > 0 ? nested : entries).map(([name, s]) => ({
+      name: required.has(name) ? name : `${name}?`,
+      type: capType(typeLabel(doc, s, 2)),
+    }))
+  }
+  return undefined
+}
+
+const MAX_BODY_TYPE_CHARS = 220
+
+/** A recursive grammar (the row predicate) expands past what a card line can carry. */
+function capType(label: string): string {
+  return label.length > MAX_BODY_TYPE_CHARS ? `${label.slice(0, MAX_BODY_TYPE_CHARS)}…` : label
 }
 
 const program = buildProgram()
@@ -172,15 +255,21 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
         required: option.mandatory,
         description: option.description,
         ...(option.defaultValue !== undefined ? { defaultValue: String(option.defaultValue) } : {}),
+        ...(option.argChoices ? { choices: option.argChoices } : {}),
       }))
     const operation = OPERATION_BY_PATH.get(cmdPath.join(' '))
     const shape = operation ? responseShape(operation) : undefined
+    const jsonFields = new Set(
+      options.filter((option) => /<json\|@file>/.test(option.flags)).map((option) => option.name)
+    )
+    const body = operation && jsonFields.size > 0 ? requestShape(operation, jsonFields) : undefined
     return {
       path: cmdPath,
       description: command.description(),
       args,
       options,
       ...(shape ? { shape } : {}),
+      ...(body ? { body } : {}),
     }
   }
 )

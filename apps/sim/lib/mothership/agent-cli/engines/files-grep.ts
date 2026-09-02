@@ -86,7 +86,8 @@ export const filesGrepCommand: AgentCliEngine = {
         })
       )
       for (const { file, text } of texts) {
-        const label = file.folderPath ? `${file.folderPath}/${file.name}` : file.name
+        const folder = (file.folderPath ?? '').replace(/\/+$/, '')
+        const label = folder ? `${folder}/${file.name}` : `/${file.name}`
         if (matches(file.name) && out.length < MAX_MATCHES) out.push(`${label}: name matches`)
         if (text === null) {
           unreadable++

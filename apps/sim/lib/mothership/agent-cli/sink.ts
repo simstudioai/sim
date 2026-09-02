@@ -31,11 +31,12 @@ export async function applySink(
   if (written.outcome === 'no-session') {
     return {
       ...result,
-      stdout: `${result.stdout}\n[outputFile not written: your machine is not booted yet — run any run_code first. Output returned inline instead]`,
+      // The notice leads: appended, it was the first thing the output budget cut.
+      stdout: `[NOT written to ${sink.path}: your machine is not booted yet — run any run_code first, then re-run this command. The output follows inline instead.]\n${result.stdout}`,
     }
   }
   return {
     ...result,
-    stdout: `${result.stdout}\n[outputFile write failed — output returned inline instead]`,
+    stdout: `[NOT written to ${sink.path}: the write to your machine failed. The output follows inline instead.]\n${result.stdout}`,
   }
 }
