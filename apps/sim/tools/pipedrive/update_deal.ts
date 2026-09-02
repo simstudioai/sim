@@ -17,6 +17,11 @@ export const pipedriveUpdateDealTool: ToolConfig<
   description: 'Update an existing deal in Pipedrive',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'pipedrive',
+  },
+
   params: {
     accessToken: {
       type: 'string',

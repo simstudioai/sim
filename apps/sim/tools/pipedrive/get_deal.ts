@@ -11,6 +11,11 @@ export const pipedriveGetDealTool: ToolConfig<PipedriveGetDealParams, PipedriveG
   description: 'Retrieve detailed information about a specific deal',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'pipedrive',
+  },
+
   params: {
     accessToken: {
       type: 'string',

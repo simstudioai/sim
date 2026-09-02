@@ -32,28 +32,41 @@ import type { OperationSpec } from './types'
  * `status: 'failed'` as the command's own outcome would start failing commands
  * that merely *report* somebody else's failed record.
  */
-const RUN_OUTCOME_OPERATIONS = new Set<V2OperationName>(['executeWorkflow'])
-
-/**
- * Terminal run statuses that are not a success, and how each is explained.
- *
- * `paused` is deliberately absent: a run held at a human-in-the-loop pause has
- * not failed and can still be resumed, and `--follow` reports it the same way it
- * reports a success.
- */
-const FAILED_RUN_STATUS_MESSAGES: Readonly<Record<string, string>> = {
-  failed: 'The workflow run failed.',
-  cancelled: 'The workflow run was cancelled.',
+const RUN_OUTCOME_OPERATIONS: Readonly<
+  Partial<Record<V2OperationName, Readonly<Record<string, string>>>>
+> = {
+  /**
+   * Terminal run statuses that are not a success, and how each is explained.
+   *
+   * `paused` is deliberately absent: a run held at a human-in-the-loop pause has
+   * not failed and can still be resumed, and `--follow` reports it the same way
+   * it reports a success.
+   */
+  executeWorkflow: {
+    failed: 'The workflow run failed.',
+    cancelled: 'The workflow run was cancelled.',
+  },
+  /**
+   * A tool that ran and refused answers `200` for the same reason a failed run
+   * does — the API call worked, the third party did not — so the exit code is
+   * the only thing left to carry the outcome. The fallback is per operation
+   * because "the workflow run failed" is not what happened here; in practice
+   * the tool's own error message wins, and this only speaks when it is absent.
+   */
+  executeTool: {
+    failed: 'The tool call failed.',
+  },
 }
 
 /** The one-line explanation of an in-band run failure, or `null` if there is none. */
 function runFailureMessage(operation: V2OperationName, payload: unknown): string | null {
-  if (!RUN_OUTCOME_OPERATIONS.has(operation)) return null
+  const failureMessages = RUN_OUTCOME_OPERATIONS[operation]
+  if (!failureMessages) return null
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
 
   const { status, error } = payload as { status?: unknown; error?: unknown }
   if (typeof status !== 'string') return null
-  const fallback = FAILED_RUN_STATUS_MESSAGES[status]
+  const fallback = failureMessages[status]
   if (!fallback) return null
 
   const reported = (error as { message?: unknown } | null | undefined)?.message

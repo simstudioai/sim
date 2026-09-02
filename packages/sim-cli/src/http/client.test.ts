@@ -1010,6 +1010,11 @@ describe('destructive operations are gated', () => {
     'deployWorkflow',
     'deployWorkflowMcpTool',
     'duplicateWorkflow',
+    // Running one destroys nothing Sim keeps, for the same reason running a
+    // workflow does not. Whatever the third party does with the call is the
+    // caller's own instruction, and gating it would put `--yes` on the ordinary
+    // path of every tool.
+    'executeTool',
     'executeWorkflow',
     'unzipFile',
     'searchTableRows',

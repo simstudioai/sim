@@ -8,6 +8,11 @@ export const wealthboxWriteContactTool: ToolConfig<WealthboxWriteParams, Wealthb
   description: 'Create a new Wealthbox contact',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wealthbox',
+  },
+
   params: {
     accessToken: {
       type: 'string',

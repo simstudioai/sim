@@ -30,6 +30,7 @@ import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflow
 import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
 import {
   backfillCanonicalModes,
+  migrateCanonicalModeIds,
   migrateSubblockIds,
 } from '@/lib/workflows/migrations/subblock-migrations'
 import { backfillWhatsAppInteractiveType } from '@/lib/workflows/migrations/whatsapp-interactive-type'
@@ -368,6 +369,11 @@ const applyBlockMigrations = createMigrationPipeline([
       ctx.workspaceId,
       ctx.executor
     )
+    return { ...ctx, blocks, migrated: ctx.migrated || migrated }
+  },
+
+  (ctx) => {
+    const { blocks, migrated } = migrateCanonicalModeIds(ctx.blocks)
     return { ...ctx, blocks, migrated: ctx.migrated || migrated }
   },
 
