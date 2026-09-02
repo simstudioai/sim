@@ -85,6 +85,27 @@ interface Finding {
   reason: string
 }
 
+/**
+ * A hosted tool must not declare its own `cost` output.
+ *
+ * Direct execution (`POST /api/v2/tools/{toolId}/execute`) bills hosted-key
+ * spend by reading `output.cost` on a tool with `hosting` — because on such a
+ * tool that field has exactly one writer, `applyHostedKeyCostToResult`, which
+ * runs only when the registry actually used Sim's key on a successful call. A
+ * BYOK call leaves it absent and so is not billed. A hosted tool that also
+ * reported its own cost there would break that reading: its self-reported
+ * number would bill as Sim's spend on a BYOK call or a caller-keyed call. Tools
+ * without `hosting` may report cost freely; the meter never looks at them.
+ */
+function findHostedToolsReportingCost(): string[] {
+  return Object.entries(tools as Record<string, ToolConfig>)
+    .filter(
+      ([, config]) => config.hosting && config.outputs && Object.hasOwn(config.outputs, 'cost')
+    )
+    .map(([toolId]) => toolId)
+    .sort()
+}
+
 function findUnreachableParams(): Finding[] {
   const findings: Finding[] = []
 
@@ -129,6 +150,17 @@ function findUnreachableParams(): Finding[] {
 function main(): void {
   const findings = findUnreachableParams()
   const toolCount = Object.keys(tools).length
+  const costReporters = findHostedToolsReportingCost()
+
+  if (costReporters.length > 0) {
+    console.error('Tool parameter reachability audit failed:\n')
+    for (const toolId of costReporters) {
+      console.error(
+        `  ${toolId} — declares hosting AND a 'cost' output; direct execution reads output.cost on a hosted tool as "Sim's key paid", so a self-reported cost would bill BYOK and caller-keyed calls`
+      )
+    }
+    process.exit(1)
+  }
 
   if (findings.length === 0) {
     console.log(

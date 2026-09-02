@@ -49,9 +49,10 @@ export interface ExecuteToolResult {
  * deployment hosts keys, any `enabled` predicate accepts these params, and the
  * caller has not brought a key of their own — which wins where present.
  *
- * Read twice, for the two questions that both turn on it. A required parameter
- * Sim fills is not missing, and spend is only Sim's to bill when Sim's key paid
- * for it.
+ * Pre-dispatch only, for the required-input exemption: a parameter Sim will
+ * fill is not missing. It is deliberately NOT the metering gate — it cannot see
+ * a BYOK key, which the registry injects while reporting the call as *not*
+ * hosted, so after dispatch the registry's own verdict is read instead.
  */
 function hostedKeyParamFor(
   tool: ExecutableToolConfig,
@@ -342,14 +343,26 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
     })
 
     /**
-     * Only a successful call that spent Sim's key. `output.cost` is not a
-     * hosted-key marker: `knowledge_upload_chunk` and the enrichment runner
-     * report their own cost there, and billing those as `api-tool` spend would
-     * charge a second time for something already metered elsewhere. The registry
-     * writes hosted-key cost under the same two conditions
-     * (`hostedKeyInfo.isUsingHostedKey && finalResult.success`).
+     * Only a successful call that spent Sim's key — and that verdict is the
+     * registry's, not re-derived here.
+     *
+     * The registry decides whether Sim's key was used inside
+     * `injectHostedKeyIfNeeded`, and a workspace or organization BYOK key is
+     * one of the ways it decides *no*: the org's own key is injected and
+     * `isUsingHostedKey` is false. A pre-dispatch derivation cannot see that
+     * (it would need the BYOK lookup), so an earlier version of this gate
+     * treated every omitted key as Sim's and was wrong for BYOK.
+     *
+     * The verdict does propagate, by one path: on a tool with `hosting`,
+     * `output.cost` has a single writer, `applyHostedKeyCostToResult`, and it
+     * runs only under `hostedKeyInfo.isUsingHostedKey && finalResult.success`.
+     * So `hosting` present + success + cost present *is* "Sim's key paid".
+     * `hosting` is checked because tools without it — `knowledge_upload_chunk`,
+     * the enrichment runner — report their own cost in that field and are
+     * metered elsewhere. That no hosted tool does the same is what
+     * `check-tool-param-reachability` now pins.
      */
-    if (result.success && hostedKeyParamFor(tool, params)) {
+    if (result.success && tool.hosting) {
       await meterHostedKeySpend({
         callId,
         toolId,

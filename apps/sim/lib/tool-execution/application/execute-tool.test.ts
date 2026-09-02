@@ -606,13 +606,36 @@ describe('executeToolForCaller', () => {
     expect(mocks.recordUsage).not.toHaveBeenCalled()
   })
 
+  /**
+   * Mirrors the real registry contract: a caller's own key means
+   * `isUsingHostedKey` is false, so `applyHostedKeyCostToResult` never runs and
+   * no `output.cost` is written. The meter reads that absence as the verdict.
+   */
   it('does not bill when the caller brought their own key', async () => {
     mocks.executeRegistryTool.mockResolvedValue({
       success: true,
-      output: { cost: { total: 0.004 } },
+      output: { markdown: '# Hi' },
     })
 
     await run({ input: { url: 'https://a.co', apiKey: 'sk-mine' } })
+
+    expect(mocks.recordUsage).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The BYOK shape. The registry injected the org's own key and returned
+   * `isUsingHostedKey: false`, so it wrote no `output.cost` — and the caller
+   * omitted the key, which a pre-dispatch derivation reads as "Sim's". Only the
+   * registry's verdict, carried by the presence of the cost it alone writes,
+   * gets this right.
+   */
+  it('does not bill a BYOK call, where the key was omitted but Sim did not pay', async () => {
+    mocks.executeRegistryTool.mockResolvedValue({
+      success: true,
+      output: { markdown: '# Hi' },
+    })
+
+    await run({ input: { url: 'https://a.co' } })
 
     expect(mocks.recordUsage).not.toHaveBeenCalled()
   })
