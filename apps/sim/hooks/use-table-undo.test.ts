@@ -195,7 +195,6 @@ describe('useTableUndo – delete-column undo cell restore chunking', () => {
     columnPosition: 0,
     columnUnique: false,
     columnRequired: false,
-    columnTypeMetadata: {},
     cellData: [],
     previousOrder: null,
     previousWidth: null,
@@ -249,10 +248,8 @@ describe('useTableUndo – restoring a deleted select column', () => {
     columnPosition: 0,
     columnUnique: false,
     columnRequired: false,
-    columnTypeMetadata: {
-      options: [{ id: 'opt_open', name: 'Open' }],
-      multiple: true,
-    },
+    columnOptions: [{ id: 'opt_open', name: 'Open' }],
+    columnMultiple: true,
     cellData: [],
     previousOrder: null,
     previousWidth: null,
@@ -276,6 +273,41 @@ describe('useTableUndo – restoring a deleted select column', () => {
   })
 })
 
+describe('useTableUndo – restoring a deleted currency column', () => {
+  it('re-creates the column with its original denomination', async () => {
+    mockPopUndo.mockReturnValueOnce(
+      makeEntry({
+        type: 'delete-column',
+        columnName: 'amount',
+        columnId: 'col_amount',
+        columnType: 'currency',
+        columnPosition: 0,
+        columnUnique: false,
+        columnRequired: false,
+        columnCurrencyCode: 'JPY',
+        cellData: [],
+        previousOrder: null,
+        previousWidth: null,
+        previousPinnedColumns: null,
+      })
+    )
+
+    const { undo } = TestHook()
+    ;(undo as () => void)()
+    await flush()
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'col_amount',
+        name: 'amount',
+        type: 'currency',
+        currencyCode: 'JPY',
+      }),
+      expect.any(Object)
+    )
+  })
+})
+
 describe('useTableUndo – restoring a deleted reference column', () => {
   it('re-creates the column with its target table', async () => {
     mockPopUndo.mockReturnValueOnce(
@@ -287,7 +319,7 @@ describe('useTableUndo – restoring a deleted reference column', () => {
         columnPosition: 0,
         columnUnique: false,
         columnRequired: false,
-        columnTypeMetadata: { referenceTableId: 'tbl_people' },
+        columnReferenceTableId: 'tbl_people',
         cellData: [],
         previousOrder: null,
         previousWidth: null,
