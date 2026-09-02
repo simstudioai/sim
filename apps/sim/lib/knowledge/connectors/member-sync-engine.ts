@@ -84,6 +84,7 @@ import type {
   SyncResult,
   SyncSkipReason,
 } from '@/connectors/types'
+import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
 
 const logger = createLogger('ConnectorMemberSyncEngine')
 
@@ -1416,7 +1417,11 @@ export async function executeMemberSync(
       const member = await claimNextMember(run)
       if (!member) break
       result.membersClaimed += 1
-      const syncContext: Record<string, unknown> = { syncRunId: runId, memberId: member.id }
+      const syncContext: Record<string, unknown> = {
+        syncRunId: runId,
+        memberId: member.id,
+        ...PER_MEMBER_LISTING_CONTEXT,
+      }
       syncContexts.set(member.id, syncContext)
 
       const listed = await listForMember({

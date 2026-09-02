@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { AtlassianSiteNotAccessibleError } from '@/lib/atlassian/discovery'
+import {
+  AtlassianSiteNotAccessibleError,
+  AtlassianSiteNotMatchedError,
+} from '@/lib/atlassian/discovery'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { jsmConnectorMeta } from '@/connectors/jsm/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -312,6 +315,15 @@ async function resolveCloudId(
 }
 
 /**
+ * JSM answers a service desk the caller may not view with 403 and one that
+ * does not exist for them with 404; either is a complete listing of nothing
+ * for that caller.
+ */
+function isJsmScopeUnavailableStatus(status: number): boolean {
+  return status === 403 || status === 404
+}
+
+/**
  * Resolves a configured service desk identifier to the numeric service desk id.
  *
  * `GET /servicedesk/{serviceDeskId}` accepts either the numeric id or a project
@@ -337,7 +349,11 @@ async function resolveServiceDeskId(
   })
 
   if (!response.ok) {
-    throw new Error(`Failed to resolve service desk "${trimmed}": ${response.status}`)
+    throw listingRequestError(
+      `Failed to resolve service desk "${trimmed}"`,
+      response.status,
+      isJsmScopeUnavailableStatus(response.status)
+    )
   }
 
   const data = (await response.json()) as { id?: string }
@@ -427,8 +443,15 @@ async function fetchComments(
 export const jsmConnector: ConnectorConfig = {
   ...jsmConnectorMeta,
 
+  /**
+   * A member whose token reaches no Atlassian site, or only sites other than
+   * the configured one, or who may not view the configured service desk, lists
+   * nothing: a complete listing of nothing, not an error.
+   */
   isListingScopeUnavailableError: (error) =>
-    isListingScopeUnavailableError(error) || error instanceof AtlassianSiteNotAccessibleError,
+    isListingScopeUnavailableError(error) ||
+    error instanceof AtlassianSiteNotAccessibleError ||
+    error instanceof AtlassianSiteNotMatchedError,
 
   listDocuments: async (
     accessToken: string,
@@ -507,7 +530,11 @@ export const jsmConnector: ConnectorConfig = {
     if (!response.ok) {
       const errorText = await response.text()
       logger.error('Failed to list JSM requests', { status: response.status, error: errorText })
-      throw listingRequestError('Failed to list JSM requests', response.status)
+      throw listingRequestError(
+        'Failed to list JSM requests',
+        response.status,
+        isJsmScopeUnavailableStatus(response.status)
+      )
     }
 
     const data = (await response.json()) as JsmPage<JsmRequest>

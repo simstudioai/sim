@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import {
   AtlassianSiteNotAccessibleError,
+  AtlassianSiteNotMatchedError,
   normalizeAtlassianSiteUrl,
 } from '@/lib/atlassian/discovery'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
@@ -140,8 +141,14 @@ function issueToFullDocument(issue: Record<string, unknown>, siteUrl: string): E
 export const jiraConnector: ConnectorConfig = {
   ...jiraConnectorMeta,
 
+  /**
+   * A member whose token reaches no Atlassian site, or only sites other than
+   * the configured one, lists nothing: a complete listing of nothing, not an error.
+   */
   isListingScopeUnavailableError: (error) =>
-    isListingScopeUnavailableError(error) || error instanceof AtlassianSiteNotAccessibleError,
+    isListingScopeUnavailableError(error) ||
+    error instanceof AtlassianSiteNotAccessibleError ||
+    error instanceof AtlassianSiteNotMatchedError,
 
   listDocuments: async (
     accessToken: string,

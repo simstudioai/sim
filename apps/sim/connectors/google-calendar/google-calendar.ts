@@ -5,6 +5,7 @@ import { DEFAULT_MAX_EVENTS, googleCalendarConnectorMeta } from '@/connectors/go
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   isListingScopeUnavailableError,
+  isPerMemberListing,
   listingRequestError,
   parseMultiValue,
   parseTagDate,
@@ -404,7 +405,33 @@ export const googleCalendarConnector: ConnectorConfig = {
         calendarId,
         error: errorText,
       })
-      throw listingRequestError('Failed to list Google Calendar events', response.status)
+      const error = listingRequestError('Failed to list Google Calendar events', response.status)
+      /**
+       * One of several calendars a member cannot reach is absent from their
+       * listing, not the end of it: move on to the next calendar so the rest of
+       * their access survives. A sole unreachable calendar is the whole scope,
+       * which the members-mode crawl reads as a complete listing of nothing, and
+       * a shared credential still fails the sync rather than silently dropping
+       * the calendar's events.
+       */
+      if (
+        isListingScopeUnavailableError(error) &&
+        calendarIds.length > 1 &&
+        isPerMemberListing(syncContext)
+      ) {
+        logger.warn('Skipping a Google Calendar the member cannot reach', {
+          calendarId,
+          status: response.status,
+        })
+        return calendarIndex + 1 < calendarIds.length
+          ? {
+              documents: [],
+              nextCursor: JSON.stringify({ calendarIndex: calendarIndex + 1 }),
+              hasMore: true,
+            }
+          : { documents: [], hasMore: false }
+      }
+      throw error
     }
 
     const data = await response.json()

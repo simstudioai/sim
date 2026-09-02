@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import * as cheerio from 'cheerio'
-import { AtlassianSiteNotAccessibleError } from '@/lib/atlassian/discovery'
+import {
+  AtlassianSiteNotAccessibleError,
+  AtlassianSiteNotMatchedError,
+} from '@/lib/atlassian/discovery'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -508,12 +511,14 @@ export const confluenceConnector: ConnectorConfig = {
   },
 
   /**
-   * A member who is not on the Atlassian site, or cannot see the configured
-   * space, lists nothing: a complete listing of nothing, not an error.
+   * A member who is not on the Atlassian site — their token reaches no site,
+   * or only sites other than the configured one — or who cannot see the
+   * configured space, lists nothing: a complete listing of nothing, not an error.
    */
   isListingScopeUnavailableError: (error) =>
     error instanceof ConfluenceSpaceNotFoundError ||
-    error instanceof AtlassianSiteNotAccessibleError,
+    error instanceof AtlassianSiteNotAccessibleError ||
+    error instanceof AtlassianSiteNotMatchedError,
 }
 
 /**
