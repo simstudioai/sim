@@ -25,7 +25,6 @@ import {
   reportManualRunToolStop,
 } from '@/lib/mothership/tools/client/run-tool-execution'
 import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
-import { prefersInPlaceNavigation } from '@/lib/desktop'
 import { type FileDownloadSource, triggerFileDownload } from '@/lib/uploads/client/download'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import {

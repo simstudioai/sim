@@ -59,6 +59,42 @@ describe('resolveOutputSelectors', () => {
         selectedOutputs: ['missing.result.text'],
         currentBlocks: { [ROOT_BLOCK_ID]: block(ROOT_BLOCK_ID, 'Root Agent') },
       })
-    ).toThrow('Selected output block does not resolve: missing')
+    ).toThrow(
+      'Unknown block "missing" in selector "missing.result.text". Available blocks: Root Agent'
+    )
+  })
+
+  it('names every available block when a selector head matches none, in either name form', () => {
+    const OTHER_BLOCK_ID = '33333333-3333-4333-8333-333333333333'
+    const currentBlocks = {
+      [ROOT_BLOCK_ID]: block(ROOT_BLOCK_ID, 'Root Agent'),
+      [OTHER_BLOCK_ID]: block(OTHER_BLOCK_ID, 'Start'),
+    }
+
+    expect(() =>
+      resolveOutputSelectors({ selectedOutputs: ['Agent 2.content'], currentBlocks })
+    ).toThrow(
+      'Unknown block "Agent 2" in selector "Agent 2.content". Available blocks: Root Agent, Start'
+    )
+    expect(
+      resolveOutputSelectors({
+        selectedOutputs: ['Root Agent.content', 'rootagent.content', OTHER_BLOCK_ID],
+        currentBlocks,
+      })
+    ).toEqual([`${ROOT_BLOCK_ID}_content`, `${ROOT_BLOCK_ID}_content`, OTHER_BLOCK_ID])
+  })
+
+  it('keeps the resolver error for an ambiguous name rather than calling it unknown', () => {
+    const OTHER_BLOCK_ID = '33333333-3333-4333-8333-333333333333'
+
+    expect(() =>
+      resolveOutputSelectors({
+        selectedOutputs: ['agent.content'],
+        currentBlocks: {
+          [ROOT_BLOCK_ID]: block(ROOT_BLOCK_ID, 'Agent'),
+          [OTHER_BLOCK_ID]: block(OTHER_BLOCK_ID, 'agent'),
+        },
+      })
+    ).toThrow('Selected output block does not resolve: agent')
   })
 })

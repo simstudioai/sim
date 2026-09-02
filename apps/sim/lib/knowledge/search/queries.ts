@@ -200,6 +200,16 @@ export interface SearchResult {
   boolean1: boolean | null
   boolean2: boolean | null
   boolean3: boolean | null
+  /**
+   * The score this row's position in the returned list comes from: the
+   * reciprocal-rank-fusion score in hybrid mode, the cosine similarity
+   * (`1 - distance`) in vector mode, and 1 for a tag-only search. Stamped by
+   * retrieval on every row it returns; absent on rows straight from a single
+   * retrieval leg. Recency may reorder rows without changing this score.
+   */
+  rankScore?: number
+  /** 1-based position in the returned order, stamped alongside `rankScore`. */
+  rank?: number
   distance: number
   knowledgeBaseId: string
   /** When the source last changed the document; NULL for uploads and sources that do not say. */
@@ -446,6 +456,18 @@ export function getStructuredTagFilters(filters: StructuredFilter[], embeddingTa
  * document terms resolve to the same lexemes in both keyword retrieval paths.
  */
 const FTS_CONFIG = 'english'
+
+/**
+ * Stamps each row with the score its position came from and its 1-based rank.
+ *
+ * Hybrid results are ordered by a fused score the caller never saw, while the
+ * `similarity` reported beside them is the vector leg's cosine value — so the
+ * two modes answered with byte-identical `similarity` for orderings that could
+ * differ. Exposing the ordering key makes the order explainable in either mode.
+ */
+function rankResults(rows: SearchResult[], scoreOf: (row: SearchResult) => number): SearchResult[] {
+  return rows.map((row, index) => ({ ...row, rankScore: scoreOf(row), rank: index + 1 }))
+}
 
 /**
  * Row visibility predicates shared by every search leg: a chunk is only
@@ -1276,7 +1298,7 @@ export function fuseByReciprocalRank(rankedLists: SearchResult[][], topK: number
     groupStart = groupEnd
   }
 
-  return fused
+  return rankResults(fused, (row) => scores.get(row.id) ?? 0)
 }
 
 export async function handleTagAndVectorSearch(params: SearchParams): Promise<SearchResult[]> {
@@ -1389,7 +1411,10 @@ export async function retrieveKnowledgeSearch(
       .filter((budget) => budget.timedOut)
       .map((budget) => budget.leg)
     return {
-      rows: boostRecency ? applyRecencyBoost(rows) : rows,
+      rows: rankResults(
+        boostRecency ? applyRecencyBoost(rows) : rows,
+        (row) => row.rankScore ?? (hasQuery ? 1 - row.distance : 1)
+      ),
       retrieval: { status: timedOutLegs.length ? 'partial' : 'complete', timedOutLegs },
     }
   }

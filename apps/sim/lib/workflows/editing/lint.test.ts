@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { collectWorkflowFieldIssues, hasWorkflowLintIssues, lintEditedWorkflowState } from './lint'
+import {
+  collectTableBlockFieldIssues,
+  collectWorkflowFieldIssues,
+  collectWorkflowTableIds,
+  formatWorkflowLintMessage,
+  hasWorkflowLintIssues,
+  lintEditedWorkflowState,
+} from './lint'
 
 /**
  * A resource block shaped like `knowledge`: a picker/manual canonical pair for
@@ -485,5 +492,143 @@ describe('collectWorkflowFieldIssues', () => {
     })
 
     expect(issues).toEqual([])
+  })
+})
+
+/**
+ * A Table block's `filter`/`order` name columns by name and are only checked
+ * at run time, so a typo — or a column renamed under the block — lints clean
+ * and fails inside the block's error edge. Resolved here against the bound
+ * table's live schema.
+ */
+describe('collectTableBlockFieldIssues', () => {
+  const tables = new Map([
+    ['tbl_leads', { name: 'Leads', columnNames: ['name', 'Wins', 'status'] }],
+  ])
+
+  function tableBlock(id: string, values: Record<string, unknown>, type = 'table_v2') {
+    return {
+      id,
+      type,
+      name: id,
+      subBlocks: Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { value }])),
+    }
+  }
+
+  it('reports filter and sort fields that are not columns of the bound table', () => {
+    const issues = collectTableBlockFieldIssues(
+      {
+        query: tableBlock('query', {
+          manualTableId: 'tbl_leads',
+          filter:
+            '{"any":[{"field":"score","op":"gte","value":10},{"all":[{"field":"wins","op":"gt","value":1},{"field":"region","op":"eq","value":"eu"}]}]}',
+          order: '[{"field":"createdAt","direction":"desc"},{"field":"tier","direction":"asc"}]',
+        }),
+      },
+      tables
+    )
+
+    expect(issues).toEqual([
+      {
+        blockId: 'query',
+        blockName: 'query',
+        blockType: 'table_v2',
+        field: 'score',
+        tableName: 'Leads',
+      },
+      {
+        blockId: 'query',
+        blockName: 'query',
+        blockType: 'table_v2',
+        field: 'region',
+        tableName: 'Leads',
+      },
+      {
+        blockId: 'query',
+        blockName: 'query',
+        blockType: 'table_v2',
+        field: 'tier',
+        tableName: 'Leads',
+      },
+    ])
+  })
+
+  it('accepts a bare condition, a record-shaped sort, and the implicit row fields', () => {
+    const issues = collectTableBlockFieldIssues(
+      {
+        query: tableBlock('query', {
+          tableSelector: 'tbl_leads',
+          filter: '{"field":"id","op":"eq","value":"row_1"}',
+          order: '{"updatedAt":"desc","status":"asc"}',
+        }),
+      },
+      tables
+    )
+
+    expect(issues).toEqual([])
+  })
+
+  it('skips a block whose table is unresolved, and a filter that is a reference or not JSON', () => {
+    const issues = collectTableBlockFieldIssues(
+      {
+        unbound: tableBlock('unbound', {
+          manualTableId: '<start.tableId>',
+          filter: '{"field":"nope","op":"eq","value":1}',
+        }),
+        unknownTable: tableBlock('unknownTable', {
+          manualTableId: 'tbl_other',
+          filter: '{"field":"nope","op":"eq","value":1}',
+        }),
+        referenced: tableBlock('referenced', {
+          manualTableId: 'tbl_leads',
+          filter: '{"field":"nope","op":"eq","value":<start.threshold>}',
+        }),
+        garbage: tableBlock('garbage', { manualTableId: 'tbl_leads', filter: 'not json' }),
+        notATable: tableBlock(
+          'notATable',
+          { manualTableId: 'tbl_leads', filter: '{"field":"nope"}' },
+          'agent'
+        ),
+      },
+      tables
+    )
+
+    expect(issues).toEqual([])
+  })
+
+  it('surfaces the finding through the issue check and the summary', () => {
+    const lint = {
+      sources: [],
+      sinks: [],
+      orphanBlocks: [],
+      emptyOutgoingPorts: [],
+      invalidBranchPorts: [],
+      invalidConnectionTargets: [],
+      tableFieldIssues: [
+        { blockId: 'query', blockName: 'Query leads', field: 'score', tableName: 'Leads' },
+      ],
+    }
+
+    expect(hasWorkflowLintIssues(lint)).toBe(true)
+    expect(formatWorkflowLintMessage(lint)).toContain(
+      'Table filter/sort fields that are not columns of the referenced table (the run will fail in the block\'s error edge): "Query leads".score (table "Leads")'
+    )
+  })
+})
+
+describe('collectWorkflowTableIds', () => {
+  it('collects the statically bound table of every Table block once, preferring the manual id', () => {
+    const ids = collectWorkflowTableIds({
+      a: {
+        id: 'a',
+        type: 'table_v2',
+        subBlocks: { manualTableId: { value: 'tbl_1' }, tableSelector: { value: 'tbl_2' } },
+      },
+      b: { id: 'b', type: 'table_v2', subBlocks: { tableSelector: { value: 'tbl_1' } } },
+      c: { id: 'c', type: 'table_v2', subBlocks: { manualTableId: { value: '<start.table>' } } },
+      d: { id: 'd', type: 'agent', subBlocks: { manualTableId: { value: 'tbl_3' } } },
+    })
+
+    expect(ids).toEqual(['tbl_1'])
   })
 })

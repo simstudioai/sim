@@ -24,7 +24,10 @@ import {
   handleVectorOnlySearch,
   retrieveKnowledgeSearch,
   type SearchParams,
+  fuseByReciprocalRank,
+  type SearchResult,
 } from '@/lib/knowledge/search/queries'
+import { RRF_K } from '@/lib/knowledge/search/recency'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
 /**
@@ -1023,4 +1026,54 @@ describe('live repository authorization follows ranked candidates', () => {
       expect(dbChainMockFns.select).toHaveBeenCalledOnce()
     }
   )
+})
+
+/** A retrieval row with only the fields fusion reads; the tag slots are irrelevant here. */
+function searchRow(id: string, distance: number): SearchResult {
+  return {
+    id,
+    content: id,
+    documentId: `doc-${id}`,
+    chunkIndex: 0,
+    tag1: null,
+    tag2: null,
+    tag3: null,
+    tag4: null,
+    tag5: null,
+    tag6: null,
+    tag7: null,
+    number1: null,
+    number2: null,
+    number3: null,
+    number4: null,
+    number5: null,
+    date1: null,
+    date2: null,
+    boolean1: null,
+    boolean2: null,
+    boolean3: null,
+    distance,
+    knowledgeBaseId: 'kb-1',
+    sourceModifiedAt: null,
+  }
+}
+
+describe('fuseByReciprocalRank exposes the ordering key', () => {
+  it('stamps each row with the fused score it is ordered by and a 1-based rank, leaving similarity alone', () => {
+    const lexical = [searchRow('a', 0.5), searchRow('b', 0.2)]
+    const vector = [searchRow('b', 0.2), searchRow('c', 0.1)]
+
+    const fused = fuseByReciprocalRank([lexical, vector], 3)
+
+    expect(fused.map((row) => row.id)).toEqual(['b', 'a', 'c'])
+    expect(fused.map((row) => row.rank)).toEqual([1, 2, 3])
+    expect(fused[0].rankScore).toBeCloseTo(1 / (RRF_K + 2) + 1 / (RRF_K + 1), 12)
+    expect(fused[1].rankScore).toBeCloseTo(1 / (RRF_K + 1), 12)
+    expect(fused[2].rankScore).toBeCloseTo(1 / (RRF_K + 2), 12)
+    /** The order follows rankScore, which the cosine distance alone would not explain: c is the nearest chunk yet ranks last. */
+    expect(fused.map((row) => row.rankScore)).toEqual(
+      [...fused.map((row) => row.rankScore)].sort((x, y) => (y ?? 0) - (x ?? 0))
+    )
+    expect(fused.map((row) => row.distance)).toEqual([0.2, 0.5, 0.1])
+  })
 })
