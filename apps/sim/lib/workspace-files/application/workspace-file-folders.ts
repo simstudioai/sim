@@ -40,6 +40,10 @@ export interface ListWorkspaceFileFoldersInput {
    */
   sortBy?: Exclude<FolderSortBy, 'position'>
   sortOrder?: ListSortOrder
+  /** Descend the whole subtree instead of listing direct children only. */
+  recursive?: boolean
+  /** Deepest level below `parentPath` to include. Only meaningful with `recursive`. */
+  depth?: number
 }
 
 export interface ListWorkspaceFileFoldersResult {
@@ -133,9 +137,22 @@ async function executeListWorkspaceFileFolders(args: {
   })
   if (args.input.parentPath !== undefined) {
     const parentSegments = parseFolderPath(args.input.parentPath)
+    /*
+     * Descendants are matched against the stored materialized path rather than
+     * walked by `parentId`, because a scoped list need not contain the parent
+     * row at all — an `archived` listing under an active parent is the case
+     * that breaks a walk. Comparison stays positional over decoded segments, so
+     * `Reportsx` is never read as a child of `Reports`.
+     */
+    const maxSegments = args.input.recursive
+      ? args.input.depth === undefined
+        ? Number.POSITIVE_INFINITY
+        : parentSegments.length + args.input.depth
+      : parentSegments.length + 1
     folders = folders.filter((folder) => {
       const folderSegments = parseWorkspaceFileFolderDisplayPath(folder.path)
-      if (folderSegments.length !== parentSegments.length + 1) return false
+      if (folderSegments.length <= parentSegments.length) return false
+      if (folderSegments.length > maxSegments) return false
       return parentSegments.every((segment, index) => folderSegments[index] === segment)
     })
   }

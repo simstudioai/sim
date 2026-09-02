@@ -181,6 +181,78 @@ describe('workspace file folder operations', () => {
     expect(result.folders.map((item) => item.id)).toEqual(['child-1'])
   })
 
+  describe('recursive listing', () => {
+    const tree = [
+      { ...folder, id: 'reports', name: 'Reports', path: 'Reports' },
+      { ...folder, id: 'q3', name: 'Q3', path: 'Reports/Q3' },
+      { ...folder, id: 'draft', name: 'Draft', path: 'Reports/Q3/Draft' },
+      { ...folder, id: 'reportsx', name: 'Reportsx', path: 'Reportsx' },
+    ]
+
+    const list = (input: Record<string, unknown>) =>
+      listWorkspaceFileFoldersOperation.execute({
+        principal: { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' },
+        input: { workspaceId: 'ws-1', ...input },
+      })
+
+    beforeEach(() => {
+      mockList.mockResolvedValue(tree)
+    })
+
+    it('returns only direct children without the flag', async () => {
+      const result = await list({ parentPath: '/Reports' })
+
+      expect(result.folders.map((item) => item.id)).toEqual(['q3'])
+    })
+
+    it('descends every level with the flag', async () => {
+      const result = await list({ parentPath: '/Reports', recursive: true })
+
+      expect(result.folders.map((item) => item.id)).toEqual(['q3', 'draft'])
+    })
+
+    it('excludes a sibling whose name merely starts with the parent name', async () => {
+      const result = await list({ parentPath: '/Reports', recursive: true })
+
+      expect(result.folders.map((item) => item.id)).not.toContain('reportsx')
+    })
+
+    it('bounds the walk by depth', async () => {
+      const result = await list({ parentPath: '/Reports', recursive: true, depth: 1 })
+
+      expect(result.folders.map((item) => item.id)).toEqual(['q3'])
+    })
+
+    it('descends a parent whose name contains an escaped slash', async () => {
+      mockList.mockResolvedValue([
+        { ...folder, id: 'child', name: 'Q1', path: 'Finance\\/Legal/Q1' },
+        { ...folder, id: 'grandchild', name: 'Deep', path: 'Finance\\/Legal/Q1/Deep' },
+        { ...folder, id: 'other', name: 'Other', path: 'Finance/Legal/Other' },
+      ])
+
+      const result = await list({ parentPath: '/Finance%2FLegal', recursive: true })
+
+      expect(result.folders.map((item) => item.id)).toEqual(['child', 'grandchild'])
+    })
+
+    /*
+     * The historical contract for an unfiltered list is every folder at every
+     * level. Copilot and the VFS depend on it, so depth-bounding must not leak
+     * into the no-parent, non-recursive case.
+     */
+    it('still returns every level when neither a parent nor the flag is given', async () => {
+      const result = await list({})
+
+      expect(result.folders.map((item) => item.id)).toEqual(['reports', 'q3', 'draft', 'reportsx'])
+    })
+
+    it('narrows a recursive walk by search', async () => {
+      const result = await list({ parentPath: '/Reports', recursive: true, search: 'draft' })
+
+      expect(result.folders.map((item) => item.id)).toEqual(['draft'])
+    })
+  })
+
   it('ensures an entire decoded folder chain for a file write', async () => {
     mockEnsure.mockResolvedValue({
       folderId: 'nested-folder',

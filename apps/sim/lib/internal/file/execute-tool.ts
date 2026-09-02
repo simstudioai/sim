@@ -49,6 +49,12 @@ const FILE_MANAGE_TOOL_IDS = new Set([
   'file_read',
   'file_search',
   'file_write',
+  'file_list',
+  'file_create_folder',
+  'file_update_folder',
+  'file_delete_folder',
+  'file_restore_folder',
+  'file_move',
 ])
 
 const fileSearchInputSchema = z

@@ -8,6 +8,7 @@
  */
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { parseFolderPath } from '@/lib/folders/paths'
 import type { FilterRule, SortRule } from '@/lib/table/types'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import { getBlock } from '@/blocks'
@@ -596,4 +597,32 @@ export function resolveSandboxLabel(
   if (typeof rawValue !== 'string' || !rawValue) return null
 
   return sandboxes.find((sandbox) => sandbox.id === rawValue)?.name ?? null
+}
+
+/**
+ * Names a picked folder from the canonical path the picker stores.
+ *
+ * The path is in `SELECTOR_TYPES_HYDRATION_REQUIRED` because it is not fit to
+ * show raw — `/Reports/Q3%20Results` is percent-encoded — and a type in that
+ * list with no resolver renders as the unset placeholder, which reads as "you
+ * picked nothing" rather than "this could not be named".
+ *
+ * The path already carries the names, so this decodes rather than fetches: no
+ * request per canvas row, no loading state, and nothing to go stale that the
+ * stored path has not gone stale with.
+ */
+export function resolveFolderPathLabel(
+  subBlock: SubBlockConfig | undefined,
+  rawValue: unknown
+): string | null {
+  if (subBlock?.type !== 'sim-folder-tree-selector') return null
+  if (typeof rawValue !== 'string' || rawValue.trim() === '') return null
+
+  try {
+    const segments = parseFolderPath(rawValue)
+    return segments.length > 0 ? segments.join(' / ') : null
+  } catch {
+    /* A hand-typed path that will not parse is still worth showing as typed. */
+    return rawValue
+  }
 }

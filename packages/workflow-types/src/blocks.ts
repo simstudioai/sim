@@ -33,6 +33,7 @@ export type SubBlockType =
   | 'channel-selector'
   | 'user-selector'
   | 'folder-selector'
+  | 'sim-folder-tree-selector'
   | 'knowledge-base-selector'
   | 'knowledge-tag-filters'
   | 'document-selector'

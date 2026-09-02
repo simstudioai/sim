@@ -9,6 +9,8 @@ interface FileGetParams {
 interface FileReadParams {
   fileId?: string | string[]
   fileInput?: unknown
+  folderPaths?: string[]
+  includeSubfolders?: boolean
   workspaceId?: string
 }
 
@@ -35,6 +37,20 @@ const createFileReadTool = (config: {
       visibility: 'user-only',
       description: 'Selected workspace file object.',
     },
+    folderPaths: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Folders whose files are included, as canonical percent-encoded paths, e.g. ["/Reports/Q3%20Results"]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up.',
+    },
+    includeSubfolders: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether nested folders are read too. Defaults to true; set false to take only the folders\u2019 direct files.',
+    },
   },
 
   operation: {
@@ -42,6 +58,8 @@ const createFileReadTool = (config: {
       operation: 'read',
       fileId: params.fileId,
       fileInput: params.fileInput,
+      folderPaths: params.folderPaths,
+      includeSubfolders: params.includeSubfolders,
       workspaceId: params.workspaceId,
     }),
   },
@@ -111,6 +129,8 @@ export const fileReadTool = createFileReadTool({
 interface FileGetContentParams {
   fileId?: string | string[]
   fileInput?: unknown
+  folderPaths?: string[]
+  includeSubfolders?: boolean
   workspaceId?: string
 }
 
@@ -134,6 +154,20 @@ export const fileGetContentTool: InternalToolConfig<FileGetContentParams, ToolRe
       visibility: 'user-only',
       description: 'Selected workspace file object, or an array of file objects.',
     },
+    folderPaths: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Folders whose files are included, as canonical percent-encoded paths, e.g. ["/Reports/Q3%20Results"]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up.',
+    },
+    includeSubfolders: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether nested folders are read too. Defaults to true; set false to take only the folders\u2019 direct files.',
+    },
   },
 
   operation: {
@@ -141,6 +175,8 @@ export const fileGetContentTool: InternalToolConfig<FileGetContentParams, ToolRe
       operation: 'content',
       fileId: params.fileId,
       fileInput: params.fileInput,
+      folderPaths: params.folderPaths,
+      includeSubfolders: params.includeSubfolders,
       workspaceId: params.workspaceId,
     }),
   },

@@ -42,6 +42,7 @@ describe('file operation registry', () => {
       .map((operation) => operation.id)
 
     expect(executorOperationIds).toEqual([
+      'files.list',
       'files.read_metadata',
       'files.read_content',
       'files.search_content',
@@ -51,7 +52,11 @@ describe('file operation registry', () => {
       'files.move',
       'files.share.read',
       'files.share.update',
+      'files.folders.list',
       'files.folders.create',
+      'files.folders.update',
+      'files.folders.delete',
+      'files.folders.restore',
     ])
   })
 

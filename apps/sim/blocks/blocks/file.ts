@@ -1,9 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { DocumentIcon } from '@/components/icons'
+import { encodeFolderPathSegment, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { readFolderPath } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sim-folder-tree-selector/selection'
 import type { BlockConfig, SubBlockType } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  normalizeFileInput,
+  parseOptionalNumberInput,
+} from '@/blocks/utils'
 import type { FileParserOutput, FileParserV3Output } from '@/tools/file/types'
 
 const logger = createLogger('FileBlock')
@@ -83,6 +89,100 @@ const SHARE_FILE_FIELD = ['shareFile', 'shareFileId'] as const
 /* Text and file are mutually exclusive sources, so the clause names whichever
    one the card actually carries. */
 const WRITE_CONTENT_FIELD = ['content', 'writeFile', 'writeFileId'] as const
+const FOLDER_SCOPE_FIELD = ['folderSelection', 'manualFolderSelection'] as const
+const FOLDER_PATH_FIELD = ['folderPath', 'manualFolderPath'] as const
+const WRITE_FOLDER_FIELD = ['writeFolderPath', 'manualWriteFolderPath'] as const
+const CREATE_PARENT_FIELD = ['createParentPath', 'manualCreateParentPath'] as const
+const DESTINATION_PARENT_FIELD = ['destinationParentPath', 'manualDestinationParentPath'] as const
+const MOVE_TARGET_FIELD = ['moveTargetFolderPath', 'manualMoveTargetFolderPath'] as const
+
+/**
+ * The folder field, and the switch saying how deep it reaches, as the file
+ * picker beside it needs them: a picker offering files outside the chosen
+ * folder would let a selection be built that the run then ignores.
+ */
+const FOLDER_SCOPE = {
+  fieldId: 'folderSelection',
+  recursiveFieldId: 'folderIncludeSubfolders',
+} as const
+
+/*
+ * An untouched text subblock arrives as '', not undefined, and '' is not a
+ * canonical folder path — so an omitted optional path has to be normalized away
+ * rather than forwarded. A switch arrives as either a boolean or the string
+ * 'true' depending on how it was set.
+ */
+function optionalText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+}
+
+function switchValue(value: unknown, fallback = false): boolean {
+  if (value === undefined || value === null || value === '') return fallback
+  return value === true || value === 'true'
+}
+
+/**
+ * The prefix a child path hangs off. The workspace root contributes nothing, so
+ * a child of the root is `/name` rather than `//name`.
+ */
+function folderPathPrefix(parentPath: string | undefined): string {
+  return parentPath && parentPath !== ROOT_FOLDER_PATH ? parentPath : ''
+}
+
+/** `parseReadFileIds` yields one id or many; spreading the single form would split its characters. */
+function toFileIdList(value: string | string[] | null | undefined): string[] {
+  if (!value) return []
+  return Array.isArray(value) ? value : [value]
+}
+
+/**
+ * What read, get content, and compress send: the files picked, the folder they
+ * were picked from, or the folder alone.
+ *
+ * The picker only offers files inside the chosen folder, so a picked file is
+ * always the narrower answer and the folder does not need to travel with it.
+ * A folder on its own stands for its files, resolved when the workflow runs
+ * rather than when it is configured — which is why it goes as a path and not as
+ * the ids it covers today.
+ */
+function fileFamilyInput(
+  params: Record<string, any>,
+  label: string,
+  pickerValue: unknown
+): Record<string, unknown> {
+  const workspaceId = params._context?.workspaceId
+  const fileIds = pickerValue ? parseReadFileIds(pickerValue) : null
+  if (fileIds) return { fileId: toFileIdList(fileIds), workspaceId }
+
+  const normalized = pickerValue ? normalizeFileInput(pickerValue) : null
+  if (normalized && normalized.length > 0) return { fileInput: normalized, workspaceId }
+
+  const folderPath = folderScopePath(params.folderScopeRef)
+  if (!folderPath) {
+    throw new Error(`File or folder is required for ${label}`)
+  }
+  return {
+    folderPaths: [folderPath],
+    /*
+     * Absent already means "descend", so only the off case travels — a block
+     * saved before this switch existed keeps reading whole subtrees.
+     */
+    ...(switchValue(params.folderIncludeSubfolders, true) ? {} : { includeSubfolders: false }),
+    workspaceId,
+  }
+}
+
+/**
+ * The folder scope on a file operation: where the run looks.
+ *
+ * Kept as a path rather than the files it holds today, because the tools expand
+ * it when the workflow runs — so a folder means whatever is inside it then, and
+ * a file added tomorrow is read tomorrow.
+ */
+function folderScopePath(value: unknown): string | undefined {
+  const path = readFolderPath(value)
+  return path === ROOT_FOLDER_PATH ? undefined : path || undefined
+}
 
 export const FileBlock: BlockConfig<FileParserOutput> = {
   type: 'file',
@@ -921,23 +1021,45 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     defaultTitle: 'File',
     sentences: {
       byOperation: {
-        file_read: [{ text: 'Get', field: READ_FILE_FIELD, core: true }],
+        file_read: [
+          { text: 'Get', field: READ_FILE_FIELD, core: true },
+          { text: 'in', field: FOLDER_SCOPE_FIELD },
+        ],
         file_get_content: [
           { text: 'Extract text from', field: GET_CONTENT_FILE_FIELD, core: true },
+          { text: 'in', field: FOLDER_SCOPE_FIELD },
         ],
         file_search: [{ text: 'Search workspace files for', field: 'query', core: true }],
         file_fetch: [{ text: 'Fetch and parse', field: 'fileUrl', core: true }],
         file_write: [
           { text: 'Create', field: 'fileName', core: true },
+          { text: 'in', field: WRITE_FOLDER_FIELD },
           { text: 'containing', field: WRITE_CONTENT_FIELD },
         ],
         file_append: [
           { text: 'Append', field: 'appendContent', core: true },
           { text: 'to', field: APPEND_FILE_FIELD, core: true },
+          { text: 'in', field: FOLDER_SCOPE_FIELD },
         ],
         file_compress: [
           { text: 'Compress', field: COMPRESS_FILE_FIELD, core: true },
+          { text: 'in', field: FOLDER_SCOPE_FIELD },
           { text: 'into', field: 'archiveName' },
+        ],
+        file_list: [{ text: 'List', field: FOLDER_PATH_FIELD, core: true }],
+        file_create_folder: [
+          { text: 'Create folder', field: 'folderName', core: true },
+          { text: 'in', field: CREATE_PARENT_FIELD },
+        ],
+        file_update_folder: [
+          { text: 'Move folder', field: FOLDER_PATH_FIELD, core: true },
+          { text: 'into', field: DESTINATION_PARENT_FIELD },
+        ],
+        file_delete_folder: [{ text: 'Delete folder', field: FOLDER_PATH_FIELD, core: true }],
+        file_restore_folder: [{ text: 'Restore folder', field: 'restoreFolderId', core: true }],
+        file_move: [
+          { text: 'Move', field: 'moveFileId', core: true },
+          { text: 'into', field: MOVE_TARGET_FIELD },
         ],
         file_decompress: [{ text: 'Unzip', field: DECOMPRESS_FILE_FIELD, core: true }],
         file_manage_sharing: [
@@ -953,6 +1075,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       title: 'Operation',
       type: 'dropdown' as SubBlockType,
       options: [
+        { label: 'List', id: 'file_list' },
         { label: 'Read', id: 'file_read' },
         { label: 'Get Content', id: 'file_get_content' },
         { label: 'Search', id: 'file_search' },
@@ -962,8 +1085,50 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         { label: 'Compress', id: 'file_compress' },
         { label: 'Decompress', id: 'file_decompress' },
         { label: 'Manage Sharing', id: 'file_manage_sharing' },
+        { label: 'Create Folder', id: 'file_create_folder' },
+        { label: 'Move Folder', id: 'file_update_folder' },
+        { label: 'Delete Folder', id: 'file_delete_folder' },
+        { label: 'Restore Folder', id: 'file_restore_folder' },
+        { label: 'Move File', id: 'file_move' },
       ],
       value: () => 'file_read',
+    },
+    {
+      id: 'folderSelection',
+      title: 'Folder',
+      type: 'sim-folder-tree-selector' as SubBlockType,
+      resourceType: 'file',
+      canonicalParamId: 'folderScopeRef',
+      mode: 'basic',
+      placeholder: 'Anywhere in the workspace',
+      description:
+        'Narrows the file options below. Read, get content, and compress also take the whole folder when no file is picked.',
+      condition: {
+        field: 'operation',
+        value: ['file_read', 'file_get_content', 'file_compress', 'file_append'],
+      },
+    },
+    {
+      id: 'manualFolderSelection',
+      title: 'Folder Path',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'folderScopeRef',
+      mode: 'advanced',
+      placeholder: '/Reports/Q3%20Results',
+      condition: {
+        field: 'operation',
+        value: ['file_read', 'file_get_content', 'file_compress', 'file_append'],
+      },
+    },
+    {
+      id: 'folderIncludeSubfolders',
+      title: 'Include Subfolders',
+      type: 'switch' as SubBlockType,
+      value: () => 'true',
+      condition: {
+        field: 'operation',
+        value: ['file_read', 'file_get_content', 'file_compress', 'file_append'],
+      },
     },
     {
       id: 'readFile',
@@ -973,9 +1138,9 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       acceptedTypes: '*',
       placeholder: 'Select workspace files',
       multiple: true,
+      folderScope: FOLDER_SCOPE,
       mode: 'basic',
       condition: { field: 'operation', value: 'file_read' },
-      required: { field: 'operation', value: 'file_read' },
     },
     {
       id: 'readFileId',
@@ -985,7 +1150,6 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       placeholder: 'Workspace file ID or JSON array of IDs',
       mode: 'advanced',
       condition: { field: 'operation', value: 'file_read' },
-      required: { field: 'operation', value: 'file_read' },
     },
     {
       id: 'getContentFile',
@@ -995,9 +1159,9 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       acceptedTypes: '*',
       placeholder: 'Select workspace files',
       multiple: true,
+      folderScope: FOLDER_SCOPE,
       mode: 'basic',
       condition: { field: 'operation', value: 'file_get_content' },
-      required: { field: 'operation', value: 'file_get_content' },
     },
     {
       id: 'getContentFileId',
@@ -1007,7 +1171,6 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       placeholder: 'Workspace file ID or JSON array of IDs',
       mode: 'advanced',
       condition: { field: 'operation', value: 'file_get_content' },
-      required: { field: 'operation', value: 'file_get_content' },
     },
     {
       id: 'mode',
@@ -1061,6 +1224,25 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       description:
         'Custom headers for fetching the file URL, such as Authorization: Bearer <token>.',
       condition: { field: 'operation', value: 'file_fetch' },
+    },
+    {
+      id: 'writeFolderPath',
+      title: 'Folder',
+      type: 'sim-folder-tree-selector' as SubBlockType,
+      resourceType: 'file',
+      placeholder: 'Workspace root',
+      canonicalParamId: 'writeFolderRef',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_write' },
+    },
+    {
+      id: 'manualWriteFolderPath',
+      title: 'Folder Path',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'writeFolderRef',
+      mode: 'advanced',
+      placeholder: '/Reports/Q3%20Results',
+      condition: { field: 'operation', value: 'file_write' },
     },
     {
       id: 'fileName',
@@ -1117,6 +1299,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       canonicalParamId: 'appendFileInput',
       acceptedTypes: '.txt,.md,.json,.csv,.xml,.html,.htm,.yaml,.yml,.log,.rtf',
       placeholder: 'Select or upload a workspace file',
+      folderScope: FOLDER_SCOPE,
       mode: 'basic',
       condition: { field: 'operation', value: 'file_append' },
       required: { field: 'operation', value: 'file_append' },
@@ -1147,9 +1330,9 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       acceptedTypes: '*',
       placeholder: 'Select workspace files',
       multiple: true,
+      folderScope: FOLDER_SCOPE,
       mode: 'basic',
       condition: { field: 'operation', value: 'file_compress' },
-      required: { field: 'operation', value: 'file_compress' },
     },
     {
       id: 'compressFileId',
@@ -1159,14 +1342,13 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       placeholder: 'Workspace file ID or JSON array of IDs',
       mode: 'advanced',
       condition: { field: 'operation', value: 'file_compress' },
-      required: { field: 'operation', value: 'file_compress' },
     },
     {
       id: 'archiveName',
       title: 'Archive Name',
       type: 'short-input' as SubBlockType,
       placeholder: 'archive.zip (auto-named from source if omitted)',
-      condition: { field: 'operation', value: 'file_compress' },
+      condition: { field: 'operation', value: ['file_compress', 'file_compress_folder'] },
     },
     {
       id: 'decompressFile',
@@ -1257,6 +1439,150 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         and: { field: 'shareVisibility', value: ['email', 'sso'] },
       },
     },
+    {
+      id: 'folderPath',
+      title: 'Folder',
+      type: 'sim-folder-tree-selector' as SubBlockType,
+      resourceType: 'file',
+      placeholder: 'Select a folder',
+      canonicalParamId: 'folderRef',
+      mode: 'basic',
+      condition: {
+        field: 'operation',
+        value: ['file_list', 'file_update_folder', 'file_delete_folder'],
+      },
+      required: { field: 'operation', value: ['file_update_folder', 'file_delete_folder'] },
+    },
+    {
+      id: 'manualFolderPath',
+      title: 'Folder Path',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'folderRef',
+      mode: 'advanced',
+      placeholder: '/Reports/Q3%20Results',
+      condition: {
+        field: 'operation',
+        value: ['file_list', 'file_update_folder', 'file_delete_folder'],
+      },
+      required: { field: 'operation', value: ['file_update_folder', 'file_delete_folder'] },
+    },
+    {
+      id: 'createParentPath',
+      title: 'Parent Folder',
+      type: 'sim-folder-tree-selector' as SubBlockType,
+      resourceType: 'file',
+      placeholder: 'Workspace root',
+      canonicalParamId: 'createParentRef',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_create_folder' },
+    },
+    {
+      id: 'manualCreateParentPath',
+      title: 'Parent Folder Path',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'createParentRef',
+      mode: 'advanced',
+      placeholder: '/Reports',
+      condition: { field: 'operation', value: 'file_create_folder' },
+    },
+    {
+      id: 'folderName',
+      title: 'Name',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'Q3 Results',
+      condition: { field: 'operation', value: 'file_create_folder' },
+      required: { field: 'operation', value: 'file_create_folder' },
+    },
+    {
+      id: 'destinationParentPath',
+      title: 'Move Into',
+      type: 'sim-folder-tree-selector' as SubBlockType,
+      resourceType: 'file',
+      placeholder: 'Workspace root',
+      canonicalParamId: 'destinationParentRef',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_update_folder' },
+    },
+    {
+      id: 'manualDestinationParentPath',
+      title: 'Destination Parent Path',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'destinationParentRef',
+      mode: 'advanced',
+      placeholder: '/Archive',
+      condition: { field: 'operation', value: 'file_update_folder' },
+    },
+    {
+      id: 'folderRecursive',
+      title: 'Recursive',
+      type: 'switch' as SubBlockType,
+      condition: { field: 'operation', value: 'file_list' },
+    },
+    {
+      id: 'folderDepth',
+      title: 'Max Depth',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'Unlimited',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_list' },
+    },
+    {
+      id: 'folderSearch',
+      title: 'Search',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'Match folder and file names',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_list' },
+    },
+    {
+      id: 'folderLimit',
+      title: 'Limit',
+      type: 'short-input' as SubBlockType,
+      placeholder: '200',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_list' },
+    },
+    {
+      id: 'deleteFolderRecursive',
+      title: 'Delete Contents',
+      type: 'switch' as SubBlockType,
+      condition: { field: 'operation', value: 'file_delete_folder' },
+    },
+    {
+      id: 'moveFileId',
+      title: 'File ID',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'Canonical workspace file ID',
+      condition: { field: 'operation', value: 'file_move' },
+      required: { field: 'operation', value: 'file_move' },
+    },
+    {
+      id: 'moveTargetFolderPath',
+      title: 'Move Into',
+      type: 'sim-folder-tree-selector' as SubBlockType,
+      resourceType: 'file',
+      placeholder: 'Workspace root',
+      canonicalParamId: 'moveTargetRef',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_move' },
+    },
+    {
+      id: 'manualMoveTargetFolderPath',
+      title: 'Destination Folder Path',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'moveTargetRef',
+      mode: 'advanced',
+      placeholder: '/Reports',
+      condition: { field: 'operation', value: 'file_move' },
+    },
+    {
+      id: 'restoreFolderId',
+      title: 'Folder ID',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'ID of the archived folder',
+      condition: { field: 'operation', value: 'file_restore_folder' },
+      required: { field: 'operation', value: 'file_restore_folder' },
+    },
   ],
   tools: {
     access: [
@@ -1269,6 +1595,12 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       'file_compress',
       'file_decompress',
       'file_manage_sharing',
+      'file_list',
+      'file_create_folder',
+      'file_update_folder',
+      'file_delete_folder',
+      'file_restore_folder',
+      'file_move',
     ],
     config: {
       tool: (params) => params.operation || 'file_read',
@@ -1304,10 +1636,85 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           const omitContent = Boolean(fileInput) && !contentText
           return {
             fileName: params.fileName,
+            folderPath: optionalText(params.writeFolderRef),
             ...(omitContent ? {} : { content: params.content }),
             ...(fileInput ? { fileInput } : {}),
             contentType: params.contentType,
             overwrite: params.overwrite === true || params.overwrite === 'true',
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_list') {
+          return {
+            path: optionalText(params.folderRef),
+            recursive: switchValue(params.folderRecursive),
+            depth: parseOptionalNumberInput(params.folderDepth, 'Max Depth', {
+              integer: true,
+              min: 1,
+            }),
+            search: optionalText(params.folderSearch),
+            limit: parseOptionalNumberInput(params.folderLimit, 'Limit', {
+              integer: true,
+              min: 1,
+            }),
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_create_folder') {
+          /*
+           * A folder is created by naming it inside a parent, not by spelling
+           * its whole path. The parent is pickable and the name is not, so the
+           * path is composed here — percent-encoding the typed name, because the
+           * tool takes a canonical path.
+           */
+          const name = optionalText(params.folderName)
+          const parentPrefix = folderPathPrefix(optionalText(params.createParentRef))
+          return {
+            path: name ? `${parentPrefix}/${encodeFolderPathSegment(name)}` : undefined,
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_update_folder') {
+          /*
+           * The tool takes the full path the folder will HAVE, which by
+           * definition does not exist yet and so cannot be picked. It is
+           * composed from a destination parent plus the folder's own name,
+           * carried from the source path's last segment. An unset parent means
+           * the workspace root. Renaming is not a move and is not offered here.
+           */
+          const sourcePath = optionalText(params.folderRef)
+          const segment = sourcePath?.split('/').pop()
+          const parentPrefix = folderPathPrefix(optionalText(params.destinationParentRef))
+
+          return {
+            path: sourcePath,
+            destinationPath: segment ? `${parentPrefix}/${segment}` : undefined,
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_delete_folder') {
+          return {
+            path: optionalText(params.folderRef),
+            recursive: switchValue(params.deleteFolderRecursive),
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_move') {
+          return {
+            fileId: optionalText(params.moveFileId),
+            folderPath: optionalText(params.moveTargetRef),
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_restore_folder') {
+          return {
+            folderId: optionalText(params.restoreFolderId),
             workspaceId: params._context?.workspaceId,
           }
         }
@@ -1324,7 +1731,15 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           } else {
             const normalized = normalizeFileInput(appendInput, { single: true })
             const file = normalized as Record<string, unknown> | null
-            fileName = (file?.name as string) ?? ''
+            /*
+             * Prefer the picked file's id over its name. The reference resolver
+             * accepts a canonical id, and a bare name is ambiguous once the same
+             * one exists in more than one folder — so discarding the identity
+             * the picker already held is what let a pick resolve to another
+             * file.
+             */
+            const pickedId = typeof file?.id === 'string' ? file.id : ''
+            fileName = pickedId || ((file?.name as string) ?? '')
           }
 
           if (!fileName) {
@@ -1339,34 +1754,9 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         }
 
         if (operation === 'file_compress') {
-          const compressInput = params.compressInput
-          if (!compressInput) {
-            throw new Error('File is required for compress')
-          }
-
-          const archiveName =
-            typeof params.archiveName === 'string' && params.archiveName.trim()
-              ? params.archiveName.trim()
-              : undefined
-
-          const fileIds = parseReadFileIds(compressInput)
-          if (fileIds) {
-            return {
-              fileId: fileIds,
-              archiveName,
-              workspaceId: params._context?.workspaceId,
-            }
-          }
-
-          const normalized = normalizeFileInput(compressInput)
-          if (!normalized || normalized.length === 0) {
-            throw new Error('File is required for compress')
-          }
-
           return {
-            fileInput: normalized,
-            archiveName,
-            workspaceId: params._context?.workspaceId,
+            ...fileFamilyInput(params, 'compress', params.compressInput),
+            archiveName: optionalText(params.archiveName),
           }
         }
 
@@ -1463,52 +1853,10 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         }
 
         if (operation === 'file_get_content') {
-          const getContentInput = params.getContentInput
-          if (!getContentInput) {
-            throw new Error('File is required for get content')
-          }
-
-          const fileIds = parseReadFileIds(getContentInput)
-          if (fileIds) {
-            return {
-              fileId: fileIds,
-              workspaceId: params._context?.workspaceId,
-            }
-          }
-
-          const normalized = normalizeFileInput(getContentInput)
-          if (!normalized || normalized.length === 0) {
-            throw new Error('File is required for get content')
-          }
-
-          return {
-            fileInput: normalized,
-            workspaceId: params._context?.workspaceId,
-          }
+          return fileFamilyInput(params, 'get content', params.getContentInput)
         }
 
-        const readInput = params.readFileInput
-        if (!readInput) {
-          throw new Error('File is required for read')
-        }
-
-        const fileIds = parseReadFileIds(readInput)
-        if (fileIds) {
-          return {
-            fileId: fileIds,
-            workspaceId: params._context?.workspaceId,
-          }
-        }
-
-        const normalized = normalizeFileInput(readInput)
-        if (!normalized || normalized.length === 0) {
-          throw new Error('File is required for read')
-        }
-
-        return {
-          fileInput: normalized,
-          workspaceId: params._context?.workspaceId,
-        }
+        return fileFamilyInput(params, 'read', params.readFileInput)
       },
     },
   },
@@ -1547,10 +1895,6 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     },
     appendFileInput: { type: 'json', description: 'File to append to' },
     appendContent: { type: 'string', description: 'Content to append to file' },
-    compressInput: {
-      type: 'json',
-      description: 'Selected workspace files or canonical file IDs to compress',
-    },
     archiveName: { type: 'string', description: 'Name for the compressed .zip archive' },
     decompressInput: {
       type: 'json',
@@ -1568,6 +1912,72 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     shareAllowedEmails: {
       type: 'string',
       description: 'Allowed emails or @domain patterns for email/SSO access',
+    },
+    writeFolderRef: {
+      type: 'string',
+      description: 'Folder to create the file in (write)',
+    },
+    folderRef: {
+      type: 'string',
+      description: 'Folder to act on (list folders, move folder, delete folder)',
+    },
+    createParentRef: {
+      type: 'string',
+      description: 'Folder the new folder is created inside (create folder)',
+    },
+    folderName: {
+      type: 'string',
+      description: 'Name of the folder to create (create folder)',
+    },
+    destinationParentRef: {
+      type: 'string',
+      description: 'Folder the moved folder is placed inside (move folder)',
+    },
+    moveTargetRef: {
+      type: 'string',
+      description: 'Folder the file is moved into (move file)',
+    },
+    moveFileId: {
+      type: 'string',
+      description: 'Canonical ID of the file to move (move file)',
+    },
+    restoreFolderId: {
+      type: 'string',
+      description: 'ID of the deleted folder to restore (restore folder)',
+    },
+    folderRecursive: {
+      type: 'boolean',
+      description: 'Walk the whole subtree rather than direct children (list folders)',
+    },
+    folderDepth: {
+      type: 'number',
+      description: 'Deepest level to include when recursive (list folders)',
+    },
+    folderSearch: {
+      type: 'string',
+      description: 'Substring match against folder names (list folders)',
+    },
+    deleteFolderRecursive: {
+      type: 'boolean',
+      description: 'Also delete nested folders and files (delete folder)',
+    },
+    compressInput: {
+      type: 'json',
+      description: 'Selected workspace files or canonical file IDs to compress',
+    },
+    folderIncludeSubfolders: {
+      type: 'boolean',
+      description:
+        'Whether the folder scope reaches into nested folders (read, get content, compress)',
+    },
+    folderScopeRef: {
+      type: 'string',
+      description:
+        'Folder the operation is scoped to, expanded at run time when no file is picked (read, get content, compress)',
+    },
+    folderLimit: {
+      type: 'number',
+      description: 'Most entries to return (list)',
     },
   },
   outputs: {
@@ -1587,7 +1997,8 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     count: { type: 'number', description: 'Returned matching line count (search)' },
     truncated: {
       type: 'boolean',
-      description: 'Whether more search matches exist beyond the configured cap',
+      description:
+        'Whether results were cut short by a cap: more matches exist (search), or more entries exist (list)',
     },
     complete: {
       type: 'boolean',
@@ -1622,6 +2033,43 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     isActive: {
       type: 'boolean',
       description: 'Whether the public link is enabled (manage sharing)',
+    },
+    entries: {
+      type: 'array',
+      description:
+        'What the folder holds, each with kind "folder" or "file", a name, and its depth below the listed folder (list)',
+    },
+    folder: {
+      type: 'json',
+      description: 'The affected folder (create, move, delete, and restore folder)',
+    },
+    path: {
+      type: 'string',
+      description: 'The folder that was listed or deleted (list and delete folder)',
+    },
+    previousPath: {
+      type: 'string',
+      description: 'The path the folder had before it moved (move folder)',
+    },
+    deleted: {
+      type: 'boolean',
+      description: 'Whether the folder was deleted (delete folder)',
+    },
+    deletedItems: {
+      type: 'json',
+      description: 'Counts of folders and files deleted alongside the folder (delete folder)',
+    },
+    fileId: {
+      type: 'string',
+      description: 'The file that was moved (move file)',
+    },
+    folderPath: {
+      type: 'string',
+      description: 'The folder the file now lives in (move file)',
+    },
+    restoredItems: {
+      type: 'json',
+      description: 'Counts of folders and files restored alongside the folder (restore folder)',
     },
     authType: {
       type: 'string',

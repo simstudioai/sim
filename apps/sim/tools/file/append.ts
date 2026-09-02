@@ -2,6 +2,7 @@ import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface FileAppendParams {
   fileName: string
+  folderPath?: string
   content: string
   workspaceId?: string
 }
@@ -20,6 +21,12 @@ export const fileAppendTool: InternalToolConfig<FileAppendParams, ToolResponse> 
       visibility: 'user-or-llm',
       description: 'Name of an existing workspace file to append to.',
     },
+    folderPath: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: `Folder the file lives in. Naming it targets exactly one file when the same name exists in several folders. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/".`,
+    },
     content: {
       type: 'string',
       required: true,
@@ -32,6 +39,7 @@ export const fileAppendTool: InternalToolConfig<FileAppendParams, ToolResponse> 
     input: (params) => ({
       operation: 'append',
       fileName: params.fileName,
+      folderPath: params.folderPath?.trim() || undefined,
       content: params.content,
       workspaceId: params.workspaceId,
     }),

@@ -52,6 +52,7 @@ import {
   WorkflowSelectorInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
 import { MODAL_REGISTRY } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/modal-registry'
+import { SimFolderTreeSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sim-folder-tree-selector/sim-folder-tree-selector'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
@@ -908,6 +909,7 @@ function SubBlockComponent({
             multiple={config.multiple === true}
             maxSize={config.maxSize}
             requiresCloudStorage={config.requiresCloudStorage === true}
+            folderScope={config.folderScope}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
@@ -941,6 +943,17 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue}
             previewContextValues={contextValues}
+          />
+        )
+
+      case 'sim-folder-tree-selector':
+        return (
+          <SimFolderTreeSelector
+            blockId={blockId}
+            subBlock={config}
+            disabled={isDisabled}
+            isPreview={isPreview}
+            previewValue={previewValue}
           />
         )
 
