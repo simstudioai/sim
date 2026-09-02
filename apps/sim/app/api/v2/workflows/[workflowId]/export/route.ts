@@ -22,6 +22,7 @@ export const GET = defineV2JsonRoute({
   mapInput: ({ params, query }) => ({
     workflowId: params.workflowId,
     includeReferences: query.includeReferences === true,
+    includeWorkspaceBindings: query.includeWorkspaceBindings,
   }),
   useCase: exportWorkflow,
   present: ({ payload, folderPath }) => ({

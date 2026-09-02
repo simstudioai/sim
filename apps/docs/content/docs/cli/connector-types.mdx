@@ -20,5 +20,7 @@ sim connector-types list [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--search <value>` | No | Case-insensitive substring match against the connector name. |
+| `--detail <value>` | No | Projection of each item. `summary` (the default) carries the identifier, name, description, and auth mode; `full` adds the version, the complete auth settings, the `sourceConfig` field schema, incremental-sync support, and tag definitions. Accepted values: `summary`, `full`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 
 </CommandTable>

@@ -157,12 +157,13 @@ describe('v2 workspace routes', () => {
       ],
       nextCursor: null,
     })
+    /** A bounded first page by default: 25, not the v2-wide 50. */
     expect(mocks.listWorkspaces).toHaveBeenCalledWith({
       principal: auth.principal,
       input: {
         sortBy: 'createdAt',
         sortOrder: 'desc',
-        limit: 50,
+        limit: 25,
         offset: 0,
       },
       request,

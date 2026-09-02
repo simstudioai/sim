@@ -5943,6 +5943,7 @@ type ImportWorkflowResponseRef1 = {
     failed: number
   }
   blocks: Array<ImportWorkflowResponseRef0>
+  warnings: Array<string>
 }
 
 export type ImportWorkflowResponse = {
@@ -6117,6 +6118,9 @@ export type ListChatDeploymentsResponse = {
 export type ListConnectorTypesQuery = {
   workspaceId: string
   search?: string
+  detail?: 'summary' | 'full'
+  limit?: number
+  cursor?: string
 }
 
 type ListConnectorTypesResponseRef0 = {
@@ -6169,8 +6173,17 @@ type ListConnectorTypesResponseRef1 = {
   multi?: boolean
 }
 
+type ListConnectorTypesResponseRef2 = {
+  connectorType: string
+  name: string
+  description: string
+  auth: {
+    mode: 'oauth' | 'apiKey'
+  }
+}
+
 export type ListConnectorTypesResponse = {
-  data: Array<ListConnectorTypesResponseRef0>
+  data: Array<ListConnectorTypesResponseRef0 | ListConnectorTypesResponseRef2>
   nextCursor: string | null
 }
 
@@ -7455,6 +7468,7 @@ type ListWorkflowMcpToolsResponseRef0 = {
   apiEndpoint: string
   createdAt: string
   updatedAt: string
+  status: 'active' | 'inactive'
 }
 
 export type ListWorkflowMcpToolsResponse = {
@@ -8777,10 +8791,12 @@ export type RelocateFileFolderQuery = Record<string, unknown>
 
 type RelocateFileFolderBodyRef0 = string
 
+type RelocateFileFolderBodyRef1 = string
+
 export type RelocateFileFolderBody = {
   workspaceId: string
   path: RelocateFileFolderBodyRef0
-  destinationPath: RelocateFileFolderBodyRef0
+  destinationPath: RelocateFileFolderBodyRef1
 }
 
 type RelocateFileFolderResponseRef0 = {
@@ -8800,10 +8816,12 @@ export type RelocateKnowledgeFolderQuery = Record<string, unknown>
 
 type RelocateKnowledgeFolderBodyRef0 = string
 
+type RelocateKnowledgeFolderBodyRef1 = string
+
 export type RelocateKnowledgeFolderBody = {
   workspaceId: string
   path: RelocateKnowledgeFolderBodyRef0
-  destinationPath: RelocateKnowledgeFolderBodyRef0
+  destinationPath: RelocateKnowledgeFolderBodyRef1
 }
 
 type RelocateKnowledgeFolderResponseRef0 = {
@@ -8823,10 +8841,12 @@ export type RelocateTableFolderQuery = Record<string, unknown>
 
 type RelocateTableFolderBodyRef0 = string
 
+type RelocateTableFolderBodyRef1 = string
+
 export type RelocateTableFolderBody = {
   workspaceId: string
   path: RelocateTableFolderBodyRef0
-  destinationPath: RelocateTableFolderBodyRef0
+  destinationPath: RelocateTableFolderBodyRef1
 }
 
 type RelocateTableFolderResponseRef0 = {
@@ -8846,10 +8866,12 @@ export type RelocateWorkflowFolderQuery = Record<string, unknown>
 
 type RelocateWorkflowFolderBodyRef0 = string
 
+type RelocateWorkflowFolderBodyRef1 = string
+
 export type RelocateWorkflowFolderBody = {
   workspaceId: string
   path: RelocateWorkflowFolderBodyRef0
-  destinationPath: RelocateWorkflowFolderBodyRef0
+  destinationPath: RelocateWorkflowFolderBodyRef1
 }
 
 type RelocateWorkflowFolderResponseRef0 = {
@@ -9939,16 +9961,22 @@ type UndeployWorkflowResponseRef3 = {
 }
 
 type UndeployWorkflowResponseRef4 = {
+  serverId: string
+  toolName: string
+}
+
+type UndeployWorkflowResponseRef5 = {
   id: string
   isDeployed: boolean
   deployedAt: string | null
   warnings: Array<string>
   activeDeployment: UndeployWorkflowResponseRef0 | null
   latestDeploymentAttempt: UndeployWorkflowResponseRef1 | null
+  archivedMcpTools: Array<UndeployWorkflowResponseRef4>
 }
 
 export type UndeployWorkflowResponse = {
-  data: UndeployWorkflowResponseRef4
+  data: UndeployWorkflowResponseRef5
 }
 
 /** `DELETE /api/v2/workflow-mcp-servers/[serverId]/tools/[workflowId]` */
@@ -14387,6 +14415,24 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe: 'Case-insensitive substring match against the connector name.',
       },
+      detail: {
+        kind: 'enum',
+        values: ['summary', 'full'] as const,
+        default: 'summary',
+        describe:
+          'Projection of each item. `summary` (the default) carries the identifier, name, description, and auth mode; `full` adds the version, the complete auth settings, the `sourceConfig` field schema, incremental-sync support, and tag definitions.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 25,
+        describe:
+          'Maximum connector types to return per page. Must be a whole number from 1 to 100. Defaults to 25.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listCredentialProviders: {
@@ -16024,9 +16070,9 @@ export const V2_OPERATIONS = {
       },
       limit: {
         kind: 'integer',
-        default: 50,
+        default: 25,
         describe:
-          'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+          'Maximum workspaces to return per page. Must be a whole number from 1 to 100. Defaults to 25.',
       },
       cursor: {
         kind: 'string',
@@ -16440,7 +16486,8 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
   },
@@ -16456,7 +16503,8 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
   },
@@ -16472,7 +16520,8 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
   },
@@ -16488,7 +16537,8 @@ export const V2_OPERATIONS = {
       destinationPath: {
         kind: 'string',
         required: true,
-        describe: 'New full path for the folder and its descendants.',
+        describe:
+          'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).',
       },
     },
   },

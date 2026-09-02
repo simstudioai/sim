@@ -617,6 +617,70 @@ describe('path-owned folder mutations', () => {
     )
   })
 
+  /**
+   * `/` is the one destination that always names an existing folder, so it
+   * takes the source as a child like any other: the nested folder lands at the
+   * top level under its own name. Before this the root was refused outright,
+   * which left no way to move a folder back out of its parent.
+   */
+  it('moves a nested folder back to the root when the destination is /', async () => {
+    const archive = folderRow({ id: 'folder-2', name: 'fx-archive' })
+    const source = folderRow({ id: 'folder-1', name: 'xp-docs', parentId: 'folder-2' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([
+        ['folder-1', source],
+        ['folder-2', archive],
+      ]),
+      pathById: new Map([
+        ['folder-1', '/fx-archive/xp-docs'],
+        ['folder-2', '/fx-archive'],
+      ]),
+      idByPath: new Map([
+        ['/fx-archive/xp-docs', 'folder-1'],
+        ['/fx-archive', 'folder-2'],
+      ]),
+    })
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      folderRow({ id: 'folder-1', name: 'xp-docs', parentId: null }),
+    ])
+
+    const result = await relocateFolderByPath({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/fx-archive/xp-docs',
+      destinationPath: '/',
+    })
+
+    expect(result).toMatchObject({ success: true, path: '/xp-docs' })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'xp-docs', parentId: null })
+    )
+    expect(auditMock.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ description: 'Moved table folder to "/xp-docs"' })
+    )
+  })
+
+  it('reports a root-level folder moved to / as already there', async () => {
+    const source = folderRow({ id: 'folder-1', name: 'xp-docs' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([['folder-1', source]]),
+      pathById: new Map([['folder-1', '/xp-docs']]),
+      idByPath: new Map([['/xp-docs', 'folder-1']]),
+    })
+
+    const result = await relocateFolderByPath({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/xp-docs',
+      destinationPath: '/',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
   it('still refuses a move whose source already exists under the destination', async () => {
     const source = folderRow({ id: 'folder-1', name: 'xp-files' })
     const archive = folderRow({ id: 'folder-2', name: 'fx-archive' })

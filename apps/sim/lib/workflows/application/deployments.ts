@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution, toPrincipalActor } from '@sim/auth/principal'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import { listLiveWorkflowMcpToolsForWorkflow } from '@/lib/mcp/queries'
 import { notifyWorkflowReverted } from '@/lib/realtime/notify'
 import { listDeployedWebhookUrls } from '@/lib/webhooks/deployed-urls'
 import { requireWorkflowExecutionUserId } from '@/lib/workflows/application/authorization'
@@ -140,6 +141,12 @@ export const undeployWorkflow = defineAuthorizedWorkflowUseCase({
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
+    /**
+     * Read before the undeploy, which archives every live registration of this
+     * workflow: the caller sees which tools went inactive on which servers,
+     * rather than finding them gone from the server's tool list.
+     */
+    const archivedMcpTools = await listLiveWorkflowMcpToolsForWorkflow(context.workflowId)
     const result = await performFullUndeploy({
       workflowId: context.workflowId,
       userId: attribution.attributedUserId,
@@ -153,8 +160,10 @@ export const undeployWorkflow = defineAuthorizedWorkflowUseCase({
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
       workflowName: context.workflow.name,
+      archivedMcpTools,
     }
   },
+
   projectAudit: ({ result }) => ({
     action: AuditAction.WORKFLOW_UNDEPLOYED,
     resourceType: AuditResourceType.WORKFLOW,

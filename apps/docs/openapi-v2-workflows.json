@@ -10061,6 +10061,23 @@
         },
         "additionalProperties": false
       },
+      "ArchivedWorkflowMcpTool": {
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "description": "Workflow-MCP server the tool is published on."
+          },
+          "toolName": {
+            "type": "string",
+            "description": "Name MCP clients called the tool by."
+          }
+        },
+        "required": ["serverId", "toolName"],
+        "additionalProperties": false,
+        "title": "Archived workflow MCP tool",
+        "description": "A workflow-MCP tool registration an undeploy took inactive."
+      },
       "UndeployResult": {
         "type": "object",
         "properties": {
@@ -10114,6 +10131,13 @@
               }
             ],
             "description": "Most recent deployment lifecycle attempt, or null when none is available."
+          },
+          "archivedMcpTools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchivedWorkflowMcpTool"
+            },
+            "description": "MCP tool registrations this undeploy archived. Each appears in its server’s tool list with `status: \"inactive\"` until the workflow is deployed again, which restores it; unpublishing one while it is inactive removes it for good. Empty when no server published the workflow."
           }
         },
         "required": [
@@ -10122,11 +10146,12 @@
           "deployedAt",
           "warnings",
           "activeDeployment",
-          "latestDeploymentAttempt"
+          "latestDeploymentAttempt",
+          "archivedMcpTools"
         ],
         "additionalProperties": false,
         "title": "Undeploy result",
-        "description": "Deployment state after a successful undeploy. `isDeployed` is false and no workflow version is active."
+        "description": "Deployment state after a successful undeploy. `isDeployed` is false and no workflow version is active. Undeploying also takes every MCP tool that published the workflow inactive; `archivedMcpTools` names them so the effect is not silent."
       },
       "UndeployWorkflowResponse": {
         "type": "object",
@@ -10148,7 +10173,8 @@
               "deployedAt": null,
               "warnings": [],
               "activeDeployment": null,
-              "latestDeploymentAttempt": null
+              "latestDeploymentAttempt": null,
+              "archivedMcpTools": []
             }
           }
         ]
@@ -10706,11 +10732,12 @@
           "folderPath",
           "createdAt",
           "updatedAt",
-          "blocks"
+          "blocks",
+          "warnings"
         ],
         "additionalProperties": false,
         "title": "Imported workflow",
-        "description": "Workflow created by an import operation."
+        "description": "Workflow created by an import operation, with the required workspace bindings it arrived without."
       },
       "ImportWorkflowResponse": {
         "type": "object",
@@ -10750,7 +10777,8 @@
                   "type": "response",
                   "name": "Reply"
                 }
-              ]
+              ],
+              "warnings": ["Triage: knowledgeBaseId was stripped by export; set it before running"]
             }
           }
         ]
@@ -12730,8 +12758,8 @@
             "$ref": "#/components/schemas/NonRootFolderPathInput"
           },
           "destinationPath": {
-            "description": "New full path for the folder and its descendants.",
-            "$ref": "#/components/schemas/NonRootFolderPathInput"
+            "description": "Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).",
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId", "path", "destinationPath"],
