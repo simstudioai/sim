@@ -148,6 +148,18 @@ describe('requireCredentialGroupCredentialAccess', () => {
     await expect(requireAccess(copilotPrincipal())).rejects.toMatchObject({ code: 'forbidden' })
   })
 
+  it('denies a workflow run the same way once the group or option is disabled', async () => {
+    mocks.loadBinding.mockResolvedValue({ ...liveBinding, optionStatus: 'disabled' })
+    await expect(requireAccess(executorPrincipal())).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.requirePolicy).not.toHaveBeenCalled()
+  })
+
+  it('denies a Chat turn for a credential with no OAuth binding, which a workflow may still hold', async () => {
+    mocks.loadBinding.mockResolvedValue(null)
+    await expect(requireAccess(copilotPrincipal())).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(requireAccess(executorPrincipal())).resolves.toBeUndefined()
+  })
+
   it("allows a Chat turn to use only the credential under the signed-in user's own enrollment", async () => {
     await expect(requireAccess(copilotPrincipal())).resolves.toBeUndefined()
     expect(mocks.loadEnrollmentAccess).toHaveBeenCalledWith('group-1', {
