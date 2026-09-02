@@ -428,8 +428,9 @@ describe('file manage folder wiring', () => {
           fileName: 'self.md',
           folderPath: '/memory/user-a',
           includeSubfolders: false,
-          oldString: 'old',
-          newString: 'new',
+          mode: 'search_replace',
+          search: 'old',
+          content: 'new',
         })
       )
 
@@ -457,8 +458,9 @@ describe('file manage folder wiring', () => {
           workspaceId: 'workspace-1',
           fileName: 'a-people-self',
           folderPath: '/memory/user-a',
-          oldString: 'old',
-          newString: 'new',
+          mode: 'search_replace',
+          search: 'old',
+          content: 'new',
         })
       )
 
@@ -483,8 +485,9 @@ describe('file manage folder wiring', () => {
           workspaceId: 'workspace-1',
           fileName: 'b-self',
           folderPath: '/memory/user-a',
-          oldString: 'old',
-          newString: 'new',
+          mode: 'search_replace',
+          search: 'old',
+          content: 'new',
         })
       )
 
@@ -500,8 +503,9 @@ describe('file manage folder wiring', () => {
           workspaceId: 'workspace-1',
           fileName: 'self.md',
           folderPath: '/memory/user-a',
-          oldString: 'old',
-          newString: 'new',
+          mode: 'search_replace',
+          search: 'old',
+          content: 'new',
         })
       )
 
@@ -520,8 +524,9 @@ describe('file manage folder wiring', () => {
           fileName: 'self.md',
           folderPath: '/memory/user-a',
           includeSubfolders: false,
-          oldString: 'old',
-          newString: 'new',
+          mode: 'search_replace',
+          search: 'old',
+          content: 'new',
         })
       )
 
@@ -534,27 +539,29 @@ describe('file manage folder wiring', () => {
           operation: 'edit',
           workspaceId: 'workspace-1',
           fileName: 'a-self',
-          oldString: 'old text',
-          newString: 'new text',
+          mode: 'search_replace',
+          search: 'old text',
+          content: 'new text',
         })
       )
 
       expect(mockEditWorkspaceFileContent).toHaveBeenCalledWith(
         expect.objectContaining({
           input: expect.objectContaining({
-            edit: { mode: 'replace_string', oldString: 'old text', newString: 'new text' },
+            edit: { mode: 'search_replace', search: 'old text', content: 'new text' },
           }),
         })
       )
     })
 
-    it('passes an insert through as a line edit', async () => {
+    it('passes an anchored insert through as one edit', async () => {
       await POST(
         createMockRequest('POST', {
-          operation: 'insert',
+          operation: 'edit',
           workspaceId: 'workspace-1',
           fileName: 'a-self',
-          afterLine: 3,
+          mode: 'insert_after',
+          anchor: '## Commitments',
           content: '- new commitment',
         })
       )
@@ -562,19 +569,23 @@ describe('file manage folder wiring', () => {
       expect(mockEditWorkspaceFileContent).toHaveBeenCalledWith(
         expect.objectContaining({
           input: expect.objectContaining({
-            edit: { mode: 'insert_lines', afterLine: 3, content: '- new commitment' },
+            edit: {
+              mode: 'insert_after',
+              anchor: '## Commitments',
+              content: '- new commitment',
+            },
           }),
         })
       )
     })
 
-    it('rejects a negative insert line at the contract', async () => {
+    it('rejects a missing anchor at the contract', async () => {
       const response = await POST(
         createMockRequest('POST', {
-          operation: 'insert',
+          operation: 'edit',
           workspaceId: 'workspace-1',
           fileName: 'a-self',
-          afterLine: -1,
+          mode: 'insert_after',
           content: 'x',
         })
       )
@@ -589,8 +600,9 @@ describe('file manage folder wiring', () => {
           operation: 'edit',
           workspaceId: 'workspace-1',
           fileName: 'a-self',
-          oldString: '',
-          newString: 'x',
+          mode: 'search_replace',
+          search: '',
+          content: 'x',
         })
       )
 

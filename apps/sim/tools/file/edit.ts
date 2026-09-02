@@ -4,23 +4,23 @@ const FOLDER_PATH_DESCRIPTION = `Single folder in which to resolve the file name
 const FOLDER_PATHS_DESCRIPTION =
   'Folders to search for the named file or validate the file ID against. The name must resolve to exactly one file across the selected scopes. Do not provide folderPath as well.'
 
+type FileEditMode = 'search_replace' | 'replace_between' | 'insert_after' | 'delete_between'
+
 interface FileEditParams {
   fileName: string
   folderPath?: string
   folderPaths?: string[]
   includeSubfolders?: boolean
-  oldString: string
-  newString: string
-  workspaceId?: string
-}
-
-interface FileInsertParams {
-  fileName: string
-  folderPath?: string
-  folderPaths?: string[]
-  includeSubfolders?: boolean
-  afterLine: number
-  content: string
+  mode: FileEditMode
+  search?: string
+  content?: string
+  replaceAll?: boolean
+  beforeAnchor?: string
+  afterAnchor?: string
+  anchor?: string
+  startAnchor?: string
+  endAnchor?: string
+  occurrence?: number
   workspaceId?: string
 }
 
@@ -33,9 +33,9 @@ const EDIT_OUTPUTS = {
 
 export const fileEditTool: InternalToolConfig<FileEditParams, ToolResponse> = {
   id: 'file_edit',
-  name: 'File Edit',
+  name: 'Apply File Edit',
   description:
-    'Replace one exact piece of text in an existing workspace file, leaving the rest untouched. Use this to correct a fact in place instead of rewriting the whole file. The search text must match exactly once: if it appears several times the edit is refused and the matching line numbers are returned, so include enough surrounding text to be unique. Only plain-text files can be edited.',
+    'Apply one precise edit to an existing text file without rewriting it. Use search_replace for verbatim replacement, optionally with replaceAll. Use replace_between, insert_after, or delete_between for complete trimmed-line anchors that stay stable when line numbers move. Folder scope can disambiguate a name or constrain a file ID.',
   version: '1.0.0',
 
   params: {
@@ -64,20 +64,75 @@ export const fileEditTool: InternalToolConfig<FileEditParams, ToolResponse> = {
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Whether the folder is searched for the file recursively. Defaults to true; set false to match only its direct contents, which is how a name shared with a file in a nested folder is disambiguated.',
+        'Whether selected folders are searched recursively. Defaults to true; false matches only their direct contents.',
     },
-    oldString: {
+    mode: {
       type: 'string',
       required: true,
+      visibility: 'user-or-llm',
+      description: 'Edit type: search_replace, replace_between, insert_after, or delete_between.',
+    },
+    search: {
+      type: 'string',
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'The exact text to replace, matched verbatim including whitespace and line breaks. It must appear exactly once in the file.',
+        'For search_replace, the exact text to replace, including whitespace and line breaks. It must be unique unless replaceAll is true.',
     },
-    newString: {
+    content: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The text to put in its place. Pass an empty string to delete the old text.',
+      description:
+        'Replacement or inserted text. Pass an empty string to delete a search match or clear the text between anchors. Omit only for delete_between.',
+    },
+    replaceAll: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'For search_replace, replace every non-overlapping match. Defaults to false, which refuses an ambiguous match.',
+    },
+    beforeAnchor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'For replace_between, the complete line before the content to replace. Leading and trailing whitespace is ignored.',
+    },
+    afterAnchor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'For replace_between, the complete line after the content to replace. The anchor lines remain in the file.',
+    },
+    anchor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'For insert_after, the complete line after which content is inserted.',
+    },
+    startAnchor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'For delete_between, the complete first line to delete. The start anchor is removed.',
+    },
+    endAnchor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'For delete_between, the complete ending boundary line. The end anchor remains in the file.',
+    },
+    occurrence: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'For anchored edits, which matching anchor occurrence to use, starting at 1. Defaults to 1.',
     },
   },
 
@@ -88,12 +143,21 @@ export const fileEditTool: InternalToolConfig<FileEditParams, ToolResponse> = {
       folderPath: params.folderPath?.trim() || undefined,
       folderPaths: params.folderPaths,
       ...(params.includeSubfolders === false ? { includeSubfolders: false } : {}),
-      oldString: params.oldString,
-      newString: params.newString,
+      mode: params.mode,
+      search: params.search,
+      ...(params.mode === 'delete_between' ? {} : { content: params.content ?? '' }),
+      replaceAll: params.replaceAll,
+      beforeAnchor: params.beforeAnchor,
+      afterAnchor: params.afterAnchor,
+      anchor: params.anchor,
+      startAnchor: params.startAnchor,
+      endAnchor: params.endAnchor,
+      occurrence: params.occurrence,
       workspaceId: params.workspaceId,
     }),
     secretProvenance: {
-      request: () => [{ key: 'newString', inputPaths: [['newString']] }],
+      request: (params) =>
+        params.mode === 'delete_between' ? [] : [{ key: 'content', inputPaths: [['content']] }],
     },
   },
 
@@ -101,84 +165,6 @@ export const fileEditTool: InternalToolConfig<FileEditParams, ToolResponse> = {
     const data = await response.json()
     if (!response.ok || !data.success) {
       return { success: false, output: {}, error: data.error || 'Failed to edit file' }
-    }
-    return { success: true, output: data.data }
-  },
-
-  outputs: EDIT_OUTPUTS,
-}
-
-export const fileInsertTool: InternalToolConfig<FileInsertParams, ToolResponse> = {
-  id: 'file_insert',
-  name: 'File Insert',
-  description:
-    'Insert new lines into an existing workspace file at a given line, leaving the rest untouched. Use this to add an entry under a heading without rewriting the file. Line numbers are the ones returned by search and by a ranged read. Only plain-text files can be edited.',
-  version: '1.0.0',
-
-  params: {
-    fileName: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Name or ID of the workspace file to insert into.',
-    },
-    folderPath: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: FOLDER_PATH_DESCRIPTION,
-    },
-    folderPaths: {
-      type: 'array',
-      required: false,
-      visibility: 'user-or-llm',
-      maxItems: 64,
-      items: { type: 'string' },
-      description: FOLDER_PATHS_DESCRIPTION,
-    },
-    includeSubfolders: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Whether the folder is searched for the file recursively. Defaults to true; set false to match only its direct contents, which is how a name shared with a file in a nested folder is disambiguated.',
-    },
-    afterLine: {
-      type: 'number',
-      required: true,
-      visibility: 'user-or-llm',
-      description:
-        'The 1-based line to insert after. Use 0 to insert at the top of the file. A line past the end of the file is refused rather than appended, so read or search first if you are not sure how long the file is.',
-    },
-    content: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description:
-        'The text to insert. Multiple lines are inserted as multiple lines; no trailing newline is needed.',
-    },
-  },
-
-  operation: {
-    input: (params) => ({
-      operation: 'insert',
-      fileName: params.fileName,
-      folderPath: params.folderPath?.trim() || undefined,
-      folderPaths: params.folderPaths,
-      ...(params.includeSubfolders === false ? { includeSubfolders: false } : {}),
-      afterLine: params.afterLine,
-      content: params.content,
-      workspaceId: params.workspaceId,
-    }),
-    secretProvenance: {
-      request: () => [{ key: 'content', inputPaths: [['content']] }],
-    },
-  },
-
-  transformResponse: async (response) => {
-    const data = await response.json()
-    if (!response.ok || !data.success) {
-      return { success: false, output: {}, error: data.error || 'Failed to insert into file' }
     }
     return { success: true, output: data.data }
   },

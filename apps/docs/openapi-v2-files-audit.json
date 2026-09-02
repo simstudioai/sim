@@ -1950,7 +1950,7 @@
       "patch": {
         "operationId": "editFileContent",
         "summary": "Edit File Content",
-        "description": "Change part of a text file in place, leaving the rest untouched. `PUT` on this path replaces the whole file; this is the partial counterpart, so one line can be corrected without regenerating everything around it. `replace_string` requires `oldString` to match **exactly once** — several matches answer `400` naming the lines they sit on, because replacing an arbitrary one of them would be a silent write to a line the caller never chose. `insert_lines` inserts after a 1-based line, with `0` meaning the top; a line past the end of the file answers `400` rather than appending. Line numbers are the ones `GET /api/v2/files/{fileId}/text` and file search report. Only files whose stored bytes are UTF-8 text can be edited: editing works on the bytes, never on parsed text, so a PDF or DOCX answers `400`. A concurrent write answers `409`, and retrying means re-reading first.",
+        "description": "Change part of a text file in place, leaving the rest untouched. `PUT` on this path replaces the whole file; this is the partial counterpart. `search_replace` matches exact text and requires one match unless `replaceAll` is true. `replace_between`, `insert_after`, and `delete_between` match complete lines after trimming surrounding whitespace, so edits remain stable when unrelated changes move the target to another line. Anchored replacement preserves both boundary lines; insertion preserves its anchor; deletion removes the start anchor and preserves the end anchor. Use `occurrence` when an anchor line repeats. Only files whose stored bytes are UTF-8 text can be edited: a PDF or DOCX answers `400`. A concurrent write answers `409`, and retrying means re-reading first.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -4600,20 +4600,24 @@
                 "properties": {
                   "mode": {
                     "type": "string",
-                    "const": "replace_string",
-                    "description": "Replace one exact piece of text with another."
+                    "const": "search_replace",
+                    "description": "Replace exact text."
                   },
-                  "oldString": {
+                  "search": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "Exact text to replace, matched verbatim. It must appear exactly once: several matches are refused with `400` naming the lines they sit on, so include enough surrounding text to be unique."
+                    "description": "Exact text to replace, matched verbatim. It must appear once unless replaceAll is true."
                   },
-                  "newString": {
+                  "content": {
                     "type": "string",
                     "description": "Text to put in its place. An empty string deletes the matched text."
+                  },
+                  "replaceAll": {
+                    "description": "Replace every non-overlapping match. Defaults to false.",
+                    "type": "boolean"
                   }
                 },
-                "required": ["mode", "oldString", "newString"],
+                "required": ["mode", "search", "content"],
                 "additionalProperties": false
               },
               {
@@ -4621,25 +4625,91 @@
                 "properties": {
                   "mode": {
                     "type": "string",
-                    "const": "insert_lines",
-                    "description": "Insert new lines at a given line."
+                    "const": "replace_between",
+                    "description": "Replace content between two complete-line anchors."
                   },
-                  "afterLine": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991,
-                    "description": "The 1-based line to insert after; 0 inserts at the top. A line past the end is refused rather than appended."
+                  "beforeAnchor": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Boundary line before the replaced content. This line remains."
+                  },
+                  "afterAnchor": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Boundary line after the replaced content. This line remains."
                   },
                   "content": {
                     "type": "string",
-                    "description": "Text to insert. Multiple lines insert as multiple lines."
+                    "description": "Replacement text. An empty string clears the interior."
+                  },
+                  "occurrence": {
+                    "description": "Matching anchor occurrence, starting at 1. Defaults to 1.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
                   }
                 },
-                "required": ["mode", "afterLine", "content"],
+                "required": ["mode", "beforeAnchor", "afterAnchor", "content"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "const": "insert_after",
+                    "description": "Insert content after a complete-line anchor."
+                  },
+                  "anchor": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Complete line after which content is inserted."
+                  },
+                  "content": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Text to insert."
+                  },
+                  "occurrence": {
+                    "description": "Matching anchor occurrence, starting at 1. Defaults to 1.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["mode", "anchor", "content"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "const": "delete_between",
+                    "description": "Delete from one complete-line anchor to another."
+                  },
+                  "startAnchor": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "First line to delete. This start anchor is removed."
+                  },
+                  "endAnchor": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Ending boundary line. This end anchor remains."
+                  },
+                  "occurrence": {
+                    "description": "Matching anchor occurrence, starting at 1. Defaults to 1.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["mode", "startAnchor", "endAnchor"],
                 "additionalProperties": false
               }
             ],
-            "description": "The change to apply."
+            "description": "One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between."
           }
         },
         "required": ["workspaceId", "edit"],
@@ -4650,16 +4720,16 @@
           {
             "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
             "edit": {
-              "mode": "replace_string",
-              "oldString": "- based in NYC",
-              "newString": "- based in SF"
+              "mode": "search_replace",
+              "search": "- based in NYC",
+              "content": "- based in SF"
             }
           },
           {
             "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
             "edit": {
-              "mode": "insert_lines",
-              "afterLine": 4,
+              "mode": "insert_after",
+              "anchor": "## Preferences",
               "content": "- prefers async updates"
             }
           }

@@ -48,9 +48,9 @@ export const PUT = defineV2JsonRoute({
  * Correcting one line without regenerating everything around it is the point:
  * a whole-file rewrite of a long document both costs more and drifts.
  *
- * A string replacement must match exactly once. Several matches are refused
- * with `400` naming the lines, because replacing an arbitrary one of them is a
- * silent write to a line the caller never chose.
+ * Exact replacement refuses ambiguity unless `replaceAll` is explicit.
+ * Anchored edits match complete trimmed lines, so they remain stable when
+ * unrelated changes move the target to a different line number.
  */
 export const PATCH = defineV2JsonRoute({
   contract: v2EditFileContentContract,

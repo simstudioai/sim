@@ -860,12 +860,12 @@ sim files delete <fileId> [options]
 
 </CommandTable>
 
-### sim files content update
+### sim files edit
 
-Edit File Content
+Apply one exact or anchor-based edit to a text file
 
 ```bash
-sim files content update <fileId> [options]
+sim files edit <fileId> [options]
 ```
 
 **Arguments**
@@ -884,7 +884,7 @@ sim files content update <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--edit <json\|@file>` | Yes | The change to apply. (JSON, or @path / @- to read a file or stdin). |
+| `--edit <json\|@file>` | Yes | One edit object: &#123;"mode":"search_replace","search":"old","content":"new","replaceAll":false&#125;, &#123;"mode":"replace_between","beforeAnchor":"start line","afterAnchor":"end line","content":"new"&#125;, &#123;"mode":"insert_after","anchor":"line","content":"new"&#125;, or &#123;"mode":"delete_between","startAnchor":"first line deleted","endAnchor":"ending line kept"&#125;. Anchored modes also accept occurrence starting at 1 (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 

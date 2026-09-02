@@ -3,8 +3,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  applyLineInsertion,
   applyStringReplacement,
+  applyWorkspaceFileContentEdit,
   countLines,
   EditContentError,
 } from '@/lib/workspace-files/edit-content'
@@ -65,60 +65,82 @@ describe('applyStringReplacement', () => {
   it('does not count overlapping matches twice', () => {
     expect(applyStringReplacement('aaa', 'aa', 'b')).toBe('ba')
   })
+
+  it('replaces every non-overlapping match when explicitly requested', () => {
+    expect(applyStringReplacement('a a a', 'a', 'b', true)).toBe('b b b')
+  })
 })
 
-describe('applyLineInsertion', () => {
-  it('inserts after the given line', () => {
-    expect(applyLineInsertion(NOTE, 3, '- call Dana')).toBe(
-      ['# Commitments', '', '- ship the thing', '- call Dana', '- review the doc', ''].join('\n')
-    )
-  })
-
-  it('prepends at line 0', () => {
-    expect(applyLineInsertion('a\nb', 0, 'top')).toBe('top\na\nb')
-  })
-
-  it('appends at the last line', () => {
-    expect(applyLineInsertion('a\nb', 2, 'tail')).toBe('a\nb\ntail')
-  })
-
-  it('inserts several lines at once', () => {
-    expect(applyLineInsertion('a\nb', 1, 'x\ny')).toBe('a\nx\ny\nb')
-  })
-
-  it('does not turn an inserted trailing newline into an extra blank line', () => {
-    expect(applyLineInsertion('a\nb', 1, 'x\n')).toBe('a\nx\nb')
-  })
-
-  it('refuses a line past the end instead of clamping', () => {
-    try {
-      applyLineInsertion('a\nb', 9, 'x')
-      throw new Error('expected a refusal')
-    } catch (error) {
-      expect(error).toBeInstanceOf(EditContentError)
-      expect((error as EditContentError).failure).toEqual({
-        reason: 'line_out_of_range',
-        lineCount: 2,
+describe('applyWorkspaceFileContentEdit', () => {
+  it('replaces only the content between anchors', () => {
+    expect(
+      applyWorkspaceFileContentEdit('before\nold\nafter\n', {
+        mode: 'replace_between',
+        beforeAnchor: 'before',
+        afterAnchor: 'after',
+        content: 'new\nlines',
       })
-      expect((error as EditContentError).message).toContain('has 2 lines')
-    }
+    ).toBe('before\nnew\nlines\nafter\n')
   })
 
-  it('refuses a negative or fractional line', () => {
-    expect(() => applyLineInsertion('a\nb', -1, 'x')).toThrow(/whole number/)
-    expect(() => applyLineInsertion('a\nb', 1.5, 'x')).toThrow(/whole number/)
+  it('inserts after a complete trimmed anchor line', () => {
+    expect(
+      applyWorkspaceFileContentEdit('heading\r\n  anchor  \r\ntail\r\n', {
+        mode: 'insert_after',
+        anchor: 'anchor',
+        content: 'one\ntwo',
+      })
+    ).toBe('heading\r\n  anchor  \r\none\r\ntwo\r\ntail\r\n')
   })
 
-  it('keeps a trailing newline trailing', () => {
-    expect(applyLineInsertion('a\nb\n', 2, 'c')).toBe('a\nb\nc\n')
+  it('deletes the start anchor and interior while preserving the end anchor', () => {
+    expect(
+      applyWorkspaceFileContentEdit('before\nstart\nremove\nend\nafter', {
+        mode: 'delete_between',
+        startAnchor: 'start',
+        endAnchor: 'end',
+      })
+    ).toBe('before\nend\nafter')
   })
 
-  it('matches the line ending the file already uses', () => {
-    expect(applyLineInsertion('a\r\nb\r\n', 1, 'x')).toBe('a\r\nx\r\nb\r\n')
+  it('uses the requested occurrence for repeated anchors', () => {
+    expect(
+      applyWorkspaceFileContentEdit('anchor\none\nanchor\ntwo\nanchor', {
+        mode: 'insert_after',
+        anchor: 'anchor',
+        occurrence: 2,
+        content: 'inserted',
+      })
+    ).toBe('anchor\none\nanchor\ninserted\ntwo\nanchor')
   })
 
-  it('counts lines the way a reader does, ignoring the trailing newline', () => {
-    expect(() => applyLineInsertion('a\nb\n', 3, 'x')).toThrow(/has 2 lines/)
+  it('refuses missing anchors and invalid occurrences', () => {
+    expect(() =>
+      applyWorkspaceFileContentEdit('a\nb', {
+        mode: 'insert_after',
+        anchor: 'missing',
+        content: 'x',
+      })
+    ).toThrow(/Anchor line not found/)
+    expect(() =>
+      applyWorkspaceFileContentEdit('a\nb', {
+        mode: 'insert_after',
+        anchor: 'a',
+        occurrence: 0,
+        content: 'x',
+      })
+    ).toThrow(/whole number/)
+  })
+
+  it('supports exact replacement through the shared protocol', () => {
+    expect(
+      applyWorkspaceFileContentEdit('a a', {
+        mode: 'search_replace',
+        search: 'a',
+        content: 'b',
+        replaceAll: true,
+      })
+    ).toBe('b b')
   })
 })
 
@@ -143,13 +165,6 @@ describe('countLines', () => {
 
   it('counts blank lines in the middle', () => {
     expect(countLines('a\n\nb\n')).toBe(3)
-  })
-
-  it('agrees with the largest line insert will accept', () => {
-    const text = 'a\nb\nc\n'
-
-    expect(() => applyLineInsertion(text, countLines(text), 'x')).not.toThrow()
-    expect(() => applyLineInsertion(text, countLines(text) + 1, 'x')).toThrow()
   })
 })
 

@@ -4010,7 +4010,7 @@ export async function getToolInfo(
       description: metadata.description ?? sourceInfo?.description ?? 'No description available',
       params,
       outputs:
-        toolPrefix === 'sailpoint' || toolName === 'file_edit' || toolName === 'file_insert'
+        toolPrefix === 'sailpoint' || toolName === 'file_edit'
           ? (generatedOutputs ?? sourceInfo?.outputs ?? {})
           : (sourceInfo?.outputs ?? generatedOutputs ?? {}),
     }

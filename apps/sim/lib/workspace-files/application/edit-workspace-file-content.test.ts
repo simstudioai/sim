@@ -140,14 +140,18 @@ describe('editWorkspaceFileContent', () => {
   })
 
   it('writes back only the changed text', async () => {
-    await edit({ mode: 'replace_string', oldString: 'based in NYC', newString: 'based in SF' })
+    await edit({ mode: 'search_replace', search: 'based in NYC', content: 'based in SF' })
 
     const written = mockUpdateStoredContent.mock.calls[0][3] as Buffer
     expect(written.toString('utf-8')).toBe('# self\n\n- prefers async\n- based in SF\n')
   })
 
   it('reports the line count so a caller can re-anchor', async () => {
-    const result = await edit({ mode: 'insert_lines', afterLine: 4, content: '- vegetarian' })
+    const result = await edit({
+      mode: 'insert_after',
+      anchor: '- based in NYC',
+      content: '- vegetarian',
+    })
 
     expect(result.lineCount).toBe(5)
   })
@@ -157,7 +161,7 @@ describe('editWorkspaceFileContent', () => {
    * same bytes; without this the second silently discards the first's change.
    */
   it('sends the version it read as the expected version', async () => {
-    await edit({ mode: 'replace_string', oldString: 'NYC', newString: 'SF' })
+    await edit({ mode: 'search_replace', search: 'NYC', content: 'SF' })
 
     expect(mockUpdateStoredContent.mock.calls[0][5]).toMatchObject({
       expectedUpdatedAt: CONTENT_UPDATED_AT,
@@ -167,17 +171,17 @@ describe('editWorkspaceFileContent', () => {
   it('surfaces a losing race as a conflict rather than a crash', async () => {
     mockUpdateStoredContent.mockRejectedValue(new ContentVersionConflictError('stale'))
 
-    await expect(
-      edit({ mode: 'replace_string', oldString: 'NYC', newString: 'SF' })
-    ).rejects.toThrow(OrchestrationError)
+    await expect(edit({ mode: 'search_replace', search: 'NYC', content: 'SF' })).rejects.toThrow(
+      OrchestrationError
+    )
   })
 
   it('refuses a file with no recorded content version', async () => {
     mockGetWorkspaceFile.mockResolvedValue(storedFile({ contentUpdatedAt: null }))
 
-    await expect(
-      edit({ mode: 'replace_string', oldString: 'NYC', newString: 'SF' })
-    ).rejects.toThrow(/content version/)
+    await expect(edit({ mode: 'search_replace', search: 'NYC', content: 'SF' })).rejects.toThrow(
+      /content version/
+    )
     expect(mockUpdateStoredContent).not.toHaveBeenCalled()
   })
 
@@ -192,14 +196,14 @@ describe('editWorkspaceFileContent', () => {
   ])('refuses a file containing %s', async (_label, bytes) => {
     mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from(bytes))
 
-    await expect(edit({ mode: 'replace_string', oldString: 'PK', newString: 'x' })).rejects.toThrow(
+    await expect(edit({ mode: 'search_replace', search: 'PK', content: 'x' })).rejects.toThrow(
       /not a text file/
     )
     expect(mockUpdateStoredContent).not.toHaveBeenCalled()
   })
 
   it('preserves the existing provenance instead of replacing it', async () => {
-    await edit({ mode: 'replace_string', oldString: 'NYC', newString: 'SF' })
+    await edit({ mode: 'search_replace', search: 'NYC', content: 'SF' })
 
     expect(mockUpdateStoredContent.mock.calls[0][5]).toMatchObject({
       secretProvenancePolicy: { mode: 'preserve' },
@@ -209,16 +213,16 @@ describe('editWorkspaceFileContent', () => {
   it('refuses to start when another edit holds the file', async () => {
     mockAcquireLock.mockResolvedValue(false)
 
-    await expect(
-      edit({ mode: 'replace_string', oldString: 'NYC', newString: 'SF' })
-    ).rejects.toThrow(/busy/)
+    await expect(edit({ mode: 'search_replace', search: 'NYC', content: 'SF' })).rejects.toThrow(
+      /busy/
+    )
     expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
   })
 
   /* A refused edit must not leave the file locked for the next 30 seconds. */
   it('releases the lock even when the edit is refused', async () => {
     await expect(
-      edit({ mode: 'replace_string', oldString: 'nowhere in the file', newString: 'x' })
+      edit({ mode: 'search_replace', search: 'nowhere in the file', content: 'x' })
     ).rejects.toThrow()
 
     expect(mockReleaseLock).toHaveBeenCalled()
@@ -228,7 +232,7 @@ describe('editWorkspaceFileContent', () => {
     mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('- todo\nx\n- todo\n', 'utf-8'))
 
     await expect(
-      edit({ mode: 'replace_string', oldString: '- todo', newString: '- done' })
+      edit({ mode: 'search_replace', search: '- todo', content: '- done' })
     ).rejects.toThrow(/lines 1, 3/)
     expect(mockUpdateStoredContent).not.toHaveBeenCalled()
   })

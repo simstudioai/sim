@@ -2,7 +2,7 @@ export type EditContentFailure =
   | { reason: 'empty_search' }
   | { reason: 'not_found' }
   | { reason: 'ambiguous'; lineNumbers: number[] }
-  | { reason: 'line_out_of_range'; lineCount: number }
+  | { reason: 'invalid_occurrence' }
 
 export class EditContentError extends Error {
   constructor(
@@ -61,23 +61,27 @@ function scanMatches(text: string, search: string): MatchScan {
 }
 
 /**
- * Replaces the single occurrence of `oldString`, or refuses.
+ * Replaces the single occurrence of `search`, or refuses.
  *
- * Refusing on more than one match, and naming the lines they sit on, is what
- * makes an agent extend its search text rather than gamble. Both of the
- * alternatives silently corrupt: taking the first match rewrites an arbitrary
- * line, and replacing all of them rewrites lines the caller never saw.
+ * Without an explicit `replaceAll`, refusing more than one match and naming
+ * the lines they sit on makes an agent extend its search text rather than
+ * gamble. Taking the first match would silently rewrite an arbitrary line.
  */
-export function applyStringReplacement(text: string, oldString: string, newString: string): string {
-  if (oldString.length === 0) {
+export function applyStringReplacement(
+  text: string,
+  search: string,
+  content: string,
+  replaceAll = false
+): string {
+  if (search.length === 0) {
     throw new EditContentError('Search text cannot be empty', { reason: 'empty_search' })
   }
 
-  const { count, lineNumbers } = scanMatches(text, oldString)
+  const { count, lineNumbers } = scanMatches(text, search)
   if (count === 0) {
     throw new EditContentError('Search text does not appear in this file', { reason: 'not_found' })
   }
-  if (count > 1) {
+  if (count > 1 && !replaceAll) {
     const shown = lineNumbers.join(', ')
     const where =
       count > lineNumbers.length
@@ -89,8 +93,10 @@ export function applyStringReplacement(text: string, oldString: string, newStrin
     )
   }
 
-  const index = text.indexOf(oldString)
-  return text.slice(0, index) + newString + text.slice(index + oldString.length)
+  if (replaceAll) return text.split(search).join(content)
+
+  const index = text.indexOf(search)
+  return text.slice(0, index) + content + text.slice(index + search.length)
 }
 
 /** The line ending the file already uses, so an edit does not leave a mixed one behind. */
@@ -100,6 +106,123 @@ export function detectLineEnding(text: string): '\r\n' | '\n' {
 
 function splitLines(text: string): string[] {
   return text.split(/\r\n|\n/)
+}
+
+export type WorkspaceFileContentEdit =
+  | {
+      mode: 'search_replace'
+      search: string
+      content: string
+      replaceAll?: boolean
+    }
+  | {
+      mode: 'replace_between'
+      beforeAnchor: string
+      afterAnchor: string
+      content: string
+      occurrence?: number
+    }
+  | {
+      mode: 'insert_after'
+      anchor: string
+      content: string
+      occurrence?: number
+    }
+  | {
+      mode: 'delete_between'
+      startAnchor: string
+      endAnchor: string
+      occurrence?: number
+    }
+
+function validateOccurrence(occurrence: number | undefined): number {
+  const value = occurrence ?? 1
+  if (!Number.isInteger(value) || value < 1) {
+    throw new EditContentError('Anchor occurrence must be a whole number, 1 or greater', {
+      reason: 'invalid_occurrence',
+    })
+  }
+  return value
+}
+
+function anchorLineIndex(
+  lines: string[],
+  anchor: string,
+  occurrence: number,
+  afterIndex = -1
+): number {
+  const normalizedAnchor = anchor.trim()
+  if (!normalizedAnchor) {
+    throw new EditContentError('Anchor cannot be empty', { reason: 'not_found' })
+  }
+
+  let matches = 0
+  for (let index = afterIndex + 1; index < lines.length; index++) {
+    if (lines[index].trim() !== normalizedAnchor) continue
+    matches++
+    if (matches === occurrence) return index
+  }
+
+  if (matches === 0) {
+    throw new EditContentError(`Anchor line not found: ${JSON.stringify(anchor.slice(0, 100))}`, {
+      reason: 'not_found',
+    })
+  }
+  throw new EditContentError(
+    `Anchor occurrence ${occurrence} not found; only ${matches} matching line${matches === 1 ? '' : 's'} follow the previous anchor`,
+    { reason: 'not_found' }
+  )
+}
+
+function contentLines(content: string): string[] {
+  return splitLines(content)
+}
+
+/**
+ * Applies one deterministic in-place edit to text.
+ *
+ * Exact replacement operates on byte-equivalent strings and refuses ambiguity
+ * unless `replaceAll` is explicit. Anchored edits match complete trimmed lines,
+ * which makes them stable when surrounding line numbers move. Boundary anchors
+ * remain in place for replacement and insertion. Deletion matches the
+ * `apply_file_edit` protocol: it removes the start anchor and everything before
+ * the end anchor, while preserving the end anchor.
+ */
+export function applyWorkspaceFileContentEdit(
+  text: string,
+  edit: WorkspaceFileContentEdit
+): string {
+  if (edit.mode === 'search_replace') {
+    return applyStringReplacement(text, edit.search, edit.content, edit.replaceAll)
+  }
+
+  const lines = splitLines(text)
+  const occurrence = validateOccurrence(edit.occurrence)
+  const eol = detectLineEnding(text)
+
+  if (edit.mode === 'insert_after') {
+    const anchorIndex = anchorLineIndex(lines, edit.anchor, occurrence)
+    return [
+      ...lines.slice(0, anchorIndex + 1),
+      ...contentLines(edit.content),
+      ...lines.slice(anchorIndex + 1),
+    ].join(eol)
+  }
+
+  const startAnchor = edit.mode === 'replace_between' ? edit.beforeAnchor : edit.startAnchor
+  const endAnchor = edit.mode === 'replace_between' ? edit.afterAnchor : edit.endAnchor
+  const startIndex = anchorLineIndex(lines, startAnchor, occurrence)
+  const endIndex = anchorLineIndex(lines, endAnchor, occurrence, startIndex)
+
+  if (edit.mode === 'replace_between') {
+    return [
+      ...lines.slice(0, startIndex + 1),
+      ...contentLines(edit.content),
+      ...lines.slice(endIndex),
+    ].join(eol)
+  }
+
+  return [...lines.slice(0, startIndex), ...lines.slice(endIndex)].join(eol)
 }
 
 /**
@@ -117,35 +240,4 @@ export function countLines(text: string): number {
 function visibleLines(text: string): string[] {
   const lines = splitLines(text)
   return lines.length > 1 && lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines
-}
-
-/**
- * Inserts `content` after the 1-based `afterLine`; `0` puts it at the top.
- *
- * A line past the end is refused rather than clamped. Clamping turns an
- * off-by-one into a silent write to the wrong end of the file, which is
- * exactly the class of mistake an unattended agent makes and cannot see.
- */
-export function applyLineInsertion(text: string, afterLine: number, content: string): string {
-  if (!Number.isInteger(afterLine) || afterLine < 0) {
-    throw new EditContentError('afterLine must be a whole number, 0 or greater', {
-      reason: 'line_out_of_range',
-      lineCount: countLines(text),
-    })
-  }
-
-  const eol = detectLineEnding(text)
-  const effective = visibleLines(text)
-  const hasTrailingNewline = effective.length !== splitLines(text).length
-
-  if (afterLine > effective.length) {
-    throw new EditContentError(
-      `Cannot insert after line ${afterLine}: the file has ${effective.length} lines`,
-      { reason: 'line_out_of_range', lineCount: effective.length }
-    )
-  }
-
-  const inserted = visibleLines(content)
-  const next = [...effective.slice(0, afterLine), ...inserted, ...effective.slice(afterLine)]
-  return next.join(eol) + (hasTrailingNewline ? eol : '')
 }

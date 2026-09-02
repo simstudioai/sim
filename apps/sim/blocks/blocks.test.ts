@@ -176,7 +176,6 @@ describe.concurrent('Blocks Module', () => {
         'file_write',
         'file_append',
         'file_edit',
-        'file_insert',
         'file_compress',
         'file_decompress',
         'file_manage_sharing',

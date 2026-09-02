@@ -13,6 +13,8 @@ const CUSTOM_TOOL_SCHEMA_HELP =
   'OpenAI function schema: {"type":"function","function":{"name":"...","parameters":{"type":"object","properties":{}}}}'
 const DISPATCH_ROW_LIMIT_HELP =
   'Stop after this many eligible rows have run (1-1,000,000). Omit for an unbounded run'
+const FILE_EDIT_HELP =
+  'One edit object: {"mode":"search_replace","search":"old","content":"new","replaceAll":false}, {"mode":"replace_between","beforeAnchor":"start line","afterAnchor":"end line","content":"new"}, {"mode":"insert_after","anchor":"line","content":"new"}, or {"mode":"delete_between","startAnchor":"first line deleted","endAnchor":"ending line kept"}. Anchored modes also accept occurrence starting at 1'
 /**
  * The shapes behind the graph-write batches.
  *
@@ -1123,6 +1125,13 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       fileIds: { list: true },
       folderPaths: FOLDER_PATHS_FLAG,
+    },
+  },
+  editFileContent: {
+    command: 'files edit',
+    describe: 'Apply one exact or anchor-based edit to a text file',
+    flags: {
+      edit: { describe: FILE_EDIT_HELP },
     },
   },
   updateFileContent: {

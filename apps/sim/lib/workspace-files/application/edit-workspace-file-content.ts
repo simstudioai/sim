@@ -19,10 +19,10 @@ import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/appl
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import {
-  applyLineInsertion,
-  applyStringReplacement,
+  applyWorkspaceFileContentEdit,
   countLines,
   EditContentError,
+  type WorkspaceFileContentEdit,
 } from '@/lib/workspace-files/edit-content'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 
@@ -31,9 +31,7 @@ const logger = createLogger('EditWorkspaceFileContent')
 /** Seconds a single edit may hold its file. Matches the append path. */
 const EDIT_LOCK_SECONDS = 30
 
-export type EditWorkspaceFileContentEdit =
-  | { mode: 'replace_string'; oldString: string; newString: string }
-  | { mode: 'insert_lines'; afterLine: number; content: string }
+export type EditWorkspaceFileContentEdit = WorkspaceFileContentEdit
 
 export interface EditWorkspaceFileContentInput {
   fileId: string
@@ -133,10 +131,7 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
       const before = buffer.toString('utf-8')
       let after: string
       try {
-        after =
-          input.edit.mode === 'replace_string'
-            ? applyStringReplacement(before, input.edit.oldString, input.edit.newString)
-            : applyLineInsertion(before, input.edit.afterLine, input.edit.content)
+        after = applyWorkspaceFileContentEdit(before, input.edit)
       } catch (error) {
         if (error instanceof EditContentError) {
           throw new OrchestrationError(
@@ -157,7 +152,7 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
       if (content.includes(0)) {
         throw new OrchestrationError(
           'validation',
-          'Replacement text cannot contain NUL bytes, which would make the file unreadable as text'
+          'Edit content cannot contain NUL bytes, which would make the file unreadable as text'
         )
       }
       if (content.length > MAX_WORKSPACE_FILE_CONTENT_BYTES) {

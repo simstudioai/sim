@@ -793,7 +793,7 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'editFileContent',
       summary: 'Edit File Content',
-      description: `Change part of a text file in place, leaving the rest untouched. \`PUT\` on this path replaces the whole file; this is the partial counterpart, so one line can be corrected without regenerating everything around it. \`replace_string\` requires \`oldString\` to match **exactly once** — several matches answer \`400\` naming the lines they sit on, because replacing an arbitrary one of them would be a silent write to a line the caller never chose. \`insert_lines\` inserts after a 1-based line, with \`0\` meaning the top; a line past the end of the file answers \`400\` rather than appending. Line numbers are the ones \`GET /api/v2/files/{fileId}/text\` and file search report. Only files whose stored bytes are UTF-8 text can be edited: editing works on the bytes, never on parsed text, so a PDF or DOCX answers \`400\`. A concurrent write answers \`409\`, and retrying means re-reading first.`,
+      description: `Change part of a text file in place, leaving the rest untouched. \`PUT\` on this path replaces the whole file; this is the partial counterpart. \`search_replace\` matches exact text and requires one match unless \`replaceAll\` is true. \`replace_between\`, \`insert_after\`, and \`delete_between\` match complete lines after trimming surrounding whitespace, so edits remain stable when unrelated changes move the target to another line. Anchored replacement preserves both boundary lines; insertion preserves its anchor; deletion removes the start anchor and preserves the end anchor. Use \`occurrence\` when an anchor line repeats. Only files whose stored bytes are UTF-8 text can be edited: a PDF or DOCX answers \`400\`. A concurrent write answers \`409\`, and retrying means re-reading first.`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'Locked'],
       success: { description: 'The edited file and its new line count.' },
     }),
@@ -814,14 +814,18 @@ const declaredRoutes = [
           {
             workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64',
             edit: {
-              mode: 'replace_string',
-              oldString: '- based in NYC',
-              newString: '- based in SF',
+              mode: 'search_replace',
+              search: '- based in NYC',
+              content: '- based in SF',
             },
           },
           {
             workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64',
-            edit: { mode: 'insert_lines', afterLine: 4, content: '- prefers async updates' },
+            edit: {
+              mode: 'insert_after',
+              anchor: '## Preferences',
+              content: '- prefers async updates',
+            },
           },
         ]
       ),

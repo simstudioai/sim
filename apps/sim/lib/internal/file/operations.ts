@@ -89,6 +89,7 @@ import {
   updateWorkspaceFileFolderOperation,
 } from '@/lib/workspace-files/application/workspace-file-folders'
 import { selectDirectoryEntries } from '@/lib/workspace-files/directory-listing'
+import type { WorkspaceFileContentEdit } from '@/lib/workspace-files/edit-content'
 import { countLines, detectLineEnding } from '@/lib/workspace-files/edit-content'
 import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 import { resolveFolderIdsForPaths } from '@/lib/workspace-files/folder-path-selection'
@@ -1507,8 +1508,7 @@ export async function executeFileManageOperation(
         }
       }
 
-      case 'edit':
-      case 'insert': {
+      case 'edit': {
         const { fileName, folderPath, folderPaths, includeSubfolders } = body
         signal?.throwIfAborted()
 
@@ -1534,18 +1534,18 @@ export async function executeFileManageOperation(
          * with no provenance row, which is the state the platform reads as
          * "safe".
          */
-        const selectionKey = body.operation === 'edit' ? 'newString' : 'content'
+        const selectionKeys = body.mode === 'delete_between' ? [] : ['content']
         const editResolution = resolveFileMutationSecretProvenance({
           headers,
           payload: body,
           userId,
           workspaceId,
-          selectionKeys: [selectionKey],
+          selectionKeys,
         })
         if (!editResolution.success) {
           return Response.json({ success: false, error: editResolution.error }, { status: 400 })
         }
-        const editedProvenance = editResolution.provenanceBySelection?.get(selectionKey)
+        const editedProvenance = editResolution.provenanceBySelection?.get('content')
         let secretProvenance: WorkspaceFileSecretProvenance | undefined
         if (editedProvenance) {
           const { provenance: existingProvenance } =
@@ -1561,6 +1561,43 @@ export async function executeFileManageOperation(
               : mergeWorkspaceFileSecretProvenance(existingProvenance, editedProvenance)
         }
 
+        let edit: WorkspaceFileContentEdit
+        switch (body.mode) {
+          case 'search_replace':
+            edit = {
+              mode: body.mode,
+              search: body.search,
+              content: body.content,
+              replaceAll: body.replaceAll,
+            }
+            break
+          case 'replace_between':
+            edit = {
+              mode: body.mode,
+              beforeAnchor: body.beforeAnchor,
+              afterAnchor: body.afterAnchor,
+              content: body.content,
+              occurrence: body.occurrence,
+            }
+            break
+          case 'insert_after':
+            edit = {
+              mode: body.mode,
+              anchor: body.anchor,
+              content: body.content,
+              occurrence: body.occurrence,
+            }
+            break
+          case 'delete_between':
+            edit = {
+              mode: body.mode,
+              startAnchor: body.startAnchor,
+              endAnchor: body.endAnchor,
+              occurrence: body.occurrence,
+            }
+            break
+        }
+
         signal?.throwIfAborted()
         const { file, lineCount } = await editWorkspaceFileContent.execute({
           principal,
@@ -1568,14 +1605,7 @@ export async function executeFileManageOperation(
             fileId: target.id,
             assertedWorkspaceId: workspaceId,
             ...(secretProvenance ? { secretProvenance } : {}),
-            edit:
-              body.operation === 'edit'
-                ? {
-                    mode: 'replace_string',
-                    oldString: body.oldString,
-                    newString: body.newString,
-                  }
-                : { mode: 'insert_lines', afterLine: body.afterLine, content: body.content },
+            edit,
           },
         })
 

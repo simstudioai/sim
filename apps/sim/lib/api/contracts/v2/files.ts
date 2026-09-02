@@ -1116,37 +1116,92 @@ export const v2EditFileContentBodySchema = z
       .discriminatedUnion('mode', [
         z
           .object({
-            mode: z
-              .literal('replace_string')
-              .describe('Replace one exact piece of text with another.'),
-            oldString: z
+            mode: z.literal('search_replace').describe('Replace exact text.'),
+            search: z
               .string()
-              .min(1, 'oldString cannot be empty')
+              .min(1, 'search cannot be empty')
               .describe(
-                'Exact text to replace, matched verbatim. It must appear exactly once: several matches are refused with `400` naming the lines they sit on, so include enough surrounding text to be unique.'
+                'Exact text to replace, matched verbatim. It must appear once unless replaceAll is true.'
               ),
-            newString: z
+            content: z
               .string()
               .describe('Text to put in its place. An empty string deletes the matched text.'),
+            replaceAll: z
+              .boolean()
+              .optional()
+              .describe('Replace every non-overlapping match. Defaults to false.'),
           })
           .strict(),
         z
           .object({
-            mode: z.literal('insert_lines').describe('Insert new lines at a given line.'),
-            afterLine: z
-              .number()
-              .int('afterLine must be a whole number')
-              .min(0, 'afterLine cannot be negative')
-              .describe(
-                'The 1-based line to insert after; 0 inserts at the top. A line past the end is refused rather than appended.'
-              ),
-            content: z
+            mode: z
+              .literal('replace_between')
+              .describe('Replace content between two complete-line anchors.'),
+            beforeAnchor: z
               .string()
-              .describe('Text to insert. Multiple lines insert as multiple lines.'),
+              .trim()
+              .min(1, 'beforeAnchor cannot be empty')
+              .describe('Boundary line before the replaced content. This line remains.'),
+            afterAnchor: z
+              .string()
+              .trim()
+              .min(1, 'afterAnchor cannot be empty')
+              .describe('Boundary line after the replaced content. This line remains.'),
+            content: z.string().describe('Replacement text. An empty string clears the interior.'),
+            occurrence: z
+              .number()
+              .int('occurrence must be a whole number')
+              .min(1, 'occurrence must be at least 1')
+              .optional()
+              .describe('Matching anchor occurrence, starting at 1. Defaults to 1.'),
+          })
+          .strict(),
+        z
+          .object({
+            mode: z
+              .literal('insert_after')
+              .describe('Insert content after a complete-line anchor.'),
+            anchor: z
+              .string()
+              .trim()
+              .min(1, 'anchor cannot be empty')
+              .describe('Complete line after which content is inserted.'),
+            content: z.string().min(1, 'content cannot be empty').describe('Text to insert.'),
+            occurrence: z
+              .number()
+              .int('occurrence must be a whole number')
+              .min(1, 'occurrence must be at least 1')
+              .optional()
+              .describe('Matching anchor occurrence, starting at 1. Defaults to 1.'),
+          })
+          .strict(),
+        z
+          .object({
+            mode: z
+              .literal('delete_between')
+              .describe('Delete from one complete-line anchor to another.'),
+            startAnchor: z
+              .string()
+              .trim()
+              .min(1, 'startAnchor cannot be empty')
+              .describe('First line to delete. This start anchor is removed.'),
+            endAnchor: z
+              .string()
+              .trim()
+              .min(1, 'endAnchor cannot be empty')
+              .describe('Ending boundary line. This end anchor remains.'),
+            occurrence: z
+              .number()
+              .int('occurrence must be a whole number')
+              .min(1, 'occurrence must be at least 1')
+              .optional()
+              .describe('Matching anchor occurrence, starting at 1. Defaults to 1.'),
           })
           .strict(),
       ])
-      .describe('The change to apply.'),
+      .describe(
+        'One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between.'
+      ),
   })
   .strict()
 

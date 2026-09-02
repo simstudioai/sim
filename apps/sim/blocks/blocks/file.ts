@@ -101,6 +101,12 @@ const WRITE_FOLDER_FIELD = ['writeFolderPath', 'manualWriteFolderPath'] as const
 const CREATE_PARENT_FIELD = ['createParentPath', 'manualCreateParentPath'] as const
 const DESTINATION_PARENT_FIELD = ['destinationParentPath', 'manualDestinationParentPath'] as const
 const MOVE_TARGET_FIELD = ['moveTargetFolderPath', 'manualMoveTargetFolderPath'] as const
+const FILE_EDIT_MODES: ReadonlySet<string> = new Set([
+  'search_replace',
+  'replace_between',
+  'insert_after',
+  'delete_between',
+])
 
 /**
  * The folder that narrows a picker's options, and how deep it reaches.
@@ -1134,14 +1140,8 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           { text: 'in', field: FOLDER_SCOPE_FIELD },
         ],
         file_edit: [
-          { text: 'Replace', field: 'oldString', core: true },
-          { text: 'in', field: EDIT_FILE_FIELD, core: true },
-          { text: 'with', field: 'newString' },
-        ],
-        file_insert: [
-          { text: 'Insert', field: 'insertContent', core: true },
-          { text: 'into', field: EDIT_FILE_FIELD, core: true },
-          { text: 'after line', field: 'afterLine' },
+          { text: 'Apply', field: 'editMode', core: true },
+          { text: 'edit to', field: EDIT_FILE_FIELD, core: true },
         ],
         file_compress: [
           'Compress workspace files',
@@ -1185,8 +1185,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         { label: 'Fetch', id: 'file_fetch' },
         { label: 'Write', id: 'file_write' },
         { label: 'Append', id: 'file_append' },
-        { label: 'Edit', id: 'file_edit' },
-        { label: 'Insert', id: 'file_insert' },
+        { label: 'Apply Edit', id: 'file_edit' },
         { label: 'Compress', id: 'file_compress' },
         { label: 'Decompress', id: 'file_decompress' },
         { label: 'Manage Sharing', id: 'file_manage_sharing' },
@@ -1217,7 +1216,6 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           'file_append',
           'file_search',
           'file_edit',
-          'file_insert',
         ],
       },
     },
@@ -1238,7 +1236,6 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           'file_append',
           'file_search',
           'file_edit',
-          'file_insert',
         ],
       },
     },
@@ -1462,8 +1459,8 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       placeholder: 'Select or upload a workspace file',
       folderScope: FOLDER_SCOPE,
       mode: 'basic',
-      condition: { field: 'operation', value: ['file_edit', 'file_insert'] },
-      required: { field: 'operation', value: ['file_edit', 'file_insert'] },
+      condition: { field: 'operation', value: 'file_edit' },
+      required: { field: 'operation', value: 'file_edit' },
     },
     {
       id: 'editFileName',
@@ -1472,42 +1469,174 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       canonicalParamId: 'editFileInput',
       placeholder: 'File name (e.g., self.md)',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['file_edit', 'file_insert'] },
-      required: { field: 'operation', value: ['file_edit', 'file_insert'] },
-    },
-    {
-      id: 'oldString',
-      title: 'Find',
-      type: 'long-input' as SubBlockType,
-      placeholder: 'The exact text to replace...',
-      description:
-        'Must match exactly once. If it appears several times the edit is refused and the matching line numbers are reported, so include enough surrounding text to be unique.',
       condition: { field: 'operation', value: 'file_edit' },
       required: { field: 'operation', value: 'file_edit' },
     },
     {
-      id: 'newString',
-      title: 'Replace With',
-      type: 'long-input' as SubBlockType,
-      placeholder: 'Leave empty to delete the matched text...',
+      id: 'editMode',
+      title: 'Edit Type',
+      type: 'dropdown' as SubBlockType,
+      options: [
+        { label: 'Find and Replace', id: 'search_replace' },
+        { label: 'Replace Between Anchors', id: 'replace_between' },
+        { label: 'Insert After Anchor', id: 'insert_after' },
+        { label: 'Delete Between Anchors', id: 'delete_between' },
+      ],
+      value: () => 'search_replace',
       condition: { field: 'operation', value: 'file_edit' },
+      required: { field: 'operation', value: 'file_edit' },
     },
     {
-      id: 'afterLine',
-      title: 'After Line',
-      type: 'short-input' as SubBlockType,
-      placeholder: '0',
-      description: 'The line to insert after. 0 inserts at the top of the file.',
-      condition: { field: 'operation', value: 'file_insert' },
-      required: { field: 'operation', value: 'file_insert' },
+      id: 'editSearch',
+      title: 'Find',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'The exact text to replace...',
+      description:
+        'Matched verbatim, including whitespace and line breaks. It must be unique unless Replace All is enabled.',
+      condition: {
+        field: 'operation',
+        value: 'file_edit',
+        and: { field: 'editMode', value: 'search_replace' },
+      },
+      required: {
+        field: 'operation',
+        value: 'file_edit',
+        and: { field: 'editMode', value: 'search_replace' },
+      },
     },
     {
-      id: 'insertContent',
+      id: 'beforeAnchor',
+      title: 'Before Anchor',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'Complete line before the content to replace...',
+      description: 'The anchor line remains in the file. Surrounding whitespace is ignored.',
+      condition: {
+        field: 'operation',
+        value: 'file_edit',
+        and: { field: 'editMode', value: 'replace_between' },
+      },
+      required: {
+        field: 'operation',
+        value: 'file_edit',
+        and: { field: 'editMode', value: 'replace_between' },
+      },
+    },
+    {
+      id: 'afterAnchor',
+      title: 'After Anchor',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'Complete line after the content to replace...',
+      description: 'The anchor line remains in the file. Surrounding whitespace is ignored.',
+      condition: {
+        field: 'operation',
+        value: 'file_edit',
+        and: { field: 'editMode', value: 'replace_between' },
+      },
+      required: {
+        field: 'operation',
+        value: 'file_edit',
+        and: { field: 'editMode', value: 'replace_between' },
+      },
+    },
+    {
+      id: 'anchor',
+      title: 'Anchor',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'Complete line after which to insert...',
+      description: 'The anchor line remains in the file. Surrounding whitespace is ignored.',
+      condition: {
+        field: 'operation',
+        value: 'file_edit',
+        and: { field: 'editMode', value: 'insert_after' },
+      },
+      required: {
+        field: 'operation',
+        value: 'file_edit',
+        and: { field: 'editMode', value: 'insert_after' },
+      },
+    },
+    {
+      id: 'startAnchor',
+      title: 'Start Anchor',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'First complete line to delete...',
+      description: 'This line and the content after it are deleted.',
+      condition: {
+        field: 'operation',
+        value: 'file_edit',
+        and: { field: 'editMode', value: 'delete_between' },
+      },
+      required: {
+        field: 'operation',
+        value: 'file_edit',
+        and: { field: 'editMode', value: 'delete_between' },
+      },
+    },
+    {
+      id: 'endAnchor',
+      title: 'End Anchor',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'Complete ending boundary line...',
+      description: 'This ending boundary line remains in the file.',
+      condition: {
+        field: 'operation',
+        value: 'file_edit',
+        and: { field: 'editMode', value: 'delete_between' },
+      },
+      required: {
+        field: 'operation',
+        value: 'file_edit',
+        and: { field: 'editMode', value: 'delete_between' },
+      },
+    },
+    {
+      id: 'editContent',
       title: 'Content',
       type: 'long-input' as SubBlockType,
-      placeholder: 'Lines to insert...',
-      condition: { field: 'operation', value: 'file_insert' },
-      required: { field: 'operation', value: 'file_insert' },
+      placeholder: 'Replacement or inserted content...',
+      description:
+        'For Find and Replace, an empty value deletes the match. For Replace Between Anchors, it clears the interior.',
+      condition: {
+        field: 'operation',
+        value: 'file_edit',
+        and: {
+          field: 'editMode',
+          value: ['search_replace', 'replace_between', 'insert_after'],
+        },
+      },
+      required: {
+        field: 'operation',
+        value: 'file_edit',
+        and: { field: 'editMode', value: 'insert_after' },
+      },
+    },
+    {
+      id: 'replaceAll',
+      title: 'Replace All',
+      type: 'switch' as SubBlockType,
+      mode: 'advanced',
+      description: 'Replace every non-overlapping match. When off, an ambiguous match is refused.',
+      condition: {
+        field: 'operation',
+        value: 'file_edit',
+        and: { field: 'editMode', value: 'search_replace' },
+      },
+    },
+    {
+      id: 'editOccurrence',
+      title: 'Anchor Occurrence',
+      type: 'short-input' as SubBlockType,
+      mode: 'advanced',
+      placeholder: '1',
+      description: 'Which matching anchor occurrence to use, starting at 1.',
+      condition: {
+        field: 'operation',
+        value: 'file_edit',
+        and: {
+          field: 'editMode',
+          value: ['replace_between', 'insert_after', 'delete_between'],
+        },
+      },
     },
     {
       id: 'compressFile',
@@ -1780,7 +1909,6 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       'file_write',
       'file_append',
       'file_edit',
-      'file_insert',
       'file_compress',
       'file_decompress',
       'file_manage_sharing',
@@ -1931,26 +2059,24 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         }
 
         if (operation === 'file_edit') {
+          const mode = optionalText(params.editMode) ?? 'search_replace'
+          if (!FILE_EDIT_MODES.has(mode)) throw new Error('Edit Type is invalid')
+
           return {
             ...namedFileTarget(params, params.editFileInput, 'edit'),
-            oldString: params.oldString,
-            newString: params.newString ?? '',
-            workspaceId: params._context?.workspaceId,
-          }
-        }
-
-        if (operation === 'file_insert') {
-          const afterLineInput = params.afterLine
-          const afterLine = Number(
-            afterLineInput === '' || afterLineInput == null ? 0 : afterLineInput
-          )
-          if (!Number.isInteger(afterLine) || afterLine < 0) {
-            throw new Error('Insert After Line must be a whole number, 0 or greater')
-          }
-          return {
-            ...namedFileTarget(params, params.editFileInput, 'insert'),
-            afterLine,
-            content: params.insertContent,
+            mode,
+            search: params.editSearch,
+            content: params.editContent ?? '',
+            replaceAll: switchValue(params.replaceAll),
+            beforeAnchor: params.beforeAnchor,
+            afterAnchor: params.afterAnchor,
+            anchor: params.anchor,
+            startAnchor: params.startAnchor,
+            endAnchor: params.endAnchor,
+            occurrence: parseOptionalNumberInput(params.editOccurrence, 'Anchor Occurrence', {
+              integer: true,
+              min: 1,
+            }),
             workspaceId: params._context?.workspaceId,
           }
         }
@@ -2071,7 +2197,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   inputs: {
     operation: {
       type: 'string',
-      description: 'Operation to perform (read, search, get content, fetch, write, or append)',
+      description: 'Workspace file or folder operation to perform',
     },
     query: { type: 'string', description: 'Workspace file search query' },
     mode: {
@@ -2106,10 +2232,16 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     contentOffset: { type: 'number', description: 'First line to return (get content)' },
     contentLimit: { type: 'number', description: 'Lines to return from the offset (get content)' },
     editFileInput: { type: 'json', description: 'File to edit in place' },
-    oldString: { type: 'string', description: 'Exact text to replace, matched once (edit)' },
-    newString: { type: 'string', description: 'Replacement text; empty deletes (edit)' },
-    afterLine: { type: 'number', description: 'Line to insert after, 0 for the top (insert)' },
-    insertContent: { type: 'string', description: 'Lines to insert (insert)' },
+    editMode: { type: 'string', description: 'Exact or anchor-based edit type' },
+    editSearch: { type: 'string', description: 'Exact text to replace' },
+    editContent: { type: 'string', description: 'Replacement or inserted content' },
+    replaceAll: { type: 'boolean', description: 'Replace every exact match' },
+    beforeAnchor: { type: 'string', description: 'Line before replaced content' },
+    afterAnchor: { type: 'string', description: 'Line after replaced content' },
+    anchor: { type: 'string', description: 'Line after which content is inserted' },
+    startAnchor: { type: 'string', description: 'First line deleted by an anchored deletion' },
+    endAnchor: { type: 'string', description: 'Ending line preserved by an anchored deletion' },
+    editOccurrence: { type: 'number', description: 'Matching anchor occurrence, starting at 1' },
     archiveName: { type: 'string', description: 'Name for the compressed .zip archive' },
     decompressInput: {
       type: 'json',

@@ -315,41 +315,70 @@ const fileEditTargetShape = {
 } as const
 
 export const fileManageEditBodySchema = z
-  .object({
-    operation: z.literal('edit'),
-    ...fileEditTargetShape,
-    /**
-     * Must match exactly once. The operation refuses several matches rather than
-     * choosing one, so this carries enough surrounding text to be unique.
-     */
-    oldString: z
-      .string({ error: 'oldString is required for edit operation' })
-      .min(1, 'oldString cannot be empty'),
-    /** Empty deletes the matched text. */
-    newString: z.string({ error: 'newString is required for edit operation' }),
-    [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
-  })
-  .superRefine(validateFolderTarget)
-
-export const fileManageInsertBodySchema = z
-  .object({
-    operation: z.literal('insert'),
-    ...fileEditTargetShape,
-    /** 1-based line to insert after; 0 inserts at the top. Past the end is refused. */
-    afterLine: z
-      .number({ error: 'afterLine is required for insert operation' })
-      .int('afterLine must be a whole number')
-      .min(0, 'afterLine cannot be negative'),
-    content: z.string({ error: 'content is required for insert operation' }),
-    [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
-  })
+  .discriminatedUnion('mode', [
+    z.object({
+      operation: z.literal('edit'),
+      ...fileEditTargetShape,
+      mode: z.literal('search_replace'),
+      search: z
+        .string({ error: 'search is required for search_replace' })
+        .min(1, 'search cannot be empty'),
+      content: z.string({ error: 'content is required for search_replace' }),
+      replaceAll: z.boolean().optional(),
+      [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
+    }),
+    z.object({
+      operation: z.literal('edit'),
+      ...fileEditTargetShape,
+      mode: z.literal('replace_between'),
+      beforeAnchor: z
+        .string({ error: 'beforeAnchor is required for replace_between' })
+        .trim()
+        .min(1, 'beforeAnchor cannot be empty'),
+      afterAnchor: z
+        .string({ error: 'afterAnchor is required for replace_between' })
+        .trim()
+        .min(1, 'afterAnchor cannot be empty'),
+      content: z.string({ error: 'content is required for replace_between' }),
+      occurrence: z.number().int().min(1).optional(),
+      [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
+    }),
+    z.object({
+      operation: z.literal('edit'),
+      ...fileEditTargetShape,
+      mode: z.literal('insert_after'),
+      anchor: z
+        .string({ error: 'anchor is required for insert_after' })
+        .trim()
+        .min(1, 'anchor cannot be empty'),
+      content: z
+        .string({ error: 'content is required for insert_after' })
+        .min(1, 'content cannot be empty for insert_after'),
+      occurrence: z.number().int().min(1).optional(),
+      [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
+    }),
+    z.object({
+      operation: z.literal('edit'),
+      ...fileEditTargetShape,
+      mode: z.literal('delete_between'),
+      startAnchor: z
+        .string({ error: 'startAnchor is required for delete_between' })
+        .trim()
+        .min(1, 'startAnchor cannot be empty'),
+      endAnchor: z
+        .string({ error: 'endAnchor is required for delete_between' })
+        .trim()
+        .min(1, 'endAnchor cannot be empty'),
+      occurrence: z.number().int().min(1).optional(),
+      [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
+    }),
+  ])
   .superRefine(validateFolderTarget)
 
 export const fileManageBodySchema = z.union([
   fileManageWriteBodySchema,
   fileManageAppendBodySchema,
   fileManageEditBodySchema,
-  fileManageInsertBodySchema,
   fileManageGetBodySchema,
   fileManageMoveBodySchema,
   fileManageSharingBodySchema,

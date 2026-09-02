@@ -446,7 +446,6 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
           'file_append',
           'file_search',
           'file_edit',
-          'file_insert',
         ],
       })
     })
@@ -457,22 +456,19 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
      * exist, which is the failure mode this group exists to catch.
      */
     describe('the fields the contracts declare actually travel', () => {
-      it.each([
-        ['file_edit', { editFileInput: 'self.md', oldString: 'a', newString: 'b' }],
-        ['file_insert', { editFileInput: 'self.md', afterLine: '2', insertContent: 'x' }],
-      ])(
-        'sends the recursion flag with %s, so a nested same-named file stays out of scope',
-        (operation, extra) => {
-          const params = paramsFor(operation, {
-            ...extra,
-            folderSelection: '/memory/user-a',
-            folderIncludeSubfolders: 'false',
-          })
+      it('sends the recursion flag with edit, so a nested same-named file stays out of scope', () => {
+        const params = paramsFor('file_edit', {
+          editFileInput: 'self.md',
+          editMode: 'search_replace',
+          editSearch: 'a',
+          editContent: 'b',
+          folderSelection: '/memory/user-a',
+          folderIncludeSubfolders: 'false',
+        })
 
-          expect(params.folderPath).toBe('/memory/user-a')
-          expect(params.includeSubfolders).toBe(false)
-        }
-      )
+        expect(params.folderPath).toBe('/memory/user-a')
+        expect(params.includeSubfolders).toBe(false)
+      })
 
       it('sends a requested line range on get content', () => {
         const params = paramsFor('file_get_content', {
@@ -498,14 +494,16 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
         ).toThrow(/whole number/)
       })
 
-      it('coerces the insert line, which arrives from the input as text', () => {
-        const params = paramsFor('file_insert', {
+      it('coerces the anchor occurrence, which arrives from the input as text', () => {
+        const params = paramsFor('file_edit', {
           editFileInput: 'wf_abc',
-          afterLine: '0',
-          insertContent: 'x',
+          editMode: 'insert_after',
+          anchor: '## Notes',
+          editContent: 'x',
+          editOccurrence: '2',
         })
 
-        expect(params.afterLine).toBe(0)
+        expect(params.occurrence).toBe(2)
       })
     })
 
@@ -518,8 +516,15 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
     describe('the root survives as a scope for a named target', () => {
       it.each([
         ['file_append', { appendFileInput: 'self.md', appendContent: 'x' }],
-        ['file_edit', { editFileInput: 'self.md', oldString: 'a', newString: 'b' }],
-        ['file_insert', { editFileInput: 'self.md', afterLine: '1', insertContent: 'x' }],
+        [
+          'file_edit',
+          {
+            editFileInput: 'self.md',
+            editMode: 'search_replace',
+            editSearch: 'a',
+            editContent: 'b',
+          },
+        ],
       ])('keeps the root on %s, so a duplicate name is refused not guessed', (operation, extra) => {
         const recursive = paramsFor(operation, { ...extra, folderSelection: '/' })
         const shallow = paramsFor(operation, {

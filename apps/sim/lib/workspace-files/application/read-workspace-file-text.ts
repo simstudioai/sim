@@ -147,7 +147,7 @@ async function executeReadWorkspaceFileText({
  * keeps `totalLines` useful in the ordinary case without lying in this one.
  *
  * The window is rejoined with the line ending the text already used, so a
- * ranged read of a CRLF file stays usable verbatim as `oldString` for an edit.
+ * ranged read of a CRLF file stays usable verbatim as exact search text for an edit.
  */
 function sliceTextLines(
   text: string,

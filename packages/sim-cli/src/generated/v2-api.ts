@@ -3323,14 +3323,29 @@ export type EditFileContentBody = {
   workspaceId: string
   edit:
     | {
-        mode: 'replace_string'
-        oldString: string
-        newString: string
+        mode: 'search_replace'
+        search: string
+        content: string
+        replaceAll?: boolean
       }
     | {
-        mode: 'insert_lines'
-        afterLine: number
+        mode: 'replace_between'
+        beforeAnchor: string
+        afterAnchor: string
         content: string
+        occurrence?: number
+      }
+    | {
+        mode: 'insert_after'
+        anchor: string
+        content: string
+        occurrence?: number
+      }
+    | {
+        mode: 'delete_between'
+        startAnchor: string
+        endAnchor: string
+        occurrence?: number
       }
 }
 
@@ -10868,7 +10883,12 @@ export const V2_OPERATIONS = {
     summary: 'Edit File Content',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
-      edit: { kind: 'unknown', required: true, describe: 'The change to apply.' },
+      edit: {
+        kind: 'unknown',
+        required: true,
+        describe:
+          'One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between.',
+      },
     },
   },
   executeTool: {
