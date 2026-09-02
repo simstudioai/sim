@@ -243,6 +243,17 @@ function unknownWithin(selector: string): string {
   return `Unknown --in selector ${JSON.stringify(selector)}. Pass a world (workflows, blocks, …), a resource's bare id or name, or world/resource as a match line prints it (e.g. blocks/table_v2).`
 }
 
+/**
+ * Heads a model reaches for when it wants to grep a knowledge base. Knowledge is not a
+ * grep world — chunks are retrieved semantically — so the refusal has to redirect rather
+ * than just list the worlds, or the next attempt is the same selector spelled differently.
+ */
+const KNOWLEDGE_SELECTOR_HEADS = new Set(['knowledge', 'kb'])
+
+function knowledgeWithin(selector: string): string {
+  return `${unknownWithin(selector)} Knowledge bases are searched semantically — use knowledge search --kb <id> --query "…"; grep covers ${SCOPES.join(', ')}.`
+}
+
 function parseScopes(flags: AgentCliFlags): Scope[] | string {
   const raw = flags.scope
   if (raw === undefined || raw === true) return [...SCOPES]
@@ -296,6 +307,9 @@ export const universalGrepCommand: AgentCliEngine = {
     // value is a resource id or name inside the searched worlds.
     const within = typeof flags.in === 'string' ? flags.in : undefined
     const [withinHead, ...withinRest] = within ? within.toLowerCase().split('/') : []
+    if (within && withinHead && KNOWLEDGE_SELECTOR_HEADS.has(withinHead)) {
+      return agentCliFail(knowledgeWithin(within))
+    }
     const withinScope = SCOPES.find((scope) => scope === withinHead)
     const withinResource = withinScope ? withinRest.join('/') : within?.toLowerCase()
     const searched: Scope[] = withinScope ? [withinScope] : scopes

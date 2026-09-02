@@ -274,7 +274,7 @@ type AddWorkflowGroupResponseRef0 = {
     inputName: string
     columnName: string
   }>
-  deploymentMode?: 'live' | 'deployed'
+  deploymentMode: 'live' | 'deployed'
   autoRun?: boolean
 }
 
@@ -556,6 +556,13 @@ type ApplyWorkflowOperationsResponseRef2 = {
     kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
     reason: string
   }>
+  tableFieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    tableName: string
+  }>
   notes: Array<string>
 }
 
@@ -568,6 +575,7 @@ type ApplyWorkflowOperationsResponseRef3 = {
   deferred: Array<ApplyWorkflowOperationsResponseRef0>
   inputValidationErrors: Array<ApplyWorkflowOperationsResponseRef1>
   mintedBlockIds: Record<string, string>
+  previewBlockIds?: Record<string, string>
   lint: ApplyWorkflowOperationsResponseRef2
   dryRun: boolean
 }
@@ -7415,7 +7423,7 @@ type ListWorkflowGroupsResponseRef0 = {
     inputName: string
     columnName: string
   }>
-  deploymentMode?: 'live' | 'deployed'
+  deploymentMode: 'live' | 'deployed'
   autoRun?: boolean
 }
 
@@ -9145,6 +9153,13 @@ type ReplaceWorkflowStateResponseRef0 = {
     kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
     reason: string
   }>
+  tableFieldIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    tableName: string
+  }>
   notes: Array<string>
 }
 
@@ -9716,6 +9731,8 @@ type SearchKnowledgeResponseRef0 = {
   chunkIndex: number
   metadata: Record<string, unknown>
   similarity: number
+  rankScore: number
+  rank: number
   rerankerScore?: number
 }
 
@@ -10777,6 +10794,14 @@ export type UpdateTableColumnBody = {
 }
 
 type UpdateTableColumnResponseRef0 = {
+  workflowId: string
+  workflowName: string
+  blockId: string
+  blockName: string
+  fields: Array<'filter' | 'order' | 'data'>
+}
+
+type UpdateTableColumnResponseRef1 = {
   columns: Array<{
     id?: string
     name: string
@@ -10791,10 +10816,11 @@ type UpdateTableColumnResponseRef0 = {
     multiple?: boolean
     currencyCode?: string
   }>
+  unmigrated: Array<UpdateTableColumnResponseRef0>
 }
 
 export type UpdateTableColumnResponse = {
-  data: UpdateTableColumnResponseRef0
+  data: UpdateTableColumnResponseRef1
 }
 
 /** `PATCH /api/v2/tables/[tableId]/rows/[rowId]` */
@@ -11080,7 +11106,7 @@ type UpdateWorkflowGroupResponseRef0 = {
     inputName: string
     columnName: string
   }>
-  deploymentMode?: 'live' | 'deployed'
+  deploymentMode: 'live' | 'deployed'
   autoRun?: boolean
 }
 
@@ -13275,7 +13301,7 @@ export const V2_OPERATIONS = {
       selectedOutputs: {
         kind: 'array',
         describe:
-          'Block output references to include in the response. Use `<blockName>.<outputPath>` for the executed workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow; block names are normalized workflow reference names, and selecting a child workflow applies to every invocation of it. On a sync request the named outputs come back in `blockOutputs`, keyed by these selector strings; on a stream they shape the streamed envelope. Selectors that resolve to no block or no value are omitted. Rejected when `async` is true — a queued run has produced nothing to select; narrow the finished run via the run resource instead.',
+          'Block output references to include in the response. Use `<blockName>.<outputPath>` for the executed workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow; block names are normalized workflow reference names, and selecting a child workflow applies to every invocation of it. On a sync request the named outputs come back in `blockOutputs`, keyed by these selector strings exactly as sent; on a stream they shape the streamed envelope. A selector whose block name or id matches no block in the workflow is rejected with `400` naming the available blocks, before the run starts. A selector whose block did not run or whose path is absent is omitted. Rejected when `async` is true — a queued run has produced nothing to select; narrow the finished run via the run resource instead.',
       },
       includeThinking: {
         kind: 'boolean',

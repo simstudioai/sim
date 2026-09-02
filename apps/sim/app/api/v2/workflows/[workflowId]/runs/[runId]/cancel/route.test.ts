@@ -57,6 +57,7 @@ function serviceResult(overrides: Record<string, unknown>) {
     redisAvailable: true,
     locallyAborted: false,
     pausedCancelled: false,
+    cancelled: true,
     workflowId: WORKFLOW_ID,
     workspaceId: WORKSPACE_ID,
     ...overrides,
@@ -90,18 +91,30 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/cancel', () => {
     })
   })
 
-  it('reports an already-cancelled run as an idempotent no-op', async () => {
+  /**
+   * `success: true` with every action flag false told a caller its cancel had
+   * done something. A run that was already terminal is a `200` no-op — not an
+   * error — answered with `success: false` and the `already_*` reason.
+   */
+  it('answers an already-cancelled run as a no-op that cancelled nothing', async () => {
     mocks.cancel.mockResolvedValue(
-      serviceResult({ success: true, durablyRecorded: false, reason: 'already_cancelled' })
+      serviceResult({
+        success: true,
+        cancelled: false,
+        durablyRecorded: false,
+        reason: 'already_cancelled',
+      })
     )
 
     const response = await POST(request(), context)
 
     expect(response.status).toBe(200)
     expect((await response.json()).data).toMatchObject({
-      success: true,
+      success: false,
       runId: RUN_ID,
       durablyRecorded: false,
+      locallyAborted: false,
+      pausedCancelled: false,
       reason: 'already_cancelled',
     })
   })
@@ -110,7 +123,7 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/cancel', () => {
     ['completed', 'already_completed'],
     ['failed', 'already_failed'],
   ] as const)(
-    'preserves the v2 terminal no-op response when a standalone run is already %s',
+    'answers a 200 no-op with success false when a standalone run is already %s',
     async (executionStatus, reason) => {
       mocks.cancel.mockRejectedValue(
         new WorkflowRunAlreadyTerminalError({
@@ -126,7 +139,7 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/cancel', () => {
       expect(response.status).toBe(200)
       await expect(response.json()).resolves.toEqual({
         data: {
-          success: true,
+          success: false,
           runId: RUN_ID,
           redisAvailable: true,
           durablyRecorded: false,

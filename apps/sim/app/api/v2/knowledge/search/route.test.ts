@@ -59,6 +59,8 @@ describe('POST /api/v2/knowledge/search', () => {
           chunkIndex: 0,
           metadata: { category: 'billing' },
           similarity: 0.9,
+          rankScore: 0.42,
+          rank: 1,
           rerankerScore: 0.42,
         },
       ],
@@ -130,6 +132,8 @@ describe('POST /api/v2/knowledge/search', () => {
       chunkIndex: 0,
       metadata: { category: 'billing' },
       similarity: 0.9,
+      rankScore: 0.42,
+      rank: 1,
       rerankerScore: 0.42,
     })
   })
@@ -206,6 +210,8 @@ describe('POST /api/v2/knowledge/search', () => {
           chunkIndex: 0,
           metadata: {},
           similarity: 0.9,
+          rankScore: 0.9,
+          rank: 1,
         },
       ],
       query: 'hello',
