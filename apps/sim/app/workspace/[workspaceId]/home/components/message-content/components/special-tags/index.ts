@@ -25,6 +25,7 @@ export {
   CredentialDisplay,
   credentialTagHasVisibleCard,
   formatCredentialSubmissionMessage,
+  isHttpUrl,
   PendingTagIndicator,
   parseCredentialSubmissionMessage,
   parseCredentialSubmissionProgress,

@@ -6,6 +6,14 @@ const LEAD_LENGTH = 90
 const MIN_TERM_LENGTH = 3
 /** `Key: value` lines a connector writes above an email or ticket body. */
 const HEADER_LINE = /^[A-Z][A-Za-z-]{1,15}: .*$/
+/**
+ * A character that continues a word, so a term touching one on either side is
+ * part of a longer word rather than a hit. Scripts written without spaces
+ * (Han, kana, Hangul, Thai) have no such edges, so their letters never
+ * disqualify a neighbouring match.
+ */
+const WORD_CHARACTER =
+  /(?![\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Hangul}\p{sc=Thai}])[\p{L}\p{N}_]/u
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -15,26 +23,58 @@ function escapeRegExp(value: string): string {
  * The document text without the header block some connectors prefix (the
  * `Subject:` / `From:` / `To:` lines of an email): the title already says
  * what the subject is, and a snippet spent on the header never shows why the
- * document matched.
+ * document matched. Only a block the connector closed with a blank line
+ * counts, and only when a body follows it: a chunk that is nothing but
+ * `Key: value` fields, such as a calendar event, is the document.
  */
 export function stripLeadingHeaders(content: string): string {
   const lines = content.split('\n')
   let index = 0
   while (index < lines.length && HEADER_LINE.test(lines[index].trim())) index += 1
-  if (index === 0) return content
-  return lines.slice(index).join('\n')
+  if (index === 0 || index >= lines.length || lines[index].trim() !== '') return content
+  const body = lines.slice(index).join('\n')
+  return body.trim() ? body : content
 }
 
-/** The query's terms worth anchoring on, longest first so the most specific one wins. */
-export function snippetTerms(query: string | undefined): string[] {
+/**
+ * The query's terms worth matching, longest first so the most specific one
+ * wins: quotes and other search syntax around a term are not part of it.
+ */
+export function queryTerms(query: string | undefined): string[] {
   return [
     ...new Set(
       (query ?? '')
         .split(/\s+/)
-        .map((term) => term.trim())
+        .map((term) => term.replace(/^["'“”‘’(]+|["'“”‘’),.;:!?]+$/g, '').trim())
         .filter((term) => term.length >= MIN_TERM_LENGTH)
     ),
   ].sort((a, b) => b.length - a.length)
+}
+
+export interface TermMatch {
+  index: number
+  length: number
+}
+
+/**
+ * Where the query terms occur in the text as whole words, in order and without
+ * overlap. Word edges are judged by the characters around a hit rather than
+ * by `\b`, which knows only ASCII letters, so a term in any script still
+ * matches; a hit glued to another word character on either side is not a
+ * word and is skipped.
+ */
+export function findTermMatches(text: string, terms: readonly string[]): TermMatch[] {
+  if (terms.length === 0) return []
+  const pattern = new RegExp(terms.map(escapeRegExp).join('|'), 'giu')
+  const matches: TermMatch[] = []
+  for (const match of text.matchAll(pattern)) {
+    const before = text[match.index - 1]
+    const after = text[match.index + match[0].length]
+    if (before !== undefined && WORD_CHARACTER.test(before)) continue
+    if (after !== undefined && WORD_CHARACTER.test(after)) continue
+    matches.push({ index: match.index, length: match[0].length })
+  }
+  return matches
 }
 
 /**
@@ -48,13 +88,8 @@ export function matchSnippet(content: string, query?: string): string {
   const flat = stripLeadingHeaders(content).replace(/\s+/g, ' ').trim()
   if (flat.length <= SNIPPET_LENGTH) return flat
 
-  let start = 0
-  for (const term of snippetTerms(query)) {
-    const match = new RegExp(`\\b${escapeRegExp(term)}\\b`, 'i').exec(flat)
-    if (!match) continue
-    start = Math.max(0, match.index - LEAD_LENGTH)
-    break
-  }
+  const first = findTermMatches(flat, queryTerms(query))[0]
+  let start = first ? Math.max(0, first.index - LEAD_LENGTH) : 0
   if (start > 0) {
     const boundary = flat.indexOf(' ', start)
     if (boundary !== -1 && boundary - start < LEAD_LENGTH) start = boundary + 1

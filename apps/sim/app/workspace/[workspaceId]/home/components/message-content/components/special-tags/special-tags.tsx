@@ -567,7 +567,7 @@ function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagDa
  * a source. Parsed rather than pattern-matched so a malformed value such as
  * `https://?` — which a prefix check would accept — never becomes a dead link.
  */
-function isHttpUrl(value: unknown): value is string {
+export function isHttpUrl(value: unknown): value is string {
   if (typeof value !== 'string' || /\s/.test(value)) return false
   try {
     const url = new URL(value)

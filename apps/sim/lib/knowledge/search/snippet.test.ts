@@ -3,9 +3,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  findTermMatches,
   matchSnippet,
+  queryTerms,
   SNIPPET_LENGTH,
-  snippetTerms,
   stripLeadingHeaders,
 } from '@/lib/knowledge/search/snippet'
 
@@ -18,6 +19,10 @@ const EMAIL = [
   `${'Thanks for your patience. '.repeat(12)}The Volvo order shipped on Monday and the tracking number follows. ${'More text here. '.repeat(20)}`,
 ].join('\n')
 
+const EVENT = ['Title: Weekly sync', 'Organizer: Ada', 'When: Monday 9am', 'Where: Room 4'].join(
+  '\n'
+)
+
 describe('stripLeadingHeaders', () => {
   it('drops the header block a connector writes above an email body', () => {
     expect(stripLeadingHeaders(EMAIL).startsWith('\nThanks for your patience.')).toBe(true)
@@ -28,12 +33,35 @@ describe('stripLeadingHeaders', () => {
       'Plain prose: with a colon inside.'
     )
   })
+
+  it('keeps a chunk that is nothing but fields, such as a calendar event', () => {
+    expect(stripLeadingHeaders(EVENT)).toBe(EVENT)
+    expect(stripLeadingHeaders(`${EVENT}\n\n`)).toBe(`${EVENT}\n\n`)
+  })
 })
 
-describe('snippetTerms', () => {
+describe('queryTerms', () => {
   it('keeps distinct terms of three or more characters, longest first', () => {
-    expect(snippetTerms('the Volvo invoice is volvo')).toEqual(['invoice', 'Volvo', 'volvo', 'the'])
-    expect(snippetTerms(undefined)).toEqual([])
+    expect(queryTerms('the Volvo invoice is volvo')).toEqual(['invoice', 'Volvo', 'volvo', 'the'])
+    expect(queryTerms(undefined)).toEqual([])
+  })
+
+  it('strips the quotes and punctuation around a term', () => {
+    expect(queryTerms('"foo bar" (baz),')).toEqual(['foo', 'bar', 'baz'])
+  })
+})
+
+describe('findTermMatches', () => {
+  it('matches whole words in any script', () => {
+    expect(findTermMatches('Der Bericht über Zürich.', ['Zürich'])).toEqual([
+      { index: 17, length: 6 },
+    ])
+    expect(findTermMatches('Reports on Zürichsee.', ['Zürich'])).toEqual([])
+    expect(findTermMatches('東京の天気', ['天気'])).toEqual([{ index: 3, length: 2 }])
+  })
+
+  it('skips a hit glued to another word character', () => {
+    expect(findTermMatches('subvolvo volvo_x volvo', ['volvo'])).toEqual([{ index: 17, length: 5 }])
   })
 })
 
@@ -49,6 +77,12 @@ describe('matchSnippet', () => {
     expect(snippet).toContain('The Volvo order shipped')
     expect(snippet).not.toContain('Subject:')
     expect(snippet.length).toBeLessThanOrEqual(SNIPPET_LENGTH + 2)
+  })
+
+  it('centres on a quoted phrase and on a non-ASCII term', () => {
+    expect(matchSnippet(EMAIL, '"Volvo order"')).toContain('The Volvo order shipped')
+    const german = `${'Einleitung. '.repeat(30)}Die Lieferung nach Zürich ist unterwegs. ${'Mehr. '.repeat(30)}`
+    expect(matchSnippet(german, 'Zürich')).toContain('nach Zürich')
   })
 
   it('falls back to the opening when no term appears in the chunk', () => {

@@ -7,6 +7,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { faviconUrl } from '@/lib/core/utils/favicon'
+import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
 import {
   externalLinkHostname,
   handleExternalLinkClick,
@@ -21,8 +22,6 @@ import { BrandIcon } from '@/blocks/brand-icon'
 
 const logger = createLogger('SourceCard')
 
-/** Query terms shorter than this are too common to bold. */
-const MIN_HIGHLIGHT_TERM_LENGTH = 3
 /** How long the copied state shows on the copy-link action. */
 const COPIED_FEEDBACK_MS = 1_500
 
@@ -37,35 +36,27 @@ export const SOURCE_ROW_CLASSES =
 /** The 16px mark slot, nudged to centre on the title's first line. */
 export const SOURCE_ROW_MARK_CLASSES = cn(chipIconSlotClass, 'mt-[3px]')
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 /**
  * The snippet with every query term in bold, so the reader sees why the
- * document matched. Terms are matched as whole words, case-insensitively.
+ * document matched. Terms are matched as whole words in any script,
+ * case-insensitively, by the same rule the snippet was centred with.
  */
 export function highlightTerms(text: string, query: string | undefined): ReactNode {
-  const terms = [
-    ...new Set(
-      (query ?? '')
-        .split(/\s+/)
-        .map((term) => term.trim())
-        .filter((term) => term.length >= MIN_HIGHLIGHT_TERM_LENGTH)
-    ),
-  ]
-  if (terms.length === 0) return text
-  const pattern = new RegExp(`\\b(${terms.map(escapeRegExp).join('|')})\\b`, 'gi')
-  const parts = text.split(pattern)
-  return parts.map((part, index) =>
-    index % 2 === 1 ? (
-      <strong key={index} className='font-medium text-[var(--text-primary)]'>
-        {part}
+  const matches = findTermMatches(text, queryTerms(query))
+  if (matches.length === 0) return text
+  const parts: ReactNode[] = []
+  let cursor = 0
+  for (const match of matches) {
+    if (match.index > cursor) parts.push(text.slice(cursor, match.index))
+    parts.push(
+      <strong key={match.index} className='font-medium text-[var(--text-primary)]'>
+        {text.slice(match.index, match.index + match.length)}
       </strong>
-    ) : (
-      part
     )
-  )
+    cursor = match.index + match.length
+  }
+  if (cursor < text.length) parts.push(text.slice(cursor))
+  return parts
 }
 
 function parseUpdatedAt(value: string | undefined): Date | null {

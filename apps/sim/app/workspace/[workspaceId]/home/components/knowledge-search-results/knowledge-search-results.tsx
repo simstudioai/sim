@@ -14,7 +14,10 @@ import {
   SOURCE_ROW_MARK_CLASSES,
   SourceCard,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
-import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import {
+  isHttpUrl,
+  type SourceTagData,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { isIndexing } from '@/app/workspace/[workspaceId]/home/components/search-sources'
 import {
   resourceUrlKeys,
@@ -76,11 +79,12 @@ export function indexingSourceNames(
 
 /**
  * A result as the source card renders it: the row's second line names the
- * source app, or the knowledge base for an upload. A document without a
- * source URL cannot be opened.
+ * source app, or the knowledge base for an upload. A document without an
+ * http(s) source URL cannot be opened, and a connector-supplied value of any
+ * other scheme is never handed to the browser as a link.
  */
 function toSource(result: WorkspaceKnowledgeSearchResult, query: string): SourceTagData | null {
-  if (!result.sourceUrl) return null
+  if (!isHttpUrl(result.sourceUrl)) return null
   return {
     url: result.sourceUrl,
     title: result.documentName ?? undefined,

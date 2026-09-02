@@ -59,14 +59,14 @@ import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-sec
 const logger = createLogger('KnowledgeBaseServerTool')
 
 /** Results a query returns unless the caller asks for a number. */
-const DEFAULT_QUERY_TOP_K = 10
+const DEFAULT_QUERY_TOP_K = 5
 /**
  * How the model cites a knowledge result in its reply. The `<source>` tag is
  * what the chat renders as a link back to the document, so a result without
  * a source URL is quoted by name instead.
  */
 const KNOWLEDGE_CITATION_INSTRUCTION =
-  'Cite each result you use inline, right after the sentence it supports, as <source>{"url":<sourceUrl>,"title":<documentName>,"siteName":<knowledgeBaseName>,"connectorType":<connectorType>,"snippet":<the sentence or two of content you relied on>,"updatedAt":<sourceModifiedAt>,"author":<author>}</source>; omit the tag for a result whose sourceUrl is null and name the document instead.'
+  'Cite each result you use inline, right after the sentence it supports, as <source>{"url":<sourceUrl>,"title":<documentName>,"siteName":<knowledgeBaseName>,"connectorType":<connectorType>,"snippet":<the sentence or two of content you relied on>,"updatedAt":<sourceModifiedAt>,"author":<author>}</source>; leave out any optional field whose value is null or unknown, and omit the tag for a result whose sourceUrl is null and name the document instead.'
 
 /**
  * Resolves an environment-variable reference passed as a connector API key.
