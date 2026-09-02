@@ -1,4 +1,7 @@
-import { writeSessionSandboxFile } from '@/lib/execution/remote-sandbox/session-files'
+import {
+  resolveSessionPath,
+  writeSessionSandboxFile,
+} from '@/lib/execution/remote-sandbox/session-files'
 import type { AgentCliRawResult, AgentCliSink } from '@/lib/mothership/generated/agent-cli'
 
 /**
@@ -22,7 +25,7 @@ export async function applySink(
   if (written.outcome === 'written') {
     return {
       ...result,
-      stdout: `[stdout written to ${sink.path} on your machine: ${result.stdout.length} chars. Read or process it with run_code, or pass it back as @${sink.path}.]`,
+      stdout: `[stdout written to ${resolveSessionPath(sink.path)} on your machine: ${result.stdout.length} chars. Read or process it with run_code, or pass it back as @${sink.path}.]`,
     }
   }
   if (written.outcome === 'no-session') {

@@ -6,6 +6,7 @@ import { Readable, type Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { Command } from 'commander'
 import { clientFrom } from '../../context'
+import { embedStore } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { isRequestTimeout, RAISE_TIMEOUT_HINT, resolvePath, SimApiError } from '../../http/client'
 import { printProtocolResult } from './result'
@@ -202,6 +203,26 @@ export async function saveToFile(
   target: string,
   force: boolean
 ): Promise<void> {
+  const embedded = embedStore.getStore()
+  if (embedded) {
+    // In-process on the hosting server: the only legitimate destination is the
+    // caller's own machine, and the host decides how to reach it.
+    if (!embedded.writeFile) {
+      throw new SimApiError(
+        `--output-file cannot save ${target} here: this surface has no machine to write to. Read the file instead, or pipe a text command with | to-sandbox <name>.`,
+        0
+      )
+    }
+    const bytes = new Uint8Array(await new Response(body).arrayBuffer())
+    const written = await embedded.writeFile(target, bytes)
+    if (!written) {
+      throw new SimApiError(
+        `Could not write ${target} on your machine — the workbench is not running yet; run any run_code call first, then retry.`,
+        0
+      )
+    }
+    return
+  }
   return saveStagedFile(body, target, force)
 }
 

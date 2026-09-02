@@ -63,7 +63,7 @@ function parseJsonStdout(stdout: string, stage: string): JsonValue {
     return parsed
   } catch {
     throw new PipeStageError(
-      `${stage}: stdout is not JSON. Run the command with --output json before piping into ${stage}.`
+      `${stage}: this command's output is text, not JSON, so ${stage} cannot apply. Filter it with | grep instead, or use outputs get <id> --grep on a stored result.`
     )
   }
 }

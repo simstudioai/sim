@@ -59,7 +59,7 @@ async function listAll(runtime: AgentCliRuntime, path: string): Promise<Record<s
   let cursor: string | undefined
   for (let pages = 0; pages < 50; pages++) {
     const page = await runtime.client.request<Page>(path, {
-      query: { limit: '100', ...(cursor ? { cursor } : {}) },
+      query: { workspaceId: runtime.workspaceId, limit: '100', ...(cursor ? { cursor } : {}) },
     })
     out.push(...page.data)
     if (!page.nextCursor) break
@@ -96,6 +96,8 @@ const MATERIALIZERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<Materia
     const list = await listAll(runtime, '/api/v2/workflows')
     return mapConcurrent(list, FETCH_CONCURRENCY, async (w) => {
       const id = str(w.id) ?? ''
+      // The export route scopes by workflow id alone (`query: noInputSchema`); a
+      // workspaceId here is an "Unrecognized key" — the other detail routes require it.
       const exported = await runtime.client.request<{ data: { state: unknown } }>(
         `/api/v2/workflows/${id}/export`
       )
@@ -109,7 +111,9 @@ const MATERIALIZERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<Materia
     const list = await listAll(runtime, '/api/v2/blocks')
     const materialized = await mapConcurrent(list, FETCH_CONCURRENCY, async (b) => {
       const id = str(b.id) ?? ''
-      const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/blocks/${id}`)
+      const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/blocks/${id}`, {
+        query: { workspaceId: runtime.workspaceId },
+      })
       return render('blocks', id, id, detail.data)
     })
     catalogCache.set(key, materialized)
@@ -123,7 +127,9 @@ const MATERIALIZERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<Materia
     const list = await listAll(runtime, '/api/v2/tables')
     return mapConcurrent(list, FETCH_CONCURRENCY, async (t) => {
       const id = str(t.id) ?? ''
-      const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/tables/${id}`)
+      const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/tables/${id}`, {
+        query: { workspaceId: runtime.workspaceId },
+      })
       return render('tables', id, str(t.name) ?? id, detail.data)
     })
   },
@@ -131,7 +137,9 @@ const MATERIALIZERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<Materia
     const list = await listAll(runtime, '/api/v2/skills')
     return mapConcurrent(list, FETCH_CONCURRENCY, async (s) => {
       const id = str(s.id) ?? ''
-      const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/skills/${id}`)
+      const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/skills/${id}`, {
+        query: { workspaceId: runtime.workspaceId },
+      })
       return render('skills', id, str(s.name) ?? id, detail.data)
     })
   },
@@ -139,7 +147,9 @@ const MATERIALIZERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<Materia
     const list = await listAll(runtime, '/api/v2/custom-tools')
     return mapConcurrent(list, FETCH_CONCURRENCY, async (t) => {
       const id = str(t.id) ?? ''
-      const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/custom-tools/${id}`)
+      const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/custom-tools/${id}`, {
+        query: { workspaceId: runtime.workspaceId },
+      })
       return render('custom-tools', id, str(t.title) ?? str(t.name) ?? id, detail.data)
     })
   },
