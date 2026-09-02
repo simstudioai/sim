@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { DocumentIcon } from '@/components/icons'
-import { encodeFolderPathSegment, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
+import { MAX_FILE_LIST_LIMIT } from '@/lib/api/contracts/tools/file'
+import {
+  encodeFolderPathSegment,
+  MAX_FOLDER_PATH_SEGMENTS,
+  ROOT_FOLDER_PATH,
+} from '@/lib/folders/paths'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { readFolderPath } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sim-folder-tree-selector/selection'
 import type { BlockConfig, SubBlockType } from '@/blocks/types'
@@ -1656,14 +1661,18 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           return {
             path: optionalText(params.folderRef),
             recursive: switchValue(params.folderRecursive),
+            /* Bounded here as well as at the contract, so a typo fails while
+               configuring rather than on the first run. */
             depth: parseOptionalNumberInput(params.folderDepth, 'Max Depth', {
               integer: true,
               min: 1,
+              max: MAX_FOLDER_PATH_SEGMENTS,
             }),
             search: optionalText(params.folderSearch),
             limit: parseOptionalNumberInput(params.folderLimit, 'Limit', {
               integer: true,
               min: 1,
+              max: MAX_FILE_LIST_LIMIT,
             }),
             workspaceId: params._context?.workspaceId,
           }
