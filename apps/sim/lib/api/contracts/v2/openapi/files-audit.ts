@@ -560,7 +560,7 @@ const declaredRoutes = [
       operationId: 'restoreFile',
       summary: 'Restore File',
       description:
-        'Reverse a soft delete and return the file to the workspace. Not a pure undo: the file comes back at the workspace root, and gains a `_restored` suffix when another file there already holds its name, so read `folderPath` and `name` off the response. Restoring an already-active file returns it unchanged, so a retry is safe. An archived workspace is a `400`, and a name the restore could not free is a `409`.',
+        'Reverse a soft delete and return the file to the workspace. Not a pure undo: the file comes back in the folder it was deleted from, or at the workspace root when that folder has since been archived, and gains a `_restored` suffix when another file there already holds its name, so read `folderPath` and `name` off the response. Restoring an already-active file returns it unchanged, so a retry is safe. An archived workspace is a `400`, and a name the restore could not free is a `409`.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The file as it exists after the restore.' },
     }),

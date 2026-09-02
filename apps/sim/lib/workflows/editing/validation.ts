@@ -586,6 +586,12 @@ export function validateValueForSubBlockType(
     }
 
     case 'code': {
+      // A JSON-language code field holds a document, and callers naturally hand
+      // that document over as an object or array; store the JSON text the editor
+      // shows and the block's runtime parses.
+      if (subBlockConfig.language === 'json' && typeof value === 'object') {
+        return { valid: true, value: JSON.stringify(value) }
+      }
       // Code must be a string (content can be JS, Python, JSON, SQL, HTML, etc.)
       if (typeof value !== 'string') {
         return {

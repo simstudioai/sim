@@ -51,7 +51,11 @@ import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { parseFolderPath } from '@/lib/folders/paths'
-import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
+import {
+  loadActiveFolderPathIndex,
+  resolveFolderPathFromIndex,
+  resolveRestoredFolderId,
+} from '@/lib/folders/queries'
 import { normalizeVfsSegment } from '@/lib/mothership/vfs/normalize-segment'
 import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
 import { mergeEditIntoLiveFileDoc, notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
@@ -2254,6 +2258,13 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
   }
 
   /**
+   * The file goes back where it was deleted from while that folder is still active. A folder
+   * archived since would file the row under one the Files page never renders, so re-root it
+   * instead — the same treatment tables and knowledge bases get on restore.
+   */
+  const restoredFolderId = await resolveRestoredFolderId(fileRecord.folderId, workspaceId, 'file')
+
+  /**
    * A concurrent upload/rename can claim the chosen name after `generateRestoreName`'s check (MVCC).
    * Retries pick a new random suffix; 23505 maps to {@link FileConflictError} after exhaustion.
    */
@@ -2265,14 +2276,19 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
     try {
       const newName = await generateRestoreName(
         fileRecord.originalName,
-        (candidate) => fileExistsInWorkspace(workspaceId, candidate, null),
+        (candidate) => fileExistsInWorkspace(workspaceId, candidate, restoredFolderId),
         { hasExtension: true }
       )
       attemptedRestoreName = newName
 
       const [restored] = await db
         .update(workspaceFiles)
-        .set({ deletedAt: null, folderId: null, originalName: newName, updatedAt: new Date() })
+        .set({
+          deletedAt: null,
+          folderId: restoredFolderId,
+          originalName: newName,
+          updatedAt: new Date(),
+        })
         .where(
           and(
             eq(workspaceFiles.id, fileId),

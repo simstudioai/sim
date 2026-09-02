@@ -476,6 +476,9 @@ export async function maybeWriteOutputToFile(
         return {
           success: true,
           output: {
+            // The computed value stays on the result so a table write declared on the
+            // same call (`outputTable`) still has rows to read after the file write.
+            result: outputObject?.result,
             message:
               writtenFiles.length === 1
                 ? `Output ${firstWritten.mode === 'overwrite' ? 'updated' : 'written'} at ${firstWritten.vfsPath} (${firstWritten.bytes} bytes)`

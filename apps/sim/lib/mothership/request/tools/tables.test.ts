@@ -228,6 +228,48 @@ describe('automatic Copilot tool-output table persistence', () => {
     expect(mocks.executeReplace).not.toHaveBeenCalled()
   })
 
+  it('keeps already-written output files on the error when the table shape check fails', async () => {
+    const files = [
+      {
+        fileId: 'file-1',
+        fileName: 'report.csv',
+        vfsPath: 'files/report.csv',
+        size: 12,
+        downloadUrl: 'https://example.test/report.csv',
+      },
+    ]
+
+    const result = await maybeWriteOutputToTable(
+      RunFunction.id,
+      { outputTable: 'table-1', outputs: { files: [{ path: 'files/report.csv' }] } },
+      {
+        success: true,
+        output: { message: 'Output written at files/report.csv (12 bytes)', files },
+      },
+      buildContext()
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('array of objects')
+    expect(result.error).toContain('already written')
+    expect(result.output).toEqual({ files })
+    expect(mocks.executeReplace).not.toHaveBeenCalled()
+  })
+
+  it('tells each language how to hand rows back when the shape is wrong', async () => {
+    const result = await maybeWriteOutputToTable(
+      RunFunction.id,
+      { outputTable: 'table-1' },
+      { success: true, output: { result: { rows: [{ name: 'Ada' }] } } },
+      buildContext()
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('JavaScript: `return [...]`')
+    expect(result.error).toContain('Python: assign `__sim_result__ = [...]`')
+    expect(result.output).toBeUndefined()
+  })
+
   it('fails closed when the authoritative inserted count is inconsistent', async () => {
     mocks.executeReplace.mockResolvedValueOnce({ table, deletedCount: 1, insertedCount: 1 })
 

@@ -93,7 +93,7 @@ export interface DispatchRow {
   cursor: number
   /** Cap on work before completion; null = unbounded. */
   limit: DispatchLimit | null
-  /** Units of `limit.type` already consumed (eligible rows dispatched). */
+  /** Distinct rows dispatched so far; under a `rows` limit, the units of it consumed. */
   processedCount: number
   isManualRun: boolean
   /** User who triggered the run (for usage attribution); null for auto-fire. */
@@ -602,7 +602,6 @@ export async function dispatcherStep(
   // row's groups consecutively in ascending position, so collecting distinct
   // rowIds until the budget fills picks the lowest-position rows.
   let windowRuns = pendingRuns
-  let dispatchedRows = 0
   let budgetExhausted = false
   if (dispatch.limit?.type === 'rows') {
     const remaining = dispatch.limit.max - dispatch.processedCount
@@ -617,9 +616,12 @@ export async function dispatcherStep(
       allowedRowIds.add(p.rowId)
     }
     windowRuns = pendingRuns.filter((p) => allowedRowIds.has(p.rowId))
-    dispatchedRows = allowedRowIds.size
-    budgetExhausted = dispatch.processedCount + dispatchedRows >= dispatch.limit.max
+    budgetExhausted = dispatch.processedCount + allowedRowIds.size >= dispatch.limit.max
   }
+  // Every dispatch tallies the distinct rows it sends, capped or not: the
+  // tally is what `processedCount` reports, so an unlimited dispatch that ran
+  // the whole table must not read back as having processed nothing.
+  let dispatchedRows = new Set(windowRuns.map((p) => p.rowId)).size
 
   if (windowRuns.length > 0) {
     /**

@@ -186,6 +186,17 @@ const mothershipBlockConfig = {
   ],
 }
 
+// Mirrors table_v2: a JSON-language code field beside a plain code field.
+const jsonCodeBlockConfig = {
+  type: 'json_code_block',
+  name: 'JSON Code Block',
+  outputs: {},
+  subBlocks: [
+    { id: 'filter', type: 'code', language: 'json' },
+    { id: 'script', type: 'code' },
+  ],
+}
+
 // Block whose tool selector throws — should fall back to scanning access tools (video_falai).
 const throwSelectorBlockConfig = {
   type: 'throw_selector_block',
@@ -242,6 +253,7 @@ const blockConfigsByType: Record<string, unknown> = {
   throw_selector_block: throwSelectorBlockConfig,
   generic_webhook: genericWebhookBlockConfig,
   mothership: mothershipBlockConfig,
+  json_code_block: jsonCodeBlockConfig,
 }
 
 vi.mock('@/blocks/registry', () => ({
@@ -1527,5 +1539,33 @@ describe('collectUnresolvedAgentToolReferences', () => {
     const refs = await collectUnresolvedAgentToolReferences(state, CTX)
     expect(refs).toHaveLength(0)
     expect(mockGetCustomToolById).not.toHaveBeenCalled()
+  })
+})
+
+describe('validateInputsForBlock - code fields', () => {
+  it('stores an object handed to a JSON-language code field as its JSON text', () => {
+    const filter = { field: 'wins', op: 'gte', value: 10 }
+
+    const result = validateInputsForBlock('json_code_block', { filter }, 'block-1')
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.filter).toBe(JSON.stringify(filter))
+  })
+
+  it('stores an array handed to a JSON-language code field as its JSON text', () => {
+    const rows = [{ name: 'Ada' }, { name: 'Grace' }]
+
+    const result = validateInputsForBlock('json_code_block', { filter: rows }, 'block-1')
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.filter).toBe(JSON.stringify(rows))
+  })
+
+  it('still rejects an object for a code field without a JSON language', () => {
+    const result = validateInputsForBlock('json_code_block', { script: { not: 'code' } }, 'block-1')
+
+    expect(result.validInputs.script).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('expected a string, got object')
   })
 })

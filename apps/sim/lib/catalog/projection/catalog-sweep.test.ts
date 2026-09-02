@@ -127,10 +127,39 @@ describe('block catalog projection sweep', () => {
 })
 
 /**
+ * Pinned shapes of two real registry blocks, where a projection rule is only
+ * visible against an authored block rather than a synthetic fixture.
+ */
+describe('block detail regressions', () => {
+  const registry = getBlockRegistry()
+  const registered = (type: string) => {
+    const block = registry[type]
+    if (!block) throw new Error(`block ${type} is not registered`)
+    return block
+  }
+
+  it('keys operation inputs by the sub-block id an apply accepts, not the canonical param id', () => {
+    const detail = projectBlockDetail(registered('table_v2'), { deployment: HOSTED })
+    const inputKeys = Object.keys(detail.operations.query_rows?.inputs ?? {})
+    expect(inputKeys).toContain('filter')
+    expect(inputKeys).not.toContain('filterInput')
+    expect(inputKeys).not.toContain('sortInput')
+  })
+
+  it('publishes a triggers-category block’s trigger-mode fields as its input schema', () => {
+    const detail = projectBlockDetail(registered('schedule'), { deployment: HOSTED })
+    const ids = detail.inputSchema.map((field) => field.id)
+    expect(ids).toEqual(expect.arrayContaining(['scheduleType', 'cronExpression', 'timezone']))
+    expect(ids).not.toContain('scheduleInfo')
+  })
+})
+
+/**
  * Custom (deploy-as-block) blocks, which the registry sweep above cannot reach.
  *
- * `projectCustomBlockDetail` is a separate branch with its own field set — and
- * the only one whose `inputSchema` includes `mode: 'trigger'` sub-blocks — yet
+ * `projectCustomBlockDetail` is a separate branch with its own field set — it
+ * publishes `mode: 'trigger'` sub-blocks in `inputSchema`, as the main branch
+ * does only for `triggers`-category blocks — yet
  * it is caller-reachable through `GET /api/v2/blocks/custom_block_*`. Built from
  * the same `buildCustomBlockConfig` the overlay uses, so a change to the synthesized
  * shape shows up here rather than as a 500 on a well-formed request.

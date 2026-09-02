@@ -41,8 +41,9 @@ const context = {
 }
 
 /**
- * `restoreWorkspaceFile` renames on a collision and clears the folder, so the
- * post-restore record never matches the one the caller deleted.
+ * `restoreWorkspaceFile` renames on a collision and re-roots the file when its
+ * folder is gone, so the post-restore record need not match the one the caller
+ * deleted.
  */
 const restoredFile = {
   id: 'file-1',

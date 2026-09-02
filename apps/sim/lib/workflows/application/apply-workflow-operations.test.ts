@@ -72,6 +72,7 @@ vi.mock('@/lib/workflows/editing/validation', () => ({
 }))
 vi.mock('@/lib/workflows/editing/lint', () => ({
   collectWorkflowFieldIssues: () => [],
+  collectDanglingBlockOutputReferences: () => [],
   lintEditedWorkflowState: () => ({
     sources: [],
     sinks: [],

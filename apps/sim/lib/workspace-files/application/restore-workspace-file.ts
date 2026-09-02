@@ -24,9 +24,9 @@ export interface RestoreWorkspaceFileResult {
   restored: true
   /**
    * The file as it exists after the restore. Restore is not a pure undo — it
-   * returns the file to the workspace root and renames it to avoid colliding
-   * with whatever took its name — so the caller needs the post-restore record
-   * rather than the one it deleted.
+   * re-roots the file when its folder has been archived and renames it to avoid
+   * colliding with whatever took its name — so the caller needs the post-restore
+   * record rather than the one it deleted.
    */
   file: WorkspaceFileRecord
 }
