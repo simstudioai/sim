@@ -159,8 +159,9 @@ function getMondayConnector() {
 }
 
 describe('Monday OAuth connector', () => {
-  it('uses the OAuth 2.1 token endpoint, PKCE, and canonical callback and scopes', () => {
-    expect(getMondayConnector()).toMatchObject({
+  it('generates the OAuth 2.1 authorization request from the connector contract', async () => {
+    const connector = getMondayConnector()
+    expect(connector).toMatchObject({
       providerId: 'monday',
       authorizationUrl: 'https://auth.monday.com/oauth2/authorize',
       tokenUrl: 'https://auth.monday.com/oauth_ms/oauth/token',
@@ -178,10 +179,6 @@ describe('Monday OAuth connector', () => {
       authentication: 'post',
       redirectURI: 'http://localhost:3000/api/auth/oauth2/callback/monday',
     })
-  })
-
-  it('generates an S256 authorization request with the exact callback and scopes', async () => {
-    const connector = getMondayConnector()
     const authorizationUrl = await createAuthorizationURL({
       id: connector.providerId,
       options: {

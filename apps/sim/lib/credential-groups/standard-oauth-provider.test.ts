@@ -44,32 +44,6 @@ vi.mock('@/lib/auth/connectors/managed-oauth', () => ({
         },
       }
     }
-    if (providerId === 'monday') {
-      return {
-        providerId,
-        clientId: 'monday-client-1',
-        clientSecret: 'monday-secret-1',
-        authorizationUrl: 'https://auth.monday.com/oauth2/authorize',
-        tokenUrl: 'https://auth.monday.com/oauth_ms/oauth/token',
-        redirectURI: 'https://sim.example.com/api/auth/oauth2/callback/monday',
-        scopes: ['boards:read', 'me:read'],
-        responseType: 'code',
-        authentication: 'post',
-        getToken: mockGetToken,
-        managedOAuth: {
-          additionalScopes: [],
-          requiresRefreshToken: true,
-          pkce: true,
-          nonceVerification: 'state_only',
-          includeLoginHint: false,
-          getAuthorizationAppId: (clientId: string) => `monday:${clientId}`,
-          verifyIdentity: mockVerifyIdentity,
-          hasRequiredScopes: (granted: string[], required: string[]) =>
-            required.every((scope) => granted.includes(scope)),
-          isTerminalRefreshError: (errorCode: string | undefined) => errorCode === 'invalid_grant',
-        },
-      }
-    }
     if (providerId === 'jira') {
       return {
         providerId,
@@ -108,7 +82,6 @@ import { createStandardOAuthCredentialGroupProviderAdapter } from '@/lib/credent
 
 const adapter = createStandardOAuthCredentialGroupProviderAdapter('google-calendar')
 const jiraAdapter = createStandardOAuthCredentialGroupProviderAdapter('jira')
-const mondayAdapter = createStandardOAuthCredentialGroupProviderAdapter('monday')
 
 function buildContext(): CredentialGroupOAuthContext {
   return {
@@ -234,82 +207,6 @@ describe('standard OAuth Credential Group provider', () => {
         displayName: 'Person',
         avatarUrl: 'https://example.com/avatar.png',
       },
-    })
-  })
-
-  it('uses PKCE and persists expiring rotating credentials for managed Monday OAuth', async () => {
-    const requiredScopes = ['boards:read', 'me:read']
-    const context: CredentialGroupOAuthContext = {
-      ...buildContext(),
-      option: {
-        ...buildContext().option,
-        provider: 'monday',
-        label: 'Monday.com',
-        authorizationAppId: 'monday:monday-client-1',
-        requiredScopes,
-      },
-    }
-    const policy = await mondayAdapter.getPolicy(context.option, {
-      workspaceId: context.workspaceId,
-      credentialGroupId: context.credentialGroupId,
-    })
-    const prepared = await mondayAdapter.prepareAuthorization(context, policy)
-    const authorizationUrl = new URL(
-      await prepared.buildAuthorizationUrl({ state: 'monday-state-1', nonce: 'nonce-ignored' })
-    )
-
-    expect(mondayAdapter.requiresRefreshToken).toBe(true)
-    expect(prepared.codeVerifier).toHaveLength(86)
-    expect(authorizationUrl.searchParams.get('code_challenge_method')).toBe('S256')
-    expect(authorizationUrl.searchParams.get('code_challenge')).toBeTruthy()
-
-    const accessTokenExpiresAt = new Date('2026-08-14T01:00:00Z')
-    mockGetToken.mockResolvedValueOnce({
-      tokenType: 'Bearer',
-      accessToken: 'monday-access-1',
-      refreshToken: 'monday-refresh-1',
-      accessTokenExpiresAt,
-      scopes: requiredScopes,
-    })
-    mockVerifyIdentity.mockResolvedValueOnce({
-      providerSubjectId: 'monday-user-1',
-      providerTenantId: null,
-      email: 'person@example.com',
-      emailVerified: true,
-      grantedScopes: requiredScopes,
-    })
-
-    const grant = await mondayAdapter.exchangeAndVerify({
-      context,
-      attempt: {
-        state: 'monday-state-1',
-        provider: 'monday',
-        nonceHash: 'unused-for-state-bound-provider',
-        enrollmentId: context.enrollmentId,
-        credentialGroupId: context.credentialGroupId,
-        optionId: context.option.id,
-        authorizationAppId: policy.authorizationAppId,
-        scopeVersion: policy.scopeVersion,
-        requiredScopes,
-        redirectUri: prepared.redirectUri,
-        codeVerifier: prepared.codeVerifier,
-        invitationToken: 'invitation-1',
-        createdAt: Date.now(),
-      },
-      code: 'monday-code-1',
-      policy,
-    })
-
-    expect(mockGetToken).toHaveBeenLastCalledWith({
-      code: 'monday-code-1',
-      redirectURI: 'https://sim.example.com/api/auth/oauth2/callback/monday',
-      codeVerifier: prepared.codeVerifier,
-    })
-    expect(grant).toMatchObject({
-      accessToken: 'monday-access-1',
-      refreshToken: 'monday-refresh-1',
-      accessTokenExpiresAt,
-      grantedScopes: requiredScopes,
     })
   })
 

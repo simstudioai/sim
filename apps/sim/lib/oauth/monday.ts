@@ -53,7 +53,7 @@ export function resolveMondayAccessTokenExpiresAt(
 ): Date {
   try {
     const { exp } = decodeJwt(accessToken)
-    if (typeof exp === 'number' && Number.isFinite(exp) && exp * 1000 > now.getTime()) {
+    if (typeof exp === 'number' && Number.isFinite(exp)) {
       const expiresAt = new Date(exp * 1000)
       if (!Number.isNaN(expiresAt.getTime())) return expiresAt
     }

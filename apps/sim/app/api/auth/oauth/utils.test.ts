@@ -142,42 +142,19 @@ describe('OAuth Utils', () => {
         refreshToken: 'new-refresh-token',
       })
 
-      mockUpdateChain()
+      const { mockSet } = mockUpdateChain()
 
       const result = await refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
 
       expect(mockRefreshOAuthToken).toHaveBeenCalledWith('google', 'refresh-token')
-      expect(mockDb.update).toHaveBeenCalled()
-      expect(result).toEqual({ accessToken: 'new-token', refreshed: true })
-    })
-
-    it('persists a rotated Monday refresh token with the refreshed access token', async () => {
-      const credential = {
-        id: 'monday-credential-id',
-        accessToken: 'expired-monday-token',
-        refreshToken: 'old-monday-refresh-token',
-        accessTokenExpiresAt: new Date(Date.now() - 60_000),
-        providerId: 'monday',
-      }
-      mockRefreshOAuthToken.mockResolvedValueOnce({
-        ok: true,
-        accessToken: 'new-monday-token',
-        expiresIn: 3600,
-        refreshToken: 'rotated-monday-refresh-token',
-      })
-      const { mockSet } = mockUpdateChain()
-
-      const result = await refreshTokenIfNeeded('request-id', credential, credential.id)
-
-      expect(mockRefreshOAuthToken).toHaveBeenCalledWith('monday', 'old-monday-refresh-token')
       expect(mockSet).toHaveBeenCalledWith(
         expect.objectContaining({
-          accessToken: 'new-monday-token',
-          refreshToken: 'rotated-monday-refresh-token',
+          accessToken: 'new-token',
+          refreshToken: 'new-refresh-token',
           accessTokenExpiresAt: expect.any(Date),
         })
       )
-      expect(result).toEqual({ accessToken: 'new-monday-token', refreshed: true })
+      expect(result).toEqual({ accessToken: 'new-token', refreshed: true })
     })
 
     it('should handle refresh token error', async () => {

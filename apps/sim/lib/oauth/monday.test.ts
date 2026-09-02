@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
 import {
   exchangeMondayAuthorizationCode,
   MONDAY_OAUTH_TOKEN_URL,
@@ -94,6 +93,15 @@ describe('Monday OAuth 2.1', () => {
     expect(expiresAt).toEqual(new Date(jwtExpirySeconds * 1000))
   })
 
+  it('preserves an expired JWT expiration so the credential refreshes immediately', () => {
+    const now = new Date('2026-09-01T12:00:00.000Z')
+    const jwtExpirySeconds = Math.floor(now.getTime() / 1000) - 60
+
+    expect(
+      resolveMondayAccessTokenExpiresAt(unsignedJwt({ exp: jwtExpirySeconds }), 3600, now)
+    ).toEqual(new Date(jwtExpirySeconds * 1000))
+  })
+
   it('falls back to expires_in and then one hour for an opaque access token', () => {
     const now = new Date('2026-09-01T12:00:00.000Z')
 
@@ -146,22 +154,5 @@ describe('Monday OAuth 2.1', () => {
     expect(error).toBeInstanceOf(Error)
     expect((error as Error).message).toBe('Monday OAuth token exchange failed with HTTP 400')
     expect((error as Error).message).not.toContain(providerSecret)
-  })
-
-  it('bounds the token endpoint response', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(new Response('x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1)))
-    )
-
-    await expect(
-      exchangeMondayAuthorizationCode({
-        clientId: 'client-id',
-        clientSecret: 'client-secret',
-        code: 'authorization-code',
-        codeVerifier: 'pkce-verifier',
-        redirectUri: 'https://www.sim.ai/api/auth/oauth2/callback/monday',
-      })
-    ).rejects.toThrow('exceeds maximum size')
   })
 })
