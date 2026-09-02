@@ -1,5 +1,7 @@
 import { db } from '@sim/db'
 import { credential, credentialGroup, credentialGroupEnrollment } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, ne, sql } from 'drizzle-orm'
 import {
@@ -84,6 +86,8 @@ async function assertCurrentPolicy(
 }
 
 /** Builds a provider authorization URL after persisting a provider-bound one-time attempt. */
+const logger = createLogger('CredentialGroupOAuth')
+
 export async function startCredentialGroupOAuth(
   context: CredentialGroupOAuthContext,
   invitationToken: string
@@ -268,6 +272,24 @@ async function persistGrant(
     if (!updatedEnrollment) {
       throw new CredentialGroupInvitationUnavailableError()
     }
+  })
+
+  /**
+   * Knowledge connectors crawling through this option pick the member up on
+   * their next run; queue one now so their documents arrive within minutes.
+   * Loaded lazily: credential groups do not otherwise depend on knowledge.
+   */
+  const { dispatchMemberSyncsForCredentialOption } = await import(
+    '@/lib/knowledge/connectors/member-provisioning'
+  )
+  await dispatchMemberSyncsForCredentialOption({
+    workspaceId: context.workspaceId,
+    credentialGroupOptionId: context.option.id,
+  }).catch((error) => {
+    logger.warn('Failed to queue member syncs after an account connected', {
+      credentialGroupOptionId: context.option.id,
+      error: getErrorMessage(error),
+    })
   })
 }
 

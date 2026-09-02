@@ -9,6 +9,7 @@ import {
   and,
   eq,
   exists,
+  gt,
   inArray,
   isNotNull,
   isNull,
@@ -231,23 +232,31 @@ export async function applyMemberDocumentLifecycle(input: {
   lease: Pick<SyncRunLease, 'beatIfDue'>
   /** External ids whose refresh did not land this run; withheld from resurrection. */
   failedExternalIds: ReadonlySet<string>
+  /**
+   * Whether absence of observers may hide or purge a document. False until at
+   * least one member has completed a listing: before that, nothing has been
+   * observed yet, so absence says nothing.
+   */
+  allowRemoval: boolean
 }): Promise<MemberDocumentLifecycleResult> {
   const { connectorId, knowledgeBaseId, runId } = input
   const now = new Date()
 
-  const tombstoned = await db
-    .update(document)
-    .set({ deletedAt: now })
-    .where(
-      and(
-        eq(document.connectorId, connectorId),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt),
-        hasNoObservation()
-      )
-    )
-    .returning({ id: document.id })
+  const tombstoned = !input.allowRemoval
+    ? []
+    : await db
+        .update(document)
+        .set({ deletedAt: now })
+        .where(
+          and(
+            eq(document.connectorId, connectorId),
+            eq(document.userExcluded, false),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt),
+            hasNoObservation()
+          )
+        )
+        .returning({ id: document.id })
 
   const resurrectionCandidates = await db
     .select({ id: document.id, externalId: document.externalId })
@@ -303,7 +312,7 @@ export async function applyMemberDocumentLifecycle(input: {
   }
   let purged = 0
   const purgeIds = purgeCandidates.map((row) => row.id)
-  for (let offset = 0; offset < purgeIds.length; offset += PURGE_CHUNK_SIZE) {
+  for (let offset = 0; input.allowRemoval && offset < purgeIds.length; offset += PURGE_CHUNK_SIZE) {
     await input.lease.beatIfDue()
     purged += await hardDeleteDocuments(
       purgeIds.slice(offset, offset + PURGE_CHUNK_SIZE),
@@ -354,6 +363,9 @@ export async function sweepStaleMemberObservations(now: Date): Promise<StaleMemb
     .where(
       and(
         eq(knowledgeConnector.accessMode, 'members'),
+        /** Only a connector that is meant to be crawling can have stopped crawling. */
+        eq(knowledgeConnector.status, 'active'),
+        gt(knowledgeConnector.syncIntervalMinutes, 0),
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt),
         exists(

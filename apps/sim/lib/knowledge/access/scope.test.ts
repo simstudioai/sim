@@ -5,12 +5,16 @@ import type { Principal } from '@sim/auth/principal'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockMemberAccessAvailable } = vi.hoisted(() => ({
+const { mockMemberAccessAvailable, mockCheckWorkspaceAccess } = vi.hoisted(() => ({
   mockMemberAccessAvailable: vi.fn(async () => true),
+  mockCheckWorkspaceAccess: vi.fn(async () => ({ hasAccess: true })),
 }))
 
 vi.mock('@/lib/knowledge/access/availability', () => ({
   isKnowledgeMemberAccessAvailable: mockMemberAccessAvailable,
+}))
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  checkWorkspaceAccess: mockCheckWorkspaceAccess,
 }))
 
 import {
@@ -46,7 +50,29 @@ describe('resolveKnowledgeAccessScope', () => {
       userId: 'user-1',
       tokens: ['pub', 's:confluence:-:557058:abc', 's:google-drive:acme.com:42', 'ws'],
     })
-    expect(dbChainMockFns.leftJoin).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.leftJoin).toHaveBeenCalledTimes(3)
+  })
+
+  it('grants no member token to someone who is no longer in the workspace', async () => {
+    mockCheckWorkspaceAccess.mockResolvedValueOnce({ hasAccess: false })
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
+      kind: 'user',
+      userId: 'user-1',
+      tokens: ['pub', 'ws'],
+    })
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  it('grants no member token where per-member access is off, whatever the person holds', async () => {
+    mockMemberAccessAvailable.mockResolvedValueOnce(false)
+    queueSubjects([
+      { providerId: 'google-drive', providerTenantId: 'acme.com', providerSubjectId: '42' },
+    ])
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).resolves.toEqual({
+      kind: 'user',
+      userId: 'user-1',
+      tokens: ['pub', 'ws'],
+    })
   })
 
   it('falls back to the workspace pair for a person with no credential, and for one who is unverified or unknown', async () => {

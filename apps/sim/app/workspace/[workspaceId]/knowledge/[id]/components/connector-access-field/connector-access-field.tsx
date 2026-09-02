@@ -1,56 +1,21 @@
 'use client'
 
-import { type ReactNode, useMemo } from 'react'
-import {
-  ButtonGroup,
-  ButtonGroupItem,
-  ChipCombobox,
-  ChipModalField,
-  type ComboboxOption,
-} from '@sim/emcn'
+import type { ReactNode } from 'react'
+import { ButtonGroup, ButtonGroupItem, ChipCombobox, ChipModalField } from '@sim/emcn'
 import Link from 'next/link'
 import {
-  type CredentialGroupStandardOAuthProvider,
-  getCredentialGroupProviderId,
-  getCredentialGroupStandardOAuthProviderFromProviderId,
-  isCredentialGroupProvider,
-} from '@/lib/credential-groups/providers'
+  type ConnectorMemberGroupOptions,
+  decodeConnectorMemberGroupOption,
+  encodeConnectorMemberGroupOption,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-member-group-options'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import type { ConnectorMeta } from '@/connectors/types'
-import { useCredentialGroups } from '@/hooks/queries/credential-groups'
 
-/** What the caller chose; `members` needs the option the connector crawls with. */
+/** What the caller chose; `members` may name the option the connector crawls with. */
 export interface ConnectorAccessSelection {
   accessMode: 'workspace' | 'members'
   credentialGroupId?: string
   credentialGroupOptionId?: string
-}
-
-/** Encodes a group and option pair as one combobox value. */
-function optionValue(credentialGroupId: string, credentialGroupOptionId: string): string {
-  return `${credentialGroupId}:${credentialGroupOptionId}`
-}
-
-function parseOptionValue(value: string): ConnectorAccessSelection | null {
-  const separator = value.indexOf(':')
-  if (separator <= 0) return null
-  return {
-    accessMode: 'members',
-    credentialGroupId: value.slice(0, separator),
-    credentialGroupOptionId: value.slice(separator + 1),
-  }
-}
-
-/** The credential-group provider that collects accounts for this connector, if any. */
-function credentialGroupProviderFor(
-  connectorConfig: ConnectorMeta
-): CredentialGroupStandardOAuthProvider | null {
-  if (connectorConfig.auth.mode !== 'oauth' || !connectorConfig.permissionScopedListing) return null
-  try {
-    return getCredentialGroupStandardOAuthProviderFromProviderId(connectorConfig.auth.provider)
-  } catch {
-    return null
-  }
 }
 
 interface ConnectorAccessFieldProps {
@@ -58,6 +23,8 @@ interface ConnectorAccessFieldProps {
   connectorConfig: ConnectorMeta
   value: ConnectorAccessSelection
   onChange: (value: ConnectorAccessSelection) => void
+  /** From `useConnectorMemberGroupOptions`; shared with the modal so both agree on what is required. */
+  groupOptions: ConnectorMemberGroupOptions
   /** Only an admin may put a connector into members mode. */
   canAdmin: boolean
   disabled?: boolean
@@ -69,59 +36,27 @@ interface ConnectorAccessFieldProps {
 
 /**
  * The Access section of a connector's settings: sync as the workspace, or
- * crawl once per Credential Group member so each person sees only what the
- * source lets them read. Rendered only for connectors whose listing reflects
- * who may read each document. An admin with no group collecting the
- * connector's accounts can create one here; members are then invited from
- * Settings.
+ * crawl once per member so each person sees only what the source lets them
+ * read. Per-member access needs nothing from the admin: a Credential Group is
+ * found or created for the connector's provider, everyone in the workspace is
+ * invited, and each person connects their own account. Only a workspace with
+ * several matching groups is asked which one to use.
  */
 export function ConnectorAccessField({
   workspaceId,
   connectorConfig,
   value,
   onChange,
+  groupOptions,
   canAdmin,
   disabled = false,
   allowMembers = true,
   footer,
 }: ConnectorAccessFieldProps) {
   const { features } = useWorkspaceHostContext()
-  const provider = credentialGroupProviderFor(connectorConfig)
-  const providerId = provider ? getCredentialGroupProviderId(provider) : null
   const credentialGroupsAvailable = features?.credentialGroups === true
 
-  const {
-    data: settings,
-    isLoading,
-    error: loadError,
-  } = useCredentialGroups(
-    canAdmin && provider && credentialGroupsAvailable ? workspaceId : undefined
-  )
-
-  const options = useMemo<ComboboxOption[]>(() => {
-    if (!settings || !providerId) return []
-    const entries: ComboboxOption[] = []
-    for (const group of settings.credentialGroups) {
-      if (group.status !== 'active') continue
-      for (const option of group.options) {
-        if (option.status !== 'active') continue
-        if (!isCredentialGroupProvider(option.provider)) continue
-        if (getCredentialGroupProviderId(option.provider) !== providerId) continue
-        entries.push({
-          label: `${group.name} · ${option.label}`,
-          value: optionValue(group.id, option.id),
-        })
-      }
-    }
-    return entries
-  }, [settings, providerId])
-
-  if (!provider) return null
-
-  const selectedValue =
-    value.accessMode === 'members' && value.credentialGroupId && value.credentialGroupOptionId
-      ? optionValue(value.credentialGroupId, value.credentialGroupOptionId)
-      : undefined
+  if (!groupOptions.supported) return null
 
   if (!canAdmin) {
     if (value.accessMode !== 'members') return null
@@ -139,21 +74,26 @@ export function ConnectorAccessField({
     )
   }
 
-  const settingsHref = `/workspace/${workspaceId}/settings/credential-groups`
-  /** One existing group is reused on its own; several need the admin to say which. */
-  const needsChoice = options.length > 1
+  const selectedValue =
+    value.accessMode === 'members' && value.credentialGroupId && value.credentialGroupOptionId
+      ? encodeConnectorMemberGroupOption(value.credentialGroupId, value.credentialGroupOptionId)
+      : undefined
+  const { options, needsChoice, isLoading, error } = groupOptions
+  const membersHint = !credentialGroupsAvailable
+    ? 'Per-member access needs Credential Groups, which are not available on this plan.'
+    : !allowMembers
+      ? 'Per-member access is turned off for this workspace.'
+      : undefined
 
   return (
     <ChipModalField
       type='custom'
       title='Access'
-      error={loadError?.message}
+      error={error?.message}
       hint={
         value.accessMode === 'members'
           ? 'Each member sees only the documents their own account can open. Scheduled, API, and chat runs see workspace-visible documents only.'
-          : !credentialGroupsAvailable
-            ? 'Per-member access needs Credential Groups, which are not available on this plan.'
-            : undefined
+          : membersHint
       }
     >
       <div className='flex flex-col gap-2'>
@@ -181,24 +121,25 @@ export function ConnectorAccessField({
                 options={options}
                 value={selectedValue}
                 onChange={(next) => {
-                  const parsed = parseOptionValue(next)
-                  if (parsed) onChange(parsed)
+                  const decoded = decodeConnectorMemberGroupOption(next)
+                  if (decoded) onChange({ accessMode: 'members', ...decoded })
                 }}
                 placeholder='Choose which credential group members connect through'
                 isLoading={isLoading}
-                disabled={disabled || Boolean(loadError)}
+                disabled={disabled || Boolean(error)}
               />
             )}
             <p className='text-[var(--text-muted)] text-caption leading-snug'>
               {options.length === 1
                 ? `Members connect through ${options[0].label}. `
                 : options.length === 0
-                  ? `A credential group is created for ${connectorConfig.name}. `
+                  ? `A credential group named ${connectorConfig.name} is created. `
                   : ''}
-              Everyone in the workspace is invited to connect their own {connectorConfig.name}{' '}
-              account, and people who join later are invited automatically. Manage members in{' '}
+              Everyone in the workspace is invited by email to connect their own{' '}
+              {connectorConfig.name} account as the first sync starts, and people who join later are
+              invited automatically. Manage members in{' '}
               <Link
-                href={settingsHref}
+                href={`/workspace/${workspaceId}/settings/credential-groups`}
                 className='text-[var(--text-primary)] underline underline-offset-2'
               >
                 Settings

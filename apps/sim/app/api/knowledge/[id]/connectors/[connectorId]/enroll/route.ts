@@ -12,7 +12,8 @@ export const POST = defineInternalJsonRoute({
   auth: internalKnowledgeSessionOrExecutorAuth,
   operation: knowledgeOperations.enrollConnectorMember,
   rateLimit: internalRateLimits.none({
-    reason: 'A member connecting their own account by hand; the link is single-use',
+    reason:
+      'A member connecting their own account by hand; each call only re-issues their own invitation',
   }),
   errorPolicy: internalKnowledgeErrorPolicies.connectors,
   mapInput: ({ params }) => ({

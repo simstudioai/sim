@@ -39,6 +39,7 @@ import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/kn
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
+import { useConnectorMemberGroupOptions } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-member-group-options'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks'
@@ -95,6 +96,14 @@ export function AddConnectorModal({
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
   const isMembersMode = access.accessMode === 'members'
+  const groupOptions = useConnectorMemberGroupOptions({
+    workspaceId,
+    connectorConfig,
+    enabled: canAdmin && memberAccessAvailable,
+  })
+  /** Several groups collect this provider's accounts: the admin has to say which. */
+  const membersChoiceOpen =
+    isMembersMode && groupOptions.needsChoice && !access.credentialGroupOptionId
   /** Fields a per-member crawl refuses: a cap would hide part of a member's corpus. */
   const memberCapFieldIds = useMemo(
     () =>
@@ -184,7 +193,9 @@ export function AddConnectorModal({
     if (!connectorConfig) return false
     if (isApiKeyMode) {
       if (!isApiKeyOptional && !apiKeyValue.trim()) return false
-    } else if (!isMembersMode) {
+    } else if (isMembersMode) {
+      if (membersChoiceOpen) return false
+    } else {
       if (!effectiveCredentialId) return false
     }
 
@@ -199,6 +210,7 @@ export function AddConnectorModal({
     connectorConfig,
     isApiKeyMode,
     isMembersMode,
+    membersChoiceOpen,
     memberCapFieldIds,
     isApiKeyOptional,
     apiKeyValue,
@@ -337,6 +349,7 @@ export function AddConnectorModal({
                   connectorConfig={connectorConfig}
                   value={access}
                   onChange={setAccess}
+                  groupOptions={groupOptions}
                   canAdmin={canAdmin}
                   disabled={isCreating}
                 />

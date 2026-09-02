@@ -15,8 +15,6 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
-import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
-import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import {
   type CredentialGroupOptionCredentialReference,
   loadCredentialGroupCredentialListContext,
@@ -36,10 +34,7 @@ import {
   removeMemberObservationsForDocuments,
   removeUnseenMemberObservations,
 } from '@/lib/knowledge/connectors/member-observations'
-import {
-  inviteWorkspaceMembersToCredentialGroup,
-  MEMBER_PROVISION_INVITES_PER_RUN,
-} from '@/lib/knowledge/connectors/member-provisioning'
+import { inviteWorkspaceMembersToCredentialGroup } from '@/lib/knowledge/connectors/member-provisioning'
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
@@ -1071,10 +1066,35 @@ async function failMemberSyncLog(runId: string, result: MemberSyncResult, errorM
 }
 
 /**
- * Disables member sync on a connector that can no longer run it — the
- * workspace lost Credential Groups, or the group binding is gone — and
- * suspends every member so their tokens leave every ACL. Nothing is purged:
- * re-enabling restores access from the retained observations.
+ * Ends a run without doing anything because the feature is not available to
+ * the workspace right now. The connector keeps its members and their
+ * observations, records nothing as a failure, and is looked at again on its
+ * next schedule; a manual-only connector waits for the next manual sync.
+ */
+async function deferMemberSync(run: MemberSyncRun, syncIntervalMinutes: number): Promise<void> {
+  const now = new Date()
+  await failMemberSyncLog(run.runId, run.result, 'Per-member access is not available; waiting')
+  await db
+    .update(knowledgeConnector)
+    .set({
+      memberSyncStatus: 'idle',
+      lastMemberSyncError: 'Per-member access is not available for this workspace',
+      nextMemberSyncAt: nextMemberSyncTime(now, syncIntervalMinutes, false),
+      memberSyncLockToken: null,
+      memberSyncLockLeaseAt: null,
+      updatedAt: now,
+    })
+    .where(holdsMemberSyncLockToken(run.connectorId, run.runId))
+  logger.info('Member sync deferred; per-member access is not available', {
+    connectorId: run.connectorId,
+  })
+}
+
+/**
+ * Disables member sync on a connector that can no longer run it because its
+ * group binding is gone, and suspends every member so their tokens leave
+ * every ACL. Nothing is purged: re-enabling restores access from the retained
+ * observations.
  */
 async function disableMemberSync(run: MemberSyncRun, reason: string): Promise<void> {
   const now = new Date()
@@ -1223,19 +1243,16 @@ export async function executeMemberSync(
   await insertMemberSyncLog(runId, connectorId, runStartedAt)
 
   try {
-    const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(run.workspaceId)
-    if (!(await isCredentialGroupsAvailable({ workspaceId: run.workspaceId, ownerBilling }))) {
-      await disableMemberSync(run, 'Credential Groups are not available for this workspace')
-      return {
-        ...skipped(result, 'connector_not_syncable'),
-        error: 'Credential Groups are not available',
-      }
-    }
+    /**
+     * Where the feature is off — flag, plan, or a flag read that could not
+     * reach its source — nothing changes: readers already see no member-scoped
+     * document, and the run waits for the next schedule to look again.
+     */
     if (!(await isKnowledgeMemberAccessAvailable({ workspaceId: run.workspaceId }))) {
-      await disableMemberSync(run, 'Per-member access is not enabled for this workspace')
+      await deferMemberSync(run, connector.syncIntervalMinutes)
       return {
         ...skipped(result, 'connector_not_syncable'),
-        error: 'Per-member access is not enabled',
+        error: 'Per-member access is not available for this workspace',
       }
     }
     if (!connector.credentialGroupId || !connector.credentialGroupOptionId) {
@@ -1264,8 +1281,7 @@ export async function executeMemberSync(
     const invited = await inviteWorkspaceMembersToCredentialGroup({
       workspaceId: run.workspaceId,
       credentialGroupId: connector.credentialGroupId,
-      inviterUserId: undefined,
-      limit: MEMBER_PROVISION_INVITES_PER_RUN,
+      beforeBatch: run.lease.beatIfDue,
     }).catch((error) => {
       logger.warn('Failed to invite new workspace members during a member run', {
         connectorId,
@@ -1424,12 +1440,28 @@ export async function executeMemberSync(
 
     await materializeDocumentAcls(connectorId, affectedDocumentIds)
 
+    /**
+     * Nobody has completed a listing yet — a connector that just entered
+     * members mode, waiting for its first member to connect — so an
+     * unobserved document says nothing about access and must not be
+     * tombstoned, let alone purged a week later.
+     */
+    const [listed] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(knowledgeConnectorMember)
+      .where(
+        and(
+          eq(knowledgeConnectorMember.connectorId, connectorId),
+          sql`${knowledgeConnectorMember.lastCompleteListingAt} IS NOT NULL`
+        )
+      )
     const lifecycle = await applyMemberDocumentLifecycle({
       connectorId,
       knowledgeBaseId: connector.knowledgeBaseId,
       runId,
       lease: run.lease,
       failedExternalIds: state.failedExternalIds,
+      allowRemoval: (listed?.count ?? 0) > 0,
     })
     result.docsTombstoned = lifecycle.tombstoned
     result.docsResurrected = lifecycle.resurrected

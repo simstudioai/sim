@@ -168,10 +168,18 @@ export function ConnectorsSection({
     )
   }
 
+  const deletingMembersConnector =
+    connectors.find((connector) => connector.id === deleteTarget)?.accessMode === 'members'
+
   const handleDeleteConnector = () => {
     if (!deleteTarget) return
     deleteConnector(
-      { knowledgeBaseId, connectorId: deleteTarget, deleteDocuments },
+      {
+        knowledgeBaseId,
+        connectorId: deleteTarget,
+        /** Documents synced per member have no meaning without their members. */
+        deleteDocuments: deleteDocuments || deletingMembersConnector,
+      },
       {
         onSuccess: () => {
           setError(null)
@@ -240,7 +248,11 @@ export function ConnectorsSection({
         }}
         srTitle='Remove Connector'
         title='Remove Connector'
-        text='This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
+        text={
+          deletingMembersConnector
+            ? 'This will disconnect the source, stop future syncs, and delete the documents it synced per member.'
+            : 'This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
+        }
         confirm={{
           label: 'Remove',
           onClick: handleDeleteConnector,
@@ -248,19 +260,21 @@ export function ConnectorsSection({
           pendingLabel: 'Removing...',
         }}
       >
-        <div className='flex items-center gap-2 px-2'>
-          <Checkbox
-            id={deleteDocumentsId}
-            checked={deleteDocuments}
-            onCheckedChange={(checked) => setDeleteDocuments(checked === true)}
-          />
-          <label
-            htmlFor={deleteDocumentsId}
-            className='cursor-pointer text-[var(--text-secondary)] text-small'
-          >
-            Also delete all synced documents
-          </label>
-        </div>
+        {!deletingMembersConnector && (
+          <div className='flex items-center gap-2 px-2'>
+            <Checkbox
+              id={deleteDocumentsId}
+              checked={deleteDocuments}
+              onCheckedChange={(checked) => setDeleteDocuments(checked === true)}
+            />
+            <label
+              htmlFor={deleteDocumentsId}
+              className='cursor-pointer text-[var(--text-secondary)] text-small'
+            >
+              Also delete all synced documents
+            </label>
+          </div>
+        )}
       </ChipConfirmModal>
     </div>
   )

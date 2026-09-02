@@ -1,7 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -26,9 +24,7 @@ import { getKnowledgeConnector } from '@/lib/knowledge/orchestration/connectors'
 import type { KnowledgeOperationSource } from '@/lib/knowledge/orchestration/shared'
 import { getConnectorMeta } from '@/connectors/registry'
 
-const logger = createLogger('KnowledgeConnectorAccessApplication')
-
-/** Provisioning pulls in the credential-group services; loaded only when a members-mode switch needs it. */
+/** The enrollment link needs the credential-group services; loaded only when a member connects. */
 async function loadMemberProvisioning() {
   return import('@/lib/knowledge/connectors/member-provisioning')
 }
@@ -117,7 +113,6 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       )
     }
 
-    const subjectUserId = resolvePrincipalSubjectUserId(principal)
     const target =
       input.accessMode === 'members'
         ? {
@@ -131,13 +126,8 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
                       credentialGroupId: input.credentialGroupId,
                       credentialGroupOptionId: input.credentialGroupOptionId,
                     }
-                  : await (
-                      await loadMemberProvisioning()
-                    ).provisionKnowledgeConnectorMembersBinding({
-                      workspaceId,
-                      connectorMeta,
-                      userId: actingUserId,
-                    }),
+                  : null,
+              actingUserId,
               sourceConfig: connector.sourceConfig as Record<string, unknown>,
             }),
           }
@@ -165,22 +155,6 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       request,
     })
     requireSuccessfulOutcome(outcome, 'Knowledge connector access update failed')
-    if (target.accessMode === 'members' && outcome.changed) {
-      const provisioning = await loadMemberProvisioning()
-      await provisioning
-        .inviteWorkspaceMembersToCredentialGroup({
-          workspaceId,
-          credentialGroupId: target.binding.credentialGroupId,
-          inviterUserId: subjectUserId ?? undefined,
-          limit: provisioning.MEMBER_PROVISION_INVITES_PER_REQUEST,
-        })
-        .catch((error) => {
-          logger.warn('Failed to invite workspace members after switching to members mode', {
-            workspaceId,
-            error: getErrorMessage(error),
-          })
-        })
-    }
     return { connector: outcome.connector, changed: outcome.changed, workspaceId }
   },
   projectAudit: ({ input, context, result }) =>

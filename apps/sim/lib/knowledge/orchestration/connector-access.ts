@@ -74,7 +74,10 @@ export interface ResolvedMembersBinding extends KnowledgeConnectorMembersBinding
 export async function resolveKnowledgeConnectorMembersBinding(input: {
   workspaceId: string
   connectorMeta: Pick<ConnectorMeta, 'name' | 'auth' | 'permissionScopedListing' | 'configFields'>
-  binding: KnowledgeConnectorMembersBinding
+  /** The option the caller named, or null to sync through the workspace's group for the provider, created if need be. */
+  binding: KnowledgeConnectorMembersBinding | null
+  /** The admin acting, recorded as the creator of a provisioned group. */
+  actingUserId: string
   sourceConfig: Record<string, unknown>
 }): Promise<ResolvedMembersBinding> {
   /**
@@ -87,19 +90,34 @@ export async function resolveKnowledgeConnectorMembersBinding(input: {
       'Per-member access is not available for this workspace'
     )
   }
-  const group = await loadCredentialGroupCredentialListContext(input.binding.credentialGroupId)
+  if (!input.connectorMeta.permissionScopedListing) {
+    throw new OrchestrationError(
+      'validation',
+      `${input.connectorMeta.name} cannot sync per member: its listing does not reflect who may read each document`
+    )
+  }
+  const sourceConfig = stripListingCapFields(input.connectorMeta, input.sourceConfig)
+  const binding =
+    input.binding ??
+    (await (
+      await import('@/lib/knowledge/connectors/member-provisioning')
+    ).provisionKnowledgeConnectorMembersBinding({
+      workspaceId: input.workspaceId,
+      connectorMeta: input.connectorMeta,
+      userId: input.actingUserId,
+    }))
+  const group = await loadCredentialGroupCredentialListContext(binding.credentialGroupId)
   if (!group || group.workspaceId !== input.workspaceId) {
     throw new OrchestrationError('validation', 'Credential Group was not found in this workspace')
   }
-  const sourceConfig = stripListingCapFields(input.connectorMeta, input.sourceConfig)
   const validation = validateKnowledgeConnectorMembersBinding({
     connectorMeta: input.connectorMeta,
     group,
-    credentialGroupOptionId: input.binding.credentialGroupOptionId,
+    credentialGroupOptionId: binding.credentialGroupOptionId,
     sourceConfig,
   })
   if (!validation.ok) throw new OrchestrationError('validation', validation.message)
-  return { ...input.binding, workspaceId: input.workspaceId, sourceConfig }
+  return { ...binding, workspaceId: input.workspaceId, sourceConfig }
 }
 
 /**
@@ -242,6 +260,38 @@ export async function performUpdateKnowledgeConnectorAccess(
       : target.binding.credentialGroupId === existing.credentialGroupId &&
         target.binding.credentialGroupOptionId === existing.credentialGroupOptionId)
   if (unchanged) {
+    /**
+     * Re-applying the current binding on a connector whose member sync was
+     * disabled is how it is re-enabled: the next run reconciles members from
+     * the group again and restores access from the retained observations.
+     */
+    if (target.accessMode === 'members' && existing.memberSyncStatus === 'disabled') {
+      const now = new Date()
+      const [updated] = await db
+        .update(knowledgeConnector)
+        .set({
+          memberSyncStatus: 'idle',
+          memberSyncConsecutiveFailures: 0,
+          lastMemberSyncError: null,
+          nextMemberSyncAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(knowledgeConnector.id, connectorId),
+            eq(knowledgeConnector.memberSyncStatus, 'disabled'),
+            isNull(knowledgeConnector.deletedAt)
+          )
+        )
+        .returning()
+      if (!updated) return fail('Connector changed; retry the request', 'conflict')
+      logger.info(`[${requestId}] Re-enabled member sync on connector ${connectorId}`)
+      const { encryptedApiKey: _secret, ...connector } = updated
+      if (updated.status !== 'paused') {
+        await dispatchMemberSyncBestEffort(connectorId, params, requestId, now)
+      }
+      return { success: true, connector, changed: true }
+    }
     const { encryptedApiKey: _secret, ...connector } = existing
     return { success: true, connector, changed: false }
   }
@@ -393,6 +443,13 @@ export async function performUpdateKnowledgeConnectorAccess(
           credentialGroupId: null,
           credentialGroupOptionId: null,
           accessRewritePending: true,
+          /**
+           * The next content sync must list everything and reconcile: the
+           * union of every member's documents may hold documents the
+           * workspace credential cannot see, and only a full listing removes
+           * them.
+           */
+          lastSyncAt: null,
           memberSyncStatus: 'idle',
           memberSyncConsecutiveFailures: 0,
           lastMemberSyncError: null,

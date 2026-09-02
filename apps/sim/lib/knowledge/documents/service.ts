@@ -2946,6 +2946,7 @@ export async function bulkDocumentOperation(
   knowledgeBaseId: string,
   operation: 'enable' | 'disable' | 'delete',
   documentIds: string[],
+  access: KnowledgeAccessScope,
   requestId: string
 ): Promise<{
   success: boolean
@@ -2973,7 +2974,8 @@ export async function bulkDocumentOperation(
         inArray(document.id, documentIds),
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
-        isNull(document.deletedAt)
+        isNull(document.deletedAt),
+        knowledgeAccessCondition(access)
       )
     )
 

@@ -9,8 +9,6 @@ import {
   knowledgeConnectorMemberSyncLog,
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
@@ -64,9 +62,7 @@ interface KnowledgeConnectorApplicationInput {
   source?: KnowledgeOperationSource
 }
 
-const logger = createLogger('KnowledgeConnectorsApplication')
-
-/** Provisioning pulls in the credential-group services; loaded only when a members-mode connector needs it. */
+/** The viewer's standing with per-member connectors; loaded only when the list holds one. */
 async function loadMemberProvisioning() {
   return import('@/lib/knowledge/connectors/member-provisioning')
 }
@@ -358,7 +354,7 @@ export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
     principal: Principal
     input: ReadKnowledgeConnectorInput
   }) => resolveActiveKnowledgeConnectorContext(input, principal),
-  async execute({ context }) {
+  async execute({ principal, context }) {
     const connector = await getKnowledgeConnector(context.knowledgeBaseId, context.connectorId)
     if (!connector) throw new OrchestrationError('not_found', 'Connector not found')
     const [syncLogs, memberSyncLogs, members] = await Promise.all([
@@ -377,7 +373,24 @@ export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       summarizeConnectorMembers(context.connectorId, connector.syncIntervalMinutes),
     ])
     const { encryptedApiKey: _encryptedApiKey, ...connectorData } = connector
-    return { connector: { ...connectorData, syncLogs, memberSyncLogs, members } }
+    const viewerUserId = resolvePrincipalSubjectUserId(principal)
+    const memberships =
+      viewerUserId && context.workspaceId
+        ? await (await loadMemberProvisioning()).resolveViewerConnectorMemberships({
+            userId: viewerUserId,
+            workspaceId: context.workspaceId,
+            connectors: [connector],
+          })
+        : new Map()
+    return {
+      connector: {
+        ...connectorData,
+        viewerMembership: memberships.get(connector.id) ?? null,
+        syncLogs,
+        memberSyncLogs,
+        members,
+      },
+    }
   },
 })
 
@@ -435,7 +448,13 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
        * which is an admin decision even though creating a connector is not.
        */
       const subjectUserId = resolvePrincipalSubjectUserId(principal)
-      if (!subjectUserId || context.workspaceId === undefined) {
+      if (context.workspaceId === undefined) {
+        throw new OrchestrationError(
+          'validation',
+          'Per-member access needs a workspace knowledge base'
+        )
+      }
+      if (!subjectUserId) {
         throw new OrchestrationError(
           'forbidden',
           'A members-mode connector needs a signed-in admin'
@@ -446,21 +465,17 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       if (!connectorMeta) {
         throw new OrchestrationError('validation', `Unknown connector type: ${input.connectorType}`)
       }
-      const named =
-        input.credentialGroupId && input.credentialGroupOptionId
-          ? {
-              credentialGroupId: input.credentialGroupId,
-              credentialGroupOptionId: input.credentialGroupOptionId,
-            }
-          : await (await loadMemberProvisioning()).provisionKnowledgeConnectorMembersBinding({
-              workspaceId,
-              connectorMeta,
-              userId: subjectUserId,
-            })
       membersBinding = await resolveKnowledgeConnectorMembersBinding({
         workspaceId,
         connectorMeta,
-        binding: named,
+        binding:
+          input.credentialGroupId && input.credentialGroupOptionId
+            ? {
+                credentialGroupId: input.credentialGroupId,
+                credentialGroupOptionId: input.credentialGroupOptionId,
+              }
+            : null,
+        actingUserId: subjectUserId,
         sourceConfig: input.sourceConfig,
       })
     }
@@ -490,29 +505,6 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       recordProductAnalytics: false,
     })
     requireSuccessfulOutcome(outcome, 'Knowledge connector creation failed')
-    if (membersBinding && outcome.success) {
-      /**
-       * Everyone in the workspace is invited to connect, so the admin's only
-       * next step is to wait. Bounded here; the member run invites the rest.
-       */
-      const provisioning = await loadMemberProvisioning()
-      await provisioning
-        .inviteWorkspaceMembersToCredentialGroup({
-          workspaceId,
-          credentialGroupId: membersBinding.credentialGroupId,
-          inviterUserId: resolvePrincipalSubjectUserId(principal) ?? undefined,
-          limit: provisioning.MEMBER_PROVISION_INVITES_PER_REQUEST,
-        })
-        .catch((error) => {
-          logger.warn(
-            'Failed to invite workspace members after creating a members-mode connector',
-            {
-              workspaceId,
-              error: getErrorMessage(error),
-            }
-          )
-        })
-    }
     return { connector: outcome.connector, workspaceId }
   },
   projectAudit: ({ input, context, result }) => ({

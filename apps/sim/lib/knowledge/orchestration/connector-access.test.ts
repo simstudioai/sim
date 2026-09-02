@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   dispatchSync: vi.fn(),
   dispatchMemberSync: vi.fn(),
   memberAccessAvailable: vi.fn(),
+  provision: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -41,6 +42,9 @@ vi.mock('@/lib/credential-groups/credentials', () => ({
 }))
 vi.mock('@/lib/knowledge/access/availability', () => ({
   isKnowledgeMemberAccessAvailable: mocks.memberAccessAvailable,
+}))
+vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
+  provisionKnowledgeConnectorMembersBinding: mocks.provision,
 }))
 vi.mock('@/lib/knowledge/connectors/queue', () => ({ dispatchSync: mocks.dispatchSync }))
 vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
@@ -99,10 +103,60 @@ function switchTo(target: Parameters<typeof performUpdateKnowledgeConnectorAcces
   })
 }
 
+const SCOPED_META = {
+  name: 'Google Drive',
+  auth: { mode: 'oauth', provider: 'google-drive' },
+  permissionScopedListing: { capFieldIds: [] },
+  configFields: [],
+} as never
+
 describe('resolveKnowledgeConnectorMembersBinding', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.memberAccessAvailable.mockResolvedValue(true)
+  })
+
+  it('refuses a connector whose listing is not permission-scoped, before loading anything', async () => {
+    await expect(
+      resolveKnowledgeConnectorMembersBinding({
+        workspaceId: 'ws-1',
+        connectorMeta: { name: 'Slack', auth: { mode: 'oauth' }, configFields: [] } as never,
+        actingUserId: 'admin-1',
+        binding: null,
+        sourceConfig: {},
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.provision).not.toHaveBeenCalled()
+    expect(mocks.loadGroup).not.toHaveBeenCalled()
+  })
+
+  it('provisions the group when none is named, then validates it like a named one', async () => {
+    mocks.provision.mockResolvedValue({
+      credentialGroupId: 'group-9',
+      credentialGroupOptionId: 'option-9',
+    })
+    mocks.loadGroup.mockResolvedValue({ workspaceId: 'ws-1', status: 'active', options: [] })
+    mocks.validateBinding.mockReturnValue({ ok: true, option: {} })
+    await expect(
+      resolveKnowledgeConnectorMembersBinding({
+        workspaceId: 'ws-1',
+        connectorMeta: SCOPED_META,
+        actingUserId: 'admin-1',
+        binding: null,
+        sourceConfig: {},
+      })
+    ).resolves.toEqual({
+      credentialGroupId: 'group-9',
+      credentialGroupOptionId: 'option-9',
+      workspaceId: 'ws-1',
+      sourceConfig: {},
+    })
+    expect(mocks.provision).toHaveBeenCalledWith({
+      workspaceId: 'ws-1',
+      connectorMeta: SCOPED_META,
+      userId: 'admin-1',
+    })
+    expect(mocks.loadGroup).toHaveBeenCalledWith('group-9')
   })
 
   it('refuses members mode where the feature is off, before loading anything', async () => {
@@ -110,7 +164,8 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
     await expect(
       resolveKnowledgeConnectorMembersBinding({
         workspaceId: 'ws-1',
-        connectorMeta: {} as never,
+        connectorMeta: SCOPED_META,
+        actingUserId: 'admin-1',
         binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
         sourceConfig: {},
       })
@@ -124,7 +179,8 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
     await expect(
       resolveKnowledgeConnectorMembersBinding({
         workspaceId: 'ws-1',
-        connectorMeta: {} as never,
+        connectorMeta: SCOPED_META,
+        actingUserId: 'admin-1',
         binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
         sourceConfig: {},
       })
@@ -138,7 +194,8 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
     await expect(
       resolveKnowledgeConnectorMembersBinding({
         workspaceId: 'ws-1',
-        connectorMeta: {} as never,
+        connectorMeta: SCOPED_META,
+        actingUserId: 'admin-1',
         binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
         sourceConfig: { maxFiles: '5' },
       })

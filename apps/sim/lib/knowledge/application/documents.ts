@@ -1010,6 +1010,7 @@ export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
             context.knowledgeBaseId,
             input.operation,
             input.documentIds,
+            await context.access.get(),
             generateRequestId()
           )
         : null

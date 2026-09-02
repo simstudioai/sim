@@ -1,4 +1,6 @@
+import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 
 /**
  * Who is asking. Members mode — creating, switching, syncing, and honouring
@@ -14,16 +16,20 @@ export interface KnowledgeMemberAccessContext {
 }
 
 /**
- * Whether permission-aware knowledge is on for this workspace: members-mode
- * connectors, their per-member change feeds, and hybrid-by-default retrieval
- * with the source-recency boost. Everything the feature adds checks this one
- * gate. Turning the flag off hides every member-scoped document on the next
- * read, disables each members-mode connector on its next run (members are
- * suspended, nothing is deleted), and returns search to the semantic-only
- * default; a disabled connector is re-enabled by switching its access again.
+ * Whether permission-aware knowledge is on for this workspace: the
+ * `knowledge-member-access` flag, and Credential Groups available to the
+ * workspace, which members mode enrolls people through. Every gate the
+ * feature has checks this one function — creating and switching connectors,
+ * the member engine, the member tokens a reader is granted, and the
+ * workspace host context the UI reads — so they can never disagree. When it
+ * turns off, member-scoped documents are hidden on the next read, members-mode
+ * connectors wait rather than change anything, and search returns to the
+ * semantic-only default; nothing is deleted.
  */
 export async function isKnowledgeMemberAccessAvailable(
   context: KnowledgeMemberAccessContext
 ): Promise<boolean> {
-  return isFeatureEnabled('knowledge-member-access', context)
+  if (!(await isFeatureEnabled('knowledge-member-access', context))) return false
+  const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(context.workspaceId)
+  return isCredentialGroupsAvailable({ workspaceId: context.workspaceId, ownerBilling })
 }

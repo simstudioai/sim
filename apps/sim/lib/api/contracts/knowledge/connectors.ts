@@ -137,6 +137,8 @@ export const VIEWER_CONNECTOR_MEMBERSHIPS = [
   'needs_reauth',
   'invited',
   'not_enrolled',
+  'revoked',
+  'unverified_email',
 ] as const
 export const viewerConnectorMembershipSchema = z.enum(VIEWER_CONNECTOR_MEMBERSHIPS)
 export type ViewerConnectorMembership = z.output<typeof viewerConnectorMembershipSchema>
@@ -159,10 +161,11 @@ export const connectorDataSchema = z
     consecutiveFailures: z.number(),
     accessMode: connectorAccessModeSchema,
     /**
-     * Where the viewer stands with a per-member connector: absent for a
-     * workspace-mode connector or a caller with no person behind it.
+     * Where the viewer stands with a per-member connector; null for a
+     * workspace-mode connector, a caller with no person behind it, or where
+     * per-member access is not available.
      */
-    viewerMembership: viewerConnectorMembershipSchema.nullable().optional(),
+    viewerMembership: viewerConnectorMembershipSchema.nullable(),
     credentialGroupId: z.string().nullable(),
     credentialGroupOptionId: z.string().nullable(),
     /** Members mode only; `idle` otherwise. */

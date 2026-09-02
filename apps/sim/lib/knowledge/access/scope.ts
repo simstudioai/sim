@@ -1,6 +1,6 @@
 import { type Principal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { credential, credentialGroupEnrollment, user } from '@sim/db/schema'
+import { credential, credentialGroup, credentialGroupEnrollment, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -13,6 +13,7 @@ import {
   WORKSPACE_ACCESS_TOKENS,
   type WorkspaceAccessScope,
 } from '@/lib/knowledge/access/types'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('KnowledgeAccessScope')
 
@@ -43,6 +44,14 @@ async function loadUserAccessTokens(
 ): Promise<string[]> {
   if (!workspaceId) return [...WORKSPACE_ACCESS_TOKENS]
 
+  /**
+   * Member tokens belong to current workspace members. Resolved before any
+   * document is looked up, so someone who left the workspace but still holds
+   * a managed credential cannot learn which documents their old tokens match.
+   */
+  const workspaceAccess = await checkWorkspaceAccess(workspaceId, userId)
+  if (!workspaceAccess.hasAccess) return [...WORKSPACE_ACCESS_TOKENS]
+
   const rows = await db
     .select({
       providerId: credential.providerId,
@@ -61,12 +70,25 @@ async function loadUserAccessTokens(
       )
     )
     .leftJoin(
+      credentialGroup,
+      and(
+        eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId),
+        eq(credentialGroup.status, 'active')
+      )
+    )
+    .leftJoin(
       credential,
       and(
         eq(credential.credentialGroupEnrollmentId, credentialGroupEnrollment.id),
         eq(credential.workspaceId, workspaceId),
         eq(credential.type, 'managed_oauth'),
-        eq(credential.managedOauthStatus, 'active')
+        eq(credential.managedOauthStatus, 'active'),
+        /** The option must still be live, exactly as the member engine requires. */
+        sql`EXISTS (
+          SELECT 1 FROM jsonb_array_elements(${credentialGroup.options}) AS option
+          WHERE option->>'id' = ${credential.credentialGroupOptionId}
+            AND option->>'status' = 'active'
+        )`
       )
     )
     .where(and(eq(user.id, userId), eq(user.emailVerified, true)))
