@@ -1,4 +1,4 @@
-import { fetchWorkflowState } from '@/lib/mothership/agent-cli/engines/workflow-views'
+import { fetchWorkflowState } from '@/lib/mothership/agent-cli/engines/workflow-state'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { normalizeName, SPECIAL_REFERENCE_PREFIXES } from '@/executor/constants'
 import {

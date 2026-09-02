@@ -13,6 +13,7 @@ const { mockRead, mockWrite, mockRunEmbeddedCli, mockMint } = vi.hoisted(() => (
 vi.mock('@/lib/execution/remote-sandbox/session-files', () => ({
   readSessionSandboxFile: mockRead,
   writeSessionSandboxFile: mockWrite,
+  resolveSessionPath: (path: string) => (path.startsWith('/') ? path : `/home/user/${path}`),
 }))
 vi.mock('sim/embed', () => ({
   runEmbeddedCli: mockRunEmbeddedCli,
@@ -32,7 +33,7 @@ const context = { workspaceId: 'ws-1', userId: 'u-1', chatId: 'chat-1' } as Para
 >[1]
 
 function cli(argv: string[], extra: Partial<AgentCliRequest> = {}): { request: AgentCliRequest } {
-  return { request: { invocation: { kind: 'cli', argv }, pipeline: [], ...extra } }
+  return { request: { invocation: { kind: 'cli', argv }, ...extra } }
 }
 
 describe('sim-cli handler executes the worker-built request', () => {
@@ -55,7 +56,7 @@ describe('sim-cli handler executes the worker-built request', () => {
     expect(mockRunEmbeddedCli).toHaveBeenCalledWith(
       ['workflows', 'run', 'wf1', '--input', '@env.json'],
       expect.anything(),
-      { fileArguments: { 'env.json': '{"text":"hi"}' } }
+      expect.objectContaining({ fileArguments: { 'env.json': '{"text":"hi"}' } })
     )
   })
 
@@ -66,32 +67,8 @@ describe('sim-cli handler executes the worker-built request', () => {
     expect(mockRunEmbeddedCli).toHaveBeenCalledWith(
       ['x', '@@literal', '@missing.json'],
       expect.anything(),
-      {
-        fileArguments: {},
-      }
+      expect.objectContaining({ fileArguments: {} })
     )
-  })
-
-  it('applies the pre-parsed pipeline to a successful result', async () => {
-    mockRunEmbeddedCli.mockResolvedValue({ exitCode: 0, stdout: 'alpha slack\nbeta\n', stderr: '' })
-    const result = await executeSimCli(
-      cli(['workflows', 'list'], {
-        pipeline: [
-          {
-            kind: 'grep',
-            pattern: 'slack',
-            ignoreCase: true,
-            invert: false,
-            countOnly: false,
-            lineNumbers: false,
-            linesBefore: 0,
-            linesAfter: 0,
-          },
-        ],
-      }),
-      context
-    )
-    expect((result.output as { stdout: string }).stdout).toBe('alpha slack')
   })
 
   it('sink lands stdout on the machine and returns only the ack', async () => {
@@ -102,9 +79,26 @@ describe('sim-cli handler executes the worker-built request', () => {
     )
     expect(mockWrite).toHaveBeenCalledWith('mothership-chat:chat-1', 'trace.json', 'BIG OUTPUT')
     const output = result.output as { stdout: string }
-    expect(output.stdout).toContain('written to trace.json')
+    expect(output.stdout).toContain('written to /home/user/trace.json')
     expect(output.stdout).toContain('10 chars')
     expect(output.stdout).not.toContain('BIG OUTPUT')
+  })
+
+  it('a stdout invocation only lands the worker-sliced text — nothing is executed', async () => {
+    mockWrite.mockResolvedValue({ outcome: 'written', path: '/home/user/sliced.json' })
+    const result = await executeSimCli(
+      {
+        request: {
+          invocation: { kind: 'stdout', stdout: 'SLICED' },
+          sink: { kind: 'sandbox-file', path: 'sliced.json' },
+        },
+      },
+      context
+    )
+    expect(mockRunEmbeddedCli).not.toHaveBeenCalled()
+    expect(mockWrite).toHaveBeenCalledWith('mothership-chat:chat-1', 'sliced.json', 'SLICED')
+    const output = result.output as { stdout: string }
+    expect(output.stdout).toContain('written to /home/user/sliced.json')
   })
 
   it('sink on a cold machine returns output inline with boot guidance', async () => {

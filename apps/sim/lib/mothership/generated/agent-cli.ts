@@ -3,81 +3,64 @@
 
 /**
  * The mothership↔sim wire for one Sim CLI invocation (docs/revamp/18-agent-surface.md
- * §0 + Phase A0). The WORKER owns the agent grammar — it parses the model's argv into
- * this typed request; sim executes it with generic primitives and never re-parses
- * tokens (no pipe splitting, no flag matching, no augmentation routing on the sim side).
- *
- * Wire-shared shape: sim's tool handler validates its frame arguments against this.
+ * §4, Phase A0). The worker's translation layer decides everything — which command,
+ * which augmentation, whether the result lands on the caller's machine — and sim
+ * executes exactly what it is handed: no re-parsing, no policy. Slicing (`| grep`,
+ * `| jq`, `| outline`) never crosses this wire: the worker applies it to whatever comes
+ * back, so every command pipes the same way regardless of where it is answered.
  */
 
-/** One grep stage, fully parsed: sim applies it, it never interprets flags. */
-export interface AgentCliGrepStage {
-  kind: "grep";
-  pattern: string;
-  ignoreCase: boolean;
-  invert: boolean;
-  countOnly: boolean;
-  lineNumbers: boolean;
-  /** Stop after this many matching lines; absent = unbounded. */
-  maxCount?: number;
-  linesBefore: number;
-  linesAfter: number;
-}
-
-/** A jq program applied to JSON stdout — the model's slicing tool; real jq semantics. */
-export interface AgentCliJqStage {
-  kind: "jq";
-  expression: string;
-}
-
-/** Keys, types, and counts of JSON stdout to depth 3, no values — the shape, cheaply. */
-export interface AgentCliOutlineStage {
-  kind: "outline";
-}
-
-export type AgentCliPipeStage = AgentCliGrepStage | AgentCliJqStage | AgentCliOutlineStage;
-
-/** Where stdout lands instead of the model window. */
+/** The result lands on the caller's machine (the chat's sandbox) instead of the window. */
 export interface AgentCliSandboxFileSink {
   kind: "sandbox-file";
-  /** Path on the chat's workbench sandbox. */
+  /** File name or path on the caller's machine; relative paths resolve under its home. */
   path: string;
 }
 
 export type AgentCliSink = AgentCliSandboxFileSink;
 
-/** The real CLI's own command tree, run in-process on sim. */
+/** A real Sim CLI command, run in-process against the embedded CLI. */
 export interface AgentCliCliInvocation {
   kind: "cli";
   /** argv tokens with global rendering flags and any pipeline already stripped. */
   argv: string[];
 }
 
-/** An agent-only augmentation, resolved by the worker's registry to its sim engine. */
+/** An agent-only command, run by sim's engine of the same name with typed inputs. */
 export interface AgentCliAugmentationInvocation {
   kind: "augmentation";
-  /** Engine name, e.g. "workflow lint" — the registry's canonical path. */
+  /** The registry's canonical name, e.g. "grep" or "workflows lint". */
   name: string;
   positionals: string[];
-  /** `--flag value` / `--flag=value` → string; bare `--flag` → true. */
   flags: Record<string, string | true>;
 }
 
-export type AgentCliInvocation = AgentCliCliInvocation | AgentCliAugmentationInvocation;
+/**
+ * Text the worker already has (a sliced result, or a worker-answered command's
+ * output) that only needs the sink applied: sim writes it and answers with the notice.
+ */
+export interface AgentCliStdoutInvocation {
+  kind: "stdout";
+  stdout: string;
+}
+
+export type AgentCliInvocation =
+  | AgentCliCliInvocation
+  | AgentCliAugmentationInvocation
+  | AgentCliStdoutInvocation;
 
 export interface AgentCliRequest {
   invocation: AgentCliInvocation;
-  pipeline: AgentCliPipeStage[];
   sink?: AgentCliSink;
   /**
-   * Viewer curation sim applies to the raw result before the pipeline: "block" trims a
+   * Viewer curation sim applies to the raw result before the sink: "block" trims a
    * block detail to the operations, inputs and models this viewer may use. Decided by the
    * worker's parse, applied by sim's primitive, so both sides see one policy.
    */
   curate?: "block";
 }
 
-/** What sim returns; the worker shapes the model-facing result from it. */
+/** What sim hands back: the CLI's own three channels, untouched. */
 export interface AgentCliRawResult {
   exitCode: number;
   stdout: string;

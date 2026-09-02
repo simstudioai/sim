@@ -1,4 +1,5 @@
 import { LRUCache } from 'lru-cache'
+import type { ReadFileTextResponse } from 'sim/embed'
 import {
   type AgentCliEngine,
   type AgentCliFlags,
@@ -6,6 +7,7 @@ import {
   agentCliFail,
   agentCliOk,
 } from '@/lib/mothership/agent-cli/types'
+import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
 
 /**
  * `grep <pattern> [--scope a,b] [--in <id|name>] [-i] [-C n] [--count] [--limit n]` —
@@ -23,6 +25,8 @@ const SCOPES = [
   'blocks',
   'tools',
   'tables',
+  'files',
+  'integrations',
   'skills',
   'custom-tools',
   'secrets',
@@ -34,6 +38,9 @@ const DEFAULT_MATCH_LIMIT = 100
 const MAX_MATCH_LIMIT = 500
 const MAX_LINE_CHARS = 2_000
 const FETCH_CONCURRENCY = 8
+const MAX_FILES = 300
+const FILE_READ_CONCURRENCY = 5
+const MAX_BYTES_PER_FILE = 262_144
 /** The block catalog is platform-owned and changes only on deploy; per-workspace visibility keys it. */
 const catalogCache = new LRUCache<string, Materialized[]>({ max: 500, ttl: 10 * 60_000 })
 
@@ -152,6 +159,41 @@ const MATERIALIZERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<Materia
       })
       return render('custom-tools', id, str(t.title) ?? str(t.name) ?? id, detail.data)
     })
+  },
+  files: async (runtime) => {
+    // File contents, through the v2 read-text endpoint (binary/degraded files are
+    // honestly skipped there); the label is the path the model sees in `files ls`.
+    const list = (await listAll(runtime, '/api/v2/files')).slice(0, MAX_FILES)
+    const texts = await mapConcurrent(list, FILE_READ_CONCURRENCY, async (file) => {
+      const id = str(file.id) ?? ''
+      try {
+        const response = await runtime.client.request<ReadFileTextResponse>(
+          `/api/v2/files/${encodeURIComponent(id)}/text`,
+          { query: { workspaceId: runtime.workspaceId, maxBytes: String(MAX_BYTES_PER_FILE) } }
+        )
+        return { file, text: response.data.degraded ? null : response.data.text }
+      } catch {
+        return { file, text: null }
+      }
+    })
+    return texts.flatMap(({ file, text }) => {
+      if (text === null) return []
+      const folder = (str(file.folderPath) ?? '').replace(/\/+$/, '')
+      const name = str(file.name) ?? str(file.id) ?? ''
+      const label = folder ? `${folder}/${name}` : `/${name}`
+      return [{ scope: 'files' as const, id: str(file.id) ?? '', label, text }]
+    })
+  },
+  integrations: async (runtime) => {
+    // The viewer's callable connected-service operations — the same projection the
+    // chat request carries, so `integrations list` and this world never disagree.
+    const tools = await buildIntegrationToolSchemas(
+      runtime.userId,
+      undefined,
+      { schemaSurface: 'copilot' },
+      runtime.workspaceId
+    )
+    return tools.map((tool) => render('integrations', tool.name, tool.name, tool))
   },
   secrets: async (runtime) => {
     // Names only, by construction: a secret's value never enters the model window.
