@@ -1,0 +1,63 @@
+'use client'
+
+import { memo } from 'react'
+import {
+  Chip,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuItemLabel,
+  DropdownMenuTrigger,
+} from '@sim/emcn'
+import { Check } from '@sim/emcn/icons'
+import { useParams } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
+import { captureEvent } from '@/lib/posthog/client'
+import {
+  MOTHERSHIP_MODES,
+  type MothershipMode,
+  useMothershipModeStore,
+} from '@/stores/mothership-mode/store'
+
+const MODE_LABELS: Record<MothershipMode, string> = {
+  build: 'Build',
+  search: 'Search',
+}
+
+/**
+ * The composer's Build / Search switcher: a label-only `Chip` in its `round`
+ * shape — chip chrome throughout (`--text-body` label, `--surface-hover` on
+ * hover, no text-color shift), fully round to sit in the toolbar's row of
+ * round controls — opening a two-row menu that checks the active mode, as
+ * `ChipDropdown` does.
+ */
+export const ModeSwitcher = memo(function ModeSwitcher() {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const posthog = usePostHog()
+  const mode = useMothershipModeStore((state) => state.mode)
+  const setMode = useMothershipModeStore((state) => state.setMode)
+
+  const handleSelect = (next: MothershipMode) => {
+    if (next === mode) return
+    setMode(next)
+    captureEvent(posthog, 'chat_mode_changed', { workspace_id: workspaceId, mode: next })
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Chip shape='round' aria-label={`Mode: ${MODE_LABELS[mode]}`}>
+          {MODE_LABELS[mode]}
+        </Chip>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        {MOTHERSHIP_MODES.map((option) => (
+          <DropdownMenuItem key={option} onSelect={() => handleSelect(option)}>
+            <DropdownMenuItemLabel label={MODE_LABELS[option]} />
+            {option === mode && <Check className='!ml-auto !size-[16px]' />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+})

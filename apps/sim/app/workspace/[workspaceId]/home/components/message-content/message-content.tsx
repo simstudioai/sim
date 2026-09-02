@@ -26,8 +26,15 @@ import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
 import type { AgentGroupItem } from './components'
-import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
-import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
+import {
+  AgentGroup,
+  ChatContent,
+  CircleStop,
+  MessageSources,
+  Options,
+  PendingTagIndicator,
+} from './components'
+import { collectMessageSources, deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 
 const FILE_SUBAGENT_ID = 'file'
 /** Quiet period before the shimmer takes the slot back from streamed output. */
@@ -857,6 +864,7 @@ function MessageContentInner({
     () => (blocks.length > 0 ? parseBlocks(blocks) : []),
     [blocks, blockOverlayVersion]
   )
+  const sources = useMemo(() => collectMessageSources(blocks), [blocks])
 
   const [trailingRevealing, setTrailingRevealing] = useState(false)
   const handleTrailingRevealChange = useCallback((revealing: boolean) => {
@@ -1004,6 +1012,11 @@ function MessageContentInner({
               return null
           }
         })}
+        {sources.length > 0 && (
+          <div className={isStreaming ? 'animate-stream-fade-in' : undefined}>
+            <MessageSources sources={sources} />
+          </div>
+        )}
       </div>
       {thinkingExpanded && isLast ? (
         // Fixed-height placeholder for the NEXT piece of output: the shimmer

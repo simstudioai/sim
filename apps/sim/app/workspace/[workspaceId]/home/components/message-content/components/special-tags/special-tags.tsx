@@ -316,6 +316,35 @@ export interface WorkspaceResourceTagData {
   title?: string
 }
 
+/**
+ * A `<source>` tag: one document the reply drew on. The tag contract for
+ * search answers — the model emits it inline, right after the sentence, list
+ * item, or paragraph the document supports, as a JSON body:
+ *
+ * `<source>{"url":"https://docs.github.com/…","siteName":"GitHub Docs"}</source>`
+ *
+ * Each tag renders as its own small chip where it sits (adjacent tags are
+ * never collapsed into a count), and every distinct `url` in the message is
+ * repeated in the footer strip below the reply.
+ */
+export interface SourceTagData {
+  /** Canonical http(s) link to the referenced document. */
+  url: string
+  /** Document title, shown on hover. */
+  title?: string
+  /**
+   * Short chip label — the site or product the document lives in ("GitHub
+   * Docs", "Confluence"). Falls back to the URL's hostname.
+   */
+  siteName?: string
+  /**
+   * Knowledge-base connector the document was synced through
+   * (`CONNECTOR_META_REGISTRY` key). Lends the chip the product's brand mark;
+   * without it the chip shows the site favicon.
+   */
+  connectorType?: string
+}
+
 export type ContentSegment =
   | { type: 'text'; content: string }
   | { type: 'thinking'; content: string }
@@ -325,6 +354,7 @@ export type ContentSegment =
   | { type: 'mothership-error'; data: MothershipErrorTagData }
   | { type: 'workspace_resource'; data: WorkspaceResourceTagData }
   | { type: 'question'; data: QuestionTagData }
+  | { type: 'source'; data: SourceTagData }
 
 export type RuntimeSpecialTagName =
   | 'thinking'
@@ -334,6 +364,7 @@ export type RuntimeSpecialTagName =
   | 'file'
   | 'workspace_resource'
   | 'question'
+  | 'source'
 
 export interface ParsedSpecialContent {
   segments: ContentSegment[]
@@ -348,6 +379,7 @@ const RUNTIME_SPECIAL_TAG_NAMES = [
   'file',
   'workspace_resource',
   'question',
+  'source',
 ] as const
 
 /**
@@ -363,6 +395,7 @@ export const SPECIAL_TAG_NAMES = [
   'mothership-error',
   'workspace_resource',
   'question',
+  'source',
 ] as const
 
 function isOptionsItemData(value: unknown): value is OptionsItemData {
@@ -521,6 +554,20 @@ function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagDa
     (value.code === undefined || typeof value.code === 'string') &&
     (value.provider === undefined || typeof value.provider === 'string')
   )
+}
+
+/** Only an absolute http(s) URL can be linked; anything else is not a source. */
+function isHttpUrl(value: unknown): value is string {
+  return typeof value === 'string' && /^https?:\/\/\S+$/i.test(value.trim())
+}
+
+function isSourceTagData(value: unknown): value is SourceTagData {
+  if (!isRecordLike(value)) return false
+  if (!isHttpUrl(value.url)) return false
+  if (value.title !== undefined && typeof value.title !== 'string') return false
+  if (value.siteName !== undefined && typeof value.siteName !== 'string') return false
+  if (value.connectorType !== undefined && typeof value.connectorType !== 'string') return false
+  return true
 }
 
 function isWorkspaceResourceTagData(value: unknown): value is WorkspaceResourceTagData {
@@ -713,6 +760,7 @@ function parseSpecialTagData(
   | { type: 'mothership-error'; data: MothershipErrorTagData }
   | { type: 'workspace_resource'; data: WorkspaceResourceTagData }
   | { type: 'question'; data: QuestionTagData }
+  | { type: 'source'; data: SourceTagData }
   | null {
   if (tagName === 'thinking') {
     const content = parseTextTagBody(body)
@@ -742,6 +790,11 @@ function parseSpecialTagData(
   if (tagName === 'workspace_resource') {
     const data = parseJsonTagBody(body, isWorkspaceResourceTagData)
     return data ? { type: 'workspace_resource', data } : null
+  }
+
+  if (tagName === 'source') {
+    const data = parseJsonTagBody(body, isSourceTagData)
+    return data ? { type: 'source', data } : null
   }
 
   if (tagName === 'question') {
@@ -1659,7 +1712,8 @@ interface SpecialTagsProps {
 
 /**
  * Unified renderer for inline special tags: `<options>`, `<usage_upgrade>`, `<credential>`,
- * and `<workspace_resource>`.
+ * and `<workspace_resource>`. A `<source>` never reaches here — the chat renderer
+ * folds it into the surrounding markdown as an inline chip.
  */
 export function SpecialTags({
   segment,
@@ -1692,6 +1746,8 @@ export function SpecialTags({
       return <MothershipErrorDisplay data={segment.data} />
     case 'workspace_resource':
       return <WorkspaceResourceDisplay data={segment.data} onSelect={onWorkspaceResourceSelect} />
+    case 'source':
+      return null
     case 'question':
       return (
         <QuestionDisplay

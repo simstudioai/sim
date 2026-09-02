@@ -3,6 +3,7 @@
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useExecutionStore } from '@/stores/execution'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
+import { useMothershipModeStore } from '@/stores/mothership-mode/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import {
@@ -55,5 +56,6 @@ export async function resetAllStores(): Promise<void> {
   clearAllExecutionPointers()
   useMothershipDraftsStore.setState({ drafts: {} })
   useMothershipQueueStore.getState().reset()
+  useMothershipModeStore.getState().reset()
   await consolePersistence.persist({ merge: false })
 }

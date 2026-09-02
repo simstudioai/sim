@@ -52,10 +52,17 @@ import {
   CreditsChip,
   MothershipChat,
   MothershipResourcesProvider,
-  SuggestedActions,
   UserInput,
   type UserInputHandle,
 } from './components'
+/**
+ * Imported from its own folder, not the components barrel: the workflow copilot
+ * panel imports that barrel for the chat pieces, and a barrel edge to this
+ * component would drag the Sim Search connector catalog — every connector
+ * meta — into the workflow editor's graph. See sim-imports.md, "Code-splitting
+ * through barrels".
+ */
+import { SuggestedActions } from './components/suggested-actions'
 import {
   getMothershipUseChatOptions,
   type ResourceEventOptions,
