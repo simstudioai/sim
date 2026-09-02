@@ -168,6 +168,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .where(
         and(
           eq(knowledgeConnector.accessMode, 'members'),
+          inArray(knowledgeConnector.status, ['active', 'error']),
           inArray(knowledgeConnector.memberSyncStatus, QUEUEABLE_MEMBER_SYNC_STATUSES),
           lte(knowledgeConnector.nextMemberSyncAt, now),
           isNull(knowledgeConnector.archivedAt),

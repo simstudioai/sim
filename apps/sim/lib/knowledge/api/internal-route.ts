@@ -10,6 +10,7 @@ import { type ChunkData, chunkDataSchema } from '@/lib/api/contracts/knowledge/c
 import {
   type ConnectorData,
   type ConnectorDetailData,
+  type ConnectorMemberSummary,
   connectorDataSchema,
   connectorDetailDataSchema,
 } from '@/lib/api/contracts/knowledge/connectors'
@@ -132,6 +133,8 @@ export function toInternalKnowledgeConnector<
     updatedAt: Date | string
     lastSyncAt: Date | string | null
     nextSyncAt: Date | string | null
+    lastMemberSyncAt: Date | string | null
+    nextMemberSyncAt: Date | string | null
   },
 >(connector: T): ConnectorData {
   return connectorDataSchema.parse({
@@ -140,6 +143,8 @@ export function toInternalKnowledgeConnector<
     updatedAt: serializeDate(connector.updatedAt),
     lastSyncAt: serializeNullableDate(connector.lastSyncAt),
     nextSyncAt: serializeNullableDate(connector.nextSyncAt),
+    lastMemberSyncAt: serializeNullableDate(connector.lastMemberSyncAt),
+    nextMemberSyncAt: serializeNullableDate(connector.nextMemberSyncAt),
   })
 }
 
@@ -150,6 +155,12 @@ export function toInternalKnowledgeConnectorDetail<
       completedAt: Date | string | null
       [key: string]: unknown
     }>
+    memberSyncLogs: Array<{
+      startedAt: Date | string
+      completedAt: Date | string | null
+      [key: string]: unknown
+    }>
+    members: ConnectorMemberSummary
   },
 >(connector: T): ConnectorDetailData {
   return connectorDetailDataSchema.parse({
@@ -159,6 +170,12 @@ export function toInternalKnowledgeConnectorDetail<
       startedAt: serializeDate(log.startedAt),
       completedAt: serializeNullableDate(log.completedAt),
     })),
+    memberSyncLogs: connector.memberSyncLogs.map((log) => ({
+      ...log,
+      startedAt: serializeDate(log.startedAt),
+      completedAt: serializeNullableDate(log.completedAt),
+    })),
+    members: connector.members,
   })
 }
 

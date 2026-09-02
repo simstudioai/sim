@@ -2,10 +2,17 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { document, knowledgeConnector, knowledgeConnectorSyncLog } from '@sim/db/schema'
-import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm'
+import {
+  document,
+  knowledgeConnector,
+  knowledgeConnectorMember,
+  knowledgeConnectorMemberSyncLog,
+  knowledgeConnectorSyncLog,
+} from '@sim/db/schema'
+import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { requireWorkspaceRole } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -24,11 +31,13 @@ import {
   resolveActiveKnowledgeResourceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
 import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
 } from '@/lib/knowledge/constants'
+import { resolveKnowledgeConnectorMembersBinding } from '@/lib/knowledge/orchestration/connector-access'
 import {
   getKnowledgeConnector,
   type KnowledgeConnectorRow,
@@ -45,6 +54,7 @@ import type {
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+import { getConnectorMeta } from '@/connectors/registry'
 
 interface KnowledgeConnectorApplicationInput {
   assertedWorkspaceId?: string
@@ -71,6 +81,10 @@ export interface CreateKnowledgeConnectorInput extends KnowledgeConnectorApplica
   apiKey?: string
   sourceConfig: Record<string, unknown>
   syncIntervalMinutes: number
+  /** `members` crawls per Credential Group member; admin only. Defaults to `workspace`. */
+  accessMode?: 'workspace' | 'members'
+  credentialGroupId?: string
+  credentialGroupOptionId?: string
   resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
 }
 
@@ -143,7 +157,7 @@ async function assertConnectorTypeAllowed(
   refuseCapability('knowledge.connectors')
 }
 
-function requireSuccessfulOutcome<T extends object>(
+export function requireSuccessfulOutcome<T extends object>(
   outcome: KnowledgeOrchestrationResult<T>,
   fallback: string
 ): asserts outcome is { success: true } & T {
@@ -162,7 +176,7 @@ function connectorTarget(context: ActiveKnowledgeResourceBaseContext) {
   }
 }
 
-function requireConnectorWorkspaceId(context: ActiveKnowledgeResourceBaseContext): string {
+export function requireConnectorWorkspaceId(context: ActiveKnowledgeResourceBaseContext): string {
   if (!context.workspaceId) {
     throw new OrchestrationError('conflict', 'Knowledge base is missing workspace billing context')
   }
@@ -188,7 +202,7 @@ async function resolveAuthorizedConnectorCredentialIdentity(input: {
   return resolveCredentialTokenIdentity(input.credentialId, input.workspaceId)
 }
 
-async function resolveConnectorCredentialAccessToken(input: {
+export async function resolveConnectorCredentialAccessToken(input: {
   credentialId: string
   workspaceId: string
   actingUserId: string
@@ -325,16 +339,53 @@ export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   async execute({ context }) {
     const connector = await getKnowledgeConnector(context.knowledgeBaseId, context.connectorId)
     if (!connector) throw new OrchestrationError('not_found', 'Connector not found')
-    const syncLogs = await db
-      .select()
-      .from(knowledgeConnectorSyncLog)
-      .where(eq(knowledgeConnectorSyncLog.connectorId, context.connectorId))
-      .orderBy(desc(knowledgeConnectorSyncLog.startedAt))
-      .limit(10)
+    const [syncLogs, memberSyncLogs, members] = await Promise.all([
+      db
+        .select()
+        .from(knowledgeConnectorSyncLog)
+        .where(eq(knowledgeConnectorSyncLog.connectorId, context.connectorId))
+        .orderBy(desc(knowledgeConnectorSyncLog.startedAt))
+        .limit(10),
+      db
+        .select()
+        .from(knowledgeConnectorMemberSyncLog)
+        .where(eq(knowledgeConnectorMemberSyncLog.connectorId, context.connectorId))
+        .orderBy(desc(knowledgeConnectorMemberSyncLog.startedAt))
+        .limit(10),
+      summarizeConnectorMembers(context.connectorId, connector.syncIntervalMinutes),
+    ])
     const { encryptedApiKey: _encryptedApiKey, ...connectorData } = connector
-    return { connector: { ...connectorData, syncLogs } }
+    return { connector: { ...connectorData, syncLogs, memberSyncLogs, members } }
   },
 })
+
+/**
+ * How many members a connector has in each state, for the settings surface.
+ * Stale mirrors the scheduler's sweep window: an active member whose last
+ * complete listing is older than `max(24 h, 2 × interval)`.
+ */
+async function summarizeConnectorMembers(
+  connectorId: string,
+  syncIntervalMinutes: number
+): Promise<{ active: number; suspended: number; stale: number }> {
+  const staleWindowMs = Math.max(
+    MEMBER_OBSERVATION_STALE_AFTER_HOURS * 60 * 60 * 1000,
+    2 * syncIntervalMinutes * 60 * 1000
+  )
+  const staleCutoff = new Date(Date.now() - staleWindowMs)
+  const [row] = await db
+    .select({
+      active: sql<number>`count(*) FILTER (WHERE ${knowledgeConnectorMember.status} = 'active')::int`,
+      suspended: sql<number>`count(*) FILTER (WHERE ${knowledgeConnectorMember.status} <> 'active')::int`,
+      stale: sql<number>`count(*) FILTER (WHERE ${knowledgeConnectorMember.status} = 'active' AND ${or(
+        isNull(knowledgeConnectorMember.lastCompleteListingAt),
+        lt(knowledgeConnectorMember.lastCompleteListingAt, staleCutoff)
+      )})::int`,
+    })
+    .from(knowledgeConnectorMember)
+    .where(eq(knowledgeConnectorMember.connectorId, connectorId))
+  return { active: row?.active ?? 0, suspended: row?.suspended ?? 0, stale: row?.stale ?? 0 }
+}
 
 export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.createConnector,
@@ -355,6 +406,40 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       workspaceId,
       input.connectorType
     )
+    let membersBinding: { credentialGroupId: string; credentialGroupOptionId: string } | undefined
+    if (input.accessMode === 'members') {
+      /**
+       * Members mode grants the connector every enrolled member's credential,
+       * which is an admin decision even though creating a connector is not.
+       */
+      const subjectUserId = resolvePrincipalSubjectUserId(principal)
+      if (!subjectUserId || context.workspaceId === undefined) {
+        throw new OrchestrationError(
+          'forbidden',
+          'A members-mode connector needs a signed-in admin'
+        )
+      }
+      await requireWorkspaceRole(subjectUserId, context, 'admin')
+      const connectorMeta = getConnectorMeta(input.connectorType)
+      if (!connectorMeta) {
+        throw new OrchestrationError('validation', `Unknown connector type: ${input.connectorType}`)
+      }
+      if (!input.credentialGroupId || !input.credentialGroupOptionId) {
+        throw new OrchestrationError(
+          'validation',
+          'credentialGroupId and credentialGroupOptionId are required for members mode'
+        )
+      }
+      membersBinding = await resolveKnowledgeConnectorMembersBinding({
+        workspaceId,
+        connectorMeta,
+        binding: {
+          credentialGroupId: input.credentialGroupId,
+          credentialGroupOptionId: input.credentialGroupOptionId,
+        },
+        sourceConfig: input.sourceConfig,
+      })
+    }
     const outcome = await performCreateKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
       connectorType: input.connectorType,
@@ -362,6 +447,7 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       apiKey: input.apiKey,
       sourceConfig: input.sourceConfig,
       syncIntervalMinutes: input.syncIntervalMinutes,
+      membersBinding,
       resolveBillingAttribution: () =>
         input.resolveBillingAttribution?.(workspaceId) ??
         resolveKnowledgeBillingAttribution(principal, context),
@@ -395,6 +481,7 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       connectorType: result.connector.connectorType,
       syncIntervalMinutes: result.connector.syncIntervalMinutes,
       authMode: result.connector.credentialId ? 'oauth' : 'apiKey',
+      accessMode: result.connector.accessMode,
     },
   }),
 })

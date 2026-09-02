@@ -189,6 +189,7 @@ export async function dispatchMemberSync(
     .select({
       knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
       accessMode: knowledgeConnector.accessMode,
+      status: knowledgeConnector.status,
       memberSyncStatus: knowledgeConnector.memberSyncStatus,
       nextMemberSyncAt: knowledgeConnector.nextMemberSyncAt,
       archivedAt: knowledgeConnector.archivedAt,
@@ -229,6 +230,12 @@ export async function dispatchMemberSync(
   }
   if (row.accessMode !== 'members') {
     return { queued: false, reason: 'Connector does not sync per member' }
+  }
+  if (options.requireRunnable && row.status !== 'active' && row.status !== 'error') {
+    return {
+      queued: false,
+      reason: `Connector is ${row.status} and is not synced automatically`,
+    }
   }
   if (
     payload.dispatchToken === undefined &&

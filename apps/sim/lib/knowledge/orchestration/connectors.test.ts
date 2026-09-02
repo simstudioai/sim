@@ -15,11 +15,17 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockCaptureServerEvent,
   mockDispatchSync,
+  mockDispatchMemberSync,
+  mockGrant,
+  mockRevoke,
   mockHasWorkspaceLiveSyncAccess,
   mockRecordAudit,
 } = vi.hoisted(() => ({
   mockCaptureServerEvent: vi.fn(),
   mockDispatchSync: vi.fn(),
+  mockDispatchMemberSync: vi.fn(),
+  mockGrant: vi.fn(),
+  mockRevoke: vi.fn(),
   mockHasWorkspaceLiveSyncAccess: vi.fn(),
   mockRecordAudit: vi.fn(),
 }))
@@ -39,6 +45,14 @@ vi.mock('@/lib/billing/core/subscription', () => ({
   hasWorkspaceLiveSyncAccess: mockHasWorkspaceLiveSyncAccess,
 }))
 vi.mock('@/lib/knowledge/connectors/queue', () => ({ dispatchSync: mockDispatchSync }))
+vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
+  dispatchMemberSync: mockDispatchMemberSync,
+}))
+vi.mock('@/lib/knowledge/connectors/member-access', () => ({
+  grantKnowledgeConnectorCredentialAccess: mockGrant,
+  revokeKnowledgeConnectorCredentialAccess: mockRevoke,
+  findListingCapViolation: vi.fn(() => null),
+}))
 vi.mock('@/lib/knowledge/documents/service', () => ({
   deleteDocumentStorageFiles: vi.fn().mockResolvedValue(undefined),
 }))
@@ -917,5 +931,119 @@ describe('performSyncKnowledgeConnector', () => {
     })
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+})
+
+describe('members-mode connectors', () => {
+  const MEMBERS_CONNECTOR = {
+    id: 'c-1',
+    knowledgeBaseId: 'kb-1',
+    connectorType: 'notion',
+    credentialId: null,
+    encryptedApiKey: null,
+    sourceConfig: {},
+    syncMode: 'full',
+    syncIntervalMinutes: 1440,
+    status: 'active',
+    accessMode: 'members',
+    credentialGroupId: 'group-1',
+    credentialGroupOptionId: 'option-1',
+    memberSyncStatus: 'idle',
+    lastMemberSyncError: null,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockDispatchSync.mockResolvedValue({ queued: true })
+    mockDispatchMemberSync.mockResolvedValue({ queued: true })
+    mockGrant.mockResolvedValue(undefined)
+    mockRevoke.mockResolvedValue(undefined)
+  })
+
+  it('refuses to keep the documents of a connector that syncs per member', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
+
+    const outcome = await performDeleteKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      deleteDocuments: false,
+      ...ACTOR,
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+
+  it('revokes the credential grant once the connector and its documents are gone', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
+    queueTableRows(schemaMock.document, [])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+
+    const outcome = await performDeleteKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      deleteDocuments: true,
+      ...ACTOR,
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    expect(mockRevoke).toHaveBeenCalledWith(
+      { workspaceId: 'ws-1', credentialGroupId: 'group-1', connectorId: 'c-1' },
+      'user-1'
+    )
+  })
+
+  it('routes a manual sync of a members-mode connector to the member queue', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
+
+    const outcome = await performSyncKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      resolveBillingAttribution,
+      ...ACTOR,
+    })
+
+    expect(outcome).toEqual({ success: true })
+    expect(mockDispatchMemberSync).toHaveBeenCalledWith('c-1', {
+      billingAttribution: BILLING,
+      requestId: 'req-1',
+    })
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+  })
+
+  it('refuses a manual sync while a member run is queued or running', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { ...MEMBERS_CONNECTOR, memberSyncStatus: 'running' },
+    ])
+
+    const outcome = await performSyncKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      resolveBillingAttribution,
+      ...ACTOR,
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(mockDispatchMemberSync).not.toHaveBeenCalled()
+  })
+
+  it('refuses members mode for a connector whose listing is not permission scoped, before any grant', async () => {
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([MEMBERS_CONNECTOR])
+
+    const outcome = await performCreateKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorType: 'notion',
+      sourceConfig: {},
+      syncIntervalMinutes: 1440,
+      membersBinding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
+      resolveBillingAttribution,
+      resolveAccessToken: vi.fn(),
+      ...ACTOR,
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(mockGrant).not.toHaveBeenCalled()
   })
 })

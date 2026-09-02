@@ -43,6 +43,7 @@ const BILLING = {
 const CONNECTOR_ROW = {
   knowledgeBaseId: 'kb-1',
   accessMode: 'members',
+  status: 'active',
   memberSyncStatus: 'idle',
   nextMemberSyncAt: null,
   archivedAt: null,

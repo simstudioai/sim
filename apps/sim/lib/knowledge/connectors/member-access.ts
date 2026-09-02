@@ -365,6 +365,25 @@ function isCapFieldSet(value: unknown): boolean {
 }
 
 /**
+ * The message refusing a source config that caps a per-member listing, or
+ * null when nothing caps it. A cap would hide part of a member's corpus and
+ * suppress removals forever, so it is refused on every members-mode save.
+ */
+export function findListingCapViolation(
+  connectorMeta: Pick<ConnectorMeta, 'permissionScopedListing' | 'configFields'>,
+  sourceConfig: Record<string, unknown>
+): string | null {
+  const capFields = (connectorMeta.permissionScopedListing?.capFieldIds ?? []).filter((fieldId) =>
+    isCapFieldSet(sourceConfig[fieldId])
+  )
+  if (capFields.length === 0) return null
+  const titles = capFields.map(
+    (fieldId) => connectorMeta.configFields.find((field) => field.id === fieldId)?.title ?? fieldId
+  )
+  return `${titles.join(', ')} cannot be set when syncing per member: every member's listing must be complete for their access to be tracked`
+}
+
+/**
  * Decides whether a connector may crawl per member with one option's
  * credentials. Pure apart from the provider's own scope policy, so a route can
  * refuse a binding before any credential is touched.
@@ -419,18 +438,7 @@ export function validateKnowledgeConnectorMembersBinding(input: {
       message: `Credential option does not request every permission ${connectorMeta.name} needs to read the source`,
     }
   }
-  const capFields = connectorMeta.permissionScopedListing.capFieldIds.filter((fieldId) =>
-    isCapFieldSet(input.sourceConfig[fieldId])
-  )
-  if (capFields.length > 0) {
-    const titles = capFields.map(
-      (fieldId) =>
-        connectorMeta.configFields.find((field) => field.id === fieldId)?.title ?? fieldId
-    )
-    return {
-      ok: false,
-      message: `${titles.join(', ')} cannot be set when syncing per member: every member's listing must be complete for their access to be tracked`,
-    }
-  }
+  const capViolation = findListingCapViolation(connectorMeta, input.sourceConfig)
+  if (capViolation) return { ok: false, message: capViolation }
   return { ok: true, option }
 }

@@ -386,6 +386,18 @@ export const knowledgeOperations = {
     capability: 'knowledge.use',
     ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
+  /**
+   * Which people a connector crawls as is an admin decision: members mode
+   * grants the connector every enrolled member's credential. Session only —
+   * it is a settings action, not something an agent or key performs.
+   */
+  updateConnectorAccess: defineWorkspaceOperation({
+    id: 'knowledge.connectors.access.update',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    capability: 'knowledge.use',
+    principalKinds: ['session'],
+  }),
   deleteConnector: defineWorkspaceOperation({
     id: 'knowledge.connectors.delete',
     minimumRole: 'write',

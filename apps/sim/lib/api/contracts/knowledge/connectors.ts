@@ -12,13 +12,100 @@ import {
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
 } from '@/lib/knowledge/constants'
 
-export const createConnectorBodySchema = z.object({
-  connectorType: z.string().min(1),
-  credentialId: z.string().min(1).optional(),
-  apiKey: z.string().min(1).optional(),
-  sourceConfig: z.record(z.string(), z.unknown()),
-  syncIntervalMinutes: z.number().int().min(0).default(1440),
-})
+/**
+ * How a connector derives document access. `workspace` syncs as one credential
+ * and every document is visible to the workspace; `members` crawls once per
+ * Credential Group member and a document is visible to the members whose crawl
+ * returned it. `admin` is reserved.
+ */
+export const connectorAccessModeSchema = z.enum(['workspace', 'members', 'admin'])
+export type ConnectorAccessMode = z.output<typeof connectorAccessModeSchema>
+
+/** The modes a caller may put a connector into. */
+export const connectorRequestedAccessModeSchema = z.enum(['workspace', 'members'])
+
+const connectorAccessBindingShape = {
+  accessMode: connectorRequestedAccessModeSchema.optional().default('workspace'),
+  /** Members mode: the Credential Group whose option supplies member credentials. */
+  credentialGroupId: z.string().min(1).optional(),
+  /** Members mode: the option within the group; must collect this connector's provider. */
+  credentialGroupOptionId: z.string().min(1).optional(),
+} as const
+
+function requireAccessBinding(
+  value: {
+    accessMode: 'workspace' | 'members'
+    credentialGroupId?: string
+    credentialGroupOptionId?: string
+  },
+  ctx: z.RefinementCtx
+): void {
+  if (value.accessMode === 'members') {
+    if (!value.credentialGroupId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['credentialGroupId'],
+        message: 'credentialGroupId is required when accessMode is members',
+      })
+    }
+    if (!value.credentialGroupOptionId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['credentialGroupOptionId'],
+        message: 'credentialGroupOptionId is required when accessMode is members',
+      })
+    }
+    return
+  }
+  if (value.credentialGroupId || value.credentialGroupOptionId) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['credentialGroupId'],
+      message: 'A Credential Group binding only applies when accessMode is members',
+    })
+  }
+}
+
+export const createConnectorBodySchema = z
+  .object({
+    connectorType: z.string().min(1),
+    credentialId: z.string().min(1).optional(),
+    apiKey: z.string().min(1).optional(),
+    sourceConfig: z.record(z.string(), z.unknown()),
+    syncIntervalMinutes: z.number().int().min(0).default(1440),
+    ...connectorAccessBindingShape,
+  })
+  .superRefine((value, ctx) => {
+    requireAccessBinding(value, ctx)
+    if (value.accessMode === 'members' && value.credentialId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['credentialId'],
+        message: 'A members-mode connector crawls with member credentials, not a credentialId',
+      })
+    }
+  })
+
+/**
+ * Moves a connector between access modes. Switching to workspace mode needs
+ * the credential the connector will sync as from then on.
+ */
+export const updateConnectorAccessBodySchema = z
+  .object({
+    ...connectorAccessBindingShape,
+    credentialId: z.string().min(1).optional(),
+  })
+  .superRefine((value, ctx) => {
+    requireAccessBinding(value, ctx)
+    if (value.accessMode === 'members' && value.credentialId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['credentialId'],
+        message: 'A members-mode connector crawls with member credentials, not a credentialId',
+      })
+    }
+  })
+export type UpdateConnectorAccessBody = z.input<typeof updateConnectorAccessBodySchema>
 
 export const updateConnectorBodySchema = z.object({
   sourceConfig: z.record(z.string(), z.unknown()).optional(),
@@ -67,6 +154,17 @@ export const connectorDataSchema = z
     lastSyncDocCount: z.number().nullable(),
     nextSyncAt: z.string().nullable(),
     consecutiveFailures: z.number(),
+    accessMode: connectorAccessModeSchema,
+    credentialGroupId: z.string().nullable(),
+    credentialGroupOptionId: z.string().nullable(),
+    /** Members mode only; `idle` otherwise. */
+    memberSyncStatus: z.enum(['idle', 'pending', 'running', 'error', 'disabled']),
+    lastMemberSyncAt: z.string().nullable(),
+    nextMemberSyncAt: z.string().nullable(),
+    lastMemberSyncError: z.string().nullable(),
+    memberSyncConsecutiveFailures: z.number(),
+    /** A mode switch left its ACL rewrite for the next member run to finish. */
+    accessRewritePending: z.boolean(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -101,8 +199,46 @@ export const syncLogDataSchema = z
   .passthrough()
 export type SyncLogData = z.output<typeof syncLogDataSchema>
 
+export const memberSyncLogDataSchema = z
+  .object({
+    id: z.string(),
+    connectorId: z.string(),
+    status: syncLogStatusSchema,
+    startedAt: z.string(),
+    completedAt: z.string().nullable(),
+    membersClaimed: z.number(),
+    membersCompleted: z.number(),
+    membersIncomplete: z.number(),
+    membersFailed: z.number(),
+    docsListed: z.number(),
+    docsAdded: z.number(),
+    docsUpdated: z.number(),
+    docsUnchanged: z.number(),
+    docsHydratedOnce: z.number(),
+    observationsAdded: z.number(),
+    observationsRemoved: z.number(),
+    docsTombstoned: z.number(),
+    docsResurrected: z.number(),
+    docsPurged: z.number(),
+    credentialsAudited: z.number(),
+    errorMessage: z.string().nullable(),
+  })
+  .passthrough()
+export type MemberSyncLogData = z.output<typeof memberSyncLogDataSchema>
+
+/** How many of a members-mode connector's members are in each state. */
+export const connectorMemberSummarySchema = z.object({
+  active: z.number().int().nonnegative(),
+  suspended: z.number().int().nonnegative(),
+  /** Active members whose last complete listing is older than the staleness window. */
+  stale: z.number().int().nonnegative(),
+})
+export type ConnectorMemberSummary = z.output<typeof connectorMemberSummarySchema>
+
 export const connectorDetailDataSchema = connectorDataSchema.extend({
   syncLogs: z.array(syncLogDataSchema),
+  memberSyncLogs: z.array(memberSyncLogDataSchema),
+  members: connectorMemberSummarySchema,
 })
 export type ConnectorDetailData = z.output<typeof connectorDetailDataSchema>
 
@@ -164,6 +300,17 @@ export const updateKnowledgeConnectorContract = defineRouteContract({
   path: '/api/knowledge/[id]/connectors/[connectorId]',
   params: knowledgeConnectorParamsSchema,
   body: updateConnectorBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(connectorDataSchema),
+  },
+})
+
+export const updateKnowledgeConnectorAccessContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/knowledge/[id]/connectors/[connectorId]/access',
+  params: knowledgeConnectorParamsSchema,
+  body: updateConnectorAccessBodySchema,
   response: {
     mode: 'json',
     schema: successResponseSchema(connectorDataSchema),

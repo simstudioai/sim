@@ -55,6 +55,7 @@ describe('knowledge operation registry', () => {
       'knowledge.connectors.read',
       'knowledge.connectors.create',
       'knowledge.connectors.update',
+      'knowledge.connectors.access.update',
       'knowledge.connectors.delete',
       'knowledge.connectors.sync',
       'knowledge.connectors.documents.list',

@@ -15,6 +15,11 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  findListingCapViolation,
+  grantKnowledgeConnectorCredentialAccess,
+  revokeKnowledgeConnectorCredentialAccess,
+} from '@/lib/knowledge/connectors/member-access'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
 import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
 import {
@@ -38,6 +43,16 @@ const logger = createLogger('KnowledgeConnectorOrchestration')
  */
 async function loadDispatchSync() {
   return (await import('@/lib/knowledge/connectors/queue')).dispatchSync
+}
+
+async function loadDispatchMemberSync() {
+  return (await import('@/lib/knowledge/connectors/member-queue')).dispatchMemberSync
+}
+
+/** The Credential Group option a members-mode connector crawls with, already validated by the caller. */
+export interface ConnectorMembersBinding {
+  credentialGroupId: string
+  credentialGroupOptionId: string
 }
 
 /** A connector row exactly as stored, including its encrypted API key. */
@@ -88,6 +103,12 @@ export interface PerformCreateKnowledgeConnectorParams extends KnowledgeOperatio
   sourceConfig: Record<string, unknown>
   syncIntervalMinutes: number
   /**
+   * Present when the connector crawls per member. The binding was validated
+   * against the group, the option, and the connector by the caller; the
+   * connector is granted the option's credentials before its row exists.
+   */
+  membersBinding?: ConnectorMembersBinding
+  /**
    * Resolves the payer the sync is billed to. A thunk so a request rejected by
    * a guard never pays for the lookup, and so the payer is read at the moment
    * the sync is dispatched.
@@ -132,6 +153,7 @@ export async function performCreateKnowledgeConnector(
     apiKey,
     sourceConfig,
     syncIntervalMinutes,
+    membersBinding,
     resolveBillingAttribution,
     resolveAccessToken,
     request,
@@ -158,9 +180,20 @@ export async function performCreateKnowledgeConnector(
 
   let resolvedCredentialId: string | null = null
   let resolvedEncryptedApiKey: string | null = null
-  let accessToken: string
+  let accessToken: string | null = null
 
-  if (connectorConfig.auth.mode === 'apiKey') {
+  if (membersBinding) {
+    /**
+     * A members-mode connector has no credential of its own to validate the
+     * source with: each member's first crawl validates it for that member.
+     * What can be checked here is that the config does not cap listings.
+     */
+    if (connectorConfig.auth.mode !== 'oauth' || !connectorConfig.permissionScopedListing) {
+      return fail(`${connectorConfig.name} cannot sync per member`, 'validation')
+    }
+    const capViolation = findListingCapViolation(connectorConfig, sourceConfig)
+    if (capViolation) return fail(capViolation, 'validation')
+  } else if (connectorConfig.auth.mode === 'apiKey') {
     if (!apiKey && !connectorConfig.auth.optional) {
       return fail('API key is required', 'validation')
     }
@@ -182,13 +215,15 @@ export async function performCreateKnowledgeConnector(
     resolvedCredentialId = credentialId
   }
 
-  const configValidation = await connectorConfig.validateConfig(accessToken, sourceConfig)
-  if (!configValidation.valid) {
-    return fail(
-      configValidation.error ||
-        `The ${connectorType} connector rejected sourceConfig without a reason — re-check its required fields in knowledgebases/connectors/${connectorType}.json before retrying; the same config will fail again.`,
-      'validation'
-    )
+  if (accessToken !== null) {
+    const configValidation = await connectorConfig.validateConfig(accessToken, sourceConfig)
+    if (!configValidation.valid) {
+      return fail(
+        configValidation.error ||
+          `The ${connectorType} connector rejected sourceConfig without a reason — re-check its required fields in knowledgebases/connectors/${connectorType}.json before retrying; the same config will fail again.`,
+        'validation'
+      )
+    }
   }
 
   if (connectorConfig.auth.mode === 'apiKey' && apiKey) {
@@ -261,6 +296,22 @@ export async function performCreateKnowledgeConnector(
   const nextSyncAt =
     syncIntervalMinutes > 0 ? new Date(now.getTime() + syncIntervalMinutes * 60 * 1000) : null
 
+  /**
+   * Granted before the row exists so a connector can never be live without
+   * its grant; a failed insert revokes it again. The id is fixed above, so the
+   * policy names exactly the row about to be written.
+   */
+  if (membersBinding) {
+    try {
+      await grantKnowledgeConnectorCredentialAccess(
+        { workspaceId, ...membersBinding, connectorId },
+        params.userId
+      )
+    } catch (error) {
+      return classifyKnowledgeFailure(error, requestId, `Create ${connectorType} connector`)
+    }
+  }
+
   let created: ConnectorRow
   try {
     created = await db.transaction(async (tx) => {
@@ -309,9 +360,20 @@ export async function performCreateKnowledgeConnector(
            * rather than an idle connector until its first refetch. The lease and
            * ownership token that make the queue entry recoverable come from that
            * later write, which is why it must not skip an already-`pending` row.
+           *
+           * A members-mode connector is born `active`: its member run has its
+           * own queue state, and `pending` here would read as a content sync.
            */
-          status: 'pending',
-          nextSyncAt,
+          status: membersBinding ? 'active' : 'pending',
+          nextSyncAt: membersBinding ? null : nextSyncAt,
+          ...(membersBinding
+            ? {
+                accessMode: 'members',
+                credentialGroupId: membersBinding.credentialGroupId,
+                credentialGroupOptionId: membersBinding.credentialGroupOptionId,
+                nextMemberSyncAt: now,
+              }
+            : {}),
           createdAt: now,
           updatedAt: now,
         })
@@ -320,6 +382,17 @@ export async function performCreateKnowledgeConnector(
       return row
     })
   } catch (error) {
+    if (membersBinding) {
+      await revokeKnowledgeConnectorCredentialAccess(
+        { workspaceId, credentialGroupId: membersBinding.credentialGroupId, connectorId },
+        params.userId
+      ).catch((revokeError) => {
+        logger.error(`[${requestId}] Failed to revoke the grant of an uncreated connector`, {
+          connectorId,
+          error: revokeError,
+        })
+      })
+    }
     return classifyKnowledgeFailure(error, requestId, `Create ${connectorType} connector`)
   }
 
@@ -371,10 +444,15 @@ export async function performCreateKnowledgeConnector(
    * initial sync is at stake — so a failed enqueue is reported on the connector,
    * not by failing the creation.
    */
-  const dispatchSync = await loadDispatchSync()
   let initialSyncQueued = true
   try {
-    const dispatch = await dispatchSync(connectorId, { billingAttribution, requestId })
+    const dispatch = membersBinding
+      ? await (await loadDispatchMemberSync())(connectorId, {
+          billingAttribution,
+          requestId,
+          expectedNextMemberSyncAt: now,
+        })
+      : await (await loadDispatchSync())(connectorId, { billingAttribution, requestId })
     if (!dispatch.queued) {
       initialSyncQueued = false
       logger.warn(
@@ -519,10 +597,24 @@ export async function performUpdateKnowledgeConnector(
     }
   }
 
-  if (updates.sourceConfig !== undefined && validateSourceConfig) {
-    const rejection = await validateSourceConfig(existing, updates.sourceConfig)
-    if (rejection) {
-      return fail(rejection.message, rejection.errorCode)
+  if (updates.sourceConfig !== undefined) {
+    if (existing.accessMode === 'members') {
+      /**
+       * A members-mode connector has no credential to validate the source
+       * with; the next member run does that per member. The listing caps are
+       * what a save can refuse.
+       */
+      const { CONNECTOR_REGISTRY } = await import('@/connectors/registry.server')
+      const connectorConfig = CONNECTOR_REGISTRY[existing.connectorType]
+      const capViolation = connectorConfig
+        ? findListingCapViolation(connectorConfig, updates.sourceConfig)
+        : null
+      if (capViolation) return fail(capViolation, 'validation')
+    } else if (validateSourceConfig) {
+      const rejection = await validateSourceConfig(existing, updates.sourceConfig)
+      if (rejection) {
+        return fail(rejection.message, rejection.errorCode)
+      }
     }
   }
 
@@ -531,12 +623,15 @@ export async function performUpdateKnowledgeConnector(
     updates.sourceConfig !== undefined &&
     resultingStatus !== 'paused' &&
     resultingStatus !== 'disabled'
+  const syncsPerMember = existing.accessMode === 'members'
   let billingAttribution: BillingAttributionSnapshot | undefined
   let dispatchSourceSync: Awaited<ReturnType<typeof loadDispatchSync>> | undefined
+  let dispatchMemberSourceSync: Awaited<ReturnType<typeof loadDispatchMemberSync>> | undefined
   if (shouldDispatchSourceSync) {
     try {
       billingAttribution = await resolveBillingAttribution()
-      dispatchSourceSync = await loadDispatchSync()
+      if (syncsPerMember) dispatchMemberSourceSync = await loadDispatchMemberSync()
+      else dispatchSourceSync = await loadDispatchSync()
     } catch (error) {
       return classifyKnowledgeFailure(error, requestId, `Update connector ${connectorId}`)
     }
@@ -580,7 +675,8 @@ export async function performUpdateKnowledgeConnector(
     }
   }
   if (shouldDispatchSourceSync) {
-    values.nextSyncAt = updateTimestamp
+    if (syncsPerMember) values.nextMemberSyncAt = updateTimestamp
+    else values.nextSyncAt = updateTimestamp
   }
 
   let updated: ConnectorRow
@@ -645,6 +741,23 @@ export async function performUpdateKnowledgeConnector(
     })
   }
 
+  if (dispatchMemberSourceSync && billingAttribution) {
+    try {
+      await dispatchMemberSourceSync(connectorId, {
+        billingAttribution,
+        expectedNextMemberSyncAt: updateTimestamp,
+        requestId,
+        requireRunnable: true,
+      })
+    } catch (error) {
+      return classifyKnowledgeFailure(
+        error,
+        requestId,
+        `Dispatch source-change member sync for connector ${connectorId}`
+      )
+    }
+  }
+
   if (dispatchSourceSync && billingAttribution) {
     try {
       await dispatchSourceSync(connectorId, {
@@ -704,6 +817,17 @@ export async function performDeleteKnowledgeConnector(
   const existing = await getKnowledgeConnector(kb.id, connectorId)
   if (!existing) {
     return fail('Connector not found', 'not_found')
+  }
+  /**
+   * A members-mode document's visibility is its observers; detached from the
+   * connector it would keep an ACL nothing maintains, or become hidden to
+   * everyone. Neither is a standalone entry anyone asked for.
+   */
+  if (existing.accessMode === 'members' && !deleteDocuments) {
+    return fail(
+      'Documents of a connector that syncs per member cannot be kept; delete them with the connector',
+      'conflict'
+    )
   }
 
   let deletedDocs: Array<{ id: string; fileUrl: string }>
@@ -767,6 +891,22 @@ export async function performDeleteKnowledgeConnector(
         logger.warn(`[${requestId}] Failed to cleanup tag definitions`, error)
       }),
     ])
+  }
+
+  if (existing.credentialGroupId) {
+    await revokeKnowledgeConnectorCredentialAccess(
+      {
+        workspaceId: kb.workspaceId ?? '',
+        credentialGroupId: existing.credentialGroupId,
+        connectorId,
+      },
+      params.userId
+    ).catch((error) => {
+      logger.error(`[${requestId}] Failed to revoke the deleted connector's credential access`, {
+        connectorId,
+        error,
+      })
+    })
   }
 
   logger.info(
@@ -849,6 +989,15 @@ export async function performSyncKnowledgeConnector(
   if (connector.status === 'syncing' || connector.status === 'pending') {
     return fail('Sync already in progress', 'conflict')
   }
+  if (connector.memberSyncStatus === 'running' || connector.memberSyncStatus === 'pending') {
+    return fail('Sync already in progress', 'conflict')
+  }
+  if (connector.accessMode === 'members' && connector.memberSyncStatus === 'disabled') {
+    return fail(
+      connector.lastMemberSyncError ?? 'Member sync is disabled for this connector',
+      'conflict'
+    )
+  }
   /**
    * A paused or disabled connector is not synced on demand.
    *
@@ -886,9 +1035,15 @@ export async function performSyncKnowledgeConnector(
    * product event for work that never started. Awaiting first makes the reported
    * outcome and both records describe what actually happened.
    */
-  const dispatchSync = await loadDispatchSync()
   try {
-    const dispatch = await dispatchSync(connectorId, { billingAttribution, requestId, rehydrate })
+    const dispatch =
+      connector.accessMode === 'members'
+        ? await (await loadDispatchMemberSync())(connectorId, { billingAttribution, requestId })
+        : await (await loadDispatchSync())(connectorId, {
+            billingAttribution,
+            requestId,
+            rehydrate,
+          })
     /**
      * A guard inside the dispatch declining to queue is reported as a failure
      * rather than a queued sync. Every one of them means the connector's state

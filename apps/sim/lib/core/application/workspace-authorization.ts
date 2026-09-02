@@ -264,6 +264,21 @@ async function requireCurrentHumanRole<C extends WorkspaceAuthorizationContext>(
   requirePermission(permission, required)
 }
 
+/**
+ * A use case's own escalation: refuses unless the person holds `required` in
+ * the workspace right now. For an operation whose minimum role fits most of
+ * its inputs but one variant needs more — a connector that crawls as every
+ * enrolled member is an admin decision even though creating a connector is
+ * not — so the operation keeps its role and the variant asserts its own.
+ */
+export async function requireWorkspaceRole<C extends WorkspaceAuthorizationContext>(
+  userId: string,
+  context: C,
+  required: PermissionType
+): Promise<void> {
+  await requireCurrentHumanRole(userId, context, required)
+}
+
 async function requireCurrentHumanAccess<C extends WorkspaceAuthorizationContext>(
   userId: string,
   context: C,
