@@ -134,7 +134,7 @@ export function applyStringReplacement(
     options?.maxOutputBytes
   )
 
-  if (replaceAll) return text.replaceAll(search, content)
+  if (replaceAll) return text.replaceAll(search, () => content)
 
   const index = text.indexOf(search)
   return text.slice(0, index) + content + text.slice(index + search.length)

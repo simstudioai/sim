@@ -53,7 +53,7 @@ function extractPatchPreview(
     const search = typeof edit?.search === 'string' ? edit.search : ''
     if (!search) return undefined
     if (edit?.replaceAll === true) {
-      return existingContent.replaceAll(search, streamedContent)
+      return existingContent.replaceAll(search, () => streamedContent)
     }
     const firstIdx = existingContent.indexOf(search)
     if (firstIdx === -1) return undefined

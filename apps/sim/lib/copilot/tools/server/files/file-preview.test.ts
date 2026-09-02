@@ -99,4 +99,19 @@ describe('buildFilePreviewText', () => {
       })
     ).toBe('hello sim')
   })
+
+  it('treats replaceAll preview content as literal text', () => {
+    expect(
+      buildFilePreviewText({
+        operation: 'patch',
+        existingContent: 'old old',
+        streamedContent: '$&',
+        edit: {
+          strategy: 'search_replace',
+          search: 'old',
+          replaceAll: true,
+        },
+      })
+    ).toBe('$& $&')
+  })
 })

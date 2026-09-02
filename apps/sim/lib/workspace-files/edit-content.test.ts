@@ -70,6 +70,10 @@ describe('applyStringReplacement', () => {
     expect(applyStringReplacement('a a a', 'a', 'b', true)).toBe('b b b')
   })
 
+  it('treats replacement substitution tokens as literal content', () => {
+    expect(applyStringReplacement('a a', 'a', '$&', true)).toBe('$& $&')
+  })
+
   it('rejects an oversized replaceAll result before constructing it', () => {
     expect(() =>
       applyStringReplacement('aaaa', 'a', '0123456789', true, { maxOutputBytes: 20 })

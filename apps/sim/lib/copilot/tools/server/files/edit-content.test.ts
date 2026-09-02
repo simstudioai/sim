@@ -154,7 +154,7 @@ describe('edit_content', () => {
     )
   })
 
-  it('honors replaceAll for exact patch intent', async () => {
+  it('honors replaceAll with literal replacement content for exact patch intent', async () => {
     waitForLatestFileIntentMock.mockResolvedValue({
       operation: 'patch',
       fileId: 'text-1',
@@ -168,13 +168,11 @@ describe('edit_content', () => {
       createdAt: Date.now(),
     })
 
-    await expect(editContentServerTool.execute({ content: 'new' }, context)).resolves.toMatchObject(
-      {
-        success: true,
-      }
-    )
+    await expect(editContentServerTool.execute({ content: '$&' }, context)).resolves.toMatchObject({
+      success: true,
+    })
     expect(compileDocForWriteMock).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'new new' })
+      expect.objectContaining({ source: '$& $&' })
     )
   })
 })
