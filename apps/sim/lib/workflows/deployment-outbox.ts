@@ -49,6 +49,7 @@ import {
   getDeploymentOperation,
   getProtectedDeploymentVersionId,
   isDeploymentOperationCurrent,
+  isDeploymentVersionActive,
   isDeploymentVersionProtectedByCurrentOperation,
   markDeploymentComponentReadiness,
   markDeploymentOperationFailed,
@@ -977,6 +978,7 @@ const cleanupUndeployedSideEffects: OutboxHandler = async (rawPayload, context) 
     workflowId: payload.workflowId,
     workflow: workflowData,
     requestId,
+    signal: context.signal,
   })
 
   context.signal.throwIfAborted()
@@ -1193,25 +1195,6 @@ async function cleanupStaleDeploymentIfNeeded(params: {
   return false
 }
 
-async function isDeploymentVersionActive(
-  workflowId: string,
-  deploymentVersionId: string
-): Promise<boolean> {
-  const [versionRow] = await db
-    .select({ id: workflowDeploymentVersion.id })
-    .from(workflowDeploymentVersion)
-    .where(
-      and(
-        eq(workflowDeploymentVersion.workflowId, workflowId),
-        eq(workflowDeploymentVersion.id, deploymentVersionId),
-        eq(workflowDeploymentVersion.isActive, true)
-      )
-    )
-    .limit(1)
-
-  return Boolean(versionRow)
-}
-
 async function removeMcpToolsIfStillUndeployed(
   workflowId: string,
   requestId: string
@@ -1232,12 +1215,18 @@ async function removeMcpToolsIfStillUndeployed(
   notifyMcpToolServers(tools)
 }
 
+/**
+ * The per-row gate also throws once the outbox lease aborts, so a timed-out
+ * undeploy stops between webhooks instead of overlapping its reaped retry.
+ */
 async function cleanupNullVersionWebhooksIfStillUndeployed(params: {
   workflowId: string
   workflow: Record<string, unknown>
   requestId: string
+  signal: AbortSignal
 }): Promise<void> {
   const isStillUndeployed = async () => {
+    params.signal.throwIfAborted()
     const [workflowRecord] = await db
       .select({ isDeployed: workflowTable.isDeployed })
       .from(workflowTable)

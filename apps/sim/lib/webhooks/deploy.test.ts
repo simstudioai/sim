@@ -35,10 +35,12 @@ vi.mock('@/lib/webhooks/utils.server', () => ({
 vi.mock('@/lib/webhooks/pending-verification', () => ({
   PendingWebhookVerificationTracker: vi.fn(),
 }))
-const { mockIsDeploymentVersionProtected } = vi.hoisted(() => ({
+const { mockIsDeploymentVersionActive, mockIsDeploymentVersionProtected } = vi.hoisted(() => ({
+  mockIsDeploymentVersionActive: vi.fn(),
   mockIsDeploymentVersionProtected: vi.fn(),
 }))
 vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
+  isDeploymentVersionActive: mockIsDeploymentVersionActive,
   isDeploymentVersionProtectedByCurrentOperation: mockIsDeploymentVersionProtected,
 }))
 
@@ -677,6 +679,7 @@ describe('cleanupInactiveDeploymentWebhooks', () => {
   }
 
   beforeEach(() => {
+    mockIsDeploymentVersionActive.mockResolvedValue(false)
     mockIsDeploymentVersionProtected.mockResolvedValue(false)
   })
 
@@ -730,6 +733,17 @@ describe('cleanupInactiveDeploymentWebhooks', () => {
       cleanupInactiveDeploymentWebhooks({ ...input, shouldContinue: async () => false })
     ).resolves.toEqual({ hasMore: true })
 
+    expect(vi.mocked(cleanupExternalWebhook)).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+
+  it('leaves a row alone when its version was re-activated after the batch was selected', async () => {
+    queueTableRows(webhook, [staleWebhookRow('wh-1')])
+    mockIsDeploymentVersionActive.mockResolvedValue(true)
+
+    await expect(cleanupInactiveDeploymentWebhooks(input)).resolves.toEqual({ hasMore: true })
+
+    expect(mockIsDeploymentVersionActive).toHaveBeenCalledWith('workflow-1', 'version-1')
     expect(vi.mocked(cleanupExternalWebhook)).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })

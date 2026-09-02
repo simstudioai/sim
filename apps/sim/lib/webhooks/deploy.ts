@@ -33,7 +33,10 @@ import {
   replaceSlackStreamAuthoringConfig,
 } from '@/lib/webhooks/slack-stream-config'
 import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
-import { isDeploymentVersionProtectedByCurrentOperation } from '@/lib/workflows/persistence/deployment-operations'
+import {
+  isDeploymentVersionActive,
+  isDeploymentVersionProtectedByCurrentOperation,
+} from '@/lib/workflows/persistence/deployment-operations'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -1373,9 +1376,11 @@ export interface InactiveDeploymentWebhookCleanupResult {
  * per row, so the work is bounded here and `hasMore` asks the caller to come
  * back; every finished row leaves the remaining set smaller, so repeated calls
  * converge. `protectedDeploymentVersionId` is the version an in-flight
- * operation is preparing, inactive until cutover but live preparation state;
- * each row is re-checked against the current operation right before its
- * delete because that can change while the batch runs.
+ * operation is preparing, inactive until cutover but live preparation state.
+ * Each row is re-checked right before its provider call: the version must
+ * still be inactive and must not have become the current operation's
+ * candidate, since either can change while the batch runs and the fenced row
+ * delete that follows cannot undo provider teardown.
  */
 export async function cleanupInactiveDeploymentWebhooks(params: {
   workflowId: string
@@ -1433,6 +1438,7 @@ export async function cleanupInactiveDeploymentWebhooks(params: {
       shouldDeleteWebhook: async () => {
         if (shouldContinue && !(await shouldContinue())) return false
         if (!deploymentVersionId) return true
+        if (await isDeploymentVersionActive(workflowId, deploymentVersionId)) return false
         return !(await isDeploymentVersionProtectedByCurrentOperation(
           workflowId,
           deploymentVersionId

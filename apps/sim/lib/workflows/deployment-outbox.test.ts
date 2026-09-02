@@ -33,6 +33,7 @@ const {
   mockCleanupInactiveDeploymentWebhooks,
   mockDeleteInactiveDeploymentSchedules,
   mockGetProtectedDeploymentVersionId,
+  mockIsDeploymentVersionActive,
   mockTx,
 } = vi.hoisted(() => ({
   mockPrepareWebhooks: vi.fn(),
@@ -57,6 +58,7 @@ const {
   mockCleanupInactiveDeploymentWebhooks: vi.fn(),
   mockDeleteInactiveDeploymentSchedules: vi.fn(),
   mockGetProtectedDeploymentVersionId: vi.fn(),
+  mockIsDeploymentVersionActive: vi.fn(),
   mockTx: { select: vi.fn(), update: vi.fn(), execute: vi.fn() },
 }))
 
@@ -116,6 +118,7 @@ vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
   getDeploymentOperation: mockGetDeploymentOperation,
   getProtectedDeploymentVersionId: mockGetProtectedDeploymentVersionId,
   isDeploymentOperationCurrent: mockIsDeploymentOperationCurrent,
+  isDeploymentVersionActive: mockIsDeploymentVersionActive,
   isDeploymentVersionProtectedByCurrentOperation:
     mockIsDeploymentVersionProtectedByCurrentOperation,
   markDeploymentComponentReadiness: mockMarkDeploymentComponentReadiness,
@@ -233,6 +236,7 @@ describe('versioned deployment preparation outbox', () => {
     })
     mockIsDeploymentOperationCurrent.mockResolvedValue(false)
     mockIsDeploymentVersionProtectedByCurrentOperation.mockResolvedValue(false)
+    mockIsDeploymentVersionActive.mockResolvedValue(false)
     mockGetProtectedDeploymentVersionId.mockResolvedValue(null)
     mockDeleteInactiveDeploymentSchedules.mockResolvedValue({ status: 'deleted', count: 0 })
     mockCleanupInactiveDeploymentWebhooks.mockResolvedValue({ hasMore: false })
@@ -772,5 +776,30 @@ describe('versioned deployment preparation outbox', () => {
     })
 
     expect(mockNotifyMcpToolServers).not.toHaveBeenCalled()
+  })
+
+  it('lets a timed-out undeploy stop between null-version webhooks', async () => {
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    queueTableRows(schemaMock.workflow, [{ isDeployed: false }])
+    const controller = new AbortController()
+    const cleanupHandler =
+      createWorkflowDeploymentOutboxHandlers()[
+        WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS.CLEANUP_UNDEPLOYED_SIDE_EFFECTS
+      ]
+
+    await expect(
+      cleanupHandler({ workflowId: 'workflow-1', userId: 'user-1' }, context(controller))
+    ).resolves.toBeUndefined()
+
+    expect(mockCleanupWebhooksForWorkflow).toHaveBeenCalledTimes(1)
+    const shouldDeleteWebhook = mockCleanupWebhooksForWorkflow.mock
+      .calls[0][6] as () => Promise<boolean>
+    queueTableRows(schemaMock.workflow, [{ isDeployed: false }])
+    await expect(shouldDeleteWebhook()).resolves.toBe(true)
+
+    controller.abort()
+    await expect(shouldDeleteWebhook()).rejects.toMatchObject({ name: 'AbortError' })
   })
 })

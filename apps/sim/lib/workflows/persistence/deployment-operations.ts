@@ -364,6 +364,33 @@ export async function getProtectedDeploymentVersionId(
 }
 
 /**
+ * True when the given deployment version is the workflow's active one.
+ * Cleanup re-checks this immediately before any provider teardown because a
+ * version can be re-activated between a batch being selected and its rows
+ * being processed, and the fenced row delete that follows cannot undo a
+ * provider call.
+ */
+export async function isDeploymentVersionActive(
+  workflowId: string,
+  deploymentVersionId: string,
+  executor: Pick<DbOrTx, 'select'> = db
+): Promise<boolean> {
+  const [versionRow] = await executor
+    .select({ id: workflowDeploymentVersion.id })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.id, deploymentVersionId),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+    .limit(1)
+
+  return Boolean(versionRow)
+}
+
+/**
  * Moves the current preparing generation into its activation phase.
  */
 export async function beginDeploymentOperationActivation(
