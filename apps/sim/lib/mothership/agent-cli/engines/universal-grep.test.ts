@@ -1,0 +1,89 @@
+/**
+ * @vitest-environment node
+ */
+import { describe, expect, it } from 'vitest'
+import { runEngine } from '@/lib/mothership/agent-cli/engines'
+import type { AgentCliRuntime } from '@/lib/mothership/agent-cli/types'
+
+const SLACK_V2 = {
+  id: 'slack_v2',
+  name: 'Slack',
+  triggers: [{ id: 'slack_webhook', configFields: { streamOutputs: { type: 'boolean' } } }],
+  operations: { send_message: { toolId: 'slack_send' } },
+}
+
+function runtimeWith(responses: Record<string, unknown>): AgentCliRuntime {
+  return {
+    workspaceId: `ws-${Math.random().toString(36).slice(2)}`,
+    userId: 'user-1',
+    client: {
+      request: async <T>(path: string): Promise<T> => {
+        const hit = responses[path]
+        if (hit === undefined) throw new Error(`Unexpected request: ${path}`)
+        return hit as T
+      },
+    },
+  }
+}
+
+const CATALOG = {
+  '/api/v2/blocks': { data: [{ id: 'slack_v2' }, { id: 'agent' }], nextCursor: null },
+  '/api/v2/blocks/slack_v2': { data: SLACK_V2 },
+  '/api/v2/blocks/agent': { data: { id: 'agent', name: 'Agent', inputSchema: [{ id: 'model' }] } },
+}
+
+describe('universal grep', () => {
+  it('finds field ids inside block definitions and names the path-shaped line', async () => {
+    const result = await runEngine('grep', ['stream'], runtimeWith(CATALOG), {
+      scope: 'blocks',
+      i: true,
+    })
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('blocks/slack_v2:')
+    expect(result.stdout).toContain('"streamOutputs"')
+    expect(result.stdout).not.toContain('blocks/agent:')
+  })
+
+  it('narrows to one resource with --in and counts with --count', async () => {
+    const within = await runEngine('grep', ['id'], runtimeWith(CATALOG), {
+      scope: 'blocks',
+      in: 'agent',
+    })
+    expect(within.stdout).toContain('blocks/agent:')
+    expect(within.stdout).not.toContain('blocks/slack_v2:')
+    const count = await runEngine('grep', ['id'], runtimeWith(CATALOG), {
+      scope: 'blocks',
+      count: true,
+    })
+    expect(count.stdout).toMatch(/^\d+ \(blocks=\d+\)$/)
+  })
+
+  it('refuses an unknown scope with a did-you-mean and the scope list', async () => {
+    const result = await runEngine('grep', ['x'], runtimeWith({}), { scope: 'block' })
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('Did you mean blocks')
+    expect(result.stderr).toContain('workflows, blocks, tools')
+  })
+
+  it('materializes secrets as names only', async () => {
+    const result = await runEngine(
+      'grep',
+      ['OPENAI'],
+      runtimeWith({
+        '/api/v2/secrets': {
+          data: [{ name: 'OPENAI_API_KEY', value: 'sk-should-never-appear' }],
+          nextCursor: null,
+        },
+      }),
+      { scope: 'secrets' }
+    )
+    expect(result.stdout).toContain('OPENAI_API_KEY')
+    expect(result.stdout).not.toContain('sk-should-never-appear')
+  })
+
+  it('reports no matches honestly', async () => {
+    const result = await runEngine('grep', ['zzz-nope'], runtimeWith(CATALOG), { scope: 'blocks' })
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('No matches for "zzz-nope" in blocks')
+  })
+})
