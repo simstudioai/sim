@@ -52,7 +52,7 @@ interface FileUploadProps {
    * A sibling folder field that narrows what this picker offers, and the switch
    * saying whether that scope descends. See `SubBlockConfig.folderScope`.
    */
-  folderScope?: { fieldId: string; recursiveFieldId?: string }
+  folderScope?: { fieldId: string; manualFieldId?: string; recursiveFieldId?: string }
   /**
    * Controlled value. When `onValueChange` is provided the component reads from
    * this prop and writes through `onValueChange` instead of the subblock store,
@@ -338,6 +338,16 @@ export function FileUpload({
    * scope reads as absent.
    */
   const [folderScopeValue] = useSubBlockValue<unknown>(blockId, folderScope?.fieldId ?? subBlockId)
+  /*
+   * The advanced half of the same canonical pair. Values are stored per
+   * sub-block id, so a scope typed into the advanced field lives under a
+   * different key and reading only the basic one left the picker unscoped
+   * while looking configured.
+   */
+  const [manualFolderScopeValue] = useSubBlockValue<unknown>(
+    blockId,
+    folderScope?.manualFieldId ?? folderScope?.fieldId ?? subBlockId
+  )
   const [folderScopeRecursive] = useSubBlockValue<unknown>(
     blockId,
     folderScope?.recursiveFieldId ?? subBlockId
@@ -348,7 +358,9 @@ export function FileUpload({
    * its literal text passes a string check and then matches no folder, so every
    * file is filtered out of a picker that looks correctly configured.
    */
-  const folderScopePath = folderScope ? readFolderPath(folderScopeValue) : ''
+  const folderScopePath = folderScope
+    ? readFolderPath(folderScopeValue) || readFolderPath(manualFolderScopeValue)
+    : ''
   const folderScopeIncludesSubfolders =
     !folderScope?.recursiveFieldId ||
     folderScopeRecursive === undefined ||
