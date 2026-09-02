@@ -38,6 +38,6 @@ export const INTEGRATION_LANDING_CONTENT: Record<string, IntegrationLandingConte
       href: '/privacy',
     },
     aiDisclaimer:
-      'Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete, so review automated outputs before relying on them, especially for important communications.',
+      "A paid Slack plan is required to use Sim's AI agent in Slack's app container. Other Sim features continue to work on free Slack plans. Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete, so review automated outputs before relying on them, especially for important communications.",
   },
 }
