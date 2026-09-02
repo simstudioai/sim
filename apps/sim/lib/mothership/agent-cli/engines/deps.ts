@@ -1,9 +1,5 @@
-import { fetchWorkflowState } from '@/lib/mothership/tools/handlers/agent-cli/commands/workflow-views'
-import {
-  type AgentCliCommand,
-  agentCliFail,
-  agentCliOk,
-} from '@/lib/mothership/tools/handlers/agent-cli/types'
+import { fetchWorkflowState } from '@/lib/mothership/agent-cli/engines/workflow-views'
+import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { normalizeName, SPECIAL_REFERENCE_PREFIXES } from '@/executor/constants'
 import {
   collectStringLeaves,
@@ -33,11 +29,7 @@ interface DepView {
   paths?: string[]
 }
 
-export const workflowDepsCommand: AgentCliCommand = {
-  path: ['workflow', 'deps'],
-  summary:
-    'List every reference one block consumes (upstream blocks, variables, env) — what to mock for an isolated run',
-  usage: 'workflow deps <workflowId> <blockId>',
+export const workflowDepsCommand: AgentCliEngine = {
   async execute(rest, runtime) {
     const [workflowId, blockId] = rest
     if (!workflowId || !blockId)

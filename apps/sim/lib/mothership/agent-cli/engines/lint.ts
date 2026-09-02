@@ -1,11 +1,11 @@
 import type { WorkflowState } from '@sim/workflow-types/workflow'
-import { fetchWorkflowState } from '@/lib/mothership/tools/handlers/agent-cli/commands/workflow-views'
+import { fetchWorkflowState } from '@/lib/mothership/agent-cli/engines/workflow-views'
 import {
-  type AgentCliCommand,
+  type AgentCliEngine,
   type AgentCliRuntime,
   agentCliFail,
   agentCliOk,
-} from '@/lib/mothership/tools/handlers/agent-cli/types'
+} from '@/lib/mothership/agent-cli/types'
 import { formatWorkflowLintMessage, hasWorkflowLintIssues } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
@@ -17,10 +17,7 @@ import { createEnvVarPattern } from '@/executor/utils/reference-validation'
  * same engine both graph writes publish, so a lint here can never disagree
  * with what an edit would have reported.
  */
-export const workflowLintCommand: AgentCliCommand = {
-  path: ['workflow', 'lint'],
-  summary: 'Validate one workflow: orphans, unwired ports, missing fields, unresolved references',
-  usage: 'workflow lint <workflowId>',
+export const workflowLintCommand: AgentCliEngine = {
   async execute(rest, runtime) {
     const workflowId = rest[0]
     if (!workflowId) return agentCliFail('Usage: sim workflow lint <workflowId>')

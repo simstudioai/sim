@@ -1,10 +1,10 @@
 import type { ListFilesResponse, ReadFileTextResponse } from 'sim/embed'
 import {
-  type AgentCliCommand,
+  type AgentCliEngine,
   type AgentCliRuntime,
   agentCliFail,
   agentCliOk,
-} from '@/lib/mothership/tools/handlers/agent-cli/types'
+} from '@/lib/mothership/agent-cli/types'
 
 /**
  * Content grep across workspace files (the Go copilot's VFS-wide grep, files
@@ -59,10 +59,7 @@ async function listAllFiles(runtime: AgentCliRuntime): Promise<ListFilesResponse
   return rows.slice(0, MAX_FILES)
 }
 
-export const filesGrepCommand: AgentCliCommand = {
-  path: ['files', 'grep'],
-  summary: 'Search the content of every workspace file for a pattern',
-  usage: 'files grep <pattern> [folder-path-prefix]',
+export const filesGrepCommand: AgentCliEngine = {
   async execute(rest, runtime) {
     const [pattern, folderPrefix] = [rest[0], rest[1]]
     if (!pattern) return agentCliFail('Usage: sim files grep <pattern> [folder-path-prefix]')

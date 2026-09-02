@@ -1,11 +1,11 @@
 import type { ListWorkflowsResponse } from 'sim/embed'
-import { fetchWorkflowState } from '@/lib/mothership/tools/handlers/agent-cli/commands/workflow-views'
+import { fetchWorkflowState } from '@/lib/mothership/agent-cli/engines/workflow-views'
 import {
-  type AgentCliCommand,
+  type AgentCliEngine,
   type AgentCliRuntime,
   agentCliFail,
   agentCliOk,
-} from '@/lib/mothership/tools/handlers/agent-cli/types'
+} from '@/lib/mothership/agent-cli/types'
 
 /**
  * Structural grep over workflow state. Matches walk the exported JSON tree and
@@ -62,10 +62,7 @@ function renderMatches(lines: string[]): string {
   return capped.join('\n')
 }
 
-export const workflowGrepCommand: AgentCliCommand = {
-  path: ['workflow', 'grep'],
-  summary: 'Search one workflow state (blocks, params, edges) for a pattern',
-  usage: 'workflow grep <workflowId> <pattern>',
+export const workflowGrepCommand: AgentCliEngine = {
   async execute(rest, runtime) {
     const [workflowId, ...patternParts] = rest
     const pattern = patternParts.join(' ')
@@ -92,10 +89,7 @@ async function listAllWorkflows(runtime: AgentCliRuntime): Promise<ListWorkflows
   return rows
 }
 
-export const workflowsGrepCommand: AgentCliCommand = {
-  path: ['workflows', 'grep'],
-  summary: 'Search every workflow in the workspace for a pattern',
-  usage: 'workflows grep <pattern>',
+export const workflowsGrepCommand: AgentCliEngine = {
   async execute(rest, runtime) {
     const pattern = rest.join(' ')
     if (!pattern) return agentCliFail('Usage: sim workflows grep <pattern>')
