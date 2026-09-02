@@ -2,9 +2,11 @@
  * @vitest-environment node
  */
 
+import { serializePrincipal } from '@sim/auth/principal'
 import { resetEnvMock } from '@sim/testing'
-import { decodeJwt } from 'jose'
+import { decodeJwt, SignJWT } from 'jose'
 import { afterAll, describe, expect, it, vi } from 'vitest'
+import { env } from '@/lib/core/config/env'
 
 vi.unmock('@/lib/auth/internal')
 
@@ -181,7 +183,32 @@ describe('internal executor delegation claims', () => {
     ).rejects.toBeInstanceOf(InvalidInternalDelegationTokenError)
   })
 
-  it('rejects laundering actorless or external principals into a Sim user subject', async () => {
+  it('round-trips an authenticated chat subject without inventing a Sim user', async () => {
+    const token = await generateInternalDelegationToken({
+      workflowId: 'workflow-1',
+      principal: {
+        kind: 'system',
+        serviceId: 'chat',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        subject: { kind: 'authenticated_email', email: 'person@example.com' },
+      },
+    })
+
+    await expect(verifyInternalDelegationToken(token)).resolves.toMatchObject({
+      workflowId: 'workflow-1',
+      principal: {
+        kind: 'system',
+        serviceId: 'chat',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        subject: { kind: 'authenticated_email', email: 'person@example.com' },
+      },
+    })
+    expect(decodeJwt(token).sub).toBeUndefined()
+  })
+
+  it('rejects laundering actorless or non-Sim principals into a Sim user subject', async () => {
     await expect(
       generateInternalDelegationToken({
         subjectUserId: 'billing-owner',
@@ -213,7 +240,49 @@ describe('internal executor delegation claims', () => {
           },
         },
       })
-    ).rejects.toThrow('External workflow subjects cannot be represented as Sim users')
+    ).rejects.toThrow('Non-Sim workflow subjects cannot be represented as Sim users')
+
+    await expect(
+      generateInternalDelegationToken({
+        subjectUserId: 'unrelated-user',
+        workflowId: 'workflow-1',
+        principal: {
+          kind: 'system',
+          serviceId: 'chat',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          subject: { kind: 'authenticated_email', email: 'person@example.com' },
+        },
+      })
+    ).rejects.toThrow('Non-Sim workflow subjects cannot be represented as Sim users')
+  })
+
+  it('rejects a signed delegation that pairs a non-Sim principal with a Sim user subject', async () => {
+    const issuedAt = Math.floor(Date.now() / 1000)
+    const token = await new SignJWT({
+      type: 'internal_delegation',
+      serviceId: 'executor',
+      workflowId: 'workflow-1',
+      principal: serializePrincipal({
+        kind: 'system',
+        serviceId: 'chat',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        subject: { kind: 'authenticated_email', email: 'person@example.com' },
+      }),
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setJti('delegation-1')
+      .setSubject('unrelated-user')
+      .setIssuedAt(issuedAt)
+      .setExpirationTime(issuedAt + 5 * 60)
+      .setIssuer('sim-internal')
+      .setAudience('sim-api')
+      .sign(new TextEncoder().encode(env.INTERNAL_API_SECRET))
+
+    await expect(verifyInternalDelegationToken(token)).rejects.toBeInstanceOf(
+      InvalidInternalDelegationTokenError
+    )
   })
 
   it('derives issued-at and expiry from one timestamp', async () => {
