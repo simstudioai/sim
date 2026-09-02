@@ -15,6 +15,7 @@ import {
   startCredentialGroupOAuth,
 } from '@/lib/credential-groups/oauth'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
+import { fireCredentialGroupTrigger } from '@/lib/credential-groups/trigger'
 
 interface AuthorizedCredentialGroupEnrollmentUseCaseDefinition<O, I, C, R> {
   operation: O
@@ -125,8 +126,19 @@ export const completePublicCredentialGroupEnrollment =
     operation: credentialGroupEnrollmentOperations.complete,
     resolveContext: ({ principal }) => resolvePublicEnrollmentContext(principal),
     async execute({ context }) {
-      const completed = await completeAuthorizedCredentialGroupEnrollment(context)
-      return { completed }
+      const completion = await completeAuthorizedCredentialGroupEnrollment(context)
+      if (completion?.transitioned) {
+        await fireCredentialGroupTrigger({
+          event: 'form_submitted',
+          workspaceId: context.workspaceId,
+          credentialGroupId: context.credentialGroupId,
+          credentialGroupName: context.enrollment.credentialGroupName,
+          enrollmentId: context.enrollmentId,
+          email: context.email,
+          enrollmentStatus: 'completed',
+        })
+      }
+      return { completed: completion?.completed ?? null }
     },
   })
 
@@ -182,7 +194,23 @@ export const completePublicCredentialGroupOAuth = defineAuthorizedCredentialGrou
   }) => resolvePublicOAuthContext(principal, input.attempt.optionId),
   async execute({ principal, input, context }) {
     requireInvitationToken(principal, input.attempt.invitationToken)
-    await completeCredentialGroupOAuth(context.oauth, input.attempt, input.code)
+    const completion = await completeCredentialGroupOAuth(context.oauth, input.attempt, input.code)
+    await fireCredentialGroupTrigger({
+      event: completion.created ? 'credential_added' : 'credential_reconnected',
+      workspaceId: context.workspaceId,
+      credentialGroupId: context.credentialGroupId,
+      credentialGroupName: context.oauth.credentialGroupName,
+      enrollmentId: context.enrollmentId,
+      email: context.email,
+      enrollmentStatus: completion.enrollmentStatus,
+      credential: {
+        credentialId: completion.credentialId,
+        credentialGroupOptionId: completion.credentialGroupOptionId,
+        provider: completion.provider,
+        providerId: completion.providerId,
+        displayName: completion.displayName,
+      },
+    })
     return { connectedOptionId: context.oauth.option.id }
   },
 })
