@@ -7873,6 +7873,10 @@ export type UpdateCredentialBody = {
   authMethod?: string
   privateKey?: string
   username?: string
+  accessKeyId?: string
+  secretAccessKey?: string
+  namespace?: string
+  region?: string
 }
 
 type UpdateCredentialResponseRef0 = {
@@ -13644,6 +13648,13 @@ export const V2_OPERATIONS = {
       authMethod: { kind: 'string', describe: 'Provider authentication method.' },
       privateKey: { kind: 'string', describe: 'Write-only PEM private key.' },
       username: { kind: 'string', describe: 'Provider run-as username.' },
+      accessKeyId: {
+        kind: 'string',
+        describe: 'Write-only OCI Customer Secret Key access identifier.',
+      },
+      secretAccessKey: { kind: 'string', describe: 'Write-only OCI Customer Secret Key secret.' },
+      namespace: { kind: 'string', describe: 'OCI Object Storage tenancy namespace.' },
+      region: { kind: 'string', describe: 'Public commercial OCI region identifier.' },
     },
   },
   updateCustomTool: {

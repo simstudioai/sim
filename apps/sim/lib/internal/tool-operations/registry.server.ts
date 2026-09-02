@@ -363,6 +363,15 @@ const S3_TOOL_IDS = [
   's3_put_object',
 ] as const
 
+const OCI_OBJECT_STORAGE_TOOL_IDS = [
+  'oci_object_storage_delete_object',
+  'oci_object_storage_download_object',
+  'oci_object_storage_head_object',
+  'oci_object_storage_list_buckets',
+  'oci_object_storage_list_objects',
+  'oci_object_storage_upload_object',
+] as const
+
 const JUPYTER_TOOL_IDS = [
   'jupyter_copy_content',
   'jupyter_create_file',
@@ -1345,6 +1354,10 @@ registerFamily(handlerLoaders, NEO4J_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, S3_TOOL_IDS, async () => {
   return (await import('@/lib/internal/s3/execute-tool')).executeS3Tool
+})
+registerFamily(handlerLoaders, OCI_OBJECT_STORAGE_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oci-object-storage/execute-tool'))
+    .executeOciObjectStorageTool
 })
 registerFamily(handlerLoaders, JUPYTER_TOOL_IDS, async () => {
   return (await import('@/lib/internal/jupyter/execute-tool')).executeJupyterTool

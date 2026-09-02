@@ -21,6 +21,11 @@ import {
 } from '@/lib/credentials/client-credential-accounts/server'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
 import {
+  OciObjectStorageCredentialError,
+  ociObjectStorageCredentialDisplayName,
+  validateOciObjectStorageServiceAccount,
+} from '@/lib/credentials/oci-object-storage-service-account'
+import {
   type ServiceAccountPrincipal,
   serviceAccountPrincipalMetadata,
 } from '@/lib/credentials/principal'
@@ -37,6 +42,8 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_SECRET_TYPE,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_SECRET_TYPE,
 } from '@/lib/oauth/types'
@@ -57,6 +64,10 @@ export interface ServiceAccountSecretFields {
   authMethod?: string
   privateKey?: string
   username?: string
+  accessKeyId?: string
+  secretAccessKey?: string
+  namespace?: string
+  region?: string
 }
 
 export interface ServiceAccountSecretResult {
@@ -217,6 +228,60 @@ async function buildGoogleServiceAccountSecret(
   }
 }
 
+async function buildOciObjectStorageServiceAccountSecret(
+  fields: ServiceAccountSecretFields
+): Promise<ServiceAccountSecretResult> {
+  const { accessKeyId, secretAccessKey, namespace, region } = fields
+  if (!accessKeyId || !secretAccessKey || !namespace || !region) {
+    throw new ServiceAccountSecretError(
+      'accessKeyId, secretAccessKey, namespace, and region are required for OCI Object Storage credentials'
+    )
+  }
+
+  try {
+    const validation = await validateOciObjectStorageServiceAccount({
+      accessKeyId,
+      secretAccessKey,
+      namespace,
+      region,
+    })
+    const principal: ServiceAccountPrincipal = {
+      kind: 'user',
+      id: validation.ownerId,
+      ...(validation.ownerDisplayName ? { label: validation.ownerDisplayName } : {}),
+    }
+    const blob = JSON.stringify({
+      type: OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_SECRET_TYPE,
+      providerId: OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
+      ...validation.secret,
+      ownerId: validation.ownerId,
+      ...(validation.ownerDisplayName ? { ownerDisplayName: validation.ownerDisplayName } : {}),
+      metadata: serviceAccountPrincipalMetadata(principal),
+    })
+    const { encrypted } = await encryptSecret(blob)
+    return {
+      providerId: OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
+      encryptedServiceAccountKey: encrypted,
+      displayName: ociObjectStorageCredentialDisplayName({
+        ownerDisplayName: validation.ownerDisplayName,
+        namespace: validation.secret.namespace,
+        region: validation.secret.region,
+      }),
+      auditMetadata: {
+        ociNamespace: validation.secret.namespace,
+        ociRegion: validation.secret.region,
+        ...serviceAccountPrincipalMetadata(principal),
+      },
+      principal,
+    }
+  } catch (error) {
+    if (error instanceof OciObjectStorageCredentialError) {
+      throw new ServiceAccountSecretError(error.message)
+    }
+    throw error
+  }
+}
+
 /**
  * Builds a token-paste service-account secret for any provider registered in
  * `TOKEN_SERVICE_ACCOUNT_DESCRIPTORS`: verifies the pasted token via the
@@ -348,6 +413,7 @@ type ServiceAccountSecretBuilder = (
  */
 const SERVICE_ACCOUNT_SECRET_BUILDERS: Record<string, ServiceAccountSecretBuilder> = {
   [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: buildAtlassianServiceAccountSecret,
+  [OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID]: buildOciObjectStorageServiceAccountSecret,
   [SLACK_CUSTOM_BOT_PROVIDER_ID]: buildSlackCustomBotSecret,
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: buildGoogleServiceAccountSecret,
 }

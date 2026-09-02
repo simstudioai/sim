@@ -127,6 +127,30 @@ describe('PATCH /api/v2/credentials/[credentialId]', () => {
     expect(body).not.toContain('MUST_NOT_LEAK_CIPHERTEXT')
   })
 
+  it('forwards all OCI Customer Secret Key fields without returning them', async () => {
+    const secretFields = {
+      accessKeyId: 'access-key-canary',
+      secretAccessKey: 'secret-key-canary',
+      namespace: 'namespace1',
+      region: 'us-ashburn-1',
+    }
+    const response = await PATCH(patchRequest(secretFields), context)
+
+    expect(response.status).toBe(200)
+    expect(mocks.update).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: {
+        ...secretFields,
+        credentialId: CREDENTIAL_ID,
+        assertedWorkspaceId: WORKSPACE_ID,
+      },
+      request: expect.any(NextRequest),
+    })
+    const body = await response.text()
+    expect(body).not.toContain('key-canary')
+    expect(body).not.toContain('namespace1')
+  })
+
   it('asserts the workspace scope and preserves the credential id', async () => {
     const request = patchRequest({ displayName: 'Zoom prod' })
     await PATCH(request, context)

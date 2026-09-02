@@ -211,6 +211,101 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     expect(mockDecryptSecret).not.toHaveBeenCalled()
   })
 
+  it('forwards every OCI Customer Secret Key field during reconnect', async () => {
+    mockCredential({
+      providerId: 'oci-object-storage-service-account',
+      displayName: 'OCI storage automation',
+    })
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'oci-object-storage-service-account',
+      encryptedServiceAccountKey: 'new-oci-cipher',
+      displayName: 'Storage Automation — us-ashburn-1',
+      auditMetadata: { ociNamespace: 'namespace1', ociRegion: 'us-ashburn-1' },
+    })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      accessKeyId: 'access-key-canary',
+      secretAccessKey: 'secret-key-canary',
+      namespace: 'namespace1',
+      region: 'us-ashburn-1',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'oci-object-storage-service-account',
+      expect.objectContaining({
+        accessKeyId: 'access-key-canary',
+        secretAccessKey: 'secret-key-canary',
+        namespace: 'namespace1',
+        region: 'us-ashburn-1',
+      })
+    )
+    expect(updatePayload().encryptedServiceAccountKey).toBe('new-oci-cipher')
+    expect(JSON.stringify(auditMetadata())).not.toContain('key-canary')
+  })
+
+  it('re-labels an OCI credential that still carries its derived owner and region', async () => {
+    mockCredential({
+      providerId: 'oci-object-storage-service-account',
+      displayName: 'Old Owner — us-ashburn-1',
+    })
+    mockStoredBlob({
+      type: 'oci_object_storage_customer_secret_key',
+      namespace: 'namespace1',
+      region: 'us-ashburn-1',
+      ownerDisplayName: 'Old Owner',
+    })
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'oci-object-storage-service-account',
+      encryptedServiceAccountKey: 'new-oci-cipher',
+      displayName: 'New Owner — us-phoenix-1',
+      auditMetadata: { ociNamespace: 'namespace2', ociRegion: 'us-phoenix-1' },
+    })
+
+    await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      accessKeyId: 'new-access',
+      secretAccessKey: 'new-secret',
+      namespace: 'namespace2',
+      region: 'us-phoenix-1',
+    })
+
+    expect(updatePayload().displayName).toBe('New Owner — us-phoenix-1')
+  })
+
+  it('preserves a custom OCI label during secret rotation', async () => {
+    mockCredential({
+      providerId: 'oci-object-storage-service-account',
+      displayName: 'Production archive',
+    })
+    mockStoredBlob({
+      type: 'oci_object_storage_customer_secret_key',
+      namespace: 'namespace1',
+      region: 'us-ashburn-1',
+      ownerDisplayName: 'Old Owner',
+    })
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'oci-object-storage-service-account',
+      encryptedServiceAccountKey: 'new-oci-cipher',
+      displayName: 'New Owner — us-phoenix-1',
+      auditMetadata: { ociNamespace: 'namespace2', ociRegion: 'us-phoenix-1' },
+    })
+
+    await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      accessKeyId: 'new-access',
+      secretAccessKey: 'new-secret',
+      namespace: 'namespace2',
+      region: 'us-phoenix-1',
+    })
+
+    expect(updatePayload()).not.toHaveProperty('displayName')
+  })
+
   it('re-labels a Slack custom bot that still carries its previous team name', async () => {
     mockCredential({ providerId: 'slack-custom-bot', displayName: 'Old Team' })
     mockStoredBlob({ type: 'slack_custom_bot', teamName: 'Old Team', teamId: 'T1' })

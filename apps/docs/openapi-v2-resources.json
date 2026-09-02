@@ -8210,6 +8210,32 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255
+          },
+          "accessKeyId": {
+            "description": "Write-only OCI Customer Secret Key access identifier.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "secretAccessKey": {
+            "description": "Write-only OCI Customer Secret Key secret.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "namespace": {
+            "description": "OCI Object Storage tenancy namespace.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63
+          },
+          "region": {
+            "description": "Public commercial OCI region identifier.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
           }
         },
         "additionalProperties": false,

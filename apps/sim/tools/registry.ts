@@ -3294,6 +3294,14 @@ import {
   obsidianSearchTool,
 } from '@/tools/obsidian'
 import {
+  ociObjectStorageDeleteObjectTool,
+  ociObjectStorageDownloadObjectTool,
+  ociObjectStorageHeadObjectTool,
+  ociObjectStorageListBucketsTool,
+  ociObjectStorageListObjectsTool,
+  ociObjectStorageUploadObjectTool,
+} from '@/tools/oci_object_storage'
+import {
   oktaActivateGroupRuleTool,
   oktaActivateUserTool,
   oktaAddUserToGroupTool,
@@ -9402,6 +9410,12 @@ export const tools: Record<string, ExecutableToolConfig> = {
   video_luma: lumaVideoTool,
   video_minimax: minimaxVideoTool,
   video_falai: falaiVideoTool,
+  oci_object_storage_delete_object: ociObjectStorageDeleteObjectTool,
+  oci_object_storage_download_object: ociObjectStorageDownloadObjectTool,
+  oci_object_storage_head_object: ociObjectStorageHeadObjectTool,
+  oci_object_storage_list_buckets: ociObjectStorageListBucketsTool,
+  oci_object_storage_list_objects: ociObjectStorageListObjectsTool,
+  oci_object_storage_upload_object: ociObjectStorageUploadObjectTool,
   s3_get_object: s3GetObjectTool,
   s3_put_object: s3PutObjectTool,
   s3_list_objects: s3ListObjectsTool,

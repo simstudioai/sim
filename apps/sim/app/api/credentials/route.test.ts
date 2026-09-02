@@ -550,4 +550,62 @@ describe('POST /api/credentials', () => {
       expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     })
   })
+
+  describe('OCI Object Storage service accounts', () => {
+    it('forwards all four fields on create and never returns the encrypted secret', async () => {
+      mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
+        providerId: 'oci-object-storage-service-account',
+        encryptedServiceAccountKey: 'encrypted-oci-blob',
+        displayName: 'Storage Automation — us-ashburn-1',
+        auditMetadata: { ociNamespace: 'namespace1', ociRegion: 'us-ashburn-1' },
+        principal: { kind: 'user', id: 'ocid1.user.oc1..owner' },
+      })
+      queueTableRows(credential, [])
+      queueTableRows(credential, [])
+      queueTableRows(credential, [
+        {
+          id: 'credential-oci',
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          displayName: 'Storage Automation — us-ashburn-1',
+          description: null,
+          unredacted: false,
+          providerId: 'oci-object-storage-service-account',
+          accountId: null,
+          envKey: null,
+          envOwnerUserId: null,
+          encryptedServiceAccountKey: 'encrypted-oci-blob',
+          createdBy: 'user-1',
+          createdAt: new Date('2026-08-11T00:00:00.000Z'),
+          updatedAt: new Date('2026-08-11T00:00:00.000Z'),
+        },
+      ])
+
+      const response = await POST(
+        createMockRequest('POST', {
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'oci-object-storage-service-account',
+          accessKeyId: 'access-key-canary',
+          secretAccessKey: 'secret-key-canary',
+          namespace: 'namespace1',
+          region: 'us-ashburn-1',
+        })
+      )
+      const body = await response.json()
+
+      expect(response.status).toBe(201)
+      expect(body.credential).not.toHaveProperty('encryptedServiceAccountKey')
+      expect(JSON.stringify(body)).not.toContain('key-canary')
+      expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+        'oci-object-storage-service-account',
+        expect.objectContaining({
+          accessKeyId: 'access-key-canary',
+          secretAccessKey: 'secret-key-canary',
+          namespace: 'namespace1',
+          region: 'us-ashburn-1',
+        })
+      )
+    })
+  })
 })
