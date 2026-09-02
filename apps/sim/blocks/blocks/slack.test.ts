@@ -212,5 +212,8 @@ describe('Slack block release', () => {
     expect(() => mapSlackV2Params({ ...values, channelMaxPages: '11' })).toThrow(
       'Max pages must be an integer between 1 and 10'
     )
+    expect(mapSlackV2Params({ ...values, channelLimit: null, channelMaxPages: ' ' })).toMatchObject(
+      { limit: 100 }
+    )
   })
 })

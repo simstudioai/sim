@@ -80,7 +80,9 @@ function resolveBoundedInteger(
   label: string,
   maximum: number
 ): number {
-  if (value === undefined) return defaultValue
+  if (value === undefined || value === null || (typeof value === 'string' && !value.trim())) {
+    return defaultValue
+  }
   const parsed = Number(value)
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > maximum) {
     throw new Error(`${label} must be an integer between 1 and ${maximum}`)
