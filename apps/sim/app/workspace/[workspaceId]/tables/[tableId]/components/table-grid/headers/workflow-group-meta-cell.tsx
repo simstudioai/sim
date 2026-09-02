@@ -114,9 +114,9 @@ interface ColumnOptionsMenuProps {
 /**
  * Shared column-options dropdown rendered next to the column header chevron
  * AND on right-click of the workflow group meta cell. Anchors to a fixed
- * position passed in (so callers can place it under the chevron, or at the
- * cursor for context-menu use). Rename / change type / unique live in the
- * column sidebar (opened by Edit column).
+ * position passed in so callers can place it under the chevron or at the
+ * cursor. Rename starts in the header; type, uniqueness, and type-specific
+ * configuration live in the sidebar opened by Edit column.
  */
 export function ColumnOptionsMenu({
   open,

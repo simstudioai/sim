@@ -50,11 +50,7 @@ vi.mock('@sim/emcn', () => ({
   },
   ChipInput: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   FieldDivider: () => <hr />,
-  Label: ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
-    <label htmlFor={props.htmlFor ?? 'test-field'} {...props}>
-      {children}
-    </label>
-  ),
+  Label: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
   Switch: ({ checked }: { checked?: boolean }) => (
     <button type='button' aria-pressed={checked}>
       Toggle
@@ -104,12 +100,6 @@ function findButton(label: string): HTMLButtonElement | undefined {
   return [...container.querySelectorAll<HTMLButtonElement>('button')].find(
     (button) => button.textContent === label
   )
-}
-
-function setInputValue(input: HTMLInputElement, value: string): void {
-  const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
-  valueSetter?.call(input, value)
-  input.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
 beforeEach(() => {
@@ -194,8 +184,7 @@ describe('ColumnConfigSidebar', () => {
     expect(mockUpdateColumn).not.toHaveBeenCalled()
   })
 
-  it('edits a Reference column name and target table together', async () => {
-    const onColumnRename = vi.fn()
+  it('edits Reference configuration without exposing column renaming', async () => {
     await act(async () => {
       root.render(
         <ColumnConfigSidebar
@@ -209,27 +198,21 @@ describe('ColumnConfigSidebar', () => {
           }}
           workspaceId='workspace-1'
           tableId='table-current'
-          onColumnRename={onColumnRename}
           referenceColumnsEnabled
         />
       )
     })
 
-    const nameInput = container.querySelector<HTMLInputElement>('#column-sidebar-name')
-    expect(nameInput?.value).toBe('Related row')
+    expect(container).not.toHaveTextContent('Column name')
+    expect(container.querySelector('#column-sidebar-name')).toBeNull()
 
-    act(() => setInputValue(nameInput!, 'Renamed relation'))
     act(() => findCombobox('Select table')?.onChange?.('table-customers'))
     await act(async () => findButton('Save')?.click())
 
     expect(mockUpdateColumn).toHaveBeenCalledWith({
       columnName: 'col-reference',
-      updates: {
-        name: 'Renamed relation',
-        referenceTableId: 'table-customers',
-      },
+      updates: { referenceTableId: 'table-customers' },
     })
-    expect(onColumnRename).toHaveBeenCalledWith('col-reference', 'Renamed relation')
   })
 
   it('keeps an existing Reference column visible but not retargetable when disabled', async () => {

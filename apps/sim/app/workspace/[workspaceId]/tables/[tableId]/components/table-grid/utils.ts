@@ -12,7 +12,7 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { TABLE_LIMITS } from '@/lib/table/constants'
+import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { areGroupDepsSatisfied, areOutputsFilled } from '@/lib/table/deps'
 import type { ChatContext } from '@/stores/panel'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
@@ -485,4 +485,27 @@ export function canWriteRowsWithChip(opts: {
 }): boolean {
   if (!opts.hasContext || !opts.complete) return false
   return opts.rowCount > 0 && opts.rowCount <= TABLE_LIMITS.MAX_COPY_ROWS
+}
+
+/**
+ * Returns a user-facing reason that a proposed column name cannot be saved,
+ * or `null` when the name is valid and unused.
+ *
+ * @param takenNames Names of every other column in the table.
+ */
+export function columnNameIssue(name: string, takenNames: Iterable<string>): string | null {
+  if (!name) return 'Column name is required'
+  if (name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
+    return `Column names must be ${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters or less`
+  }
+  if (!NAME_PATTERN.test(name)) {
+    return 'Column names must start with a letter or underscore and use only letters, numbers, and underscores'
+  }
+  const lowerName = name.toLowerCase()
+  for (const takenName of takenNames) {
+    if (takenName.toLowerCase() === lowerName) {
+      return `A column named "${takenName}" already exists`
+    }
+  }
+  return null
 }
