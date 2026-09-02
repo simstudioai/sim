@@ -5,7 +5,7 @@
  * `visibility: 'hidden'` means "not shown to user or LLM" (`tools/types.ts`), so
  * a hidden parameter has no caller. Something else has to supply it, and only
  * two mechanisms do: OAuth credential resolution, which assigns the fields in
- * {@link CREDENTIAL_FILLED} once a credential is bound, and hosted-key
+ * {@link RESOLVER_GUARANTEED} once a credential is bound, or the fields a tool declares in `authoritativeParams`, and hosted-key
  * injection, which assigns `hosting.apiKeyParam`. A required hidden parameter
  * outside both is unreachable by every caller except the block that happens to
  * construct it during serialization.
@@ -54,15 +54,34 @@ import { tools } from '../apps/sim/tools/registry'
 import type { ToolConfig } from '../apps/sim/tools/types'
 
 /**
- * Parameters `executeToolImplementation` assigns from a resolved credential.
+ * The one parameter credential resolution assigns unconditionally.
  *
- * Kept in step with the assignments in `apps/sim/tools/index.ts` — a tool
- * declaring `oauth` earns an exemption only for the fields the resolver
- * actually writes, so a hidden parameter with an unrelated name is still
- * reported even on an OAuth tool.
+ * `executeToolImplementation` writes `contextParams.accessToken = data.accessToken`
+ * with no guard, so an OAuth tool's hidden `accessToken` is filled whenever a
+ * credential resolves at all. Nothing else is: every other token-response field
+ * is assigned under `if (data.X)`, present on some providers' credentials and
+ * absent on others.
  */
-const CREDENTIAL_FILLED = new Set([
-  'accessToken',
+const RESOLVER_GUARANTEED = 'accessToken'
+
+/**
+ * Token-response fields a tool may declare its credential supplies.
+ *
+ * These are assigned conditionally — `idToken`, `instanceUrl`, `apiDomain`,
+ * `cloudId`, `domain`, `authStyle` under `if (data.X)`, and `credentialType`
+ * additionally only when listed here. Whether a given credential carries one
+ * is a fact about the provider, not the resolver, and the resolver cannot
+ * vouch for it. The tool can: `oauth.authoritativeParams` is the declaration
+ * that the token response supplies the named field, so a required hidden
+ * parameter in this set is exempt only when its tool lists it there. A tool
+ * that hides one without declaring it is asserting a filler the resolver may
+ * never run — the exact shape this audit exists to reject.
+ *
+ * Kept in step with the assignments in `apps/sim/tools/index.ts` and the
+ * `authoritativeParams` union in `tools/types.ts`.
+ */
+const TOKEN_RESPONSE_FIELDS = new Set([
+  'credentialType',
   'idToken',
   'instanceUrl',
   'apiDomain',
@@ -70,14 +89,6 @@ const CREDENTIAL_FILLED = new Set([
   'domain',
   'authStyle',
 ])
-
-/**
- * `credentialType` is the one credential field the resolver gates on more than
- * the credential carrying it: it is assigned only when the tool lists it in
- * `oauth.authoritativeParams`. Exempting it unconditionally would pass a future
- * required-hidden `credentialType` that execution leaves `undefined`.
- */
-const AUTHORITATIVE_ONLY = 'credentialType'
 
 interface Finding {
   toolId: string
@@ -120,11 +131,11 @@ function findUnreachableParams(): Finding[] {
 
     for (const [param, declaration] of Object.entries(config.params ?? {})) {
       if (!declaration || declaration.visibility !== 'hidden' || !declaration.required) continue
-      if (config.oauth && CREDENTIAL_FILLED.has(param)) continue
+      if (config.oauth && param === RESOLVER_GUARANTEED) continue
       if (
         config.oauth &&
-        param === AUTHORITATIVE_ONLY &&
-        config.oauth.authoritativeParams?.includes(AUTHORITATIVE_ONLY)
+        TOKEN_RESPONSE_FIELDS.has(param) &&
+        (config.oauth.authoritativeParams as readonly string[] | undefined)?.includes(param)
       ) {
         continue
       }
@@ -134,7 +145,9 @@ function findUnreachableParams(): Finding[] {
         toolId,
         param,
         reason: config.oauth
-          ? `declares oauth (${config.oauth.provider}), which does not supply '${param}'`
+          ? TOKEN_RESPONSE_FIELDS.has(param)
+            ? `declares oauth (${config.oauth.provider}) but not \`authoritativeParams: ['${param}']\`, and the resolver assigns '${param}' only when the credential carries it`
+            : `declares oauth (${config.oauth.provider}), which does not supply '${param}'`
           : config.hosting?.enabled
             ? `hosting is conditional, so it is not a guarantee for '${param}'`
             : config.hosting
