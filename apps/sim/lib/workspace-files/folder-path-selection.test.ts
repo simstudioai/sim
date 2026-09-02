@@ -197,3 +197,28 @@ describe('the workspace root', () => {
     expect(result.includeRootItems).toBe(false)
   })
 })
+
+/*
+ * The picker must offer exactly what the run will read. These pin the file-side
+ * wrapper against `resolveFolderIdsForPaths` for the root, where the two
+ * previously disagreed.
+ */
+describe('isFileInFolderScope and the root', () => {
+  it('offers everything for a recursive root', () => {
+    expect(isFileInFolderScope('Reports/Q3', '/')).toBe(true)
+    expect(isFileInFolderScope(null, '/')).toBe(true)
+  })
+
+  it('offers only root files for a shallow root', () => {
+    expect(isFileInFolderScope(null, '/', { includeSubfolders: false })).toBe(true)
+    expect(isFileInFolderScope('Reports', '/', { includeSubfolders: false })).toBe(false)
+  })
+
+  it('agrees with the id resolver for the same scope', () => {
+    const shallowRoot = resolveFolderIdsForPaths(folders, ['/'], { includeSubfolders: false })
+
+    expect(shallowRoot.includeRootItems).toBe(true)
+    expect([...(shallowRoot.folderIds ?? [])]).toEqual([])
+    expect(isFileInFolderScope('Reports', '/', { includeSubfolders: false })).toBe(false)
+  })
+})

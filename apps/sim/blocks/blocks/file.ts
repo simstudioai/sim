@@ -235,12 +235,22 @@ function namedFileTarget(
    * file is a canonical id and already exact, so sending the folder beside it
    * would imply a second constraint on one target.
    */
-  const folderPath = resolvedById ? undefined : folderScopePath(params.folderScopeRef)
+  if (resolvedById) return { fileName }
+
+  const recursive = switchValue(params.folderIncludeSubfolders, true)
+  const scope = readFolderPath(params.folderScopeRef)
+  /*
+   * `folderScopePath` drops the root, because for a whole-folder read the root
+   * and no folder mean the same thing. For a NAMED target they do not: a
+   * shallow root means "the file sitting at the root", and dropping it resolves
+   * the name across every folder in the workspace instead.
+   */
+  const folderPath = scope === ROOT_FOLDER_PATH && !recursive ? ROOT_FOLDER_PATH : folderScopePath(scope)
   if (!folderPath) return { fileName }
   return {
     fileName,
     folderPath,
-    ...(switchValue(params.folderIncludeSubfolders, true) ? {} : { includeSubfolders: false }),
+    ...(recursive ? {} : { includeSubfolders: false }),
   }
 }
 

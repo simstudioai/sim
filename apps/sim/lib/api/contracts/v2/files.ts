@@ -817,6 +817,11 @@ export const v2FileTextSchema = z
         offset: z.number().int().min(1).describe('First line returned, 1-based.'),
         lineCount: z.number().int().nonnegative().describe('Lines returned.'),
         totalLines: z.number().int().nonnegative().describe('Lines the whole file holds.'),
+        totalLinesExact: z
+          .boolean()
+          .describe(
+            'False when text extraction was truncated, so `totalLines` counts only the extracted prefix and is not the end of the file.'
+          ),
       })
       .strict()
       .optional()
@@ -1141,12 +1146,17 @@ export const v2SearchFileContentQuerySchema = z
     workspaceId: workspaceIdSchema.describe('Workspace to search.'),
     query: z
       .string()
-      .min(
-        FILE_SEARCH_MIN_QUERY_LENGTH,
+      /*
+       * Bounded in code points, not UTF-16 units, because that is how
+       * `compileFileSearchPattern` counts. A length bound rejects a valid
+       * 512-code-point query built from astral characters as overlong.
+       */
+      .refine(
+        (query) => [...query].length >= FILE_SEARCH_MIN_QUERY_LENGTH,
         `query must be at least ${FILE_SEARCH_MIN_QUERY_LENGTH} characters`
       )
-      .max(
-        FILE_SEARCH_MAX_QUERY_LENGTH,
+      .refine(
+        (query) => [...query].length <= FILE_SEARCH_MAX_QUERY_LENGTH,
         `query cannot exceed ${FILE_SEARCH_MAX_QUERY_LENGTH} characters`
       )
       .refine((query) => !query.includes('\0'), 'query cannot contain NUL characters')

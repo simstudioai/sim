@@ -2,6 +2,7 @@ import { isUtf8 } from 'node:buffer'
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -139,6 +140,18 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
       }
 
       const content = Buffer.from(after, 'utf-8')
+      /*
+       * The guard above inspects the bytes that were read; this one inspects
+       * the bytes about to be written. A NUL inside the caller's replacement
+       * text passes the first and would store a file that every later read
+       * classifies as binary and refuses to edit again.
+       */
+      if (content.includes(0)) {
+        throw new OrchestrationError(
+          'validation',
+          'Replacement text cannot contain NUL bytes, which would make the file unreadable as text'
+        )
+      }
       if (content.length > MAX_WORKSPACE_FILE_CONTENT_BYTES) {
         throw new OrchestrationError(
           'payload_too_large',
@@ -186,7 +199,21 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
       })
       return { file: updated, lineCount: countLines(after) }
     } finally {
-      await releaseLock(lockKey, lockValue)
+      /*
+       * A release failure is never the caller's problem: the edit has either
+       * committed or already failed for its own reason, and letting Redis
+       * throw here would replace that outcome with an unrelated error. The
+       * lock expires on its own.
+       */
+      try {
+        await releaseLock(lockKey, lockValue)
+      } catch (error) {
+        logger.warn('Failed to release the file edit lock', {
+          workspaceId: context.workspaceId,
+          fileId: context.fileId,
+          error: getErrorMessage(error, 'Unknown error'),
+        })
+      }
     }
   },
   projectAudit: ({ result }) =>

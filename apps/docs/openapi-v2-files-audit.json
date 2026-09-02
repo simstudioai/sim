@@ -2144,8 +2144,6 @@
             "description": "Regular expression, or exact text when `mode` is `exact`.",
             "schema": {
               "type": "string",
-              "minLength": 3,
-              "maxLength": 512,
               "description": "Regular expression, or exact text when `mode` is `exact`."
             }
           },
@@ -2239,6 +2237,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3679,9 +3680,13 @@
                 "minimum": 0,
                 "maximum": 9007199254740991,
                 "description": "Lines the whole file holds."
+              },
+              "totalLinesExact": {
+                "type": "boolean",
+                "description": "False when text extraction was truncated, so `totalLines` counts only the extracted prefix and is not the end of the file."
               }
             },
-            "required": ["offset", "lineCount", "totalLines"],
+            "required": ["offset", "lineCount", "totalLines", "totalLinesExact"],
             "additionalProperties": false
           }
         },

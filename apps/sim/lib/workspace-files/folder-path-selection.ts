@@ -98,9 +98,23 @@ export function isFileInFolderScope(
   scopeCanonicalPath: string,
   options?: FolderScopeOptions
 ): boolean {
-  return isWithinFolderScope(
-    fileFolderPath ? folderPathSegments(fileFolderPath) : [],
-    parseFolderPath(scopeCanonicalPath),
-    options
-  )
+  const scope = parseFolderPath(scopeCanonicalPath)
+  const fileSegments = fileFolderPath ? folderPathSegments(fileFolderPath) : []
+
+  /*
+   * A shallow explicit root means the files sitting AT the root, matching what
+   * {@link resolveFolderIdsForPaths} selects for the same scope — otherwise the
+   * picker offers files the run would not read.
+   *
+   * Handled here rather than in `isWithinFolderScope`, whose contract is that
+   * an empty scope is no scope at all. Its other callers reach it with an empty
+   * list for an UNSET filter as well as for a chosen root, and narrowing there
+   * would turn their unset field into a filter. This caller never does: the
+   * file picker short-circuits on an empty scope string before calling.
+   */
+  if (scope.length === 0 && options?.includeSubfolders === false) {
+    return fileSegments.length === 0
+  }
+
+  return isWithinFolderScope(fileSegments, scope, options)
 }

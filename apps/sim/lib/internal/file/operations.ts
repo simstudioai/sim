@@ -293,6 +293,8 @@ interface FileContentLineRange {
   offset: number
   lineCount: number
   totalLines: number
+  /** False when extraction was truncated, so `totalLines` is not the file's end. */
+  totalLinesExact: boolean
 }
 
 /**
@@ -306,7 +308,8 @@ interface FileContentLineRange {
 function sliceTextLines(
   text: string,
   offset: number | undefined,
-  limit: number | undefined
+  limit: number | undefined,
+  truncatedExtraction: boolean
 ): { text: string; range?: FileContentLineRange } {
   if (offset === undefined && limit === undefined) return { text }
 
@@ -318,7 +321,12 @@ function sliceTextLines(
   return {
     /* Rejoined with the text's own ending, so the window stays usable verbatim as an edit's search text. */
     text: window.join(detectLineEnding(text)),
-    range: { offset: start + 1, lineCount: window.length, totalLines: effective.length },
+    range: {
+      offset: start + 1,
+      lineCount: window.length,
+      totalLines: effective.length,
+      totalLinesExact: !truncatedExtraction,
+    },
   }
 }
 
@@ -327,10 +335,21 @@ function sliceTextLines(
  * CSV, etc.) go through the shared file-parsers; other UTF-8 files are returned as
  * raw text; binary files yield a short placeholder rather than corrupt bytes.
  */
+/**
+ * Extracted text, plus whether the parser reached the end of the input.
+ *
+ * `truncated` travels because a line range computed over a truncated
+ * extraction would otherwise report the prefix's length as the file's end.
+ */
+interface ExtractedFileText {
+  text: string
+  truncated: boolean
+}
+
 const extractUserFileTextContent = async (
   userFile: UserFile,
   requestId: string
-): Promise<string> => {
+): Promise<ExtractedFileText> => {
   const { buffer } = await downloadServableFileFromStorage(userFile, requestId, logger, {
     maxBytes: MAX_GET_CONTENT_FILE_BYTES,
   })
@@ -339,7 +358,7 @@ const extractUserFileTextContent = async (
   if (extension && isSupportedFileType(extension)) {
     try {
       const result = await parseBuffer(buffer, extension)
-      return result.content ?? ''
+      return { text: result.content ?? '', truncated: result.metadata?.truncated === true }
     } catch (error) {
       logger.warn('Falling back to raw text after parser failure', {
         name: userFile.name,
@@ -349,10 +368,13 @@ const extractUserFileTextContent = async (
   }
 
   if (isLikelyTextBuffer(buffer)) {
-    return buffer.toString('utf-8')
+    return { text: buffer.toString('utf-8'), truncated: false }
   }
 
-  return `[Binary file: ${userFile.name} (${userFile.type || 'application/octet-stream'}, ${buffer.length} bytes). Cannot extract text content.]`
+  return {
+    text: `[Binary file: ${userFile.name} (${userFile.type || 'application/octet-stream'}, ${buffer.length} bytes). Cannot extract text content.]`,
+    truncated: false,
+  }
 }
 
 export interface FileContentProvenanceSource {
@@ -983,7 +1005,12 @@ export async function executeFileManageOperation(
           }
 
           const extracted = await extractUserFileTextContent(source.file, requestId)
-          const { text: content, range } = sliceTextLines(extracted, body.offset, body.limit)
+          const { text: content, range } = sliceTextLines(
+            extracted.text,
+            body.offset,
+            body.limit,
+            extracted.truncated
+          )
           if (range) lineRanges.push(range)
           totalBytes += Buffer.byteLength(content, 'utf8')
           if (totalBytes > MAX_GET_CONTENT_TOTAL_BYTES) {
@@ -1917,7 +1944,10 @@ export async function executeFileManageOperation(
                 ? 413
                 : error.code === 'validation'
                   ? 400
-                  : 500
+                  : /* Lock contention is retryable, so it must not read as a server fault. */
+                    error.code === 'locked'
+                    ? 423
+                    : 500
       return contentResponse({ success: false, error: error.message }, { status })
     }
     const notReady = docNotReadyResponse(error)

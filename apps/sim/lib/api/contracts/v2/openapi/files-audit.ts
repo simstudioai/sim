@@ -840,7 +840,7 @@ const declaredRoutes = [
       operationId: 'searchFileContent',
       summary: 'Search File Content',
       description: `Search the indexed text of active workspace files and return each matching line with its file id and line number. \`folderPaths\` confines the search to one or more folder trees, which also narrows the reported coverage, so \`complete\` and \`indexStatus\` describe the folders searched rather than the whole workspace. Coverage matters: the index is built asynchronously, so when \`complete\` is \`false\` a term that was not found is **unknown rather than absent**, and acting on the absence risks creating a duplicate of something already stored. \`truncated\` separately reports that more matches exist beyond \`maxResults\`.`,
-      errors: WORKSPACE_ERRORS,
+      errors: [...WORKSPACE_ERRORS, 'Locked'],
       success: { description: 'Matching lines and the index coverage they were drawn from.' },
     }),
     {

@@ -6823,6 +6823,7 @@ type ReadFileTextResponseRef0 = {
     offset: number
     lineCount: number
     totalLines: number
+    totalLinesExact: boolean
   }
 }
 

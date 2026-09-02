@@ -125,7 +125,12 @@ export const fileSearchTool: InternalToolConfig<FileSearchParams, FileSearchResp
       query: params.query,
       mode: params.mode ?? 'regex',
       maxResults: params.maxResults ?? FILE_SEARCH_DEFAULT_MAX_RESULTS,
-      ...(params.folderPaths?.length ? { folderPaths: params.folderPaths } : {}),
+      /*
+       * Presence, not length: an explicitly empty list is a scope naming no
+       * folder, which must match nothing. Dropping it would answer a request
+       * for nothing with the whole workspace.
+       */
+      ...(params.folderPaths === undefined ? {} : { folderPaths: params.folderPaths }),
       ...(params.includeSubfolders === false ? { includeSubfolders: false } : {}),
     }),
   },
