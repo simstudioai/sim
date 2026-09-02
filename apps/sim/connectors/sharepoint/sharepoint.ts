@@ -25,6 +25,7 @@ import {
   isSkippedDocument,
   type MicrosoftGraphTraversalState,
   markSkipped,
+  microsoftGraphListingError,
   parseMicrosoftGraphDriveItemList,
   parseOptionalUnlimitedSafeInteger,
   parseTagDate,
@@ -74,19 +75,6 @@ function parseMaxFiles(value: unknown): number {
     value,
     'Max files must be a positive safe integer, or 0 for unlimited'
   )
-}
-
-/**
- * The error a failed Graph request for the configured site, library, or folder
- * throws. Graph reports a scope the caller cannot reach as 404 (`itemNotFound`)
- * or 403 (`accessDenied`); either is a complete listing of nothing for that
- * caller, while anything else is a fault the sync engines retry.
- */
-function graphListingError(message: string, status: number, detail?: string): Error {
-  const described = detail ? `${message}: ${status} – ${detail}` : `${message}: ${status}`
-  return status === 403 || status === 404
-    ? new ConnectorListingScopeUnavailableError(described, status)
-    : new Error(described)
 }
 
 /** Microsoft Graph drive item shape (subset of fields we use). */
@@ -231,7 +219,7 @@ async function resolveSiteId(
 
   if (!response.ok) {
     const errorText = await readBoundedHttpErrorBody(response)
-    throw graphListingError(
+    throw microsoftGraphListingError(
       `Failed to resolve SharePoint site "${siteUrl}"`,
       response.status,
       errorText
@@ -340,7 +328,7 @@ async function listFolderItems(
 
   if (!response.ok) {
     const errorText = await readBoundedHttpErrorBody(response)
-    throw graphListingError('Failed to list folder items', response.status, errorText)
+    throw microsoftGraphListingError('Failed to list folder items', response.status, errorText)
   }
 
   const data = parseMicrosoftGraphDriveItemList(await response.json(), 'SharePoint')
@@ -420,7 +408,7 @@ async function getItemByPath(
 
   if (response.status === 404) return null
   if (!response.ok) {
-    throw graphListingError('Failed to resolve folder path', response.status)
+    throw microsoftGraphListingError('Failed to resolve folder path', response.status)
   }
 
   return (await response.json()) as DriveItem
@@ -444,7 +432,7 @@ async function listChildFolders(
     const response = await graphGet(url, accessToken, retryOptions)
     if (!response.ok) {
       const errorText = await readBoundedHttpErrorBody(response)
-      throw graphListingError('Failed to list folder contents', response.status, errorText)
+      throw microsoftGraphListingError('Failed to list folder contents', response.status, errorText)
     }
 
     const rawData: unknown = await response.json()
@@ -581,7 +569,7 @@ export async function resolveFolderTarget(
     retryOptions
   )
   if (!defaultDriveResponse.ok) {
-    throw graphListingError(
+    throw microsoftGraphListingError(
       `Failed to open the default document library for site "${siteUrl}"`,
       defaultDriveResponse.status
     )
@@ -695,7 +683,7 @@ async function listSiteDrives(
     const response = await graphGet(url, accessToken, retryOptions)
     if (!response.ok) {
       const errorText = await readBoundedHttpErrorBody(response)
-      throw graphListingError(
+      throw microsoftGraphListingError(
         'Failed to list SharePoint document libraries',
         response.status,
         errorText

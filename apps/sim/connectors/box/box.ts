@@ -10,6 +10,7 @@ import {
   ConnectorListingScopeUnavailableError,
   htmlToPlainText,
   isListingScopeUnavailableError,
+  isPerMemberListing,
   isSkippedDocument,
   markSkipped,
   parseTagDate,
@@ -385,7 +386,7 @@ async function fetchExtractedText(
 /**
  * Lists one page of a folder. A folder the credential can no longer read is
  * reported rather than thrown, so one inaccessible subtree does not abort the
- * whole listing — the caller flags the listing as capped instead.
+ * whole listing — the caller decides whether that caps the listing.
  */
 async function listFolderPage(
   accessToken: string,
@@ -471,10 +472,13 @@ export const boxConnector: ConnectorConfig = {
             files.push(item)
           }
         }
-      } else if (syncContext) {
+      } else if (syncContext && !isPerMemberListing(syncContext)) {
         /**
          * A folder was skipped, so documents that still exist in Box are absent from
-         * this listing. Without this flag the engine would reconcile them as deleted.
+         * this listing. Under a shared credential the engine would otherwise
+         * reconcile them as deleted; under a member's own token the folder is
+         * simply not shared with that member, so their listing stays complete and
+         * their access to its files is withdrawn.
          */
         syncContext.listingCapped = true
       }

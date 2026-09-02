@@ -5,7 +5,12 @@ import { backoffWithJitter } from '@sim/utils/retry'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { mondayConnectorMeta } from '@/connectors/monday/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseMultiValue, parseTagDate } from '@/connectors/utils'
+import {
+  ConnectorListingScopeUnavailableError,
+  isListingScopeUnavailableError,
+  parseMultiValue,
+  parseTagDate,
+} from '@/connectors/utils'
 import { MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
 
 const logger = createLogger('MondayConnector')
@@ -449,6 +454,8 @@ async function resolveBoardIds(
 export const mondayConnector: ConnectorConfig = {
   ...mondayConnectorMeta,
 
+  isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -505,6 +512,15 @@ export const mondayConnector: ConnectorConfig = {
         { ids: [board.id], limit: pageLimit }
       )
       itemsPage = data.boards?.[0]?.items_page ?? null
+      /**
+       * `boards(ids:)` filters to the boards the token can see, so a configured
+       * board the caller cannot reach comes back absent rather than as an error.
+       * Counted so that a listing which reached none of its configured boards
+       * can say so below instead of passing as a board that happens to be empty.
+       */
+      if (!data.boards?.length && syncContext) {
+        syncContext.unreachableBoardCount = ((syncContext.unreachableBoardCount as number) ?? 0) + 1
+      }
     }
 
     const items = itemsPage?.items ?? []
@@ -556,6 +572,24 @@ export const mondayConnector: ConnectorConfig = {
     } else if (state.boardIndex + 1 < boards.length) {
       nextCursor = encodeCursor({ boardIndex: state.boardIndex + 1 })
       hasMore = true
+    }
+
+    /**
+     * The caller reached none of the boards this connector is configured for.
+     * That is the configured scope being unavailable to them — under a member's
+     * own token a complete listing of nothing, so their access is withdrawn —
+     * not a set of boards that all happen to be empty. Enumerated boards need no
+     * such check: the enumeration only ever returns boards the token can see.
+     */
+    if (
+      !hasMore &&
+      parseMultiValue(sourceConfig.boardIds).length > 0 &&
+      syncContext?.unreachableBoardCount === boards.length
+    ) {
+      throw new ConnectorListingScopeUnavailableError(
+        `monday.com returned none of the configured boards (${boards.map((b) => b.id).join(', ')}); the account cannot reach them`,
+        404
+      )
     }
 
     return { documents, nextCursor, hasMore }

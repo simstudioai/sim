@@ -12,7 +12,6 @@ import {
   assertMicrosoftGraphNextLink,
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
-  ConnectorListingScopeUnavailableError,
   connectorFileExtension,
   decodeMicrosoftGraphTraversalCursor,
   encodeMicrosoftGraphTraversalCursor,
@@ -24,6 +23,7 @@ import {
   isSkippedDocument,
   type MicrosoftGraphTraversalState,
   markSkipped,
+  microsoftGraphListingError,
   parseMicrosoftGraphDriveItemList,
   parseOptionalUnlimitedSafeInteger,
   parseTagDate,
@@ -79,19 +79,6 @@ function parseMaxFiles(value: unknown): number {
     value,
     'Max files must be a positive safe integer, or 0 for unlimited'
   )
-}
-
-/**
- * The error a failed Graph listing request throws. Graph reports a folder the
- * caller cannot reach as 404 (`itemNotFound`) or 403 (`accessDenied`); either
- * is a complete listing of nothing for that caller, while anything else is a
- * fault the sync engines retry.
- */
-function graphListingError(message: string, status: number): Error {
-  const described = `${message}: ${status}`
-  return status === 403 || status === 404
-    ? new ConnectorListingScopeUnavailableError(described, status)
-    : new Error(described)
 }
 
 interface OneDriveItem {
@@ -280,7 +267,7 @@ export const onedriveConnector: ConnectorConfig = {
           status: response.status,
           error: errorText,
         })
-        throw graphListingError('Failed to list OneDrive files', response.status)
+        throw microsoftGraphListingError('Failed to list OneDrive files', response.status)
       }
 
       const data = parseMicrosoftGraphDriveItemList(await response.json(), 'OneDrive')

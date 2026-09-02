@@ -3,7 +3,12 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  AtlassianSiteNotAccessibleError,
+  AtlassianSiteNotMatchedError,
+} from '@/lib/atlassian/discovery'
+import {
   buildLastModifiedClause,
+  confluenceConnector,
   escapeCql,
   extractCursor,
   isCurrentContent,
@@ -52,6 +57,28 @@ describe('buildLastModifiedClause', () => {
     expect(buildLastModifiedClause(new Date(now.getTime() + 60_000), now)).toBe(
       'lastModified >= now("-1m")'
     )
+  })
+})
+
+describe('confluence listing scope classification', () => {
+  it.concurrent('treats a token that reaches no Atlassian site as not on the site', () => {
+    expect(
+      confluenceConnector.isListingScopeUnavailableError?.(
+        new AtlassianSiteNotAccessibleError('none')
+      )
+    ).toBe(true)
+  })
+
+  it.concurrent('treats a token that reaches only other Atlassian sites the same way', () => {
+    expect(
+      confluenceConnector.isListingScopeUnavailableError?.(
+        new AtlassianSiteNotMatchedError('elsewhere')
+      )
+    ).toBe(true)
+  })
+
+  it.concurrent('leaves other failures for the sync engines to retry', () => {
+    expect(confluenceConnector.isListingScopeUnavailableError?.(new Error('boom'))).toBe(false)
   })
 })
 

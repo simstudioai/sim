@@ -4,7 +4,12 @@ import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/document
 import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { salesforceConnectorMeta } from '@/connectors/salesforce/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import {
+  htmlToPlainText,
+  isListingScopeUnavailableError,
+  listingRequestError,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('SalesforceConnector')
 
@@ -84,9 +89,52 @@ const OBJECT_FIELDS: Record<string, string[]> = {
  * user-selectable locale — rather than relying on that hedge holding for the
  * abstract KnowledgeArticleVersion view.
  */
-function buildWhereClause(objectType: string, language: string): string {
-  if (objectType !== 'KnowledgeArticleVersion') return ''
-  return ` WHERE PublishStatus='Online' AND IsLatestVersion=true AND Language='${language}'`
+function buildWhereClause(objectType: string, language: string, lastSyncAt?: Date): string {
+  const conditions: string[] = []
+  if (objectType === 'KnowledgeArticleVersion') {
+    conditions.push("PublishStatus='Online'", 'IsLatestVersion=true', `Language='${language}'`)
+  }
+  if (lastSyncAt) conditions.push(`LastModifiedDate >= ${toSoqlDateTime(lastSyncAt)}`)
+  return conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : ''
+}
+
+/**
+ * A SOQL dateTime literal: ISO 8601 in UTC, unquoted, and without the
+ * fractional seconds SOQL does not accept.
+ */
+function toSoqlDateTime(date: Date): string {
+  return date.toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
+
+/** The `errorCode` values in a Salesforce REST error body (a JSON array of errors). */
+function parseSalesforceErrorCodes(errorText: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(errorText)
+    if (!Array.isArray(parsed)) return []
+    return parsed.flatMap((entry: unknown) =>
+      typeof entry === 'object' &&
+      entry !== null &&
+      typeof (entry as { errorCode?: unknown }).errorCode === 'string'
+        ? [(entry as { errorCode: string }).errorCode]
+        : []
+    )
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Whether a failed query means the caller cannot read the configured object at
+ * all. Salesforce hides an object from a user who may not read it, so the query
+ * fails with 400 `INVALID_TYPE` rather than returning nothing, and an explicit
+ * denial is 403 `INSUFFICIENT_ACCESS`; either is a complete listing of nothing
+ * for that caller, while anything else is a fault the sync engines retry.
+ */
+function isSalesforceAccessDenied(status: number, errorText: string): boolean {
+  if (status !== 400 && status !== 403) return false
+  return parseSalesforceErrorCodes(errorText).some(
+    (code) => code === 'INVALID_TYPE' || code.startsWith('INSUFFICIENT_ACCESS')
+  )
 }
 
 /**
@@ -326,11 +374,14 @@ function recordToDocument(
 export const salesforceConnector: ConnectorConfig = {
   ...salesforceConnectorMeta,
 
+  isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     cursor?: string,
-    syncContext?: Record<string, unknown>
+    syncContext?: Record<string, unknown>,
+    lastSyncAt?: Date
   ): Promise<ExternalDocumentList> => {
     const objectType = sourceConfig.objectType as string
     const maxRecords = sourceConfig.maxRecords ? Number(sourceConfig.maxRecords) : 0
@@ -347,7 +398,11 @@ export const salesforceConnector: ConnectorConfig = {
     if (cursor) {
       url = `${toOrigin(instanceUrl)}${cursor}`
     } else {
-      const whereClause = buildWhereClause(objectType, resolveArticleLanguage(sourceConfig))
+      const whereClause = buildWhereClause(
+        objectType,
+        resolveArticleLanguage(sourceConfig),
+        lastSyncAt
+      )
       /**
        * No SOQL `LIMIT`: it bounds the total result set rather than the batch,
        * so it would end the sync after a single page. Paging is driven by
@@ -359,7 +414,10 @@ export const salesforceConnector: ConnectorConfig = {
       url = `${instanceUrl}query?q=${encodeURIComponent(soql)}`
     }
 
-    logger.info(`Listing Salesforce ${objectType}`, { cursor: cursor || 'initial' })
+    logger.info(`Listing Salesforce ${objectType}`, {
+      cursor: cursor || 'initial',
+      incremental: Boolean(lastSyncAt),
+    })
 
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -375,7 +433,11 @@ export const salesforceConnector: ConnectorConfig = {
         status: response.status,
         error: errorText,
       })
-      throw new Error(`Failed to query Salesforce ${objectType}: ${response.status}`)
+      throw listingRequestError(
+        `Failed to query Salesforce ${objectType}`,
+        response.status,
+        isSalesforceAccessDenied(response.status, errorText)
+      )
     }
 
     const data = await response.json()

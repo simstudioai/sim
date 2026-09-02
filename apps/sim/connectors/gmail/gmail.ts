@@ -512,7 +512,7 @@ export const gmailConnector: ConnectorConfig = {
     const newTotal = totalFetched + documents.length
     if (syncContext) syncContext.totalThreadsFetched = newTotal
 
-    const hitLimit = newTotal >= maxThreads
+    const hitLimit = maxThreads > 0 && newTotal >= maxThreads
 
     /**
      * Only a cap that actually truncates a longer listing blocks deletion

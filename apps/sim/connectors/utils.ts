@@ -732,3 +732,33 @@ export function listingRequestError(
 export function isListingScopeUnavailableError(error: unknown): boolean {
   return error instanceof ConnectorListingScopeUnavailableError
 }
+
+/**
+ * The error a failed Microsoft Graph listing request throws. Graph reports a
+ * drive, site, or folder the caller cannot reach as 404 (`itemNotFound`) or
+ * 403 (`accessDenied`); either is a complete listing of nothing for that
+ * caller, while anything else is a fault the sync engines retry.
+ */
+export function microsoftGraphListingError(
+  message: string,
+  status: number,
+  detail?: string
+): Error {
+  const described = detail ? `${message}: ${status} – ${detail}` : `${message}: ${status}`
+  return status === 403 || status === 404
+    ? new ConnectorListingScopeUnavailableError(described, status)
+    : new Error(described)
+}
+
+/**
+ * `syncContext` entry the members-mode crawl sets on every listing it runs
+ * under one member's own token. A connector that walks several scopes reads
+ * it to tell that a scope the caller cannot reach is simply absent from that
+ * member's complete listing, where the same failure under a shared credential
+ * is a cap or an error.
+ */
+export const PER_MEMBER_LISTING_CONTEXT = { perMemberListing: true } as const
+
+export function isPerMemberListing(syncContext: Record<string, unknown> | undefined): boolean {
+  return syncContext?.perMemberListing === true
+}
