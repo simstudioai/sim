@@ -126,6 +126,17 @@ describe('desktop update download route', () => {
     })
   })
 
+  it('reports an invalid feed when every release candidate is rejected', async () => {
+    const incomplete = release('v1.4.0', DESKTOP_STABLE_RELEASE_REPOSITORY)
+    incomplete.assets = incomplete.assets.filter((asset) => asset.name === MANIFEST_ASSET_NAME)
+    mockReleases([incomplete])
+
+    const response = await getDownload()
+
+    expect(response.status).toBe(502)
+    expect(await response.json()).toMatchObject({ error: 'Release installer unavailable' })
+  })
+
   it('surfaces an unreadable release list instead of redirecting', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 500 }))
 

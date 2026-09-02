@@ -87,6 +87,9 @@ export const GET = withRouteHandler(async (_request: NextRequest): Promise<Respo
   }
 
   if (!resolved.release) {
+    if (resolved.rejectedCandidates) {
+      return NextResponse.json({ error: 'Release installer unavailable' }, { status: 502 })
+    }
     return NextResponse.json(
       { error: `No desktop release for channel ${channel}` },
       { status: 404 }

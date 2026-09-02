@@ -194,4 +194,16 @@ describe('rewriteManifestUrls', () => {
       rewriteManifestUrls(manifest, 'v0.5.24', DESKTOP_STABLE_RELEASE_REPOSITORY, new Set())
     ).toBeNull()
   })
+
+  it('rejects a manifest without an updater file entry', () => {
+    const manifest = ['version: 0.5.24', 'files: []', 'path: Sim-0.5.24-universal.zip'].join('\n')
+    expect(
+      rewriteManifestUrls(
+        manifest,
+        'v0.5.24',
+        DESKTOP_STABLE_RELEASE_REPOSITORY,
+        new Set(['Sim-0.5.24-universal.zip'])
+      )
+    ).toBeNull()
+  })
 })

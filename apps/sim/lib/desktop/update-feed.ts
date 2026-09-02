@@ -131,6 +131,7 @@ export function rewriteManifestUrls(
   const version = tag.replace(/^v/, '')
   const expectedNames = new Set([`Sim-${version}-universal.dmg`, `Sim-${version}-universal.zip`])
   let valid = true
+  let hasUpdaterFile = false
   const rewritten = manifest.replace(
     /^(\s*(?:-\s*)?(?:url|path):\s*)(\S+)\s*$/gm,
     (_line, prefix: string, value: string) => {
@@ -144,6 +145,7 @@ export function rewriteManifestUrls(
           valid = false
           return ''
         }
+        if (/\burl:\s*$/.test(prefix)) hasUpdaterFile = true
         return `${prefix}${base}${encodeURIComponent(name)}`
       } catch {
         valid = false
@@ -151,7 +153,7 @@ export function rewriteManifestUrls(
       }
     }
   )
-  return valid ? rewritten : null
+  return valid && hasUpdaterFile ? rewritten : null
 }
 
 /**
