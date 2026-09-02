@@ -231,10 +231,16 @@ function requestShape(
 }
 
 const MAX_BODY_TYPE_CHARS = 220
+const MAX_UNION_TYPE_CHARS = 600
 
-/** A recursive grammar (the row predicate) expands past what a card line can carry. */
+/**
+ * A recursive grammar (the row predicate) expands past what a card line can carry. A
+ * union of variants gets more room: cutting it mid-list hid the operation vocabulary of
+ * `operations apply` and sent an agent guessing verbs (skills run, 2026-09-02).
+ */
 function capType(label: string): string {
-  return label.length > MAX_BODY_TYPE_CHARS ? `${label.slice(0, MAX_BODY_TYPE_CHARS)}…` : label
+  const max = label.includes('}|{') ? MAX_UNION_TYPE_CHARS : MAX_BODY_TYPE_CHARS
+  return label.length > max ? `${label.slice(0, max)}…` : label
 }
 
 const program = buildProgram()
