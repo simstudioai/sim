@@ -215,7 +215,7 @@ For **each tool** in `tools.access`:
   - Enum/fixed options → `dropdown`
   - Free text → `short-input`
   - Long text/content → `long-input`
-  - True/false → `dropdown` with Yes/No options (not `switch` unless purely UI toggle)
+  - True/false → `switch` (a Yes/No `dropdown` only when the tool needs a third "unset" state)
   - Credentials → `oauth-input` with correct `serviceId`
 - [ ] Dropdown `value: () => 'default'` is set for dropdowns with a sensible default
 
@@ -235,19 +235,18 @@ For **each tool** in `tools.access`:
 - [ ] Timestamp fields have `wandConfig` with `generationType: 'timestamp'`
 - [ ] Comma-separated list fields have `wandConfig` with a descriptive prompt
 - [ ] Complex filter/query fields have `wandConfig` with format examples in the prompt
-- [ ] All `wandConfig` prompts end with "Return ONLY the [format] - no explanations, no extra text."
+- [ ] All `wandConfig` prompts end with an explicit `Return ONLY the <format>` instruction so the generated value can be pasted directly into the field
 - [ ] `wandConfig.placeholder` describes what to type in natural language
 
 ### Tools Config
 - [ ] `tools.access` lists **every** tool ID the block can use — none missing
 - [ ] `tools.config.tool` returns the correct tool ID for each operation
-- [ ] Type coercions are in `tools.config.params` (runs at execution time), NOT in `tools.config.tool` (runs at serialization time before variable resolution)
+- [ ] Type coercions are in `tools.config.params` (runs at execution time), NOT in `tools.config.tool` (runs at serialization time before variable resolution — coercing there destroys dynamic references like `<Block.output>`)
 - [ ] `tools.config.params` handles:
   - `Number()` conversion for numeric params that come as strings from inputs
   - `Boolean` / string-to-boolean conversion for toggle params
   - Empty string → `undefined` conversion for optional dropdown values
   - Any subBlock ID → tool param name remapping
-- [ ] No `Number()`, `JSON.parse()`, or other coercions in `tools.config.tool` — these would destroy dynamic references like `<Block.output>`
 
 ### Block Outputs
 - [ ] Outputs cover the key fields returned by ALL tools (not just one operation)
@@ -481,7 +480,7 @@ After fixing, confirm:
 - [ ] Reported all issues grouped by severity
 - [ ] Fixed all critical and warning issues
 - [ ] Ran `bun run tool-metadata:generate` if any tool outputs/params changed, and confirmed `bun run tool-metadata:check` passes
-- [ ] Ran `bun run generate-docs` if any block metadata changed, and committed the full generated diff — including stale-page catch-up for other integrations (`bun run docs:check` fails CI on reverted generator output)
+- [ ] Ran `bun run scripts/generate-docs.ts` if any block metadata changed, and committed the full generated diff — including stale-page catch-up for other integrations (`bun run docs:check` fails CI on reverted generator output)
 - [ ] Ran `bun run lint` after fixes
 - [ ] Verified TypeScript compiles clean
 - [ ] Verified added tests fail without their fix

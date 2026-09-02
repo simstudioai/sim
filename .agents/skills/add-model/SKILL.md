@@ -31,7 +31,7 @@ In priority order — fetch all that exist for the provider:
 | Provider | Models index | Pricing | Reasoning/parameter caveats |
 |---|---|---|---|
 | OpenAI | platform.openai.com/docs/models | openai.com/api/pricing | platform.openai.com/docs/guides/reasoning |
-| Anthropic | docs.anthropic.com/en/docs/about-claude/models | anthropic.com/pricing | docs.anthropic.com/en/docs/build-with-claude/extended-thinking |
+| Anthropic | platform.claude.com/docs/en/about-claude/models/overview | claude.com/pricing (API section) | platform.claude.com/docs/en/build-with-claude/extended-thinking |
 | Google (Gemini) | ai.google.dev/gemini-api/docs/models | ai.google.dev/pricing | ai.google.dev/gemini-api/docs/thinking |
 | xAI | docs.x.ai/developers/models | docs.x.ai/developers/models (per-model detail page) | docs.x.ai/developers/model-capabilities/text/reasoning |
 | Mistral | docs.mistral.ai/getting-started/models/models_overview | mistral.ai/pricing | n/a |
@@ -49,13 +49,13 @@ Use a precise WebFetch prompt: *"Extract for {model_id}: exact model id string, 
 |---|---|---|
 | `temperature` | All providers (passed through if set) | Safe but inert on always-reasoning models that reject it |
 | `toolUsageControl` | All providers (provider-level, not per-model) | n/a — set on `ProviderDefinition`, not models |
-| `reasoningEffort` | `openai/core.ts`, `azure-openai`, `anthropic/core.ts` (mapped to thinking), `gemini/core.ts` | **Dead on xai, deepseek, mistral, groq, cerebras, openrouter, fireworks, bedrock, vertex** unless their core consumes it — re-grep before assuming |
+| `reasoningEffort` | `openai/core.ts`, `azure-openai`, `xai/index.ts`, `deepseek/index.ts`, `groq/index.ts` | Not read by anthropic/gemini (they use `thinking`) or by mistral, cerebras, openrouter, fireworks, vertex — re-grep before assuming |
 | `verbosity` | `openai/core.ts`, `azure-openai/index.ts` only | Dead elsewhere |
-| `thinking` | `anthropic/core.ts`, `gemini/core.ts` | Dead elsewhere |
+| `thinking` | `anthropic/core.ts`, `gemini/core.ts`; `deepseek/index.ts` and `groq/index.ts` read the resolved `thinkingLevel` | Dead elsewhere |
 | `thinking.streamed` | Docs generator + `getThinkingStreamVisibility` (`models.ts`); `anthropic/core.ts` uses `'summary'` to request `display: 'summarized'` on agent-events runs | **Mandatory on Anthropic-family thinking models** (`agent-stream-docs:check` fails without it); other families fall back to provider defaults |
-| `nativeStructuredOutputs` | `anthropic/core.ts`, `fireworks/index.ts`, `openrouter/index.ts` | Dead on openai, xai, google, vertex, bedrock, azure-openai, deepseek, mistral, groq, cerebras |
+| `nativeStructuredOutputs` | `anthropic/core.ts`, `bedrock/index.ts`, `fireworks/index.ts`, `openrouter/index.ts`, `baseten/index.ts`, `together/index.ts` (via `supportsNativeStructuredOutputs`) | Dead on openai, xai, google, vertex, azure-openai, deepseek, mistral, groq, cerebras |
 | `maxOutputTokens` | Read by UI + executor for token estimation | Always meaningful — set if provider documents a cap |
-| `computerUse` | `anthropic/core.ts` | Dead elsewhere |
+| `computerUse` | `providers/utils.ts` (`getComputerUseModels` → `computerUseModels` routing) | Set only on actual computer-use SKUs |
 | `deepResearch` | UI flag for routing to deep-research SKUs | Set only on actual deep-research model IDs |
 | `memory: false` | Conversation persistence opt-out | Set only when model genuinely cannot maintain history (e.g., deep-research) |
 
@@ -98,13 +98,15 @@ Model id MUST be prefixed: `azure/`, `azure-anthropic/`, `vertex/`, `bedrock/`, 
 
 ### Insertion order
 
-Within a family, newest first (matches existing convention: GPT-5.5 above GPT-5.4 above GPT-5.2). Across families, biggest/flagship at top of list.
+Within a family, newest first (as the existing entries are ordered). Across families, biggest/flagship at top of list.
 
 ### `recommended` / `speedOptimized`
 
 - At most one or two `recommended: true` per provider — the current flagship(s).
 - If you're adding a new flagship, ask the user before removing `recommended` from the previous flagship. Never silently flip it.
 - `speedOptimized: true` only on the smallest/fastest tier (nano, flash-lite, haiku class).
+- Use today's date for `pricing.updatedAt`; never copy a sibling's.
+- `cachedInput` is an explicit documented number — never derived from `input` (ratios vary by provider).
 
 ## Step 4: Repo-side touchpoints beyond the entry
 
@@ -112,21 +114,9 @@ Adding the `models.ts` entry is most of the job because nearly every consumer is
 
 ### Hosted = auto-billed, by provider
 
-`getHostedModels()` in `apps/sim/providers/models.ts` returns **every** model under `openai`, `anthropic`, and `google`:
+`getHostedModels()` in `apps/sim/providers/models.ts` decides which providers are served with Sim's rotating hosted key and billed to the workspace via `shouldBillModelUsage()` (`providers/utils.ts`). Read the function before inserting — the list changes (it currently includes several non-big-three providers and a static Fireworks catalog). Before you insert:
 
-```ts
-export function getHostedModels(): string[] {
-  return [
-    ...getProviderModels('openai'),
-    ...getProviderModels('anthropic'),
-    ...getProviderModels('google'),
-  ]
-}
-```
-
-So a model added to any of those three providers is **automatically served with Sim's rotating hosted key and billed** to the workspace via `shouldBillModelUsage()` (`providers/utils.ts`). Before you insert:
-
-- **If the model should be BYOK-only / never-billed**, do NOT drop it under `openai`/`anthropic`/`google` as-is — that silently enrolls it in hosted billing. Confirm hosting/billing intent with the user. (Precedent: Ollama Cloud is a deliberately separate `isReseller` provider specifically to stay BYOK-only/never-billed.)
+- **If the model should be BYOK-only / never-billed**, do not add it under a provider listed in `getHostedModels()` — that silently enrolls it in hosted billing. Confirm hosting/billing intent with the user. (Ollama Cloud is a deliberately separate `isReseller` provider specifically to stay BYOK-only/never-billed.)
 - **If the model should be hosted**, the deployment must actually have a key for it — the provider's `{PREFIX}_COUNT` / `{PREFIX}_1..N` env vars must be set, or hosted runs fail at execution time.
 - State the hosted/billing status explicitly in the verification report.
 
@@ -145,7 +135,7 @@ If anything matches, run the affected provider tests and update assertions as ne
 
 ### New API behavior is NOT data-driven
 
-The Consumption Matrix (Step 2) tells you which capability *flags* are honored by existing provider code. But if the new model needs **net-new** request handling that the provider doesn't implement yet — a new beta header (e.g. Anthropic's `anthropic-beta` structured-outputs header in `anthropic/index.ts`), a new thinking/reasoning encoding, a Responses-API quirk — you must edit `apps/sim/providers/<provider>/core.ts` / `index.ts`. Setting a flag whose behavior isn't implemented is a silent no-op. When you do edit provider code, reuse the shared helpers rather than hand-rolling: streaming responses are assembled via `createStreamingExecution` (`@/providers/streaming-execution`) and tool schemas via `adaptOpenAIChatToolSchema` / `adaptAnthropicToolSchema` (`@/providers/tool-schema-adapter`).
+The Consumption Matrix (Step 2) tells you which capability *flags* are honored by existing provider code. But if the new model needs **net-new** request handling that the provider doesn't implement yet — a new beta header, a new thinking/reasoning encoding, a Responses-API quirk — you must edit `apps/sim/providers/<provider>/core.ts` / `index.ts`. Setting a flag whose behavior isn't implemented is a silent no-op. When you do edit provider code, reuse the shared helpers rather than hand-rolling: streaming responses are assembled via `createStreamingExecution` (`@/providers/streaming-execution`) and tool schemas via `adaptOpenAIChatToolSchema` / `adaptAnthropicToolSchema` (`@/providers/tool-schema-adapter`).
 
 ### Thinking/reasoning models: `streamed` visibility + generated docs
 
@@ -168,7 +158,7 @@ bun run lint
 bun run agent-stream-docs:generate   # only when the entry has thinking/reasoningEffort
 ```
 
-Lint must pass before reporting done. **If lint fails:** read the error, fix the syntax/typing issue in the entry you just wrote (do not delete the entry — it's the work product), re-run lint, and note the fix in a "Lint adjustments" line in the verification report. Never report done with lint failing.
+Lint must pass before you report done.
 
 ## Step 6: Verification report (mandatory format)
 
@@ -187,7 +177,7 @@ End with this exact structure:
 | `capabilities.temperature` | `{ min: 0, max: 1 }` | matches sibling entries | — pattern-match only |
 | `capabilities.reasoningEffort` | NOT SET | provider docs say API rejects it for this model | ✓ correctly omitted |
 | `releaseDate` | 2026-04-30 | https://docs.x.ai/... announcement | ✓ verified |
-| hosted/billing | BYOK-only (xai not in `getHostedModels`) | `providers/models.ts` | — confirmed intent |
+| hosted/billing | hosted (provider is in `getHostedModels`) or BYOK-only | `providers/models.ts` | — confirmed intent |
 
 **Disagreements**
 - _none_ OR _OpenRouter says X, provider docs say Y — used Y per provider rule_
@@ -206,17 +196,3 @@ Omitting a field is **not the same as verifying it**. Any field you cannot confi
 - Context window missing → do NOT guess. Ask the user; mark ❓ UNVERIFIED.
 - Release date missing → omit the field; mark ❓ UNVERIFIED in the report.
 - Capability uncertain → omit the flag (safer than setting a dead/wrong one); mark ❓ UNVERIFIED so the user knows you didn't confirm it either way.
-
-## Anti-patterns this skill exists to prevent
-
-- ❌ Trusting a marketing email (xAI's grok-4.3 email claimed "3 reasoning efforts" but the API rejects `reasoning_effort` — verified by official docs only)
-- ❌ Setting `nativeStructuredOutputs: true` on xai/openai/google (dead — only anthropic/fireworks/openrouter consume it)
-- ❌ Setting `thinking` on non-Anthropic/non-Gemini providers
-- ❌ Adding an Anthropic-family thinking model without `thinking.streamed` (CI `agent-stream-docs:check` fails), or skipping `bun run agent-stream-docs:generate` after adding any thinking/reasoning model
-- ❌ Setting `verbosity` on anything other than OpenAI gpt-5.x
-- ❌ Copying `pricing.updatedAt` from a sibling instead of using today's date
-- ❌ Inventing a `cachedInput` price by dividing input by 4 (varies by provider — find an explicit number)
-- ❌ Stamping `recommended: true` on the new model without removing it from the previous flagship
-- ❌ Adding a BYOK-only model under `openai`/`anthropic`/`google` (silently enrolls it in hosted billing via `getHostedModels()`)
-- ❌ Reporting "done" after only `bun run lint` when you touched a hosted (openai/anthropic/google) or flagship model with assertions in `providers/utils.test.ts`
-- ❌ Reporting "done" with any UNVERIFIED row in the table

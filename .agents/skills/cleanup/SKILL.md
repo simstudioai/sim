@@ -14,11 +14,11 @@ User arguments: $ARGUMENTS
 
 ## Step 1 — Parallel analysis (read-only)
 
-First parse the user's `$ARGUMENTS` into `scope` and `fix`: extract the `fix=true|false` token wherever it appears in the string (start, middle, or end), and treat everything else — with that token removed — as `scope`. Defaults: `scope` = your current changes, `fix` = true. The `fix` value is consumed by Step 3 — it does NOT propagate to these passes, which always run `fix=false`.
+Parse `$ARGUMENTS` into `scope` and `fix` (defaults: current changes, `true`). `fix` is consumed by Step 3 only — the passes below always run `fix=false`.
 
 Spawn all eight passes concurrently as subagents in a **single message** (multiple Agent tool calls). Each runs its skill on the parsed `scope` with `fix=false` — analysis and proposals ONLY, no edits. Instruct each agent to return its findings as a structured list: for every proposed change, the file path, line range, a one-line description of the change, and the exact before/after so the orchestrator can apply it without re-deriving.
 
-Run these eight in parallel, substituting the parsed `scope` for `<scope>` in each invocation (pass the real scope text, never the literal `<scope>`):
+Run these eight in parallel on the parsed `scope`:
 
 1. `/you-might-not-need-an-effect <scope> fix=false`
 2. `/you-might-not-need-a-memo <scope> fix=false`
@@ -57,7 +57,6 @@ After all edits, run `bun run lint:check` (it runs `turbo run lint:check` across
 
 Output a summary across all eight passes: what each found, what was applied vs. skipped-as-redundant, and any proposals that need a human decision.
 
-## Boundary Audit Guidance
+## Boundary findings
 
-- When removing route-local Zod schemas, replacing raw `fetch(` calls in hooks, or removing `as unknown as X` casts, do not introduce `// boundary-raw-fetch: <reason>` or `// double-cast-allowed: <reason>` annotations to silence the audit. Fix the underlying call instead — adopt a contract from `@/lib/api/contracts/**` and use `requestJson(contract, ...)` from `@/lib/api/client/request`, or refine the type so the double cast is unnecessary.
-- Annotations are reserved for legitimate exceptions only: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, external-origin requests, and double casts where no narrower type is available. Each annotation requires a non-empty reason; empty reasons fail `bun run check:api-validation:strict`.
+Never resolve a boundary finding by adding a `// boundary-raw-fetch` / `// double-cast-allowed` annotation — fix the call (adopt the contract + `requestJson`, or narrow the type). Annotations are only for the documented exceptions in CLAUDE.md → Boundary annotations.

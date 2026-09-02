@@ -54,7 +54,7 @@ Every tool must use exactly one of these configurations:
   HTTP(S) provider endpoint.
 
 Never set a tool URL to `/api/...`, construct an absolute URL back to Sim, declare
-`request.internal`, add the retired `directExecution` property, import a route module, or create an API route merely to normalize files,
+`request.internal`, add a `directExecution` property (it fails `bun run check:tool-request-boundary`), import a route module, or create an API route merely to normalize files,
 authorize access, or reuse server code. A real browser/API route may remain as a thin adapter, but
 the route and the tool must call the same operation directly. A true cross-process/capability
 boundary uses an explicit server client and is not disguised as a tool self-hop.
@@ -93,7 +93,7 @@ export const {serviceName}{Action}Tool: ToolConfig<
   },
 
   params: {
-    // Hidden params (system-injected, only use hidden for oauth accessToken)
+    // Hidden params (system-injected, e.g. the OAuth accessToken)
     accessToken: {
       type: 'string',
       required: true,
@@ -201,23 +201,65 @@ fallback, or caller-controlled `_context` authority.
 
 ## Resolved Secrets and Provenance Boundaries
 
-- Leave ordinary external API inputs and third-party results unchanged. Add provenance handling only
-  when an exact field is proven to cross a Sim model, durable-storage, or internal-execution boundary.
-- Project AI-consumed text/structured fields with the smallest exact model-input selector:
-  `request.modelInput` for an external request or `operation.modelInput` for an in-process operation.
-- Treat URLs, domains, resource IDs, and control fields as ordinary request values unless the exact
-  field is proven model-visible. For serialized external model content, project the serialized
-  top-level param through `request.modelInput` before the existing formatter parses it; do not add a
-  separate hard-rejection mechanism.
-- For in-process operations, use `operation.modelInput` for actual inline/raw model bytes or
-  `operation.secretProvenance` for durable writes and execution handoffs. Do not treat a storage key,
-  path, signed URL, or remote URL as provenance for fetched bytes; authorize tracked stored bytes at
-  the owning model-egress boundary. Validate the exact selection and trusted scope, then import or
-  propagate provenance at the receiving operation boundary.
-- Never substitute secret plaintext into source, serialize plaintext provenance, hand-roll private
-  headers, or blanket-sanitize tool results.
-- Add focused tests for named projection, identical unproven public text, malformed/incomplete
-  metadata, metadata stripping, scope isolation, and legacy compatibility where applicable.
+Classify every request field before implementing the tool.
+
+This is opt-in, not a blanket integration migration. Add a model-input declaration only when the
+service's official documentation or an unambiguous local execution path proves that the exact
+field is consumed by an AI model. If that cannot be established, preserve existing tool behavior
+and leave the field unannotated.
+
+- **Ordinary provider/API input:** leave it unchanged. Explicit `{{...}}` references resolve and are
+  sent with their normal request semantics. A URL, domain, resource ID, control field, or opaque
+  payload is not model-visible merely because the provider is AI-backed or may process the
+  referenced resource later.
+- **Text or structured content consumed by an AI model:** declare `request.modelInput` for an
+  external provider request or `operation.modelInput` for an in-process operation, with
+  `mode: 'project'` and select only the exact model-visible fields. The shared executor replaces
+  activated Sim secrets with canonical `{{NAME}}` labels before request formatting. For nested or
+  JSON-string fields, use a small shared selector plus `applyProjected`; verify that selecting the
+  rebuilt params reproduces the projected selection.
+- **Serialized model content sent directly to an external provider:** include the serialized
+  top-level param in `request.modelInput`. Project the private copy before the existing request
+  formatter parses it; keep formatter behavior deterministic when a whole-value placeholder is not
+  valid in the serialized grammar. Do not introduce a second hard-rejection path.
+- **Opaque model input owned by an in-process operation** such as inline audio, image, video, or
+  document bytes: add `privateProvenance` to the operation model-input declaration, or use
+  `mode: 'private-provenance'` when there is no textual projection. Do not select storage keys,
+  paths, signed URLs, or ordinary remote URLs as byte provenance; the owning operation must
+  authorize stored bytes independently at model egress. The operation must call
+  `validateOpaqueModelInputProvenance` before downloading or sending content to the model and must
+  apply the workspace-file provenance guard before reading a persisted workspace file.
+- **Sim-owned durable storage or internal execution handoff** that can later enter a workflow/model
+  (table cells, Agent memory, knowledge documents/chunks, workspace-file contents, or child-workflow
+  input): transport encrypted field-scoped provenance with `operation.secretProvenance`. The
+  operation validates the exact selection and trusted scope, then persists, imports, or propagates
+  it at the owning boundary. Preserve shared legacy behavior for rows/files whose provenance marker
+  is `NULL`; never invent a tool-local migration rule.
+
+Hard rules:
+
+- Never substitute secret plaintext into source or serialize plaintext provenance.
+- Never hand-roll private provenance headers/envelopes; the shared `executeTool` boundary owns
+  transport and strips private metadata from functional results.
+- Never attach private provenance to an external URL. Project proven
+  model-visible external fields with `request.modelInput`; otherwise preserve ordinary request
+  semantics. Use a registered in-process operation when encrypted provenance must cross the
+  boundary.
+- Never sanitize arbitrary third-party tool results. Projection applies only to secrets activated
+  by Sim's resolved-secret provenance for that execution/tool call.
+- Do not add provenance merely because a value is persisted, returned by a tool, or appears in a
+  filename. Require a concrete Sim `{{...}}` resolution path and a later model/log boundary. If an
+  unsupported field can resolve a secret but does not justify durable tracking (for example a
+  `file_write` path), reject it at that exact ingress.
+- At diagnostic boundaries, project only values carrying execution-scoped provenance. Ordinary
+  provider responses, filenames, URLs, and errors remain unchanged when Sim did not resolve a
+  secret into them.
+
+Add focused tests covering named projection, ordinary identical text without provenance, nested and
+serialized shape handling, unchanged ordinary external inputs, malformed/incomplete private metadata
+failing closed, headerless legacy requests, and absence of private metadata in the public tool result.
+For durable sinks, also cover legacy `NULL` markers, exact-empty new writes, tracked secret writes,
+stale/missing sidecars, and scope isolation.
 
 ## Critical Rules for Outputs
 
@@ -275,9 +317,7 @@ items: {
 },
 ```
 
-Only use bare `type: 'json'` without `properties` when the shape is truly dynamic or unknown.
-
-If the response shape is unknown because the docs do not provide it, you MUST tell the user and stop. Unknown is not the same as dynamic. Never guess outputs.
+Only use bare `type: 'json'` without `properties` when the shape is truly dynamic. Unknown is not the same as dynamic — see the Hard Rule above.
 
 ## Critical Rules for transformResponse
 
@@ -513,10 +553,6 @@ If creating V2 tools (API-aligned outputs), use `_v2` suffix:
 - Version: `'2.0.0'`
 - Outputs: Flat, API-aligned (no content/metadata wrapper)
 
-## Naming Convention
-
-All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`, `slack_send_message`). Never use camelCase or PascalCase for tool IDs.
-
 ## Checklist Before Finishing
 
 - [ ] All tool IDs use snake_case
@@ -544,9 +580,9 @@ All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`
 
 ## Final Validation (Required)
 
-After creating all tools, you MUST validate every tool before finishing:
+Before finishing, validate each tool file against the API docs:
 
-1. **Read every tool file** you created — do not skip any
+1. **Re-read each tool file** you created
 2. **Cross-reference with the API docs** to verify:
    - All required params are marked `required: true`
    - All optional params are marked `required: false`

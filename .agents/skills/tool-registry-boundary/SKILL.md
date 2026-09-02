@@ -5,18 +5,18 @@ description: Keep the executable tool registry out of client-reachable module gr
 
 # Tool Registry Boundary Skill
 
-You keep the 4,300-tool executable registry out of module graphs that don't execute tools.
+You keep the 5,000+-tool executable registry out of module graphs that don't execute tools.
 
 ## The rule
 
 > Client-reachable code reads tool **metadata**. Only code that actually executes a tool imports the **registry**.
 
-`@/tools/registry` is a ~9,000-line barrel importing every tool. External `ToolConfig` entries mix
+`@/tools/registry` is a 10,000+-line barrel importing every tool. External `ToolConfig` entries mix
 plain data (`params`, `outputs`, `name`) with request/response closures, while
 `InternalToolConfig` entries contain semantic input projection and load their server implementation
 through `lib/internal/tool-operations/registry.server.ts`. Request closures can still reach SDK
 clients, API helpers, and parsers, which is what makes the executable barrel expensive: reaching it
-costs ~4,700 additional modules.
+costs roughly 4,700 additional modules (measured; re-measure with `--verbose`).
 
 `getTool()` returns the whole `ToolConfig`, so a single `getTool` import anywhere in a client-reachable file drags all of it in.
 
@@ -33,7 +33,7 @@ costs ~4,700 additional modules.
 
 Three modules, cheapest first. Ids are their own artifact because resolution and existence checks need only the key set; outputs are their own because they are the larger half of the data with a single consumer. `@/tools/metadata` and `@/tools/metadata-outputs` both resolve ids through `@/tools/tool-ids`, which is what keeps them independent of each other — do not "helpfully" re-export one from another, or every caller pays for all three.
 
-All lookups guard with `Object.hasOwn`. `JSON.parse` yields an object with the normal prototype, so a bare bracket lookup returns inherited members: `getToolMetadata('constructor')` returned a *function* typed as tool metadata before that was fixed.
+All lookups guard with `Object.hasOwn`. `JSON.parse` yields an object with the normal prototype, so a bare bracket lookup returns inherited members: a bare bracket lookup would answer `getToolMetadata('constructor')` with a *function* typed as tool metadata.
 
 ## The generated artifacts
 
@@ -48,10 +48,10 @@ Never hand-edit them. If you add a tool or change a tool's `params`/`outputs`, r
 
 Three non-obvious properties, each of which was measured and is easy to undo by accident:
 
-- **The data is a JSON string parsed at runtime, not an imported `.json` and not an object literal.** With `resolveJsonModule` (which this repo enables), a `.json` import makes TypeScript infer a literal type for all 4,300+ entries and takes `tsc --noEmit` from **12.6s to 8m07s** — a 38x regression. An ambient `declare module` does *not* short-circuit it, and an object literal costs the same. A single string literal is one cheap token for both the compiler and the bundler, and `JSON.parse` beats evaluating the equivalent literal at runtime. Do not "clean this up" into a `.json` import.
+- **The data is a JSON string parsed at runtime, not an imported `.json` and not an object literal.** With `resolveJsonModule` (which this repo enables), a `.json` import makes TypeScript infer a literal type for all 5,000+ entries and takes `tsc --noEmit` from **12.6s to 8m07s** — a 38x regression. An ambient `declare module` does *not* short-circuit it, and an object literal costs the same. A single string literal is one cheap token for both the compiler and the bundler, and `JSON.parse` beats evaluating the equivalent literal at runtime. Do not "clean this up" into a `.json` import.
 - **The generator refuses to emit function values.** If you add a field to `METADATA_FIELDS` that contains a closure, generation fails loudly rather than shipping executable config to the client. `hosting` and `schemaEnrichment` are excluded for exactly this reason (`hosting.enabled`, `pricing`, and `enrichSchema` are functions) — they are server-only.
 - **Empty param entries are stripped.** The registry contains one (`stt_deepgram_v2`), which crashes callers that read `param.type` while iterating.
-- **Lookups resolve versions.** `getTool` maps an unversioned name onto the newest version, and 246 tools are versioned. A plain key lookup would silently report them missing — a quiet correctness bug, not a crash. `resolveToolId` reproduces that against the id set and is differentially tested against the original.
+- **Lookups resolve versions.** `getTool` maps an unversioned name onto the newest version, and a few hundred tools are versioned. A plain key lookup would silently report them missing — a quiet correctness bug, not a crash. `resolveToolId` reproduces that against the id set and is differentially tested against the original.
 
 ## Testing code that reads tool metadata
 

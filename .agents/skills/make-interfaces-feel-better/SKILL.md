@@ -29,7 +29,7 @@ When geometric centering looks off, align optically. Buttons with icons, play tr
 
 ### 3. Shadows Over Borders
 
-Layer multiple transparent `box-shadow` values for natural depth. Shadows adapt to any background; solid borders don't.
+For elevation (dropdowns, modals, cards) use the `shadow-subtle`/`shadow-medium`/`shadow-overlay`/`shadow-card` tokens. In this repo neutral edges and dividers stay as `--border` borders (`.claude/rules/sim-styling.md`, Line weight) — do not swap them for `0 0 0 1px` shadow rings.
 
 ### 4. Interruptible Animations
 
@@ -45,7 +45,7 @@ Use a small fixed `translateY` instead of full height. Exits should be softer th
 
 ### 7. Contextual Icon Animations
 
-Animate icons with `opacity`, `scale`, and `blur` instead of toggling visibility. Use exactly these values: scale from `0.25` to `1`, opacity from `0` to `1`, blur from `4px` to `0px`. If the project has `motion` or `framer-motion` in `package.json`, use `transition: { type: "spring", duration: 0.3, bounce: 0 }` — bounce must always be `0`. If no motion library is installed, keep both icons in the DOM (one absolute-positioned) and cross-fade with CSS transitions using `cubic-bezier(0.2, 0, 0, 1)` — this gives both enter and exit animations without any dependency.
+Animate contextual icons with opacity, scale, and blur instead of toggling visibility; see animations.md for the Motion and CSS cross-fade patterns.
 
 ### 8. Font Smoothing
 
@@ -61,11 +61,11 @@ Use `text-wrap: balance` on headings. Use `text-wrap: pretty` for body text to a
 
 ### 11. Image Outlines
 
-Add a subtle `1px` outline with low opacity to images for consistent depth. The color must be pure black in light mode (`rgba(0, 0, 0, 0.1)`) and pure white in dark mode (`rgba(255, 255, 255, 0.1)`) — never a near-black like slate, zinc, or any tinted neutral. A tinted outline picks up the surface color underneath it and reads as dirt on the image edge.
+Add a subtle 1px low-opacity outline to images (`outline-black/10` light, `outline-white/10` dark); see surfaces.md.
 
 ### 12. Scale on Press
 
-A subtle `scale(0.96)` on click gives buttons tactile feedback. Always use `0.96`. Never use a value smaller than `0.95` — anything below feels exaggerated. Add a `static` prop to disable it when motion would be distracting.
+A subtle scale-down (about 0.96-0.97) on press gives tactile feedback. In this repo it lives in the emcn `Button`/`Chip` chrome, not consumer classes; add a `static` prop to opt out where motion distracts.
 
 ### 13. Skip Animation on Page Load
 
@@ -100,7 +100,7 @@ Interactive elements need at least 40×40px hit area. Extend with a pseudo-eleme
 
 ## Review Output Format
 
-Always present changes as a markdown table with **Before** and **After** columns. Include every change you made — not just a subset. Never list findings as separate "Before:" / "After:" lines outside of a table. Group changes by principle using a heading above each table, and keep each row focused on a single diff so the reader can scan the whole list quickly.
+Present changes as markdown tables with **Before** and **After** columns, one table per principle with a heading above it, one diff per row, and cite file and property when the snippet is not self-explanatory.
 
 ### Example
 

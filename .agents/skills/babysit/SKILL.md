@@ -73,10 +73,8 @@ conditions freshly after every push.
      reviewThreads(first: 50) { pageInfo { hasNextPage endCursor } nodes { id isResolved path line
        comments(first: 5) { nodes { id databaseId author { login } body } } } } } } }'
    ```
-   `[.comments[]] | last | .body`, not `... | .body | tail -1` — the latter pipes every matching
-   comment's full multi-line body through the pipeline and keeps only the final *line* of that
-   combined output (usually the "Reviews (n): Last reviewed commit..." footer), not the last
-   *comment*, so it silently misses the actual "Confidence Score: X/5" line.
+   The score is a line inside the body of Greptile's *latest* comment (`| last | .body`), which
+   it edits in place across rounds.
    `reviewThreads(first: 50)` is a single page — check `pageInfo.hasNextPage`. If `true`, don't
    stop yet: re-run the same query with `after: "<endCursor>"` and keep paging until
    `hasNextPage` is `false` before evaluating "clean." A PR with more than 50 threads is rare but
@@ -142,9 +140,6 @@ conditions freshly after every push.
    git fetch origin staging && git log --oneline --reverse origin/staging..HEAD
    gh pr view <n> --json commits -q '.commits[].messageHeadline'
    ```
-   `--reverse` makes `git log` oldest-first, matching the PR commit list's order — plain
-   `git log` is newest-first, so without it a positional comparison can spuriously fail on any
-   multi-commit branch.
    These two lists must describe the same commits. A review loop runs many pushes across many
    rounds; checking sync only before the push (step 6) and never after is how a bad push or a
    PR whose commit history quietly went stale between rounds goes unnoticed.
@@ -177,13 +172,10 @@ thread count across both bots, and whether every check finished and passed.
 ## Public-repo hygiene
 
 Every reply, comment and commit you post here is public and permanent, and review bots quote
-your replies back so a leak propagates. Before each post, strip anything that ties the change to
-a tenant: customer/company names, workspace/user/org/KB/connector IDs, emails, tenant hostnames,
-verbatim document/sheet/folder names, log lines, and per-tenant DB output. Cite the mechanism and
-aggregate numbers instead — see `/ship`'s "What to Omit" for the full list and the pre-publish
-grep. Triaging a finding often means pasting evidence you gathered from prod; that is exactly the
-moment this gets violated. Check before posting, not after: editing a comment does not unsend its
-notification email.
+your replies back, so a leak propagates. `/ship`'s "What to Omit" (the category list and the
+pre-publish grep) applies to every post in this loop. Triaging a finding often means pasting
+evidence gathered from prod — that is exactly the moment it gets violated. Run the grep on the
+reply before posting, not after: editing a comment does not unsend its notification email.
 
 ## Hard rules
 

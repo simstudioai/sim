@@ -156,6 +156,7 @@ rename: defineWorkspaceOperation({
   id: 'widgets.rename',
   minimumRole: 'write',
   workspaceApiKey: 'allow',
+  capability: 'widgets.use',
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
   delegatedServices: ['copilot'],
 })
@@ -164,6 +165,8 @@ rename: defineWorkspaceOperation({
 Do not create internal-, public-, or Copilot-specific versions of the same semantic operation. If two callers have materially different business or transactional semantics, define separate semantic operations and use cases and explain the distinction.
 
 Choose principal kinds from actual behavior. Do not accept every principal merely because the use case is shared. Workspace API keys have a write ceiling and cannot satisfy admin operations. The operation definition must fail fast when its role, workspace-key policy, and principal kinds disagree.
+
+`capability` is required — name the permission-group capability that governs the operation, or `'none'` with a `// permission-group-exempt: <reason>` comment directly above it. `defineWorkspaceOperation` throws at definition time when it is absent. See `add-permission-group-item`.
 
 Route declarations, tool adapters, and use cases must use the same literal operation. Runtime operation selection is permitted only from a trusted, code-defined registry. Never accept an operation ID or permission tag from an HTTP body, model argument, or other untrusted input.
 
@@ -237,7 +240,7 @@ Keep the route module declarative. If several internal routes repeat authenticat
 
 ## Adapt public or versioned APIs
 
-Use the appropriate public/versioned route builder, such as `defineV2JsonRoute`, with API-key authentication, explicit semantic operation and rate policy, external error projection, input mapping, application use case, and an external presenter. V2 rollout admission is centralized by the builder; do not invent a route-local rollout policy.
+Use the appropriate public/versioned route builder, such as `defineV2JsonRoute`, with API-key authentication, explicit semantic operation and rate policy, external error projection, input mapping, application use case, and an external presenter.
 
 Authentication and HTTP formatting may differ from internal APIs; authorization and business behavior must not. Rate-limit using the credential or principal subject, never a billed owner. Resolve billing attribution only for billing, quota, or legacy required-user fields.
 
@@ -320,7 +323,7 @@ Add focused tests for every migrated surface and principal kind allowed by the o
 - Operation registry: role/workspace-key/principal-kind/delegated-service consistency and fail-fast rejection of invalid definitions.
 - Repository: canonical active lookup, workspace-predicated writes, archived resources, authoritative affected rows, and database error propagation.
 - Internal API: authentication before parsing, exact contract, typed errors, and surface analytics only after success.
-- Public API: personal and workspace keys, rate and rollout behavior, concealment, exact external envelope, and rate headers.
+- Public API: personal and workspace keys, rate behavior, concealment, exact external envelope, and rate headers.
 - Copilot or tools: trusted context, exact registered operation membership, rejected forged scope, aliases and resume paths, permission re-check, safe errors, and unchanged tool result shapes.
 - Side effects: audit derives from authoritative results; shared notifications follow audit; neither occurs for rejection or no-op.
 - Compatibility characterization: legacy normalization, exact response/redirect/cookie behavior, concealment, error subclass precedence, and branch-specific output.

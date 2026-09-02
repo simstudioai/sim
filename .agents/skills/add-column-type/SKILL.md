@@ -8,7 +8,7 @@ argument-hint: <type-name>
 
 A column type is **one file** in `apps/sim/lib/table/column-types/` plus a registry entry. Everything that varies per type — label, icon, storage cast, coercion, validation, conversion compatibility, formatting, editor, filter operators — lives on that one object, so no consumer needs editing.
 
-This was not always true: adding `currency` originally took ~40 edits across 32 `switch` arms and 26 UI branches, each of which failed **silently** when missed. The registry exists to make that impossible, so the rule is absolute: **if you find yourself adding a `case 'yourtype':` anywhere outside `column-types/`, the registry is missing a field. Add the field instead.**
+A `case 'yourtype':` outside `column-types/` fails **silently** when missed (a wrong `jsonbCast` breaks every filter on the column). The registry exists to make that impossible, so the rule is absolute: **if you find yourself adding a `case 'yourtype':` anywhere outside `column-types/`, the registry is missing a field. Add the field instead.**
 
 ## Hard Rule: the compiler tells you what to do
 
@@ -116,9 +116,9 @@ Prefer set-based SQL. When the transform genuinely needs JS (`currency`'s separa
 
 ## Watch out
 
-- **Import cycles.** `column-types/select.ts` imports `select-values.ts`, so `select-values.ts` must **not** import the registry — that closes a cycle and fails at module init. Inside a type's own helper module the string literal is the implementation, not a config leak.
+- **Import cycles.** `column-types/select.ts` imports `lib/table/select-values.ts`, so `select-values.ts` must **not** import the registry — that closes a cycle and fails at module init. Inside a type's own helper module the string literal is the implementation, not a config leak.
 - **The client-safe boundary.** `registry.ts` and everything it imports must stay free of `@sim/db`, `drizzle-orm`, and `next/server` — the tables grid imports it directly. A React icon is fine (it's a component *reference*, never called server-side). Only `registry.server.ts` may touch drizzle.
-- **Don't re-export the registry from `@/lib/table`.** 44 server modules import that barrel; routing this through it pulls `@sim/emcn/icons` into all of them. Deep-import `@/lib/table/column-types`.
+- **Don't re-export the registry from `@/lib/table`.** Dozens of server modules import that barrel; routing this through it pulls `@sim/emcn/icons` into all of them. Deep-import `@/lib/table/column-types`.
 - **`import.ts`'s `coerceValue` is a SECOND write path and is not opt-in.** Importing into a column of your type always hits it, and its `default` arm silently `String(value)`s — so a missing `case` stores text in a column whose `jsonbCast` is numeric, and then every filter and sort on that column errors in Postgres. Add a `case`, even though the switch compiles without one. (It is deliberately separate from the registry's `coerce`: an import wants an unparseable value to survive as its raw string so the row error can name it.)
 - **CSV inference** is an ordered heuristic in `import.ts`, deliberately not registry-driven. A new type is not inferred from a CSV unless you extend `inferColumnType` — usually you should not, since inference cannot supply configuration (an option set, a currency code).
 

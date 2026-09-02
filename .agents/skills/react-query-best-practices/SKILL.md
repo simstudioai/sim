@@ -25,15 +25,9 @@ Read these before analyzing:
 
 ## Rules to enforce
 
-### Query key factories
-- Every file in `hooks/queries/` must have a hierarchical key factory with an `all` root key
-- Keys must include intermediate plural keys (`lists`, `details`) for prefix invalidation
-- Key factories are colocated with their query hooks, not in a global keys file
-
-### Query hooks
-- Every `queryFn` must forward `signal` for request cancellation
-- Every query must have an explicit `staleTime` (default 0 is almost never correct), assigned from a named exported constant — never an inline numeric literal. A server-side prefetch hydrating the same query key must import and reuse that constant instead of restating the number
-- `keepPreviousData` / `placeholderData` only on variable-key queries (where params change), never on static keys
+### Query keys and hooks
+Enforce CLAUDE.md "React Query" and `.claude/rules/sim-queries.md` (key factory with `all` + plural prefixes, `signal` forwarding, named `staleTime` constants reused by prefetches, `keepPreviousData` only on variable keys, `requestJson` boundary). Additionally:
+- Key factories live next to their hooks — except a factory (or standalone fetcher/mapper) that a server module imports, which must live in `hooks/queries/utils/<entity>-keys.ts` / `fetch-*.ts` per `.claude/rules/sim-queries.md` (a `'use client'` export called from the server crashes SSR)
 - Use `enabled` to prevent queries from running without required params
 - Warm data for hover/focus intent with `queryClient.prefetchQuery` and shared `queryOptions`; never temporarily enable a mounted hidden observer, which can remain active after focus restoration and refetch data for closed UI
 - When gating a query by view or modal state, move every consumer to the active query too: imperative refresh/pagination, loading and error feedback, and data-derived controls must never read a disabled query or placeholder data from a previous key
@@ -43,16 +37,14 @@ Read these before analyzing:
 - Server prefetches must call the authorized use case, apply the route presenter/response schema, and reuse the client's exact key, mapper, and stale time. Keep all fallible auth/read/parse work inside `queryFn` so an optional warm cannot fail the page, and never bypass a route that redacts fields.
 
 ### Mutations
-- Use `onSettled` (not `onSuccess`) for cache reconciliation — it fires on both success and error
-- For optimistic updates: save previous data in `onMutate`, roll back in `onError`
-- Use targeted invalidation (`entityKeys.lists()`) not broad (`entityKeys.all`) when possible
-- Don't include mutation objects in `useCallback` deps — `.mutate()` is stable
+Enforce CLAUDE.md "Mutation Hooks" (targeted invalidation, `onMutate`/`onError` rollback, mutation objects out of `useCallback` deps). Additionally:
+- Plain mutations invalidate in `onSuccess`; optimistic mutations reconcile in `onSettled` (fires on success and error) with rollback in `onError` — see `.claude/rules/sim-queries.md` "Mutation Hook" / "Optimistic Updates"
 
 ### Server state ownership
 - Never copy query data into useState. Use query data directly in components.
 - Never copy query data into Zustand stores (exception: mutation callbacks that coordinate cross-store state like temp ID replacement)
-- The query cache is not a local state manager — `setQueryData` is for optimistic updates only
-- Forms are the one deliberate exception: once query data exists, initialize a keyed form subtree from it with lazy state initializers. Do not synchronize query data into draft state with an Effect; key the form by resource identity so switching resources resets every draft/modal/upload field together. Keep independent queries in the outer wrapper so they still start in parallel.
+- The query cache is not a local state manager — `setQueryData` is for optimistic updates and the server-prefetch seeding case in `.claude/rules/sim-queries.md` "Server prefetching", nothing else
+- Forms are the one deliberate exception (a keyed form child initialized lazily from loaded query data) — the pattern is owned by `/you-might-not-need-an-effect` "Query-backed forms"; do not duplicate its finding
 
 ## Steps
 
