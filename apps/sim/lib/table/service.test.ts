@@ -14,12 +14,20 @@ import type { TableSchema } from '@/lib/table/types'
 
 const mocks = vi.hoisted(() => ({
   assertColumnReferencesInWorkspace: vi.fn(),
+  findActiveTableReferenceBlockers: vi.fn(),
   assertTableReferenceColumnsEnabled: vi.fn(),
+  getWorkspaceWithOwner: vi.fn(),
+  tableReferenceBlockerMessage: vi.fn(
+    (target: string, blockers: string[]) =>
+      `Cannot delete table "${target}" because it is referenced by table "${blockers[0]}". Remove the reference column first.`
+  ),
   assertTableRowTtlEnabled: vi.fn(),
 }))
 
 vi.mock('@/lib/table/column-types/registry.server', () => ({
   assertColumnReferencesInWorkspace: mocks.assertColumnReferencesInWorkspace,
+  findActiveTableReferenceBlockers: mocks.findActiveTableReferenceBlockers,
+  tableReferenceBlockerMessage: mocks.tableReferenceBlockerMessage,
 }))
 
 vi.mock('@/lib/table/reference-columns/availability', () => ({
@@ -35,13 +43,39 @@ vi.mock('@/lib/table/billing', () => ({
   notifyTableRowUsage: vi.fn(),
 }))
 
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getWorkspaceWithOwner: mocks.getWorkspaceWithOwner,
+}))
+
 vi.mock('@/lib/table/ttl-availability', () => ({
   assertTableRowTtlEnabled: mocks.assertTableRowTtlEnabled,
 }))
 
-import { createTable, getTableById } from '@/lib/table/service'
+import {
+  createTable,
+  deleteTable,
+  getTableById,
+  listActiveTableNames,
+  restoreTable,
+} from '@/lib/table/service'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
+
+describe('listActiveTableNames', () => {
+  beforeEach(() => resetDbChainMock())
+
+  it('returns the name projection without loading table schemas', async () => {
+    queueTableRows(schemaMock.userTableDefinitions, [{ id: 'table-1', name: 'Accounts' }])
+
+    await expect(listActiveTableNames(WORKSPACE_ID)).resolves.toEqual([
+      { id: 'table-1', name: 'Accounts' },
+    ])
+    expect(dbChainMockFns.select).toHaveBeenCalledWith({
+      id: schemaMock.userTableDefinitions.id,
+      name: schemaMock.userTableDefinitions.name,
+    })
+  })
+})
 
 /** A column produced by a workflow group, and the group that declares it. */
 function groupedSchema(overrides: { columnGroupId: string; groupId: string }): TableSchema {
@@ -370,5 +404,125 @@ describe('getTableById job derivation', () => {
     expect(select).toHaveBeenCalledTimes(1)
     expect(limit).toHaveBeenCalledWith(1)
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+})
+
+describe('restoreTable reference validation', () => {
+  const referenceSchema = {
+    columns: [
+      {
+        id: 'col_account',
+        name: 'account',
+        type: 'reference',
+        referenceTableId: 'tbl_accounts',
+      },
+    ],
+  } as TableSchema
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.assertColumnReferencesInWorkspace.mockResolvedValue(undefined)
+    mocks.getWorkspaceWithOwner.mockResolvedValue({ id: WORKSPACE_ID, archivedAt: null })
+  })
+
+  it('validates targets under the row lock and admits the restore cohort', async () => {
+    const archived = definitionRow({
+      archivedAt: new Date('2026-01-03T00:00:00Z'),
+      schema: referenceSchema,
+    })
+    queueTableRows(schemaMock.userTableDefinitions, [archived])
+    queueTableRows(schemaMock.userTableDefinitions, [archived])
+    queueTableRows(schemaMock.userTableDefinitions, [])
+    const restoringTableIds = new Set(['tbl_accounts'])
+
+    await restoreTable(TABLE_ID, 'request-1', { restoringTableIds })
+
+    expect(mocks.assertColumnReferencesInWorkspace).toHaveBeenCalledWith(
+      expect.anything(),
+      WORKSPACE_ID,
+      referenceSchema.columns,
+      { allowedArchivedTableIds: new Set(['tbl_accounts', TABLE_ID]) }
+    )
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.userTableDefinitions)
+  })
+
+  it('leaves the table archived when a reference target is unavailable', async () => {
+    const archived = definitionRow({
+      archivedAt: new Date('2026-01-03T00:00:00Z'),
+      schema: referenceSchema,
+    })
+    queueTableRows(schemaMock.userTableDefinitions, [archived])
+    queueTableRows(schemaMock.userTableDefinitions, [archived])
+    mocks.assertColumnReferencesInWorkspace.mockRejectedValueOnce({ code: 'not_found' })
+
+    await expect(restoreTable(TABLE_ID, 'request-1')).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('deleteTable reference guard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.findActiveTableReferenceBlockers.mockResolvedValue([])
+  })
+
+  const activeTable = {
+    name: 'Customers',
+    archivedAt: null,
+    deleteLocked: false,
+    workspaceId: WORKSPACE_ID,
+  }
+
+  it('archives an unreferenced table inside the guarded transaction', async () => {
+    queueTableRows(schemaMock.userTableDefinitions, [activeTable])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { name: 'Customers', workspaceId: WORKSPACE_ID },
+    ])
+
+    await expect(deleteTable('tbl_customers', 'request-1')).resolves.toEqual({
+      archived: { name: 'Customers', workspaceId: WORKSPACE_ID },
+    })
+
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(mocks.findActiveTableReferenceBlockers).toHaveBeenCalledWith(
+      expect.anything(),
+      WORKSPACE_ID,
+      { tableIds: ['tbl_customers'] }
+    )
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+  })
+
+  it('blocks deletion and names the table holding the reference', async () => {
+    queueTableRows(schemaMock.userTableDefinitions, [activeTable])
+    mocks.findActiveTableReferenceBlockers.mockResolvedValueOnce([
+      {
+        targetTableId: 'tbl_customers',
+        targetTableName: 'Customers',
+        targetFolderId: null,
+        referencingTableName: 'Orders',
+      },
+    ])
+
+    await expect(deleteTable('tbl_customers', 'request-1')).rejects.toEqual(
+      expect.objectContaining({
+        code: 'conflict',
+        message:
+          'Cannot delete table "Customers" because it is referenced by table "Orders". Remove the reference column first.',
+      })
+    )
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('keeps the existing delete-lock verdict ahead of the reference check', async () => {
+    queueTableRows(schemaMock.userTableDefinitions, [{ ...activeTable, deleteLocked: true }])
+
+    await expect(deleteTable('tbl_customers', 'request-1')).rejects.toMatchObject({
+      name: 'TableLockedError',
+      lock: 'delete',
+    })
+    expect(mocks.findActiveTableReferenceBlockers).not.toHaveBeenCalled()
   })
 })

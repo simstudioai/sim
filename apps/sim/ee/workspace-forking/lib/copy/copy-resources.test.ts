@@ -13,6 +13,7 @@ import {
   storageServiceMockFns,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_FORK_RESOURCE_IDS_PER_TYPE } from '@/lib/api/contracts/workspace-fork'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import {
   bindKnowledgeDocumentFieldSecretProvenance,
@@ -175,6 +176,61 @@ describe('copyForkResourceContent', () => {
     expect(inserted[0]).toEqual(expect.objectContaining({ secretProvenanceVersion: null }))
   })
 
+  it('rewrites reference cells to the copied referenced-row identity', async () => {
+    const updatedAt = new Date('2026-08-05T00:00:00.000Z')
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          row: {
+            id: 'row-order-1',
+            tableId: 'src-orders',
+            workspaceId: 'src-ws',
+            data: { 'col-account': 'row-account-1' },
+            secretProvenanceVersion: null,
+            updatedAt,
+          },
+          provenance: null,
+          provenanceIsCurrent: false,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          row: {
+            id: 'row-account-1',
+            tableId: 'src-accounts',
+            workspaceId: 'src-ws',
+            data: { 'col-name': 'Acme' },
+            secretProvenanceVersion: null,
+            updatedAt,
+          },
+          provenance: null,
+          provenanceIsCurrent: false,
+        },
+      ])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        tables: [
+          {
+            sourceId: 'src-orders',
+            childId: 'child-orders',
+            dependsOnChildIds: ['child-accounts'],
+            referenceColumnTargetTableIds: { 'col-account': 'child-accounts' },
+          },
+          { sourceId: 'src-accounts', childId: 'child-accounts' },
+        ],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result.failed).toBe(0)
+    const copiedOrderRows = dbChainMockFns.values.mock.calls[0][0] as Array<{
+      data: Record<string, unknown>
+    }>
+    const copiedAccountRows = dbChainMockFns.values.mock.calls[1][0] as Array<{ id: string }>
+    expect(copiedOrderRows[0].data['col-account']).toBe(copiedAccountRows[0].id)
+  })
+
   it('turns stale tracked table provenance into unknown instead of laundering it', async () => {
     const rowUpdatedAt = new Date('2026-08-05T00:00:00.000Z')
     dbChainMockFns.limit.mockResolvedValueOnce([
@@ -257,6 +313,51 @@ describe('copyForkResourceContent', () => {
         status: 'exact',
         entries: [{ columnId: 'value', encryptedValue: 'encrypted-value', name: 'VALUE' }],
       }),
+    ])
+  })
+
+  it('fails copied tables whose referenced-table dependency failed to copy', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          row: {
+            id: 'row-order-1',
+            tableId: 'src-orders',
+            workspaceId: 'src-ws',
+            data: { 'col-account': 'row-account-1' },
+            secretProvenanceVersion: null,
+            updatedAt: new Date('2026-08-05T00:00:00.000Z'),
+          },
+          provenance: null,
+          provenanceIsCurrent: false,
+        },
+      ])
+      .mockRejectedValueOnce(new Error('copy failed'))
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        tables: [
+          {
+            sourceId: 'src-orders',
+            childId: 'child-orders',
+            dependsOnChildIds: ['child-accounts'],
+          },
+          { sourceId: 'src-accounts', childId: 'child-accounts' },
+        ],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result).toEqual({
+      copied: 0,
+      failed: 2,
+      failures: [
+        { kind: 'table', childId: 'child-accounts' },
+        { kind: 'table', childId: 'child-orders' },
+      ],
+    })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith([
+      expect.objectContaining({ tableId: 'child-orders' }),
     ])
   })
 
@@ -1212,6 +1313,319 @@ describe('copyForkResourceContent', () => {
 })
 
 describe('copyForkResourceContainers table views', () => {
+  it('rejects a mapped referenced table when row mappings are unavailable', async () => {
+    const now = new Date('2026-08-19T00:00:00.000Z')
+    const selectedDefinition = {
+      id: 'table-orders',
+      workspaceId: 'src-ws',
+      folderId: null,
+      name: 'Orders',
+      description: null,
+      schema: {
+        columns: [
+          {
+            id: 'col-account',
+            name: 'Account',
+            type: 'reference',
+            referenceTableId: 'table-accounts',
+          },
+        ],
+      },
+      metadata: {},
+      maxRows: 10000,
+      rowCount: 1,
+      rowsVersion: 1,
+      schemaLocked: false,
+      insertLocked: false,
+      updateLocked: false,
+      deleteLocked: false,
+      archivedAt: null,
+      createdBy: 'source-user',
+      createdAt: now,
+      updatedAt: now,
+    }
+    const insert = vi.fn()
+    const tx = {
+      select: () => ({
+        from: () => ({ where: () => Promise.resolve([selectedDefinition]) }),
+      }),
+      insert,
+    }
+
+    await expect(
+      copyForkResourceContainers({
+        tx: tx as unknown as DbOrTx,
+        sourceWorkspaceId: 'src-ws',
+        childWorkspaceId: 'child-ws',
+        userId: 'user-1',
+        now,
+        selection: {
+          customTools: [],
+          skills: [],
+          mcpServers: [],
+          workflowMcpServers: [],
+          tables: ['table-orders'],
+          knowledgeBases: [],
+        },
+        workflowIdMap: new Map(),
+        resolveMappedTableReference: (sourceTableId) =>
+          sourceTableId === 'table-accounts' ? 'target-accounts' : null,
+        documentMappingContext: { edgeChildWorkspaceId: 'child-ws', sourceIsParent: true },
+      })
+    ).rejects.toThrow(
+      'Referenced table table-accounts is mapped to target-accounts, but referenced row mappings are unavailable'
+    )
+    expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unavailable referenced-table dependency before inserting copies', async () => {
+    const now = new Date('2026-08-19T00:00:00.000Z')
+    const selectedDefinition = {
+      id: 'table-orders',
+      workspaceId: 'src-ws',
+      folderId: null,
+      name: 'Orders',
+      description: null,
+      schema: {
+        columns: [
+          {
+            id: 'col-account',
+            name: 'Account',
+            type: 'reference',
+            referenceTableId: 'table-accounts',
+          },
+        ],
+      },
+      metadata: {},
+      maxRows: 10000,
+      rowCount: 1,
+      rowsVersion: 1,
+      schemaLocked: false,
+      insertLocked: false,
+      updateLocked: false,
+      deleteLocked: false,
+      archivedAt: null,
+      createdBy: 'source-user',
+      createdAt: now,
+      updatedAt: now,
+    }
+    const insert = vi.fn()
+    let definitionRead = 0
+    const tx = {
+      select: () => ({
+        from: () => ({
+          where: () => Promise.resolve(definitionRead++ === 0 ? [selectedDefinition] : []),
+        }),
+      }),
+      insert,
+    }
+
+    await expect(
+      copyForkResourceContainers({
+        tx: tx as unknown as DbOrTx,
+        sourceWorkspaceId: 'src-ws',
+        childWorkspaceId: 'child-ws',
+        userId: 'user-1',
+        now,
+        selection: {
+          customTools: [],
+          skills: [],
+          mcpServers: [],
+          workflowMcpServers: [],
+          tables: ['table-orders'],
+          knowledgeBases: [],
+        },
+        workflowIdMap: new Map(),
+        documentMappingContext: { edgeChildWorkspaceId: 'child-ws', sourceIsParent: true },
+      })
+    ).rejects.toThrow('Referenced table table-accounts is unavailable for copy')
+    expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('bounds the expanded referenced-table dependency set', async () => {
+    const tx = { select: vi.fn(), insert: vi.fn() }
+
+    await expect(
+      copyForkResourceContainers({
+        tx: tx as unknown as DbOrTx,
+        sourceWorkspaceId: 'src-ws',
+        childWorkspaceId: 'child-ws',
+        userId: 'user-1',
+        now: new Date('2026-08-19T00:00:00.000Z'),
+        selection: {
+          customTools: [],
+          skills: [],
+          mcpServers: [],
+          workflowMcpServers: [],
+          tables: Array.from(
+            { length: MAX_FORK_RESOURCE_IDS_PER_TYPE + 1 },
+            (_, index) => `table-${index}`
+          ),
+          knowledgeBases: [],
+        },
+        workflowIdMap: new Map(),
+        documentMappingContext: { edgeChildWorkspaceId: 'child-ws', sourceIsParent: true },
+      })
+    ).rejects.toThrow(
+      `Cannot copy more than ${MAX_FORK_RESOURCE_IDS_PER_TYPE} tables including referenced dependencies`
+    )
+    expect(tx.select).not.toHaveBeenCalled()
+  })
+
+  it('copies referenced tables transitively and remaps reference columns to their child ids', async () => {
+    const now = new Date('2026-08-19T00:00:00.000Z')
+    const definitions = [
+      {
+        id: 'table-orders',
+        workspaceId: 'src-ws',
+        folderId: null,
+        name: 'Orders',
+        description: null,
+        schema: {
+          columns: [
+            {
+              id: 'col-account',
+              name: 'Account',
+              type: 'reference',
+              referenceTableId: 'table-accounts',
+            },
+          ],
+        },
+        metadata: {},
+        maxRows: 10000,
+        rowCount: 1,
+        rowsVersion: 1,
+        schemaLocked: false,
+        insertLocked: false,
+        updateLocked: false,
+        deleteLocked: false,
+        archivedAt: null,
+        createdBy: 'source-user',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'table-accounts',
+        workspaceId: 'src-ws',
+        folderId: null,
+        name: 'Accounts',
+        description: null,
+        schema: {
+          columns: [
+            {
+              id: 'col-company',
+              name: 'Company',
+              type: 'reference',
+              referenceTableId: 'table-companies',
+            },
+          ],
+        },
+        metadata: {},
+        maxRows: 10000,
+        rowCount: 1,
+        rowsVersion: 1,
+        schemaLocked: false,
+        insertLocked: false,
+        updateLocked: false,
+        deleteLocked: false,
+        archivedAt: null,
+        createdBy: 'source-user',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'table-companies',
+        workspaceId: 'src-ws',
+        folderId: null,
+        name: 'Companies',
+        description: null,
+        schema: { columns: [{ id: 'col-name', name: 'Name', type: 'string' }] },
+        metadata: {},
+        maxRows: 10000,
+        rowCount: 1,
+        rowsVersion: 1,
+        schemaLocked: false,
+        insertLocked: false,
+        updateLocked: false,
+        deleteLocked: false,
+        archivedAt: null,
+        createdBy: 'source-user',
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]
+    const inserted = new Map<unknown, Array<Record<string, unknown>>>()
+    let definitionRead = 0
+    const tx = {
+      select: () => ({
+        from: (table: unknown) => ({
+          where: () => {
+            if (table === tableViews) return Promise.resolve([])
+            if (table !== userTableDefinitions) return Promise.resolve([])
+            const rows = [definitions[definitionRead]].filter(Boolean)
+            definitionRead += 1
+            return Promise.resolve(rows)
+          },
+        }),
+      }),
+      insert: (table: unknown) => ({
+        values: (values: Array<Record<string, unknown>>) => {
+          inserted.set(table, values)
+          return Promise.resolve()
+        },
+      }),
+    }
+
+    const result = await copyForkResourceContainers({
+      tx: tx as unknown as DbOrTx,
+      sourceWorkspaceId: 'src-ws',
+      childWorkspaceId: 'child-ws',
+      userId: 'user-1',
+      now,
+      selection: {
+        customTools: [],
+        skills: [],
+        mcpServers: [],
+        workflowMcpServers: [],
+        tables: ['table-orders'],
+        knowledgeBases: [],
+      },
+      workflowIdMap: new Map(),
+      documentMappingContext: { edgeChildWorkspaceId: 'child-ws', sourceIsParent: true },
+    })
+
+    const tableMap = result.idMap.get('table')
+    const childOrdersId = tableMap?.get('table-orders')
+    const childAccountsId = tableMap?.get('table-accounts')
+    const childCompaniesId = tableMap?.get('table-companies')
+    expect(tableMap?.size).toBe(3)
+    expect(result.names.tables).toEqual(['Orders', 'Accounts', 'Companies'])
+    expect(result.contentPlan.tables).toEqual([
+      {
+        sourceId: 'table-orders',
+        childId: childOrdersId,
+        dependsOnChildIds: [childAccountsId],
+        referenceColumnTargetTableIds: { 'col-account': childAccountsId },
+      },
+      {
+        sourceId: 'table-accounts',
+        childId: childAccountsId,
+        dependsOnChildIds: [childCompaniesId],
+        referenceColumnTargetTableIds: { 'col-company': childCompaniesId },
+      },
+      { sourceId: 'table-companies', childId: childCompaniesId },
+    ])
+
+    const copiedDefinitions = inserted.get(userTableDefinitions)
+    expect(copiedDefinitions).toHaveLength(3)
+    expect(
+      copiedDefinitions?.find((definition) => definition.id === childOrdersId)?.schema
+    ).toMatchObject({ columns: [{ referenceTableId: childAccountsId }] })
+    expect(
+      copiedDefinitions?.find((definition) => definition.id === childAccountsId)?.schema
+    ).toMatchObject({ columns: [{ referenceTableId: childCompaniesId }] })
+  })
+
   it('copies saved views and seeds a default for a legacy table', async () => {
     const now = new Date('2026-08-19T00:00:00.000Z')
     const definitions = [

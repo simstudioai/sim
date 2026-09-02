@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   resolveWorkspaceContext: vi.fn(),
   signal: vi.fn(),
   notifyTables: vi.fn(),
+  findReferenceBlockers: vi.fn(),
   resolveFolderPathFromIndex: vi.fn(),
   resolveTableFolderPath: vi.fn(),
 }))
@@ -76,6 +77,11 @@ vi.mock('@/lib/table/application/context', () => ({
   resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
 }))
 vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal }))
+vi.mock('@/lib/table/column-types/registry.server', () => ({
+  findActiveTableReferenceBlockers: mocks.findReferenceBlockers,
+  tableReferenceBlockerMessage: (target: string, blockers: string[]) =>
+    `Cannot delete table "${target}" because it is referenced by table "${blockers[0]}". Remove the reference column first.`,
+}))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { bulkDeleteTables, bulkMoveTables } from '@/lib/table/application/bulk'
@@ -118,6 +124,7 @@ describe('table bulk application use cases', () => {
     mocks.resolveWorkspaceContext.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.planFolderSelection.mockResolvedValue(emptyPlan)
+    mocks.findReferenceBlockers.mockResolvedValue([])
     mocks.findActiveFolder.mockResolvedValue({ id: 'folder-1' })
     mocks.resolveTableContext.mockImplementation(async (tableId: string) => tableContext(tableId))
     mocks.moveTableToFolder.mockResolvedValue({ name: 'Moved' })
@@ -260,6 +267,80 @@ describe('table bulk application use cases', () => {
     expect(result.failed).toHaveLength(1)
     expect(result.failed[0]).toMatchObject({ kind: 'table', id: 'table-locked' })
     expect(result.deleted).toEqual([{ kind: 'table', id: 'table-2', name: 'Archived' }])
+  })
+
+  it('does not delete a referenced target even when its referring table is selected first', async () => {
+    mocks.findReferenceBlockers.mockResolvedValueOnce([
+      {
+        targetTableId: 'customers',
+        targetTableName: 'Customers',
+        targetFolderId: null,
+        referencingTableName: 'Orders',
+      },
+    ])
+
+    const result = await bulkDeleteTables.execute({
+      principal,
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        tableIds: ['orders', 'customers'],
+        folderKeying: 'ids' as const,
+        folders: [],
+      },
+    })
+
+    expect(result.deleted).toEqual([{ kind: 'table', id: 'orders', name: 'Archived' }])
+    expect(result.failed).toEqual([
+      {
+        kind: 'table',
+        id: 'customers',
+        name: 'Table customers',
+        reason:
+          'Cannot delete table "Table customers" because it is referenced by table "Orders". Remove the reference column first.',
+      },
+    ])
+    expect(mocks.deleteTable).toHaveBeenCalledTimes(1)
+    expect(mocks.deleteTable).toHaveBeenCalledWith('orders', 'request-1', expect.anything())
+  })
+
+  it('blocks a selected folder when it contains a referenced table', async () => {
+    mocks.planFolderSelection.mockResolvedValueOnce({
+      selected: [{ id: 'folder-1', name: 'Sales' }],
+      notFound: [],
+      contained: [],
+      covered: new Set(['folder-1', 'folder-child']),
+      coveredBySelected: new Map([['folder-1', new Set(['folder-1', 'folder-child'])]]),
+    })
+    mocks.findReferenceBlockers.mockResolvedValueOnce([
+      {
+        targetTableId: 'customers',
+        targetTableName: 'Customers',
+        targetFolderId: 'folder-child',
+        referencingTableName: 'Orders',
+      },
+    ])
+
+    const result = await bulkDeleteTables.execute({
+      principal,
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        tableIds: [],
+        folderKeying: 'ids' as const,
+        folders: ['folder-1'],
+      },
+    })
+
+    expect(result.deleted).toEqual([])
+    expect(result.failed).toEqual([
+      {
+        kind: 'folder',
+        id: 'folder-1',
+        name: 'Sales',
+        reason:
+          'Cannot delete table "Customers" because it is referenced by table "Orders". Remove the reference column first.',
+      },
+    ])
+    expect(mocks.bulkDeleteFolders).not.toHaveBeenCalled()
   })
 
   it('conceals an inaccessible table as not-found rather than naming it', async () => {
@@ -520,6 +601,7 @@ describe('path-keyed bulk table selections', () => {
     mocks.resolveWorkspaceContext.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.planFolderSelection.mockResolvedValue(emptyPlan)
+    mocks.findReferenceBlockers.mockResolvedValue([])
     mocks.findActiveFolder.mockResolvedValue({ id: 'folder-1' })
     mocks.resolveTableContext.mockImplementation(async (tableId: string) => tableContext(tableId))
     mocks.moveTableToFolder.mockResolvedValue({ name: 'Moved' })

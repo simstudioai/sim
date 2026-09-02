@@ -272,6 +272,9 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
   })
 
   it('threads push orientation through the shared container and mapping boundaries', async () => {
+    const resolver = vi.fn((kind: ForkRemapKind, sourceId: string) =>
+      kind === 'table' && sourceId === 'mapped-table' ? 'target-table' : null
+    )
     await copyPromoteUnmappedResources({
       tx,
       edge,
@@ -290,7 +293,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
       },
       workflowIdMap: new Map(),
       folderIdMap: new Map(),
-      resolver: () => null,
+      resolver,
       resolveBlockId,
       referencedDocumentIds: [],
     })
@@ -303,6 +306,9 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
         },
       })
     )
+    const containerParams = mockCopyForkResourceContainers.mock.calls.at(-1)?.[0]
+    expect(containerParams?.resolveMappedTableReference('mapped-table')).toBe('target-table')
+    expect(resolver).toHaveBeenCalledWith('table', 'mapped-table')
     expect(mockPersistCopiedResourceMappings).toHaveBeenCalledWith(
       expect.objectContaining({
         edgeChildWorkspaceId: 'edge-child',

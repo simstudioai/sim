@@ -75,6 +75,11 @@ export type TypeSpecificColumnKey = (typeof TYPE_SPECIFIC_COLUMN_KEYS)[number]
 /** Result of coercing a raw value toward a column's declared type. */
 export type CoerceResult = { ok: true; value: JsonValue } | { ok: false }
 
+export interface ColumnReferencePreviewDefinition {
+  getTableId(column: ColumnDefinition): string | undefined
+  getRowId(value: unknown): string | null
+}
+
 export interface ColumnTypeDefinition {
   readonly id: ColumnType
 
@@ -141,6 +146,8 @@ export interface ColumnTypeDefinition {
    * bounded, structured value.
    */
   readonly expandable: boolean
+  /** Optional inline referenced-row presentation owned by this column type. */
+  readonly referencePreview?: ColumnReferencePreviewDefinition
   /** `inputMode` for the text editor, when the type wants a specific keypad. */
   readonly inputMode?: 'decimal'
   /**

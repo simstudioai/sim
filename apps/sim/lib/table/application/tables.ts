@@ -15,6 +15,7 @@ import {
   deleteTable,
   getTableById,
   getWorkspaceTableLimits,
+  listActiveTableNames,
   listTables as listTableDefinitions,
   moveTableToFolder,
   queryTables,
@@ -108,6 +109,19 @@ export const listTableDefinitionsUseCase = defineAuthorizedTableUseCase({
     return {
       tables: await listTableDefinitions(context.workspaceId, { scope: input.scope }),
     }
+  },
+})
+
+export interface ListTableNamesInput {
+  workspaceId: string
+}
+
+export const listTableNamesUseCase = defineAuthorizedTableUseCase({
+  operation: tableOperations.list,
+  resolveContext: ({ input }: { input: ListTableNamesInput }) =>
+    resolveTableWorkspaceContext(input.workspaceId),
+  async execute({ context }) {
+    return { tables: await listActiveTableNames(context.workspaceId) }
   },
 })
 
