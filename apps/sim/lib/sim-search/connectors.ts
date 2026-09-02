@@ -113,16 +113,29 @@ export function connectorDisplayName(connectorType: string): string {
   return CONNECTOR_META_REGISTRY[connectorType]?.name ?? connectorType
 }
 
+export interface SearchConnectorAvailabilityContext {
+  /** Whether per-member access is on for the workspace. */
+  memberAccessAvailable: boolean
+  /** Whether someone already connected this source in the workspace. */
+  hasConnection: boolean
+  /** Whether the viewer may turn a source on for the workspace; the first connect needs an admin. */
+  canCreate: boolean
+}
+
 /** Why a source cannot be connected on this surface right now; null when it can. */
 export function searchConnectorUnavailableReason(
   connector: SearchConnector,
   integrationAvailability: ReadonlyMap<string, { oauthAvailable: boolean }>,
-  memberAccessAvailable: boolean
+  context: SearchConnectorAvailabilityContext
 ): string | null {
   if (!isSearchConnectorAvailable(connector, integrationAvailability)) {
     return `${connector.meta.name} is unavailable in this deployment`
   }
-  return memberAccessAvailable ? null : 'Per-member access is not available in this workspace'
+  if (!context.memberAccessAvailable) return 'Per-member access is not available in this workspace'
+  if (!context.hasConnection && !context.canCreate) {
+    return `Ask a workspace admin to connect ${connector.meta.name} first`
+  }
+  return null
 }
 
 /**

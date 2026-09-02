@@ -190,6 +190,7 @@ export function KnowledgeSearchResults({
     data: results,
     isPending,
     isFetching,
+    isPlaceholderData,
     error,
   } = useWorkspaceKnowledgeSearch(workspaceId, knowledgeBaseIds, query)
   const { features } = useWorkspaceHostContext()
@@ -213,9 +214,12 @@ export function KnowledgeSearchResults({
     [documents]
   )
   const [filters, setFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
-  const showFilters = documents.length >= FILTERS_MIN_RESULTS && sourceTypes.length > 1
+  const filtersActive = filters.source !== null || filters.updated !== 'any'
+  /** The controls appear once the list is long and mixed, and stay while a filter from the link is active. */
+  const showFilters =
+    filtersActive || (documents.length >= FILTERS_MIN_RESULTS && sourceTypes.length > 1)
   const visible = useMemo(() => {
-    if (!showFilters) return documents
+    if (!filtersActive) return documents
     const window = UPDATED_WINDOWS.find((entry) => entry.id === filters.updated)
     const cutoff = window?.days ? Date.now() - window.days * DAY_MS : null
     return documents.filter((result) => {
@@ -226,7 +230,7 @@ export function KnowledgeSearchResults({
       }
       return true
     })
-  }, [documents, showFilters, filters.source, filters.updated])
+  }, [documents, filtersActive, filters.source, filters.updated])
 
   const failure = basesError ?? error
   if (failure) {
@@ -239,7 +243,8 @@ export function KnowledgeSearchResults({
       </p>
     )
   }
-  if (isPending || (isFetching && !results)) {
+  /** Kept results belong to the previous query; a new query shows its own state. */
+  if (isPending || isPlaceholderData || (isFetching && !results)) {
     return <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>Searching…</p>
   }
 

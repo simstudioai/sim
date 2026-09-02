@@ -1,5 +1,5 @@
 import { createLogger, runWithRequestContext } from '@sim/logger'
-import { describeError, getErrorMessage } from '@sim/utils/errors'
+import { describeError, getErrorMessage, redactBoundParameters } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getRateLimitHeaders } from '@/lib/api/server/rate-limit-context'
@@ -133,7 +133,8 @@ export function withRouteHandler<T>(
         response = await withPermissionGroupScope(() => handler(request, context))
       } catch (error) {
         const duration = Date.now() - startTime
-        const message = getErrorMessage(error, 'Unknown error')
+        /** A query failure names its bound values in the message; they are user data. */
+        const message = redactBoundParameters(getErrorMessage(error, 'Unknown error'))
         const detail = errorDetail(error)
         if (request.signal.aborted) {
           logger.info('Client closed request', { duration, status: 499 })

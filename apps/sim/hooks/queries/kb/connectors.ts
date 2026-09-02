@@ -372,6 +372,8 @@ export const memberConnectorKeys = {
 }
 
 export const WORKSPACE_MEMBER_CONNECTORS_STALE_TIME = 30 * 1000
+/** While a connected source is still indexing for the viewer, its state is worth asking for again. */
+const WORKSPACE_MEMBER_CONNECTORS_INDEXING_POLL_MS = 5 * 1000
 
 async function fetchWorkspaceMemberConnectors(
   workspaceId: string,
@@ -394,6 +396,14 @@ export function useWorkspaceMemberConnectors(
     queryFn: ({ signal }) => fetchWorkspaceMemberConnectors(workspaceId as string, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: WORKSPACE_MEMBER_CONNECTORS_STALE_TIME,
+    refetchInterval: (query) =>
+      query.state.data?.some(
+        (connector) =>
+          connector.viewerMembership === 'connected' &&
+          (connector.memberSyncStatus === 'pending' || connector.memberSyncStatus === 'running')
+      )
+        ? WORKSPACE_MEMBER_CONNECTORS_INDEXING_POLL_MS
+        : false,
     placeholderData: keepPreviousData,
   })
 }
@@ -703,6 +713,10 @@ export function useConnectSimSearchConnector() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: connectSimSearchConnector,
+    onSuccess: (data) => {
+      /** A first connect added a connector to the base; its own list is open on the settings page. */
+      queryClient.invalidateQueries({ queryKey: connectorKeys.all(data.knowledgeBaseId) })
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })

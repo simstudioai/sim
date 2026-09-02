@@ -23,6 +23,9 @@ vi.mock('nuqs', () => ({
 vi.mock('@/hooks/use-debounced-search-setter', () => ({
   useDebouncedSearchSetter: (write: (value: string) => void) => write,
 }))
+vi.mock('@/hooks/queries/workspace', () => ({
+  useWorkspacePermissionsQuery: () => ({ data: { viewer: { isAdmin: true } } }),
+}))
 vi.mock('@/hooks/use-permission-config', () => ({
   usePermissionConfig: () => ({
     integrationAvailability: new Map([
@@ -77,13 +80,15 @@ vi.mock('@/lib/sim-search/connectors', () => {
     searchConnectorUnavailableReason: (
       candidate: { blockType: string; meta: { name: string } },
       availability: ReadonlyMap<string, { oauthAvailable: boolean }>,
-      memberAccessAvailable: boolean
+      context: { memberAccessAvailable: boolean; hasConnection: boolean; canCreate: boolean }
     ) =>
       !isSearchConnectorAvailable(candidate, availability)
         ? `${candidate.meta.name} is unavailable in this deployment`
-        : memberAccessAvailable
-          ? null
-          : 'Per-member access is not available in this workspace',
+        : !context.memberAccessAvailable
+          ? 'Per-member access is not available in this workspace'
+          : !context.hasConnection && !context.canCreate
+            ? `Ask a workspace admin to connect ${candidate.meta.name} first`
+            : null,
     SEARCH_CONNECTORS: [
       connector('google_drive', 'Google Drive', 'Sync Drive files', true),
       connector('confluence', 'Confluence', 'Sync Confluence pages', false),

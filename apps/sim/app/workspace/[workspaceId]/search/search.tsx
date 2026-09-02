@@ -31,6 +31,7 @@ import {
   useWorkspaceMemberConnectors,
   type WorkspaceMemberConnector,
 } from '@/hooks/queries/kb/connectors'
+import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import {
   CONNECTABLE_MEMBERSHIPS,
@@ -129,6 +130,9 @@ export function Search() {
    * one and the memberships are not fetched.
    */
   const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId)
+  /** The first connect of a source turns it on for the workspace, which takes an admin. */
+  const canCreate = workspacePermissions?.viewer?.isAdmin ?? false
 
   const [searchTerm, setSearchTermParam] = useQueryState(connectorSearchParam.key, {
     ...connectorSearchParam.parser,
@@ -242,7 +246,11 @@ export function Search() {
                       unavailableReason={searchConnectorUnavailableReason(
                         connector,
                         integrationAvailability,
-                        memberAccessAvailable
+                        {
+                          memberAccessAvailable,
+                          hasConnection: connection !== undefined,
+                          canCreate,
+                        }
                       )}
                       waiting={
                         connection

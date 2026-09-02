@@ -18,6 +18,7 @@ import {
   useWorkspaceMemberConnectors,
   type WorkspaceMemberConnector,
 } from '@/hooks/queries/kb/connectors'
+import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { CONNECTABLE_MEMBERSHIPS, useMemberEnrollment } from '@/hooks/use-member-enrollment'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -145,6 +146,9 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
    * off, a connect is refused, so the chips say so instead of offering one.
    */
   const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId)
+  /** The first connect of a source turns it on for the workspace, which takes an admin. */
+  const canCreate = workspacePermissions?.viewer?.isAdmin ?? false
   const { data: memberConnectorRows } = useWorkspaceMemberConnectors(workspaceId, {
     enabled: memberAccessAvailable,
   })
@@ -198,7 +202,7 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
               unavailableReason={searchConnectorUnavailableReason(
                 connector,
                 integrationAvailability,
-                memberAccessAvailable
+                { memberAccessAvailable, hasConnection: connection !== undefined, canCreate }
               )}
               waiting={
                 connection ? isAwaiting(connection.connectorId) : isAwaitingSource(connector.type)
