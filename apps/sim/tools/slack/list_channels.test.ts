@@ -120,7 +120,7 @@ describe('Slack list channels', () => {
   })
 
   it('keeps DM access and the private-channel toggle credential-aware', async () => {
-    fetchMock.mockResolvedValue(
+    fetchMock.mockImplementation(async () =>
       slackResponse({ ok: true, channels: [], response_metadata: { next_cursor: '' } })
     )
 
