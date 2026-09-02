@@ -21,6 +21,12 @@ const mocks = vi.hoisted(() => ({
   deleteRow: vi.fn(),
   deleteRows: vi.fn(),
   upsertRow: vi.fn(),
+  listFolders: vi.fn(),
+  createFolder: vi.fn(),
+  updateFolder: vi.fn(),
+  deleteFolder: vi.fn(),
+  restoreFolder: vi.fn(),
+  move: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/principals/executor', () => ({
@@ -40,6 +46,12 @@ vi.mock('@/lib/internal/table/operations', () => ({
   executeTableDeleteRow: mocks.deleteRow,
   executeTableDeleteRows: mocks.deleteRows,
   executeTableUpsertRow: mocks.upsertRow,
+  executeTableListFolders: mocks.listFolders,
+  executeTableCreateFolder: mocks.createFolder,
+  executeTableUpdateFolder: mocks.updateFolder,
+  executeTableDeleteFolder: mocks.deleteFolder,
+  executeTableRestoreFolder: mocks.restoreFolder,
+  executeTableMove: mocks.move,
 }))
 
 import { executeTableTool } from '@/lib/internal/table/execute-tool'
@@ -184,7 +196,46 @@ const CASES: Case[] = [
     operation: 'upsertRow',
     tableId: 'table-1',
   },
+  {
+    toolId: 'table_list_folders',
+    input: { path: '/Reports', recursive: true, depth: 2 },
+    operation: 'listFolders',
+  },
+  {
+    toolId: 'table_create_folder',
+    input: { path: '/Reports/Q3' },
+    operation: 'createFolder',
+  },
+  {
+    toolId: 'table_update_folder',
+    input: { path: '/Reports/Q3', destinationPath: '/Archive/Q3' },
+    operation: 'updateFolder',
+  },
+  {
+    toolId: 'table_delete_folder',
+    input: { path: '/Reports', recursive: false },
+    operation: 'deleteFolder',
+  },
+  {
+    toolId: 'table_restore_folder',
+    input: { path: '/Reports/Q3' },
+    operation: 'restoreFolder',
+  },
+  {
+    toolId: 'table_move',
+    input: { tableId: 'table-1', folderPath: '/Reports' },
+    operation: 'move',
+    tableId: 'table-1',
+  },
 ]
+
+const WIRE_FOLDER = {
+  name: 'Q3',
+  path: '/Reports/Q3',
+  parentPath: '/Reports',
+  createdAt: '2026-08-27T00:00:00.000Z',
+  updatedAt: '2026-08-27T00:00:00.000Z',
+}
 
 describe('executeTableTool', () => {
   beforeEach(() => {
@@ -259,6 +310,40 @@ describe('executeTableTool', () => {
           operation: 'insert',
           message: 'Row inserted successfully',
         },
+      },
+    })
+    mocks.listFolders.mockResolvedValue({
+      body: {
+        success: true,
+        data: { path: '/Reports', folders: [{ ...WIRE_FOLDER, depth: 1 }], truncated: false },
+      },
+    })
+    mocks.createFolder.mockResolvedValue({
+      body: { success: true, data: { folder: WIRE_FOLDER } },
+    })
+    mocks.updateFolder.mockResolvedValue({
+      body: { success: true, data: { folder: WIRE_FOLDER, previousPath: '/Reports/Q3' } },
+    })
+    mocks.deleteFolder.mockResolvedValue({
+      body: {
+        success: true,
+        data: { path: '/Reports', deleted: true, deletedItems: { folders: 1, tables: 2 } },
+      },
+    })
+    mocks.restoreFolder.mockResolvedValue({
+      body: {
+        success: true,
+        data: {
+          folder: WIRE_FOLDER,
+          requestedPath: '/Reports/Q3',
+          restoredItems: { folders: 1, tables: 2 },
+        },
+      },
+    })
+    mocks.move.mockResolvedValue({
+      body: {
+        success: true,
+        data: { tableId: 'table-1', name: 'Contacts', folderPath: '/Reports' },
       },
     })
   })
@@ -378,5 +463,114 @@ describe('executeTableTool', () => {
       error: 'Unknown sort column "Missing"',
       code: 'INVALID_ORDER',
     })
+  })
+
+  it('parses a folder tool against its standalone schemas', async () => {
+    const response = await executeTableTool({
+      toolId: 'table_create_folder',
+      input: { path: 'Reports/Q3' },
+      headers: new Headers(),
+      context: CONTEXT,
+      requestId: 'request-1',
+    })
+
+    /* A missing leading slash is normalized before validation, not rejected. */
+    expect(response.status).toBe(200)
+    expect(mocks.createFolder).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/Reports/Q3' }),
+      expect.anything()
+    )
+  })
+
+  it('rejects a folder path that is not canonical', async () => {
+    const response = await executeTableTool({
+      toolId: 'table_delete_folder',
+      input: { path: '/Reports/' },
+      headers: new Headers(),
+      context: CONTEXT,
+      requestId: 'request-1',
+    })
+
+    expect(response.status).toBe(400)
+    expect(mocks.deleteFolder).not.toHaveBeenCalled()
+  })
+
+  it('refuses to mutate the workspace root', async () => {
+    const response = await executeTableTool({
+      toolId: 'table_delete_folder',
+      input: { path: '/' },
+      headers: new Headers(),
+      context: CONTEXT,
+      requestId: 'request-1',
+    })
+
+    expect(response.status).toBe(400)
+    expect(mocks.deleteFolder).not.toHaveBeenCalled()
+  })
+
+  it('validates a folder result against its response schema', async () => {
+    mocks.listFolders.mockResolvedValue({
+      body: { success: true, data: { path: '/Reports', folders: [{ name: 'Q3' }] } },
+    })
+
+    const response = await executeTableTool({
+      toolId: 'table_list_folders',
+      input: { path: '/Reports' },
+      headers: new Headers(),
+      context: CONTEXT,
+      requestId: 'request-1',
+    })
+
+    expect(response.status).toBe(500)
+  })
+
+  it('leaves a folder tool unscoped, because it addresses no table', async () => {
+    await executeTableTool({
+      toolId: 'table_list_folders',
+      input: { path: '/Reports' },
+      headers: new Headers(),
+      context: CONTEXT,
+      requestId: 'request-1',
+    })
+
+    expect(mocks.createPrincipal).toHaveBeenCalledWith({
+      context: CONTEXT,
+      audience: 'sim:tables',
+    })
+  })
+
+  it('scopes a move to its table without demanding a caller-asserted workspace', async () => {
+    /*
+     * `table_move` sends no workspaceId — the workspace is the principal's — so
+     * scoping it through `getTableContract`, whose query requires one, rejected
+     * every move as malformed before it reached the operation.
+     */
+    const response = await executeTableTool({
+      toolId: 'table_move',
+      input: { tableId: 'table-1', folderPath: '/Reports' },
+      headers: new Headers(),
+      context: CONTEXT,
+      requestId: 'request-1',
+    })
+
+    expect(response.status).toBe(200)
+    expect(mocks.createPrincipal).toHaveBeenCalledWith({
+      context: CONTEXT,
+      audience: 'sim:tables',
+      resourceScope: { tableId: 'table-1' },
+    })
+  })
+
+  it('rejects a move that names no table before minting a delegation', async () => {
+    const response = await executeTableTool({
+      toolId: 'table_move',
+      input: { folderPath: '/Reports' },
+      headers: new Headers(),
+      context: CONTEXT,
+      requestId: 'request-1',
+    })
+
+    expect(response.status).toBe(400)
+    expect(mocks.createPrincipal).not.toHaveBeenCalled()
   })
 })

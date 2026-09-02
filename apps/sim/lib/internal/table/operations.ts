@@ -1,4 +1,5 @@
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type { folder } from '@sim/db/schema'
 import type { ContractBody, ContractQuery } from '@/lib/api/contracts'
 import type {
   createTableContract,
@@ -14,6 +15,21 @@ import type {
   upsertTableRowContract,
 } from '@/lib/api/contracts/tables'
 import {
+  type CreateTableFolderToolBody,
+  DEFAULT_TABLE_FOLDER_LIST_LIMIT,
+  type DeleteTableFolderToolBody,
+  type ListTableFoldersToolBody,
+  type MoveTableToolBody,
+  type RestoreTableFolderToolBody,
+  type UpdateTableFolderToolBody,
+} from '@/lib/api/contracts/tools/table'
+import {
+  type FolderPathIndex,
+  type FolderPathView,
+  ROOT_FOLDER_PATH,
+  toFolderPathView,
+} from '@/lib/folders/paths'
+import {
   presentCreatedTable,
   presentNamedTableQueryRow,
   presentNamedTableRow,
@@ -25,6 +41,13 @@ import {
   tableToolRequestsProvenance,
 } from '@/lib/internal/table/provenance'
 import type { Filter, RowData, Sort, SortSpec, TablePredicate, TableSchema } from '@/lib/table'
+import {
+  createTableFolderUseCase,
+  deleteTableFolderUseCase,
+  listTableFoldersUseCase,
+  restoreTableFolderUseCase,
+  updateTableFolderUseCase,
+} from '@/lib/table/application/folders'
 import {
   createTableRows,
   deleteTableRow,
@@ -39,6 +62,7 @@ import {
   createTableUseCase,
   listTableDefinitionsUseCase,
   readTableDetailsUseCase,
+  updateTableUseCase,
 } from '@/lib/table/application/tables'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { isTablePredicate } from '@/lib/table/query-builder/converters'
@@ -473,5 +497,177 @@ export async function executeTableUpsertRow(
       },
     },
     provenance: result.secretProvenance,
+  })
+}
+
+/**
+ * Projects a stored folder row onto the canonical path view the folder tools
+ * return. The path comes from the index rather than the row, because a folder's
+ * path is a property of its ancestry and the row holds only its own name.
+ */
+function presentTableFolder(
+  row: Pick<typeof folder.$inferSelect, 'id' | 'name' | 'createdAt' | 'updatedAt'>,
+  index: FolderPathIndex<typeof folder.$inferSelect>
+): FolderPathView {
+  const path = index.pathById.get(row.id)
+  if (!path) throw new Error('Folder is missing from the active folder tree')
+  return toFolderPathView(row, path)
+}
+
+export async function executeTableListFolders(
+  body: ListTableFoldersToolBody,
+  context: TableToolOperationContext
+): Promise<TableToolOperationResult> {
+  const path = body.path ?? ROOT_FOLDER_PATH
+  const result = await listTableFoldersUseCase.execute({
+    principal: context.principal,
+    input: {
+      workspaceId: context.principal.workspaceId,
+      parentPath: path,
+      search: body.search,
+      /*
+       * A depth asks to walk deeper, so it implies the walk. Reading `depth: 3`
+       * without `recursive` as "direct children only" would answer a question
+       * nobody asked and report success doing it.
+       */
+      recursive: body.recursive === true || body.depth !== undefined,
+      maxDepth: body.depth,
+    },
+  })
+
+  const limit = body.limit ?? DEFAULT_TABLE_FOLDER_LIST_LIMIT
+  const folders = result.folders.map((row) => ({
+    ...presentTableFolder(row, result.index),
+    /*
+     * A direct child is depth 1. `depthById` is absent only for the unscoped
+     * legacy listing, which this tool never asks for — it always sends a path.
+     */
+    depth: result.depthById?.get(row.id) ?? 1,
+  }))
+
+  return complete(context, {
+    body: {
+      success: true,
+      data: {
+        path,
+        folders: folders.slice(0, limit),
+        truncated: folders.length > limit,
+      },
+    },
+  })
+}
+
+export async function executeTableCreateFolder(
+  body: CreateTableFolderToolBody,
+  context: TableToolOperationContext
+): Promise<TableToolOperationResult> {
+  const result = await createTableFolderUseCase.execute({
+    principal: context.principal,
+    input: { workspaceId: context.principal.workspaceId, path: body.path },
+  })
+  return complete(context, {
+    body: { success: true, data: { folder: presentTableFolder(result.folder, result.index) } },
+  })
+}
+
+export async function executeTableUpdateFolder(
+  body: UpdateTableFolderToolBody,
+  context: TableToolOperationContext
+): Promise<TableToolOperationResult> {
+  const result = await updateTableFolderUseCase.execute({
+    principal: context.principal,
+    input: {
+      workspaceId: context.principal.workspaceId,
+      path: body.path,
+      destinationPath: body.destinationPath,
+    },
+  })
+  return complete(context, {
+    body: {
+      success: true,
+      data: {
+        folder: presentTableFolder(result.folder, result.index),
+        previousPath: result.sourcePath,
+      },
+    },
+  })
+}
+
+export async function executeTableDeleteFolder(
+  body: DeleteTableFolderToolBody,
+  context: TableToolOperationContext
+): Promise<TableToolOperationResult> {
+  const result = await deleteTableFolderUseCase.execute({
+    principal: context.principal,
+    input: {
+      workspaceId: context.principal.workspaceId,
+      path: body.path,
+      /*
+       * The use case takes a required boolean, and the default is off: a
+       * non-empty folder refuses to delete unless someone asked for the
+       * cascade. Absent must therefore become `false`, never "unspecified".
+       */
+      recursive: body.recursive === true,
+    },
+  })
+  return complete(context, {
+    body: {
+      success: true,
+      data: { path: result.path, deleted: result.deleted, deletedItems: result.deletedItems },
+    },
+  })
+}
+
+export async function executeTableRestoreFolder(
+  body: RestoreTableFolderToolBody,
+  context: TableToolOperationContext
+): Promise<TableToolOperationResult> {
+  const result = await restoreTableFolderUseCase.execute({
+    principal: context.principal,
+    input: { workspaceId: context.principal.workspaceId, path: body.path },
+  })
+  return complete(context, {
+    body: {
+      success: true,
+      data: {
+        folder: presentTableFolder(result.folder, result.index),
+        requestedPath: result.requestedPath,
+        restoredItems: result.restoredItems,
+      },
+    },
+  })
+}
+
+export async function executeTableMove(
+  body: MoveTableToolBody,
+  context: TableToolOperationContext
+): Promise<TableToolOperationResult> {
+  const result = await updateTableUseCase.execute({
+    principal: context.principal,
+    input: {
+      tableId: body.tableId,
+      workspaceId: context.principal.workspaceId,
+      folderPath: body.folderPath ?? ROOT_FOLDER_PATH,
+    },
+  })
+  /*
+   * `updateTableUseCase` collects a failure rather than throwing, so the caller
+   * can report which fields it did apply. Only `folderPath` is ever set here,
+   * so a failure always means nothing was applied and the honest answer is to
+   * rethrow it rather than present a move that did not happen.
+   */
+  if (result.failure) throw result.failure
+  if (!result.table || result.folderPath === null) {
+    throw new Error('Moved table is missing from the authoritative result')
+  }
+  return complete(context, {
+    body: {
+      success: true,
+      data: {
+        tableId: result.table.id,
+        name: result.table.name,
+        folderPath: result.folderPath,
+      },
+    },
   })
 }
