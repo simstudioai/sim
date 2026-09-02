@@ -182,8 +182,8 @@ export const v1KnowledgeSearchBodySchema = z
     topK: z.number().min(1).max(100).default(10),
     tagFilters: z.array(v1SearchTagFilterSchema).optional(),
     /**
-     * `vector` (default) is semantic-only retrieval; `hybrid` fuses a full-text
-     * leg with it by reciprocal rank.
+     * `hybrid` (default) fuses a full-text leg with semantic retrieval by
+     * reciprocal rank; `vector` is semantic-only.
      */
     searchMode: knowledgeSearchModeSchema,
   })

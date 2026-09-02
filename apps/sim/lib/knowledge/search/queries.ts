@@ -5,6 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
+import { applyRecencyBoost } from '@/lib/knowledge/search/recency'
 import {
   coerceTagFilterValue,
   escapeLikePattern,
@@ -129,6 +130,8 @@ export interface SearchResult {
   boolean3: boolean | null
   distance: number
   knowledgeBaseId: string
+  /** When the source last changed the document; NULL for uploads and sources that do not say. */
+  sourceModifiedAt: Date | null
 }
 
 export interface SearchParams {
@@ -203,6 +206,7 @@ const getSearchResultFields = (distanceExpr: any) => ({
   boolean3: embedding.boolean3,
   distance: distanceExpr,
   knowledgeBaseId: embedding.knowledgeBaseId,
+  sourceModifiedAt: document.sourceModifiedAt,
 })
 
 /**
@@ -804,7 +808,7 @@ export async function executeKnowledgeSearch(
     : handleVectorOnlySearch({ knowledgeBaseIds, topK, queryVector, distanceThreshold, access })
 
   if (searchMode === 'vector') {
-    return await vectorSearch
+    return applyRecencyBoost(await vectorSearch)
   }
 
   /**
@@ -833,5 +837,5 @@ export async function executeKnowledgeSearch(
    * threshold is precisely what a caller opted into hybrid to recover, and at
    * `topK: 1` something has to win.
    */
-  return fuseByReciprocalRank([keywordResults, vectorResults], topK)
+  return applyRecencyBoost(fuseByReciprocalRank([keywordResults, vectorResults], topK))
 }

@@ -164,10 +164,10 @@ export const KnowledgeBlock: BlockConfig = {
       title: 'Retrieval Mode',
       type: 'dropdown',
       options: [
-        { label: 'Vector only', id: 'vector' },
         { label: 'Hybrid (full-text + vector)', id: 'hybrid' },
+        { label: 'Vector only', id: 'vector' },
       ],
-      value: () => 'vector',
+      value: () => 'hybrid',
       mode: 'advanced',
       condition: { field: 'operation', value: 'search' },
     },

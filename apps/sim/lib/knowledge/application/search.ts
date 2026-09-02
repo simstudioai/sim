@@ -302,7 +302,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       knowledgeBaseIds,
       topK: candidateTopK,
       access,
-      searchMode: input.searchMode ?? 'vector',
+      searchMode: input.searchMode ?? 'hybrid',
       query: input.query,
       queryVector: hasQuery
         ? JSON.stringify((await queryEmbeddingPromise)?.embedding ?? null)

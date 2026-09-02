@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { EMPTY_ACL, WORKSPACE_ACL } from '@/lib/knowledge/access/tokens'
+import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { StorageService } from '@/lib/uploads'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
@@ -214,6 +215,7 @@ function buildSkippedDocumentRow(
     externalId: extDoc.externalId,
     contentHash: extDoc.contentHash,
     sourceUrl: extDoc.sourceUrl ?? null,
+    sourceModifiedAt: resolveSourceModifiedAt(extDoc.metadata),
     acl: insertedDocumentAcl(access),
     ...tagValues,
     uploadedAt: new Date(),
@@ -440,6 +442,7 @@ export async function addDocument(
         externalId: extDoc.externalId,
         contentHash: extDoc.contentHash,
         sourceUrl: extDoc.sourceUrl ?? null,
+        sourceModifiedAt: resolveSourceModifiedAt(extDoc.metadata),
         acl: insertedDocumentAcl(access),
         ...tagValues,
         uploadedAt: new Date(),
@@ -540,6 +543,7 @@ export async function updateDocument(
           mimeType: artifact.mimeType,
           contentHash: extDoc.contentHash,
           sourceUrl: extDoc.sourceUrl ?? null,
+          sourceModifiedAt: resolveSourceModifiedAt(extDoc.metadata),
           ...tagValues,
           processingStatus: 'pending',
           /** Prevents an older delayed worker from claiming newly stored content. */
