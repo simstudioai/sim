@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { CLI_VERSION } from '../version'
 import { announceUpdateIfAvailable, resetUpdateCheck, upgradeCommand } from './check'
 
 /** A global install, which is the only shape that gets advised at all. */
@@ -13,11 +14,20 @@ const INSTALLED = '/usr/local/lib/node_modules/sim/dist/index.js'
 let configDir: string
 let notices: string[]
 let fetched: URL[]
+let inits: RequestInit[]
 
 /** Answers the dist-tags request the way the registry does. */
-function stubRegistry(tags: Record<string, string> | 'reject' | 'not-found' | 'html'): void {
-  vi.stubGlobal('fetch', (input: URL) => {
+function stubRegistry(
+  tags: Record<string, unknown> | 'reject' | 'not-found' | 'html' | 'oversized'
+): void {
+  vi.stubGlobal('fetch', (input: URL, init: RequestInit) => {
     fetched.push(input)
+    inits.push(init)
+    if (tags === 'oversized') {
+      return Promise.resolve(
+        Response.json({ latest: '2.1.5' }, { headers: { 'content-length': String(1024 * 1024) } })
+      )
+    }
     if (tags === 'reject') return Promise.reject(new Error('getaddrinfo ENOTFOUND'))
     if (tags === 'not-found') return Promise.resolve(new Response('', { status: 404 }))
     if (tags === 'html') return Promise.resolve(new Response('<html>nope</html>', { status: 200 }))
@@ -46,11 +56,14 @@ beforeEach(() => {
   process.env.SIM_CONFIG_DIR = configDir
   notices = []
   fetched = []
+  inits = []
   stubRegistry({ latest: '2.1.5' })
 })
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  // `= undefined` would store the literal string "undefined", leaving later
+  // tests pointed at a relative `./undefined` config directory.
   process.env.SIM_CONFIG_DIR = undefined
   rmSync(configDir, { recursive: true, force: true })
 })
@@ -78,20 +91,49 @@ describe('announcing a newer release', () => {
     expect(notices).toEqual([])
   })
 
-  it('writes nothing to stdout, which may be a pipeline', async () => {
-    const originalWrite = process.stdout.write
-    const stdout: string[] = []
+  it('writes through the real default: stderr yes, stdout never', async () => {
+    // Deliberately without the `write` override, so the production default is
+    // the thing under test. stdout may be a pipeline feeding jq.
+    const realOut = process.stdout.write
+    const realErr = process.stderr.write
+    const seen = { out: [] as string[], err: [] as string[] }
     process.stdout.write = ((chunk: string) => {
-      stdout.push(String(chunk))
+      seen.out.push(String(chunk))
       return true
     }) as typeof process.stdout.write
+    process.stderr.write = ((chunk: string) => {
+      seen.err.push(String(chunk))
+      return true
+    }) as typeof process.stderr.write
     try {
-      await run()
+      await announceUpdateIfAvailable({
+        currentVersion: '2.1.2',
+        env: {},
+        isTty: true,
+        modulePath: INSTALLED,
+      })
     } finally {
-      process.stdout.write = originalWrite
+      process.stdout.write = realOut
+      process.stderr.write = realErr
     }
-    expect(notices).toHaveLength(1)
-    expect(stdout).toEqual([])
+    expect(seen.out).toEqual([])
+    expect(seen.err.join('')).toContain('Update available: sim 2.1.2 → 2.1.5')
+  })
+
+  it('sends only its own version, and refuses to follow a redirect', async () => {
+    await run()
+    const headers = inits[0]?.headers as Record<string, string>
+    // The reduced agent is the privacy property: the exported USER_AGENT in
+    // version.ts also carries node version, platform and arch.
+    expect(headers['user-agent']).toBe(`sim-cli/${CLI_VERSION}`)
+    expect(headers.accept).toBe('application/json')
+    expect(headers.authorization).toBeUndefined()
+    expect(inits[0]?.redirect).toBe('error')
+  })
+
+  it('bounds the request so a hung registry cannot stall the command', async () => {
+    await run()
+    expect(inits[0]?.signal).toBeInstanceOf(AbortSignal)
   })
 })
 
@@ -113,20 +155,36 @@ describe('when the notice is suppressed', () => {
     expect(notices).toEqual([])
   })
 
-  it('says nothing in CI, even where CI allocates a terminal', async () => {
-    await run({ env: { BUILDKITE: 'true' } })
+  it.each(['CI', 'GITHUB_ACTIONS', 'JENKINS_URL', 'TEAMCITY_VERSION', 'BUILDKITE'])(
+    'says nothing when %s is set, even where CI allocates a terminal',
+    async (variable) => {
+      await run({ env: { [variable]: 'true' } })
+      expect(fetched).toEqual([])
+      expect(notices).toEqual([])
+    }
+  )
+
+  it.each([
+    '/Users/x/.npm/_npx/a1b2/node_modules/sim/dist/index.js',
+    'C:\\Users\\x\\AppData\\Local\\npm-cache\\_npx\\a1b2\\node_modules\\sim\\dist\\index.js',
+  ])('says nothing under npx, which resolves the tag on every run (%s)', async (modulePath) => {
+    await run({ modulePath })
     expect(notices).toEqual([])
   })
 
-  it('says nothing under npx, which resolves the tag on every run', async () => {
-    await run({ modulePath: '/Users/x/.npm/_npx/a1b2/node_modules/sim/dist/index.js' })
-    expect(notices).toEqual([])
-  })
-
-  it('says nothing from a checkout, whose manifest trails npm by design', async () => {
-    await run({ modulePath: '/Users/x/sim/packages/sim-cli/dist/index.js' })
-    expect(notices).toEqual([])
-  })
+  it.each([
+    '/Users/x/sim/packages/sim-cli/dist/index.js',
+    // Windows, and mixed case: a checkout is a checkout on a case-insensitive
+    // volume too, and this is the guard that stops every Sim engineer being
+    // nagged daily by their own build.
+    'C:\\Users\\x\\Sim\\Packages\\Sim-CLI\\dist\\index.js',
+  ])(
+    'says nothing from a checkout, whose manifest trails npm by design (%s)',
+    async (modulePath) => {
+      await run({ modulePath })
+      expect(notices).toEqual([])
+    }
+  )
 
   it('says nothing to a prerelease install', async () => {
     stubRegistry({ latest: '2.1.5', staging: '2.1.6-preview.812.1' })
@@ -157,8 +215,10 @@ describe('the once-a-day cache', () => {
       checkedAt: '2026-09-02T10:00:00.000Z',
       latestVersion: '2.1.5',
     })
-    // Not secret, but not world-writable either.
-    expect(statSync(cachePath()).mode & 0o777).toBe(0o644)
+    // Assert the property, not the literal mode: writeFileSync's mode is
+    // masked by the ambient umask, so an exact comparison fails under
+    // `umask 077` for reasons that have nothing to do with this code.
+    expect(statSync(cachePath()).mode & 0o022).toBe(0)
   })
 
   it('does not contact the registry again within the day', async () => {
@@ -221,6 +281,22 @@ describe('when the registry does not answer', () => {
     expect(notices).toEqual([])
   })
 
+  it.each([
+    ['an empty object', {} as Record<string, unknown>],
+    ['a non-string tag value', { latest: 42 } as Record<string, unknown>],
+    ['a nested object where a version belongs', { latest: { version: '9.9.9' } }],
+  ])('stays silent when the payload carries %s', async (_label, payload) => {
+    stubRegistry(payload)
+    await run()
+    expect(notices).toEqual([])
+  })
+
+  it('refuses a body far larger than this endpoint could legitimately return', async () => {
+    stubRegistry('oversized')
+    await run()
+    expect(notices).toEqual([])
+  })
+
   it('stays silent when the tag is missing or is not a version', async () => {
     stubRegistry({ staging: '2.1.6-preview.1.1' })
     await run()
@@ -244,9 +320,22 @@ describe('when the registry does not answer', () => {
     expect(fetched.map(String)).toEqual(['https://npm.internal/api/npm/-/package/sim/dist-tags'])
   })
 
-  it('ignores a mirror setting that is not an http url', async () => {
-    await run({ env: { npm_config_registry: 'not a url' } })
+  it.each([
+    ['a value that is not a url', 'not a url'],
+    ['a non-http protocol', 'file:///var/tmp/registry'],
+    ['whitespace', '   '],
+  ])('falls back to the default registry for %s', async (_label, configured) => {
+    await run({ env: { npm_config_registry: configured } })
     expect(fetched.map(String)).toEqual(['https://registry.npmjs.org/-/package/sim/dist-tags'])
+  })
+
+  it("keeps a token-authenticated mirror's own path and query", async () => {
+    // Artifactory and Nexus bases carry both. Resolving the path as a relative
+    // URL would drop them and ask the mirror a question it answers with a 404.
+    await run({ env: { npm_config_registry: 'https://npm.internal/api/npm/repo?token=abc' } })
+    expect(fetched.map(String)).toEqual([
+      'https://npm.internal/api/npm/repo/-/package/sim/dist-tags?token=abc',
+    ])
   })
 })
 

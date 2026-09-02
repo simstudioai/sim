@@ -133,10 +133,21 @@ Update available: sim 2.1.2 → 2.1.5. Run: npm install -g sim@latest
 ```
 
 The request carries the CLI version and nothing else — no API key, no workspace,
-no command. It is skipped entirely when stderr is redirected, in CI, under
-`npx`, and for prerelease installs, so scripted output is never affected. Set
-`SIM_NO_UPDATE_CHECK=1` to turn it off, and `npm_config_registry` to ask a
-mirror instead.
+no command — and it never follows a redirect away from the registry you asked.
+
+The notice is skipped entirely when:
+
+- `SIM_NO_UPDATE_CHECK` is set to anything but `0` or `false`
+- stderr is not a terminal, so redirected and piped output is never affected
+- a CI environment variable is present (`CI`, `GITHUB_ACTIONS`, `JENKINS_URL`,
+  `TEAMCITY_VERSION`, `BUILDKITE`)
+- the CLI is running under `npx`, which resolves the newest version every time
+- the CLI is running from a checkout of the sim repository, whose version
+  deliberately trails the published one
+- the installed version is a prerelease from the `staging` or `dev` channel
+
+Set `npm_config_registry` to ask a mirror instead; its path and query are
+preserved, so a token-authenticated Artifactory or Nexus base works.
 
 Node ignores `HTTPS_PROXY` unless you also set `NODE_USE_ENV_PROXY=1`, and only
 from Node 22.21 and 24.5. The CLI warns when a proxy is configured but will not

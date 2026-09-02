@@ -57,6 +57,17 @@ describe('precedence', () => {
     expect(order('2.1.3-preview.44.1', '2.1.3')).toBe(-1)
   })
 
+  it('ranks a release above a prerelease of the same triple', () => {
+    // The mirror of the case above, and a distinct branch: it is the only way
+    // to reach the comparison with an empty prerelease list on the left.
+    expect(order('2.1.3', '2.1.3-preview.44.1')).toBe(1)
+  })
+
+  it('orders two alphanumeric identifiers by ASCII', () => {
+    expect(order('2.1.3-alpha', '2.1.3-beta')).toBe(-1)
+    expect(order('2.1.3-beta', '2.1.3-alpha')).toBe(1)
+  })
+
   it('compares numeric identifiers as numbers, not as text', () => {
     // The case a string comparison gets backwards: run 9 precedes run 44, but
     // "44" sorts before "9" lexicographically.
@@ -65,15 +76,18 @@ describe('precedence', () => {
 
   it('ranks a numeric identifier below an alphanumeric one', () => {
     expect(order('2.1.3-1', '2.1.3-alpha')).toBe(-1)
+    expect(order('2.1.3-alpha', '2.1.3-1')).toBe(1)
   })
 
   it('ranks a shorter identifier list below a longer one sharing its prefix', () => {
     expect(order('2.1.3-preview.1', '2.1.3-preview.1.2')).toBe(-1)
   })
 
-  it('never advises a stable version that is older than an installed prerelease', () => {
-    // Comparison is channel-scoped precisely so this arrangement cannot reach a
-    // user as "upgrade": 2.1.2 is genuinely older than 2.1.3-preview.44.1.
+  it('ranks a stable release below a prerelease of a later patch', () => {
+    // 2.1.2 really is older than 2.1.3-preview.44.1. The guarantee that this
+    // never reaches a user as "upgrade" lives in check.ts, which returns before
+    // comparing anything on a non-stable channel — see check.test.ts's "says
+    // nothing to a prerelease install".
     expect(order('2.1.2', '2.1.3-preview.44.1')).toBe(-1)
   })
 })

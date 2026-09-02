@@ -264,8 +264,8 @@ The main environment variables are:
 Once a day, at an interactive terminal, `sim` asks `registry.npmjs.org` which
 version is published under the tag it was installed from, and prints one line on
 stderr when a newer one exists. It sends nothing but its own version, never a
-key, and stays quiet when stderr is not a terminal, in CI, and under `npx`. Set
-`SIM_NO_UPDATE_CHECK=1` to turn it off.
+key. Set `SIM_NO_UPDATE_CHECK=1` to turn it off; the full list of cases where it
+stays quiet is in the [configuration guide](https://docs.sim.ai/cli/configuration).
 
 ## Documentation
 

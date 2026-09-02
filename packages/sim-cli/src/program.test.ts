@@ -193,4 +193,30 @@ describe('the update check', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  /**
+   * The positive half, and the one that matters: without it the hook can be
+   * deleted from `buildProgram` and every other test still passes.
+   *
+   * It asserts registration rather than a resulting request, because the check
+   * suppresses itself when it is running from a checkout — and inside this
+   * suite `import.meta.url` IS a checkout, so the behavioural path is
+   * unreachable here by construction. That path is covered directly in
+   * check.test.ts and walked against the real registry from a staged global
+   * install before release.
+   */
+  it('registers the update check as a root preAction hook', async () => {
+    const program = buildProgram()
+    // Commander keeps lifecycle hooks on a private field and offers no getter,
+    // the same way `rawArgs` is read elsewhere in this file.
+    const { _lifeCycleHooks: hooks } = program as Command & {
+      _lifeCycleHooks?: Record<string, Array<(a: Command, b: Command) => unknown>>
+    }
+    const preAction = hooks?.preAction ?? []
+
+    expect(preAction).toHaveLength(1)
+    // Invoking it must resolve, never throw: it runs in front of the user's
+    // command, and a rejection here would fail the command itself.
+    await expect(preAction[0](program, program)).resolves.toBeUndefined()
+  })
 })

@@ -29,6 +29,25 @@ const REGISTRY_TIMEOUT_MS = 1000
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org'
 
 /**
+ * The published package. Named once because it appears in two unrelated places
+ * — the registry path and the upgrade command — and a rename that updated only
+ * one would leave the CLI asking about one package while advising another.
+ */
+const PACKAGE_NAME = 'sim'
+
+/** Relative to the registry root, and about a hundred bytes of response. */
+const DIST_TAGS_PATH = `-/package/${PACKAGE_NAME}/dist-tags`
+
+/**
+ * A ceiling on the response body. The endpoint answers in ~100 bytes, so this
+ * is three orders of magnitude of headroom; it exists because the host is
+ * partly environment-controlled through `npm_config_registry`, and an
+ * unbounded read from a mirror on a fast link can buffer arbitrarily much
+ * before the timeout fires.
+ */
+const MAX_RESPONSE_BYTES = 64 * 1024
+
+/**
  * Set by every CI provider worth naming. `!isTTY` already covers most of them;
  * this catches the ones that allocate a terminal anyway, such as a Buildkite
  * agent or `docker run -t`.
@@ -50,6 +69,14 @@ interface UpdateCacheEntry {
    */
   version: 1
   checkedAt: string
+  /**
+   * What the last check found, recorded so `cat ~/.sim/update-check.json`
+   * answers a support question without re-running anything.
+   *
+   * Deliberately NOT served: announcing from the cache would put the notice in
+   * front of every command for the rest of the day, and the contract is one
+   * notice per day. Only `checkedAt` decides whether the check runs.
+   */
   latestVersion: string | null
 }
 
@@ -95,31 +122,83 @@ function isEnabled(value: string | undefined): boolean {
  * to a version their own tree already contains.
  */
 function isUnadvisableInstall(modulePath: string): boolean {
-  const normalized = modulePath.replace(/\\/g, '/')
+  const normalized = normalizeModulePath(modulePath)
   return normalized.includes('/_npx/') || normalized.includes('/packages/sim-cli/')
 }
 
 /**
- * The registry to ask. `npm_config_registry` is only set when the CLI is invoked
- * through a package-manager script, so this is inconsistent by nature — but the
- * case it rescues is real: behind a mirror with `registry.npmjs.org` firewalled,
- * the default would fail forever while the mirror holds the right answer.
+ * One normalisation for every decision made about the module path.
+ *
+ * Both readers here match path fragments, and they must agree: normalising
+ * separators in one and separators-plus-case in the other silently disagrees on
+ * Windows and on case-insensitive macOS volumes, where a checkout under
+ * `...\\Packages\\Sim-Cli\\` is a checkout to one reader and a global install to
+ * the other.
+ */
+function normalizeModulePath(modulePath: string): string {
+  return modulePath.replace(/\\/g, '/').toLowerCase()
+}
+
+/**
+ * The full dist-tags URL, honouring a configured mirror.
+ *
+ * `npm_config_registry` is only set when the CLI is invoked through a
+ * package-manager script, so this is inconsistent by nature — but the case it
+ * rescues is real: behind a mirror with `registry.npmjs.org` firewalled, the
+ * default would fail forever while the mirror holds the right answer.
+ *
+ * The mirror's own path and query are preserved rather than resolved away.
+ * `new URL(relative, base)` would discard both, and a token-authenticated
+ * Artifactory or Nexus base (`https://host/api/npm/repo?token=...`) is a
+ * realistic configuration that would otherwise be silently rewritten into a
+ * request the mirror answers with a 404.
  *
  * `.npmrc` is deliberately not parsed. That is an INI format with scopes and
  * auth tokens, and reading it is where a courtesy check would start growing.
  */
-function registryBase(env: NodeJS.ProcessEnv): string {
+function registryUrl(env: NodeJS.ProcessEnv): URL {
+  const fallback = new URL(DIST_TAGS_PATH, DEFAULT_REGISTRY)
   const configured = env.npm_config_registry?.trim()
-  if (!configured) return DEFAULT_REGISTRY
+  if (!configured) return fallback
   try {
-    const url = new URL(configured)
-    if (url.protocol === 'http:' || url.protocol === 'https:') {
-      return configured.endsWith('/') ? configured : `${configured}/`
-    }
+    const base = new URL(configured)
+    if (base.protocol !== 'http:' && base.protocol !== 'https:') return fallback
+    base.pathname = `${base.pathname.replace(/\/$/, '')}/${DIST_TAGS_PATH}`
+    return base
   } catch {
     // An unparseable value is not worth reporting; the default still works.
+    return fallback
   }
-  return DEFAULT_REGISTRY
+}
+
+/**
+ * Reads a response body under a hard byte budget.
+ *
+ * `response.json()` would buffer whatever arrives, bounded only by the abort
+ * timeout — long enough for a mirror on a fast link to push far more than this
+ * endpoint could legitimately return.
+ */
+async function readCapped(response: Response, limit: number): Promise<string | null> {
+  const declared = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declared) && declared > limit) return null
+  if (!response.body) return null
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let text = ''
+  let seen = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      seen += value.byteLength
+      if (seen > limit) return null
+      text += decoder.decode(value, { stream: true })
+    }
+  } finally {
+    void reader.cancel().catch(() => {})
+  }
+  return text + decoder.decode()
 }
 
 /**
@@ -135,12 +214,17 @@ function registryBase(env: NodeJS.ProcessEnv): string {
  */
 async function fetchDistTags(env: NodeJS.ProcessEnv): Promise<Record<string, string> | null> {
   try {
-    const response = await fetch(new URL('-/package/sim/dist-tags', registryBase(env)), {
-      headers: { accept: 'application/json', 'user-agent': `sim-cli/${CLI_VERSION}` },
+    const response = await fetch(registryUrl(env), {
+      headers: { accept: 'application/json', 'user-agent': `${PACKAGE_NAME}-cli/${CLI_VERSION}` },
+      // The endpoint does not redirect in normal operation, so refusing to
+      // follow costs nothing and keeps the request on the host that was asked.
+      redirect: 'error',
       signal: AbortSignal.timeout(REGISTRY_TIMEOUT_MS),
     })
     if (!response.ok) return null
-    const body: unknown = await response.json()
+    const text = await readCapped(response, MAX_RESPONSE_BYTES)
+    if (text === null) return null
+    const body: unknown = JSON.parse(text)
     if (typeof body !== 'object' || body === null || Array.isArray(body)) return null
     // Some proxies answer with an HTML error page under a 200, so the values are
     // checked rather than assumed.
@@ -190,7 +274,9 @@ function writeCache(path: string, entry: UpdateCacheEntry): void {
     writeFileSync(path, `${JSON.stringify(entry, null, 2)}\n`, { mode: 0o644 })
   } catch {
     // A read-only home directory is ordinary in a container, and it must not
-    // stop the command the user actually ran.
+    // stop the command the user actually ran. The cost is that the throttle
+    // cannot persist there, so such an installation re-checks once per
+    // invocation instead of once per day — still bounded by the timeout.
   }
 }
 
@@ -215,8 +301,8 @@ export function upgradeCommand(
   modulePath: string = fileURLToPath(import.meta.url),
   env: NodeJS.ProcessEnv = process.env
 ): string {
-  const target = `sim@${channel}`
-  const normalized = modulePath.replace(/\\/g, '/').toLowerCase()
+  const target = `${PACKAGE_NAME}@${channel}`
+  const normalized = normalizeModulePath(modulePath)
 
   if (normalized.includes('.bun/install/global')) return `bun add -g ${target}`
   if (normalized.includes('/pnpm/') || normalized.includes('/.pnpm/')) {
@@ -277,15 +363,17 @@ export async function announceUpdateIfAvailable(options: UpdateCheckOptions = {}
 
     const tags = await fetchDistTags(env)
     const latest = tags?.[channel] ?? null
+    // Parse before persisting: the value came off the network, and nothing
+    // unvalidated should reach the disk or, later, the terminal.
+    const available = latest ? parseVersion(latest) : null
     writeCache(cachePath, {
       version: CACHE_VERSION,
       checkedAt: now.toISOString(),
-      latestVersion: latest,
+      latestVersion: available ? latest : null,
     })
-    if (!latest) return
+    if (!latest || !available) return
 
-    const available = parseVersion(latest)
-    if (!available || compareVersions(available, current) <= 0) return
+    if (compareVersions(available, current) <= 0) return
 
     announced = true
     const write = options.write ?? ((message: string) => void process.stderr.write(message))

@@ -119,10 +119,13 @@ export function compareVersions(left: ParsedVersion, right: ParsedVersion): numb
  * The dist-tag a version was published under, or null when its prerelease tag
  * is not one this project publishes.
  *
- * Knowing the channel is what keeps the comparison honest: a `-preview` install
- * is only ever compared against the `staging` tag, so there is no arrangement
- * of inputs that can advise "upgrade" to a stable version that is actually
- * older than what is already installed.
+ * The caller compares a version only against its own channel's tag. Today it
+ * acts on `latest` alone and returns early for everything else, so a `-preview`
+ * install is compared against nothing at all — which is what makes it
+ * impossible to advise "upgrade" to a stable version older than the prerelease
+ * already installed. Naming the channel rather than answering a bare
+ * is-this-stable keeps that guarantee legible, and is what a future decision to
+ * notify prerelease users would extend.
  */
 export function channelOf(version: ParsedVersion): ReleaseChannel | null {
   if (version.prerelease.length === 0) return 'latest'
