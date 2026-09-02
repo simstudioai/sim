@@ -64,12 +64,14 @@ vi.mock('@sim/emcn', () => ({
     groups,
     multiSelectValues,
     onMultiSelectChange,
+    disablePortal,
   }: {
     groups: Array<{ section?: string; items: Array<{ label: string; value: string }> }>
     multiSelectValues?: string[]
     onMultiSelectChange?: (values: string[]) => void
+    disablePortal?: boolean
   }) => (
-    <div data-chip-combobox>
+    <div data-chip-combobox data-disable-portal={disablePortal || undefined}>
       {groups.flatMap((group) =>
         group.items.map((option) => (
           <button
@@ -201,14 +203,23 @@ function outputSelect(
 function renderOutputSelect(
   selectedOutputs: string[],
   onOutputSelect = vi.fn(),
-  valueMode: 'id' | 'label' | 'public' = 'id'
+  valueMode: 'id' | 'label' | 'public' = 'id',
+  props: { size?: 'sm' | 'md'; disablePortal?: boolean } = {}
 ) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
   act(() => {
-    root?.render(outputSelect('root', selectedOutputs, onOutputSelect, valueMode))
+    root?.render(
+      <OutputSelect
+        workflowId='root'
+        selectedOutputs={selectedOutputs}
+        onOutputSelect={onOutputSelect}
+        valueMode={valueMode}
+        {...props}
+      />
+    )
   })
   return onOutputSelect
 }
@@ -253,6 +264,15 @@ describe('OutputSelect nested workflow menu', () => {
     expect(document.body.textContent).toContain('Writer')
     expect(document.body.textContent).toContain('answer')
     expect(document.body.textContent).not.toContain('Summarizer')
+  })
+
+  it('forwards inline dropdown rendering to the chip combobox', () => {
+    renderOutputSelect([], vi.fn(), 'id', { size: 'md', disablePortal: true })
+
+    expect(container.querySelector('[data-chip-combobox]')).toHaveAttribute(
+      'data-disable-portal',
+      'true'
+    )
   })
 
   it('keeps workflow-scoped values when toggling nested outputs', () => {
