@@ -79,7 +79,7 @@ export function ContentPostPage({
                 {post.title}
               </h1>
               <p
-                className='mt-4 text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em] sm:text-lg'
+                className='mt-4 text-[var(--text-body)] text-base leading-[150%] tracking-[0.02em] sm:text-lg sm:leading-7'
                 itemProp='description'
               >
                 {post.description}

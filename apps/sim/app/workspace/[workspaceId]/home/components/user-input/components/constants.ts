@@ -62,7 +62,7 @@ export interface PlusMenuHandle {
  * so the editor reads the same whether it's the chat input or inside the modal.
  */
 const FIELD_MIRROR_CLASSES = cn(
-  'm-0 box-border min-h-[24px] w-full break-words [overflow-wrap:anywhere] border-0 bg-transparent',
+  'm-0 box-border min-h-[24px] w-full [overflow-wrap:anywhere] border-0 bg-transparent',
   'px-1 py-1 font-body text-[14px] leading-[24px] tracking-[-0.015em]'
 )
 

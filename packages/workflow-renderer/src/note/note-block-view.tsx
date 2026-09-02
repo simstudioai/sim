@@ -1029,7 +1029,7 @@ export function NoteBlockView({
                   onPointerDown={(event) => recordEditPointerStart(event, 'title')}
                   onClick={(event) => startEditing(event, 'title')}
                   className={cn(
-                    'min-w-0 flex-1 cursor-text rounded-sm bg-transparent text-left outline-offset-1 focus-visible:outline-2 focus-visible:outline-current/50',
+                    'min-w-0 flex-1 cursor-text rounded-sm bg-transparent text-left',
                     !isEnabled && 'opacity-50'
                   )}
                 >
@@ -1180,7 +1180,7 @@ export function NoteBlockView({
                     aria-label='Edit note content'
                     onPointerDown={(event) => recordEditPointerStart(event, 'content')}
                     onClick={(event) => startEditing(event, 'content')}
-                    className='absolute inset-0 z-20 w-full cursor-text rounded-sm bg-transparent outline-offset-1 focus-visible:outline-2 focus-visible:outline-current/50'
+                    className='absolute inset-0 z-20 w-full cursor-text rounded-sm bg-transparent'
                   />
                 )}
                 <div

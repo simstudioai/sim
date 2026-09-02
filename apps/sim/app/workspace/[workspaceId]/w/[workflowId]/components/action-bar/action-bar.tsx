@@ -422,7 +422,7 @@ export const ActionBar = memo(
           className={cn(
             'relative flex flex-row items-center gap-[2px]',
             isSwell && [
-              'pointer-events-none h-full opacity-0 transition-opacity duration-[30ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
+              'pointer-events-none h-full opacity-0 transition-opacity [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
               'group-data-[action-menu-ready]:pointer-events-auto group-data-[action-menu-ready]:opacity-100 group-data-[action-menu-ready]:duration-100',
             ]
           )}
