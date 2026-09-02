@@ -5,16 +5,23 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@s
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
+  ConnectorSyncDeletionGuardError: class ConnectorSyncDeletionGuardError extends Error {},
   hardDeleteDocuments: vi.fn(),
 }))
 
+import { db } from '@sim/db'
 import {
+  applyMemberDocumentLifecycle,
   rewriteConnectorAcls,
   staleMemberWindowMs,
   sweepStaleMemberObservations,
 } from '@/lib/knowledge/connectors/member-observations'
 import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
 import { SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
+import {
+  ConnectorSyncDeletionGuardError,
+  hardDeleteDocuments,
+} from '@/lib/knowledge/documents/service'
 
 const NOW = new Date('2026-09-01T12:00:00Z')
 const STALE_MEMBER = { id: 'm-1', connectorId: 'c-1', syncIntervalMinutes: 60 }
@@ -118,5 +125,33 @@ describe('rewriteConnectorAcls', () => {
     ).rejects.toBeInstanceOf(SyncLockLostException)
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('applyMemberDocumentLifecycle', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    vi.mocked(hardDeleteDocuments).mockReset()
+  })
+
+  it('reports a reclaimed lease during a purge batch as the run being superseded', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [{ id: 'd-1' }])
+    vi.mocked(hardDeleteDocuments).mockRejectedValueOnce(
+      new ConnectorSyncDeletionGuardError('lease reclaimed')
+    )
+
+    await expect(
+      applyMemberDocumentLifecycle({
+        connectorId: 'c-1',
+        knowledgeBaseId: 'kb-1',
+        runId: 'run-1',
+        withLease: (fn) => fn(db as never),
+        failedExternalIds: new Set(),
+        allowRemoval: true,
+        lease: { beatIfDue: async () => {} } as never,
+      })
+    ).rejects.toBeInstanceOf(SyncLockLostException)
   })
 })

@@ -7,7 +7,7 @@ import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/component
 
 /** The action-row button, matching the copy and vote buttons beside it with room for a count. */
 const BUTTON_CLASSES =
-  'flex h-[26px] items-center gap-1 rounded-[6px] px-1.5 text-[var(--text-icon)] text-caption transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none data-[state=open]:bg-[var(--surface-hover)]'
+  'flex h-[26px] items-center gap-1 rounded-[6px] px-1.5 text-[var(--text-icon)] text-caption transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none data-[state=open]:bg-[var(--surface-active)] data-[state=open]:hover-hover:bg-[var(--surface-active)]'
 
 interface MessageSourcesProps {
   sources: readonly SourceTagData[]
@@ -36,12 +36,7 @@ export function MessageSources({ sources }: MessageSourcesProps) {
         </Tooltip.Trigger>
         <Tooltip.Content side='top'>{label}</Tooltip.Content>
       </Tooltip.Root>
-      <PopoverContent
-        align='start'
-        side='top'
-        sideOffset={4}
-        className='w-[420px] max-w-[90vw] p-0'
-      >
+      <PopoverContent align='start' side='top' sideOffset={4} className='w-[420px] p-0'>
         <div className='flex flex-col py-1'>
           {sources.map((source) => (
             <SourceCard key={source.url} source={source} dense />

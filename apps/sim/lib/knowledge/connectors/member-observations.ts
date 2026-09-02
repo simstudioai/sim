@@ -30,11 +30,13 @@ import {
   assertSyncLeaseHeldInTx,
   connectorIsLive,
   MEMBER_LOCKABLE_CONNECTOR_STATUSES,
+  SyncLockLostException,
   type SyncRunLease,
   type SyncWriteLease,
 } from '@/lib/knowledge/connectors/sync-lock'
 import {
   type ConnectorSyncDeletionGuard,
+  ConnectorSyncDeletionGuardError,
   hardDeleteDocuments,
 } from '@/lib/knowledge/documents/service'
 
@@ -364,13 +366,21 @@ export async function applyMemberDocumentLifecycle(input: {
   const purgeIds = purgeCandidates.map((row) => row.id)
   for (let offset = 0; offset < purgeIds.length; offset += PURGE_CHUNK_SIZE) {
     await input.lease.beatIfDue()
-    purged += await hardDeleteDocuments(
-      purgeIds.slice(offset, offset + PURGE_CHUNK_SIZE),
-      runId,
-      connectorId,
-      knowledgeBaseId,
-      guard
-    )
+    try {
+      purged += await hardDeleteDocuments(
+        purgeIds.slice(offset, offset + PURGE_CHUNK_SIZE),
+        runId,
+        connectorId,
+        knowledgeBaseId,
+        guard
+      )
+    } catch (error) {
+      /** The deletion guard refusing the lease is a reclaimed run, not a failed one. */
+      if (error instanceof ConnectorSyncDeletionGuardError) {
+        throw new SyncLockLostException(connectorId)
+      }
+      throw error
+    }
   }
 
   return { tombstoned: tombstoned.length, resurrected: resurrected.length, purged }

@@ -151,7 +151,12 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
 
   if (dense) {
     return (
-      <div className={cn(SOURCE_ROW_CLASSES, 'items-center py-1')}>
+      <div
+        className={cn(
+          SOURCE_ROW_CLASSES,
+          'items-center py-1 focus-within:bg-[var(--surface-hover)] hover-hover:bg-[var(--surface-hover)]'
+        )}
+      >
         <span className={chipIconSlotClass}>{mark}</span>
         <a
           href={source.url}
@@ -168,7 +173,7 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
         </a>
         <OverflowText
           label={meta.join(' · ')}
-          className='max-w-[40%] shrink-0 text-[var(--text-muted)] text-caption'
+          className='max-w-[40%] flex-shrink-0 text-[var(--text-muted)] text-caption'
         />
         <div className='flex flex-shrink-0 items-center opacity-0 transition-opacity group-focus-within/source:opacity-100 group-hover/source:opacity-100 [@media(hover:none)]:opacity-100'>
           <CopyLinkAction url={source.url} />

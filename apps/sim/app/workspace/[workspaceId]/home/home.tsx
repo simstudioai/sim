@@ -198,9 +198,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   /** The bases an Ask turn is grounded in; read through a ref so a list refresh never rebuilds the submit handler. */
   const { data: knowledgeBases = EMPTY_KNOWLEDGE_BASES } = useKnowledgeBasesQuery(workspaceId)
   const knowledgeBasesRef = useRef(knowledgeBases)
-  useEffect(() => {
-    knowledgeBasesRef.current = knowledgeBases
-  }, [knowledgeBases])
+  knowledgeBasesRef.current = knowledgeBases
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
   const initialViewUserInputRef = useRef<UserInputHandle>(null)
@@ -503,7 +501,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       }
 
       prepareResourceViewForAgentTurn()
-      /** Ask is a turn of the agent grounded in the searched sources. */
       const turnContexts =
         mode === 'ask'
           ? withSearchedKnowledgeContexts(
@@ -525,14 +522,11 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const clearSearch = useCallback(() => setSearchQuery(''), [setSearchQuery])
 
   /** Summarize or Answer on a result: hand the question to the agent in Ask mode. */
-  const handleSummarize = useCallback(
-    (prompt: string) => {
-      useMothershipModeStore.getState().setMode('ask')
-      setSearchQuery('')
-      handleSubmit(prompt)
-    },
-    [handleSubmit, setSearchQuery]
-  )
+  const handleSummarize = (prompt: string) => {
+    useMothershipModeStore.getState().setMode('ask')
+    setSearchQuery('')
+    handleSubmit(prompt)
+  }
   /**
    * A chat that already exists never opens in Search: its transcript is a
    * conversation, and search results never join it. Build and Ask both carry

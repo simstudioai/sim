@@ -958,7 +958,6 @@ function MessageContentInner({
       trailingPendingTag ||
       (isStreamIdle && !trailingStreamActivity && !hasExecutingTool))
 
-  /** The action buttons and, when the reply cited documents, the sources button beside them. */
   const actionsRow = (
     <div className='flex items-center gap-0.5'>
       {actions}
