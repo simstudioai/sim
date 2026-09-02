@@ -494,6 +494,7 @@ export function canWriteRowsWithChip(opts: {
  * @param takenNames Names of every other column in the table.
  */
 export function columnNameIssue(name: string, takenNames: Iterable<string>): string | null {
+  if (!name) return 'Column name is required'
   if (name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
     return `Column names must be ${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters or less`
   }

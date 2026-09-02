@@ -204,6 +204,10 @@ describe('columnNameIssue', () => {
     expect(columnNameIssue('email_address', ['name', 'status'])).toBeNull()
   })
 
+  it('requires a name', () => {
+    expect(columnNameIssue('', [])).toBe('Column name is required')
+  })
+
   it('refuses invalid patterns and names that begin with a digit', () => {
     expect(columnNameIssue('New Text', [])).toMatch(/letter or underscore/)
     expect(columnNameIssue('1st', [])).toMatch(/letter or underscore/)

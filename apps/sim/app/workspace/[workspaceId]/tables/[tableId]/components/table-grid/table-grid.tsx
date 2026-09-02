@@ -1506,7 +1506,7 @@ export function TableGrid({
   const handleFindCloseRef = useRef(handleFindClose)
   handleFindCloseRef.current = handleFindClose
 
-  const [renameError, setRenameError] = useState(false)
+  const [renameErrorColumnId, setRenameErrorColumnId] = useState<string | null>(null)
 
   const columnRename = useInlineRename({
     // `columnName` is the column id; record the prior display name + id so undo
@@ -1521,7 +1521,7 @@ export function TableGrid({
           if (isValidationError(error)) {
             toast.error(extractValidationIssues(error)[0]?.message ?? getErrorMessage(error))
           }
-          setRenameError(true)
+          setRenameErrorColumnId(columnName)
           throw error
         })
     },
@@ -1530,7 +1530,7 @@ export function TableGrid({
   columnRenameRef.current = columnRename
 
   const handleRenameValueChange = useCallback((value: string) => {
-    setRenameError(false)
+    setRenameErrorColumnId(null)
     columnRenameRef.current.setEditValue(value)
   }, [])
 
@@ -1539,7 +1539,7 @@ export function TableGrid({
     const { editingId, editValue, submitRename } = columnRenameRef.current
     const trimmedName = editValue.trim()
     const currentColumn = columnsRef.current.find((column) => column.key === editingId)
-    if (trimmedName && currentColumn && trimmedName !== currentColumn.name) {
+    if (currentColumn && trimmedName !== currentColumn.name) {
       const issue = columnNameIssue(
         trimmedName,
         schemaColumnsRef.current
@@ -1548,16 +1548,16 @@ export function TableGrid({
       )
       if (issue) {
         toast.error(issue)
-        setRenameError(true)
+        setRenameErrorColumnId(editingId)
         return
       }
     }
-    setRenameError(false)
+    setRenameErrorColumnId(null)
     void submitRename()
   }, [])
 
   const handleRenameCancel = useCallback(() => {
-    setRenameError(false)
+    setRenameErrorColumnId(null)
     columnRenameRef.current.cancelRename()
   }, [])
 
@@ -4037,7 +4037,7 @@ export function TableGrid({
 
   const handleRenameColumn = useCallback(
     (columnName: string) => {
-      setRenameError(false)
+      setRenameErrorColumnId(null)
       const column = columnsRef.current.find((candidate) => candidate.key === columnName)
       columnRename.startRename(columnName, column?.name ?? columnName)
     },
@@ -4934,7 +4934,7 @@ export function TableGrid({
                             renameValue={
                               columnRename.editingId === column.key ? columnRename.editValue : ''
                             }
-                            renameError={renameError && columnRename.editingId === column.key}
+                            renameError={renameErrorColumnId === column.key}
                             onRenameValueChange={handleRenameValueChange}
                             onRenameSubmit={handleRenameSubmit}
                             onRenameCancel={handleRenameCancel}
