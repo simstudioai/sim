@@ -1726,6 +1726,7 @@ export function Table({
             ? LOCK_TOOLTIPS.schema
             : 'You don’t have permission to change columns.'
         }
+        onColumnRename={onColumnRename}
       />
       <EnrichmentsSidebar
         open={slideout.kind === 'enrichments'}

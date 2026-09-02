@@ -76,6 +76,9 @@ interface ColumnConfigSidebarProps {
   readOnly?: boolean
   /** Why saving is unavailable; surfaced on the disabled Save button. */
   readOnlyReason?: string
+  /** Notify parent of a rename so it can rewrite local `columnOrder` /
+   *  `columnWidths` keys that reference the old name. */
+  onColumnRename?: (oldName: string, newName: string) => void
 }
 
 /**
@@ -127,6 +130,7 @@ function ColumnConfigBody({
   tableId,
   readOnly,
   readOnlyReason,
+  onColumnRename,
 }: ColumnConfigBodyProps) {
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
   const addColumn = useAddTableColumn({ workspaceId, tableId })
@@ -189,7 +193,7 @@ function ColumnConfigBody({
   async function handleSave() {
     // Belt and braces: the button is disabled, and the server refuses too.
     if (readOnly) return
-    if (config.mode === 'create' && !trimmedName) {
+    if (!trimmedName) {
       setShowValidation(true)
       return
     }
@@ -221,6 +225,7 @@ function ColumnConfigBody({
         return
       }
 
+      const renamed = trimmedName !== (existingColumn?.name ?? config.columnName)
       const typeChanged = !!existingColumn && existingColumn.type !== typeInput
       const uniqueChanged =
         supportsUnique && !!existingColumn && !!existingColumn.unique !== uniqueInput
@@ -234,6 +239,7 @@ function ColumnConfigBody({
         wantsReference && existingColumn?.referenceTableId !== referenceTableInput
 
       const updates: {
+        name?: string
         type?: ColumnDefinition['type']
         unique?: boolean
         options?: SelectOption[]
@@ -241,6 +247,7 @@ function ColumnConfigBody({
         currencyCode?: string
         referenceTableId?: string
       } = {
+        ...(renamed ? { name: trimmedName } : {}),
         ...(typeChanged ? { type: typeInput } : {}),
         ...(uniqueChanged ? { unique: uniqueInput } : {}),
         ...(uniqueCleared ? { unique: false } : {}),
@@ -259,7 +266,8 @@ function ColumnConfigBody({
       }
 
       await updateColumn.mutateAsync({ columnName: config.columnName, updates })
-      toast.success(`Saved "${existingColumn?.name ?? config.columnName}"`)
+      if (renamed) onColumnRename?.(config.columnName, trimmedName)
+      toast.success(`Saved "${trimmedName}"`)
       onClose()
     } catch (err) {
       if (isValidationError(err)) {
@@ -296,25 +304,23 @@ function ColumnConfigBody({
             including the comboboxes' trigger buttons; `contents` keeps the
             existing layout. Values stay readable and selectable. */}
         <fieldset disabled={readOnly} className='contents'>
-          {config.mode === 'create' && (
-            <div className='flex flex-col gap-[9.5px]'>
-              <RequiredLabel htmlFor='column-sidebar-name'>Column name</RequiredLabel>
-              <ChipInput
-                id='column-sidebar-name'
-                value={nameInput}
-                onChange={(e) => {
-                  setNameInput(e.target.value)
-                  if (nameError) setNameError(null)
-                }}
-                spellCheck={false}
-                autoComplete='off'
-                error={Boolean((showValidation && !trimmedName) || nameError)}
-                aria-invalid={(showValidation && !trimmedName) || nameError ? true : undefined}
-              />
-              {showValidation && !trimmedName && <FieldError message='Column name is required' />}
-              {nameError && !(showValidation && !trimmedName) && <FieldError message={nameError} />}
-            </div>
-          )}
+          <div className='flex flex-col gap-[9.5px]'>
+            <RequiredLabel htmlFor='column-sidebar-name'>Column name</RequiredLabel>
+            <ChipInput
+              id='column-sidebar-name'
+              value={nameInput}
+              onChange={(e) => {
+                setNameInput(e.target.value)
+                if (nameError) setNameError(null)
+              }}
+              spellCheck={false}
+              autoComplete='off'
+              error={Boolean((showValidation && !trimmedName) || nameError)}
+              aria-invalid={(showValidation && !trimmedName) || nameError ? true : undefined}
+            />
+            {showValidation && !trimmedName && <FieldError message='Column name is required' />}
+            {nameError && !(showValidation && !trimmedName) && <FieldError message={nameError} />}
+          </div>
 
           {config.mode === 'edit' && (
             <>
