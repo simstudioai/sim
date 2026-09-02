@@ -14,7 +14,7 @@ import {
   resolveEnterpriseEntitlement,
   resolveSandboxFeatureAvailability,
 } from './enterprise-entitlements'
-import { env, envBoolean, getEnv, isFalsy, isTruthy } from './env'
+import { env, envBoolean, envNumber, getEnv, isFalsy, isTruthy } from './env'
 import { hasEnvCapabilityValue, inspectCapability, SANDBOX_CAPABILITY } from './env-capabilities'
 
 /**
@@ -684,8 +684,13 @@ export function getAllowedMcpDomainsFromEnv(): string[] | null {
 }
 
 /**
- * Get cost multiplier based on environment
+ * Get cost multiplier based on environment.
+ *
+ * `COST_MULTIPLIER` is declared as a number but arrives as a string from
+ * `process.env` because `createEnv` skips validation, so it is normalized
+ * through {@link envNumber}. Unset, empty, non-numeric, and negative values
+ * fall back to 1.
  */
 export function getCostMultiplier(): number {
-  return isProd ? (env.COST_MULTIPLIER ?? 1) : 1
+  return isProd ? envNumber(env.COST_MULTIPLIER, 1) : 1
 }

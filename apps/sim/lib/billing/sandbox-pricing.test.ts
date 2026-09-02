@@ -1,5 +1,19 @@
-import { describe, expect, it } from 'vitest'
+/**
+ * @vitest-environment node
+ */
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
+
+vi.hoisted(() => {
+  vi.stubEnv('NODE_ENV', 'production')
+})
+
+vi.unmock('@/lib/core/config/env-flags')
+
 import { createSandboxPricing, priceSandboxUsage } from '@/lib/billing/sandbox-pricing'
+
+afterEach(resetEnvMock)
+afterAll(() => vi.unstubAllEnvs())
 
 describe('sandbox pricing', () => {
   it.each([
@@ -32,5 +46,33 @@ describe('sandbox pricing', () => {
     expect(() => createSandboxPricing('e2b', Number.POSITIVE_INFINITY)).toThrow(
       'finite nonnegative'
     )
+  })
+
+  describe('default multiplier from the production environment', () => {
+    it('coerces the string COST_MULTIPLIER that process.env delivers', () => {
+      setEnv({ COST_MULTIPLIER: '1.1' })
+
+      const pricing = createSandboxPricing('e2b')
+
+      expect(pricing.multiplier).toBe(1.1)
+      expect(priceSandboxUsage(pricing, 1000, 1000).billedCost).toBeCloseTo(0.0000506, 8)
+    })
+
+    it('falls back to 1 when COST_MULTIPLIER is unset', () => {
+      setEnv({ COST_MULTIPLIER: undefined })
+
+      expect(createSandboxPricing('daytona').multiplier).toBe(1)
+    })
+
+    it('falls back to 1 instead of throwing when COST_MULTIPLIER is not a nonnegative number', () => {
+      setEnv({ COST_MULTIPLIER: 'abc' })
+      expect(createSandboxPricing('e2b').multiplier).toBe(1)
+
+      setEnv({ COST_MULTIPLIER: '-2' })
+      expect(createSandboxPricing('e2b').multiplier).toBe(1)
+
+      setEnv({ COST_MULTIPLIER: '   ' })
+      expect(createSandboxPricing('e2b').multiplier).toBe(1)
+    })
   })
 })
