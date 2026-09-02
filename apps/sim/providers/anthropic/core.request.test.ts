@@ -248,3 +248,58 @@ describe('executeAnthropicProviderRequest prompt caching', () => {
     expect(payload.system).toBeUndefined()
   })
 })
+
+describe('executeAnthropicProviderRequest forced tool use', () => {
+  const forcedTool = {
+    id: 'publish',
+    name: 'publish',
+    description: 'Publish a post',
+    params: {},
+    parameters: { type: 'object', properties: {}, required: [] },
+    usageControl: 'force' as const,
+  }
+
+  const textReply = {
+    id: 'msg-answer',
+    type: 'message',
+    role: 'assistant',
+    model: 'claude-fable-5-1',
+    content: [{ type: 'text', text: 'Done' }],
+    stop_reason: 'end_turn',
+    stop_sequence: null,
+    usage: { input_tokens: 2, output_tokens: 2 },
+  }
+
+  async function runWithForcedTool(model: string) {
+    const create = vi.fn().mockResolvedValue({ ...textReply, model })
+    const warn = vi.fn()
+    await executeAnthropicProviderRequest(
+      {
+        model,
+        apiKey: 'test-key',
+        maxTokens: 1024,
+        messages: [{ role: 'user', content: 'Publish this' }],
+        tools: [forcedTool],
+      },
+      {
+        providerId: 'anthropic',
+        providerLabel: 'Anthropic',
+        createClient: () => ({ messages: { create } }) as never,
+        logger: { info: vi.fn(), warn, error: vi.fn(), debug: vi.fn() },
+      }
+    )
+    return { payload: create.mock.calls[0][0] as Anthropic.Messages.MessageCreateParams, warn }
+  }
+
+  it('forces the tool on models that accept forced tool_choice', async () => {
+    const { payload } = await runWithForcedTool('claude-sonnet-4-5')
+    expect(payload.tool_choice).toEqual({ type: 'tool', name: 'publish' })
+  })
+
+  it('drops forced tool_choice on Claude Fable 5.1 because the API rejects it', async () => {
+    const { payload, warn } = await runWithForcedTool('claude-fable-5-1')
+    expect(payload.tools?.map((tool) => tool.name)).toEqual(['publish'])
+    expect(payload).not.toHaveProperty('tool_choice')
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('rejects forced tool_choice'))
+  })
+})

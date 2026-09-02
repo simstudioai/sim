@@ -132,7 +132,7 @@ const ANTHROPIC_THINKING_OUTPUT_HEADROOM = 4096
 
 /**
  * Checks if a model supports adaptive thinking (thinking.type: "adaptive").
- * Fable 5 supports ONLY adaptive thinking (always on; type: "disabled" is rejected).
+ * Fable 5 and Fable 5.1 support ONLY adaptive thinking (always on; type: "disabled" is rejected).
  * Sonnet 5 supports ONLY adaptive thinking (manual budget_tokens returns a 400 error).
  * Opus 5, Opus 4.8, and Opus 4.7 support ONLY adaptive thinking (no extended thinking / budget_tokens).
  * Opus 4.6 and Sonnet 4.6 support both extended and adaptive thinking — use adaptive.
@@ -156,9 +156,20 @@ function supportsAdaptiveThinking(modelId: string): boolean {
 }
 
 /**
+ * Claude Fable 5.1 and Claude Mythos 5.1 reject forced tool use: a `tool_choice` of
+ * type `tool` or `any` returns a 400 (`tool_choice: type "tool" and "any" are not
+ * supported for this model.`). Thinking is always on for these models, so a forced
+ * call would skip it. The request is sent with the default `auto` instead.
+ */
+function rejectsForcedToolChoice(modelId: string): boolean {
+  const normalizedModel = modelId.toLowerCase()
+  return normalizedModel.includes('fable-5-1') || normalizedModel.includes('mythos-5-1')
+}
+
+/**
  * Builds the thinking configuration for the Anthropic API based on model capabilities and level.
  *
- * - Fable 5, Sonnet 5, Opus 5, Opus 4.8, Opus 4.7: Uses adaptive thinking only (no extended thinking support)
+ * - Fable 5.1, Fable 5, Sonnet 5, Opus 5, Opus 4.8, Opus 4.7: Uses adaptive thinking only (no extended thinking support)
  * - Opus 4.6, Sonnet 4.6: Uses adaptive thinking with effort parameter
  * - Other models: Uses budget_tokens-based extended thinking
  *
@@ -417,7 +428,13 @@ export async function executeAnthropicProviderRequest(
     } else if (toolChoice === 'none') {
       payload.tool_choice = { type: 'none' }
     } else if (toolChoice !== 'auto') {
-      payload.tool_choice = toolChoice
+      if (rejectsForcedToolChoice(request.model)) {
+        logger.warn(
+          `Model ${modelId} rejects forced tool_choice; sending tool "${toolChoice.name}" with tool_choice auto`
+        )
+      } else {
+        payload.tool_choice = toolChoice
+      }
     }
   }
 
