@@ -65,13 +65,50 @@ describe('collectDanglingBlockOutputReferences', () => {
     expect(findings).toHaveLength(0)
   })
 
-  it('skips function code fields (the runtime fails those loudly)', () => {
+  it('flags a deleted block referenced from function code', () => {
     const findings = collectDanglingBlockOutputReferences(
       graph({
         b1: {
           type: 'function',
           name: 'Fn',
-          subBlocks: { code: { value: 'return <ghost.value>' } },
+          subBlocks: { code: { value: 'const rows = <deletedblock.rows>\nreturn rows' } },
+        },
+      })
+    )
+    expect(findings).toHaveLength(1)
+    expect(findings[0]).toMatchObject({
+      blockId: 'b1',
+      field: 'code',
+      kind: 'block-output',
+      value: ['<deletedblock.rows>'],
+    })
+  })
+
+  it('ignores comparisons and generics in function code', () => {
+    const findings = collectDanglingBlockOutputReferences(
+      graph({
+        b1: {
+          type: 'function',
+          name: 'Fn',
+          subBlocks: {
+            code: {
+              value: 'const xs: Array<string> = []\nif (a < b && c > d) { return xs }\nreturn []',
+            },
+          },
+        },
+      })
+    )
+    expect(findings).toHaveLength(0)
+  })
+
+  it('resolves start and loop heads in function code', () => {
+    const findings = collectDanglingBlockOutputReferences(
+      graph({
+        b1: { type: 'starter', name: 'Start' },
+        b2: {
+          type: 'function',
+          name: 'Fn',
+          subBlocks: { code: { value: 'return { input: <start.input>, i: <loop.index> }' } },
         },
       })
     )
