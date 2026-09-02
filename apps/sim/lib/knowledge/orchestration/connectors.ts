@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
+  credentialGroup,
   document,
   embedding,
   knowledgeBase,
@@ -16,6 +17,7 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   findListingCapViolation,
   grantKnowledgeConnectorCredentialAccess,
@@ -55,6 +57,41 @@ async function loadDispatchMemberSync() {
 export interface ConnectorMembersBinding {
   credentialGroupId: string
   credentialGroupOptionId: string
+}
+
+/**
+ * Locks the Credential Group's row for the rest of the transaction and confirms
+ * the option is still part of it. The group's option edits and delete take the
+ * same row lock and refuse while a connector row is bound to what they remove,
+ * so a binding written under this lock is serialized against them: it either
+ * finds the option gone, or lands before the removal looks for it. The grant
+ * itself is a policy write with its own revision CAS, which is why the row
+ * write, not the grant, is what takes the lock.
+ */
+export async function lockCredentialGroupOption(
+  tx: DbOrTx,
+  binding: ConnectorMembersBinding & { workspaceId: string }
+): Promise<void> {
+  const [group] = await tx
+    .select({ options: credentialGroup.options })
+    .from(credentialGroup)
+    .where(
+      and(
+        eq(credentialGroup.id, binding.credentialGroupId),
+        eq(credentialGroup.workspaceId, binding.workspaceId)
+      )
+    )
+    .limit(1)
+    .for('update')
+  if (!group) {
+    throw new OrchestrationError('validation', 'Credential Group was not found in this workspace')
+  }
+  if (!group.options.some((option) => option.id === binding.credentialGroupOptionId)) {
+    throw new OrchestrationError(
+      'validation',
+      'Credential option was not found in this Credential Group'
+    )
+  }
 }
 
 /** A connector row exactly as stored, including its encrypted API key. */
@@ -333,6 +370,9 @@ export async function performCreateKnowledgeConnector(
       if (activeKb.length === 0) {
         throw new OrchestrationError('not_found', 'Knowledge base not found')
       }
+      if (membersBinding) {
+        await lockCredentialGroupOption(tx, { workspaceId, ...membersBinding })
+      }
 
       for (const [semanticId, slot] of Object.entries(newTagSlots)) {
         const td = connectorConfig.tagDefinitions?.find((d) => d.id === semanticId)
@@ -590,6 +630,24 @@ export async function performUpdateKnowledgeConnector(
   ) {
     return fail('Sync already in progress', 'conflict')
   }
+  /**
+   * A members-mode connector is run by the member engine, whose lease lives in
+   * `memberSyncStatus` while `status` stays `active`, so the two guards above
+   * never see it. The same two rules apply to that lease: a running member run
+   * owns the row, and a queued one has not read its config yet, so only a
+   * status change is safe.
+   */
+  const syncsPerMember = existing.accessMode === 'members'
+  if (syncsPerMember && existing.memberSyncStatus === 'running') {
+    return fail('Sync already in progress', 'conflict')
+  }
+  if (
+    syncsPerMember &&
+    existing.memberSyncStatus === 'pending' &&
+    (updates.sourceConfig !== undefined || updates.syncIntervalMinutes !== undefined)
+  ) {
+    return fail('Sync already in progress', 'conflict')
+  }
 
   if (updates.syncIntervalMinutes !== undefined) {
     if (!kb.workspaceId && updates.syncIntervalMinutes > 0 && updates.syncIntervalMinutes < 60) {
@@ -634,7 +692,14 @@ export async function performUpdateKnowledgeConnector(
     updates.sourceConfig !== undefined &&
     resultingStatus !== 'paused' &&
     resultingStatus !== 'disabled'
-  const syncsPerMember = existing.accessMode === 'members'
+  /**
+   * The schedule this connector is picked up by: the member scheduler reads
+   * `nextMemberSyncAt` and the content scheduler `nextSyncAt`, each only for
+   * its own access mode, so every schedule write below lands on the one the
+   * connector's engine will read.
+   */
+  const scheduleColumn = syncsPerMember ? 'nextMemberSyncAt' : 'nextSyncAt'
+  const existingSchedule = existing[scheduleColumn]
   let billingAttribution: BillingAttributionSnapshot | undefined
   let dispatchSourceSync: Awaited<ReturnType<typeof loadDispatchSync>> | undefined
   let dispatchMemberSourceSync: Awaited<ReturnType<typeof loadDispatchMemberSync>> | undefined
@@ -657,9 +722,9 @@ export async function performUpdateKnowledgeConnector(
   }
   if (updates.syncIntervalMinutes !== undefined) {
     values.syncIntervalMinutes = updates.syncIntervalMinutes
-    values.nextSyncAt =
-      existing.nextSyncAt && existing.nextSyncAt <= updateTimestamp
-        ? existing.nextSyncAt
+    values[scheduleColumn] =
+      existingSchedule && existingSchedule <= updateTimestamp
+        ? existingSchedule
         : updates.syncIntervalMinutes > 0
           ? new Date(updateTimestamp.getTime() + updates.syncIntervalMinutes * 60 * 1000)
           : null
@@ -669,25 +734,32 @@ export async function performUpdateKnowledgeConnector(
     /**
      * Releases a queue entry this status change is walking away from, so no
      * token survives on a row that is no longer `pending` and the reaper is not
-     * left with a lease it can never match.
+     * left with a lease it can never match. A queued member run is released the
+     * same way: its task starts without re-checking `status`, so the entry has
+     * to be gone for a pause to hold, and the CAS below keeps this off a run
+     * that has since started.
      */
     if (existing.status === 'pending') {
       values.syncLockToken = null
       values.syncLockLeaseAt = null
+    }
+    if (syncsPerMember && existing.memberSyncStatus === 'pending') {
+      values.memberSyncStatus = 'idle'
+      values.memberSyncLockToken = null
+      values.memberSyncLockLeaseAt = null
     }
     if (updates.status === 'active') {
       values.consecutiveFailures = 0
       values.lastSyncError = null
       // Resuming a paused connector syncs immediately unless this same request
       // set a schedule, which then owns the next run.
-      if (values.nextSyncAt === undefined) {
-        values.nextSyncAt = new Date()
+      if (values[scheduleColumn] === undefined) {
+        values[scheduleColumn] = new Date()
       }
     }
   }
   if (shouldDispatchSourceSync) {
-    if (syncsPerMember) values.nextMemberSyncAt = updateTimestamp
-    else values.nextSyncAt = updateTimestamp
+    values[scheduleColumn] = updateTimestamp
   }
 
   let updated: ConnectorRow
@@ -699,11 +771,14 @@ export async function performUpdateKnowledgeConnector(
       isNull(knowledgeConnector.deletedAt),
     ]
     updateConditions.push(eq(knowledgeConnector.status, existing.status))
-    if (values.nextSyncAt !== undefined) {
+    if (syncsPerMember) {
+      updateConditions.push(eq(knowledgeConnector.memberSyncStatus, existing.memberSyncStatus))
+    }
+    if (values[scheduleColumn] !== undefined) {
       updateConditions.push(
-        existing.nextSyncAt
-          ? eq(knowledgeConnector.nextSyncAt, existing.nextSyncAt)
-          : isNull(knowledgeConnector.nextSyncAt)
+        existingSchedule
+          ? eq(knowledgeConnector[scheduleColumn], existingSchedule)
+          : isNull(knowledgeConnector[scheduleColumn])
       )
     }
 
@@ -715,7 +790,7 @@ export async function performUpdateKnowledgeConnector(
 
     if (!row) {
       const current = await getKnowledgeConnector(kb.id, connectorId)
-      if (current?.status === 'syncing') {
+      if (current?.status === 'syncing' || current?.memberSyncStatus === 'running') {
         return fail('Sync already in progress', 'conflict')
       }
       if (current) {

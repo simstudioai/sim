@@ -22,6 +22,7 @@ import {
   type ConnectorWithoutSecret,
   getKnowledgeConnector,
   type KnowledgeConnectorRow,
+  lockCredentialGroupOption,
 } from '@/lib/knowledge/orchestration/connectors'
 import {
   classifyKnowledgeFailure,
@@ -157,21 +158,29 @@ function switchLeaseHeld(connectorId: string, switchId: string) {
   )
 }
 
-/** Releases a switch that could not complete, restoring the status it found. */
+/**
+ * Hands the lease back, restoring the status the switch found, along with any
+ * last values the switch writes as it ends. Returns the row as released, or
+ * null when the lease had already been taken away.
+ */
 async function releaseSwitchLease(
   connectorId: string,
   switchId: string,
-  previousStatus: string
-): Promise<void> {
-  await db
+  previousStatus: string,
+  values: Partial<typeof knowledgeConnector.$inferInsert> = {}
+): Promise<KnowledgeConnectorRow | null> {
+  const [row] = await db
     .update(knowledgeConnector)
     .set({
+      ...values,
       status: previousStatus,
       syncLockToken: null,
       syncLockLeaseAt: null,
       updatedAt: new Date(),
     })
     .where(switchLeaseHeld(connectorId, switchId))
+    .returning()
+  return row ?? null
 }
 
 export interface PerformUpdateKnowledgeConnectorAccessParams extends KnowledgeOperationContext {
@@ -194,15 +203,21 @@ export type PerformUpdateKnowledgeConnectorAccessResult = KnowledgeOrchestration
  * so neither engine runs against a half-rewritten corpus.
  *
  * Into members mode: grant the option's credentials first (a reversible policy
- * write), rewrite every ACL to nobody, then flip. A rewrite that outgrows the
- * request budget is finished by the first member run before it lists
- * (`accessRewritePending`); documents are hidden early, never shown early.
+ * write), rewrite every ACL to nobody, flip under the Credential Group's row
+ * lock, then revoke the previous group's grant and release. A rewrite that
+ * outgrows the request budget is finished by the first member run before it
+ * lists (`accessRewritePending`); documents are hidden early, never shown
+ * early.
  *
  * Back to workspace mode: drop the members and flip in one transaction with
  * the rewrite marked pending, rewrite every ACL to the workspace while the
- * lease is still held, then release and revoke the grant. A rewrite that
+ * lease is still held, then revoke the grant and release. A rewrite that
  * outgrows the budget, or is interrupted, is finished by the next content
  * sync (`accessRewritePending`); documents are hidden until then.
+ *
+ * Either way the lease outlives the revoke. A revoke drops the connector from
+ * every option of the group, so releasing first would let a switch that has
+ * just re-granted the same group lose its grant to this one's cleanup.
  */
 export async function performUpdateKnowledgeConnectorAccess(
   params: PerformUpdateKnowledgeConnectorAccessParams
@@ -257,18 +272,46 @@ export async function performUpdateKnowledgeConnectorAccess(
   }
 
   /**
-   * Staying in workspace mode with a different credential is a plain credential
-   * change: no document's visibility moves, so nothing needs the lease.
+   * Staying in workspace mode with a different credential moves no document's
+   * visibility, so the lease is not taken. It does change what the source
+   * shows: the new credential may see a different corpus, and only a full
+   * listing reconciles that, so the incremental watermark is dropped and a sync
+   * queued. The write refuses while a sync owns the row, whose terminal write
+   * would otherwise put the watermark straight back.
    */
   if (target.accessMode === 'workspace' && existing.accessMode === 'workspace') {
     const now = new Date()
     const [updated] = await db
       .update(knowledgeConnector)
-      .set({ credentialId: target.credentialId, updatedAt: now })
-      .where(and(eq(knowledgeConnector.id, connectorId), isNull(knowledgeConnector.deletedAt)))
+      .set({
+        credentialId: target.credentialId,
+        lastSyncAt: null,
+        nextSyncAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(knowledgeConnector.id, connectorId),
+          eq(knowledgeConnector.knowledgeBaseId, kb.id),
+          inArray(knowledgeConnector.status, SWITCHABLE_CONNECTOR_STATUSES),
+          eq(knowledgeConnector.status, existing.status),
+          isNull(knowledgeConnector.syncLockToken),
+          isNull(knowledgeConnector.archivedAt),
+          isNull(knowledgeConnector.deletedAt)
+        )
+      )
       .returning()
-    if (!updated) return fail('Connector not found', 'not_found')
+    if (!updated) {
+      const current = await getKnowledgeConnector(kb.id, connectorId)
+      return current
+        ? fail('Sync already in progress', 'conflict')
+        : fail('Connector not found', 'not_found')
+    }
+    logger.info(`[${requestId}] Changed the credential of connector ${connectorId}`)
     const { encryptedApiKey: _secret, ...connector } = updated
+    if (existing.status !== 'paused') {
+      await dispatchContentSyncBestEffort(connectorId, params, requestId, now)
+    }
     return { success: true, connector, changed: true }
   }
 
@@ -298,29 +341,39 @@ export async function performUpdateKnowledgeConnectorAccess(
         const rewritten = await rewriteConnectorAcls(connectorId, EMPTY_ACL, {
           deadlineAt: deadlineAt,
         })
-        const now = new Date()
-        const [updated] = await db
-          .update(knowledgeConnector)
-          .set({
-            accessMode: 'members',
-            credentialId: null,
+        /**
+         * The flip lands under the group's row lock, which the group's option
+         * edits and delete hold while they look for connectors bound to what
+         * they remove: an option gone by the time the lock is ours refuses the
+         * flip, and one removed after it finds this row.
+         */
+        const flippedAt = new Date()
+        await db.transaction(async (tx) => {
+          await lockCredentialGroupOption(tx, {
+            workspaceId: kb.workspaceId,
             credentialGroupId: target.binding.credentialGroupId,
             credentialGroupOptionId: target.binding.credentialGroupOptionId,
-            sourceConfig: target.binding.sourceConfig,
-            accessRewritePending: !rewritten,
-            memberSyncStatus: 'idle',
-            memberSyncConsecutiveFailures: 0,
-            lastMemberSyncError: null,
-            nextMemberSyncAt: now,
-            nextSyncAt: null,
-            status: previousStatus,
-            syncLockToken: null,
-            syncLockLeaseAt: null,
-            updatedAt: now,
           })
-          .where(switchLeaseHeld(connectorId, switchId))
-          .returning()
-        if (!updated) throw new SwitchLeaseLostError()
+          const [row] = await tx
+            .update(knowledgeConnector)
+            .set({
+              accessMode: 'members',
+              credentialId: null,
+              credentialGroupId: target.binding.credentialGroupId,
+              credentialGroupOptionId: target.binding.credentialGroupOptionId,
+              sourceConfig: target.binding.sourceConfig,
+              accessRewritePending: !rewritten,
+              memberSyncStatus: 'idle',
+              memberSyncConsecutiveFailures: 0,
+              lastMemberSyncError: null,
+              nextMemberSyncAt: flippedAt,
+              nextSyncAt: null,
+              updatedAt: flippedAt,
+            })
+            .where(switchLeaseHeld(connectorId, switchId))
+            .returning({ id: knowledgeConnector.id })
+          if (!row) throw new SwitchLeaseLostError()
+        })
         if (
           existing.credentialGroupId &&
           existing.credentialGroupId !== target.binding.credentialGroupId
@@ -339,12 +392,14 @@ export async function performUpdateKnowledgeConnectorAccess(
             })
           })
         }
+        const updated = await releaseSwitchLease(connectorId, switchId, previousStatus)
+        if (!updated) throw new SwitchLeaseLostError()
         logger.info(`[${requestId}] Switched connector ${connectorId} to members mode`, {
           rewritten,
         })
         const { encryptedApiKey: _secret, ...connector } = updated
         if (previousStatus !== 'paused') {
-          await dispatchMemberSyncBestEffort(connectorId, params, requestId, now)
+          await dispatchMemberSyncBestEffort(connectorId, params, requestId, flippedAt)
         }
         return { success: true, connector, changed: true }
       } catch (error) {
@@ -426,19 +481,6 @@ export async function performUpdateKnowledgeConnectorAccess(
     const rewritten = await rewriteConnectorAcls(connectorId, WORKSPACE_ACL, {
       deadlineAt: deadlineAt,
     })
-    const now = new Date()
-    const [updated] = await db
-      .update(knowledgeConnector)
-      .set({
-        accessRewritePending: !rewritten,
-        status: previousStatus,
-        syncLockToken: null,
-        syncLockLeaseAt: null,
-        updatedAt: now,
-      })
-      .where(switchLeaseHeld(connectorId, switchId))
-      .returning()
-    if (!updated) throw new SwitchLeaseLostError()
     if (existing.credentialGroupId) {
       await revokeKnowledgeConnectorCredentialAccess(
         { workspaceId: kb.workspaceId, credentialGroupId: existing.credentialGroupId, connectorId },
@@ -450,12 +492,17 @@ export async function performUpdateKnowledgeConnectorAccess(
         })
       })
     }
+    const updated = await releaseSwitchLease(connectorId, switchId, previousStatus, {
+      accessRewritePending: !rewritten,
+    })
+    if (!updated) throw new SwitchLeaseLostError()
     logger.info(`[${requestId}] Switched connector ${connectorId} to workspace mode`, {
       rewritten,
     })
     const { encryptedApiKey: _secret, ...connector } = updated
     if (previousStatus !== 'paused') {
-      await dispatchContentSyncBestEffort(connectorId, params, requestId, now)
+      /** The dispatch asserts the schedule the flip wrote, not a later clock read. */
+      await dispatchContentSyncBestEffort(connectorId, params, requestId, flippedAt)
     }
     return { success: true, connector, changed: true }
   } catch (error) {
@@ -468,6 +515,7 @@ export async function performUpdateKnowledgeConnectorAccess(
         connectorId,
         error: releaseError,
       })
+      return null
     })
     return classifyKnowledgeFailure(
       error,

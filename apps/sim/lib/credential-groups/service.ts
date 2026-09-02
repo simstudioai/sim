@@ -292,6 +292,11 @@ export async function createCredentialGroup(
  * connector syncs per member through one of them: the connector would be left
  * bound to nothing, and its members' documents dark, without anyone choosing
  * that. `optionIds` null means the whole group.
+ *
+ * Runs under the caller's `FOR UPDATE` on the group row. Every write that binds
+ * a connector row to an option (`lockCredentialGroupOption`) takes that same
+ * lock and re-checks the option under it, so a binding is either visible here
+ * or refused once this transaction commits; the check reads only the rows.
  */
 async function refuseIfServingMemberConnectors(
   executor: DbOrTx,
