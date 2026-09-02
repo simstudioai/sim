@@ -13,7 +13,6 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
-import { getUserEmailById } from '@/lib/users/queries'
 import {
   admitCustomBlockChildExecution,
   buildCustomBlockCorrelation,
@@ -21,6 +20,10 @@ import {
   trackChildRun,
 } from '@/lib/workflows/custom-blocks/child-execution'
 import { getCustomBlockAuthority } from '@/lib/workflows/custom-blocks/operations'
+import {
+  resolveStartBlockRunIdentity,
+  type StartBlockRunIdentity,
+} from '@/lib/workflows/executor/start-run-identity'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import {
   scopeOutputBlockId,
@@ -716,14 +719,21 @@ export class WorkflowBlockHandler implements BlockHandler {
         // When the parent run already carries trusted metadata, propagate ALL of
         // it so nested children see one consistent invoking identity (the
         // original consumer) instead of a mix of original and intermediate.
-        // Inherited email is taken verbatim — a fail-soft null must stay null,
-        // not be re-resolved to the intermediate (publisher) identity.
+        // New metadata carries the complete projected subject. Legacy snapshots
+        // without it are re-projected from the preserved execution principal.
+        let invokingIdentity: StartBlockRunIdentity
+        if (inherited && Object.hasOwn(inherited, 'subject')) {
+          invokingIdentity = {
+            subject: inherited.subject ?? null,
+          }
+        } else {
+          if (!ctx.principal) {
+            throw new Error('Execution principal is required for Start block run metadata')
+          }
+          invokingIdentity = await resolveStartBlockRunIdentity(ctx.principal)
+        }
         childStartRunMetadata = {
-          userEmail: inherited
-            ? (inherited.userEmail ?? null)
-            : ctx.userId
-              ? await getUserEmailById(ctx.userId)
-              : null,
+          ...invokingIdentity,
           workspaceId: inherited?.workspaceId ?? ctx.workspaceId ?? null,
           workflowId: inherited?.workflowId ?? ctx.workflowId ?? null,
           executionId: ctx.executionId,

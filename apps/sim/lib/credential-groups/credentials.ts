@@ -146,6 +146,7 @@ export async function loadCredentialGroupEnrollmentAccessForSubject(
   if (subject.kind === 'sim_user') {
     return loadCredentialGroupEnrollmentAccess(credentialGroupId, subject.userId)
   }
+  if (subject.kind !== 'external_user') return null
   if (!isCredentialGroupProvider(subject.provider)) return null
   const providerId = getCredentialGroupProviderId(subject.provider)
   const rows = await db

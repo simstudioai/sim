@@ -146,6 +146,7 @@ export interface ComboboxProps
   align?: 'start' | 'center' | 'end'
   /** Dropdown width - 'trigger' matches trigger width, or provide a pixel value */
   dropdownWidth?: 'trigger' | number
+  disablePortal?: boolean
   /** Show an "All" option at the top that clears selection (multi-select only) */
   showAllOption?: boolean
   /** Custom label for the "All" option (default: "All") */
@@ -208,6 +209,7 @@ const Combobox = memo(
         searchPlaceholder = 'Search...',
         align = 'start',
         dropdownWidth = 'trigger',
+        disablePortal = false,
         showAllOption = false,
         allOptionLabel = 'All',
         groups,
@@ -879,6 +881,7 @@ const Combobox = memo(
             </PopoverAnchor>
 
             <PopoverContent
+              disablePortal={disablePortal}
               side='bottom'
               align={align}
               sideOffset={4}

@@ -27,9 +27,9 @@ import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { getUserEmailById } from '@/lib/users/queries'
 import { waitForChildRuns } from '@/lib/workflows/custom-blocks/child-execution'
 import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
+import { resolveStartBlockRunIdentity } from '@/lib/workflows/executor/start-run-identity'
 import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
@@ -933,8 +933,9 @@ async function executeWorkflowCoreImpl(
         (block) => block.id === resolvedTriggerBlockId
       )
       if (entryBlock && isRunMetadataEnabled(entryBlock)) {
+        const runIdentity = await resolveStartBlockRunIdentity(metadata.principal)
         startRunMetadata = {
-          userEmail: await getUserEmailById(userId),
+          ...runIdentity,
           workspaceId: providedWorkspaceId,
           workflowId,
           executionId,
