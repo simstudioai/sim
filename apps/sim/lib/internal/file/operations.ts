@@ -27,7 +27,7 @@ import {
   requestsPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
-import { buildFolderPath, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
+import { buildFolderPath, parseFolderPath, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { ShareValidationError } from '@/lib/public-shares/share-manager'
 import {
   ArchiveError,
@@ -567,6 +567,53 @@ export function fileContentJsonResponse(
   )
 }
 
+/**
+ * Expands folder paths to the ids of every file beneath them.
+ *
+ * Resolution happens here, at run time, rather than when the block is
+ * configured: picking a folder means "whatever is in it when this runs", so a
+ * file added tomorrow is read tomorrow. Expanding in the picker would freeze a
+ * snapshot instead.
+ *
+ * Path resolution itself lives in {@link resolveFolderIdsForPaths}; this is the
+ * IO around it.
+ */
+async function expandFolderPathsToFileIds(args: {
+  principal: Principal
+  workspaceId: string
+  folderPaths: string[] | undefined
+  includeSubfolders: boolean | undefined
+}): Promise<string[]> {
+  if (!args.folderPaths?.length) return []
+
+  const [{ folders }, { files }] = await Promise.all([
+    listWorkspaceFileFoldersOperation.execute({
+      principal: args.principal,
+      input: { workspaceId: args.workspaceId },
+    }),
+    listAllWorkspaceFiles.execute({
+      principal: args.principal,
+      input: { workspaceId: args.workspaceId, scope: 'active' },
+    }),
+  ])
+
+  const projected = folders.map((folder) => ({
+    ...toWorkspaceFileFolderPathView(folder),
+    id: folder.id,
+    parentId: folder.parentId,
+  }))
+  const selection = resolveFolderIdsForPaths(projected, args.folderPaths, {
+    includeSubfolders: args.includeSubfolders,
+  })
+  if (selection.missingPath !== undefined) {
+    throw new OrchestrationError('not_found', `Folder not found: ${selection.missingPath}`)
+  }
+
+  return files
+    .filter((file) => file.folderId && selection.folderIds.has(file.folderId))
+    .map((file) => file.id)
+}
+
 export async function executeFileManageOperation(
   body: FileManageOperationInput,
   context: FileManageOperationContext
@@ -638,13 +685,23 @@ export async function executeFileManageOperation(
       }
 
       case 'read': {
-        const { fileId, fileInput } = body
+        const { fileId, fileInput, folderPaths, includeSubfolders } = body
         const selectedFileIds = Array.isArray(fileId)
           ? fileId.map((id) => id.trim()).filter(Boolean)
           : fileId
             ? normalizeFileIdList(fileId)
             : extractFileIdsFromInput(fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        signal?.throwIfAborted()
+        for (const id of await expandFolderPathsToFileIds({
+          principal,
+          workspaceId,
+          folderPaths,
+          includeSubfolders,
+        })) {
+          if (!selectedFileIds.includes(id)) selectedFileIds.push(id)
+        }
 
         if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
           return Response.json({ success: false, error: 'File is required' }, { status: 400 })
@@ -729,13 +786,23 @@ export async function executeFileManageOperation(
       }
 
       case 'content': {
-        const { fileId, fileInput } = body
+        const { fileId, fileInput, folderPaths, includeSubfolders } = body
         const selectedFileIds = Array.isArray(fileId)
           ? fileId.map((id) => id.trim()).filter(Boolean)
           : fileId
             ? normalizeFileIdList(fileId)
             : extractFileIdsFromInput(fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        signal?.throwIfAborted()
+        for (const id of await expandFolderPathsToFileIds({
+          principal,
+          workspaceId,
+          folderPaths,
+          includeSubfolders,
+        })) {
+          if (!selectedFileIds.includes(id)) selectedFileIds.push(id)
+        }
 
         if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
           return contentResponse({ success: false, error: 'File is required' }, { status: 400 })
@@ -828,7 +895,7 @@ export async function executeFileManageOperation(
       }
 
       case 'write': {
-        const { fileName, content, fileInput, contentType, overwrite } = body
+        const { fileName, content, fileInput, contentType, overwrite, folderPath } = body
         signal?.throwIfAborted()
         const provenanceResolution = resolveFileWriteSecretProvenance({
           headers,
@@ -920,7 +987,16 @@ export async function executeFileManageOperation(
           ? mergeWorkspaceFileSecretProvenance(...writeProvenanceSources)
           : undefined
 
-        const { folderSegments, leafName } = splitWorkspaceFilePath(sourceName ?? '')
+        const { folderSegments: nameSegments, leafName } = splitWorkspaceFilePath(sourceName ?? '')
+        /*
+         * The destination is the picked folder, then whatever folders the name
+         * itself spells. `folderPath` is canonical and percent-encoded, so it is
+         * decoded to names here — the same names `splitWorkspaceFilePath` yields
+         * — because the folder operation takes decoded segments.
+         */
+        const folderSegments = folderPath
+          ? [...parseFolderPath(folderPath), ...nameSegments]
+          : nameSegments
         await admitCreateWorkspaceFile(principal, workspaceId)
         const { folderId } = await ensureWorkspaceFileFolderPathOperation.execute({
           principal,
@@ -1206,13 +1282,23 @@ export async function executeFileManageOperation(
       }
 
       case 'compress': {
-        const { fileId, fileInput, archiveName } = body
+        const { fileId, fileInput, archiveName, folderPaths, includeSubfolders } = body
         const selectedFileIds = Array.isArray(fileId)
           ? fileId.map((id) => id.trim()).filter(Boolean)
           : fileId
             ? normalizeFileIdList(fileId)
             : extractFileIdsFromInput(fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        signal?.throwIfAborted()
+        for (const id of await expandFolderPathsToFileIds({
+          principal,
+          workspaceId,
+          folderPaths,
+          includeSubfolders,
+        })) {
+          if (!selectedFileIds.includes(id)) selectedFileIds.push(id)
+        }
 
         if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
           return Response.json({ success: false, error: 'File is required' }, { status: 400 })

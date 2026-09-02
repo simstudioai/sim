@@ -837,6 +837,12 @@ const FILE_TOOL_IDS = [
   'file_parser',
   'file_parser_v2',
   'file_parser_v3',
+  'file_list',
+  'file_create_folder',
+  'file_update_folder',
+  'file_delete_folder',
+  'file_restore_folder',
+  'file_move',
 ] as const
 
 const UPTIMEROBOT_TOOL_IDS = ['uptimerobot_create_psp', 'uptimerobot_update_psp'] as const
