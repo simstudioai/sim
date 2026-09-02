@@ -61,6 +61,7 @@ vi.mock('@sim/audit', () => ({
 }))
 vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mockNotify }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createWorkspaceFileFolderOperation,
   deleteWorkspaceFileFolderOperation,
@@ -103,28 +104,32 @@ describe('workspace file folder operations', () => {
     mockArchive.mockResolvedValue({ files: 0, folders: 1, fileIds: [], folderIds: ['folder-1'] })
   })
 
+  const LEAF = {
+    folder: {
+      id: 'folder-c',
+      name: 'C',
+      path: 'A/B/C',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    path: 'A/B/C',
+  }
+
   /*
    * The tool description promises "Parent folders are created as needed", and
-   * the manager throws "Parent folder not found" when they are not — so the
-   * ancestors are materialized first, the same way the write path materializes
-   * its destination. Only the ancestors: the leaf keeps its own call so it
-   * still audits and still conflicts when something is already there.
+   * the manager throws "Parent folder not found" when they are not — so a
+   * missing ancestor is materialized and the create retried. Only the
+   * ancestors: the leaf keeps its own call so it still audits and still
+   * conflicts when something is already there.
    */
-  it('materializes missing ancestors before creating the leaf', async () => {
+  it('materializes missing ancestors and retries the leaf', async () => {
     mockEnsure.mockResolvedValue({
       folderId: 'folder-b',
       createdFolderIds: ['folder-a', 'folder-b'],
     })
-    mockCreate.mockResolvedValue({
-      folder: {
-        id: 'folder-c',
-        name: 'C',
-        path: 'A/B/C',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      path: 'A/B/C',
-    })
+    mockCreate
+      .mockRejectedValueOnce(new OrchestrationError('not_found', 'Parent folder not found'))
+      .mockResolvedValue(LEAF)
 
     await createWorkspaceFileFolderOperation.execute({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
@@ -132,7 +137,37 @@ describe('workspace file folder operations', () => {
     })
 
     expect(mockEnsure).toHaveBeenCalledWith(expect.objectContaining({ pathSegments: ['A', 'B'] }))
-    expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ path: '/A/B/C' }))
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+  })
+
+  /*
+   * A folder name may contain a slash; a path segment may not. Materializing
+   * ancestors up front re-normalized the decoded name and rejected the folder's
+   * own existing parent, so the ancestors are only touched once the create has
+   * actually reported the parent missing.
+   */
+  it('does not touch the materializer when the parent already exists', async () => {
+    mockCreate.mockResolvedValue(LEAF)
+
+    await createWorkspaceFileFolderOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1', path: '/A/Q3%2FQ4/C' },
+    })
+
+    expect(mockEnsure).not.toHaveBeenCalled()
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces a create failure that is not a missing parent', async () => {
+    mockCreate.mockRejectedValue(new OrchestrationError('conflict', 'Folder already exists'))
+
+    await expect(
+      createWorkspaceFileFolderOperation.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { workspaceId: 'ws-1', path: '/A/B/C' },
+      })
+    ).rejects.toThrow(/already exists/)
+    expect(mockEnsure).not.toHaveBeenCalled()
   })
 
   it('does not materialize anything for a top-level folder', async () => {

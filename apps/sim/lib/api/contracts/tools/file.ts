@@ -60,7 +60,11 @@ export const fileManageAppendBodySchema = z.object({
   /**
    * Folder the name is resolved inside. A name is only unique within a folder,
    * so without this a duplicate name resolves to the oldest match anywhere.
-   * Ignored when `fileName` is already a canonical id.
+   *
+   * It constrains a canonical id too, rather than being ignored for one: an id
+   * that does not sit in the named folder is a `404`. Refusing is the safer
+   * reading of a contradictory request — silently preferring the id would write
+   * to a file outside the folder the caller named.
    */
   folderPath: v2FolderPathInputSchema.optional(),
   includeSubfolders: z.boolean().optional(),
