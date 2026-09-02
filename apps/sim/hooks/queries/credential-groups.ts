@@ -6,8 +6,10 @@ import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   type CredentialGroupAccessResponse,
   createCredentialGroupContract,
+  createCredentialGroupMcpConnectorContract,
   deleteCredentialGroupContract,
   deleteCredentialGroupEnrollmentContract,
+  deleteCredentialGroupMcpConnectorContract,
   getCredentialGroupAccessContract,
   getCredentialGroupContract,
   inviteCredentialGroupEnrollmentsContract,
@@ -15,6 +17,7 @@ import {
   startSlackCredentialGroupConfigurationContract,
   updateCredentialGroupAccessContract,
   updateCredentialGroupContract,
+  updateCredentialGroupMcpConnectorContract,
 } from '@/lib/api/contracts/credential-groups'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 import { mcpKeys } from '@/hooks/queries/mcp'
@@ -210,6 +213,84 @@ export function useUpdateCredentialGroup() {
         }),
         invalidateSelectorQueries(queryClient),
       ]),
+  })
+}
+
+function invalidateManagedMcpConnectorQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  workspaceId: string,
+  groupId: string
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: credentialGroupKeys.list(workspaceId) }),
+    queryClient.invalidateQueries({ queryKey: credentialGroupKeys.detail(workspaceId, groupId) }),
+    queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) }),
+    queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalogList(workspaceId) }),
+    invalidateSelectorQueries(queryClient),
+  ])
+}
+
+export function useCreateCredentialGroupMcpConnector() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      groupId,
+      body,
+    }: {
+      workspaceId: string
+      groupId: string
+      body: ContractBodyInput<typeof createCredentialGroupMcpConnectorContract>
+    }) =>
+      requestJson(createCredentialGroupMcpConnectorContract, {
+        params: { id: workspaceId, groupId },
+        body,
+      }),
+    onSettled: (_data, _error, variables) =>
+      invalidateManagedMcpConnectorQueries(queryClient, variables.workspaceId, variables.groupId),
+  })
+}
+
+export function useUpdateCredentialGroupMcpConnector() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      groupId,
+      connectorId,
+      body,
+    }: {
+      workspaceId: string
+      groupId: string
+      connectorId: 'fireflies' | 'granola' | 'databricks'
+      body: ContractBodyInput<typeof updateCredentialGroupMcpConnectorContract>
+    }) =>
+      requestJson(updateCredentialGroupMcpConnectorContract, {
+        params: { id: workspaceId, groupId, connectorId },
+        body,
+      }),
+    onSettled: (_data, _error, variables) =>
+      invalidateManagedMcpConnectorQueries(queryClient, variables.workspaceId, variables.groupId),
+  })
+}
+
+export function useDeleteCredentialGroupMcpConnector() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      groupId,
+      connectorId,
+    }: {
+      workspaceId: string
+      groupId: string
+      connectorId: 'fireflies' | 'granola' | 'databricks'
+    }) =>
+      requestJson(deleteCredentialGroupMcpConnectorContract, {
+        params: { id: workspaceId, groupId, connectorId },
+      }),
+    onSettled: (_data, _error, variables) =>
+      invalidateManagedMcpConnectorQueries(queryClient, variables.workspaceId, variables.groupId),
   })
 }
 

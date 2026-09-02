@@ -16,6 +16,7 @@ import { ArrowLeft, ChevronRight, Server, Wrench, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
+import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import {
   getIssueBadgeLabel,
@@ -1127,6 +1128,9 @@ export const ToolInput = memo(function ToolInput({
     ) {
       const tools = mcpToolsByServer.get(mcpServerDrilldown) ?? []
       const server = mcpServers.find((candidate) => candidate.id === mcpServerDrilldown)
+      const ServerIcon = server?.managedConnectorId
+        ? getManagedMcpConnectorIcon(server.managedConnectorId)
+        : Server
       const serverName = tools[0]?.serverName || server?.name || 'Unknown Server'
       const allAlreadySelected = selectedTools.some(
         (tool) =>
@@ -1149,7 +1153,7 @@ export const ToolInput = memo(function ToolInput({
         serverToolItems.push({
           label: 'Use all available tools',
           value: `mcp-server-all-${mcpServerDrilldown}`,
-          iconElement: createToolIcon('var(--brand-agent)', Server),
+          iconElement: createToolIcon('var(--brand-agent)', ServerIcon),
           onSelect: () => {
             if (allAlreadySelected) return
             const filteredTools = selectedTools.filter(
@@ -1315,11 +1319,14 @@ export const ToolInput = memo(function ToolInput({
         const tools = mcpToolsByServer.get(serverId) ?? []
         const serverName = tools[0]?.serverName || server?.name || 'Unknown Server'
         const toolCount = tools.length
+        const ServerIcon = server.managedConnectorId
+          ? getManagedMcpConnectorIcon(server.managedConnectorId)
+          : Server
 
         serverItems.push({
           label: `${serverName} (${toolCount} tools)`,
           value: `mcp-server-folder-${serverId}`,
-          iconElement: createToolIcon('#6366F1', Server),
+          iconElement: createToolIcon('#6366F1', ServerIcon),
           suffixElement: <ChevronRight className='size-[12px] text-[var(--text-tertiary)]' />,
           onSelect: () => {
             setMcpServerDrilldown(serverId)
@@ -1496,6 +1503,14 @@ export const ToolInput = memo(function ToolInput({
             : null
 
           const mcpTool = isMcpTool ? mcpTools.find((t) => t.id === tool.toolId) : null
+          const advancedMcpServer = isAdvancedMcpServer
+            ? mcpServers.find((server) => server.id === tool.params?.serverId)
+            : undefined
+          const McpFamilyIcon = mcpTool?.icon
+            ? mcpTool.icon
+            : advancedMcpServer?.managedConnectorId
+              ? getManagedMcpConnectorIcon(advancedMcpServer.managedConnectorId)
+              : McpIcon
           const mcpTileColor = mcpTool?.bgColor || 'var(--brand-agent)'
           const mcpToolSchema = isMcpTool ? tool.schema || mcpTool?.inputSchema : null
 
@@ -1597,7 +1612,7 @@ export const ToolInput = memo(function ToolInput({
                       <Wrench className={cn('size-[10px]', getTileIconColorClass('#3B82F6'))} />
                     ) : isMcpFamily ? (
                       <IconComponent
-                        icon={McpIcon}
+                        icon={McpFamilyIcon}
                         className={cn('size-[10px]', getTileIconColorClass(mcpTileColor))}
                       />
                     ) : isWorkflowTool ? (

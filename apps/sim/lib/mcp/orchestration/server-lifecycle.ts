@@ -170,12 +170,21 @@ export async function createMcpServer(
         authType: mcpServers.authType,
         oauthClientId: mcpServers.oauthClientId,
         oauthClientSecret: mcpServers.oauthClientSecret,
+        managedConnectorId: mcpServers.managedConnectorId,
       })
       .from(mcpServers)
       .where(and(eq(mcpServers.id, serverId), eq(mcpServers.workspaceId, params.workspaceId)))
       .limit(1)
 
     const urlChanged = existingServer ? existingServer.url !== params.url : true
+
+    if (existingServer?.managedConnectorId) {
+      return {
+        success: false,
+        error: 'This MCP server is managed by a Credential Group',
+        errorCode: 'conflict',
+      }
+    }
 
     if (
       existingServer &&

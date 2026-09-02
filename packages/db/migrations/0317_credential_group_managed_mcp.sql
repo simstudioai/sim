@@ -6,6 +6,7 @@ ALTER TABLE "credential" ADD COLUMN IF NOT EXISTS "mcp_server_id" text;--> state
 ALTER TABLE "credential" ADD COLUMN IF NOT EXISTS "mcp_tools" jsonb;--> statement-breakpoint
 ALTER TABLE "credential" ADD COLUMN IF NOT EXISTS "mcp_tools_refreshed_at" timestamp;--> statement-breakpoint
 ALTER TABLE "mcp_servers" ADD COLUMN IF NOT EXISTS "credential_group_id" text;--> statement-breakpoint
+ALTER TABLE "mcp_servers" ADD COLUMN IF NOT EXISTS "managed_connector_id" text;--> statement-breakpoint
 
 -- PostgreSQL has no ADD CONSTRAINT IF NOT EXISTS, so replay guards are scoped to each table.
 -- NOT VALID keeps foreign-key installation to a metadata change before validation.
@@ -29,6 +30,26 @@ DO $$ BEGIN
   END IF;
 END $$;--> statement-breakpoint
 ALTER TABLE "mcp_servers" VALIDATE CONSTRAINT "mcp_servers_credential_group_id_credential_group_id_fk";--> statement-breakpoint
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM "pg_constraint"
+    WHERE "conname" = 'mcp_servers_credential_group_managed_connector_check'
+      AND "conrelid" = '"mcp_servers"'::regclass
+  ) THEN
+    ALTER TABLE "mcp_servers" ADD CONSTRAINT "mcp_servers_credential_group_managed_connector_check" CHECK ("credential_group_id" IS NULL OR "managed_connector_id" IS NOT NULL) NOT VALID;
+  END IF;
+END $$;--> statement-breakpoint
+ALTER TABLE "mcp_servers" VALIDATE CONSTRAINT "mcp_servers_credential_group_managed_connector_check";--> statement-breakpoint
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM "pg_constraint"
+    WHERE "conname" = 'mcp_servers_managed_connector_oauth_check'
+      AND "conrelid" = '"mcp_servers"'::regclass
+  ) THEN
+    ALTER TABLE "mcp_servers" ADD CONSTRAINT "mcp_servers_managed_connector_oauth_check" CHECK ("managed_connector_id" IS NULL OR "auth_type" = 'oauth') NOT VALID;
+  END IF;
+END $$;--> statement-breakpoint
+ALTER TABLE "mcp_servers" VALIDATE CONSTRAINT "mcp_servers_managed_connector_oauth_check";--> statement-breakpoint
 
 DO $$ BEGIN
   IF NOT EXISTS (
@@ -87,4 +108,6 @@ DROP INDEX CONCURRENTLY IF EXISTS "credential_managed_mcp_enrollment_server_uniq
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "credential_managed_mcp_enrollment_server_unique" ON "credential" USING btree ("credential_group_enrollment_id","mcp_server_id") WHERE "credential"."type" = 'managed_mcp';--> statement-breakpoint
 DROP INDEX CONCURRENTLY IF EXISTS "mcp_servers_credential_group_idx";--> statement-breakpoint
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "mcp_servers_credential_group_idx" ON "mcp_servers" USING btree ("credential_group_id");--> statement-breakpoint
+DROP INDEX CONCURRENTLY IF EXISTS "mcp_servers_credential_group_managed_connector_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "mcp_servers_credential_group_managed_connector_unique" ON "mcp_servers" USING btree ("credential_group_id","managed_connector_id") WHERE "credential_group_id" IS NOT NULL AND "managed_connector_id" IS NOT NULL AND "deleted_at" IS NULL;--> statement-breakpoint
 SET lock_timeout = '5s';

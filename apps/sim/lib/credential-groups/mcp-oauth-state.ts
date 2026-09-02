@@ -15,6 +15,15 @@ redis.call('DEL', KEYS[1])
 return value
 `
 
+const CLEAR_SERVER_ATTEMPTS_SCRIPT = `
+local keys = redis.call('SMEMBERS', KEYS[1])
+for _, key in ipairs(keys) do
+  redis.call('DEL', key)
+end
+redis.call('DEL', KEYS[1])
+return #keys
+`
+
 interface StoredCredentialGroupMcpOAuthAttempt {
   version: typeof MCP_OAUTH_ATTEMPT_VERSION
   enrollmentId: string
@@ -43,6 +52,10 @@ function requireRedis() {
 
 function attemptKey(state: string): string {
   return `credential-group:mcp-oauth-attempt:${sha256Hex(state)}`
+}
+
+function serverAttemptsKey(mcpServerId: string): string {
+  return `credential-group:mcp-oauth-attempts:${mcpServerId}`
 }
 
 function isStoredAttempt(value: unknown): value is StoredCredentialGroupMcpOAuthAttempt {
@@ -96,6 +109,8 @@ export async function createCredentialGroupMcpOAuthAttempt(params: {
     'NX'
   )
   if (stored !== 'OK') throw new Error('Credential Group MCP OAuth state collision')
+  await redis.sadd(serverAttemptsKey(params.mcpServerId), attemptKey(params.state))
+  await redis.pexpire(serverAttemptsKey(params.mcpServerId), MCP_OAUTH_ATTEMPT_TTL_MS)
 }
 
 export async function consumeCredentialGroupMcpOAuthAttempt(
@@ -107,6 +122,7 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
   if (typeof raw !== 'string') throw new Error('Credential Group MCP OAuth state is malformed')
   const parsed: unknown = JSON.parse(raw)
   if (!isStoredAttempt(parsed)) throw new Error('Credential Group MCP OAuth state is malformed')
+  await requireRedis().srem(serverAttemptsKey(parsed.mcpServerId), attemptKey(state))
   if (Date.now() - parsed.createdAt > MCP_OAUTH_ATTEMPT_TTL_MS) return null
   const [codeVerifier, invitationToken] = await Promise.all([
     decryptSecret(parsed.encryptedCodeVerifier),
@@ -121,4 +137,14 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
     invitationToken: invitationToken.decrypted,
     createdAt: parsed.createdAt,
   }
+}
+
+export async function clearCredentialGroupMcpOAuthAttempts(mcpServerIds: string[]): Promise<void> {
+  if (mcpServerIds.length === 0) return
+  const redis = requireRedis()
+  await Promise.all(
+    mcpServerIds.map((mcpServerId) =>
+      redis.eval(CLEAR_SERVER_ATTEMPTS_SCRIPT, 1, serverAttemptsKey(mcpServerId))
+    )
+  )
 }

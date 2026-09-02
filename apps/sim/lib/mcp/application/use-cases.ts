@@ -353,6 +353,12 @@ async function updateMcpServer(args: {
   input: UpdateMcpServerInput
   context: McpServerContext
 }): Promise<PerformMcpServerResult & { server: McpServerRow }> {
+  if (args.context.server.managedConnectorId) {
+    throw new OrchestrationError(
+      'conflict',
+      'This MCP server is managed from its Credential Group settings'
+    )
+  }
   const attribution = resolvePrincipalAttribution(args.principal, {
     workspaceBillingOwnerUserId: args.context.billedAccountUserId,
   })
@@ -439,6 +445,12 @@ export const deleteMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
     resolveMcpServerContext(input.workspaceId, input.serverId),
   authorizationOptions,
   async execute({ principal, input, context }) {
+    if (context.server.managedConnectorId) {
+      throw new OrchestrationError(
+        'conflict',
+        'This MCP server is managed from its Credential Group settings'
+      )
+    }
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })

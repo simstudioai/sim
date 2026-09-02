@@ -33,7 +33,7 @@ import {
   restoreSkillTriggerText,
   SKILL_CHIP_TRIGGER,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
-import { type McpServer, useMcpServers } from '@/hooks/queries/mcp'
+import { type McpServer, useMcpToolServers } from '@/hooks/queries/mcp'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
 import type { ChatContext } from '@/stores/panel'
 
@@ -165,7 +165,7 @@ export function usePromptEditor({
   onPasteFiles,
 }: UsePromptEditorProps) {
   const { data: skills = [] } = useSkills(workspaceId)
-  const { data: allMcpServers = [] } = useMcpServers(workspaceId)
+  const { data: allMcpServers = [] } = useMcpToolServers(workspaceId)
   const mcpServers = useMemo(
     () => allMcpServers.filter((server) => server.enabled && server.workspaceId === workspaceId),
     [allMcpServers, workspaceId]
@@ -527,7 +527,12 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      addContextNotified({ kind: 'mcp', serverId: server.id, label: server.name })
+      addContextNotified({
+        kind: 'mcp',
+        serverId: server.id,
+        label: server.name,
+        ...(server.managedConnectorId ? { managedConnectorId: server.managedConnectorId } : {}),
+      })
     },
     [textareaRef, addContextNotified]
   )

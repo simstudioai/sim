@@ -18,6 +18,8 @@ import { getCredentialGroupInvitationSubject } from '@/components/emails/subject
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
+import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
+import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import {
@@ -94,6 +96,7 @@ export interface PublicCredentialGroupEnrollment {
     id: string
     name: string
     description: string | null
+    managedConnectorId: ManagedMcpConnectorId
     connection: {
       id: string
       status: 'connected' | 'needs_reauth' | 'revoked'
@@ -907,7 +910,12 @@ async function buildPublicCredentialGroupEnrollment(
         )
       ),
     db
-      .select({ id: mcpServers.id, name: mcpServers.name, description: mcpServers.description })
+      .select({
+        id: mcpServers.id,
+        name: mcpServers.name,
+        description: mcpServers.description,
+        managedConnectorId: mcpServers.managedConnectorId,
+      })
       .from(mcpServers)
       .where(
         and(
@@ -993,10 +1001,15 @@ async function buildPublicCredentialGroupEnrollment(
       })
     ),
     mcpServers: linkedMcpServers.map((server) => {
+      if (!server.managedConnectorId) {
+        throw new Error(`Credential Group MCP server ${server.id} has no managed connector ID`)
+      }
+      const managedConnectorId = getManagedMcpConnector(server.managedConnectorId).id
       const connection = mcpConnectionByServerId.get(server.id)
-      if (!connection?.grantedAt) return { ...server, connection: null }
+      if (!connection?.grantedAt) return { ...server, managedConnectorId, connection: null }
       return {
         ...server,
+        managedConnectorId,
         connection: {
           id: connection.id,
           status:
@@ -1118,7 +1131,12 @@ export async function getAuthorizedCredentialGroupMcpOAuthContext(
   const row = await resolveAuthorizedPublicEnrollmentRow(identity)
   if (!row) return null
   const [server] = await db
-    .select({ id: mcpServers.id, name: mcpServers.name, url: mcpServers.url })
+    .select({
+      id: mcpServers.id,
+      name: mcpServers.name,
+      url: mcpServers.url,
+      managedConnectorId: mcpServers.managedConnectorId,
+    })
     .from(mcpServers)
     .where(
       and(
@@ -1132,6 +1150,10 @@ export async function getAuthorizedCredentialGroupMcpOAuthContext(
     )
     .limit(1)
   if (!server?.url) return null
+  if (!server.managedConnectorId) {
+    throw new Error(`Credential Group MCP server ${server.id} has no managed connector ID`)
+  }
+  getManagedMcpConnector(server.managedConnectorId)
   return {
     enrollmentId: row.enrollment.id,
     credentialGroupId: row.groupId,

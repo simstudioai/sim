@@ -17,9 +17,9 @@ import {
   CredentialGroupEnrollmentError,
   listCredentialGroupEnrollments,
 } from '@/lib/credential-groups/enrollments'
+import { clearCredentialGroupMcpOAuthAttempts } from '@/lib/credential-groups/mcp-oauth-state'
 import { listConfiguredCredentialGroupProviders } from '@/lib/credential-groups/provider-availability'
 import {
-  CredentialGroupMcpServerError,
   createCredentialGroup,
   deleteCredentialGroup,
   getCredentialGroup,
@@ -31,11 +31,9 @@ import type {
   UpdateCredentialGroupInput,
 } from '@/lib/credential-groups/types'
 import { evictMcpServerConnections } from '@/lib/mcp/connection-pool'
+import { mcpService } from '@/lib/mcp/service'
 
 function throwCredentialGroupConflict(error: unknown): never {
-  if (error instanceof CredentialGroupMcpServerError) {
-    throw new OrchestrationError(error.code, error.message)
-  }
   if (getPostgresErrorCode(error) === '23505') {
     throw new OrchestrationError('conflict', 'A credential group with this name already exists')
   }
@@ -179,7 +177,11 @@ export const deleteCredentialGroupSettings = defineAuthorizedWorkspaceUseCase({
     await requireCredentialGroupSettingsAvailable(context.workspaceId)
     const result = await deleteCredentialGroup(context.workspaceId, context.credentialGroupId)
     if (!result.deleted) throw new OrchestrationError('not_found', 'Credential group not found')
-    return { success: true as const, retiredMcpConnectionIds: result.retiredMcpConnectionIds }
+    return {
+      success: true as const,
+      retiredMcpConnectionIds: result.retiredMcpConnectionIds,
+      retiredMcpServerIds: result.retiredMcpServerIds,
+    }
   },
   projectAudit: ({ context }) => ({
     action: AuditAction.CREDENTIAL_GROUP_UPDATED,
@@ -188,10 +190,16 @@ export const deleteCredentialGroupSettings = defineAuthorizedWorkspaceUseCase({
     resourceName: context.name,
     description: 'Deleted a Credential Group',
   }),
-  afterSuccess: ({ result }) =>
-    Promise.all(
-      result.retiredMcpConnectionIds.map((connectionId) =>
+  async afterSuccess({ context, result }) {
+    await mcpService.clearCache(context.workspaceId)
+    await clearCredentialGroupMcpOAuthAttempts(result.retiredMcpServerIds)
+    await Promise.all([
+      ...result.retiredMcpServerIds.map((serverId) =>
+        evictMcpServerConnections(serverId, 'credential_group_deleted')
+      ),
+      ...result.retiredMcpConnectionIds.map((connectionId) =>
         evictMcpServerConnections(connectionId, 'credential_group_deleted')
-      )
-    ).then(() => undefined),
+      ),
+    ])
+  },
 })

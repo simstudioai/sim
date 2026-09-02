@@ -8398,6 +8398,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "managed_connector_id": {
+          "name": "managed_connector_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_by": {
           "name": "created_by",
           "type": "text",
@@ -8585,6 +8591,28 @@
           "method": "btree",
           "with": {}
         },
+        "mcp_servers_credential_group_managed_connector_unique": {
+          "name": "mcp_servers_credential_group_managed_connector_unique",
+          "columns": [
+            {
+              "expression": "credential_group_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "managed_connector_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"mcp_servers\".\"credential_group_id\" IS NOT NULL AND \"mcp_servers\".\"managed_connector_id\" IS NOT NULL AND \"mcp_servers\".\"deleted_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "mcp_servers_workspace_deleted_partial_idx": {
           "name": "mcp_servers_workspace_deleted_partial_idx",
           "columns": [
@@ -8640,7 +8668,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "mcp_servers_credential_group_managed_connector_check": {
+          "name": "mcp_servers_credential_group_managed_connector_check",
+          "value": "\"mcp_servers\".\"credential_group_id\" IS NULL OR \"mcp_servers\".\"managed_connector_id\" IS NOT NULL"
+        },
+        "mcp_servers_managed_connector_oauth_check": {
+          "name": "mcp_servers_managed_connector_oauth_check",
+          "value": "\"mcp_servers\".\"managed_connector_id\" IS NULL OR \"mcp_servers\".\"auth_type\" = 'oauth'"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.member": {

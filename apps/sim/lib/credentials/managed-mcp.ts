@@ -14,6 +14,7 @@ import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import { lockCredentialGroupEnrollmentLifecycle } from '@/lib/credential-groups/enrollments'
+import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 import { generateManagedMcpConnectionId } from '@/lib/mcp/utils'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
@@ -109,6 +110,7 @@ export async function loadManagedMcpCredentialApplicationContext(
       credentialGroupEnrollmentId: credentialGroupEnrollment.id,
       mcpServerId: mcpServers.id,
       mcpServerName: mcpServers.name,
+      managedConnectorId: mcpServers.managedConnectorId,
     })
     .from(credential)
     .innerJoin(
@@ -120,6 +122,10 @@ export async function loadManagedMcpCredentialApplicationContext(
     .where(and(eq(credential.id, credentialId), eq(credential.type, 'managed_mcp')))
     .limit(1)
   if (!row) return null
+  if (!row.managedConnectorId) {
+    throw new Error(`Managed MCP server ${row.mcpServerId} has no connector ID`)
+  }
+  getManagedMcpConnector(row.managedConnectorId)
   const workspaceContext = await loadActiveWorkspaceApplicationContext(row.workspaceId)
   return workspaceContext ? { ...workspaceContext, ...row } : null
 }
@@ -149,6 +155,7 @@ export async function loadManagedMcpRuntimeCredential(
       linkedCredentialGroupId: mcpServers.credentialGroupId,
       mcpServerId: mcpServers.id,
       mcpServerName: mcpServers.name,
+      managedConnectorId: mcpServers.managedConnectorId,
     })
     .from(credential)
     .innerJoin(
@@ -170,6 +177,10 @@ export async function loadManagedMcpRuntimeCredential(
     )
     .limit(1)
   if (!row) throw new ManagedMcpCredentialError('Managed MCP credential not found', 404)
+  if (!row.managedConnectorId) {
+    throw new ManagedMcpCredentialError('Managed MCP connector metadata is missing', 500)
+  }
+  getManagedMcpConnector(row.managedConnectorId)
   if (
     row.status !== 'active' ||
     row.groupStatus !== 'active' ||
@@ -215,6 +226,7 @@ export async function persistManagedMcpCredential(params: {
         credentialGroupId: credentialGroupEnrollment.credentialGroupId,
         groupStatus: credentialGroup.status,
         linkedCredentialGroupId: mcpServers.credentialGroupId,
+        managedConnectorId: mcpServers.managedConnectorId,
       })
       .from(credentialGroupEnrollment)
       .innerJoin(
@@ -236,12 +248,14 @@ export async function persistManagedMcpCredential(params: {
       .for('update')
     if (
       !source ||
+      !source.managedConnectorId ||
       source.groupStatus !== 'active' ||
       !['invited', 'in_progress', 'completed'].includes(source.enrollmentStatus) ||
       source.linkedCredentialGroupId !== source.credentialGroupId
     ) {
       throw new ManagedMcpCredentialError('Managed MCP connection is no longer available', 404)
     }
+    getManagedMcpConnector(source.managedConnectorId)
 
     const [existing] = await tx
       .select({ id: credential.id })

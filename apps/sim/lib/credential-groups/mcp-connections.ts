@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { credential, credentialGroup, credentialGroupEnrollment, mcpServers } from '@sim/db/schema'
 import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
+import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 
 export const MAX_CREDENTIAL_GROUP_MCP_CONNECTION_PAGE_SIZE = 100
 
@@ -94,6 +95,7 @@ export async function listCredentialGroupMcpConnectionReferences({
       displayName: credential.displayName,
       mcpServerId: mcpServers.id,
       mcpServerName: mcpServers.name,
+      managedConnectorId: mcpServers.managedConnectorId,
       hasToolSnapshot: sql<boolean>`${credential.mcpTools} IS NOT NULL`,
       toolNames:
         sql`COALESCE(jsonb_path_query_array(${credential.mcpTools}, '$[*].name'), '[]'::jsonb)`.mapWith(
@@ -135,6 +137,10 @@ export async function listCredentialGroupMcpConnectionReferences({
       if (!row.hasToolSnapshot) {
         throw new Error(`Managed MCP connection ${row.id} has no tool snapshot`)
       }
+      if (!row.managedConnectorId) {
+        throw new Error(`Managed MCP server ${row.mcpServerId} has no connector ID`)
+      }
+      getManagedMcpConnector(row.managedConnectorId)
       if (row.toolNames.some((name) => typeof name !== 'string' || !name.trim())) {
         throw new Error(`Managed MCP connection ${row.id} has invalid tool metadata`)
       }

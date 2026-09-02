@@ -3638,6 +3638,7 @@ export const mcpServers = pgTable(
       (): AnyPgColumn => credentialGroup.id,
       { onDelete: 'set null' }
     ),
+    managedConnectorId: text('managed_connector_id'),
 
     // Track who created the server, but workspace owns it
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
@@ -3684,6 +3685,21 @@ export const mcpServers = pgTable(
       table.enabled
     ),
     credentialGroupIdx: index('mcp_servers_credential_group_idx').on(table.credentialGroupId),
+    credentialGroupManagedConnectorUnique: uniqueIndex(
+      'mcp_servers_credential_group_managed_connector_unique'
+    )
+      .on(table.credentialGroupId, table.managedConnectorId)
+      .where(
+        sql`${table.credentialGroupId} IS NOT NULL AND ${table.managedConnectorId} IS NOT NULL AND ${table.deletedAt} IS NULL`
+      ),
+    credentialGroupManagedConnectorCheck: check(
+      'mcp_servers_credential_group_managed_connector_check',
+      sql`${table.credentialGroupId} IS NULL OR ${table.managedConnectorId} IS NOT NULL`
+    ),
+    managedConnectorOauthCheck: check(
+      'mcp_servers_managed_connector_oauth_check',
+      sql`${table.managedConnectorId} IS NULL OR ${table.authType} = 'oauth'`
+    ),
 
     // Soft delete pattern - workspace + not deleted (partial: only deleted rows)
     workspaceDeletedIdx: index('mcp_servers_workspace_deleted_partial_idx')

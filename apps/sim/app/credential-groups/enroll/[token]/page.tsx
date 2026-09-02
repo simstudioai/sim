@@ -2,10 +2,10 @@ import { type ReactNode, Suspense } from 'react'
 import { Chip } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
-import { McpIcon } from '@/components/icons'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { authenticateCredentialGroupEnrollment } from '@/lib/credential-groups/application/enrollment-auth'
 import { readPublicCredentialGroupEnrollment } from '@/lib/credential-groups/application/public-enrollment'
+import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
 import { SupportFooter } from '@/app/(auth)/components'
@@ -181,26 +181,29 @@ export default async function CredentialGroupEnrollmentPage({
                 />
               )
             })}
-            {enrollment.mcpServers.map((server) => (
-              <SettingsResourceRow
-                key={server.id}
-                icon={<McpIcon />}
-                title={server.name}
-                description={
-                  server.connection?.status === 'connected'
-                    ? 'Connected'
-                    : server.connection
-                      ? 'Reconnect required'
-                      : server.description || 'Not connected'
-                }
-                trailing={
-                  <OAuthConnectLink
-                    href={`/api/credential-groups/enroll/${token}/mcp/${server.id}`}
-                    reconnect={Boolean(server.connection)}
-                  />
-                }
-              />
-            ))}
+            {enrollment.mcpServers.map((server) => {
+              const ConnectorIcon = getManagedMcpConnectorIcon(server.managedConnectorId)
+              return (
+                <SettingsResourceRow
+                  key={server.id}
+                  icon={<ConnectorIcon />}
+                  title={server.name}
+                  description={
+                    server.connection?.status === 'connected'
+                      ? 'Connected'
+                      : server.connection
+                        ? 'Reconnect required'
+                        : server.description || 'Not connected'
+                  }
+                  trailing={
+                    <OAuthConnectLink
+                      href={`/api/credential-groups/enroll/${token}/mcp/${server.id}`}
+                      reconnect={Boolean(server.connection)}
+                    />
+                  }
+                />
+              )
+            })}
           </div>
         </SettingsSection>
         <form

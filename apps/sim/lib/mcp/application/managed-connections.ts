@@ -4,6 +4,7 @@ import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
+import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 import { resolveMcpWorkspaceContext } from '@/lib/mcp/application/context'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import type { McpToolSchema } from '@/lib/mcp/types'
@@ -52,6 +53,7 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
         serverId: mcpServers.id,
         serverName: mcpServers.name,
         serverDescription: mcpServers.description,
+        managedConnectorId: mcpServers.managedConnectorId,
         email: credentialGroupEnrollment.email,
         toolSnapshotBytes:
           sql<number>`COALESCE(octet_length(${credential.mcpTools}::text), 0)`.mapWith(Number),
@@ -114,7 +116,14 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
       if (!tools) {
         throw new Error(`Managed MCP connection ${row.id} changed while loading its tool snapshot`)
       }
-      return { ...row, tools }
+      if (!row.managedConnectorId) {
+        throw new Error(`Managed MCP server ${row.serverId} has no connector ID`)
+      }
+      return {
+        ...row,
+        managedConnectorId: getManagedMcpConnector(row.managedConnectorId).id,
+        tools,
+      }
     })
 
     return {
@@ -125,6 +134,7 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
         ...(row.serverDescription ? { description: row.serverDescription } : {}),
         transport: 'streamable-http' as const,
         authType: 'oauth' as const,
+        managedConnectorId: row.managedConnectorId,
         enabled: true,
         connectionStatus: 'connected' as const,
         toolCount: row.tools.length,
@@ -138,6 +148,7 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
           inputSchema: requireMcpToolSchema(tool.inputSchema),
           serverId: row.id,
           serverName: `${row.serverName} — ${row.email}`,
+          managedConnectorId: row.managedConnectorId,
         }))
       }),
     }

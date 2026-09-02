@@ -7,11 +7,13 @@ import {
   mcpServers,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm'
 import {
   credentialGroupWorkflowAccessPolicyCodec,
   requireDefaultCredentialGroupWorkflowAccessPolicy,
 } from '@/lib/credential-groups/application/workflow-access-policy'
+import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
+import { retireManagedMcpServersForGroup } from '@/lib/credential-groups/managed-mcp-service'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import { decryptCredentialGroupProviderConfiguration } from '@/lib/credential-groups/provider-configuration'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
@@ -30,16 +32,6 @@ import {
   requireResourcePolicy,
 } from '@/lib/resource-policies/repository'
 
-export class CredentialGroupMcpServerError extends Error {
-  constructor(
-    message: string,
-    readonly code: 'validation' | 'conflict'
-  ) {
-    super(message)
-    this.name = 'CredentialGroupMcpServerError'
-  }
-}
-
 interface CredentialGroupMutationResult {
   credentialGroup: CredentialGroupRecord
   retiredMcpConnectionIds: string[]
@@ -48,134 +40,34 @@ interface CredentialGroupMutationResult {
 interface DeleteCredentialGroupResult {
   deleted: boolean
   retiredMcpConnectionIds: string[]
+  retiredMcpServerIds: string[]
 }
 
 async function listLinkedMcpServers(
   credentialGroupId: string,
   executor: DbOrTx = db
 ): Promise<CredentialGroupMcpServer[]> {
-  return executor
+  const rows = await executor
     .select({
       id: mcpServers.id,
       name: mcpServers.name,
       description: mcpServers.description,
       authType: mcpServers.authType,
       enabled: mcpServers.enabled,
+      managedConnectorId: mcpServers.managedConnectorId,
     })
     .from(mcpServers)
     .where(and(eq(mcpServers.credentialGroupId, credentialGroupId), isNull(mcpServers.deletedAt)))
     .orderBy(asc(mcpServers.name), asc(mcpServers.id))
-}
-
-async function syncCredentialGroupMcpServers(
-  workspaceId: string,
-  credentialGroupId: string,
-  requestedServerIds: string[],
-  executor: DbOrTx
-): Promise<string[]> {
-  const requestedScope =
-    requestedServerIds.length > 0
-      ? or(
-          eq(mcpServers.credentialGroupId, credentialGroupId),
-          inArray(mcpServers.id, requestedServerIds)
-        )
-      : eq(mcpServers.credentialGroupId, credentialGroupId)
-  const rows = await executor
-    .select({
-      id: mcpServers.id,
-      credentialGroupId: mcpServers.credentialGroupId,
-      authType: mcpServers.authType,
-      enabled: mcpServers.enabled,
-      deletedAt: mcpServers.deletedAt,
-    })
-    .from(mcpServers)
-    .where(and(eq(mcpServers.workspaceId, workspaceId), requestedScope))
-    .for('update')
-
-  const rowsById = new Map(rows.map((row) => [row.id, row]))
-  for (const serverId of requestedServerIds) {
-    const server = rowsById.get(serverId)
-    if (!server || server.deletedAt || !server.enabled) {
-      throw new CredentialGroupMcpServerError(`MCP server ${serverId} is unavailable`, 'validation')
+  return rows.map((row) => {
+    if (!row.managedConnectorId) {
+      throw new Error(`Credential Group MCP server ${row.id} has no managed connector ID`)
     }
-    if (server.authType !== 'oauth') {
-      throw new CredentialGroupMcpServerError(`MCP server ${serverId} must use OAuth`, 'validation')
+    return {
+      ...row,
+      managedConnectorId: getManagedMcpConnector(row.managedConnectorId).id,
     }
-    if (server.credentialGroupId && server.credentialGroupId !== credentialGroupId) {
-      throw new CredentialGroupMcpServerError(
-        `MCP server ${serverId} is already assigned to another Credential Group`,
-        'conflict'
-      )
-    }
-  }
-
-  const requested = new Set(requestedServerIds)
-  const removedServerIds = rows
-    .filter((row) => row.credentialGroupId === credentialGroupId && !requested.has(row.id))
-    .map((row) => row.id)
-  const addedServerIds = requestedServerIds.filter(
-    (serverId) => rowsById.get(serverId)?.credentialGroupId !== credentialGroupId
-  )
-
-  let retiredMcpConnectionIds: string[] = []
-  if (removedServerIds.length > 0) {
-    const enrollmentIds = executor
-      .select({ id: credentialGroupEnrollment.id })
-      .from(credentialGroupEnrollment)
-      .where(eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId))
-    const retired = await executor
-      .update(credential)
-      .set({
-        managedOauthStatus: 'revoked',
-        encryptedOauthTokenSet: null,
-        mcpTools: null,
-        mcpToolsRefreshedAt: null,
-        revokedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(credential.type, 'managed_mcp'),
-          inArray(credential.credentialGroupEnrollmentId, enrollmentIds),
-          inArray(credential.mcpServerId, removedServerIds)
-        )
-      )
-      .returning({ id: credential.id })
-    retiredMcpConnectionIds = retired.map((row) => row.id)
-    await executor
-      .update(mcpServers)
-      .set({ credentialGroupId: null, updatedAt: new Date() })
-      .where(
-        and(
-          eq(mcpServers.workspaceId, workspaceId),
-          eq(mcpServers.credentialGroupId, credentialGroupId),
-          inArray(mcpServers.id, removedServerIds)
-        )
-      )
-  }
-
-  if (addedServerIds.length > 0) {
-    const assigned = await executor
-      .update(mcpServers)
-      .set({ credentialGroupId, updatedAt: new Date() })
-      .where(
-        and(
-          eq(mcpServers.workspaceId, workspaceId),
-          inArray(mcpServers.id, addedServerIds),
-          isNull(mcpServers.credentialGroupId),
-          isNull(mcpServers.deletedAt)
-        )
-      )
-      .returning({ id: mcpServers.id })
-    if (assigned.length !== addedServerIds.length) {
-      throw new CredentialGroupMcpServerError(
-        'An MCP server was assigned to another Credential Group',
-        'conflict'
-      )
-    }
-  }
-
-  return retiredMcpConnectionIds
+  })
 }
 
 function scopesEqual(left: string[], right: string[]): boolean {
@@ -313,6 +205,7 @@ export async function listCredentialGroups(workspaceId: string): Promise<Credent
         authType: mcpServers.authType,
         enabled: mcpServers.enabled,
         credentialGroupId: mcpServers.credentialGroupId,
+        managedConnectorId: mcpServers.managedConnectorId,
       })
       .from(mcpServers)
       .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
@@ -327,6 +220,7 @@ export async function listCredentialGroups(workspaceId: string): Promise<Credent
       description: server.description,
       authType: server.authType,
       enabled: server.enabled,
+      managedConnectorId: getManagedMcpConnector(server.managedConnectorId ?? '').id,
     }
     const current = serversByGroupId.get(server.credentialGroupId)
     if (current) current.push(summary)
@@ -386,7 +280,6 @@ export async function createCredentialGroup(
       document: policy.document,
       credentialGroupId: created.id,
     })
-    await syncCredentialGroupMcpServers(workspaceId, created.id, body.mcpServerIds ?? [], tx)
     return toCredentialGroup(created, await listLinkedMcpServers(created.id, tx))
   })
 }
@@ -402,27 +295,11 @@ export async function deleteCredentialGroup(
       .where(and(eq(credentialGroup.id, groupId), eq(credentialGroup.workspaceId, workspaceId)))
       .limit(1)
       .for('update')
-    if (!existing) return { deleted: false, retiredMcpConnectionIds: [] }
+    if (!existing) {
+      return { deleted: false, retiredMcpConnectionIds: [], retiredMcpServerIds: [] }
+    }
 
-    const retiredMcpConnections = await tx
-      .select({ id: credential.id })
-      .from(credential)
-      .innerJoin(
-        credentialGroupEnrollment,
-        eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
-      )
-      .where(
-        and(
-          eq(credential.type, 'managed_mcp'),
-          eq(credentialGroupEnrollment.credentialGroupId, groupId)
-        )
-      )
-    await tx
-      .update(mcpServers)
-      .set({ credentialGroupId: null, updatedAt: new Date() })
-      .where(
-        and(eq(mcpServers.workspaceId, workspaceId), eq(mcpServers.credentialGroupId, groupId))
-      )
+    const retiredMcp = await retireManagedMcpServersForGroup(workspaceId, groupId, tx)
 
     await deleteResourcePolicyForResource(
       { workspaceId, resourceType: 'credential_group', resourceId: groupId },
@@ -435,7 +312,8 @@ export async function deleteCredentialGroup(
     if (deleted.length !== 1) throw new Error('Locked Credential Group delete returned no row')
     return {
       deleted: true,
-      retiredMcpConnectionIds: retiredMcpConnections.map((row) => row.id),
+      retiredMcpConnectionIds: retiredMcp.connectionIds,
+      retiredMcpServerIds: retiredMcp.serverIds,
     }
   })
 }
@@ -453,11 +331,6 @@ export async function updateCredentialGroup(
       .limit(1)
       .for('update')
     if (!existing) return null
-
-    const retiredMcpConnectionIds =
-      body.mcpServerIds === undefined
-        ? []
-        : await syncCredentialGroupMcpServers(workspaceId, groupId, body.mcpServerIds, tx)
 
     const nextOptions =
       body.options !== undefined
@@ -513,7 +386,7 @@ export async function updateCredentialGroup(
     }
     return {
       credentialGroup: await toCredentialGroup(updated, await listLinkedMcpServers(updated.id, tx)),
-      retiredMcpConnectionIds,
+      retiredMcpConnectionIds: [],
     }
   })
 }

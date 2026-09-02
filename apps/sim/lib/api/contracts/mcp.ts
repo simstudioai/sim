@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { v2TimestampSchema } from '@/lib/api/contracts/v2/shared'
+import { MANAGED_MCP_CONNECTOR_IDS } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { McpToolSchema, McpToolSchemaProperty } from '@/lib/mcp/types'
 
 const MAX_MCP_REFRESH_SERVER_IDS = 100
@@ -53,6 +54,7 @@ export const mcpTransportSchema = z.enum(['streamable-http'])
 const mcpTransportResponseSchema = mcpTransportSchema.catch('streamable-http')
 
 export const mcpAuthTypeSchema = z.enum(['none', 'headers', 'oauth'])
+export const managedMcpConnectorIdSchema = z.enum(MANAGED_MCP_CONNECTOR_IDS)
 
 const consecutiveFailuresSchema = z.preprocess(
   (value) => (typeof value === 'number' ? value : undefined),
@@ -97,6 +99,7 @@ export const mcpToolSchema = z.object({
   inputSchema: mcpToolInputSchema,
   serverId: z.string(),
   serverName: z.string(),
+  managedConnectorId: managedMcpConnectorIdSchema.optional(),
 })
 
 export const storedMcpToolSchema = z.object({
@@ -144,6 +147,10 @@ export const mcpServerSchema = z
     oauthClientId: optionalStringFromNullableSchema,
     hasOauthClientSecret: z.boolean().optional(),
     credentialGroupId: optionalStringFromNullableSchema,
+    managedConnectorId: z.preprocess(
+      (value) => (value === null ? undefined : value),
+      managedMcpConnectorIdSchema.optional()
+    ),
   })
   .passthrough()
 export type McpServer = z.output<typeof mcpServerSchema>
@@ -178,6 +185,7 @@ export const createMcpServerBodySchema = z
     workspaceId: z.string().optional(),
     oauthClientId: z.string().nullable().optional(),
     oauthClientSecret: z.string().nullable().optional(),
+    managedConnectorId: z.never().optional(),
   })
   .passthrough()
 

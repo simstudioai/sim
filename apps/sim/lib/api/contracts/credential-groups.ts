@@ -7,6 +7,7 @@ import {
   CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT,
   CREDENTIAL_GROUP_WORKFLOW_NAME_MAX_LENGTH,
 } from '@/lib/credential-groups/limits'
+import { MANAGED_MCP_CONNECTOR_IDS } from '@/lib/credential-groups/managed-mcp-connectors'
 import {
   CREDENTIAL_GROUP_PROVIDER_IDS,
   CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS,
@@ -26,6 +27,7 @@ export const credentialGroupOptionConfigurationStatusSchema = z.enum([
   'ready',
   'needs_update',
 ])
+export const managedMcpConnectorIdSchema = z.enum(MANAGED_MCP_CONNECTOR_IDS)
 
 const credentialGroupOptionFields = {
   label: z.string().trim().min(1, 'Option label is required').max(100),
@@ -78,6 +80,7 @@ export const credentialGroupMcpServerSchema = z.object({
   description: z.string().nullable(),
   authType: z.string().min(1),
   enabled: z.boolean(),
+  managedConnectorId: managedMcpConnectorIdSchema,
 })
 
 export const credentialGroupSchema = z.object({
@@ -143,26 +146,6 @@ export type CredentialGroupEnrollmentMcpConnection = z.output<
 >
 export type CredentialGroupEnrollmentDetail = z.output<typeof credentialGroupEnrollmentDetailSchema>
 
-const credentialGroupMcpServerIdsSchema = z
-  .array(z.string().min(1, 'MCP server ID is required').max(128))
-  .max(
-    CREDENTIAL_GROUP_MCP_SERVER_LIMIT,
-    `Select at most ${CREDENTIAL_GROUP_MCP_SERVER_LIMIT} MCP servers`
-  )
-  .superRefine((serverIds, ctx) => {
-    const seen = new Set<string>()
-    for (const [index, serverId] of serverIds.entries()) {
-      if (seen.has(serverId)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: [index],
-          message: 'MCP server selections must be unique',
-        })
-      }
-      seen.add(serverId)
-    }
-  })
-
 export const credentialGroupAccessPolicySchema = z
   .object({
     revision: z.number().int().positive(),
@@ -224,6 +207,10 @@ export const credentialGroupWorkspaceParamsSchema = z.object({
 
 export const credentialGroupDetailParamsSchema = credentialGroupWorkspaceParamsSchema.extend({
   groupId: z.string().min(1, 'Credential group ID is required').max(128),
+})
+
+export const credentialGroupMcpConnectorParamsSchema = credentialGroupDetailParamsSchema.extend({
+  connectorId: managedMcpConnectorIdSchema,
 })
 
 export const credentialGroupEnrollmentParamsSchema = credentialGroupDetailParamsSchema.extend({
@@ -320,7 +307,6 @@ export const createCredentialGroupBodySchema = z
     name: z.string().trim().min(1, 'Name is required').max(100),
     description: z.string().trim().max(500).optional(),
     options: z.array(credentialGroupOptionInputSchema).max(CREDENTIAL_GROUP_PROVIDER_IDS.length),
-    mcpServerIds: credentialGroupMcpServerIdsSchema.default([]),
   })
   .strict()
   .superRefine((body, ctx) => {
@@ -364,7 +350,6 @@ export const updateCredentialGroupBodySchema = z
       .array(credentialGroupOptionUpdateInputSchema)
       .max(CREDENTIAL_GROUP_PROVIDER_IDS.length)
       .optional(),
-    mcpServerIds: credentialGroupMcpServerIdsSchema.optional(),
     status: credentialGroupStatusSchema.optional(),
   })
   .strict()
@@ -406,6 +391,40 @@ export const updateCredentialGroupBodySchema = z
   })
 
 export type UpdateCredentialGroupBody = z.input<typeof updateCredentialGroupBodySchema>
+
+export const createCredentialGroupMcpConnectorBodySchema = z.discriminatedUnion('connectorId', [
+  z.object({ connectorId: z.literal('fireflies') }).strict(),
+  z.object({ connectorId: z.literal('granola') }).strict(),
+  z
+    .object({
+      connectorId: z.literal('databricks'),
+      name: z.string().trim().min(1, 'Name is required').max(100),
+      url: z.string().trim().url('Enter a valid Databricks MCP URL').max(2048),
+      oauthClientId: z.string().trim().min(1, 'OAuth Client ID is required').max(512),
+      oauthClientSecret: z.string().trim().min(1).max(2048).optional(),
+    })
+    .strict(),
+])
+
+export type CreateCredentialGroupMcpConnectorBody = z.input<
+  typeof createCredentialGroupMcpConnectorBodySchema
+>
+
+export const updateCredentialGroupMcpConnectorBodySchema = z
+  .object({
+    name: z.string().trim().min(1, 'Name is required').max(100).optional(),
+    url: z.string().trim().url('Enter a valid Databricks MCP URL').max(2048).optional(),
+    oauthClientId: z.string().trim().min(1, 'OAuth Client ID is required').max(512).optional(),
+    oauthClientSecret: z.string().trim().min(1).max(2048).nullable().optional(),
+  })
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, {
+    message: 'At least one field must be updated',
+  })
+
+export type UpdateCredentialGroupMcpConnectorBody = z.input<
+  typeof updateCredentialGroupMcpConnectorBodySchema
+>
 
 const listCredentialGroupsResponseSchema = z.object({
   credentialGroups: z.array(credentialGroupSchema),
@@ -506,6 +525,36 @@ export const updateCredentialGroupContract = defineRouteContract({
     mode: 'json',
     schema: z.object({ credentialGroup: credentialGroupSchema }),
   },
+})
+
+export const createCredentialGroupMcpConnectorContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/credential-groups/[groupId]/mcp-connectors',
+  params: credentialGroupDetailParamsSchema,
+  body: createCredentialGroupMcpConnectorBodySchema,
+  response: {
+    mode: 'json',
+    status: 201,
+    schema: z.object({ mcpServer: credentialGroupMcpServerSchema }),
+  },
+})
+
+export const updateCredentialGroupMcpConnectorContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/workspaces/[id]/credential-groups/[groupId]/mcp-connectors/[connectorId]',
+  params: credentialGroupMcpConnectorParamsSchema,
+  body: updateCredentialGroupMcpConnectorBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ mcpServer: credentialGroupMcpServerSchema }),
+  },
+})
+
+export const deleteCredentialGroupMcpConnectorContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/workspaces/[id]/credential-groups/[groupId]/mcp-connectors/[connectorId]',
+  params: credentialGroupMcpConnectorParamsSchema,
+  response: { mode: 'json', schema: z.object({ success: z.literal(true) }) },
 })
 
 export const getCredentialGroupAccessContract = defineRouteContract({
