@@ -1414,6 +1414,39 @@ export const CLI_CONTRACT: CliContract = {
     document: true,
   },
 
+  // ─── Catalog ──────────────────────────────────────────────────────────────
+  // `tools get` and `tools list` derive cleanly; only the verb needs naming, for
+  // the same reason `workflows run` does — `/execute` is not in the action list,
+  // so POST would derive `tools execute create`.
+  executeTool: {
+    command: 'tools execute',
+    describe: 'Run one built-in tool and print what it produced',
+    flags: {
+      // Named `input` to match `workflows run --input`, the only other command
+      // that hands arguments to something Sim runs. `@file` and `@-` come from
+      // the JSON kind, so a payload too awkward to quote can be piped in.
+      input: {
+        json: true,
+        describe:
+          'Tool arguments as JSON, keyed by the parameter ids `sim tools get <toolId>` lists',
+      },
+      // Spelled `--credential-id`, the derived name, because `knowledge
+      // connectors create` already takes the same field under it and the
+      // contract holds one flag name per concept.
+      credentialId: { describe: 'Credential to authenticate with, required for OAuth tools' },
+      timeoutSeconds: { name: 'timeout', describe: 'Seconds to wait before abandoning the call' },
+    },
+    fields: [
+      { path: 'toolId', header: 'Tool' },
+      { path: 'status', header: 'Status' },
+      // The command's whole purpose. Human formats one-line and clamp it, which
+      // is why `--output json` exists; omitting it entirely printed a status and
+      // nothing the caller asked for.
+      { path: 'output', header: 'Output' },
+      { path: 'error.message', header: 'Error' },
+    ],
+  },
+
   // ─── Runs ─────────────────────────────────────────────────────────────────
   // The derived names land badly here: `/execute` and `/cancel` are verbs in
   // the path, but neither is in the action list, so POST would derive

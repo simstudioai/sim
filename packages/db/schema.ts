@@ -4052,6 +4052,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'voice-input',
   'enrichment',
   'voice-output',
+  'api-tool',
 ])
 
 export const usageLog = pgTable(

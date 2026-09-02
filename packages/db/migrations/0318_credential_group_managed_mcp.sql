@@ -1,3 +1,4 @@
+-- Adds per-enrollment managed MCP grants without changing existing credential rows.
 -- Pure expand: every new column is nullable, and no managed_mcp row can predate this migration.
 -- Every pre-COMMIT statement is replay-safe because a concurrent index failure leaves this file
 -- unjournaled while preserving the committed schema changes.

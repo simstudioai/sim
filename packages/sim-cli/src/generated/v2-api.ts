@@ -3312,6 +3312,33 @@ export type DuplicateWorkflowResponse = {
   data: DuplicateWorkflowResponseRef0
 }
 
+/** `POST /api/v2/tools/[toolId]/execute` */
+export type ExecuteToolParams = {
+  toolId: string
+}
+
+export type ExecuteToolQuery = Record<string, unknown>
+
+export type ExecuteToolBody = {
+  workspaceId: string
+  input?: Record<string, unknown>
+  credentialId?: string
+  timeoutSeconds?: number
+}
+
+type ExecuteToolResponseRef0 = {
+  toolId: string
+  status: 'succeeded' | 'failed'
+  output: unknown
+  error: {
+    message: string
+  } | null
+}
+
+export type ExecuteToolResponse = {
+  data: ExecuteToolResponseRef0
+}
+
 /** `POST /api/v2/workflows/[workflowId]/execute` */
 export type ExecuteWorkflowParams = {
   workflowId: string
@@ -5041,6 +5068,7 @@ export type ListBillingLogsQuery = {
     | 'voice-input'
     | 'enrichment'
     | 'voice-output'
+    | 'api-tool'
   workspaceId?: string
   period?: '1d' | '7d' | '30d' | 'all' | 'custom'
   startDate?: string
@@ -5062,6 +5090,7 @@ type ListBillingLogsResponseRef0 = {
     | 'voice-input'
     | 'enrichment'
     | 'voice-output'
+    | 'api-tool'
   workspaceId: string | null
   workflow: {
     id: string
@@ -10719,6 +10748,41 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  executeTool: {
+    method: 'POST',
+    path: '/api/v2/tools/[toolId]/execute',
+    pathParams: ['toolId'] as const,
+    pathParamDocs: {
+      toolId:
+        'Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id.',
+    },
+    responseMode: 'json',
+    summary: 'Run Tool',
+    personalKeyOnly: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace whose integration allowlist, credentials, and environment variables govern this call.',
+      },
+      input: {
+        kind: 'object',
+        default: {},
+        describe:
+          'Arguments for the tool, keyed by the parameter ids the tool catalog publishes for it. A parameter whose visibility is `user-only` also accepts an environment-variable reference written as the whole value, `{{VAR_NAME}}`, resolved server-side against the workspace environment; any other value is sent verbatim.',
+      },
+      credentialId: {
+        kind: 'string',
+        describe:
+          'Credential to authenticate with. Required when the tool declares an OAuth requirement; the workspace credentials list names the candidates.',
+      },
+      timeoutSeconds: {
+        kind: 'integer',
+        describe: 'How long to wait for the tool before abandoning the call.',
+      },
+    },
+  },
   executeWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[workflowId]/execute',
@@ -11440,6 +11504,7 @@ export const V2_OPERATIONS = {
           'voice-input',
           'enrichment',
           'voice-output',
+          'api-tool',
         ] as const,
         describe: 'Restrict results to one usage source.',
       },

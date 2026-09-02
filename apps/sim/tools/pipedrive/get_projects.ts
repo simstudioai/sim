@@ -17,6 +17,11 @@ export const pipedriveGetProjectsTool: ToolConfig<
   description: 'Retrieve all projects or a specific project from Pipedrive',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'pipedrive',
+  },
+
   params: {
     accessToken: {
       type: 'string',

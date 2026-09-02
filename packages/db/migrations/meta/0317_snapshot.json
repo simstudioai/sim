@@ -1,5 +1,5 @@
 {
-  "id": "7d3eae54-bbe1-4cdb-b9d6-bf430c8396c6",
+  "id": "abfcce0a-145e-4180-ad24-9e80f206903c",
   "prevId": "1fafbd78-3e0f-4cc8-9a51-053a3b11af9e",
   "version": "7",
   "dialect": "postgresql",
@@ -2927,12 +2927,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "mcp_server_id": {
-          "name": "mcp_server_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "managed_oauth_scope_version": {
           "name": "managed_oauth_scope_version",
           "type": "integer",
@@ -2976,18 +2970,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "mcp_tools": {
-          "name": "mcp_tools",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "mcp_tools_refreshed_at": {
-          "name": "mcp_tools_refreshed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
         "granted_at": {
           "name": "granted_at",
           "type": "timestamp",
@@ -3022,7 +3004,7 @@
           "name": "created_by",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
@@ -3130,21 +3112,6 @@
           "method": "btree",
           "with": {}
         },
-        "credential_mcp_server_idx": {
-          "name": "credential_mcp_server_idx",
-          "columns": [
-            {
-              "expression": "mcp_server_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "credential_group_option_unique": {
           "name": "credential_group_option_unique",
           "columns": [
@@ -3163,28 +3130,6 @@
           ],
           "isUnique": true,
           "where": "\"credential\".\"type\" = 'managed_oauth'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "credential_managed_mcp_enrollment_server_unique": {
-          "name": "credential_managed_mcp_enrollment_server_unique",
-          "columns": [
-            {
-              "expression": "credential_group_enrollment_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "mcp_server_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"credential\".\"type\" = 'managed_mcp'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -3311,15 +3256,6 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "credential_mcp_server_id_mcp_servers_id_fk": {
-          "name": "credential_mcp_server_id_mcp_servers_id_fk",
-          "tableFrom": "credential",
-          "tableTo": "mcp_servers",
-          "columnsFrom": ["mcp_server_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "credential_created_by_user_id_fk": {
           "name": "credential_created_by_user_id_fk",
           "tableFrom": "credential",
@@ -3345,14 +3281,6 @@
         "credential_managed_oauth_group_binding_check": {
           "name": "credential_managed_oauth_group_binding_check",
           "value": "(type::text <> 'managed_oauth') OR (\n        credential_group_enrollment_id IS NOT NULL\n        AND credential_group_option_id IS NOT NULL\n        AND managed_oauth_scope_version IS NOT NULL\n        AND managed_oauth_scope_version > 0\n      )"
-        },
-        "credential_managed_mcp_source_check": {
-          "name": "credential_managed_mcp_source_check",
-          "value": "(type::text <> 'managed_mcp') OR (\n        id LIKE 'mcp-cg-%'\n        AND account_id IS NULL\n        AND provider_id IS NULL\n        AND authorization_app_id IS NULL\n        AND credential_group_enrollment_id IS NOT NULL\n        AND credential_group_option_id IS NULL\n        AND mcp_server_id IS NOT NULL\n        AND managed_oauth_status IS NOT NULL\n        AND (managed_oauth_status <> 'active' OR (\n          encrypted_oauth_token_set IS NOT NULL\n          AND mcp_tools IS NOT NULL\n        ))\n        AND granted_at IS NOT NULL\n        AND managed_oauth_scope_version IS NULL\n        AND provider_subject_id IS NULL\n        AND provider_tenant_id IS NULL\n        AND granted_scopes IS NULL\n        AND provider_metadata IS NULL\n        AND created_by IS NULL\n        AND env_key IS NULL\n        AND env_owner_user_id IS NULL\n        AND encrypted_service_account_key IS NULL\n        AND unredacted = false\n      )"
-        },
-        "credential_creator_source_check": {
-          "name": "credential_creator_source_check",
-          "value": "(type::text = 'managed_mcp') OR created_by IS NOT NULL"
         },
         "credential_workspace_env_source_check": {
           "name": "credential_workspace_env_source_check",
@@ -8392,18 +8320,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "credential_group_id": {
-          "name": "credential_group_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "managed_connector_id": {
-          "name": "managed_connector_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_by": {
           "name": "created_by",
           "type": "text",
@@ -8576,43 +8492,6 @@
           "method": "btree",
           "with": {}
         },
-        "mcp_servers_credential_group_idx": {
-          "name": "mcp_servers_credential_group_idx",
-          "columns": [
-            {
-              "expression": "credential_group_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "mcp_servers_credential_group_managed_connector_unique": {
-          "name": "mcp_servers_credential_group_managed_connector_unique",
-          "columns": [
-            {
-              "expression": "credential_group_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "managed_connector_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"mcp_servers\".\"credential_group_id\" IS NOT NULL AND \"mcp_servers\".\"managed_connector_id\" IS NOT NULL AND \"mcp_servers\".\"deleted_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "mcp_servers_workspace_deleted_partial_idx": {
           "name": "mcp_servers_workspace_deleted_partial_idx",
           "columns": [
@@ -8646,15 +8525,6 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "mcp_servers_credential_group_id_credential_group_id_fk": {
-          "name": "mcp_servers_credential_group_id_credential_group_id_fk",
-          "tableFrom": "mcp_servers",
-          "tableTo": "credential_group",
-          "columnsFrom": ["credential_group_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
         "mcp_servers_created_by_user_id_fk": {
           "name": "mcp_servers_created_by_user_id_fk",
           "tableFrom": "mcp_servers",
@@ -8668,16 +8538,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "mcp_servers_credential_group_managed_connector_check": {
-          "name": "mcp_servers_credential_group_managed_connector_check",
-          "value": "\"mcp_servers\".\"credential_group_id\" IS NULL OR \"mcp_servers\".\"managed_connector_id\" IS NOT NULL"
-        },
-        "mcp_servers_managed_connector_oauth_check": {
-          "name": "mcp_servers_managed_connector_oauth_check",
-          "value": "\"mcp_servers\".\"managed_connector_id\" IS NULL OR \"mcp_servers\".\"auth_type\" = 'oauth'"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.member": {
@@ -20790,14 +20651,7 @@
     "public.credential_type": {
       "name": "credential_type",
       "schema": "public",
-      "values": [
-        "oauth",
-        "managed_oauth",
-        "managed_mcp",
-        "env_workspace",
-        "env_personal",
-        "service_account"
-      ]
+      "values": ["oauth", "managed_oauth", "env_workspace", "env_personal", "service_account"]
     },
     "public.data_drain_cadence": {
       "name": "data_drain_cadence",
@@ -20934,7 +20788,8 @@
         "knowledge-base",
         "voice-input",
         "enrichment",
-        "voice-output"
+        "voice-output",
+        "api-tool"
       ]
     },
     "public.workspace_file_search_index_status": {
