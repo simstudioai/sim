@@ -366,32 +366,16 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       )
     }
 
-    const knowledgeBaseIds = searchKnowledgeBases.map((knowledgeBase) => knowledgeBase.id)
-    let structuredFilters: StructuredFilter[] = []
-    let definitionsByKnowledgeBase = new Map<string, DocumentTagDefinition[]>()
-    if (filters.length > 0) {
-      const built = await resolveKnowledgeTagFilters(filters, knowledgeBaseIds)
-      structuredFilters = built.structuredFilters
-      definitionsByKnowledgeBase = built.definitionsByKnowledgeBase
-    }
-
-    const embeddingModels = [...new Set(searchKnowledgeBases.map((kb) => kb.embeddingModel))]
-    if (hasQuery && embeddingModels.length > 1) {
-      throw new OrchestrationError(
-        'validation',
-        'Selected knowledge bases use different embedding models and cannot be searched together. Search them separately.'
-      )
-    }
-    const embeddingModel = embeddingModels[0]
     const preparedRegistry = input.prepareModelInputProvenance
       ? await input.prepareModelInputProvenance({ userId, workspaceId: context.workspaceId })
       : undefined
     const resultSecretRegistry = preparedRegistry ?? input.resultSecretRegistry
 
-    /*
+    /**
      * An empty folder scope answers with nothing, before any embedding is
-     * generated or billed. Returning here rather than falling through keeps the
-     * "no knowledge bases" case from paying for a query it cannot run.
+     * generated or billed — and before tag filters are resolved, which would
+     * otherwise run against zero knowledge bases and fail a search that is
+     * documented to come back empty.
      */
     if (searchKnowledgeBases.length === 0) {
       return {
@@ -416,6 +400,23 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       }
     }
 
+    const knowledgeBaseIds = searchKnowledgeBases.map((knowledgeBase) => knowledgeBase.id)
+    let structuredFilters: StructuredFilter[] = []
+    let definitionsByKnowledgeBase = new Map<string, DocumentTagDefinition[]>()
+    if (filters.length > 0) {
+      const built = await resolveKnowledgeTagFilters(filters, knowledgeBaseIds)
+      structuredFilters = built.structuredFilters
+      definitionsByKnowledgeBase = built.definitionsByKnowledgeBase
+    }
+
+    const embeddingModels = [...new Set(searchKnowledgeBases.map((kb) => kb.embeddingModel))]
+    if (hasQuery && embeddingModels.length > 1) {
+      throw new OrchestrationError(
+        'validation',
+        'Selected knowledge bases use different embedding models and cannot be searched together. Search them separately.'
+      )
+    }
+    const embeddingModel = embeddingModels[0]
     const queryEmbeddingPromise = hasQuery
       ? runWithKnowledgeModelInputProvenance(resultSecretRegistry, () =>
           generateSearchEmbedding(input.query!, embeddingModel, context.workspaceId)

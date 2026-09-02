@@ -39,8 +39,8 @@ Search for similar content in a knowledge base using vector similarity
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `knowledgeBaseId` | string | No | ID of the knowledge base to search in. Optional when a folder is given, which searches every knowledge base in that folder. |
-| `folderPath` | string | No | Search every knowledge base in this folder, resolved when the workflow runs so a knowledge base added later is included. Canonical folder path, percent-encoded, e.g. "/Support/Tier%201". The workspace root is "/". |
+| `knowledgeBaseId` | string | No | ID of the knowledge base to search in. Optional only when folderPath is supplied: provide either knowledgeBaseId or folderPath. |
+| `folderPath` | string | No | Search every knowledge base in this folder, resolved when the workflow runs so a knowledge base added later is included. Provide either folderPath or knowledgeBaseId. Canonical folder path, percent-encoded, e.g. "/Support/Tier%201". The workspace root is "/". |
 | `folderIncludeSubfolders` | boolean | No | Extend the folder scope to its subfolders. Off by default, so a folder means only the knowledge bases directly inside it. |
 | `query` | string | No | Search query text \(optional when using tag filters\) |
 | `topK` | number | No | Number of most similar results to return \(1-100\) |

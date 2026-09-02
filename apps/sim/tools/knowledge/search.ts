@@ -16,14 +16,14 @@ export const knowledgeSearchTool: InternalToolConfig<any, KnowledgeSearchRespons
       required: false,
       visibility: 'user-or-llm',
       description:
-        'ID of the knowledge base to search in. Optional when a folder is given, which searches every knowledge base in that folder.',
+        'ID of the knowledge base to search in. Optional only when folderPath is supplied: provide either knowledgeBaseId or folderPath.',
     },
     folderPath: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Search every knowledge base in this folder, resolved when the workflow runs so a knowledge base added later is included. Canonical folder path, percent-encoded, e.g. "/Support/Tier%201". The workspace root is "/".',
+        'Search every knowledge base in this folder, resolved when the workflow runs so a knowledge base added later is included. Provide either folderPath or knowledgeBaseId. Canonical folder path, percent-encoded, e.g. "/Support/Tier%201". The workspace root is "/".',
     },
     folderIncludeSubfolders: {
       type: 'boolean',

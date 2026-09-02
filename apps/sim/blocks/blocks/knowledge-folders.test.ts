@@ -63,6 +63,15 @@ describe('knowledge folder operations produce contract-valid tool input', () => 
    * The contract refuses the pair, and the Max Depth field is gated on the
    * switch so the editor cannot build it either.
    */
+  it('refuses a whitespace-only search rather than reading it as no search', () => {
+    const params = paramsFor('list_folders', { folderSearch: '   ' })
+
+    expect(knowledgeListFoldersBodySchema.safeParse(params).success).toBe(true)
+    expect(knowledgeListFoldersBodySchema.safeParse({ ...params, search: '   ' }).success).toBe(
+      false
+    )
+  })
+
   it('refuses a depth that would be silently ignored', () => {
     const params = paramsFor('list_folders', { folderDepth: '3' })
 
@@ -181,9 +190,15 @@ describe('a folder scopes search', () => {
     ).toBe(true)
   })
 
-  it('reads the workspace root as no scope at all', () => {
+  /*
+   * Root is the absence of a selection, not a value: the tree offers no root
+   * row, and "the whole workspace" is what the unfiltered picker already covers.
+   * The error says so rather than claiming no folder was supplied, because one
+   * was.
+   */
+  it('reads the workspace root as no scope at all, and says why', () => {
     expect(() => paramsFor('search', { searchFolderRef: '/', query: 'q' })).toThrow(
-      'knowledge base or a folder is required'
+      'The workspace root is not a folder scope'
     )
   })
 

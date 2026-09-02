@@ -99,8 +99,13 @@ function folderPathPrefix(parentPath: string | undefined): string {
  *
  * Kept as a path rather than the knowledge bases it holds today, because the
  * tool expands it when the workflow runs — so a folder means whatever is inside
- * it then, and a knowledge base added tomorrow is searched tomorrow. The
- * workspace root is no scope at all.
+ * it then, and a knowledge base added tomorrow is searched tomorrow.
+ *
+ * The workspace root reads as no scope at all. Root is the absence of a
+ * selection here, not a value: the tree offers no root row, and "the whole
+ * workspace" is what the Knowledge Base picker already covers unfiltered. A
+ * root path typed into the manual field therefore narrows nothing, and the
+ * caller still has to name what to search.
  */
 function folderScopePath(value: unknown): string | undefined {
   const path = readFolderPath(value)
@@ -783,12 +788,16 @@ export const KnowledgeBlock: BlockConfig = {
          * inside it, resolved when the workflow runs. Every other operation
          * addresses one knowledge base and still requires it.
          */
+        const searchFolderRef =
+          params.operation === 'search' ? readFolderPath(params.searchFolderRef) : ''
         const searchFolderPath =
           params.operation === 'search' ? folderScopePath(params.searchFolderRef) : undefined
         if (!knowledgeBaseId && !searchFolderPath) {
           throw new Error(
             params.operation === 'search'
-              ? 'A knowledge base or a folder is required for search'
+              ? searchFolderRef === ROOT_FOLDER_PATH
+                ? 'The workspace root is not a folder scope. Pick a knowledge base, or a folder inside the workspace.'
+                : 'A knowledge base or a folder is required for search'
               : 'Knowledge base ID is required'
           )
         }

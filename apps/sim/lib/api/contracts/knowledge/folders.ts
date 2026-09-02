@@ -34,7 +34,17 @@ export const knowledgeListFoldersBodySchema = z
     path: v2FolderPathInputSchema.optional(),
     recursive: z.boolean().optional(),
     depth: knowledgeFolderDepthSchema.optional(),
-    search: z.string().min(1, 'search cannot be empty').max(200).optional(),
+    /*
+     * Trimmed before the emptiness check: the listing reads a blank search as no
+     * search at all and returns every entry, so "   " would quietly become an
+     * unfiltered listing rather than the empty match the caller asked for.
+     */
+    search: z
+      .string()
+      .max(200)
+      .transform((value) => value.trim())
+      .pipe(z.string().min(1, 'search cannot be empty'))
+      .optional(),
     limit: z
       .number()
       .int()
