@@ -1167,35 +1167,38 @@ async function deferMemberSync(run: MemberSyncRun, syncIntervalMinutes: number):
  */
 async function disableMemberSync(run: MemberSyncRun, reason: string): Promise<void> {
   const now = new Date()
-  const suspended = await db
-    .update(knowledgeConnectorMember)
-    .set({ status: 'suspended', suspendedAt: now, updatedAt: now })
-    .where(
-      and(
-        eq(knowledgeConnectorMember.connectorId, run.connectorId),
-        eq(knowledgeConnectorMember.status, 'active')
+  /** Suspension, the ACLs it changes, and the disable itself land together, and only under the lease. */
+  await withMemberLease(run, async (tx) => {
+    const suspended = await tx
+      .update(knowledgeConnectorMember)
+      .set({ status: 'suspended', suspendedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(knowledgeConnectorMember.connectorId, run.connectorId),
+          eq(knowledgeConnectorMember.status, 'active')
+        )
       )
-    )
-    .returning({ id: knowledgeConnectorMember.id })
-  if (suspended.length > 0) {
-    const affected = await listObservedDocumentIds(
-      db,
-      suspended.map((row) => row.id)
-    )
-    await withMemberLease(run, (tx) => materializeDocumentAcls(run.connectorId, affected, tx))
-  }
+      .returning({ id: knowledgeConnectorMember.id })
+    if (suspended.length > 0) {
+      const affected = await listObservedDocumentIds(
+        tx,
+        suspended.map((row) => row.id)
+      )
+      await materializeDocumentAcls(run.connectorId, affected, tx)
+    }
+    await tx
+      .update(knowledgeConnector)
+      .set({
+        memberSyncStatus: 'disabled',
+        lastMemberSyncError: reason,
+        nextMemberSyncAt: null,
+        memberSyncLockToken: null,
+        memberSyncLockLeaseAt: null,
+        updatedAt: now,
+      })
+      .where(holdsMemberSyncLockToken(run.connectorId, run.runId))
+  })
   await failMemberSyncLog(run.runId, run.result, reason)
-  await db
-    .update(knowledgeConnector)
-    .set({
-      memberSyncStatus: 'disabled',
-      lastMemberSyncError: reason,
-      nextMemberSyncAt: null,
-      memberSyncLockToken: null,
-      memberSyncLockLeaseAt: null,
-      updatedAt: now,
-    })
-    .where(holdsMemberSyncLockToken(run.connectorId, run.runId))
   logger.warn('Member sync disabled', { connectorId: run.connectorId, reason })
 }
 
