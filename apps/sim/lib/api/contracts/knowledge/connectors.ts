@@ -101,6 +101,13 @@ export const updateConnectorAccessBodySchema = z
         message: 'A members-mode connector crawls with member credentials, not a credentialId',
       })
     }
+    if (value.accessMode === 'workspace' && !value.credentialId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['credentialId'],
+        message: 'Switching to workspace mode needs the credentialId the connector syncs as',
+      })
+    }
   })
 export type UpdateConnectorAccessBody = z.input<typeof updateConnectorAccessBodySchema>
 

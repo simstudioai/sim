@@ -736,6 +736,8 @@ export function Home({ chatId, userName, userId }: HomeProps) {
             isReconnecting={isReconnecting}
             isLoading={showChatSkeleton}
             onSubmit={handleSubmit}
+            clearOnSubmit={composerMode !== 'search'}
+            onCleared={clearSearch}
             onStopGeneration={handleStopGeneration}
             messageQueue={messageQueue}
             editingQueuedId={editingQueuedId}

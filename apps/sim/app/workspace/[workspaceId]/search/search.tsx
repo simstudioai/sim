@@ -18,6 +18,7 @@ import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   MemberConnectorsSection,
   memberConnectorName,
@@ -46,6 +47,8 @@ const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
 const CONNECTORS_LABEL = 'Sim Search Connectors'
 const NEEDS_KNOWLEDGE_BASE_SETUP = 'Set up by a workspace admin from a knowledge base.'
 const UNAVAILABLE = 'Unavailable in this deployment. Contact your administrator.'
+const MEMBER_ACCESS_UNAVAILABLE =
+  'Per-member access is not available in this workspace. Contact your administrator.'
 
 /** What a source row says once the viewer's own indexing has settled. */
 function connectedDescription(connector: WorkspaceMemberConnector): string {
@@ -57,7 +60,8 @@ interface SourceRowProps {
   connector: SearchConnector
   /** The Sim Search per-member connector for this source, once anyone has connected it. */
   connection: WorkspaceMemberConnector | undefined
-  unavailable: boolean
+  /** Why the source cannot be connected here, shown in place of its state; null when it can. */
+  unavailableReason: string | null
   waiting: boolean
   isPending: boolean
   onConnect: () => void
@@ -72,11 +76,12 @@ interface SourceRowProps {
 function SourceRow({
   connector,
   connection,
-  unavailable,
+  unavailableReason,
   waiting,
   isPending,
   onConnect,
 }: SourceRowProps) {
+  const unavailable = unavailableReason !== null
   const personal = canConnectPersonally(connector.meta)
   const membership = connection?.viewerMembership
   const state = connection
@@ -89,7 +94,7 @@ function SourceRow({
     : waiting
       ? `Finish connecting your ${connector.meta.name} account in the other tab.`
       : connector.meta.description
-  const description = unavailable ? UNAVAILABLE : personal ? state : NEEDS_KNOWLEDGE_BASE_SETUP
+  const description = unavailableReason ?? (personal ? state : NEEDS_KNOWLEDGE_BASE_SETUP)
   const connectable =
     !unavailable && personal && (!membership || CONNECTABLE_MEMBERSHIPS.has(membership))
   return (
@@ -123,6 +128,13 @@ export function Search() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
   const { integrationAvailability } = usePermissionConfig()
+  const { features } = useWorkspaceHostContext()
+  /**
+   * Judged by the workspace, as the server judges it: with per-member access
+   * off, every connect is refused, so the rows say so instead of offering
+   * one and the memberships are not fetched.
+   */
+  const memberAccessAvailable = features?.knowledgeMemberAccess === true
 
   const [searchTerm, setSearchTermParam] = useQueryState(connectorSearchParam.key, {
     ...connectorSearchParam.parser,
@@ -136,8 +148,10 @@ export function Search() {
   const setSearchTerm = useDebouncedSearchSetter(setSearchTermParam)
 
   const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS, isPending: connectionsPending } =
-    useWorkspaceMemberConnectors(workspaceId)
-  useScrollRestoration(scrollContainerRef, { ready: !connectionsPending })
+    useWorkspaceMemberConnectors(memberAccessAvailable ? workspaceId : undefined)
+  useScrollRestoration(scrollContainerRef, {
+    ready: !memberAccessAvailable || !connectionsPending,
+  })
 
   /** The Sim Search connection per source; other knowledge bases' connectors keep their own section. */
   const { connectionByType, sharedConnectors } = useMemo(() => {
@@ -212,12 +226,20 @@ export function Search() {
               <IntegrationSection label={CONNECTORS_LABEL}>
                 {visibleConnectors.map((connector) => {
                   const connection = connectionByType.get(connector.type)
+                  const unavailableReason = !isSearchConnectorAvailable(
+                    connector,
+                    integrationAvailability
+                  )
+                    ? UNAVAILABLE
+                    : memberAccessAvailable
+                      ? null
+                      : MEMBER_ACCESS_UNAVAILABLE
                   return (
                     <SourceRow
                       key={connector.type}
                       connector={connector}
                       connection={connection}
-                      unavailable={!isSearchConnectorAvailable(connector, integrationAvailability)}
+                      unavailableReason={unavailableReason}
                       waiting={connection ? isAwaiting(connection.connectorId) : false}
                       isPending={isPending}
                       onConnect={() =>
@@ -233,10 +255,12 @@ export function Search() {
               </IntegrationSection>
             )}
 
-            <MemberConnectorsSection
-              workspaceId={workspaceId}
-              connectors={visibleSharedConnectors}
-            />
+            {memberAccessAvailable && (
+              <MemberConnectorsSection
+                workspaceId={workspaceId}
+                connectors={visibleSharedConnectors}
+              />
+            )}
 
             {error && <p className='text-[var(--text-error)] text-caption'>{error}</p>}
             {setupConnector && (

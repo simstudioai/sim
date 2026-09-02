@@ -12,6 +12,7 @@ import {
   SIM_SEARCH_KNOWLEDGE_BASE_NAME,
 } from '@/lib/sim-search/connectors'
 import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { BrandIcon } from '@/blocks/brand-icon'
 import {
   memberConnectorKeys,
@@ -22,6 +23,7 @@ import { CONNECTABLE_MEMBERSHIPS, useMemberEnrollment } from '@/hooks/use-member
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
+const MEMBER_ACCESS_UNAVAILABLE = 'Per-member access is not available in this workspace'
 
 /** The sources a person can connect themselves, alphabetical. */
 const PERSONAL_SEARCH_CONNECTORS = SEARCH_CONNECTORS.filter((connector) =>
@@ -81,7 +83,8 @@ function sourceState(
 interface SourceChipProps {
   connector: SearchConnector
   connection: WorkspaceMemberConnector | undefined
-  unavailable: boolean
+  /** Why the source cannot be connected here, shown as the chip's title; null when it can. */
+  unavailableReason: string | null
   waiting: boolean
   disabled: boolean
   onConnect: () => void
@@ -90,22 +93,21 @@ interface SourceChipProps {
 function SourceChip({
   connector,
   connection,
-  unavailable,
+  unavailableReason,
   waiting,
   disabled,
   onConnect,
 }: SourceChipProps) {
   const state = sourceState(connection, waiting)
   const connected = connection?.viewerMembership === 'connected'
+  const unavailable = unavailableReason !== null
   const actionable =
     !unavailable &&
     !waiting &&
     (!connection || CONNECTABLE_MEMBERSHIPS.has(connection.viewerMembership))
-  const title = unavailable
-    ? `${connector.meta.name} is unavailable in this deployment`
-    : connected
-      ? `${connector.meta.name}: ${state}`
-      : `Connect ${connector.meta.name}`
+  const title =
+    unavailableReason ??
+    (connected ? `${connector.meta.name}: ${state}` : `Connect ${connector.meta.name}`)
   return (
     <Chip
       shape='round'
@@ -138,8 +140,15 @@ interface SearchSourcesProps {
  */
 export function SearchSources({ workspaceId }: SearchSourcesProps) {
   const { integrationAvailability } = usePermissionConfig()
-  const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS } =
-    useWorkspaceMemberConnectors(workspaceId)
+  const { features } = useWorkspaceHostContext()
+  /**
+   * Judged by the workspace, as the server judges it: with per-member access
+   * off, a connect is refused, so the chips say so instead of offering one.
+   */
+  const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS } = useWorkspaceMemberConnectors(
+    memberAccessAvailable ? workspaceId : undefined
+  )
   const connectionByType = useMemo(
     () => simSearchConnectionsByType(memberConnectors),
     [memberConnectors]
@@ -187,12 +196,17 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
       <div className='flex flex-wrap gap-1.5'>
         {ordered.map((connector) => {
           const connection = connectionByType.get(connector.type)
+          const unavailableReason = !isSearchConnectorAvailable(connector, integrationAvailability)
+            ? `${connector.meta.name} is unavailable in this deployment`
+            : memberAccessAvailable
+              ? null
+              : MEMBER_ACCESS_UNAVAILABLE
           return (
             <SourceChip
               key={connector.type}
               connector={connector}
               connection={connection}
-              unavailable={!isSearchConnectorAvailable(connector, integrationAvailability)}
+              unavailableReason={unavailableReason}
               waiting={connection ? isAwaiting(connection.connectorId) : false}
               disabled={isPending}
               onConnect={() => startConnect(connector)}

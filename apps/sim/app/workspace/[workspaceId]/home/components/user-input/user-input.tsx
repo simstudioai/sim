@@ -579,10 +579,15 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       if (draftScopeKeyRef.current) {
         useMothershipDraftsStore.getState().clearDraft(draftScopeKeyRef.current)
       }
+      /**
+       * The chips are gone with the text, and clearing is not a removal to
+       * report. A composer that keeps its text (Search mode) keeps its chips
+       * too, so the diff base stays in step with what is still selected.
+       */
+      prevSelectedContextsRef.current = []
     }
     resetTranscript()
     currentFiles.clearAttachedFiles()
-    prevSelectedContextsRef.current = []
   }, [onSubmit, resetTranscript])
 
   /**

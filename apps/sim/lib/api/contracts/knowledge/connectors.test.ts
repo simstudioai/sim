@@ -96,4 +96,10 @@ describe('connector access binding contracts', () => {
       }).success
     ).toBe(false)
   })
+
+  it('refuses a switch to workspace mode that names no credential', () => {
+    const parsed = updateConnectorAccessBodySchema.safeParse({ accessMode: 'workspace' })
+    expect(parsed.success).toBe(false)
+    expect(parsed.error?.issues.map((issue) => issue.path)).toEqual([['credentialId']])
+  })
 })

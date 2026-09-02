@@ -5,10 +5,7 @@ import { Button, Chip } from '@sim/emcn'
 import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowledge'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import {
-  isIndexing,
-  simSearchConnectionsByType,
-} from '@/app/workspace/[workspaceId]/home/components/search-sources'
+import { isIndexing } from '@/app/workspace/[workspaceId]/home/components/search-sources'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useWorkspaceMemberConnectors } from '@/hooks/queries/kb/connectors'
 import { useKnowledgeBasesQuery, useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
@@ -112,10 +109,22 @@ export function KnowledgeSearchResults({
   onSummarize,
   onAnswer,
 }: KnowledgeSearchResultsProps) {
-  const { data: knowledgeBases = [], isPending: basesPending } = useKnowledgeBasesQuery(workspaceId)
+  const {
+    data: knowledgeBases = [],
+    isPending: basesPending,
+    error: basesError,
+  } = useKnowledgeBasesQuery(workspaceId)
+  /**
+   * The list also carries the viewer's legacy personal bases, which have no
+   * workspace; a search names one workspace and refuses a base outside it.
+   */
   const knowledgeBaseIds = useMemo(
-    () => knowledgeBases.slice(0, MAX_SEARCHED_KNOWLEDGE_BASES).map((kb) => kb.id),
-    [knowledgeBases]
+    () =>
+      knowledgeBases
+        .filter((kb) => kb.workspaceId === workspaceId)
+        .slice(0, MAX_SEARCHED_KNOWLEDGE_BASES)
+        .map((kb) => kb.id),
+    [knowledgeBases, workspaceId]
   )
   const {
     data: results,
@@ -124,11 +133,15 @@ export function KnowledgeSearchResults({
     error,
   } = useWorkspaceKnowledgeSearch(workspaceId, knowledgeBaseIds, query)
   const { data: memberConnectors = [] } = useWorkspaceMemberConnectors(workspaceId)
+  /** Every per-member connector still indexing for the viewer, in any base the search spans. */
   const indexing = useMemo(
-    () =>
-      [...simSearchConnectionsByType(memberConnectors).values()]
-        .filter(isIndexing)
-        .map((connection) => connectorName(connection.connectorType)),
+    () => [
+      ...new Set(
+        memberConnectors
+          .filter(isIndexing)
+          .map((connection) => connectorName(connection.connectorType))
+      ),
+    ],
     [memberConnectors]
   )
   const documents = useMemo(() => groupResultsByDocument(results ?? []), [results])
@@ -153,15 +166,16 @@ export function KnowledgeSearchResults({
     })
   }, [documents, showFilters, sourceFilter, updatedFilter])
 
+  const failure = basesError ?? error
+  if (failure) {
+    return <p className='px-2 py-3 text-[var(--text-error)] text-small'>{failure.message}</p>
+  }
   if (!basesPending && knowledgeBaseIds.length === 0) {
     return (
       <p className='px-2 py-3 text-[var(--text-muted)] text-small'>
         Nothing to search yet. Connect a source above to index what you can open.
       </p>
     )
-  }
-  if (error) {
-    return <p className='px-2 py-3 text-[var(--text-error)] text-small'>{error.message}</p>
   }
   if (isPending || (isFetching && !results)) {
     return <p className='px-2 py-3 text-[var(--text-muted)] text-small'>Searching…</p>

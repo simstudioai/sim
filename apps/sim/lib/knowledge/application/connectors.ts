@@ -64,6 +64,7 @@ import type {
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
 import { isMemberSyncStatus } from '@/lib/knowledge/types'
+import { credentialProviderMatchesService, type ServiceProviderIdentity } from '@/lib/oauth'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
@@ -200,6 +201,7 @@ async function resolveAuthorizedConnectorCredentialIdentity(input: {
   credentialId: string
   workspaceId: string
   actingUserId: string
+  service?: ServiceProviderIdentity
 }) {
   const access = await getCredentialActorContext(input.credentialId, input.actingUserId)
   if (
@@ -212,14 +214,32 @@ async function resolveAuthorizedConnectorCredentialIdentity(input: {
       'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.'
     )
   }
+  if (
+    input.service &&
+    (!access.credential.providerId ||
+      !credentialProviderMatchesService(access.credential.providerId, input.service))
+  ) {
+    throw new OrchestrationError(
+      'validation',
+      'Credential belongs to another service. Select a credential for the connector’s own provider.'
+    )
+  }
   return resolveCredentialTokenIdentity(input.credentialId, input.workspaceId)
 }
 
+/**
+ * The access token a connector syncs with, once the caller may use the
+ * credential in this workspace. Pass `service` to also refuse a credential
+ * of another provider: creation validates the source config with the token,
+ * which catches that on its own, but a mode switch stores the credential
+ * without a call to the source.
+ */
 export async function resolveConnectorCredentialAccessToken(input: {
   credentialId: string
   workspaceId: string
   actingUserId: string
   requestId: string
+  service?: ServiceProviderIdentity
 }): Promise<string | null> {
   const identity = await resolveAuthorizedConnectorCredentialIdentity(input)
   if (!identity) return null

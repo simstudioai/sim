@@ -57,9 +57,17 @@ export function describeMembership({
 }: DescribeMembershipInput): string | null {
   switch (membership) {
     case 'connected':
-      return memberSyncStatus === 'pending' || memberSyncStatus === 'running'
-        ? `Syncing the ${name} documents shared with you. They appear when the sync completes.`
-        : null
+      switch (memberSyncStatus) {
+        case 'pending':
+        case 'running':
+          return `Syncing the ${name} documents shared with you. They appear when the sync completes.`
+        case 'error':
+          return `The last ${name} sync failed; the documents you already have stay visible while it retries.`
+        case 'disabled':
+          return `Syncing ${name} per member is turned off. Ask a workspace admin to turn it back on.`
+        default:
+          return null
+      }
     case 'needs_reauth':
       return `Reconnect your ${name} account to keep seeing the documents shared with you.`
     case 'unverified_email':
@@ -106,7 +114,12 @@ export function useMemberEnrollment({
     connectedRef.current = connectedConnectorIds
   }, [connectedConnectorIds])
 
-  const awaiting = [...awaitingSince.keys()].some((id) => !connectedConnectorIds.has(id))
+  /**
+   * Polls while any connection is awaited, and once more after the last one
+   * connects: that tick drops the connected ids, so a token that later needs
+   * reauthorization is not mistaken for a connection still being awaited.
+   */
+  const awaiting = awaitingSince.size > 0
   useEffect(() => {
     if (!awaiting) return
     const timer = setInterval(() => {
@@ -151,8 +164,13 @@ export function useMemberEnrollment({
     })
   }
 
+  /**
+   * Each path clears the other's failure first: the surface shows one error,
+   * and a stale one from the other path would outlive a success on this one.
+   */
   const connect = (knowledgeBaseId: string, connectorId: string) =>
-    openEnrollment(({ onSuccess, onError }) =>
+    openEnrollment(({ onSuccess, onError }) => {
+      sourceConnection.reset()
       enrollment.mutate(
         { knowledgeBaseId, connectorId },
         {
@@ -163,7 +181,7 @@ export function useMemberEnrollment({
           },
         }
       )
-    )
+    })
 
   /**
    * Connects a Sim Search source: its per-member connector exists afterwards,
@@ -175,7 +193,8 @@ export function useMemberEnrollment({
     connectorType: string,
     sourceConfig?: Record<string, string>
   ) =>
-    openEnrollment(({ onSuccess, onError }) =>
+    openEnrollment(({ onSuccess, onError }) => {
+      enrollment.reset()
       sourceConnection.mutate(
         { workspaceId, connectorType, sourceConfig },
         {
@@ -186,7 +205,7 @@ export function useMemberEnrollment({
           },
         }
       )
-    )
+    })
 
   const isAwaiting = (connectorId: string) =>
     awaitingSince.has(connectorId) && !connectedConnectorIds.has(connectorId)
