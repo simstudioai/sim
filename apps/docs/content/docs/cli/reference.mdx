@@ -263,7 +263,7 @@ sim billing logs [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--source <value>` | No | Filter by usage source; sim-chat combines Copilot and workspace chat. Accepted values: `workflow`, `wand`, `sim-chat`, `mcp_copilot`, `mothership_block`, `knowledge-base`, `voice-input`, `enrichment`, `voice-output`. |
+| `--source <value>` | No | Filter by usage source; sim-chat combines Copilot and workspace chat. Accepted values: `workflow`, `wand`, `sim-chat`, `mcp_copilot`, `mothership_block`, `knowledge-base`, `voice-input`, `enrichment`, `voice-output`, `api-tool`. |
 | `--period <value>` | No | Billing period. Accepted values: `1d`, `7d`, `30d`, `all`, `custom`. |
 | `--start-date <value>` | No | Custom period start (ISO 8601). |
 | `--end-date <value>` | No | Custom period end (ISO 8601). |
@@ -4365,6 +4365,36 @@ sim tables mkdir <path>
 </CommandTable>
 
 ## sim tools
+
+### sim tools execute
+
+Run one built-in tool and print what it produced (personal API key required)
+
+```bash
+sim tools execute <toolId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `toolId` | Yes | Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--input <json\|@file>` | No | Tool arguments as JSON, keyed by the parameter ids `sim tools get &lt;toolId&gt;` lists (JSON, or @path / @- to read a file or stdin). |
+| `--credential-id <value>` | No | Credential to authenticate with, required for OAuth tools. |
+| `--timeout <value>` | No | Seconds to wait before abandoning the call. |
+
+</CommandTable>
 
 ### sim tools get
 

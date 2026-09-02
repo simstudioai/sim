@@ -459,14 +459,17 @@ describe('embed', () => {
   })
 
   it('retries a rate-limited request and succeeds on a later attempt', async () => {
+    vi.useFakeTimers()
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ error: 'slow down' }, 429))
       .mockResolvedValueOnce(jsonResponse(openAIBody([[7, 8]])))
 
-    const result = await embed(['hello'], {
+    const pending = embed(['hello'], {
       model: 'text-embedding-3-small',
       apiKey: 'sk-test',
     })
+    await vi.runAllTimersAsync()
+    const result = await pending
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(result.embeddings[0].slice(0, 2)).toEqual([7, 8])
@@ -620,16 +623,19 @@ describe('embed', () => {
     })
 
     it('projects once even when the request is retried', async () => {
+      vi.useFakeTimers()
       const projectInputs = vi.fn((values: readonly string[]) => values.map(() => 'projected'))
       fetchMock
         .mockResolvedValueOnce(jsonResponse({ error: 'rate limited' }, 429))
         .mockResolvedValueOnce(jsonResponse(openAIBody([[1]])))
 
-      await embed(['secret'], {
+      const pending = embed(['secret'], {
         model: 'text-embedding-3-small',
         apiKey: 'sk-test',
         projectInputs,
       })
+      await vi.runAllTimersAsync()
+      await pending
 
       expect(fetchMock).toHaveBeenCalledTimes(2)
       expect(projectInputs).toHaveBeenCalledTimes(1)

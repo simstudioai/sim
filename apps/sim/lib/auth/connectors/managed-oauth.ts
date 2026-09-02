@@ -807,8 +807,8 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
     () =>
       createUserInfoManagedOAuthConnector({
         providerId: 'monday',
-        /** monday.com access tokens do not expire and no refresh token is issued. */
-        requiresRefreshToken: false,
+        requiresRefreshToken: true,
+        pkce: true,
         scopes: { from: 'token_response' },
         userInfo: {
           url: MONDAY_API_URL,

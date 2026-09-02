@@ -1,5 +1,5 @@
 /**
- * @vitest-environment jsdom
+ * @vitest-environment node
  *
  * Guards against drift between the code-block language picker and the Prism grammars actually
  * registered by CodeBlockHighlight: every selectable language must have a registered grammar, or it

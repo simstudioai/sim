@@ -59,6 +59,9 @@ vi.mock('@/tools/registry', () => ({
   },
 }))
 
+/** Denied-operation projection walks the block map only for blocks the mocked tool list never names. */
+vi.mock('@/blocks/registry-maps', () => ({ BLOCK_REGISTRY: {}, BLOCK_META_REGISTRY: {} }))
+
 vi.mock('@/tools/utils', () => ({
   getLatestVersionTools: vi.fn((input) => input),
   stripVersionSuffix: vi.fn((toolId: string) => toolId),

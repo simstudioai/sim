@@ -330,7 +330,7 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
       id: 'fileUpload',
       title: 'PDF Document',
       type: 'file-upload' as SubBlockType,
-      canonicalParamId: 'document',
+      canonicalParamId: 'file',
       acceptedTypes: 'application/pdf',
       placeholder: 'Upload a PDF document',
       mode: 'basic',
@@ -341,7 +341,7 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
       id: 'fileReference',
       title: 'File Reference',
       type: 'short-input' as SubBlockType,
-      canonicalParamId: 'document',
+      canonicalParamId: 'file',
       placeholder: 'File reference from previous block',
       mode: 'advanced',
       required: true,
@@ -386,7 +386,7 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
         }
 
         // V3 pattern: use canonical document param directly
-        const documentInput = normalizeFileInput(params.document, { single: true })
+        const documentInput = normalizeFileInput(params.file, { single: true })
         if (!documentInput) {
           throw new Error('PDF document is required')
         }
@@ -425,7 +425,7 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
     },
   },
   inputs: {
-    document: { type: 'json', description: 'Document input (file upload or file reference)' },
+    file: { type: 'json', description: 'Document input (file upload or file reference)' },
     apiKey: { type: 'string', description: 'Mistral API key' },
     resultType: { type: 'string', description: 'Output format type' },
     pages: { type: 'string', description: 'Page selection' },

@@ -61,8 +61,8 @@ describe('prompt caching capability', () => {
 
   it('reports the vendor minimum prefix, raised for Haiku', () => {
     expect(getPromptCachingMinimumTokens('claude-sonnet-5')).toBe(1024)
-    expect(getPromptCachingMinimumTokens('claude-haiku-4-5')).toBe(2048)
-    expect(getPromptCachingMinimumTokens('azure-anthropic/claude-haiku-4-5')).toBe(2048)
+    expect(getPromptCachingMinimumTokens('claude-haiku-4-5')).toBe(4096)
+    expect(getPromptCachingMinimumTokens('azure-anthropic/claude-haiku-4-5')).toBe(4096)
     expect(getPromptCachingMinimumTokens('gpt-5.5')).toBeNull()
   })
 })

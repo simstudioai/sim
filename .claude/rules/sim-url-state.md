@@ -46,6 +46,20 @@ These reads/mutations are **not** anti-patterns and stay as-is:
 - **Route navigations** — `router.push('/path/[id]?folderId=x')` that changes the route *path*, not just the current query. A nuqs setter only mutates the query on the current path; cross-path navigation stays on `router`.
 - **Read-once auth / redirect signals** — `token`, `callbackUrl`, `redirect`, `error`, `invite_flow`, `new` (invite signup flow), `upgraded`, `redirect_workflow`, etc. These are navigation signals consumed once (often read-then-strip), not synced view-state. Leave them on `useSearchParams`. Key names are per-surface: files' `new` is a genuine nuqs param (`files/search-params.ts`), while invite's `new` is a one-shot signup signal.
 
+### Remembered list-preference exception
+
+Files, Tables, and Knowledge may persist their last-used filter/sort snapshot through
+`useResourceListPreferences`. This is a fallback preference, not a second live source of truth:
+
+- nuqs remains authoritative while the module is open.
+- Zustand is consulted once on a clean module entry, after persisted state hydrates.
+- An explicit URL filter/sort parameter wins even when it resolves to the module default. The
+  complete resolved URL snapshot becomes the remembered value; omitted fields use URL defaults
+  rather than merging with storage.
+- Explicit filter/sort gestures commit the same complete snapshot to nuqs and Zustand together.
+- Never mirror subsequent URL changes with a synchronization effect or `popstate` listener.
+- Search and folder navigation remain URL-only and are excluded from the persisted snapshot.
+
 ## Per-feature `search-params.ts` — single source of truth
 
 Co-locate a `search-params.ts` next to the feature. Export the parser map (and shared options). Both the client (`useQueryStates`/`useQueryState`) and any server component (`createSearchParamsCache` from `nuqs/server`) import from this one file. Import parsers from `nuqs/server` so the module is safe to import in both client and server contexts.

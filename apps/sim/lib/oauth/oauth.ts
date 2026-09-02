@@ -78,6 +78,7 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
+import { MONDAY_OAUTH_TOKEN_URL, resolveMondayAccessTokenExpiresAt } from '@/lib/oauth/monday'
 import {
   SALESFORCE_ADDITIONAL_PROVIDER_IDS,
   SALESFORCE_LOGIN_HOSTS,
@@ -1891,11 +1892,12 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         'MONDAY_CLIENT_SECRET'
       )
       return {
-        tokenEndpoint: 'https://auth.monday.com/oauth2/token',
+        tokenEndpoint: MONDAY_OAUTH_TOKEN_URL,
         clientId,
         clientSecret,
         useBasicAuth: false,
-        supportsRefreshTokenRotation: false,
+        useJsonBody: true,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'zoho-desk': {
@@ -2206,14 +2208,29 @@ export async function refreshOAuthToken(
       newRefreshToken = data.refresh_token
       logger.info(`Received new refresh token from ${provider}`)
     }
+    if (provider === 'monday' && !newRefreshToken) {
+      logger.warn('Monday token refresh response omitted its rotating refresh token')
+      return { ok: false, message: 'Invalid Monday token refresh response' }
+    }
 
     const rawExpiresIn = data.expires_in ?? data.expiresIn
     const parsedExpiresIn =
       typeof rawExpiresIn === 'number' || typeof rawExpiresIn === 'string'
         ? Number(rawExpiresIn)
         : Number.NaN
+    const responseExpiresIn =
+      Number.isFinite(parsedExpiresIn) && parsedExpiresIn > 0 ? parsedExpiresIn : undefined
     const expiresIn =
-      Number.isFinite(parsedExpiresIn) && parsedExpiresIn > 0 ? parsedExpiresIn : 3600
+      provider === 'monday' && accessToken
+        ? Math.max(
+            1,
+            Math.ceil(
+              (resolveMondayAccessTokenExpiresAt(accessToken, responseExpiresIn).getTime() -
+                Date.now()) /
+                1000
+            )
+          )
+        : (responseExpiresIn ?? 3600)
 
     if (!accessToken) {
       // Log only the shape, never `data` itself - on a partial success it can

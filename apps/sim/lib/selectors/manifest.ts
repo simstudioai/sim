@@ -205,6 +205,8 @@ export const selectorManifest = {
   'zoom.meetings': providerSelector([], { listMode: 'paginated', detail: true }),
   'slack.channels': providerSelector([], {
     sourceFields: { oauthCredential: ['botToken'] },
+    listMode: 'paginated',
+    detail: true,
   }),
   'snowflake.databases': providerSelector(['database', 'schema'], {
     detail: true,
@@ -240,6 +242,8 @@ export const selectorManifest = {
   }),
   'slack.users': providerSelector([], {
     sourceFields: { oauthCredential: ['botToken'] },
+    listMode: 'paginated',
+    detail: true,
   }),
   'outlook.folders': providerSelector([], { listMode: 'paginated', detail: true }),
   'outlook.calendars': providerSelector([], { listMode: 'paginated', detail: true }),

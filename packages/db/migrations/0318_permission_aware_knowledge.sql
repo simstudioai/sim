@@ -1,4 +1,5 @@
--- Document-level access control for knowledge bases (expand phase).
+-- Permission-aware knowledge bases (expand phase): document-level access control, members-mode
+-- connectors, and per-member change feeds.
 --
 -- Every document gains `acl text[]`, the sorted list of access tokens a principal must hold one of
 -- to read it. The column is added with a fast default of '{ws}' ("any workspace member"), which
@@ -40,6 +41,8 @@ CREATE TABLE IF NOT EXISTS "knowledge_connector_member" (
 	"last_listed_count" integer,
 	"last_error" text,
 	"member_synced_through" timestamp,
+	"change_cursor" text,
+	"change_cursor_at" timestamp,
 	"suspended_at" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
@@ -138,17 +141,10 @@ DO $$ BEGIN
   END IF;
 END $$;--> statement-breakpoint
 ALTER TABLE "knowledge_connector" VALIDATE CONSTRAINT "knowledge_connector_credential_group_id_credential_group_id_fk";--> statement-breakpoint
--- credential_id becomes a real FK but is deliberately left NOT VALID in this release: rows
--- written before the credential table existed may still hold a raw account.id, which
--- lib/oauth/credential-service.ts still honours and which script migration 0011 remaps. A later
--- migration validates it once 0011 has run in production (see the contract-pending marker on
--- knowledgeConnector.credentialId in schema.ts). ON DELETE SET NULL matches what
--- lib/credentials/deletion.ts already does by hand.
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM "pg_constraint" WHERE "conname" = 'knowledge_connector_credential_id_credential_id_fk' AND "conrelid" = '"knowledge_connector"'::regclass) THEN
-    ALTER TABLE "knowledge_connector" ADD CONSTRAINT "knowledge_connector_credential_id_credential_id_fk" FOREIGN KEY ("credential_id") REFERENCES "public"."credential"("id") ON DELETE set null ON UPDATE no action NOT VALID;
-  END IF;
-END $$;--> statement-breakpoint
+-- knowledge_connector.credential_id is deliberately not yet a foreign key: rows written before
+-- the credential table existed may still hold a raw account.id, which lib/oauth/credential-service.ts
+-- still honours and which script migration 0011 remaps. A later migration adds the reference once
+-- 0011 has run in production (see the contract-pending marker on knowledgeConnector.credentialId).
 SET lock_timeout = 0;--> statement-breakpoint
 -- The access predicate's index on the large table, built without blocking writes.
 -- migration-safe: replay removes an invalid build created by this migration; concurrent operations preserve row writes.

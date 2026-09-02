@@ -5,7 +5,7 @@ import {
   getPersonalEnvironmentContract,
   getWorkspaceEnvironmentContract,
   type workspaceEnvironmentDataSchema,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/environment'
 
 export type EnvironmentVariable = z.output<typeof environmentVariableSchema>
 

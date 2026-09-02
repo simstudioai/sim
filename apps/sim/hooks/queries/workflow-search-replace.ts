@@ -22,6 +22,7 @@ import { createMcpToolId } from '@/lib/mcp/shared'
 import type { Credential } from '@/lib/oauth'
 import {
   executeSelectorRequest,
+  type LoadedSelectorOptions,
   loadAllSelectorOptions,
 } from '@/lib/selectors/client/execute-selector'
 import { projectSelectorContext } from '@/lib/selectors/context'
@@ -56,6 +57,11 @@ export interface WorkflowSearchResolvedResource {
   label: string
   resolved: boolean
   inaccessible: boolean
+}
+
+export interface WorkflowSearchSelectorReplacementOptions {
+  items: WorkflowSearchReplacementOption[]
+  truncated: boolean
 }
 
 export const workflowSearchReplaceKeys = {
@@ -476,7 +482,11 @@ export function useWorkflowSearchSelectorDetails(matches: WorkflowSearchMatch[])
 
       return {
         queryKey: workflowSearchReplaceKeys.selectorDetail(selectorKey, ordinal, revision),
-        queryFn: async ({ signal }: { signal: AbortSignal }): Promise<SelectorOption | null> => {
+        queryFn: async ({
+          signal,
+        }: {
+          signal: AbortSignal
+        }): Promise<{ option: SelectorOption | null; truncated: boolean }> => {
           if (manifest.supportsDetail) {
             const result = await executeSelectorRequest({
               selectorKey,
@@ -485,16 +495,22 @@ export function useWorkflowSearchSelectorDetails(matches: WorkflowSearchMatch[])
               request: { kind: 'detail', id: match.rawValue },
               signal,
             })
-            return result.kind === 'detail' ? result.item : null
+            return {
+              option: result.kind === 'detail' ? result.item : null,
+              truncated: false,
+            }
           }
 
-          const options = await loadAllSelectorOptions({
+          const catalog = await loadAllSelectorOptions({
             selectorKey,
             scope,
             context,
             signal,
           })
-          return options.find((option) => option.id === match.rawValue) ?? null
+          return {
+            option: catalog.items.find((option) => option.id === match.rawValue) ?? null,
+            truncated: catalog.truncated,
+          }
         },
         enabled: Boolean(
           selectorKey &&
@@ -503,13 +519,16 @@ export function useWorkflowSearchSelectorDetails(matches: WorkflowSearchMatch[])
             (manifest.classification === 'local' || scope)
         ),
         staleTime: manifest.staleTime ?? WORKFLOW_SEARCH_SELECTOR_DETAIL_STALE_TIME,
-        select: (option: SelectorOption | null): WorkflowSearchResolvedResource => ({
-          matchRawValue: match.rawValue,
-          resourceGroupKey: match.resource?.resourceGroupKey,
-          label: option?.label ?? match.rawValue,
-          resolved: Boolean(option),
-          inaccessible: false,
-        }),
+        select: ({ option, truncated }): WorkflowSearchResolvedResource => {
+          const unresolvedIncompleteCatalog = !option && truncated
+          return {
+            matchRawValue: match.rawValue,
+            resourceGroupKey: match.resource?.resourceGroupKey,
+            label: option?.label ?? match.rawValue,
+            resolved: Boolean(option),
+            inaccessible: unresolvedIncompleteCatalog,
+          }
+        },
       }
     }),
   })
@@ -773,8 +792,11 @@ export function useWorkflowSearchSelectorReplacementOptions(matches: WorkflowSea
           selectorKey && baseEnabled && (manifest.classification === 'local' || scope)
         ),
         staleTime: manifest.staleTime ?? WORKFLOW_SEARCH_SELECTOR_REPLACEMENT_STALE_TIME,
-        select: (options: SelectorOption[]): WorkflowSearchReplacementOption[] =>
-          options.map((option) => ({
+        select: ({
+          items,
+          truncated,
+        }: LoadedSelectorOptions): WorkflowSearchSelectorReplacementOptions => ({
+          items: items.map((option) => ({
             kind: match.kind,
             value: option.id,
             label: option.label,
@@ -782,6 +804,8 @@ export function useWorkflowSearchSelectorReplacementOptions(matches: WorkflowSea
             selectorContext: context,
             resourceGroupKey: match.resource?.resourceGroupKey,
           })),
+          truncated,
+        }),
       }
     }),
   })

@@ -1,5 +1,5 @@
 /**
- * @vitest-environment jsdom
+ * @vitest-environment node
  */
 
 import { resolveDesktopZoom } from '@sim/desktop-bridge'

@@ -21,11 +21,15 @@ import {
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
   workflowAuthzMockFns,
+  workflowsUtilsMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatContext } from '@/stores/panel'
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+
+/** Folder listing is untouched by `@log` mentions; the real module drags in the block and trigger registries. */
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { processContextsServer } from '@/lib/copilot/chat/process-contents'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'

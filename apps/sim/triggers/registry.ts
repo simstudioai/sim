@@ -162,6 +162,7 @@ import {
   confluenceUserCreatedTrigger,
   confluenceWebhookTrigger,
 } from '@/triggers/confluence'
+import { credentialGroupEventTrigger } from '@/triggers/credential-group'
 import {
   emailBisonEmailAccountAddedTrigger,
   emailBisonEmailAccountDisconnectedTrigger,
@@ -640,6 +641,7 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   confluence_space_removed: confluenceSpaceRemovedTrigger,
   confluence_page_permissions_updated: confluencePagePermissionsUpdatedTrigger,
   confluence_user_created: confluenceUserCreatedTrigger,
+  credential_group_event: credentialGroupEventTrigger,
   emailbison_email_sent: emailBisonEmailSentTrigger,
   emailbison_lead_first_contacted: emailBisonLeadFirstContactedTrigger,
   emailbison_lead_replied: emailBisonLeadRepliedTrigger,

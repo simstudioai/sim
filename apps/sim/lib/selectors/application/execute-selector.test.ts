@@ -457,7 +457,7 @@ describe('executeSelector', () => {
     )
   })
 
-  it('logs truncation diagnostics server-side but strips them from the response', async () => {
+  it('exposes safe truncation state without diagnostic details', async () => {
     const { sanitizeSelectorResult } = await vi.importActual<
       typeof import('@/lib/selectors/server/sanitize')
     >('@/lib/selectors/server/sanitize')
@@ -468,10 +468,15 @@ describe('executeSelector', () => {
     })
     mocks.sanitize.mockImplementationOnce(sanitizeSelectorResult)
 
-    await expect(execute()).resolves.toEqual({
+    const result = await execute()
+
+    expect(result).toEqual({
       kind: 'list',
       items: [{ id: 'label-1', label: 'Inbox' }],
+      truncated: true,
     })
+    expect(result).not.toHaveProperty('diagnostics')
+    expect(JSON.stringify(result)).not.toContain('provider-cap')
     expect(mocks.logger.warn).toHaveBeenCalledWith(
       'Selector provider result reached a configured cap',
       expect.objectContaining({

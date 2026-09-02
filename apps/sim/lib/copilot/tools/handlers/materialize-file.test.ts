@@ -108,6 +108,11 @@ vi.mock('@/lib/copilot/vfs/path-utils', () => ({
 }))
 
 vi.mock('@/lib/workflows/operations/import-export', () => ({ parseWorkflowJson: vi.fn() }))
+/** Only the import size cap is read from `import-workflow`; its orchestration dependency is the whole deploy graph. */
+vi.mock('@/lib/workflows/orchestration', () => ({
+  performCreateWorkflow: vi.fn(),
+  performCreateWorkflowTransition: vi.fn(),
+}))
 vi.mock('@/lib/workflows/persistence/utils', () => ({ saveWorkflowToNormalizedTables: vi.fn() }))
 vi.mock('@/lib/workflows/utils', () => ({ deduplicateWorkflowName: vi.fn() }))
 vi.mock('@/app/api/v1/admin/types', () => ({ extractWorkflowMetadata: vi.fn() }))

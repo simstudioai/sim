@@ -2,7 +2,6 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode, useState } from 'react'
-import { sleep } from '@sim/utils/helpers'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -248,9 +247,8 @@ describe('native-surface modal preparation', () => {
     if (!close) throw new Error('Modal close button did not render')
     await act(async () => {
       close.click()
-      await sleep(20)
     })
-    expect(document.activeElement).toBe(trigger)
+    await vi.waitFor(() => expect(document.activeElement).toBe(trigger))
   })
 
   it('fails closed when a registered preparation rejects', async () => {

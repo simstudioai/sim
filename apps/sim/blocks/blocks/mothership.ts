@@ -1,4 +1,4 @@
-import { Blimp } from '@sim/emcn'
+import { Blimp } from '@sim/emcn/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 

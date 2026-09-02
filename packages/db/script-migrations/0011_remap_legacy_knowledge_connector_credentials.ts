@@ -40,7 +40,7 @@ interface RemapOptions {
 
 /**
  * Makes every `knowledge_connector.credential_id` a real `credential.id` so the
- * foreign key added NOT VALID by migration 0317 can be validated later.
+ * foreign key a later migration adds can be validated immediately.
  * Rows written before the `credential` table existed hold a raw `account.id`;
  * each is remapped to the workspace credential that wraps that account, and
  * anything that still resolves to nothing is disconnected rather than left to

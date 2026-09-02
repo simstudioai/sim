@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
+import { CONTAINER_DIMENSIONS } from '@sim/workflow-renderer/dimensions'
 import {
   CONTAINER_PADDING_X,
   CONTAINER_PADDING_Y,

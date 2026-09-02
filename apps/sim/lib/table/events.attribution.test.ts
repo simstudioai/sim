@@ -3,12 +3,7 @@
  */
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
-
-// Structurally slow — it scans call sites across the repo — so under a fully-parallel local run this file
-// blows the default timeout while passing in isolation and on CI. Give it a
-// real budget instead of letting machine load decide the verdict.
-vi.setConfig({ testTimeout: 30_000 })
+import { beforeAll, describe, expect, it } from 'vitest'
 
 /**
  * `signalTableRowsChangedByActor` lets the acting tab skip its own refetch, which is only sound
@@ -51,24 +46,49 @@ const FORWARDING_MODULE = 'lib/table/application/rows.ts'
  */
 const SUPPLIER_PATTERNS = [/actorClientId:/, /signalTableRowsChangedByActor\([^)]*,/] as const
 
-async function* walk(dir: string): AsyncGenerator<string> {
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name === '.next') continue
-    const full = join(dir, entry.name)
-    if (entry.isDirectory()) yield* walk(full)
-    else if (entry.name.endsWith('.ts') && !entry.name.includes('.test.')) yield full
-  }
+/** Files read per batch; bounds open descriptors while keeping the disk busy. */
+const READ_BATCH_SIZE = 64
+
+async function walk(dir: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true })
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      if (entry.name === 'node_modules' || entry.name === '.next') return []
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) return walk(full)
+      return entry.name.endsWith('.ts') && !entry.name.includes('.test.') ? [full] : []
+    })
+  )
+  return nested.flat()
 }
 
-async function filesMatching(
+/**
+ * Every source file under the app root, keyed by its relative path. Read once
+ * for the file: both sweeps scan the same tree, and walking it per test was the
+ * whole cost of this file.
+ */
+let sources: Map<string, string>
+
+async function readSources(): Promise<Map<string, string>> {
+  const files = await walk(APP_ROOT)
+  const found = new Map<string, string>()
+  for (let start = 0; start < files.length; start += READ_BATCH_SIZE) {
+    const batch = files.slice(start, start + READ_BATCH_SIZE)
+    const contents = await Promise.all(batch.map((file) => readFile(file, 'utf8')))
+    batch.forEach((file, index) => {
+      found.set(file.slice(APP_ROOT.length + 1), contents[index])
+    })
+  }
+  return found
+}
+
+function filesMatching(
   matches: (source: string) => boolean,
   skip: (relative: string) => boolean = () => false
-) {
+): string[] {
   const found: string[] = []
-  for await (const file of walk(APP_ROOT)) {
-    const source = await readFile(file, 'utf8')
+  for (const [relative, source] of sources) {
     if (!matches(source)) continue
-    const relative = file.slice(APP_ROOT.length + 1)
     if (skip(relative)) continue
     found.push(relative)
   }
@@ -76,8 +96,17 @@ async function filesMatching(
 }
 
 describe('signalTableRowsChangedByActor call sites', () => {
-  it('is called only where the acting tab reconciles the write locally', async () => {
-    const callers = await filesMatching(
+  /**
+   * Structurally slow — it reads every source file in the app — so under a
+   * fully-parallel local run the scan blows the default budget while passing in
+   * isolation and on CI. Give it a real budget of its own, outside any test's.
+   */
+  beforeAll(async () => {
+    sources = await readSources()
+  }, 30_000)
+
+  it('is called only where the acting tab reconciles the write locally', () => {
+    const callers = filesMatching(
       (source) => source.includes('signalTableRowsChangedByActor('),
       (relative) => relative === DECLARING_MODULE
     )
@@ -85,8 +114,8 @@ describe('signalTableRowsChangedByActor call sites', () => {
     expect(callers).toEqual([...ATTRIBUTED_CALL_SITES].sort())
   })
 
-  it('is given an actor only by surfaces whose client hook reconciles locally', async () => {
-    const suppliers = await filesMatching(
+  it('is given an actor only by surfaces whose client hook reconciles locally', () => {
+    const suppliers = filesMatching(
       (source) => SUPPLIER_PATTERNS.some((pattern) => pattern.test(source)),
       (relative) => relative === DECLARING_MODULE || relative === FORWARDING_MODULE
     )

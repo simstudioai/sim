@@ -2217,15 +2217,15 @@
     {
       "idx": 317,
       "version": "7",
-      "when": 1788308819434,
-      "tag": "0317_knowledge_document_acl",
+      "when": 1788304042423,
+      "tag": "0317_giant_kitty_pryde",
       "breakpoints": true
     },
     {
       "idx": 318,
       "version": "7",
-      "when": 1788316050134,
-      "tag": "0318_knowledge_connector_member_change_cursor",
+      "when": 1788322807933,
+      "tag": "0318_permission_aware_knowledge",
       "breakpoints": true
     }
   ]

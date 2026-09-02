@@ -4,6 +4,10 @@ import {
   FILE_SEARCH_SEGMENT_CHARS,
   FILE_SEARCH_SEGMENT_OVERLAP_CHARS,
 } from '@/lib/workspace-files/search/constants'
+import type {
+  CompiledFileSearchPattern,
+  FileSearchMatchRange,
+} from '@/lib/workspace-files/search/pattern'
 
 export interface LogicalLine {
   lineNumber: number
@@ -16,14 +20,6 @@ export interface SearchSegment {
   segmentStart: number
   lineLength: number
   content: string
-}
-
-export function isFileSearchCaseSensitive(query: string): boolean {
-  return /\p{Lu}/u.test(query)
-}
-
-export function escapeFileSearchLikePattern(query: string): string {
-  return query.replace(/[\\%_]/g, '\\$&')
 }
 
 export function* iterateLogicalLines(text: string): Generator<LogicalLine> {
@@ -110,48 +106,24 @@ export function truncateUtf8ToBytes(text: string, maxBytes: number): string {
   return encoded.subarray(0, end).toString('utf8')
 }
 
-function findFileSearchMatchRange(
-  line: string,
-  query: string,
-  caseSensitive: boolean
-): { start: number; end: number } {
-  if (caseSensitive) {
-    const start = Math.max(0, line.indexOf(query))
-    return { start, end: Math.min(line.length, start + query.length) }
-  }
-
-  const searchableLine = line.toLowerCase()
-  const searchableQuery = query.toLowerCase()
-  const foldedStart = searchableLine.indexOf(searchableQuery)
-  if (foldedStart < 0) return { start: 0, end: Math.min(line.length, query.length) }
-
-  const originalStarts: number[] = []
-  const originalEnds: number[] = []
-  for (let offset = 0; offset < line.length; ) {
-    const codePoint = line.codePointAt(offset)
-    if (codePoint === undefined) break
-    const character = String.fromCodePoint(codePoint)
-    const foldedCharacter = character.toLowerCase()
-    const end = offset + character.length
-    for (let foldedOffset = 0; foldedOffset < foldedCharacter.length; foldedOffset += 1) {
-      originalStarts.push(offset)
-      originalEnds.push(end)
-    }
-    offset = end
-  }
-
-  const foldedEnd = foldedStart + searchableQuery.length
-  const start = originalStarts[foldedStart] ?? 0
-  const end = originalEnds[foldedEnd - 1] ?? Math.min(line.length, start + query.length)
-  return { start, end }
-}
-
+/**
+ * Renders one matching segment as a bounded, match-centred excerpt.
+ *
+ * The excerpt is cut around the match rather than at the head of the line.
+ * `matchRange` carries a match the caller already located — which is how a
+ * regex match arrives, since only PostgreSQL may run one — and otherwise the
+ * pattern locates its own. A match that neither can place still renders,
+ * anchored at the start of the segment.
+ */
 export function createFileSearchPreview(
   line: string,
-  query: string,
-  caseSensitive: boolean,
+  pattern: CompiledFileSearchPattern,
   maxBytes = FILE_SEARCH_MAX_PREVIEW_BYTES,
-  boundaries: { prefixOmitted?: boolean; suffixOmitted?: boolean } = {}
+  boundaries: {
+    prefixOmitted?: boolean
+    suffixOmitted?: boolean
+    matchRange?: FileSearchMatchRange | null
+  } = {}
 ): string {
   const boundaryBytes =
     (boundaries.prefixOmitted ? Buffer.byteLength('…', 'utf8') : 0) +
@@ -160,11 +132,23 @@ export function createFileSearchPreview(
     return `${boundaries.prefixOmitted ? '…' : ''}${line}${boundaries.suffixOmitted ? '…' : ''}`
   }
 
-  const { start: matchStart, end: matchEnd } = findFileSearchMatchRange(line, query, caseSensitive)
+  const { start: matchStart, end: matchEnd } = boundaries.matchRange ??
+    pattern.findMatchRange(line) ?? { start: 0, end: 0 }
   const leadingEllipsis = boundaries.prefixOmitted || matchStart > 0 ? '…' : ''
-  const trailingEllipsis = boundaries.suffixOmitted || matchEnd < line.length ? '…' : ''
+  /**
+   * A regex match has no length limit — `abc.*` matches to the end of the line —
+   * so the match alone can exceed the budget. Clipping it here, against a budget
+   * that already reserves the closing marker, is what keeps the excerpt honest:
+   * letting the final cap do it would drop that marker along with the text and
+   * leave a truncated line looking complete.
+   */
+  const budgetBeforeMatch = Math.max(0, maxBytes - Buffer.byteLength(`${leadingEllipsis}…`, 'utf8'))
+  const fullMatch = line.slice(matchStart, matchEnd)
+  const match = utf8PrefixWithinBudget(fullMatch, budgetBeforeMatch)
+  const matchClipped = match.length < fullMatch.length
+  const trailingEllipsis =
+    matchClipped || boundaries.suffixOmitted || matchEnd < line.length ? '…' : ''
   const ellipsisBytes = Buffer.byteLength(leadingEllipsis + trailingEllipsis, 'utf8')
-  const match = line.slice(matchStart, matchEnd)
   const matchBytes = Buffer.byteLength(match, 'utf8')
   const surroundingBudget = Math.max(0, maxBytes - ellipsisBytes - matchBytes)
   const beforeBudget = Math.floor(surroundingBudget / 2)
@@ -173,6 +157,8 @@ export function createFileSearchPreview(
   const after = utf8PrefixWithinBudget(line.slice(matchEnd), afterBudget)
   const preview = `${boundaries.prefixOmitted || before.length < matchStart ? '…' : ''}${
     before
-  }${match}${after}${boundaries.suffixOmitted || matchEnd + after.length < line.length ? '…' : ''}`
+  }${match}${after}${
+    matchClipped || boundaries.suffixOmitted || matchEnd + after.length < line.length ? '…' : ''
+  }`
   return utf8PrefixWithinBudget(preview, maxBytes)
 }

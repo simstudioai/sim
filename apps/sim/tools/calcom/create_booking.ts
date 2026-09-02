@@ -41,9 +41,9 @@ export const createBookingTool: ToolConfig<CalcomCreateBookingParams, CalcomCrea
       attendee: {
         type: 'object',
         required: true,
-        visibility: 'hidden',
+        visibility: 'user-or-llm',
         description:
-          'Attendee information object with name, email, timeZone, and optional phoneNumber (constructed from individual attendee fields)',
+          'Attendee information object with name, email, timeZone, and optional phoneNumber. The Cal.com block composes this from its individual attendee fields; a direct caller sends the object.',
       },
       guests: {
         type: 'array',

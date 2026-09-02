@@ -1,6 +1,6 @@
 {
-  "id": "597a78d2-77df-406a-813f-026a858b7a2c",
-  "prevId": "ac384ad5-c081-4e8c-ae77-4e0db2a786eb",
+  "id": "32b184c9-6cb8-4ef1-bd60-477335c1641a",
+  "prevId": "abfcce0a-145e-4180-ad24-9e80f206903c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8136,15 +8136,6 @@
           "columnsFrom": ["knowledge_base_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "knowledge_connector_credential_id_credential_id_fk": {
-          "name": "knowledge_connector_credential_id_credential_id_fk",
-          "tableFrom": "knowledge_connector",
-          "tableTo": "credential",
-          "columnsFrom": ["credential_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "knowledge_connector_credential_group_id_credential_group_id_fk": {
@@ -21458,7 +21449,8 @@
         "knowledge-base",
         "voice-input",
         "enrichment",
-        "voice-output"
+        "voice-output",
+        "api-tool"
       ]
     },
     "public.workspace_file_search_index_status": {

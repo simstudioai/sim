@@ -4061,6 +4061,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'voice-input',
   'enrichment',
   'voice-output',
+  'api-tool',
 ])
 
 export const usageLog = pgTable(
@@ -4638,14 +4639,14 @@ export const knowledgeConnector = pgTable(
     connectorType: text('connector_type').notNull(),
     /**
      * The credential a workspace-mode connector syncs as. NULL for a
-     * members-mode connector, whose members are the credentials. The FK is
-     * added NOT VALID: rows written before the `credential` table existed may
+     * members-mode connector, whose members are the credentials. Not yet a
+     * foreign key: rows written before the `credential` table existed may
      * still hold a raw `account.id`, which script migration 0011 remaps.
-     * contract-pending(after 0011 has run in production): VALIDATE CONSTRAINT
-     * knowledge_connector_credential_id_credential_id_fk and remove the raw
-     * account-id fallback in lib/oauth/credential-service.ts.
+     * contract-pending(after 0011 has run in production): add the reference to
+     * `credential.id` with ON DELETE SET NULL and remove the raw account-id
+     * fallback in lib/oauth/credential-service.ts.
      */
-    credentialId: text('credential_id').references(() => credential.id, { onDelete: 'set null' }),
+    credentialId: text('credential_id'),
     encryptedApiKey: text('encrypted_api_key'),
     sourceConfig: json('source_config').notNull(),
     syncMode: text('sync_mode').notNull().default('full'),

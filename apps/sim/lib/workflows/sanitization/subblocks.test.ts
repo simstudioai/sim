@@ -3,7 +3,18 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
+/**
+ * Sanitization reads each block's declared sub-block types, which the global
+ * registry stub empties. Only the blocks the cases below name are registered.
+ */
 vi.unmock('@/blocks/registry')
+vi.mock('@/blocks/registry-maps', async () => {
+  const { partialBlockRegistry } = await import('@sim/testing/mocks/block-registry.mock')
+  return partialBlockRegistry(
+    await import('@/blocks/blocks/condition'),
+    await import('@/blocks/blocks/function')
+  )
+})
 
 import { migrateSubblockIds } from '@/lib/workflows/migrations/subblock-migrations'
 import { sanitizeMalformedSubBlocks } from '@/lib/workflows/sanitization/subblocks'
