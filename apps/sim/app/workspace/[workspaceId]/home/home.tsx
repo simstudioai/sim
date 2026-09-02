@@ -49,6 +49,7 @@ import { persistImportedWorkflow } from '@/lib/workflows/operations/import-expor
 import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
+import { useMothershipMode } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import {
   resolveResourceEventPresentation,
@@ -56,6 +57,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import {
   CLEARED_SEARCH_FILTERS,
+  type MothershipMode,
   resourceParam,
   resourceUrlKeys,
   searchFilterParsers,
@@ -67,7 +69,6 @@ import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
-import { useMothershipModeStore } from '@/stores/mothership-mode/store'
 import type { ChatContext } from '@/stores/panel'
 import {
   ChatSurfaceProvider,
@@ -185,16 +186,15 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     },
     [setSearchQueryParam, setSearchFilters]
   )
+  const [composerMode, setComposerMode] = useMothershipMode()
   /**
-   * A URL that carries a query opens in Search mode with the query in the box,
-   * whether it arrived by link or by navigating back to it; the composer
-   * follows the live query the same way (below), so the box and the results
-   * never show two different queries.
+   * A link that carries a query but no mode opens in Search with the query in
+   * the box; the composer follows the live query the same way (below), so the
+   * box and the results never show two different queries.
    */
   useEffect(() => {
-    if (searchQuery) useMothershipModeStore.getState().setMode('search')
-  }, [searchQuery])
-  const composerMode = useMothershipModeStore((state) => state.mode)
+    if (searchQuery && composerMode === 'build') void setComposerMode('search')
+  }, [searchQuery, composerMode, setComposerMode])
   /** The bases an Ask turn is grounded in; read through a ref so a list refresh never rebuilds the submit handler. */
   const { data: knowledgeBases = EMPTY_KNOWLEDGE_BASES } = useKnowledgeBasesQuery(workspaceId)
   const knowledgeBasesRef = useRef(knowledgeBases)
@@ -475,7 +475,12 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   }, [workspaceId, getCurrentRequestId, stopGeneration])
 
   const handleSubmit = useCallback(
-    (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
+    (
+      text: string,
+      fileAttachments?: FileAttachmentForApi[],
+      contexts?: ChatContext[],
+      modeOverride?: MothershipMode
+    ) => {
       const trimmed = text.trim()
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
 
@@ -491,7 +496,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
        * be searched: attachments alone have nothing to search for. Assistant
        * makes the query a turn of the agent grounded in the sources.
        */
-      const mode = useMothershipModeStore.getState().mode
+      const mode = modeOverride ?? composerMode
       const answering = mode === 'assistant'
       if (mode === 'search') {
         if (trimmed) setSearchQuery(trimmed)
@@ -516,17 +521,28 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         answering ? { requestMode: 'ask' } : undefined
       )
     },
-    [workspaceId, chatId, prepareResourceViewForAgentTurn, sendMessage, setSearchQuery]
+    [
+      workspaceId,
+      chatId,
+      composerMode,
+      prepareResourceViewForAgentTurn,
+      sendMessage,
+      setSearchQuery,
+    ]
   )
 
   /** An emptied search box returns to the sources; nothing else reads the cleared query. */
   const clearSearch = useCallback(() => setSearchQuery(''), [setSearchQuery])
 
-  /** Summarize or Answer on a result: switch to Assistant and hand the question to it. */
+  /**
+   * Summarize or Answer on a result: switch to Assistant and hand the question
+   * to it. The submit reads the mode from this render, so it is sent as an
+   * Assistant turn directly rather than waiting for the URL to update.
+   */
   const handleSummarize = (prompt: string) => {
-    useMothershipModeStore.getState().setMode('assistant')
+    void setComposerMode('assistant')
     setSearchQuery('')
-    handleSubmit(prompt)
+    handleSubmit(prompt, undefined, undefined, 'assistant')
   }
   /**
    * A chat that already exists never opens in Search: its transcript is a
@@ -534,9 +550,8 @@ export function Home({ chatId, userName, userId }: HomeProps) {
    * carry over, so a follow-up stays grounded in the sources.
    */
   useEffect(() => {
-    const store = useMothershipModeStore.getState()
-    if (chatId && store.mode === 'search') store.setMode('build')
-  }, [chatId])
+    if (chatId && composerMode === 'search') void setComposerMode('build')
+  }, [chatId, composerMode, setComposerMode])
   const showSearchResults = composerMode === 'search' && searchQuery.trim().length > 0
   const searchResults = showSearchResults ? (
     <KnowledgeSearchResults

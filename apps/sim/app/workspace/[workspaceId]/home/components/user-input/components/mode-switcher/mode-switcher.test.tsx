@@ -5,24 +5,35 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCaptureEvent, mockSetSearchQuery, mockSetSearchFilters } = vi.hoisted(() => ({
-  mockCaptureEvent: vi.fn(),
-  mockSetSearchQuery: vi.fn(),
-  mockSetSearchFilters: vi.fn(),
-}))
+const { mockCaptureEvent, mockSetSearchQuery, mockSetSearchFilters, modeState } = vi.hoisted(
+  () => ({
+    mockCaptureEvent: vi.fn(),
+    mockSetSearchQuery: vi.fn(),
+    mockSetSearchFilters: vi.fn(),
+    /** The URL `mode` param as the nuqs mock serves it; `set` is the live setter once mounted. */
+    modeState: { initial: 'build', set: (_next: string) => {} },
+  })
+)
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
 }))
-vi.mock('nuqs', () => ({
-  useQueryState: () => [null, mockSetSearchQuery],
-  useQueryStates: () => [{}, mockSetSearchFilters],
-}))
+vi.mock('nuqs', async () => {
+  const { useState } = await import('react')
+  return {
+    useQueryState: (key: string) => {
+      const [mode, setMode] = useState(modeState.initial)
+      if (key !== 'mode') return [null, mockSetSearchQuery]
+      modeState.set = setMode
+      return [mode, setMode]
+    },
+    useQueryStates: () => [{}, mockSetSearchFilters],
+  }
+})
 vi.mock('posthog-js/react', () => ({ usePostHog: () => null }))
 vi.mock('@/lib/posthog/client', () => ({ captureEvent: mockCaptureEvent }))
 
 import { ModeSwitcher } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mode-switcher/mode-switcher'
-import { useMothershipModeStore } from '@/stores/mothership-mode/store'
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
@@ -52,9 +63,17 @@ function items(): HTMLElement[] {
   return Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
 }
 
+function select(index: number) {
+  act(() => {
+    items()[index].dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
+  })
+}
+
 beforeEach(() => {
   mockCaptureEvent.mockClear()
-  useMothershipModeStore.getState().reset()
+  mockSetSearchQuery.mockClear()
+  mockSetSearchFilters.mockClear()
+  modeState.initial = 'build'
 })
 
 afterEach(() => {
@@ -89,15 +108,11 @@ describe('ModeSwitcher', () => {
     expect(rows[2].querySelector('svg')).toBeNull()
   })
 
-  it('switches the shared mode and reports the change', () => {
+  it('writes the chosen mode to the URL and reports the change', () => {
     mount()
     openMenu()
+    select(1)
 
-    act(() => {
-      items()[1].dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
-    })
-
-    expect(useMothershipModeStore.getState().mode).toBe('search')
     expect(trigger().textContent).toBe('Search')
     expect(mockCaptureEvent).toHaveBeenCalledWith(null, 'chat_mode_changed', {
       workspace_id: 'workspace-1',
@@ -106,16 +121,21 @@ describe('ModeSwitcher', () => {
     expect(mockSetSearchQuery).not.toHaveBeenCalled()
   })
 
+  it('reads the mode from the URL on mount', () => {
+    modeState.initial = 'assistant'
+    mount()
+
+    expect(trigger().textContent).toBe('Assistant')
+    expect(trigger().getAttribute('aria-label')).toBe('Mode: Assistant')
+  })
+
   it('drops the search query from the URL when leaving Search', () => {
-    useMothershipModeStore.getState().setMode('search')
+    modeState.initial = 'search'
     mount()
     openMenu()
+    select(0)
 
-    act(() => {
-      items()[0].dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
-    })
-
-    expect(useMothershipModeStore.getState().mode).toBe('build')
+    expect(trigger().textContent).toBe('Build')
     expect(mockSetSearchQuery).toHaveBeenCalledWith(null, { history: 'replace', scroll: false })
     expect(mockSetSearchFilters).toHaveBeenCalledWith(
       { source: null, updated: null },
@@ -126,12 +146,9 @@ describe('ModeSwitcher', () => {
   it('does not report re-selecting the active mode', () => {
     mount()
     openMenu()
+    select(0)
 
-    act(() => {
-      items()[0].dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
-    })
-
-    expect(useMothershipModeStore.getState().mode).toBe('build')
+    expect(trigger().textContent).toBe('Build')
     expect(mockCaptureEvent).not.toHaveBeenCalled()
   })
 })

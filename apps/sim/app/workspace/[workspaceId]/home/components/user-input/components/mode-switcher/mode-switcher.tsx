@@ -14,17 +14,15 @@ import { useParams } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
+import { useMothershipMode } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode'
 import {
   CLEARED_SEARCH_FILTERS,
+  MOTHERSHIP_MODES,
+  type MothershipMode,
   resourceUrlKeys,
   searchFilterParsers,
   searchQueryParam,
 } from '@/app/workspace/[workspaceId]/home/search-params'
-import {
-  MOTHERSHIP_MODES,
-  type MothershipMode,
-  useMothershipModeStore,
-} from '@/stores/mothership-mode/store'
 
 const MODE_LABELS: Record<MothershipMode, string> = {
   build: 'Build',
@@ -42,8 +40,7 @@ const MODE_LABELS: Record<MothershipMode, string> = {
 export const ModeSwitcher = memo(function ModeSwitcher() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const posthog = usePostHog()
-  const mode = useMothershipModeStore((state) => state.mode)
-  const setMode = useMothershipModeStore((state) => state.setMode)
+  const [mode, setMode] = useMothershipMode()
 
   const [, setSearchQueryParam] = useQueryState(searchQueryParam.key, searchQueryParam.parser)
   const [, setSearchFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
@@ -51,7 +48,7 @@ export const ModeSwitcher = memo(function ModeSwitcher() {
   /** Leaving Search drops the query from the URL, so a clean URL always means no search is showing. */
   const handleSelect = (next: MothershipMode) => {
     if (next === mode) return
-    setMode(next)
+    void setMode(next)
     if (next !== 'search') {
       void setSearchQueryParam(null, { history: 'replace', scroll: false })
       void setSearchFilters(CLEARED_SEARCH_FILTERS, { history: 'replace', scroll: false })

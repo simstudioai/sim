@@ -5,9 +5,22 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCaptureEvent } = vi.hoisted(() => ({
+const { mockCaptureEvent, modeState } = vi.hoisted(() => ({
   mockCaptureEvent: vi.fn(),
+  /** The URL `mode` param as the nuqs mock serves it; `set` is the live setter once mounted. */
+  modeState: { initial: 'build', set: (_next: string) => {} },
 }))
+
+vi.mock('nuqs', async () => {
+  const { useState } = await import('react')
+  return {
+    useQueryState: () => {
+      const [mode, setMode] = useState(modeState.initial)
+      modeState.set = setMode
+      return [mode, setMode]
+    },
+  }
+})
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
@@ -74,7 +87,6 @@ vi.mock('@/app/workspace/[workspaceId]/components/connect-oauth-modal', () => ({
 }))
 
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions/suggested-actions'
-import { useMothershipModeStore } from '@/stores/mothership-mode/store'
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
@@ -101,7 +113,7 @@ function rows(): HTMLButtonElement[] {
 beforeEach(() => {
   onSelectPrompt.mockClear()
   mockCaptureEvent.mockClear()
-  useMothershipModeStore.getState().reset()
+  modeState.initial = 'build'
 })
 
 afterEach(() => {
@@ -122,7 +134,7 @@ describe('SuggestedActions', () => {
   it('shows every source in Search mode instead of the sampled suggestions', () => {
     mount()
 
-    act(() => useMothershipModeStore.getState().setMode('search'))
+    act(() => modeState.set('search'))
 
     expect(heading()).toBe('Sources')
     expect(document.querySelector('[data-testid="search-sources"]')).not.toBeNull()
@@ -132,7 +144,7 @@ describe('SuggestedActions', () => {
   it('shows the sources in Assistant mode, which answers from them', () => {
     mount()
 
-    act(() => useMothershipModeStore.getState().setMode('assistant'))
+    act(() => modeState.set('assistant'))
 
     expect(heading()).toBe('Sources')
     expect(document.querySelector('[data-testid="search-sources"]')).not.toBeNull()

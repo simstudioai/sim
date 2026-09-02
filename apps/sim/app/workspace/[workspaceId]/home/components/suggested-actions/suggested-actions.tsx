@@ -21,6 +21,8 @@ import type {
   OAuthConnectTarget,
 } from '@/app/workspace/[workspaceId]/home/components/suggested-actions/types'
 import { weightedSample } from '@/app/workspace/[workspaceId]/home/components/suggested-actions/weighted-sample'
+import { useMothershipMode } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode'
+import type { MothershipMode } from '@/app/workspace/[workspaceId]/home/search-params'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { getAllBlockMeta } from '@/blocks/registry'
 import type { ModuleTag } from '@/blocks/types'
@@ -29,7 +31,6 @@ import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useOAuthConnections } from '@/hooks/queries/oauth/oauth-connections'
 import { useTablesList } from '@/hooks/queries/tables'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { type MothershipMode, useMothershipModeStore } from '@/stores/mothership-mode/store'
 
 /** Lookup integration slug by OAuth service display name (case-insensitive). */
 const SLUG_BY_LOWER_NAME: ReadonlyMap<string, string> = new Map(
@@ -245,7 +246,7 @@ interface SuggestedActionsProps {
 export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const posthog = usePostHog()
-  const mode = useMothershipModeStore((state) => state.mode)
+  const [mode] = useMothershipMode()
   const { integrationAvailability } = usePermissionConfig()
 
   const { data: credentials = EMPTY_CREDENTIALS } = useWorkspaceCredentials({

@@ -38,6 +38,24 @@ export const searchQueryParam = {
   parser: parseAsString,
 } as const
 
+/** The composer's modes: the agent, enterprise search, or the assistant answering from the sources. */
+export const MOTHERSHIP_MODES = ['build', 'search', 'assistant'] as const
+
+export type MothershipMode = (typeof MOTHERSHIP_MODES)[number]
+
+/**
+ * `mode` is the composer's mode, so a refresh, back, forward, or shared link
+ * lands in the same mode, as Glean's separate Search and Assistant routes do.
+ * Build is the default and the clean URL. A view change rather than a
+ * destination, so it replaces the history entry.
+ */
+export const modeParam = {
+  key: 'mode',
+  parser: parseAsStringLiteral(MOTHERSHIP_MODES)
+    .withDefault('build')
+    .withOptions({ history: 'replace', clearOnDefault: true }),
+} as const
+
 /** The recency windows a search can be narrowed to. */
 export const UPDATED_WINDOWS = [
   { id: 'any', label: 'Any time', days: null },

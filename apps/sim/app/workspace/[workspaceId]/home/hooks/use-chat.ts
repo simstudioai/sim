@@ -98,6 +98,7 @@ import {
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { chatUrl } from '@/app/workspace/[workspaceId]/home/hooks/chat-url'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import {
   captureResourceActivityScope,
@@ -1785,7 +1786,7 @@ export function useChat(
         !workflowIdRef.current &&
         typeof window !== 'undefined'
       ) {
-        window.history.replaceState(null, '', `/workspace/${workspaceId}/chat/${chatId}`)
+        window.history.replaceState(null, '', chatUrl(workspaceId, chatId))
       }
       if (options?.invalidateList) {
         queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
