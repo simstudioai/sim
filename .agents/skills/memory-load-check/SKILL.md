@@ -31,7 +31,7 @@ Read these when doing a deeper pass:
   - `chunkedBatchDelete`: bounded SELECT -> optional side effect -> DELETE loop.
   - `batchDeleteByWorkspaceAndTimestamp`: common workspace/timestamp cleanup wrapper.
   - `selectRowsByIdChunks`: chunks large ID sets and enforces an overall row cap.
-  - `chunkArray`: use only after the input set itself is already bounded.
+- `chunkArray` from `@sim/utils/helpers`: use only after the input set itself is already bounded.
 - `apps/sim/lib/core/utils/stream-limits.ts`
   - `PayloadSizeLimitError`
   - `assertKnownSizeWithinLimit`
@@ -45,7 +45,7 @@ Read these when doing a deeper pass:
   - dispatch concrete chunks (`workspaceIds`, retention, label) instead of one giant scope
   - prefer Trigger.dev queue/concurrency keys when available
   - execute inline fallback chunks sequentially, not with unbounded `Promise.all`
-- File parse route pattern in `apps/sim/app/api/files/parse/route.ts`
+- File parse pattern in `apps/sim/lib/internal/file/parser.ts` and `apps/sim/lib/uploads/contexts/workspace/fetch-external-url.ts`
   - cap downloads and parsed output separately
   - preserve partial results when a later item exceeds the cap
   - never read untrusted response bodies without a byte cap

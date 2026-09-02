@@ -469,7 +469,7 @@ The assigned mapping (`semantic id → slot`) is stored in `sourceConfig.tagSlot
 
 ## `@/connectors/utils` Helpers
 
-Reuse these instead of inlining the same logic (the validator enforces them):
+Reuse these instead of inlining the same logic:
 
 - `htmlToPlainText(html)` — strip HTML to plain text before indexing `ExternalDocument.content`. Never index raw HTML.
 - `computeContentHash(content)` — stable content hash for change detection.
@@ -538,7 +538,7 @@ If `ExternalDocument.sourceUrl` is set, the sync engine stores it on the documen
 
 If `listDocuments` can ever return **less than the full source set** on a non-incremental sync — a `maxItems`/`maxDocuments`-style cap, or a transient per-item error that drops a still-existing document from the listing — it MUST set `syncContext.listingCapped = true` when that happens.
 
-The sync engine reconciles deletions by comparing the full listing against stored documents: anything not seen is **hard-deleted** (sync-engine.ts, gated on `!syncContext?.listingCapped`). A truncated listing without this flag deletes every real document beyond the cap. This was the single most common bug found when auditing connectors — do not omit it.
+The sync engine reconciles deletions by comparing the full listing against stored documents (`shouldReconcileDeletions` in `lib/knowledge/connectors/sync-engine.ts`, gated on `!syncContext?.listingCapped`). Anything not seen is tombstoned on that sync and hard-deleted when the next sync still does not see it — so a truncated listing without this flag eventually removes every real document beyond the cap.
 
 ```typescript
 if (hitLimit && syncContext) {
@@ -565,7 +565,7 @@ You never need to modify the sync engine when adding a connector.
 
 ## Icon
 
-The `icon` field on `ConnectorConfig` is used throughout the UI — in the connector list, the add-connector modal, and as the document icon in the knowledge base table (replacing the generic file type icon for connector-sourced documents). The icon is read from `CONNECTOR_REGISTRY[connectorType].icon` at runtime — no separate icon map to maintain.
+The `icon` field on `ConnectorConfig` is used throughout the UI — in the connector list, the add-connector modal, and as the document icon in the knowledge base table (replacing the generic file type icon for connector-sourced documents). The icon is read from `CONNECTOR_META_REGISTRY[connectorType].icon` (the client-safe registry) at runtime — no separate icon map to maintain.
 
 If the service already has an icon in `apps/sim/components/icons.tsx` (from a tool integration), reuse it. Otherwise, ask the user to provide the SVG.
 
@@ -602,7 +602,8 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
 - **OAuth + contentDeferred**: `apps/sim/connectors/google-drive/google-drive.ts` — file download with metadata-based hash, `orderBy` for deterministic pagination
 - **OAuth + contentDeferred (blocks API)**: `apps/sim/connectors/notion/notion.ts` — complex block content extraction deferred to `getDocument`
 - **OAuth + contentDeferred (git)**: `apps/sim/connectors/github/github.ts` — blob SHA hash, tree listing
-- **OAuth + inline content**: `apps/sim/connectors/confluence/confluence.ts` — multiple config field types, `mapTags`, label fetching
+- **OAuth + inline content**: `apps/sim/connectors/slack/slack.ts` — list API returns message content inline, metadata-derived `contentHash`
+- **OAuth + contentDeferred + config fields**: `apps/sim/connectors/confluence/confluence.ts` — multiple config field types, `mapTags`, label fetching
 - **API key**: `apps/sim/connectors/fireflies/fireflies.ts` — GraphQL API with Bearer token auth
 
 ## Checklist

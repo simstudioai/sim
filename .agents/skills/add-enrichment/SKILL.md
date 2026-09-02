@@ -22,9 +22,9 @@ Because enrichments run on Sim's hosted keys by default, **every provider tool y
 
 ## Architecture (what you're plugging into)
 
-- **`enrichments/types.ts`** — `EnrichmentConfig { id, name, description, icon, inputs, outputs, providers }` and `EnrichmentProvider { id, label, toolId, buildParams, mapOutput }`. Providers are **plain data** (no `@/tools` import) so the catalog stays client-safe.
-- **`enrichments/providers.ts`** — `toolProvider(...)` (typed passthrough) plus shared input helpers: `str(v)`, `normalizeDomain(v)`, `firstNonEmpty(arr)`, `splitName(fullName)`.
-- **`enrichments/run.ts`** — the server-only cascade runner. Calls `executeTool(provider.toolId, { ...params, _context: { workspaceId } })`, accumulates hosted-key cost, returns the first non-empty mapped result. **You do not edit this** — it works for any registry entry.
+- **`enrichments/types.ts`** — `EnrichmentConfig { id, name, description, icon, inputs, outputs, providers }` and `EnrichmentProvider { id, label, toolId, buildParams, projectFailure, mapOutput }` — `toolProvider` fills `projectFailure` with the standard HTTP projection; override it only for a provider whose failure shape is nonstandard (see `enrichments/provider-failures/`). Providers are **plain data** (no `@/tools` import) so the catalog stays client-safe.
+- **`enrichments/providers.ts`** — `toolProvider(...)` (typed passthrough) plus shared input helpers: `str(v)`, `normalizeDomain(v)`, `firstNonEmpty(arr)`, `splitName(fullName)`, and `projectEnrichmentProviderFailure`.
+- **`enrichments/run.ts`** — the server-only cascade runner. Calls `executeTool(provider.toolId, { ...params, _context: { workspaceId, userId } })`, accumulates hosted-key cost, returns the first non-empty mapped result. **You do not edit this** — it works for any registry entry.
 - **`enrichments/registry.ts`** — `ENRICHMENT_REGISTRY` / `ALL_ENRICHMENTS` / `getEnrichment`. Register new entries here.
 
 Outputs automatically become table columns; billing, the catalog/sidebar UI, the column meta-header icon, and per-row execution all work with no extra wiring.
@@ -60,7 +60,7 @@ Why it matters: the cascade runner only bills (and only reads `output.cost.total
 
 ## Step 3: Write the enrichment definition
 
-Create `apps/sim/enrichments/{name}/{name}.ts` and a barrel `index.ts`. Mirror the existing entries (`work-email`, `phone-number`, `company-domain`, `company-info`).
+Create `apps/sim/enrichments/{name}/{name}.ts` and a barrel `index.ts`. Mirror the entries registered in `enrichments/registry.ts`.
 
 ```typescript
 import { SomeIcon } from '@sim/emcn/icons'

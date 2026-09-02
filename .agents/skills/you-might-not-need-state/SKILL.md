@@ -27,7 +27,7 @@ Read these before analyzing:
 
 1. **Derived state stored in useState**: If a value can be computed from props, other state, or query data, compute it inline during render instead of storing it in state.
 2. **Server state copied into useState**: Never `useState` + `useEffect` to sync React Query data into local state. Use query data directly. The only exception is forms where users edit server data.
-3. **Props mirrored into state**: Never `useState(prop)` + `useEffect(() => setState(prop))`. Use the prop directly, or use a key to reset component state.
+3. **Props mirrored into state**: Never `useState(prop)` + `useEffect(() => setState(prop))`. Use the prop directly, reset with a remount `key`, or — for seed-on-transition (e.g. a modal opening) — adjust during render with the `useState` prev-tracker in `.claude/rules/sim-hooks.md` "State shape" (mind its sentinel-on-mount and no-`useRef` rules).
 4. **Chained useEffect state updates**: Never chain Effects that set state to trigger other Effects. Calculate all derived values in the event handler or inline during render.
 5. **Storing objects when an ID suffices**: Store `selectedId` not a copy of the selected object. Derive the object: `items.find(i => i.id === selectedId)`.
 6. **State that duplicates Zustand or React Query**: If the data already lives in a store or query cache, don't create a parallel useState.
