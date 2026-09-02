@@ -113,7 +113,7 @@ describe('jq and outline over JSON stdout', () => {
 
   it('fails the invocation with the reason when stdout is not JSON or the program is bad', async () => {
     expect(await applyPipeline('plain text', [{ kind: 'jq', expression: '.' }])).toContain(
-      'stdout is not JSON'
+      'output is text, not JSON'
     )
     expect(await applyPipeline(json, [{ kind: 'jq', expression: '.data |' }])).toContain('jq:')
   })

@@ -1,5 +1,8 @@
 import { type EmbeddedCliIdentity, runEmbeddedCli } from 'sim/embed'
-import { readSessionSandboxFile } from '@/lib/execution/remote-sandbox/session-files'
+import {
+  readSessionSandboxFile,
+  writeSessionSandboxFile,
+} from '@/lib/execution/remote-sandbox/session-files'
 import type { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
 
 /**
@@ -27,5 +30,27 @@ export async function runCli(
       if (read.outcome === 'read') fileArguments[path] = read.content
     }
   }
-  return runEmbeddedCli(argv, identity, { fileArguments })
+  // Downloads land on the same machine `@path` reads from; without a sandbox session
+  // the CLI refuses rather than writing to the server's disk.
+  const writeFile = sessionKey
+    ? async (path: string, content: Uint8Array) =>
+        (await writeSessionSandboxFile(sessionKey, path, Buffer.from(content).toString('utf8')))
+          .outcome === 'written'
+    : undefined
+  const result = await runEmbeddedCli(argv, identity, {
+    fileArguments,
+    ...(writeFile ? { writeFile } : {}),
+  })
+  return { ...result, stdout: stripAnsi(result.stdout), stderr: stripAnsi(result.stderr) }
+}
+
+const ANSI_SEQUENCE = /\[[0-9;?]*[ -/]*[@-~]/g
+
+/**
+ * The CLI colours its notes with chalk, which keys off the HOSTING server's TTY — so an
+ * embedded run on a dev server hands the model `[2m…[22m` around every
+ * truncation notice. The model reads text, never a terminal: strip escapes on the way out.
+ */
+function stripAnsi(text: string): string {
+  return text.replace(ANSI_SEQUENCE, '')
 }

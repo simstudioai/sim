@@ -4,6 +4,7 @@ import {
   agentCliFail,
   agentCliOk,
 } from '@/lib/mothership/agent-cli/types'
+import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { searchDocsServerTool } from '@/lib/mothership/tools/server/docs/search-docs'
 
 const DEFAULT_TOP = 6
@@ -29,9 +30,13 @@ export const docsSearchCommand: AgentCliEngine = {
     const top = topFrom(flags)
     if (typeof top === 'string') return agentCliFail(top)
     const path = typeof flags.path === 'string' ? flags.path : undefined
+    const { resolvedSecretTraceRegistry } = await prepareCopilotEnvironmentContext(
+      runtime.userId,
+      runtime.workspaceId
+    )
     const output = await searchDocsServerTool.execute(
       { query, topK: top, ...(path ? { path } : {}) },
-      { userId: runtime.userId, workspaceId: runtime.workspaceId }
+      { userId: runtime.userId, workspaceId: runtime.workspaceId, resolvedSecretTraceRegistry }
     )
     return agentCliOk(JSON.stringify(output, null, 2))
   },
