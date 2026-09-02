@@ -4342,6 +4342,7 @@ export function useChat(
             content: message,
             fileAttachments,
             contexts,
+            requestMode: options?.requestMode,
           })
           queueStore.setEditing(activeChatKey, null)
           // Resume dispatch if it paused on this slot.
@@ -5009,6 +5010,7 @@ export function useChat(
             content: dispatched.content,
             fileAttachments: dispatched.fileAttachments,
             contexts: dispatched.contexts,
+            ...(dispatched.requestMode ? { requestMode: dispatched.requestMode } : {}),
             userMessageId: withdrawnUserMessageId,
           })
           return

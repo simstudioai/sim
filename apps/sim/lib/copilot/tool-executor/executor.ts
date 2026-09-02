@@ -78,12 +78,18 @@ export async function executeTool(
 
   const normalizedParams = normalizeToolParams(toolId, params, context)
 
+  /**
+   * An Ask turn reaches only Sim-executed server tools. An integration call and
+   * a headless workflow run are both actions on a connected service or the
+   * workspace, which an answer drawn from the knowledge bases never takes.
+   */
+  if (context.requestMode === ASK_REQUEST_MODE && !(isKnownTool(toolId) && isSimExecuted(toolId))) {
+    return { success: false, error: ASK_MODE_INTEGRATION_REFUSAL }
+  }
+
   const canUseRegisteredHandler =
     isKnownTool(toolId) && (isSimExecuted(toolId) || usesHeadlessClientFallback)
   if (!canUseRegisteredHandler) {
-    if (context.requestMode === ASK_REQUEST_MODE) {
-      return { success: false, error: ASK_MODE_INTEGRATION_REFUSAL }
-    }
     const appParams = buildAppToolParams(normalizedParams, context)
     const options = {
       ...(context.resolvedSecretTraceRegistry
