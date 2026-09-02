@@ -108,6 +108,8 @@ __pycache__/
 # anything added there later.
 /uploads
 
-# Scratch dir for `bun run cn:check` in packages/emcn (regenerates the cn
-# lookup tables to a throwaway path and diffs them against the committed copy).
-.cn-check/
+# Scratch dir for `check:cn-tables` (regenerates the cn lookup tables to a
+# throwaway path and diffs them against the committed copy). Anchored to the one
+# directory the script actually creates, so an unrelated `.cn-check` elsewhere
+# is not silently hidden.
+/packages/emcn/.cn-check/
