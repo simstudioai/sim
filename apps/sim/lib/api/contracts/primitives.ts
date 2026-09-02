@@ -238,7 +238,7 @@ export function withMissingFieldMessage<TSchema extends z.ZodString>(
 export const MAX_ID_LENGTH = 128
 
 /**
- * Bound for an OAuth `code` callback parameter, shared by every callback contract.
+ * Bound for an OAuth `code` callback parameter.
  *
  * Authorization codes have no length ceiling in RFC 6749, and providers differ by
  * orders of magnitude: Slack's are tens of characters while Atlassian returns a
