@@ -460,6 +460,9 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     [workspaceId, chatId, prepareResourceViewForAgentTurn, sendMessage]
   )
 
+  /** An emptied search box returns to the sources; nothing else reads the cleared query. */
+  const clearSearch = useCallback(() => setSearchQuery(''), [])
+
   /** Summarize on a result: hand the document to the agent in Build mode. */
   const handleSummarize = useCallback(
     (prompt: string) => {
@@ -706,6 +709,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
                     draftScopeKey={draftScopeKey}
                     onSubmit={handleSubmit}
                     clearOnSubmit={composerMode !== 'search'}
+                    onCleared={clearSearch}
                     isSending={isSending}
                     onStopGeneration={handleStopGeneration}
                   />

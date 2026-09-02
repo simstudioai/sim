@@ -50,13 +50,19 @@ export function groupResultsByDocument(
   return grouped
 }
 
-/** A result as the source card renders it; a document without a source URL cannot be opened. */
+/**
+ * A result as the source card renders it: the row's second line names the
+ * source app, or the knowledge base for an upload. A document without a
+ * source URL cannot be opened.
+ */
 function toSource(result: WorkspaceKnowledgeSearchResult): SourceTagData | null {
   if (!result.sourceUrl) return null
   return {
     url: result.sourceUrl,
     title: result.documentName ?? undefined,
-    siteName: result.knowledgeBaseName || undefined,
+    siteName: result.connectorType
+      ? connectorName(result.connectorType)
+      : result.knowledgeBaseName || undefined,
     connectorType: result.connectorType ?? undefined,
     snippet: toSnippet(result.content),
     updatedAt: result.sourceModifiedAt ?? undefined,
@@ -65,6 +71,22 @@ function toSource(result: WorkspaceKnowledgeSearchResult): SourceTagData | null 
 
 function connectorName(connectorType: string): string {
   return CONNECTOR_META_REGISTRY[connectorType]?.name ?? connectorType
+}
+
+/**
+ * Arrow keys walk the result links, the way a search page does; Enter on a
+ * focused link opens it natively. Focus stops at either end.
+ */
+function handleResultsKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+  const links = [...event.currentTarget.querySelectorAll<HTMLAnchorElement>('a[data-source-link]')]
+  if (links.length === 0) return
+  const index = links.findIndex((link) => link === document.activeElement)
+  const next =
+    event.key === 'ArrowDown' ? Math.min(index + 1, links.length - 1) : Math.max(index - 1, 0)
+  if (next === index) return
+  event.preventDefault()
+  links[next].focus()
 }
 
 interface KnowledgeSearchResultsProps {
@@ -197,7 +219,7 @@ export function KnowledgeSearchResults({
             : 'No documents match these filters.'}
         </p>
       ) : (
-        <div className='flex flex-col gap-0.5'>
+        <div className='flex flex-col gap-0.5' onKeyDown={handleResultsKeyDown}>
           {visible.map((result) => {
             const source = toSource(result)
             return source ? (

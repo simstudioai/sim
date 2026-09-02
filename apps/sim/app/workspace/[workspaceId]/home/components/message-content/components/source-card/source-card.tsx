@@ -137,6 +137,7 @@ export function SourceCard({ source, query, onSummarize }: SourceCardProps) {
           href={source.url}
           target='_blank'
           rel='noopener noreferrer'
+          data-source-link=''
           onClick={(event) => handleExternalLinkClick(event, source.url)}
           className={cn(
             'truncate text-[var(--text-primary)] text-sm no-underline hover:underline',

@@ -77,6 +77,8 @@ interface UserInputProps {
    * transcript. Defaults to clearing.
    */
   clearOnSubmit?: boolean
+  /** Called when the text becomes empty after having had content, such as a search being cleared. */
+  onCleared?: () => void
   onEditQueuedTail?: () => void
 }
 
@@ -106,6 +108,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     onSendQueuedHead,
     onEditQueuedTail,
     clearOnSubmit = true,
+    onCleared,
   },
   ref
 ) {
@@ -212,6 +215,15 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
+
+  const onClearedRef = useRef(onCleared)
+  onClearedRef.current = onCleared
+  const hadTextRef = useRef(false)
+  useEffect(() => {
+    const hasText = editor.value.trim().length > 0
+    if (hadTextRef.current && !hasText) onClearedRef.current?.()
+    hadTextRef.current = hasText
+  }, [editor.value])
 
   const isFirstSaveRef = useRef(true)
   const draftSaveTimerRef = useRef<number | null>(null)
