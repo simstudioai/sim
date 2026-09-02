@@ -31,6 +31,12 @@ export interface EmbedContext {
    * clear another's failure.
    */
   softExitCode?: number
+  /**
+   * Where a download lands when embedded: the host writes to the caller's own machine
+   * (the chat's sandbox), never to the server's disk. Resolves true when written, false
+   * when the caller has no machine to write to right now.
+   */
+  writeFile?: (path: string, content: Uint8Array) => Promise<boolean>
 }
 
 /** The embedded-vs-standalone seam for soft-fail codes: context when embedded, global otherwise. */

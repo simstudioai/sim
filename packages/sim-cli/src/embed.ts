@@ -69,7 +69,7 @@ export function createEmbeddedClient(identity: EmbeddedCliIdentity): SimClient {
 export async function runEmbeddedCli(
   argv: string[],
   identity: EmbeddedCliIdentity,
-  options?: { fileArguments?: Record<string, string> }
+  options?: { fileArguments?: Record<string, string>; writeFile?: EmbedContext['writeFile'] }
 ): Promise<EmbeddedCliResult> {
   installEmbedSinks()
   const ctx: EmbedContext = {
@@ -77,6 +77,7 @@ export async function runEmbeddedCli(
     stdout: [],
     stderr: [],
     ...(options?.fileArguments ? { fileArguments: options.fileArguments } : {}),
+    ...(options?.writeFile ? { writeFile: options.writeFile } : {}),
   }
   return embedStore.run(ctx, async () => {
     let exitCode = 0
