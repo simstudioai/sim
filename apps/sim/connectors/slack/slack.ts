@@ -385,13 +385,17 @@ function walkBlockText(node: unknown, out: string[]): void {
  * Each entry: "[ISO timestamp] username: message text" (text may span lines
  * when the message has rich attachment/block content).
  */
+/**
+ * Appends the messages to the transcript oldest first. The transcript keeps
+ * its newest messages when the window does not fit, so a message is skipped
+ * only when it cannot fit on its own.
+ */
 async function appendMessages(
   accessToken: string,
   lines: BoundedLines,
   messages: SlackMessage[],
   syncContext?: Record<string, unknown>
-): Promise<number> {
-  let appended = 0
+): Promise<void> {
   /** Slack returns newest first; the transcript reads oldest first. */
   const chronological = [...messages].reverse()
 
@@ -412,11 +416,8 @@ async function appendMessages(
       ? await resolveUserName(accessToken, msg.user, syncContext)
       : msg.username || 'unknown'
 
-    if (!lines.push(`[${timestamp}] ${userName}: ${content}`)) break
-    appended += 1
+    lines.push(`[${timestamp}] ${userName}: ${content}`)
   }
-
-  return appended
 }
 
 /**
@@ -601,14 +602,15 @@ async function buildSlackChannelDocument(
     maxMessages
   )
 
-  const lines = new BoundedLines()
-  lines.push(`Channel: #${channel.name}`)
+  const lines = new BoundedLines(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES, 'last')
+  lines.pin(`Channel: #${channel.name}`)
   const topic = channel.topic?.value?.trim()
-  if (topic) lines.push(`Topic: ${topic}`)
+  if (topic) lines.pin(`Topic: ${topic}`)
   const purpose = channel.purpose?.value?.trim()
-  if (purpose) lines.push(`Purpose: ${purpose}`)
-  lines.push('')
-  const messageCount = await appendMessages(accessToken, lines, messages, syncContext)
+  if (purpose) lines.pin(`Purpose: ${purpose}`)
+  lines.pin('')
+  await appendMessages(accessToken, lines, messages, syncContext)
+  const messageCount = lines.count
 
   /**
    * Edit/thread fingerprint: max(edited.ts) and max(latest_reply) across the
