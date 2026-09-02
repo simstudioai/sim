@@ -5,6 +5,7 @@ import type {
   PrimitiveValueType,
   SubBlockType,
 } from '@sim/workflow-types/blocks'
+import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { ToolResponse } from '@/tools/types'
 
@@ -210,6 +211,7 @@ export const SELECTOR_TYPES_HYDRATION_REQUIRED: SubBlockType[] = [
   'file-selector',
   'sheet-selector',
   'folder-selector',
+  'sim-folder-tree-selector',
   'project-selector',
   'knowledge-base-selector',
   'workflow-selector',
@@ -282,6 +284,22 @@ export interface SubBlockConfig {
    * stored, where a backslash is the author's own character.
    */
   searchTextFormat?: 'markdown'
+  /**
+   * Which folder tree a `sim-folder-tree-selector` offers. Files are served by a
+   * different API than workflows, knowledge bases, and tables, so the selector
+   * cannot infer this from the block.
+   */
+  resourceType?: FolderResourceType
+  /**
+   * A sibling folder field that narrows what this control offers.
+   *
+   * On a file picker, choosing a folder means the run only touches that folder,
+   * so offering files from anywhere else would let a user build a selection the
+   * operation then ignores. `recursiveFieldId` names the switch deciding
+   * whether the scope descends, so the picker and the run agree on how deep the
+   * folder reaches.
+   */
+  folderScope?: { fieldId: string; recursiveFieldId?: string }
   /** Controls parameter visibility in agent/tool-input context */
   paramVisibility?: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'
   /**

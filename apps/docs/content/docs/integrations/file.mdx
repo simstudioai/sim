@@ -44,6 +44,8 @@ Read workspace file objects from selected files or canonical workspace file IDs.
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
 | `fileInput` | file | No | Selected workspace file object. |
+| `folderPaths` | array | No | Folders whose files are included, as canonical percent-encoded paths, e.g. \["/Reports/Q3%20Results"\]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up. |
+| `includeSubfolders` | boolean | No | Whether nested folders are read too. Defaults to true; set false to take only the folders’ direct files. |
 
 #### Output
 
@@ -61,6 +63,8 @@ Extract the text content of one or more workspace files from selected file objec
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
 | `fileInput` | file | No | Selected workspace file object, or an array of file objects. |
+| `folderPaths` | array | No | Folders whose files are included, as canonical percent-encoded paths, e.g. \["/Reports/Q3%20Results"\]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up. |
+| `includeSubfolders` | boolean | No | Whether nested folders are read too. Defaults to true; set false to take only the folders’ direct files. |
 
 #### Output
 
@@ -125,6 +129,7 @@ Create a new workspace file, either from text content or from an existing file. 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | No | File name \(e.g., "data.csv"\). Required when writing text; optional when storing a file, which keeps its own name unless this overrides it. If the name already exists, a numeric suffix is added automatically unless overwrite is enabled. |
+| `folderPath` | string | No | Folder to create the file in. Omit for the workspace root. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
 | `content` | string | No | The text content to write to the file. Provide exactly one of content or fileInput. |
 | `fileInput` | file | No | An existing file to store in the workspace, such as one produced by an earlier tool. Use this for anything that is not text — PDFs, images, audio, archives. Provide exactly one of content or fileInput. |
 | `contentType` | string | No | MIME type for new files \(e.g., "text/plain"\). Auto-detected from the file extension, or taken from the stored file, if omitted. |
@@ -148,6 +153,7 @@ Append content to an existing workspace file. The file must already exist. Conte
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | Yes | Name of an existing workspace file to append to. |
+| `folderPath` | string | No | Folder the file lives in. Naming it targets exactly one file when the same name exists in several folders. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
 | `content` | string | Yes | The text content to append to the file. |
 
 #### Output
@@ -169,6 +175,8 @@ Compress one or more workspace files into a single .zip archive stored in the wo
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
 | `fileInput` | file | No | Selected workspace file object, or an array of file objects. |
+| `folderPaths` | array | No | Folders whose files are included, as canonical percent-encoded paths, e.g. \["/Reports/Q3%20Results"\]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up. |
+| `includeSubfolders` | boolean | No | Whether nested folders are read too. Defaults to true; set false to take only the folders’ direct files. |
 | `archiveName` | string | No | Name for the .zip archive \(e.g., "documents.zip"\). Defaults to the source file name when compressing a single file, otherwise "archive.zip". |
 
 #### Output
@@ -222,5 +230,115 @@ Enable or disable the public share link for a workspace file, and set its access
 | `authType` | string | Access mode: public, password, email, or sso |
 | `hasPassword` | boolean | Whether the share is password-protected |
 | `allowedEmails` | array | Allowed emails/domains for email or SSO access |
+
+### List Files and Folders
+
+List what is inside a workspace folder: its subfolders and its files together. Lists direct children by default; set Recursive to walk the whole subtree.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | No | Folder to list. Omit to list from the workspace root. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
+| `recursive` | boolean | No | List everything beneath the path rather than only its direct children. Each entry carries its depth below the listed folder. |
+| `depth` | number | No | Deepest level to include when recursive, counted from the listed folder. 1 is direct children. |
+| `search` | string | No | Case-insensitive substring match against an entry name. Filters the result, so a deep match is still reported even when its parent folders do not match. |
+| `limit` | number | No | Most entries to return, 200 by default. A listing cut short comes back with truncated set. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `path` | string | The folder that was listed. |
+| `entries` | array | What the folder holds. Each entry has kind "folder" or "file", a name, and its depth below the listed folder. A folder carries its own canonical path; a file carries its id, size, type, and the canonical path of the folder holding it. |
+| `truncated` | boolean | True when the limit cut the listing short, so more entries exist. |
+
+### Create File Folder
+
+Create a workspace file folder at a path. Parent folders are created as needed. Fails if a folder already exists at the path.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | Path of the folder to create. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folder` | object | The created folder, with its name, canonical path, parent path, and timestamps. |
+
+### Move File Folder
+
+Move or rename a workspace file folder by giving its full destination path. Everything inside the folder moves with it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | Folder to move. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
+| `destinationPath` | string | Yes | Full path the folder should have afterwards. Renaming is a destination whose parent is unchanged. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folder` | object | The folder at its new path. |
+| `previousPath` | string | The path the folder had before the move. |
+
+### Delete File Folder
+
+Delete a workspace file folder. It moves to Recently deleted and can be brought back with Restore File Folder. Deleting a folder that still has contents requires the recursive option.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | Folder to delete. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
+| `recursive` | boolean | No | Also delete the folder’s nested folders and files. Without it, deleting a non-empty folder fails. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `path` | string | The folder that was deleted. |
+| `deleted` | boolean | Always true when the operation succeeded. |
+| `deletedItems` | object | Counts of the folders and files deleted alongside it. |
+
+### Restore File Folder
+
+Restore a deleted workspace file folder and its contents from Recently deleted. Addressed by folder ID, because a deleted folder has no live path.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderId` | string | Yes | ID of the deleted folder to restore. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folder` | object | The restored folder at its live path. |
+| `restoredItems` | object | Counts of the folders and files restored alongside it. |
+
+### Move File
+
+Move an existing workspace file into a folder. Moves the file itself; use Move File Folder to relocate a whole folder.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | Canonical workspace file ID of the file to move. |
+| `folderPath` | string | No | Destination folder. Omit to move the file to the workspace root. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fileId` | string | The file that was moved. |
+| `folderPath` | string | The folder the file now lives in. |
 
 

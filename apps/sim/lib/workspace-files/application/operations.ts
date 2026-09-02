@@ -22,7 +22,7 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   readMetadata: defineWorkspaceOperation({
     id: 'files.read_metadata',
@@ -170,7 +170,7 @@ export const fileOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   createFolder: defineWorkspaceOperation({
     id: 'files.folders.create',
@@ -184,21 +184,21 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   deleteFolder: defineWorkspaceOperation({
     id: 'files.folders.delete',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   restoreFolder: defineWorkspaceOperation({
     id: 'files.folders.restore',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
   uploadCreate: defineWorkspaceOperation({
     id: 'files.upload.create',

@@ -7,6 +7,7 @@ import { isRecordLike } from '@sim/utils/object'
 import JSZip from 'jszip'
 import type { ContractBody } from '@/lib/api/contracts'
 import type { fileManageContract } from '@/lib/api/contracts/tools/file'
+import { DEFAULT_FILE_LIST_LIMIT } from '@/lib/api/contracts/tools/file'
 import { splitWorkspaceFilePath } from '@/lib/copilot/tools/server/files/workspace-file'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -26,7 +27,7 @@ import {
   requestsPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
-import { buildFolderPath } from '@/lib/folders/paths'
+import { buildFolderPath, parseFolderPath, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { ShareValidationError } from '@/lib/public-shares/share-manager'
 import {
   ArchiveError,
@@ -57,6 +58,7 @@ import {
   createWorkspaceFile,
   createWorkspaceFileFromBuffer,
 } from '@/lib/workspace-files/application/create-workspace-file'
+import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
@@ -69,7 +71,17 @@ import {
   updateWorkspaceFileShare,
 } from '@/lib/workspace-files/application/share-workspace-file'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
-import { ensureWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import {
+  createWorkspaceFileFolderOperation,
+  deleteWorkspaceFileFolderOperation,
+  ensureWorkspaceFileFolderPathOperation,
+  listWorkspaceFileFoldersOperation,
+  restoreWorkspaceFileFolderOperation,
+  updateWorkspaceFileFolderOperation,
+} from '@/lib/workspace-files/application/workspace-file-folders'
+import { selectDirectoryEntries } from '@/lib/workspace-files/directory-listing'
+import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
+import { resolveFolderIdsForPaths } from '@/lib/workspace-files/folder-path-selection'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 import { isWorkspaceAccessDeniedError } from '@/lib/workspaces/permissions/utils'
 import type { UserFile } from '@/executor/types'
@@ -493,17 +505,42 @@ async function resolveWriteOverwriteTarget(options: {
   principal: Principal
   workspaceId: string
   folderId: string | null
+  /** Canonical destination when one was picked; unambiguous where a joined reference is not. */
+  folderPath?: string
   folderSegments: string[]
   leafName: string
 }) {
-  const { principal, workspaceId, folderId, folderSegments, leafName } = options
+  const { principal, workspaceId, folderId, folderPath, folderSegments, leafName } = options
+  /*
+   * A slash-delimited reference cannot express a folder whose own name contains
+   * a slash: `Q3/Q4` joins to two segments and re-reads as two levels, so the
+   * existing file is never found and the write lands as a duplicate. When the
+   * destination came from a picker it arrives as a canonical path, which is
+   * unambiguous, so the target is looked up inside that folder by name and
+   * resolved by the id — the same route a named append takes.
+   */
+  let reference = [...folderSegments, leafName].join('/')
+  if (folderPath) {
+    const scoped = await expandFolderPathsToFiles({
+      principal,
+      workspaceId,
+      folderPaths: [folderPath],
+      includeSubfolders: false,
+    })
+    const match = scoped.find(
+      (file) => file.name === leafName && (file.folderId ?? null) === folderId
+    )
+    if (!match) return null
+    reference = match.id
+  }
+
   let existing: Awaited<ReturnType<typeof resolveWorkspaceFileReference>>
   try {
     existing = await resolveWorkspaceFileReference({
       principal,
       operation: fileOperations.updateContent,
       workspaceId,
-      reference: [...folderSegments, leafName].join('/'),
+      reference,
     })
   } catch (error) {
     if (error instanceof OrchestrationError && error.code === 'not_found') return null
@@ -553,6 +590,60 @@ export function fileContentJsonResponse(
     { ...body, [RESOLVED_SECRET_PROVENANCE_FIELD]: provenance },
     { ...init, headers }
   )
+}
+
+/**
+ * Expands folder paths to the ids of every file beneath them.
+ *
+ * Resolution happens here, at run time, rather than when the block is
+ * configured: picking a folder means "whatever is in it when this runs", so a
+ * file added tomorrow is read tomorrow. Expanding in the picker would freeze a
+ * snapshot instead.
+ *
+ * Path resolution itself lives in {@link resolveFolderIdsForPaths}; this is the
+ * IO around it.
+ */
+async function expandFolderPathsToFiles(args: {
+  principal: Principal
+  workspaceId: string
+  folderPaths: string[] | undefined
+  includeSubfolders: boolean | undefined
+}): Promise<Array<{ id: string; name: string; folderId?: string | null }>> {
+  if (!args.folderPaths?.length) return []
+
+  const [{ folders }, { files }] = await Promise.all([
+    listWorkspaceFileFoldersOperation.execute({
+      principal: args.principal,
+      input: { workspaceId: args.workspaceId },
+    }),
+    listAllWorkspaceFiles.execute({
+      principal: args.principal,
+      input: { workspaceId: args.workspaceId, scope: 'active' },
+    }),
+  ])
+
+  const projected = folders.map((folder) => ({
+    ...toWorkspaceFileFolderPathView(folder),
+    id: folder.id,
+    parentId: folder.parentId,
+  }))
+  const selection = resolveFolderIdsForPaths(projected, args.folderPaths, {
+    includeSubfolders: args.includeSubfolders,
+  })
+  if (selection.missingPath !== undefined) {
+    throw new OrchestrationError('not_found', `Folder not found: ${selection.missingPath}`)
+  }
+
+  return files.filter((file) => file.folderId && selection.folderIds.has(file.folderId))
+}
+
+async function expandFolderPathsToFileIds(args: {
+  principal: Principal
+  workspaceId: string
+  folderPaths: string[] | undefined
+  includeSubfolders: boolean | undefined
+}): Promise<string[]> {
+  return (await expandFolderPathsToFiles(args)).map((file) => file.id)
 }
 
 export async function executeFileManageOperation(
@@ -626,13 +717,23 @@ export async function executeFileManageOperation(
       }
 
       case 'read': {
-        const { fileId, fileInput } = body
+        const { fileId, fileInput, folderPaths, includeSubfolders } = body
         const selectedFileIds = Array.isArray(fileId)
           ? fileId.map((id) => id.trim()).filter(Boolean)
           : fileId
             ? normalizeFileIdList(fileId)
             : extractFileIdsFromInput(fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        signal?.throwIfAborted()
+        for (const id of await expandFolderPathsToFileIds({
+          principal,
+          workspaceId,
+          folderPaths,
+          includeSubfolders,
+        })) {
+          if (!selectedFileIds.includes(id)) selectedFileIds.push(id)
+        }
 
         if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
           return Response.json({ success: false, error: 'File is required' }, { status: 400 })
@@ -717,13 +818,23 @@ export async function executeFileManageOperation(
       }
 
       case 'content': {
-        const { fileId, fileInput } = body
+        const { fileId, fileInput, folderPaths, includeSubfolders } = body
         const selectedFileIds = Array.isArray(fileId)
           ? fileId.map((id) => id.trim()).filter(Boolean)
           : fileId
             ? normalizeFileIdList(fileId)
             : extractFileIdsFromInput(fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        signal?.throwIfAborted()
+        for (const id of await expandFolderPathsToFileIds({
+          principal,
+          workspaceId,
+          folderPaths,
+          includeSubfolders,
+        })) {
+          if (!selectedFileIds.includes(id)) selectedFileIds.push(id)
+        }
 
         if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
           return contentResponse({ success: false, error: 'File is required' }, { status: 400 })
@@ -816,7 +927,7 @@ export async function executeFileManageOperation(
       }
 
       case 'write': {
-        const { fileName, content, fileInput, contentType, overwrite } = body
+        const { fileName, content, fileInput, contentType, overwrite, folderPath } = body
         signal?.throwIfAborted()
         const provenanceResolution = resolveFileWriteSecretProvenance({
           headers,
@@ -908,7 +1019,16 @@ export async function executeFileManageOperation(
           ? mergeWorkspaceFileSecretProvenance(...writeProvenanceSources)
           : undefined
 
-        const { folderSegments, leafName } = splitWorkspaceFilePath(sourceName ?? '')
+        const { folderSegments: nameSegments, leafName } = splitWorkspaceFilePath(sourceName ?? '')
+        /*
+         * The destination is the picked folder, then whatever folders the name
+         * itself spells. `folderPath` is canonical and percent-encoded, so it is
+         * decoded to names here — the same names `splitWorkspaceFilePath` yields
+         * — because the folder operation takes decoded segments.
+         */
+        const folderSegments = folderPath
+          ? [...parseFolderPath(folderPath), ...nameSegments]
+          : nameSegments
         await admitCreateWorkspaceFile(principal, workspaceId)
         const { folderId } = await ensureWorkspaceFileFolderPathOperation.execute({
           principal,
@@ -921,6 +1041,7 @@ export async function executeFileManageOperation(
             principal,
             workspaceId,
             folderId: folderId ?? null,
+            folderPath,
             folderSegments,
             leafName,
           })
@@ -1001,20 +1122,29 @@ export async function executeFileManageOperation(
       }
 
       case 'move': {
-        const { fileId, targetFolder } = body
+        const { fileId, folderPath, targetFolder } = body
         signal?.throwIfAborted()
-        const pathSegments = targetFolder.trim()
-          ? targetFolder
-              .trim()
-              .split('/')
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : []
+        /*
+         * `folderPath` is already canonical, so it is taken as-is. `targetFolder`
+         * is decoded segments joined by `/`, which cannot express a folder whose
+         * own name contains a slash — hence the newer field, and hence it wins.
+         */
         let targetFolderPath: string
-        try {
-          targetFolderPath = buildFolderPath(pathSegments)
-        } catch (error) {
-          throw new OrchestrationError('validation', getErrorMessage(error))
+        if (folderPath) {
+          targetFolderPath = folderPath
+        } else {
+          const pathSegments = targetFolder.trim()
+            ? targetFolder
+                .trim()
+                .split('/')
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : []
+          try {
+            targetFolderPath = buildFolderPath(pathSegments)
+          } catch (error) {
+            throw new OrchestrationError('validation', getErrorMessage(error))
+          }
         }
         await moveWorkspaceFileItemsOperation.execute({
           principal,
@@ -1024,10 +1154,10 @@ export async function executeFileManageOperation(
             targetFolderPath,
           },
         })
-        logger.info('File moved', { fileId, targetFolder: targetFolder || '(root)' })
+        logger.info('File moved', { fileId, targetFolderPath })
         return Response.json({
           success: true,
-          data: { fileId, targetFolder: targetFolder || '(root)' },
+          data: { fileId, folderPath: targetFolderPath, targetFolder: targetFolder || '(root)' },
         })
       }
 
@@ -1090,14 +1220,57 @@ export async function executeFileManageOperation(
       }
 
       case 'append': {
-        const { fileName, content } = body
+        const { fileName, content, folderPath, includeSubfolders } = body
         signal?.throwIfAborted()
+
+        /*
+         * A picked file arrives as a canonical id, which is already exact. A
+         * typed name is not: the same name can exist in several folders, and a
+         * workspace-wide lookup takes the oldest match anywhere. When a folder
+         * was chosen it is the only thing disambiguating the target, so the
+         * name is resolved inside it — by id, so the slash-in-a-folder-name
+         * hazard of a path-shaped reference never arises.
+         */
+        let scopedReference = fileName
+        if (folderPath) {
+          const scoped = await expandFolderPathsToFiles({
+            principal,
+            workspaceId,
+            folderPaths: [folderPath],
+            includeSubfolders,
+          })
+          /*
+           * Matched on id as well as name rather than inferring which one this
+           * is from its shape. A `wf_` prefix is a legal filename, so reading it
+           * as "already an id" would silently drop the scope for a file someone
+           * named `wf_notes.md`.
+           */
+          const matches = scoped.filter((file) => file.id === fileName || file.name === fileName)
+          if (matches.length === 0) {
+            throw new OrchestrationError('not_found', `No file named ${fileName} in ${folderPath}`)
+          }
+          /*
+           * A recursive scope can hold the same name at several depths, and
+           * appending to whichever the walk happened to reach first is a silent
+           * write to an arbitrary file. Refusing names the candidates so the
+           * caller can pick one, which is the whole reason the scope exists.
+           */
+          if (matches.length > 1) {
+            throw new OrchestrationError(
+              'validation',
+              `${matches.length} files named ${fileName} under ${folderPath}: ${matches
+                .map((file) => file.id)
+                .join(', ')}. Narrow the folder, turn off Include Subfolders, or give the file ID.`
+            )
+          }
+          scopedReference = matches[0].id
+        }
 
         const existing = await resolveWorkspaceFileReference({
           principal,
           operation: fileOperations.updateContent,
           workspaceId,
-          reference: fileName,
+          reference: scopedReference,
         })
 
         const lockKey = `file-append:${workspaceId}:${existing.id}`
@@ -1185,13 +1358,23 @@ export async function executeFileManageOperation(
       }
 
       case 'compress': {
-        const { fileId, fileInput, archiveName } = body
+        const { fileId, fileInput, archiveName, folderPaths, includeSubfolders } = body
         const selectedFileIds = Array.isArray(fileId)
           ? fileId.map((id) => id.trim()).filter(Boolean)
           : fileId
             ? normalizeFileIdList(fileId)
             : extractFileIdsFromInput(fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        signal?.throwIfAborted()
+        for (const id of await expandFolderPathsToFileIds({
+          principal,
+          workspaceId,
+          folderPaths,
+          includeSubfolders,
+        })) {
+          if (!selectedFileIds.includes(id)) selectedFileIds.push(id)
+        }
 
         if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
           return Response.json({ success: false, error: 'File is required' }, { status: 400 })
@@ -1483,6 +1666,107 @@ export async function executeFileManageOperation(
           data: {
             files: extractedFiles,
           },
+        })
+      }
+
+      case 'list': {
+        /*
+         * Listing takes the whole tree rather than asking the folder operation
+         * to filter, because the answer mixes folders and files: depth, search
+         * and ordering have to be decided over both at once, and two separately
+         * filtered queries cannot be interleaved afterwards.
+         */
+        signal?.throwIfAborted()
+        const [{ folders }, { files }] = await Promise.all([
+          listWorkspaceFileFoldersOperation.execute({ principal, input: { workspaceId } }),
+          listAllWorkspaceFiles.execute({ principal, input: { workspaceId, scope: 'active' } }),
+        ])
+
+        const rootPath = body.path ?? ROOT_FOLDER_PATH
+        const projected = folders.map((folder) => ({
+          ...toWorkspaceFileFolderPathView(folder),
+          id: folder.id,
+          parentId: folder.parentId,
+        }))
+
+        let rootId: string | null = null
+        if (body.path && body.path !== ROOT_FOLDER_PATH) {
+          const selection = resolveFolderIdsForPaths(projected, [body.path], {
+            includeSubfolders: false,
+          })
+          if (selection.missingPath !== undefined) {
+            throw new OrchestrationError('not_found', `Folder not found: ${selection.missingPath}`)
+          }
+          rootId = [...selection.folderIds][0] ?? null
+        }
+
+        const { entries, truncated } = selectDirectoryEntries(
+          projected,
+          files.map((file) => ({
+            id: file.id,
+            name: file.name,
+            folderId: file.folderId ?? null,
+            size: file.size,
+            type: file.type,
+            updatedAt: file.updatedAt.toISOString(),
+          })),
+          {
+            rootId,
+            rootPath,
+            maxDepth: body.recursive ? (body.depth ?? Number.POSITIVE_INFINITY) : 1,
+            search: body.search,
+            limit: body.limit ?? DEFAULT_FILE_LIST_LIMIT,
+          }
+        )
+
+        return Response.json({ success: true, data: { path: rootPath, entries, truncated } })
+      }
+
+      case 'create_folder': {
+        signal?.throwIfAborted()
+        const { folder } = await createWorkspaceFileFolderOperation.execute({
+          principal,
+          input: { workspaceId, path: body.path },
+        })
+        return Response.json({
+          success: true,
+          data: { folder: toWorkspaceFileFolderPathView(folder) },
+        })
+      }
+
+      case 'update_folder': {
+        signal?.throwIfAborted()
+        const { folder } = await updateWorkspaceFileFolderOperation.execute({
+          principal,
+          input: { workspaceId, path: body.path, destinationPath: body.destinationPath },
+        })
+        return Response.json({
+          success: true,
+          data: { folder: toWorkspaceFileFolderPathView(folder), previousPath: body.path },
+        })
+      }
+
+      case 'delete_folder': {
+        signal?.throwIfAborted()
+        const { deletedItems, path } = await deleteWorkspaceFileFolderOperation.execute({
+          principal,
+          input: { workspaceId, path: body.path, recursive: body.recursive },
+        })
+        return Response.json({
+          success: true,
+          data: { path: path ?? body.path, deleted: true, deletedItems },
+        })
+      }
+
+      case 'restore_folder': {
+        signal?.throwIfAborted()
+        const { folder, restoredItems } = await restoreWorkspaceFileFolderOperation.execute({
+          principal,
+          input: { workspaceId, folderId: body.folderId },
+        })
+        return Response.json({
+          success: true,
+          data: { folder: toWorkspaceFileFolderPathView(folder), restoredItems },
         })
       }
     }
