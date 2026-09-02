@@ -15746,6 +15746,49 @@
       "tags": ["note-taking", "knowledge-base"]
     },
     {
+      "type": "oci_object_storage",
+      "slug": "oci-object-storage",
+      "name": "OCI Object Storage",
+      "description": "List, upload, download, inspect, and delete objects in Oracle Cloud",
+      "longDescription": "Connect an Oracle Cloud Infrastructure Customer Secret Key to work with real Object Storage buckets and objects through Oracle’s S3 Compatibility API. Includes bucket and object listing, uploads, downloads, metadata inspection, and deletion, with a 100 MiB Sim transfer limit. Minimum IAM permissions are BUCKET_INSPECT, OBJECT_INSPECT, OBJECT_READ, OBJECT_CREATE, OBJECT_OVERWRITE, and OBJECT_DELETE; customer-managed encryption keys require additional Vault permissions.",
+      "bgColor": "#FFFFFF",
+      "iconName": "OciObjectStorageIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oci_object_storage",
+      "operations": [
+        {
+          "name": "List Buckets",
+          "description": "List the buckets visible to a connected OCI Customer Secret Key"
+        },
+        {
+          "name": "List Objects",
+          "description": "List one page of objects and common prefixes in an OCI bucket"
+        },
+        {
+          "name": "Upload Object",
+          "description": "Upload one file or inline text object, replacing an existing key"
+        },
+        {
+          "name": "Download Object",
+          "description": "Download an OCI object of up to 100 MiB into the workflow file system"
+        },
+        {
+          "name": "Inspect Object Metadata",
+          "description": "Read documented metadata for an OCI object without downloading its body"
+        },
+        {
+          "name": "Delete Object",
+          "description": "Delete one object from an OCI bucket"
+        }
+      ],
+      "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["cloud", "automation", "content-management"]
+    },
+    {
       "type": "okta",
       "slug": "okta",
       "name": "Okta",

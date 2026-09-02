@@ -15,6 +15,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   type OAuthServiceMetadata,
+  OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import { getAllOAuthServices, getServiceConfigByServiceId } from '@/lib/oauth/utils'
@@ -174,6 +175,50 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           placeholder: 'xoxb-...',
           required: true,
           secret: true,
+          multiline: false,
+        },
+      ],
+    }
+  }
+  if (providerId === OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return {
+      name: 'OCI Object Storage Customer Secret Key',
+      description:
+        'Connect Oracle Cloud Infrastructure Object Storage with an S3-compatible Customer Secret Key.',
+      docsUrl: 'https://docs.sim.ai/integrations/oci_object_storage',
+      helpText:
+        'Minimum IAM permissions: BUCKET_INSPECT, OBJECT_INSPECT, OBJECT_READ, OBJECT_CREATE, OBJECT_OVERWRITE, and OBJECT_DELETE. Customer-managed encryption keys require additional Vault permissions.',
+      fields: [
+        {
+          id: 'accessKeyId',
+          label: 'Access Key',
+          placeholder: 'Paste the Customer Secret Key access key',
+          required: true,
+          secret: true,
+          multiline: false,
+        },
+        {
+          id: 'secretAccessKey',
+          label: 'Secret Key',
+          placeholder: 'Paste the Customer Secret Key secret',
+          required: true,
+          secret: true,
+          multiline: false,
+        },
+        {
+          id: 'namespace',
+          label: 'Object Storage namespace',
+          placeholder: 'axaxnpcrorw5',
+          required: true,
+          secret: false,
+          multiline: false,
+        },
+        {
+          id: 'region',
+          label: 'OCI region',
+          placeholder: 'us-ashburn-1',
+          required: true,
+          secret: false,
           multiline: false,
         },
       ],

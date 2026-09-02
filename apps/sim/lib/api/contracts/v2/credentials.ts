@@ -358,6 +358,36 @@ const v2ServiceAccountCredentialFieldsSchema = z
       .describe('Write-only PEM private key.')
       .meta({ writeOnly: true }),
     username: z.string().trim().min(1).max(255).optional().describe('Provider run-as username.'),
+    accessKeyId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(512)
+      .optional()
+      .describe('Write-only OCI Customer Secret Key access identifier.')
+      .meta({ writeOnly: true }),
+    secretAccessKey: z
+      .string()
+      .trim()
+      .min(1)
+      .max(1024)
+      .optional()
+      .describe('Write-only OCI Customer Secret Key secret.')
+      .meta({ writeOnly: true }),
+    namespace: z
+      .string()
+      .trim()
+      .min(1)
+      .max(63)
+      .optional()
+      .describe('OCI Object Storage tenancy namespace.'),
+    region: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .optional()
+      .describe('Public commercial OCI region identifier.'),
   })
   .strict()
 
@@ -597,6 +627,36 @@ const v2ServiceAccountSecretFieldsShape = {
     .describe('Write-only PEM private key.')
     .meta({ writeOnly: true }),
   username: z.string().trim().min(1).max(255).optional().describe('Provider run-as username.'),
+  accessKeyId: z
+    .string()
+    .trim()
+    .min(1)
+    .max(512)
+    .optional()
+    .describe('Write-only OCI Customer Secret Key access identifier.')
+    .meta({ writeOnly: true }),
+  secretAccessKey: z
+    .string()
+    .trim()
+    .min(1)
+    .max(1024)
+    .optional()
+    .describe('Write-only OCI Customer Secret Key secret.')
+    .meta({ writeOnly: true }),
+  namespace: z
+    .string()
+    .trim()
+    .min(1)
+    .max(63)
+    .optional()
+    .describe('OCI Object Storage tenancy namespace.'),
+  region: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .optional()
+    .describe('Public commercial OCI region identifier.'),
 } as const
 
 export const v2UpdateCredentialBodySchema = z

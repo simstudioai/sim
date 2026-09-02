@@ -9,6 +9,7 @@ const {
   mockValidateAtlassian,
   mockNormalizeDomain,
   mockClientCredentialMinter,
+  mockValidateOci,
 } = vi.hoisted(() => ({
   // Identity encryption so tests can read back the JSON blob.
   mockEncryptSecret: vi.fn(async (value: string) => ({ encrypted: value })),
@@ -16,6 +17,7 @@ const {
   mockValidateAtlassian: vi.fn(),
   mockNormalizeDomain: vi.fn((raw: string) => raw.trim().toLowerCase()),
   mockClientCredentialMinter: vi.fn(),
+  mockValidateOci: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({ encryptSecret: mockEncryptSecret }))
@@ -47,6 +49,18 @@ vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
       ? mockClientCredentialMinter
       : undefined,
 }))
+vi.mock('@/lib/credentials/oci-object-storage-service-account', () => {
+  class OciObjectStorageCredentialError extends Error {}
+  return {
+    OciObjectStorageCredentialError,
+    ociObjectStorageCredentialDisplayName: (input: {
+      ownerDisplayName?: string
+      namespace: string
+      region: string
+    }) => `${input.ownerDisplayName || input.namespace} — ${input.region}`.slice(0, 255),
+    validateOciObjectStorageServiceAccount: mockValidateOci,
+  }
+})
 
 import {
   ServiceAccountSecretError,
@@ -54,6 +68,8 @@ import {
 } from '@/lib/credentials/service-account-secret'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_SECRET_TYPE,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
@@ -161,6 +177,75 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     })
     const result = await verifyAndBuildServiceAccountSecret('', { serviceAccountJson: json })
     expect(result.providerId).toBe('google-service-account')
+  })
+
+  it('verifies OCI ownership and encrypts only non-secret audit metadata', async () => {
+    mockValidateOci.mockResolvedValue({
+      secret: {
+        accessKeyId: 'access-key-canary',
+        secretAccessKey: 'secret-key-canary',
+        namespace: 'namespace1',
+        region: 'us-ashburn-1',
+      },
+      ownerId: 'ocid1.user.oc1..owner',
+      ownerDisplayName: 'Storage Automation',
+    })
+
+    const result = await verifyAndBuildServiceAccountSecret(
+      OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
+      {
+        accessKeyId: 'access-key-canary',
+        secretAccessKey: 'secret-key-canary',
+        namespace: 'namespace1',
+        region: 'us-ashburn-1',
+      }
+    )
+
+    expect(result.providerId).toBe(OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID)
+    expect(result.displayName).toBe('Storage Automation — us-ashburn-1')
+    expect(result.principal).toEqual({
+      kind: 'user',
+      id: 'ocid1.user.oc1..owner',
+      label: 'Storage Automation',
+    })
+    expect(result.auditMetadata).toEqual({
+      ociNamespace: 'namespace1',
+      ociRegion: 'us-ashburn-1',
+      principalKind: 'user',
+      principalId: 'ocid1.user.oc1..owner',
+      principalLabel: 'Storage Automation',
+    })
+    expect(JSON.stringify(result.auditMetadata)).not.toContain('key-canary')
+    expect(JSON.parse(result.encryptedServiceAccountKey)).toMatchObject({
+      type: OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_SECRET_TYPE,
+      providerId: OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
+      accessKeyId: 'access-key-canary',
+      secretAccessKey: 'secret-key-canary',
+      ownerId: 'ocid1.user.oc1..owner',
+    })
+  })
+
+  it('rejects missing or unverifiable OCI credential fields without exposing secrets', async () => {
+    await expect(
+      verifyAndBuildServiceAccountSecret(OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID, {
+        accessKeyId: 'access-key-canary',
+      })
+    ).rejects.toThrow('accessKeyId, secretAccessKey, namespace, and region are required')
+
+    const { OciObjectStorageCredentialError } = await import(
+      '@/lib/credentials/oci-object-storage-service-account'
+    )
+    mockValidateOci.mockRejectedValue(
+      new OciObjectStorageCredentialError('Could not verify the OCI Customer Secret Key')
+    )
+    await expect(
+      verifyAndBuildServiceAccountSecret(OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID, {
+        accessKeyId: 'access-key-canary',
+        secretAccessKey: 'secret-key-canary',
+        namespace: 'namespace1',
+        region: 'us-ashburn-1',
+      })
+    ).rejects.toThrow('Could not verify the OCI Customer Secret Key')
   })
 
   it('rejects an unknown non-empty providerId instead of persisting it as Google', async () => {

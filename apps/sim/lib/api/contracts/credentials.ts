@@ -161,6 +161,14 @@ export const createCredentialBodySchema = z
     privateKey: z.string().trim().min(1).max(8192).optional(),
     /** Run-as username for key-based grants (Salesforce JWT `sub`). */
     username: z.string().trim().min(1).max(255).optional(),
+    /** OCI Object Storage Customer Secret Key access identifier. */
+    accessKeyId: z.string().trim().min(1).max(512).optional(),
+    /** OCI Object Storage Customer Secret Key secret value. */
+    secretAccessKey: z.string().trim().min(1).max(1024).optional(),
+    /** OCI Object Storage tenancy namespace used to construct the fixed endpoint. */
+    namespace: z.string().trim().min(1).max(63).optional(),
+    /** Public commercial OCI region identifier. */
+    region: z.string().trim().min(1).max(64).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'oauth') {
@@ -242,6 +250,11 @@ export const updateCredentialByIdBodySchema = z
     authMethod: z.string().trim().min(1).max(64).optional(),
     privateKey: z.string().trim().min(1).max(8192).optional(),
     username: z.string().trim().min(1).max(255).optional(),
+    /** OCI Object Storage Customer Secret Key rotation fields. */
+    accessKeyId: z.string().trim().min(1).max(512).optional(),
+    secretAccessKey: z.string().trim().min(1).max(1024).optional(),
+    namespace: z.string().trim().min(1).max(63).optional(),
+    region: z.string().trim().min(1).max(64).optional(),
   })
   .strict()
   .refine(
@@ -261,7 +274,11 @@ export const updateCredentialByIdBodySchema = z
       data.dataCenter !== undefined ||
       data.authMethod !== undefined ||
       data.privateKey !== undefined ||
-      data.username !== undefined,
+      data.username !== undefined ||
+      data.accessKeyId !== undefined ||
+      data.secretAccessKey !== undefined ||
+      data.namespace !== undefined ||
+      data.region !== undefined,
     {
       message: 'At least one field must be provided',
       path: ['displayName'],

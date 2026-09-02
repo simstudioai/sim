@@ -13,6 +13,7 @@ import {
   getClientCredentialAccountMinter,
   parseClientCredentialAccountSecretBlob,
 } from '@/lib/credentials/client-credential-accounts/server'
+import { getOciObjectStorageServiceAccountSecret } from '@/lib/credentials/oci-object-storage-service-account'
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
@@ -45,6 +46,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
@@ -653,6 +655,10 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
         privacyMode,
       }),
     }
+  },
+  [OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => {
+    await getOciObjectStorageServiceAccountSecret(credentialId)
+    return { accessToken: credentialId }
   },
 }
 

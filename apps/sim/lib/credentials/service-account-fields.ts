@@ -3,6 +3,7 @@ import { TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/token-s
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
@@ -21,6 +22,10 @@ export type ServiceAccountFieldId =
   | 'authMethod'
   | 'privateKey'
   | 'username'
+  | 'accessKeyId'
+  | 'secretAccessKey'
+  | 'namespace'
+  | 'region'
 
 /**
  * Required create-body fields per service-account provider — the client-safe
@@ -36,6 +41,12 @@ export const SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, readonly ServiceAcc
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
   [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: ['apiToken', 'domain'],
   [SLACK_CUSTOM_BOT_PROVIDER_ID]: ['signingSecret', 'botToken'],
+  [OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID]: [
+    'accessKeyId',
+    'secretAccessKey',
+    'namespace',
+    'region',
+  ],
   ...TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS,
   ...CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS,
 }

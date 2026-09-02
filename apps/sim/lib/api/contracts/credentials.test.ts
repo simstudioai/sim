@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  createCredentialBodySchema,
   updateCredentialByIdBodySchema,
   workspaceCredentialSchema,
 } from '@/lib/api/contracts/credentials'
@@ -21,6 +22,53 @@ const credential = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-02T00:00:00.000Z',
 }
+
+describe('OCI Object Storage credential contracts', () => {
+  const base = {
+    workspaceId: 'bdb1712f-f4de-4f38-8721-7ff40fd6fd0e',
+    type: 'service_account' as const,
+    providerId: 'oci-object-storage-service-account',
+  }
+
+  it('requires all four provider-specific fields only for OCI', () => {
+    const missing = createCredentialBodySchema.safeParse({ ...base, accessKeyId: 'access' })
+    expect(missing.success).toBe(false)
+    if (!missing.success) {
+      expect(missing.error.issues.map((issue) => issue.path[0])).toEqual([
+        'secretAccessKey',
+        'namespace',
+        'region',
+      ])
+    }
+
+    expect(
+      createCredentialBodySchema.safeParse({
+        ...base,
+        accessKeyId: 'access',
+        secretAccessKey: 'secret',
+        namespace: 'namespace',
+        region: 'us-ashburn-1',
+      }).success
+    ).toBe(true)
+  })
+
+  it('accepts OCI reconnect fields and remains strict', () => {
+    expect(
+      updateCredentialByIdBodySchema.safeParse({
+        accessKeyId: 'access',
+        secretAccessKey: 'secret',
+        namespace: 'namespace',
+        region: 'us-ashburn-1',
+      }).success
+    ).toBe(true)
+    expect(
+      updateCredentialByIdBodySchema.safeParse({
+        accessKeyId: 'access',
+        endpoint: 'https://attacker.example',
+      }).success
+    ).toBe(false)
+  })
+})
 
 describe('updateCredentialByIdBodySchema unredacted', () => {
   it('accepts unredacted alone as the one updated field', () => {

@@ -188,6 +188,11 @@ export const selectorManifest = {
     detail: true,
     unknownDetail: true,
   }),
+  'oci_object_storage.buckets': providerSelector(),
+  'oci_object_storage.objects': providerSelector(['bucketName', 'prefix'], {
+    readiness: { all: ['oauthCredential', 'bucketName'] },
+    listMode: 'paginated',
+  }),
   'pipedrive.pipelines': providerSelector([], { detail: true }),
   'sharepoint.lists': providerSelector(['siteId'], {
     readiness: { all: ['oauthCredential', 'siteId'] },

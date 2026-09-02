@@ -78,6 +78,10 @@ export interface PerformCreateCredentialParams {
   authMethod?: string
   privateKey?: string
   username?: string
+  accessKeyId?: string
+  secretAccessKey?: string
+  namespace?: string
+  region?: string
   /**
    * Client-supplied credential id, honored only for `slack-custom-bot`: the
    * setup modal shows the ingest URL `/api/webhooks/slack/custom/{id}` before
@@ -276,6 +280,10 @@ export async function createCredentialRecord(
           authMethod: params.authMethod,
           privateKey: params.privateKey,
           username: params.username,
+          accessKeyId: params.accessKeyId,
+          secretAccessKey: params.secretAccessKey,
+          namespace: params.namespace,
+          region: params.region,
         })
         resolvedProviderId = secret.providerId
         resolvedAccountId = null
