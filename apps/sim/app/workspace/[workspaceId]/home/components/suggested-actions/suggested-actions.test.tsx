@@ -5,13 +5,9 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCaptureEvent, mockUseWorkspaceMemberConnectors, mockConnectSource } = vi.hoisted(
-  () => ({
-    mockCaptureEvent: vi.fn(),
-    mockUseWorkspaceMemberConnectors: vi.fn(),
-    mockConnectSource: vi.fn(),
-  })
-)
+const { mockCaptureEvent } = vi.hoisted(() => ({
+  mockCaptureEvent: vi.fn(),
+}))
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
@@ -32,12 +28,8 @@ vi.mock('@/hooks/queries/tables', () => ({
 vi.mock('@/hooks/queries/kb/knowledge', () => ({
   useKnowledgeBasesQuery: () => ({ data: [] }),
 }))
-vi.mock('@/hooks/queries/kb/connectors', () => ({
-  memberConnectorKeys: { list: (workspaceId?: string) => ['member-connectors', workspaceId] },
-  useWorkspaceMemberConnectors: mockUseWorkspaceMemberConnectors,
-}))
-vi.mock('@/hooks/use-member-enrollment', () => ({
-  useMemberEnrollment: () => ({ connectSource: mockConnectSource }),
+vi.mock('@/app/workspace/[workspaceId]/home/components/search-sources', () => ({
+  SearchSources: () => <div data-testid='search-sources' />,
 }))
 vi.mock('@/hooks/use-permission-config', () => ({
   usePermissionConfig: () => ({
@@ -106,27 +98,9 @@ function rows(): HTMLButtonElement[] {
   )
 }
 
-function connectModal(): string | null {
-  return document.querySelector('[data-testid="connect-modal"]')?.textContent ?? null
-}
-
 beforeEach(() => {
   onSelectPrompt.mockClear()
   mockCaptureEvent.mockClear()
-  mockUseWorkspaceMemberConnectors.mockReturnValue({
-    isPending: false,
-    data: [
-      {
-        knowledgeBaseId: 'kb-search',
-        knowledgeBaseName: 'Sim Search',
-        connectorId: 'conn-jira',
-        connectorType: 'jira',
-        memberSyncStatus: 'idle',
-        viewerMembership: 'connected',
-        viewerDocumentCount: 3,
-      },
-    ],
-  })
   useMothershipModeStore.getState().reset()
 })
 
@@ -145,41 +119,13 @@ describe('SuggestedActions', () => {
     expect(rows().map((row) => row.textContent)).toContain('Integrate with Slack')
   })
 
-  it('swaps to the connector list in Search mode, minus connected and unavailable connectors', () => {
+  it('shows every source in Search mode instead of the sampled suggestions', () => {
     mount()
 
     act(() => useMothershipModeStore.getState().setMode('search'))
 
-    expect(heading()).toBe('Connect Sim Search')
-    expect(rows().map((row) => row.textContent)).toEqual([
-      'Connect Confluence',
-      'Connect Jira Service Management',
-      'Connect Airtable',
-      'Connect Slack',
-    ])
-  })
-
-  it('connects a source through its per-member connector instead of populating the input', () => {
-    mount()
-    act(() => useMothershipModeStore.getState().setMode('search'))
-    expect(connectModal()).toBeNull()
-
-    act(() => {
-      rows()[0].dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
-    })
-
-    expect(connectModal()).toBeNull()
-    expect(mockConnectSource).toHaveBeenCalledWith('workspace-1', 'confluence')
-    expect(onSelectPrompt).not.toHaveBeenCalled()
-    expect(mockCaptureEvent).toHaveBeenCalledWith(
-      null,
-      'suggested_action_clicked',
-      expect.objectContaining({
-        kind: 'connector',
-        action_id: 'connect-confluence',
-        position: 0,
-        connected_provider_count: 1,
-      })
-    )
+    expect(heading()).toBe('Sources')
+    expect(document.querySelector('[data-testid="search-sources"]')).not.toBeNull()
+    expect(rows()).toHaveLength(0)
   })
 })

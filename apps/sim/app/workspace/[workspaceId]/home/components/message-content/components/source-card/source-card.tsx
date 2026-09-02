@@ -1,7 +1,8 @@
 'use client'
 
-import type { ReactNode } from 'react'
-import { Button, cn } from '@sim/emcn'
+import { type ReactNode, useState } from 'react'
+import { Button, cn, Tooltip } from '@sim/emcn'
+import { Check, Link as LinkIcon } from '@sim/emcn/icons'
 import { formatDate } from '@sim/utils/formatting'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import {
@@ -18,6 +19,8 @@ import { BrandIcon } from '@/blocks/brand-icon'
 
 /** Query terms shorter than this are too common to bold. */
 const MIN_HIGHLIGHT_TERM_LENGTH = 3
+/** How long the copied state shows on the copy-link action. */
+const COPIED_FEEDBACK_MS = 1_500
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -56,6 +59,39 @@ function parseUpdatedAt(value: string | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+interface CopyLinkActionProps {
+  url: string
+}
+
+/** Copies the document's link; confirms with a check for a moment. */
+function CopyLinkAction({ url }: CopyLinkActionProps) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='ghost'
+          size='sm'
+          aria-label='Copy link'
+          onClick={() => {
+            void navigator.clipboard.writeText(url).then(() => {
+              setCopied(true)
+              window.setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS)
+            })
+          }}
+        >
+          {copied ? (
+            <Check className='size-[14px] text-[var(--text-icon)]' />
+          ) : (
+            <LinkIcon className='size-[14px] text-[var(--text-icon)]' />
+          )}
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content>{copied ? 'Copied' : 'Copy link'}</Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
 interface SourceCardProps {
   source: SourceTagData
   /** The query the document was found for; its terms are bolded in the snippet. */
@@ -68,8 +104,9 @@ interface SourceCardProps {
  * One document a search found, laid out to be scanned: the source's brand
  * mark or favicon, the title as a link back to the document, where it lives
  * and when it last changed, and the passage that matched with the query terms
- * in bold. The same card serves the composer's search results and the
- * footer of a reply that cited its sources with a snippet.
+ * in bold. Actions stay out of the way until the row is hovered or focused.
+ * The same row serves the composer's search results and the footer of a reply
+ * that cited its sources with a snippet.
  */
 export function SourceCard({ source, query, onSummarize }: SourceCardProps) {
   const hostname = externalLinkHostname(source.url)
@@ -82,7 +119,7 @@ export function SourceCard({ source, query, onSummarize }: SourceCardProps) {
   )
 
   return (
-    <div className='not-prose flex items-start gap-3 rounded-md px-2 py-2 transition-colors hover-hover:bg-[var(--surface-5)]'>
+    <div className='group/source not-prose flex items-start gap-3 rounded-md px-2 py-2 transition-colors focus-within:bg-[var(--surface-5)] hover-hover:bg-[var(--surface-5)]'>
       <span className='mt-[3px] flex size-[16px] flex-shrink-0 items-center justify-center'>
         {ConnectorIcon ? (
           <BrandIcon icon={ConnectorIcon} className='size-[16px]' />
@@ -115,16 +152,19 @@ export function SourceCard({ source, query, onSummarize }: SourceCardProps) {
           </p>
         )}
       </div>
-      {onSummarize && (
-        <Button
-          variant='default'
-          size='sm'
-          className='flex-shrink-0'
-          onClick={() => onSummarize(source)}
-        >
-          Summarize
-        </Button>
-      )}
+      <div
+        className={cn(
+          'flex flex-shrink-0 items-center gap-1 opacity-0 transition-opacity',
+          'focus-within:opacity-100 group-hover/source:opacity-100'
+        )}
+      >
+        <CopyLinkAction url={source.url} />
+        {onSummarize && (
+          <Button variant='default' size='sm' onClick={() => onSummarize(source)}>
+            Summarize
+          </Button>
+        )}
+      </div>
     </div>
   )
 }

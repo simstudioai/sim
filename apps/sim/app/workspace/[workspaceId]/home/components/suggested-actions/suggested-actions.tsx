@@ -13,9 +13,8 @@ import {
   resolveOAuthServiceForSlug,
 } from '@/lib/integrations'
 import { captureEvent } from '@/lib/posthog/client'
-import { isSearchConnectorAvailable } from '@/lib/sim-search/connectors'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
-import { computeConnectorActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions/connector-actions'
+import { SearchSources } from '@/app/workspace/[workspaceId]/home/components/search-sources'
 import type {
   Action,
   ActionIcon,
@@ -26,15 +25,9 @@ import { BrandIcon } from '@/blocks/brand-icon'
 import { getAllBlockMeta } from '@/blocks/registry'
 import type { ModuleTag } from '@/blocks/types'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
-import {
-  memberConnectorKeys,
-  useWorkspaceMemberConnectors,
-  type WorkspaceMemberConnector,
-} from '@/hooks/queries/kb/connectors'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useOAuthConnections } from '@/hooks/queries/oauth/oauth-connections'
 import { useTablesList } from '@/hooks/queries/tables'
-import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { type MothershipMode, useMothershipModeStore } from '@/stores/mothership-mode/store'
 
@@ -156,7 +149,6 @@ function scoreCandidate(c: Candidate, signals: Signals): number {
 }
 
 const EMPTY_CREDENTIALS: NonNullable<ReturnType<typeof useWorkspaceCredentials>['data']> = []
-const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
 const EMPTY_SERVICES: NonNullable<ReturnType<typeof useOAuthConnections>['data']> = []
 
 type ServiceInfo = NonNullable<ReturnType<typeof useOAuthConnections>['data']>[number]
@@ -242,7 +234,7 @@ const INITIAL_ACTIONS: Action[] = [
 /** Section heading per composer mode — Search reads as a connect-your-sources list. */
 const HEADINGS: Record<MothershipMode, string> = {
   build: 'Suggested actions',
-  search: 'Connect Sim Search',
+  search: 'Sources',
 }
 
 interface SuggestedActionsProps {
@@ -264,8 +256,6 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
   const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId, {
     enabled: Boolean(workspaceId),
   })
-  const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS, isPending: connectionsPending } =
-    useWorkspaceMemberConnectors(workspaceId)
 
   const [expanded, setExpanded] = useState(true)
   /**
@@ -302,28 +292,6 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
     [connectedProviders, tables.length, knowledgeBases.length]
   )
 
-  /** Sources the viewer has already connected, by connector type. */
-  const connectedSearchTypes = useMemo(
-    () =>
-      new Set(
-        memberConnectors
-          .filter((connector) => connector.viewerMembership === 'connected')
-          .map((connector) => connector.connectorType)
-      ),
-    [memberConnectors]
-  )
-  const connectedConnectorIds = useMemo(
-    () =>
-      new Set(
-        memberConnectors
-          .filter((connector) => connector.viewerMembership === 'connected')
-          .map((connector) => connector.connectorId)
-      ),
-    [memberConnectors]
-  )
-  const membershipQueryKeys = useMemo(() => [memberConnectorKeys.list(workspaceId)], [workspaceId])
-  const { connectSource } = useMemberEnrollment({ membershipQueryKeys, connectedConnectorIds })
-
   /**
    * Each mode's list is memoized on its own inputs alone, so switching modes —
    * or the other mode's signals settling — never re-samples it.
@@ -337,21 +305,12 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
    * flashes. The store's default mode is Build, so the server render never
    * shows the sampled Search list.
    */
-  const searchActions = useMemo(
-    () =>
-      connectionsPending
-        ? []
-        : computeConnectorActions(connectedSearchTypes, (connector) =>
-            isSearchConnectorAvailable(connector, integrationAvailability)
-          ),
-    [connectionsPending, connectedSearchTypes, integrationAvailability]
-  )
   const buildActions = useMemo(() => {
     const personalized = services.length > 0 && connectedProviders.size > 0
     if (!personalized) return INITIAL_ACTIONS
     return computeActions(services, signals)
   }, [connectedProviders, services, signals])
-  const actions = mode === 'search' ? searchActions : buildActions
+  const actions = buildActions
 
   const handleSelect = (action: Action, position: number) => {
     captureEvent(posthog, 'suggested_action_clicked', {
@@ -360,16 +319,10 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
       action_id: action.id,
       label: action.label,
       position,
-      connected_provider_count:
-        action.kind === 'connector' ? connectedSearchTypes.size : connectedProviders.size,
+      connected_provider_count: connectedProviders.size,
     })
     if (action.kind === 'prompt') {
       onSelectPrompt(action.prompt)
-      return
-    }
-    /** A Sim Search source connects through its per-member connector, not a bare credential. */
-    if (action.kind === 'connector') {
-      if (workspaceId) connectSource(workspaceId, action.target.type)
       return
     }
     const target = resolveOAuthServiceForSlug(action.slug)
@@ -419,28 +372,34 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
               `collapsible-up`/`-down` interpolate height alone, so a margin here
               would hold its full value through the close and then vanish on unmount,
               snapping the content below up. */}
-          <div className='flex flex-col pt-1.5'>
-            {actions.map((action, i) => {
-              const Icon = action.icon
-              return (
-                <button
-                  key={action.id}
-                  type='button'
-                  onClick={() => handleSelect(action, i)}
-                  className={cn(
-                    'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
-                    i > 0 && 'border-t'
-                  )}
-                >
-                  <BrandIcon icon={Icon} className='size-[16px] flex-shrink-0' />
-                  <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
-                    {action.label}
-                  </span>
-                  <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
-                </button>
-              )
-            })}
-          </div>
+          {mode === 'search' && workspaceId ? (
+            <div className='pt-1.5'>
+              <SearchSources workspaceId={workspaceId} />
+            </div>
+          ) : (
+            <div className='flex flex-col pt-1.5'>
+              {actions.map((action, i) => {
+                const Icon = action.icon
+                return (
+                  <button
+                    key={action.id}
+                    type='button'
+                    onClick={() => handleSelect(action, i)}
+                    className={cn(
+                      'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
+                      i > 0 && 'border-t'
+                    )}
+                  >
+                    <BrandIcon icon={Icon} className='size-[16px] flex-shrink-0' />
+                    <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
+                      {action.label}
+                    </span>
+                    <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </ExpandableContent>
       </Expandable>
       {oauthTarget && workspaceId && (

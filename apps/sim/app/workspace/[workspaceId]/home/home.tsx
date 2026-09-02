@@ -469,12 +469,21 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     },
     [handleSubmit]
   )
+  /**
+   * A chat that already exists opens in Build: its transcript is a
+   * conversation, and search results never join it. A new chat keeps whatever
+   * mode the person used last.
+   */
+  useEffect(() => {
+    if (chatId) useMothershipModeStore.getState().setMode('build')
+  }, [chatId])
   const showSearchResults = composerMode === 'search' && searchQuery.length > 0
   const searchResults = showSearchResults ? (
     <KnowledgeSearchResults
       workspaceId={workspaceId}
       query={searchQuery}
       onSummarize={handleSummarize}
+      onAnswer={handleSummarize}
     />
   ) : null
 
