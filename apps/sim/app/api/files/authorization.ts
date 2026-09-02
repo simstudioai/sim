@@ -9,7 +9,7 @@ import {
   resolveUserKnowledgeAccessScope,
   WORKSPACE_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/scope'
-import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
+import type { KnowledgeAccessScope, SystemAccessScope } from '@/lib/knowledge/access/types'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
@@ -494,7 +494,7 @@ async function verifyCopilotFileAccess(
 async function hasActiveKbDocumentForKey(
   cloudKey: string,
   workspaceId: string,
-  access: KnowledgeAccessScope
+  access: KnowledgeAccessScope | SystemAccessScope
 ): Promise<boolean> {
   const rows = await db
     .select({ id: document.id })
@@ -519,17 +519,19 @@ async function hasActiveKbDocumentForKey(
 /**
  * How a KB file read identifies the reader for document access. `'user'` is
  * for a session-authenticated person; a resolved scope is for a caller that
- * already holds one (an execution with a principal). Anything else — an
- * internal token, a tool running with the workflow owner's id — reads as the
- * workspace, never as the person whose id it happens to carry.
+ * already holds one (an execution with a principal). The system scope is for
+ * a background job reading a connector-owned row it is processing, which in
+ * members mode is hidden until the sync materializes its readers. Anything
+ * else — an internal token, a tool running with the workflow owner's id —
+ * reads as the workspace, never as the person whose id it happens to carry.
  */
-export type KnowledgeFileAccess = 'user' | KnowledgeAccessScope
+export type KnowledgeFileAccess = 'user' | KnowledgeAccessScope | SystemAccessScope
 
 async function resolveKnowledgeFileAccess(
   knowledgeAccess: KnowledgeFileAccess | undefined,
   userId: string,
   workspaceId: string
-): Promise<KnowledgeAccessScope> {
+): Promise<KnowledgeAccessScope | SystemAccessScope> {
   if (knowledgeAccess === 'user') return resolveUserKnowledgeAccessScope(userId, workspaceId)
   return knowledgeAccess ?? WORKSPACE_ACCESS_SCOPE
 }

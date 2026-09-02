@@ -37,7 +37,7 @@ import {
 } from '@/lib/uploads/utils/file-utils'
 import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
-import { verifyFileAccess } from '@/app/api/files/authorization'
+import { type KnowledgeFileAccess, verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('FileUtilsServer')
@@ -229,6 +229,13 @@ export interface DownloadFileFromUrlOptions {
    * be treated as implicitly trusted.
    */
   userId?: string
+  /**
+   * How a knowledge-base file identifies its reader. Omitted, the read is
+   * authorized as the workspace, which is what a caller-supplied URL gets. A
+   * background job processing a connector-owned row passes the system scope,
+   * because that row is hidden until the sync materializes who may read it.
+   */
+  knowledgeAccess?: KnowledgeFileAccess
 }
 
 /**
@@ -248,7 +255,13 @@ export async function downloadFileFromUrl(
   fileUrl: string,
   options: DownloadFileFromUrlOptions = {}
 ): Promise<Buffer> {
-  const { timeoutMs = getMaxExecutionTimeout(), maxBytes, signal, userId } = options
+  const {
+    timeoutMs = getMaxExecutionTimeout(),
+    maxBytes,
+    signal,
+    userId,
+    knowledgeAccess,
+  } = options
 
   signal?.throwIfAborted()
 
@@ -266,7 +279,9 @@ export async function downloadFileFromUrl(
 
     const context = inferContextFromKey(key)
 
-    const hasAccess = await verifyFileAccess(key, userId, undefined, context, false)
+    const hasAccess = await verifyFileAccess(key, userId, undefined, context, false, {
+      knowledgeAccess,
+    })
     if (!hasAccess) {
       logger.warn('Internal file download denied: access check failed', { key, context, userId })
       throw new Error('Access denied: file not found or insufficient permissions')

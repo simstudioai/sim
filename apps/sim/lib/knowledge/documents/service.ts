@@ -77,7 +77,11 @@ import {
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
-import type { KnowledgeAccessScope, SystemAccessScope } from '@/lib/knowledge/access/types'
+import {
+  type KnowledgeAccessScope,
+  SYSTEM_ACCESS_SCOPE,
+  type SystemAccessScope,
+} from '@/lib/knowledge/access/types'
 import {
   assertDocumentChunkCountWithinLimit,
   isPermanentDocumentProcessingError,
@@ -1360,6 +1364,7 @@ export async function processDocumentAsync(
         embeddingModel: knowledgeBase.embeddingModel,
         billedAccountUserId: workspaceTable.billedAccountUserId,
         uploadedBy: document.uploadedBy,
+        connectorId: document.connectorId,
         filename: document.filename,
         fileUrl: document.fileUrl,
         fileSize: document.fileSize,
@@ -1578,7 +1583,15 @@ export async function processDocumentAsync(
             documentActorUserId,
             ctx.workspaceId,
             rawConfig?.strategy,
-            rawConfig?.strategyOptions
+            rawConfig?.strategyOptions,
+            /**
+             * A connector-owned row was written by the sync from bytes it fetched,
+             * not from a caller-supplied URL, so the processor reads it as the
+             * system: in members mode the row stays hidden until the sync
+             * materializes who observed it, and the actor's own scope would deny
+             * the read. Uploads keep the actor's authorization above.
+             */
+            ctx.connectorId ? SYSTEM_ACCESS_SCOPE : undefined
           )
 
           assertDocumentChunkCountWithinLimit(processed.chunks.length)

@@ -78,6 +78,7 @@ import {
   EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
 } from '@/lib/embeddings'
 import { EmbeddingAPIError, EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
+import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import {
   PermanentDocumentProcessingError,
   UsageLimitDocumentProcessingError,
@@ -100,6 +101,7 @@ const PERSISTED_CONTEXT = {
   fileUrl: PERSISTED_URL,
   fileSize: 512,
   mimeType: 'application/pdf',
+  connectorId: null,
   tag1: null,
   tag2: null,
   tag3: null,
@@ -220,9 +222,40 @@ describe('knowledge document processing source', () => {
       PERSISTED_CONTEXT.uploadedBy,
       null,
       undefined,
+      undefined,
       undefined
     )
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+  })
+
+  it('reads a connector-owned source file as the system, not as the actor', async () => {
+    resetDbChainMock()
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ ...PERSISTED_CONTEXT, connectorId: 'connector-1' }])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+
+    await processDocumentAsync('knowledge-base-1', 'document-1', {
+      filename: PERSISTED_CONTEXT.filename,
+      fileUrl: PERSISTED_CONTEXT.fileUrl,
+      fileSize: PERSISTED_CONTEXT.fileSize,
+      mimeType: PERSISTED_CONTEXT.mimeType,
+    })
+
+    expect(mockProcessDocument).toHaveBeenCalledWith(
+      PERSISTED_CONTEXT.fileUrl,
+      PERSISTED_CONTEXT.filename,
+      PERSISTED_CONTEXT.mimeType,
+      1024,
+      200,
+      100,
+      PERSISTED_CONTEXT.uploadedBy,
+      null,
+      undefined,
+      undefined,
+      SYSTEM_ACCESS_SCOPE
+    )
   })
 
   it('processes a legacy document when its workspace metadata row no longer exists', async () => {
@@ -245,6 +278,7 @@ describe('knowledge document processing source', () => {
       100,
       PERSISTED_CONTEXT.uploadedBy,
       null,
+      undefined,
       undefined,
       undefined
     )

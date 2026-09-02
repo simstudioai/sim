@@ -60,7 +60,10 @@ import {
 import { StorageService } from '@/lib/uploads'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { getFileExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import {
+  type DownloadFileFromUrlOptions,
+  downloadFileFromUrl,
+} from '@/lib/uploads/utils/file-utils.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { mistralParserTool } from '@/tools/mistral/parser'
 
@@ -194,6 +197,12 @@ async function applyStrategy(
   }
 }
 
+/**
+ * Who a source-file read runs as: the actor for authorization and OCR
+ * attribution, plus how a knowledge-base file identifies its reader.
+ */
+type SourceFileAccess = Pick<DownloadFileFromUrlOptions, 'userId' | 'knowledgeAccess'>
+
 export async function processDocument(
   fileUrl: string,
   filename: string,
@@ -204,7 +213,8 @@ export async function processDocument(
   userId?: string,
   workspaceId?: string | null,
   strategy?: ChunkingStrategy,
-  strategyOptions?: StrategyOptions
+  strategyOptions?: StrategyOptions,
+  knowledgeAccess?: DownloadFileFromUrlOptions['knowledgeAccess']
 ): Promise<{
   chunks: Chunk[]
   metadata: {
@@ -219,9 +229,10 @@ export async function processDocument(
   }
 }> {
   logger.info('Processing document', { mimeType })
+  const access: SourceFileAccess = { userId, knowledgeAccess }
 
   try {
-    const parseResult = await parseDocument(fileUrl, filename, mimeType, userId, workspaceId)
+    const parseResult = await parseDocument(fileUrl, filename, mimeType, access, workspaceId)
     const { content, processingMethod } = parseResult
     const cloudUrl = 'cloudUrl' in parseResult ? parseResult.cloudUrl : undefined
 
@@ -355,7 +366,7 @@ async function readEmbeddedPdfText(
   fileUrl: string,
   filename: string,
   mimeType: string,
-  userId?: string
+  access: SourceFileAccess
 ): Promise<
   | {
       content: string
@@ -366,7 +377,7 @@ async function readEmbeddedPdfText(
   | undefined
 > {
   try {
-    const buffer = await downloadFileWithTimeout(fileUrl, userId)
+    const buffer = await downloadFileWithTimeout(fileUrl, access)
     const parsed = await parseBuffer(buffer, 'pdf')
 
     /**
@@ -408,7 +419,7 @@ async function parseDocument(
   fileUrl: string,
   filename: string,
   mimeType: string,
-  userId?: string,
+  access: SourceFileAccess,
   workspaceId?: string | null
 ): Promise<{
   content: string
@@ -435,30 +446,30 @@ async function parseDocument(
        * documents that actually need it — which also means everything else stops
        * depending on that service being reachable.
        */
-      const embedded = await readEmbeddedPdfText(fileUrl, filename, mimeType, userId)
+      const embedded = await readEmbeddedPdfText(fileUrl, filename, mimeType, access)
       if (embedded) return embedded
 
       assertKnowledgeOpaqueModelInputSafe()
 
       if (ocrProvider === 'azure-mistral') {
         logger.info('Using Azure Mistral OCR')
-        return parseWithAzureMistralOCR(fileUrl, filename, mimeType, userId)
+        return parseWithAzureMistralOCR(fileUrl, filename, mimeType, access)
       }
 
       logger.info('Using Mistral OCR')
-      return parseWithMistralOCR(fileUrl, filename, mimeType, userId, workspaceId, mistralApiKey)
+      return parseWithMistralOCR(fileUrl, filename, mimeType, access, workspaceId, mistralApiKey)
     }
   }
 
   logger.info('Using file parser')
-  return parseWithFileParser(fileUrl, filename, mimeType, userId)
+  return parseWithFileParser(fileUrl, filename, mimeType, access)
 }
 
 async function handleFileForOCR(
   fileUrl: string,
   filename: string,
   mimeType: string,
-  userId?: string,
+  access: SourceFileAccess,
   workspaceId?: string | null
 ) {
   const isExternalHttps = /^https:\/\//i.test(fileUrl) && !isInternalFileUrl(fileUrl)
@@ -466,7 +477,7 @@ async function handleFileForOCR(
   if (isExternalHttps) {
     if (mimeType === 'application/pdf') {
       logger.info('handleFileForOCR: Downloading external PDF for OCR admission')
-      const buffer = await downloadFileWithTimeout(fileUrl, userId)
+      const buffer = await downloadFileWithTimeout(fileUrl, access)
       logger.info('handleFileForOCR: Downloaded external PDF', { bytes: buffer.length })
       return { httpsUrl: fileUrl, buffer }
     }
@@ -476,7 +487,7 @@ async function handleFileForOCR(
 
   logger.info('Uploading document to cloud storage for OCR')
 
-  const buffer = await downloadFileWithTimeout(fileUrl, userId)
+  const buffer = await downloadFileWithTimeout(fileUrl, access)
 
   logger.info('Downloaded document for OCR', { bytes: buffer.length })
 
@@ -485,7 +496,7 @@ async function handleFileForOCR(
       originalName: filename,
       uploadedAt: new Date().toISOString(),
       purpose: 'knowledge-base',
-      ...(userId && { userId }),
+      ...(access.userId && { userId: access.userId }),
       ...(workspaceId && { workspaceId }),
     }
 
@@ -521,20 +532,20 @@ async function handleFileForOCR(
  * up front on an oversized `Content-Length`), so an attacker-controlled `fileUrl`
  * pointing at an unbounded body cannot exhaust the processing worker's memory.
  */
-async function downloadFileWithTimeout(fileUrl: string, userId?: string): Promise<Buffer> {
+async function downloadFileWithTimeout(fileUrl: string, access: SourceFileAccess): Promise<Buffer> {
   return downloadFileFromUrl(fileUrl, {
     timeoutMs: TIMEOUTS.FILE_DOWNLOAD,
     maxBytes: MAX_FILE_SIZE,
-    userId,
+    ...access,
   })
 }
 
-async function downloadFileForBase64(fileUrl: string, userId?: string): Promise<Buffer> {
+async function downloadFileForBase64(fileUrl: string, access: SourceFileAccess): Promise<Buffer> {
   if (/^data:/i.test(fileUrl)) {
     return decodeDataUriWithinLimit(fileUrl, MAX_FILE_SIZE).buffer
   }
   if (/^https?:\/\//i.test(fileUrl) || isInternalFileUrl(fileUrl)) {
-    return downloadFileWithTimeout(fileUrl, userId)
+    return downloadFileWithTimeout(fileUrl, access)
   }
   throw new Error(
     'Unsupported fileUrl scheme: only data: URIs, http(s):// URLs, and internal /api/files/serve/ paths are allowed'
@@ -678,7 +689,7 @@ async function parseWithAzureMistralOCR(
   fileUrl: string,
   filename: string,
   mimeType: string,
-  userId?: string
+  access: SourceFileAccess
 ) {
   validateOCRConfig(
     env.OCR_AZURE_API_KEY,
@@ -687,7 +698,7 @@ async function parseWithAzureMistralOCR(
     'Azure Mistral OCR'
   )
 
-  const fileBuffer = await downloadFileForBase64(fileUrl, userId)
+  const fileBuffer = await downloadFileForBase64(fileUrl, access)
   const requestPolicy = getAzureMistralOcrRequestPolicy(env.OCR_AZURE_MODEL_NAME!)
 
   try {
@@ -792,7 +803,7 @@ async function parseWithMistralOCR(
   fileUrl: string,
   filename: string,
   mimeType: string,
-  userId?: string,
+  access: SourceFileAccess,
   workspaceId?: string | null,
   mistralApiKey?: string | null
 ) {
@@ -805,7 +816,7 @@ async function parseWithMistralOCR(
     fileUrl,
     filename,
     mimeType,
-    userId,
+    access,
     workspaceId
   )
 
@@ -829,13 +840,13 @@ async function parseWithMistralOCR(
       maxBytes: MISTRAL_OCR_REQUEST_POLICY.maxBytes,
       maxPages: MISTRAL_OCR_REQUEST_POLICY.maxPages,
     })
-    return processMistralOCRInBatches(filename, apiKey, buffer, userId, cloudUrl)
+    return processMistralOCRInBatches(filename, apiKey, buffer, access, cloudUrl)
   }
 
   const params = { filePath: httpsUrl, apiKey, resultType: 'text' as const }
 
   try {
-    const response = await executeMistralOCRRequest(params, userId)
+    const response = await executeMistralOCRRequest(params, access)
     const result = (await mistralParserTool.transformResponse!(response, params)) as OCRResult
     const content = processOCRContent(result, filename, pageCount > 0 ? pageCount : undefined)
 
@@ -850,7 +861,7 @@ async function parseWithMistralOCR(
 
 async function executeMistralOCRRequest(
   params: { filePath: string; apiKey: string; resultType: 'text' },
-  userId?: string
+  access: SourceFileAccess
 ): Promise<Response> {
   return retryWithExponentialBackoff(
     async () => {
@@ -876,7 +887,7 @@ async function executeMistralOCRRequest(
             requestId: generateId(),
             signal: controller.signal,
             trustedCaller: 'knowledge-ingestion',
-            userId,
+            userId: access.userId,
           })
           return Response.json(result)
         } catch (error) {
@@ -905,7 +916,7 @@ async function processChunk(
   chunkIndex: number,
   filename: string,
   apiKey: string,
-  userId?: string
+  access: SourceFileAccess
 ): Promise<string> {
   const chunkPageCount = chunk.endPage - chunk.startPage + 1
 
@@ -955,7 +966,7 @@ async function processChunk(
       resultType: 'text' as const,
     }
 
-    const response = await executeMistralOCRRequest(params, userId)
+    const response = await executeMistralOCRRequest(params, access)
     const result = (await mistralParserTool.transformResponse!(response, params)) as OCRResult
 
     if (!result.success) {
@@ -1192,7 +1203,7 @@ async function processMistralOCRInBatches(
   filename: string,
   apiKey: string,
   pdfBuffer: Buffer,
-  userId?: string,
+  access: SourceFileAccess,
   cloudUrl?: string
 ): Promise<{
   content: string
@@ -1204,7 +1215,7 @@ async function processMistralOCRInBatches(
     'mistral',
     filename,
     MISTRAL_OCR_REQUEST_POLICY,
-    (chunk, index) => processChunk(chunk, index, filename, apiKey, userId)
+    (chunk, index) => processChunk(chunk, index, filename, apiKey, access)
   )
 
   return { content, processingMethod: 'mistral-ocr', cloudUrl }
@@ -1231,7 +1242,7 @@ async function parseWithFileParser(
   fileUrl: string,
   filename: string,
   mimeType: string,
-  userId?: string
+  access: SourceFileAccess
 ) {
   try {
     let content: string
@@ -1245,7 +1256,7 @@ async function parseWithFileParser(
       // Internal URLs may arrive as an app-relative `/api/files/serve/...` path
       // (some ingestion callers store the relative path); downloadFileFromUrl
       // resolves it directly against storage without an absolute origin.
-      const result = await parseHttpFile(fileUrl, filename, mimeType, userId)
+      const result = await parseHttpFile(fileUrl, filename, mimeType, access)
       content = result.content
       metadata = result.metadata || {}
     } else {
@@ -1275,10 +1286,10 @@ async function parseDataURI(
 async function parseHttpFile(
   fileUrl: string,
   filename: string,
-  mimeType?: string,
-  userId?: string
+  mimeType: string | undefined,
+  access: SourceFileAccess
 ): Promise<{ content: string; metadata?: FileParseMetadata }> {
-  const buffer = await downloadFileWithTimeout(fileUrl, userId)
+  const buffer = await downloadFileWithTimeout(fileUrl, access)
 
   /** Prefer what we actually downloaded over what the document is *called*. */
   const extension =
