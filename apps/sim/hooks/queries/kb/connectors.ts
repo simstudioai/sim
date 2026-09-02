@@ -19,16 +19,20 @@ import {
   listKnowledgeConnectorsContract,
   type MemberSyncLogData,
   patchKnowledgeConnectorDocumentsContract,
+  type StartKnowledgeConnectorMemberEnrollmentData,
   type SyncLogData,
+  startKnowledgeConnectorMemberEnrollmentContract,
   triggerKnowledgeConnectorSyncContract,
   type UpdateConnectorAccessBody,
   updateKnowledgeConnectorAccessContract,
   updateKnowledgeConnectorContract,
+  type ViewerConnectorMembership,
 } from '@/lib/api/contracts/knowledge'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 export type {
+  ViewerConnectorMembership,
   ConnectorData,
   ConnectorDetailData,
   ConnectorMemberSummary,
@@ -334,6 +338,26 @@ async function updateConnectorAccess({
  * list and detail for the new mode and member state, and the document lists
  * whose rows may have become hidden or visible.
  */
+interface StartConnectorMemberEnrollmentParams {
+  knowledgeBaseId: string
+  connectorId: string
+}
+
+async function startConnectorMemberEnrollment({
+  knowledgeBaseId,
+  connectorId,
+}: StartConnectorMemberEnrollmentParams): Promise<StartKnowledgeConnectorMemberEnrollmentData> {
+  const response = await requestJson(startKnowledgeConnectorMemberEnrollmentContract, {
+    params: { id: knowledgeBaseId, connectorId },
+  })
+  return response.data
+}
+
+/** Mints the viewer's enrollment link for a per-member connector; the caller navigates to it. */
+export function useStartConnectorMemberEnrollment() {
+  return useMutation({ mutationFn: startConnectorMemberEnrollment })
+}
+
 export function useUpdateConnectorAccess() {
   const queryClient = useQueryClient()
 

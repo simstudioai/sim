@@ -19,9 +19,10 @@ describe('connector access binding contracts', () => {
     expect(parsed.syncIntervalMinutes).toBe(1440)
   })
 
-  it('requires both group ids for members mode and refuses a credential there', () => {
+  it('lets members mode omit the binding, refuses half a binding, and refuses a credential there', () => {
+    /** No binding named: the server provisions a credential group for the connector. */
     expect(createConnectorBodySchema.safeParse({ ...base, accessMode: 'members' }).success).toBe(
-      false
+      true
     )
     expect(
       createConnectorBodySchema.safeParse({

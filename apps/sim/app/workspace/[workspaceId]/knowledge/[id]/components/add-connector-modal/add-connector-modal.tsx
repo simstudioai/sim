@@ -95,8 +95,6 @@ export function AddConnectorModal({
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
   const isMembersMode = access.accessMode === 'members'
-  const membersBindingComplete =
-    isMembersMode && Boolean(access.credentialGroupId && access.credentialGroupOptionId)
   /** Fields a per-member crawl refuses: a cap would hide part of a member's corpus. */
   const memberCapFieldIds = useMemo(
     () =>
@@ -186,9 +184,7 @@ export function AddConnectorModal({
     if (!connectorConfig) return false
     if (isApiKeyMode) {
       if (!isApiKeyOptional && !apiKeyValue.trim()) return false
-    } else if (isMembersMode) {
-      if (!membersBindingComplete) return false
-    } else {
+    } else if (!isMembersMode) {
       if (!effectiveCredentialId) return false
     }
 
@@ -203,7 +199,6 @@ export function AddConnectorModal({
     connectorConfig,
     isApiKeyMode,
     isMembersMode,
-    membersBindingComplete,
     memberCapFieldIds,
     isApiKeyOptional,
     apiKeyValue,

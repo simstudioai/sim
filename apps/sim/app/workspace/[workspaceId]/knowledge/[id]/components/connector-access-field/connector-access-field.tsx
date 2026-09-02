@@ -1,8 +1,7 @@
 'use client'
 
-import { type ReactNode, useMemo, useState } from 'react'
+import { type ReactNode, useMemo } from 'react'
 import {
-  Button,
   ButtonGroup,
   ButtonGroupItem,
   ChipCombobox,
@@ -18,7 +17,7 @@ import {
 } from '@/lib/credential-groups/providers'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import type { ConnectorMeta } from '@/connectors/types'
-import { useCreateCredentialGroup, useCredentialGroups } from '@/hooks/queries/credential-groups'
+import { useCredentialGroups } from '@/hooks/queries/credential-groups'
 
 /** What the caller chose; `members` needs the option the connector crawls with. */
 export interface ConnectorAccessSelection {
@@ -90,7 +89,6 @@ export function ConnectorAccessField({
   const provider = credentialGroupProviderFor(connectorConfig)
   const providerId = provider ? getCredentialGroupProviderId(provider) : null
   const credentialGroupsAvailable = features?.credentialGroups === true
-  const [createError, setCreateError] = useState<string | null>(null)
 
   const {
     data: settings,
@@ -99,7 +97,6 @@ export function ConnectorAccessField({
   } = useCredentialGroups(
     canAdmin && provider && credentialGroupsAvailable ? workspaceId : undefined
   )
-  const { mutate: createCredentialGroup, isPending: isCreatingGroup } = useCreateCredentialGroup()
 
   const options = useMemo<ComboboxOption[]>(() => {
     if (!settings || !providerId) return []
@@ -142,40 +139,15 @@ export function ConnectorAccessField({
     )
   }
 
-  /** Only a loaded, empty list means there is no group to pick; a disabled query says nothing. */
-  const noGroupYet = settings !== undefined && options.length === 0
   const settingsHref = `/workspace/${workspaceId}/settings/credential-groups`
-
-  const handleCreateGroup = () => {
-    setCreateError(null)
-    createCredentialGroup(
-      {
-        workspaceId,
-        body: {
-          name: `${connectorConfig.name} access`,
-          options: [{ provider, label: connectorConfig.name, required: true }],
-        },
-      },
-      {
-        onSuccess: ({ credentialGroup }) => {
-          const option = credentialGroup.options[0]
-          if (!option) return
-          onChange({
-            accessMode: 'members',
-            credentialGroupId: credentialGroup.id,
-            credentialGroupOptionId: option.id,
-          })
-        },
-        onError: (error) => setCreateError(error.message),
-      }
-    )
-  }
+  /** One existing group is reused on its own; several need the admin to say which. */
+  const needsChoice = options.length > 1
 
   return (
     <ChipModalField
       type='custom'
       title='Access'
-      error={createError ?? loadError?.message ?? undefined}
+      error={loadError?.message}
       hint={
         value.accessMode === 'members'
           ? 'Each member sees only the documents their own account can open. Scheduled, API, and chat runs see workspace-visible documents only.'
@@ -204,18 +176,7 @@ export function ConnectorAccessField({
 
         {value.accessMode === 'members' && (
           <>
-            {noGroupYet ? (
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={handleCreateGroup}
-                disabled={disabled || isCreatingGroup}
-              >
-                {isCreatingGroup
-                  ? 'Creating…'
-                  : `Create a credential group for ${connectorConfig.name}`}
-              </Button>
-            ) : (
+            {needsChoice && (
               <ChipCombobox
                 options={options}
                 value={selectedValue}
@@ -223,13 +184,19 @@ export function ConnectorAccessField({
                   const parsed = parseOptionValue(next)
                   if (parsed) onChange(parsed)
                 }}
-                placeholder='Select a credential group'
+                placeholder='Choose which credential group members connect through'
                 isLoading={isLoading}
                 disabled={disabled || Boolean(loadError)}
               />
             )}
             <p className='text-[var(--text-muted)] text-caption leading-snug'>
-              Members connect their own {connectorConfig.name} account after you invite them in{' '}
+              {options.length === 1
+                ? `Members connect through ${options[0].label}. `
+                : options.length === 0
+                  ? `A credential group is created for ${connectorConfig.name}. `
+                  : ''}
+              Everyone in the workspace is invited to connect their own {connectorConfig.name}{' '}
+              account, and people who join later are invited automatically. Manage members in{' '}
               <Link
                 href={settingsHref}
                 className='text-[var(--text-primary)] underline underline-offset-2'

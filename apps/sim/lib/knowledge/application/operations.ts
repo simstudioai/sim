@@ -398,6 +398,17 @@ export const knowledgeOperations = {
     capability: 'knowledge.use',
     principalKinds: ['session'],
   }),
+  /**
+   * A workspace member joining a per-member connector: any reader may connect
+   * their own account, which only ever widens what they themselves see.
+   */
+  enrollConnectorMember: defineWorkspaceOperation({
+    id: 'knowledge.connectors.members.enroll',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'knowledge.use',
+    principalKinds: ['session'],
+  }),
   deleteConnector: defineWorkspaceOperation({
     id: 'knowledge.connectors.delete',
     minimumRole: 'write',

@@ -1,8 +1,11 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   resolveKnowledgeAttributedUserId,
@@ -22,6 +25,57 @@ import {
 import { getKnowledgeConnector } from '@/lib/knowledge/orchestration/connectors'
 import type { KnowledgeOperationSource } from '@/lib/knowledge/orchestration/shared'
 import { getConnectorMeta } from '@/connectors/registry'
+
+const logger = createLogger('KnowledgeConnectorAccessApplication')
+
+/** Provisioning pulls in the credential-group services; loaded only when a members-mode switch needs it. */
+async function loadMemberProvisioning() {
+  return import('@/lib/knowledge/connectors/member-provisioning')
+}
+
+export interface StartKnowledgeConnectorMemberEnrollmentInput {
+  knowledgeBaseId: string
+  connectorId: string
+  assertedWorkspaceId?: string
+}
+
+/**
+ * Hands a workspace member the link that connects their own account to a
+ * per-member connector, minted on demand so they never need the invitation
+ * email. Only widens what the member themselves can see.
+ */
+export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.enrollConnectorMember,
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: StartKnowledgeConnectorMemberEnrollmentInput
+  }) => resolveActiveKnowledgeConnectorContext(input, principal),
+  async execute({ principal, context }) {
+    const workspaceId = requireConnectorWorkspaceId(context)
+    const userId = resolvePrincipalSubjectUserId(principal)
+    if (!userId) throw new OrchestrationError('forbidden', 'Sign in to connect your account')
+    const connector = await getKnowledgeConnector(context.knowledgeBaseId, context.connectorId)
+    if (!connector) throw new OrchestrationError('not_found', 'Connector not found')
+    if (connector.accessMode !== 'members' || !connector.credentialGroupId) {
+      throw new OrchestrationError('validation', 'This connector does not sync per member')
+    }
+    if (!(await isKnowledgeMemberAccessAvailable({ workspaceId }))) {
+      throw new OrchestrationError(
+        'validation',
+        'Per-member access is not available for this workspace'
+      )
+    }
+    const url = await (await loadMemberProvisioning()).createViewerConnectorEnrollmentLink({
+      userId,
+      workspaceId,
+      credentialGroupId: connector.credentialGroupId,
+    })
+    return { url }
+  },
+})
 
 export interface UpdateKnowledgeConnectorAccessInput {
   knowledgeBaseId: string
@@ -63,6 +117,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       )
     }
 
+    const subjectUserId = resolvePrincipalSubjectUserId(principal)
     const target =
       input.accessMode === 'members'
         ? {
@@ -70,16 +125,19 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
             binding: await resolveKnowledgeConnectorMembersBinding({
               workspaceId,
               connectorMeta,
-              binding: {
-                credentialGroupId: requireBindingField(
-                  input.credentialGroupId,
-                  'credentialGroupId'
-                ),
-                credentialGroupOptionId: requireBindingField(
-                  input.credentialGroupOptionId,
-                  'credentialGroupOptionId'
-                ),
-              },
+              binding:
+                input.credentialGroupId && input.credentialGroupOptionId
+                  ? {
+                      credentialGroupId: input.credentialGroupId,
+                      credentialGroupOptionId: input.credentialGroupOptionId,
+                    }
+                  : await (
+                      await loadMemberProvisioning()
+                    ).provisionKnowledgeConnectorMembersBinding({
+                      workspaceId,
+                      connectorMeta,
+                      userId: actingUserId,
+                    }),
               sourceConfig: connector.sourceConfig as Record<string, unknown>,
             }),
           }
@@ -107,6 +165,22 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
       request,
     })
     requireSuccessfulOutcome(outcome, 'Knowledge connector access update failed')
+    if (target.accessMode === 'members' && outcome.changed) {
+      const provisioning = await loadMemberProvisioning()
+      await provisioning
+        .inviteWorkspaceMembersToCredentialGroup({
+          workspaceId,
+          credentialGroupId: target.binding.credentialGroupId,
+          inviterUserId: subjectUserId ?? undefined,
+          limit: provisioning.MEMBER_PROVISION_INVITES_PER_REQUEST,
+        })
+        .catch((error) => {
+          logger.warn('Failed to invite workspace members after switching to members mode', {
+            workspaceId,
+            error: getErrorMessage(error),
+          })
+        })
+    }
     return { connector: outcome.connector, changed: outcome.changed, workspaceId }
   },
   projectAudit: ({ input, context, result }) =>
@@ -132,11 +206,6 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
         }
       : [],
 })
-
-function requireBindingField(value: string | undefined, field: string): string {
-  if (!value) throw new OrchestrationError('validation', `${field} is required for members mode`)
-  return value
-}
 
 /**
  * Workspace mode needs a credential the caller may use, and one that yields a

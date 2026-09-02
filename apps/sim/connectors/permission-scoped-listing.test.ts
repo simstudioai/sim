@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { getManagedOAuthConnectorPolicy } from '@/lib/auth/connectors/managed-oauth'
 import {
   getCredentialGroupProviderService,
-  isCredentialGroupProvider,
+  getCredentialGroupStandardOAuthProviderFromProviderId,
 } from '@/lib/credential-groups/providers'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 
@@ -35,11 +35,10 @@ describe('permission-scoped connector listings', () => {
       expect(policy).toBeDefined()
       if (!policy) return
 
-      const groupProvider = isCredentialGroupProvider(meta.auth.provider)
-        ? meta.auth.provider
-        : undefined
+      const groupProvider = getCredentialGroupStandardOAuthProviderFromProviderId(
+        meta.auth.provider
+      )
       expect(groupProvider).toBeDefined()
-      if (!groupProvider) return
 
       const optionScopes = [
         ...new Set([

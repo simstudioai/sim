@@ -1,3 +1,4 @@
+export { MemberConnectBanner } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/member-connect-banner/member-connect-banner'
 export { ActionBar } from './action-bar'
 export { AddConnectorModal } from './add-connector-modal'
 export { AddDocumentsModal } from './add-documents-modal'

@@ -9,6 +9,8 @@ import {
   knowledgeConnectorMemberSyncLog,
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
@@ -60,6 +62,13 @@ import { getConnectorMeta } from '@/connectors/registry'
 interface KnowledgeConnectorApplicationInput {
   assertedWorkspaceId?: string
   source?: KnowledgeOperationSource
+}
+
+const logger = createLogger('KnowledgeConnectorsApplication')
+
+/** Provisioning pulls in the credential-group services; loaded only when a members-mode connector needs it. */
+async function loadMemberProvisioning() {
+  return import('@/lib/knowledge/connectors/member-provisioning')
 }
 
 export interface ListKnowledgeConnectorsInput extends KnowledgeConnectorApplicationInput {
@@ -293,7 +302,7 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
     principal: Principal
     input: ListKnowledgeConnectorsInput
   }) => resolveActiveKnowledgeResourceContext(input, principal),
-  async execute({ input, context }) {
+  async execute({ principal, input, context }) {
     const sortOrder = input.sortOrder === 'asc' ? asc : desc
     const sortColumn =
       input.sortBy === 'connectorType'
@@ -319,8 +328,20 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
         : await orderedQuery.limit(input.limit + 1).offset(offset)
     const hasMore = input.limit !== undefined && rows.length > input.limit
     const page = input.limit === undefined ? rows : rows.slice(0, input.limit)
+    const viewerUserId = resolvePrincipalSubjectUserId(principal)
+    const memberships =
+      viewerUserId && context.workspaceId
+        ? await (await loadMemberProvisioning()).resolveViewerConnectorMemberships({
+            userId: viewerUserId,
+            workspaceId: context.workspaceId,
+            connectors: page,
+          })
+        : new Map()
     return {
-      connectors: page.map(({ encryptedApiKey: _encryptedApiKey, ...rest }) => rest),
+      connectors: page.map(({ encryptedApiKey: _encryptedApiKey, ...rest }) => ({
+        ...rest,
+        viewerMembership: memberships.get(rest.id) ?? null,
+      })),
       hasMore,
       offset,
       limit: input.limit ?? page.length,
@@ -425,19 +446,21 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       if (!connectorMeta) {
         throw new OrchestrationError('validation', `Unknown connector type: ${input.connectorType}`)
       }
-      if (!input.credentialGroupId || !input.credentialGroupOptionId) {
-        throw new OrchestrationError(
-          'validation',
-          'credentialGroupId and credentialGroupOptionId are required for members mode'
-        )
-      }
+      const named =
+        input.credentialGroupId && input.credentialGroupOptionId
+          ? {
+              credentialGroupId: input.credentialGroupId,
+              credentialGroupOptionId: input.credentialGroupOptionId,
+            }
+          : await (await loadMemberProvisioning()).provisionKnowledgeConnectorMembersBinding({
+              workspaceId,
+              connectorMeta,
+              userId: subjectUserId,
+            })
       membersBinding = await resolveKnowledgeConnectorMembersBinding({
         workspaceId,
         connectorMeta,
-        binding: {
-          credentialGroupId: input.credentialGroupId,
-          credentialGroupOptionId: input.credentialGroupOptionId,
-        },
+        binding: named,
         sourceConfig: input.sourceConfig,
       })
     }
@@ -467,6 +490,29 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       recordProductAnalytics: false,
     })
     requireSuccessfulOutcome(outcome, 'Knowledge connector creation failed')
+    if (membersBinding && outcome.success) {
+      /**
+       * Everyone in the workspace is invited to connect, so the admin's only
+       * next step is to wait. Bounded here; the member run invites the rest.
+       */
+      const provisioning = await loadMemberProvisioning()
+      await provisioning
+        .inviteWorkspaceMembersToCredentialGroup({
+          workspaceId,
+          credentialGroupId: membersBinding.credentialGroupId,
+          inviterUserId: resolvePrincipalSubjectUserId(principal) ?? undefined,
+          limit: provisioning.MEMBER_PROVISION_INVITES_PER_REQUEST,
+        })
+        .catch((error) => {
+          logger.warn(
+            'Failed to invite workspace members after creating a members-mode connector',
+            {
+              workspaceId,
+              error: getErrorMessage(error),
+            }
+          )
+        })
+    }
     return { connector: outcome.connector, workspaceId }
   },
   projectAudit: ({ input, context, result }) => ({

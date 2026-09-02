@@ -248,9 +248,9 @@ export function EditConnectorModal({
     accessDirty && access.accessMode === 'workspace' && connector.accessMode === 'members'
   const accessComplete =
     !accessDirty ||
-    (access.accessMode === 'members'
-      ? Boolean(access.credentialGroupId && access.credentialGroupOptionId)
-      : !needsWorkspaceCredential || Boolean(workspaceCredentialId))
+    access.accessMode === 'members' ||
+    !needsWorkspaceCredential ||
+    Boolean(workspaceCredentialId)
   const memberCapFieldIds = useMemo(
     () =>
       new Set(
@@ -557,7 +557,7 @@ function SettingsTab({
                 </div>
                 <p className='text-[var(--text-muted)] text-caption leading-snug'>
                   {access.accessMode === 'members'
-                    ? 'Documents stay hidden until members connect and sync. Listing caps are cleared.'
+                    ? 'Everyone in the workspace is invited to connect their account. Documents stay hidden until members connect and sync; listing caps are cleared.'
                     : 'Every workspace member can read every synced document once the next sync completes.'}
                 </p>
               </div>

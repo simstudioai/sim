@@ -41,18 +41,12 @@ function requireAccessBinding(
   ctx: z.RefinementCtx
 ): void {
   if (value.accessMode === 'members') {
-    if (!value.credentialGroupId) {
+    /** Both name one option, or neither and the server provisions one. */
+    if (Boolean(value.credentialGroupId) !== Boolean(value.credentialGroupOptionId)) {
       ctx.addIssue({
         code: 'custom',
-        path: ['credentialGroupId'],
-        message: 'credentialGroupId is required when accessMode is members',
-      })
-    }
-    if (!value.credentialGroupOptionId) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['credentialGroupOptionId'],
-        message: 'credentialGroupOptionId is required when accessMode is members',
+        path: [value.credentialGroupId ? 'credentialGroupOptionId' : 'credentialGroupId'],
+        message: 'credentialGroupId and credentialGroupOptionId go together',
       })
     }
     return
@@ -138,6 +132,15 @@ export const connectorDocumentsPatchBodySchema = z.object({
     .max(MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS),
 })
 
+export const VIEWER_CONNECTOR_MEMBERSHIPS = [
+  'connected',
+  'needs_reauth',
+  'invited',
+  'not_enrolled',
+] as const
+export const viewerConnectorMembershipSchema = z.enum(VIEWER_CONNECTOR_MEMBERSHIPS)
+export type ViewerConnectorMembership = z.output<typeof viewerConnectorMembershipSchema>
+
 export const connectorDataSchema = z
   .object({
     id: z.string(),
@@ -155,6 +158,11 @@ export const connectorDataSchema = z
     nextSyncAt: z.string().nullable(),
     consecutiveFailures: z.number(),
     accessMode: connectorAccessModeSchema,
+    /**
+     * Where the viewer stands with a per-member connector: absent for a
+     * workspace-mode connector or a caller with no person behind it.
+     */
+    viewerMembership: viewerConnectorMembershipSchema.nullable().optional(),
     credentialGroupId: z.string().nullable(),
     credentialGroupOptionId: z.string().nullable(),
     /** Members mode only; `idle` otherwise. */
@@ -314,6 +322,24 @@ export const updateKnowledgeConnectorAccessContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: successResponseSchema(connectorDataSchema),
+  },
+})
+
+export const startKnowledgeConnectorMemberEnrollmentDataSchema = z.object({
+  /** The viewer's enrollment link; opening it connects their account. */
+  url: z.string().url(),
+})
+export type StartKnowledgeConnectorMemberEnrollmentData = z.output<
+  typeof startKnowledgeConnectorMemberEnrollmentDataSchema
+>
+
+export const startKnowledgeConnectorMemberEnrollmentContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/knowledge/[id]/connectors/[connectorId]/enroll',
+  params: knowledgeConnectorParamsSchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(startKnowledgeConnectorMemberEnrollmentDataSchema),
   },
 })
 

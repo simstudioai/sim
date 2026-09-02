@@ -37,6 +37,10 @@ import {
   removeUnseenMemberObservations,
 } from '@/lib/knowledge/connectors/member-observations'
 import {
+  inviteWorkspaceMembersToCredentialGroup,
+  MEMBER_PROVISION_INVITES_PER_RUN,
+} from '@/lib/knowledge/connectors/member-provisioning'
+import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   connectorFailureBackoffMinutes,
@@ -1253,6 +1257,28 @@ export async function executeMemberSync(
     if (connector.accessRewritePending) await finishPendingAccessRewrite(run)
 
     const affectedDocumentIds = new Set<string>()
+    /**
+     * Anyone who joined the workspace since the last run is invited now, so
+     * membership grows on its own; the invitation is the only thing they need.
+     */
+    const invited = await inviteWorkspaceMembersToCredentialGroup({
+      workspaceId: run.workspaceId,
+      credentialGroupId: connector.credentialGroupId,
+      inviterUserId: undefined,
+      limit: MEMBER_PROVISION_INVITES_PER_RUN,
+    }).catch((error) => {
+      logger.warn('Failed to invite new workspace members during a member run', {
+        connectorId,
+        error: getErrorMessage(error),
+      })
+      return null
+    })
+    if (invited && invited.invited > 0) {
+      logger.info('Invited new workspace members to the connector credential group', {
+        connectorId,
+        ...invited,
+      })
+    }
     const membership = await reconcileMembership(run, binding)
     for (const documentId of membership.affectedDocumentIds) affectedDocumentIds.add(documentId)
 
