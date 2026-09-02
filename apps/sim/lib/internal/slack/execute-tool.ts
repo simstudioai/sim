@@ -26,6 +26,7 @@ import {
 } from '@/lib/internal/slack/operations'
 import { executeSlackGetChannelHistoryOperation } from '@/lib/internal/slack/operations/get-channel-history'
 import { executeSlackGetThreadRepliesOperation } from '@/lib/internal/slack/operations/get-thread-replies'
+import { executeSlackListConversationsOperation } from '@/lib/internal/slack/operations/list-conversations'
 import { executeToolOperationImplementation } from '@/lib/internal/tool-operations/execute'
 import { parseInternalToolInput } from '@/lib/internal/tool-operations/parse-input'
 import type {
@@ -94,6 +95,8 @@ export const executeSlackTool: InternalToolOperationHandler = async (request) =>
       return executeToolOperationImplementation(executeSlackGetChannelHistoryOperation, request)
     case 'slack_get_thread_replies':
       return executeToolOperationImplementation(executeSlackGetThreadRepliesOperation, request)
+    case 'slack_list_channels':
+      return executeToolOperationImplementation(executeSlackListConversationsOperation, request)
     case 'slack_ephemeral_message':
       return executeOperation(slackSendEphemeralContract, request, (input) =>
         executeSlackSendEphemeral(input, request.signal)

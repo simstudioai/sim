@@ -8,11 +8,16 @@ const mocks = vi.hoisted(() => ({
   addReaction: vi.fn(),
   deleteMessage: vi.fn(),
   download: vi.fn(),
+  listConversations: vi.fn(),
   readMessages: vi.fn(),
   removeReaction: vi.fn(),
   sendEphemeral: vi.fn(),
   sendMessage: vi.fn(),
   updateMessage: vi.fn(),
+}))
+
+vi.mock('@/lib/internal/slack/operations/list-conversations', () => ({
+  executeSlackListConversationsOperation: mocks.listConversations,
 }))
 
 vi.mock('@/lib/internal/slack/operations', () => ({
@@ -40,6 +45,7 @@ const INPUTS = {
   },
   slack_delete_message: { accessToken: 'token', channel: 'C1', timestamp: '1.0' },
   slack_download: { accessToken: 'token', fileId: 'F1', fileName: 'report.pdf' },
+  slack_list_channels: { accessToken: 'token', limit: 100, maxPages: 10 },
   slack_ephemeral_message: {
     accessToken: 'token',
     channel: 'C1',
@@ -66,6 +72,7 @@ const DISPATCH = {
   slack_add_reaction: mocks.addReaction,
   slack_delete_message: mocks.deleteMessage,
   slack_download: mocks.download,
+  slack_list_channels: mocks.listConversations,
   slack_ephemeral_message: mocks.sendEphemeral,
   slack_message: mocks.sendMessage,
   slack_message_reader: mocks.readMessages,
@@ -113,6 +120,13 @@ describe('executeSlackTool', () => {
         expect(DISPATCH[toolId].mock.calls[0]?.[1]).toEqual({
           requestId: 'request-1',
           signal: controller.signal,
+          userId: 'user-1',
+        })
+      } else if (toolId === 'slack_list_channels') {
+        expect(DISPATCH[toolId].mock.calls[0]?.[1]).toBe(controller.signal)
+        expect(DISPATCH[toolId].mock.calls[0]?.[2]).toMatchObject({
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
           userId: 'user-1',
         })
       } else {

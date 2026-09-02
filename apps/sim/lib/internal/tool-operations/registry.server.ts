@@ -791,6 +791,7 @@ const SLACK_TOOL_IDS = [
   'slack_download',
   'slack_get_channel_history',
   'slack_get_thread_replies',
+  'slack_list_channels',
   'slack_ephemeral_message',
   'slack_message',
   'slack_message_reader',
