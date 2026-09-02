@@ -458,6 +458,52 @@ describe('file manage folder wiring', () => {
     expect(String(body.error)).toContain('No file named notes.md in /Reports')
   })
 
+  /*
+   * A folder genuinely named `Q3/Q4` is one level, but the joined reference the
+   * overwrite lookup used re-read it as two — so the existing file was never
+   * found and the write landed as a duplicate beside it.
+   */
+  it('overwrites inside a folder whose name contains a slash', async () => {
+    mockListWorkspaceFileFolders.mockResolvedValue({
+      folders: [
+        {
+          id: 'folder-slashy',
+          parentId: null,
+          name: 'Q3/Q4',
+          path: 'Q3\\/Q4',
+          createdAt: CONTENT_UPDATED_AT,
+          updatedAt: CONTENT_UPDATED_AT,
+        },
+      ],
+    })
+    mockListAllWorkspaceFiles.mockResolvedValue({
+      files: [
+        { ...workspaceFile('existing-in-slashy'), name: 'notes.md', folderId: 'folder-slashy' },
+      ],
+    })
+    mockEnsureWorkspaceFileFolderPath.mockResolvedValue({
+      folderId: 'folder-slashy',
+      createdFolderIds: [],
+    })
+
+    await POST(
+      createMockRequest('POST', {
+        operation: 'write',
+        workspaceId: 'workspace-1',
+        fileName: 'notes.md',
+        folderPath: '/Q3%2FQ4',
+        content: 'hello',
+        overwrite: true,
+      })
+    )
+
+    // Found by id, not by a reference that would split the folder name in two.
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
+      'workspace-1',
+      'existing-in-slashy'
+    )
+  })
+
   it('lists what a folder holds, folders and files together', async () => {
     const response = await POST(
       createMockRequest('POST', { operation: 'list', workspaceId: 'workspace-1' })

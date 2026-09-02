@@ -505,17 +505,42 @@ async function resolveWriteOverwriteTarget(options: {
   principal: Principal
   workspaceId: string
   folderId: string | null
+  /** Canonical destination when one was picked; unambiguous where a joined reference is not. */
+  folderPath?: string
   folderSegments: string[]
   leafName: string
 }) {
-  const { principal, workspaceId, folderId, folderSegments, leafName } = options
+  const { principal, workspaceId, folderId, folderPath, folderSegments, leafName } = options
+  /*
+   * A slash-delimited reference cannot express a folder whose own name contains
+   * a slash: `Q3/Q4` joins to two segments and re-reads as two levels, so the
+   * existing file is never found and the write lands as a duplicate. When the
+   * destination came from a picker it arrives as a canonical path, which is
+   * unambiguous, so the target is looked up inside that folder by name and
+   * resolved by the id — the same route a named append takes.
+   */
+  let reference = [...folderSegments, leafName].join('/')
+  if (folderPath) {
+    const scoped = await expandFolderPathsToFiles({
+      principal,
+      workspaceId,
+      folderPaths: [folderPath],
+      includeSubfolders: false,
+    })
+    const match = scoped.find(
+      (file) => file.name === leafName && (file.folderId ?? null) === folderId
+    )
+    if (!match) return null
+    reference = match.id
+  }
+
   let existing: Awaited<ReturnType<typeof resolveWorkspaceFileReference>>
   try {
     existing = await resolveWorkspaceFileReference({
       principal,
       operation: fileOperations.updateContent,
       workspaceId,
-      reference: [...folderSegments, leafName].join('/'),
+      reference,
     })
   } catch (error) {
     if (error instanceof OrchestrationError && error.code === 'not_found') return null
@@ -1016,6 +1041,7 @@ export async function executeFileManageOperation(
             principal,
             workspaceId,
             folderId: folderId ?? null,
+            folderPath,
             folderSegments,
             leafName,
           })
