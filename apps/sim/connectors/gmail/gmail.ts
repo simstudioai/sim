@@ -4,6 +4,8 @@ import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/document
 import { DEFAULT_MAX_THREADS, gmailConnectorMeta } from '@/connectors/gmail/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
+  BoundedLines,
+  CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
   htmlToPlainText,
   joinTagArray,
   parseDefaultedUnlimitedSafeInteger,
@@ -323,21 +325,17 @@ function formatThread(thread: GmailThread): {
   }
   const labelIds = [...labelIdSet]
 
-  const lines: string[] = []
-  lines.push(`Subject: ${subject}`)
-  lines.push(`From: ${from}`)
+  const lines = new BoundedLines()
+  lines.push(`Subject: ${subject}`, `From: ${from}`)
   if (to) lines.push(`To: ${to}`)
-  lines.push(`Messages: ${messages.length}`)
-  lines.push('')
+  lines.push(`Messages: ${messages.length}`, '')
 
   for (const msg of messages) {
     const msgFrom = getHeader(msg.payload, 'From') || 'Unknown'
     const msgDate = getHeader(msg.payload, 'Date') || ''
     const body = msg.payload ? extractBody(msg.payload) : ''
 
-    lines.push(`--- ${msgFrom} (${msgDate}) ---`)
-    lines.push(body.trim())
-    lines.push('')
+    if (!lines.push(`--- ${msgFrom} (${msgDate}) ---`, body.trim(), '')) break
   }
 
   const firstDate = firstMessage.internalDate
@@ -348,7 +346,7 @@ function formatThread(thread: GmailThread): {
     : undefined
 
   return {
-    content: lines.join('\n').trim(),
+    content: lines.join().trim(),
     subject,
     metadata: {
       from,
@@ -399,13 +397,6 @@ async function resolveLabelNames(
 }
 
 /**
- * What a hydrated thread retains: message bodies as text, never attachments,
- * so a generous ceiling for a long thread is still small. Lets a batch of
- * threads hydrate together instead of one at a time.
- */
-const ESTIMATED_THREAD_BYTES = 256 * 1024
-
-/**
  * Creates a lightweight document stub from a thread list entry.
  * Uses metadata-based contentHash for change detection without downloading content.
  */
@@ -419,7 +410,7 @@ function threadToStub(thread: {
     title: thread.snippet || 'Untitled Thread',
     content: '',
     contentDeferred: true,
-    estimatedBytes: ESTIMATED_THREAD_BYTES,
+    estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
     mimeType: 'text/plain',
     sourceUrl: threadUrl(thread.id),
     contentHash: `gmail:${thread.id}:${thread.historyId ?? ''}`,

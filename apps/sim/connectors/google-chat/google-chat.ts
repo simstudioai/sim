@@ -9,12 +9,9 @@ import {
   SPACES_PAGE_SIZE,
 } from '@/connectors/google-chat/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseTagDate } from '@/connectors/utils'
+import { BoundedLines, CONNECTOR_TEXT_DOCUMENT_MAX_BYTES, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GoogleChatConnector')
-
-/** A hydrated space retains a bounded window of message text; lets spaces hydrate in batches. */
-const ESTIMATED_SPACE_BYTES = 1024 * 1024
 
 const CHAT_API_BASE = 'https://chat.googleapis.com/v1'
 const MS_PER_DAY = 24 * 60 * 60 * 1000
@@ -221,7 +218,7 @@ function spaceToStub(
     title: spaceTitle(space),
     content: '',
     contentDeferred: true,
-    estimatedBytes: ESTIMATED_SPACE_BYTES,
+    estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
     mimeType: 'text/plain',
     sourceUrl: space.spaceUri,
     contentHash: buildContentHash(space, maxMessages, lookbackDays, syncContext),
@@ -328,27 +325,26 @@ function senderLabel(sender: ChatUser | undefined): string {
  * instead, which already handles size caps, OCR, and format parsing.
  */
 function formatSpaceContent(space: Space, messages: ChatMessage[]): string {
-  const parts: string[] = [`Space: ${spaceTitle(space)}`]
+  const parts = new BoundedLines()
+  parts.push(`Space: ${spaceTitle(space)}`)
   const description = space.spaceDetails?.description?.trim()
   if (description) parts.push(`Description: ${description}`)
   const guidelines = space.spaceDetails?.guidelines?.trim()
   if (guidelines) parts.push(`Guidelines: ${guidelines}`)
 
-  const lines: string[] = []
+  let headed = false
   for (const message of messages) {
     const text = message.text?.trim() || message.fallbackText?.trim()
     if (!text) continue
+    if (!headed) {
+      parts.push('', '--- Messages ---')
+      headed = true
+    }
     const timestamp = message.createTime ?? ''
-    lines.push(`[${timestamp}] ${senderLabel(message.sender)}: ${text}`)
+    if (!parts.push(`[${timestamp}] ${senderLabel(message.sender)}: ${text}`)) break
   }
 
-  if (lines.length > 0) {
-    parts.push('')
-    parts.push('--- Messages ---')
-    parts.push(...lines)
-  }
-
-  return parts.join('\n')
+  return parts.join()
 }
 
 /** Number of messages that actually contributed text to the transcript. */
