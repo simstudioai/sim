@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import { getDocuments } from '@/lib/knowledge/documents/service'
 import { buildTagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
 import { validateTagValue } from '@/lib/knowledge/tags/utils'
@@ -233,7 +234,8 @@ describe('getDocuments tag filters', () => {
             { tagSlot: 'not_a_real_slot', fieldType: 'text', operator: 'eq', value: 'x' },
           ],
         },
-        'req-1'
+        'req-1',
+        WORKSPACE_ACCESS_SCOPE
       )
     ).rejects.toThrow(/Tag filter on slot "not_a_real_slot" could not be applied/)
   })

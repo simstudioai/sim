@@ -120,6 +120,7 @@ import { listCredentialGroups } from '@/lib/credential-groups/service'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
+  getEnrolledManagedOAuthCredentials,
 } from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
@@ -3174,7 +3175,12 @@ export class WorkspaceVFS {
       const [envCredentials, oauthCredentials, apiKeyRows, envData, permissionConfig] =
         await Promise.all([
           getAccessibleEnvCredentials(workspaceId, userId, { isWorkspaceAdmin }),
-          getAccessibleOAuthCredentials(workspaceId, userId, { isWorkspaceAdmin }),
+          getAccessibleOAuthCredentials(workspaceId, userId, { isWorkspaceAdmin }).then(
+            async (accessible) => [
+              ...accessible,
+              ...(await getEnrolledManagedOAuthCredentials(workspaceId, userId)),
+            ]
+          ),
           listApiKeys(workspaceId),
           getPersonalAndWorkspaceEnv(userId, workspaceId),
           permissionConfigPromise,

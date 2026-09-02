@@ -122,8 +122,10 @@ async function prepareWorkspaceFile(
 export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.addWorkspaceFiles,
   async resolveContext({
+    principal,
     input,
   }: {
+    principal: Principal
     input: AddWorkspaceFilesToKnowledgeBaseInput
   }): Promise<AddWorkspaceFilesContext> {
     const fileReferences = requireBoundedKnowledgeBatch(
@@ -132,7 +134,7 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
       ADD_WORKSPACE_FILES_COST_POLICY.maxItems
     )
     return {
-      ...(await resolveActiveKnowledgeBaseContext(input)),
+      ...(await resolveActiveKnowledgeBaseContext(input, principal)),
       fileReferences,
     }
   },

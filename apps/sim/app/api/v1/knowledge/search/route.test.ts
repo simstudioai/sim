@@ -44,9 +44,13 @@ const SYSTEM_BILLING_ATTRIBUTION = {
   payerSubscription: null,
 }
 
+/** The route's defaults depend on member-access availability; pin it so the local flag cannot change the expectations. */
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  isKnowledgeMemberAccessAvailable: async () => false,
+}))
+
 vi.mock('@/lib/knowledge/search/queries', () => ({
   executeKnowledgeSearch: mockExecuteKnowledgeSearch,
-  generateSearchEmbedding: mockGenerateSearchEmbedding,
   getDocumentMetadataByIds: mockGetDocumentMetadataByIds,
 }))
 
@@ -63,17 +67,23 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 }))
 
 vi.mock('@/lib/knowledge/embeddings', () => ({
+  generateSearchEmbedding: mockGenerateSearchEmbedding,
   recordSearchEmbeddingUsage: mockRecordSearchEmbeddingUsage,
 }))
 
 vi.mock('@/app/api/v1/middleware', () => ({
   authenticateRequest: mockAuthenticateRequest,
   validateWorkspaceAccess: mockValidateWorkspaceAccess,
+  capabilityGovernedUserId: (rateLimit: { keyType?: string; userId?: string }) =>
+    rateLimit.keyType === 'workspace' ? null : (rateLimit.userId ?? null),
   v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
     NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
 }))
 
 vi.mock('@/app/api/v1/knowledge/utils', () => ({
+  resolveV1KnowledgeAccessScope: vi
+    .fn()
+    .mockResolvedValue({ kind: 'workspace', tokens: ['pub', 'ws'] }),
   handleError: (e: unknown) =>
     new Response(JSON.stringify({ error: getErrorMessage(e, 'error') }), {
       status: 500,

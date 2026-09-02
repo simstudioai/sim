@@ -25,6 +25,7 @@ import {
   DropOverlay,
   MicButton,
   MicrophonePermissionHelp,
+  ModeSwitcher,
   PromptEditor,
   SendButton,
   usePromptEditor,
@@ -69,6 +70,21 @@ interface UserInputProps {
   onStopGeneration: () => void
   isInitialView?: boolean
   onSendQueuedHead?: () => void
+  /**
+   * Whether the composer offers Search mode. Only the Home composer answers a
+   * search with documents; the workflow copilot always talks to the agent, so
+   * it must not show a mode it cannot honour.
+   */
+  canSearch?: boolean
+  /**
+   * Whether the text is cleared once submitted. A search keeps its query in
+   * the box, the way a search bar does, so it can be read and refined against
+   * the results; a message to the agent clears, since it now lives in the
+   * transcript. Defaults to clearing.
+   */
+  clearOnSubmit?: boolean
+  /** Called when the text becomes empty after having had content, such as a search being cleared. */
+  onCleared?: () => void
   onEditQueuedTail?: () => void
 }
 
@@ -80,6 +96,8 @@ export interface UserInputHandle {
    * names chip with brand icons. Focuses the input and places the caret at the
    * end. Does NOT submit. Safe to call with the same text twice in a row. */
   populatePrompt: (text: string) => void
+  /** Empties the composer and its draft, as a send does; for a question handed to the agent from outside the box. */
+  clear: () => void
 }
 
 /**
@@ -97,6 +115,9 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     isInitialView = true,
     onSendQueuedHead,
     onEditQueuedTail,
+    canSearch = false,
+    clearOnSubmit = true,
+    onCleared,
   },
   ref
 ) {
@@ -157,6 +178,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
   const draftScopeKeyRef = useRef(draftScopeKey)
   draftScopeKeyRef.current = draftScopeKey
+  const clearOnSubmitRef = useRef(clearOnSubmit)
+  clearOnSubmitRef.current = clearOnSubmit
 
   const hasRestoredDraftRef = useRef(false)
   useEffect(() => {
@@ -201,6 +224,15 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
+
+  const onClearedRef = useRef(onCleared)
+  onClearedRef.current = onCleared
+  const hadTextRef = useRef(false)
+  useEffect(() => {
+    const hasText = editor.value.trim().length > 0
+    if (hadTextRef.current && !hasText) onClearedRef.current?.()
+    hadTextRef.current = hasText
+  }, [editor.value])
 
   const isFirstSaveRef = useRef(true)
   const draftSaveTimerRef = useRef<number | null>(null)
@@ -404,6 +436,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         currentEditor.setContexts(msg.contexts ?? [])
         currentEditor.focusAtEnd()
       },
+      clear: clearComposer,
       populatePrompt: (text: string) => {
         // `text` is a curated prompt, so opt its bare integration names into
         // `@`-mention form before chipification (the auto-mention pipeline only
@@ -512,10 +545,32 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     return () => window.cancelAnimationFrame(raf)
   }, [textareaRef])
 
+  /**
+   * Menu rows are excluded alongside buttons: the mode switcher's items are
+   * portaled, so their clicks still bubble here through the React tree.
+   */
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest('button, [role="dialog"]')) return
+    if ((e.target as HTMLElement).closest('button, [role="dialog"], [role="menu"]')) return
     textareaRef.current?.focus()
   }
+
+  /** Empties the text, chips, attachments, transcript, and the saved draft in one step. */
+  const clearComposer = useCallback(() => {
+    editorRef.current.clear()
+    sttPrefixRef.current = ''
+    if (draftSaveTimerRef.current !== null) {
+      window.clearTimeout(draftSaveTimerRef.current)
+      draftSaveTimerRef.current = null
+    }
+    pendingDraftRef.current = null
+    if (draftScopeKeyRef.current) {
+      useMothershipDraftsStore.getState().clearDraft(draftScopeKeyRef.current)
+    }
+    /** The chips are gone with the text, and clearing is not a removal to report. */
+    prevSelectedContextsRef.current = []
+    resetTranscript()
+    filesRef.current.clearAttachedFiles()
+  }, [resetTranscript])
 
   const handleSubmit = useCallback(() => {
     const currentFiles = filesRef.current
@@ -541,20 +596,13 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined,
       activeContexts.length > 0 ? activeContexts : undefined
     )
-    currentEditor.clear()
-    sttPrefixRef.current = ''
-    if (draftSaveTimerRef.current !== null) {
-      window.clearTimeout(draftSaveTimerRef.current)
-      draftSaveTimerRef.current = null
-    }
-    pendingDraftRef.current = null
-    if (draftScopeKeyRef.current) {
-      useMothershipDraftsStore.getState().clearDraft(draftScopeKeyRef.current)
-    }
-    resetTranscript()
-    currentFiles.clearAttachedFiles()
-    prevSelectedContextsRef.current = []
-  }, [onSubmit, resetTranscript])
+    /**
+     * A composer that keeps its text (Search mode) keeps its attachments and
+     * chips too: the search took the query alone, and the person may hand the
+     * rest to the agent next.
+     */
+    if (clearOnSubmitRef.current) clearComposer()
+  }, [onSubmit, clearComposer])
 
   /**
    * Enter policy for the editor: mirror canSubmit's uploading guard (Enter
@@ -678,6 +726,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
           </Tooltip.Root>
         </div>
         <div className='flex items-center gap-1.5'>
+          {canSearch && <ModeSwitcher />}
           {isSttSupported && (
             <MicButton
               audioLevelsRef={audioLevelsRef}

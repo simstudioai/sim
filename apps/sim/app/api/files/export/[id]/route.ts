@@ -7,7 +7,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { fileExportContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -81,7 +81,10 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const hasAccess = await verifyFileAccess(record.key, userId)
+    const knowledgeAccess = authResult.authType === AuthType.SESSION ? 'user' : undefined
+    const hasAccess = await verifyFileAccess(record.key, userId, undefined, undefined, undefined, {
+      knowledgeAccess,
+    })
     if (!hasAccess) {
       logger.warn('Unauthorized file export attempt', { id, userId })
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -164,7 +167,13 @@ export const GET = withRouteHandler(
         try {
           const imgRecord = await getFileMetadataById(storedFileId(imageId))
           if (!imgRecord) return null
-          if (!(await verifyFileAccess(imgRecord.key, userId))) return null
+          if (
+            !(await verifyFileAccess(imgRecord.key, userId, undefined, undefined, undefined, {
+              knowledgeAccess,
+            }))
+          ) {
+            return null
+          }
           return { imageId, record: imgRecord, size: getWorkspaceFileSize(imgRecord) }
         } catch (error) {
           logger.warn('Failed to resolve asset for export', {

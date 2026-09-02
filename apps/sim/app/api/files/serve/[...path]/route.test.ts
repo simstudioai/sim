@@ -397,7 +397,8 @@ describe('File Serve API Route', () => {
       'test-user-id',
       undefined,
       'mothership',
-      false
+      false,
+      { knowledgeAccess: undefined }
     )
     expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledWith({
       key: 'workspace/test-workspace-id/1234567890-photo.png',

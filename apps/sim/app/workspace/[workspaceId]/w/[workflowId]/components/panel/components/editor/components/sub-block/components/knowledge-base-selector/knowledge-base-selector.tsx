@@ -184,6 +184,8 @@ export function KnowledgeBaseSelector({
   const label =
     subBlock.placeholder || (isMultiSelect ? 'Select knowledge bases' : 'Select knowledge base')
 
+  const hasMemberScopedSelection = selectedKnowledgeBases.some((kb) => kb.hasMemberScopedConnector)
+
   return (
     <div className='w-full'>
       {/* Selected knowledge bases display (for multi-select) */}
@@ -256,6 +258,13 @@ export function KnowledgeBaseSelector({
             : undefined
         }
       />
+      {hasMemberScopedSelection && (
+        <p className='mt-1.5 text-[var(--text-muted)] text-caption leading-snug'>
+          Documents synced per member are returned only when the person who triggers the run has
+          connected their account. Scheduled, API, webhook, and chat runs see workspace-visible
+          documents only.
+        </p>
+      )}
     </div>
   )
 }

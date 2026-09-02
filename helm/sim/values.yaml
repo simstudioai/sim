@@ -114,6 +114,7 @@ app:
     # Generate using: openssl rand -hex 32
     CRON_SECRET: ""         # OPTIONAL - required only if cronjobs.enabled=true, authenticates scheduled job requests
     TABLE_ROW_TTL: ""       # Enable TTL columns and expired-row cleanup when AppConfig is unavailable
+    KNOWLEDGE_MEMBER_ACCESS: ""  # Enable per-member knowledge connectors when AppConfig is unavailable
 
     # Optional: API Key Encryption (RECOMMENDED for production)
     # Generate with: openssl rand -hex 32 (produces the required 64-hex-char / 32-byte value).
@@ -1453,6 +1454,15 @@ cronjobs:
       name: connector-sync
       schedule: "*/5 * * * *"
       path: "/api/knowledge/connectors/sync"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    connectorMemberSync:
+      enabled: true
+      name: connector-member-sync
+      schedule: "*/5 * * * *"
+      path: "/api/knowledge/connectors/member-sync"
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1

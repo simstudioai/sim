@@ -1,10 +1,20 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { normalizeAtlassianSiteUrl } from '@/lib/atlassian/discovery'
+import {
+  AtlassianSiteNotAccessibleError,
+  AtlassianSiteNotMatchedError,
+  normalizeAtlassianSiteUrl,
+} from '@/lib/atlassian/discovery'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { jiraConnectorMeta } from '@/connectors/jira/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
+import {
+  isListingScopeUnavailableError,
+  joinTagArray,
+  listingRequestError,
+  parseMultiValue,
+  parseTagDate,
+} from '@/connectors/utils'
 import { extractAdfText, getJiraCloudId } from '@/tools/jira/utils'
 
 const logger = createLogger('JiraConnector')
@@ -131,6 +141,15 @@ function issueToFullDocument(issue: Record<string, unknown>, siteUrl: string): E
 export const jiraConnector: ConnectorConfig = {
   ...jiraConnectorMeta,
 
+  /**
+   * A member whose token reaches no Atlassian site, or only sites other than
+   * the configured one, lists nothing: a complete listing of nothing, not an error.
+   */
+  isListingScopeUnavailableError: (error) =>
+    isListingScopeUnavailableError(error) ||
+    error instanceof AtlassianSiteNotAccessibleError ||
+    error instanceof AtlassianSiteNotMatchedError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -219,7 +238,12 @@ export const jiraConnector: ConnectorConfig = {
         status: response.status,
         error: errorText,
       })
-      throw new Error(`Failed to search Jira issues: ${response.status}`)
+      throw listingRequestError(
+        'Failed to search Jira issues',
+        response.status,
+        response.status === 404 ||
+          (response.status === 400 && /does not exist for the field 'project'/i.test(errorText))
+      )
     }
 
     const data = await response.json()

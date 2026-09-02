@@ -11,6 +11,7 @@ import {
 import {
   internalKnowledgeProvenanceUserId,
   resolveInternalKnowledgeBillingAttribution,
+  toInternalKnowledgeConnector,
 } from '@/lib/knowledge/api/internal-route'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
 
@@ -125,5 +126,44 @@ describe('internal Knowledge execution attribution', () => {
     await expect(
       resolveInternalKnowledgeBillingAttribution(request(), principal, 'workspace-2')
     ).rejects.toThrow('does not match the authenticated request scope')
+  })
+})
+
+describe('toInternalKnowledgeConnector', () => {
+  const row = {
+    id: 'connector-1',
+    knowledgeBaseId: 'kb-1',
+    connectorType: 'google_drive',
+    credentialId: null,
+    sourceConfig: {},
+    syncMode: null,
+    syncIntervalMinutes: 60,
+    status: 'active' as const,
+    lastSyncAt: null,
+    lastSyncError: null,
+    lastSyncDocCount: null,
+    nextSyncAt: null,
+    consecutiveFailures: 0,
+    accessMode: 'members' as const,
+    credentialGroupId: 'group-1',
+    credentialGroupOptionId: 'option-1',
+    memberSyncStatus: 'idle' as const,
+    lastMemberSyncAt: null,
+    nextMemberSyncAt: null,
+    lastMemberSyncError: null,
+    memberSyncConsecutiveFailures: 0,
+    accessRewritePending: false,
+    createdAt: new Date('2026-09-01T00:00:00Z'),
+    updatedAt: new Date('2026-09-01T00:00:00Z'),
+  }
+
+  it('presents a mutation result, which carries no viewer membership, as null', () => {
+    expect(toInternalKnowledgeConnector(row).viewerMembership).toBeNull()
+  })
+
+  it('keeps the membership a read resolved for the viewer', () => {
+    expect(
+      toInternalKnowledgeConnector({ ...row, viewerMembership: 'invited' }).viewerMembership
+    ).toBe('invited')
   })
 })

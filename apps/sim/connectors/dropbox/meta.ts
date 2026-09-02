@@ -14,6 +14,7 @@ export const dropboxConnectorMeta: ConnectorMeta = {
     requiredScopes: ['files.metadata.read', 'files.content.read'],
   },
 
+  permissionScopedListing: { capFieldIds: ['maxFiles'] },
   configFields: [
     {
       id: 'folderPath',

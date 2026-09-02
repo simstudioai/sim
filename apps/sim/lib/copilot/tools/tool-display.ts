@@ -301,10 +301,11 @@ function knowledgeBaseTitle(args: ToolArgs): string {
     'file'
   )
 
+  const query = stringArg(operationArgs, 'query')
   const titles: Record<string, string> = {
     create: `Creating ${name || 'knowledge base'}`,
     get: 'Reading knowledge base',
-    query: 'Searching knowledge base',
+    query: query ? `Searching knowledge base for ${query}` : 'Searching knowledge base',
     add_file: `Adding ${fileTarget} to knowledge base`,
     update: 'Updating knowledge base',
     delete: `Deleting ${countedResourceTarget(operationArgs, 'knowledgeBaseIds', 'knowledge base', 'knowledge bases')}`,

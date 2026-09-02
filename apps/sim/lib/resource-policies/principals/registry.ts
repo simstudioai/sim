@@ -1,4 +1,5 @@
 import { credentialGroupActorResourcePolicyPrincipalDefinition } from '@/lib/resource-policies/principals/credential-group-actor'
+import { knowledgeConnectorResourcePolicyPrincipalDefinition } from '@/lib/resource-policies/principals/knowledge-connector'
 import type {
   ResourcePolicyPrincipal,
   ResourcePolicyPrincipalDefinition,
@@ -9,6 +10,7 @@ import { workflowResourcePolicyPrincipalDefinition } from '@/lib/resource-polici
 
 export const RESOURCE_POLICY_PRINCIPAL_DEFINITIONS = Object.freeze({
   credential_group_actor: credentialGroupActorResourcePolicyPrincipalDefinition,
+  knowledge_connector: knowledgeConnectorResourcePolicyPrincipalDefinition,
   workflow: workflowResourcePolicyPrincipalDefinition,
 } as const satisfies Record<ResourcePolicyPrincipalType, ResourcePolicyPrincipalDefinition>)
 

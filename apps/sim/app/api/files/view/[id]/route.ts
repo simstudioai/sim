@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { fileViewContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getServeStoragePrefix, type StorageContext } from '@/lib/uploads/config'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
@@ -37,7 +37,9 @@ export const GET = withRouteHandler(
       record.key,
       authResult.userId,
       undefined,
-      record.context as StorageContext | 'general'
+      record.context as StorageContext | 'general',
+      undefined,
+      { knowledgeAccess: authResult.authType === AuthType.SESSION ? 'user' : undefined }
     )
     if (!hasAccess) {
       logger.warn('Unauthorized file view attempt', { id, userId: authResult.userId })

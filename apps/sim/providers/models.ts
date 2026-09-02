@@ -2814,7 +2814,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'meta',
     name: 'Meta',
     description: "Meta's Muse Spark models via the Meta Model API (OpenAI-compatible)",
-    defaultModel: 'muse-spark-1.1',
+    defaultModel: 'muse-spark-1.3',
     modelPatterns: [/^muse-spark/],
     icon: MetaIcon,
     color: '#0082FB',
@@ -2823,6 +2823,23 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     models: [
+      {
+        id: 'muse-spark-1.3',
+        pricing: {
+          input: 1.25,
+          cachedInput: 0.15,
+          output: 4.25,
+          updatedAt: '2026-09-02',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['minimal', 'low', 'medium', 'high', 'xhigh'],
+          },
+        },
+        contextWindow: 1048576,
+        releaseDate: '2026-09-02',
+        recommended: true,
+      },
       {
         id: 'muse-spark-1.1',
         pricing: {
@@ -2838,7 +2855,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2026-07-09',
-        recommended: true,
       },
     ],
   },

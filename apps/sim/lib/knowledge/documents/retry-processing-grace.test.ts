@@ -18,7 +18,7 @@ vi.mock('@/lib/knowledge/documents/processing-outbox-event', () => ({
 vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
 
-import { isStuckDocumentSweepEligible } from '@/lib/knowledge/connectors/sync-engine'
+import { isStuckDocumentSweepEligible } from '@/lib/knowledge/connectors/sync-primitives'
 import {
   processDocumentsWithQueue,
   retryDocumentProcessing,

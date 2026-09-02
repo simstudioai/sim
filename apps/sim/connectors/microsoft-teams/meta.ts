@@ -21,6 +21,11 @@ export const microsoftTeamsConnectorMeta: ConnectorMeta = {
     requiredScopes: ['ChannelMessage.Read.All', 'Channel.ReadBasic.All', 'Team.ReadBasic.All'],
   },
 
+  /**
+   * `maxMessages` bounds how much history each channel document carries, not
+   * which channels are listed, so a member's listing is complete under any value.
+   */
+  permissionScopedListing: { capFieldIds: [] },
   configFields: [
     {
       id: 'teamSelector',
