@@ -2927,7 +2927,7 @@
             "example": {
               "error": {
                 "code": "CONFLICT",
-                "message": "The request conflicts with the current state of the file"
+                "message": "The request conflicts with the current resource state"
               }
             }
           }
