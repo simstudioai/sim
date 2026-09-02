@@ -544,14 +544,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     setSearchQuery('')
     handleSubmit(prompt, undefined, undefined, 'assistant')
   }
-  /**
-   * A chat that already exists never opens in Search: its transcript is a
-   * conversation, and search results never join it. Build and Assistant both
-   * carry over, so a follow-up stays grounded in the sources.
-   */
-  useEffect(() => {
-    if (chatId && composerMode === 'search') void setComposerMode('build')
-  }, [chatId, composerMode, setComposerMode])
   const showSearchResults = composerMode === 'search' && searchQuery.trim().length > 0
   const searchResults = showSearchResults ? (
     <KnowledgeSearchResults
