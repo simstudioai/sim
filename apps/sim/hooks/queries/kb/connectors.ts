@@ -17,6 +17,7 @@ import {
   getKnowledgeConnectorContract,
   listKnowledgeConnectorDocumentsContract,
   listKnowledgeConnectorsContract,
+  listWorkspaceMemberConnectorsContract,
   type MemberSyncLogData,
   patchKnowledgeConnectorDocumentsContract,
   type StartKnowledgeConnectorMemberEnrollmentData,
@@ -27,12 +28,14 @@ import {
   updateKnowledgeConnectorAccessContract,
   updateKnowledgeConnectorContract,
   type ViewerConnectorMembership,
+  type WorkspaceMemberConnector,
 } from '@/lib/api/contracts/knowledge'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 export type {
   ViewerConnectorMembership,
+  WorkspaceMemberConnector,
   ConnectorData,
   ConnectorDetailData,
   ConnectorMemberSummary,
@@ -351,6 +354,36 @@ async function startConnectorMemberEnrollment({
     params: { id: knowledgeBaseId, connectorId },
   })
   return response.data
+}
+
+export const memberConnectorKeys = {
+  all: ['member-connectors'] as const,
+  lists: () => [...memberConnectorKeys.all, 'list'] as const,
+  list: (workspaceId?: string) => [...memberConnectorKeys.lists(), workspaceId ?? ''] as const,
+}
+
+export const WORKSPACE_MEMBER_CONNECTORS_STALE_TIME = 30 * 1000
+
+async function fetchWorkspaceMemberConnectors(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkspaceMemberConnector[]> {
+  const response = await requestJson(listWorkspaceMemberConnectorsContract, {
+    query: { workspaceId },
+    signal,
+  })
+  return response.data
+}
+
+/** Every per-member connector in the workspace and where the viewer stands with each. */
+export function useWorkspaceMemberConnectors(workspaceId?: string) {
+  return useQuery({
+    queryKey: memberConnectorKeys.list(workspaceId),
+    queryFn: ({ signal }) => fetchWorkspaceMemberConnectors(workspaceId as string, signal),
+    enabled: Boolean(workspaceId),
+    staleTime: WORKSPACE_MEMBER_CONNECTORS_STALE_TIME,
+    placeholderData: keepPreviousData,
+  })
 }
 
 /** Mints the viewer's enrollment link for a per-member connector; the caller navigates to it. */

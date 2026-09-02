@@ -11,6 +11,7 @@ import {
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
 } from '@/lib/knowledge/constants'
+import { MEMBER_SYNC_STATUSES } from '@/lib/knowledge/types'
 
 /**
  * How a connector derives document access. `workspace` syncs as one credential
@@ -169,7 +170,7 @@ export const connectorDataSchema = z
     credentialGroupId: z.string().nullable(),
     credentialGroupOptionId: z.string().nullable(),
     /** Members mode only; `idle` otherwise. */
-    memberSyncStatus: z.enum(['idle', 'pending', 'running', 'error', 'disabled']),
+    memberSyncStatus: z.enum(MEMBER_SYNC_STATUSES),
     lastMemberSyncAt: z.string().nullable(),
     nextMemberSyncAt: z.string().nullable(),
     lastMemberSyncError: z.string().nullable(),
@@ -343,6 +344,27 @@ export const startKnowledgeConnectorMemberEnrollmentContract = defineRouteContra
   response: {
     mode: 'json',
     schema: successResponseSchema(startKnowledgeConnectorMemberEnrollmentDataSchema),
+  },
+})
+
+/** A per-member connector as the viewer meets it across the workspace's knowledge bases. */
+export const workspaceMemberConnectorSchema = z.object({
+  knowledgeBaseId: z.string(),
+  knowledgeBaseName: z.string(),
+  connectorId: z.string(),
+  connectorType: z.string(),
+  memberSyncStatus: z.enum(MEMBER_SYNC_STATUSES),
+  viewerMembership: viewerConnectorMembershipSchema,
+})
+export type WorkspaceMemberConnector = z.output<typeof workspaceMemberConnectorSchema>
+
+export const listWorkspaceMemberConnectorsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/knowledge/member-connectors',
+  query: z.object({ workspaceId: z.string().min(1) }),
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.array(workspaceMemberConnectorSchema)),
   },
 })
 

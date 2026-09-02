@@ -4,6 +4,7 @@ import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   document,
+  knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeConnectorMemberSyncLog,
@@ -30,6 +31,7 @@ import {
   type ActiveKnowledgeResourceBaseContext,
   resolveActiveKnowledgeConnectorContext,
   resolveActiveKnowledgeResourceContext,
+  resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
@@ -52,6 +54,7 @@ import type {
   KnowledgeOperationSource,
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
+import { isMemberSyncStatus } from '@/lib/knowledge/types'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
@@ -341,6 +344,74 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
       hasMore,
       offset,
       limit: input.limit ?? page.length,
+    }
+  },
+})
+
+export interface ListWorkspaceMemberConnectorsInput {
+  workspaceId: string
+}
+
+/**
+ * Every per-member connector in the workspace and where the viewer stands
+ * with each, so a surface outside the knowledge base — Sim Search — can ask
+ * them to connect. Only connectors the viewer could actually read documents
+ * from are listed: the knowledge base must be live and in the workspace.
+ */
+export const listWorkspaceMemberConnectors = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.listWorkspaceMemberConnectors,
+  resolveContext: ({ input }: { input: ListWorkspaceMemberConnectorsInput }) =>
+    resolveKnowledgeWorkspaceContext(input),
+  async execute({ principal, context }) {
+    const viewerUserId = resolvePrincipalSubjectUserId(principal)
+    if (!viewerUserId) return { connectors: [] }
+    const rows = await db
+      .select({
+        knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
+        knowledgeBaseName: knowledgeBase.name,
+        id: knowledgeConnector.id,
+        connectorType: knowledgeConnector.connectorType,
+        accessMode: knowledgeConnector.accessMode,
+        memberSyncStatus: knowledgeConnector.memberSyncStatus,
+        credentialGroupId: knowledgeConnector.credentialGroupId,
+        credentialGroupOptionId: knowledgeConnector.credentialGroupOptionId,
+      })
+      .from(knowledgeConnector)
+      .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
+      .where(
+        and(
+          eq(knowledgeBase.workspaceId, context.workspaceId),
+          isNull(knowledgeBase.deletedAt),
+          eq(knowledgeConnector.accessMode, 'members'),
+          isNull(knowledgeConnector.archivedAt),
+          isNull(knowledgeConnector.deletedAt)
+        )
+      )
+      .orderBy(asc(knowledgeBase.name), asc(knowledgeConnector.createdAt))
+    const memberships = await (await loadMemberProvisioning()).resolveViewerConnectorMemberships({
+      userId: viewerUserId,
+      workspaceId: context.workspaceId,
+      connectors: rows,
+    })
+    return {
+      connectors: rows.flatMap((row) => {
+        const viewerMembership = memberships.get(row.id)
+        if (!isMemberSyncStatus(row.memberSyncStatus)) {
+          throw new Error(`Unexpected member sync status ${row.memberSyncStatus}`)
+        }
+        return viewerMembership
+          ? [
+              {
+                knowledgeBaseId: row.knowledgeBaseId,
+                knowledgeBaseName: row.knowledgeBaseName,
+                connectorId: row.id,
+                connectorType: row.connectorType,
+                memberSyncStatus: row.memberSyncStatus,
+                viewerMembership,
+              },
+            ]
+          : []
+      }),
     }
   },
 })

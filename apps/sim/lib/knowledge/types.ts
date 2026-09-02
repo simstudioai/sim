@@ -207,3 +207,11 @@ interface DocumentsPagination {
   offset: number
   hasMore: boolean
 }
+
+/** The member engine's states, as stored on `knowledge_connector.member_sync_status`. */
+export const MEMBER_SYNC_STATUSES = ['idle', 'pending', 'running', 'error', 'disabled'] as const
+export type MemberSyncStatus = (typeof MEMBER_SYNC_STATUSES)[number]
+
+export function isMemberSyncStatus(value: string): value is MemberSyncStatus {
+  return (MEMBER_SYNC_STATUSES as readonly string[]).includes(value)
+}

@@ -402,6 +402,14 @@ export const knowledgeOperations = {
    * A workspace member joining a per-member connector: any reader may connect
    * their own account, which only ever widens what they themselves see.
    */
+  /** Every per-member connector in the workspace, with where the viewer stands on each. */
+  listWorkspaceMemberConnectors: defineWorkspaceOperation({
+    id: 'knowledge.connectors.members.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'knowledge.use',
+    principalKinds: ['session'],
+  }),
   enrollConnectorMember: defineWorkspaceOperation({
     id: 'knowledge.connectors.members.enroll',
     minimumRole: 'read',
