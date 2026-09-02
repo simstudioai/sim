@@ -21,22 +21,33 @@ vi.mock('sim/embed', () => ({
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: mockMint }))
 vi.mock('@/lib/core/utils/urls', () => ({ getInternalApiBaseUrl: () => 'http://internal' }))
 
+import type { AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
 
 const context = { workspaceId: 'ws-1', userId: 'u-1', chatId: 'chat-1' } as Parameters<
   typeof executeSimCli
 >[1]
 
-describe('sim-cli machine file bridge', () => {
+function cli(argv: string[], extra: Partial<AgentCliRequest> = {}): { request: AgentCliRequest } {
+  return { request: { invocation: { kind: 'cli', argv }, pipeline: [], ...extra } }
+}
+
+describe('sim-cli handler executes the worker-built request', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockMint.mockResolvedValue('key')
     mockRunEmbeddedCli.mockResolvedValue({ exitCode: 0, stdout: 'BIG OUTPUT', stderr: '' })
   })
 
+  it('refuses a frame without the typed request — this side never re-parses argv', async () => {
+    const result = await executeSimCli({ args: ['workflows', 'list'] }, context)
+    expect(result.success).toBe(false)
+    expect(mockRunEmbeddedCli).not.toHaveBeenCalled()
+  })
+
   it('pre-reads @tokens from the machine into the embed file map', async () => {
     mockRead.mockResolvedValue({ outcome: 'read', content: '{"text":"hi"}' })
-    await executeSimCli({ args: ['workflows', 'run', 'wf1', '--input', '@env.json'] }, context)
+    await executeSimCli(cli(['workflows', 'run', 'wf1', '--input', '@env.json']), context)
     expect(mockRead).toHaveBeenCalledWith('mothership-chat:chat-1', 'env.json')
     expect(mockRunEmbeddedCli).toHaveBeenCalledWith(
       ['workflows', 'run', 'wf1', '--input', '@env.json'],
@@ -47,7 +58,7 @@ describe('sim-cli machine file bridge', () => {
 
   it('leaves @@ literals and @- alone, and omits missing files from the map', async () => {
     mockRead.mockResolvedValue({ outcome: 'no-file', detail: 'nope' })
-    await executeSimCli({ args: ['x', '@@literal', '@missing.json'] }, context)
+    await executeSimCli(cli(['x', '@@literal', '@missing.json']), context)
     expect(mockRead).toHaveBeenCalledTimes(1)
     expect(mockRunEmbeddedCli).toHaveBeenCalledWith(
       ['x', '@@literal', '@missing.json'],
@@ -58,18 +69,32 @@ describe('sim-cli machine file bridge', () => {
     )
   })
 
-  it('cold machine on read degrades via the empty map (CLI core words the refusal)', async () => {
-    mockRead.mockResolvedValue({ outcome: 'no-session' })
-    await executeSimCli({ args: ['x', '@env.json'] }, context)
-    expect(mockRunEmbeddedCli).toHaveBeenCalledWith(['x', '@env.json'], expect.anything(), {
-      fileArguments: {},
-    })
+  it('applies the pre-parsed pipeline to a successful result', async () => {
+    mockRunEmbeddedCli.mockResolvedValue({ exitCode: 0, stdout: 'alpha slack\nbeta\n', stderr: '' })
+    const result = await executeSimCli(
+      cli(['workflows', 'list'], {
+        pipeline: [
+          {
+            kind: 'grep',
+            pattern: 'slack',
+            ignoreCase: true,
+            invert: false,
+            countOnly: false,
+            lineNumbers: false,
+            linesBefore: 0,
+            linesAfter: 0,
+          },
+        ],
+      }),
+      context
+    )
+    expect((result.output as { stdout: string }).stdout).toBe('alpha slack')
   })
 
-  it('outputFile lands stdout on the machine and returns only the ack', async () => {
+  it('sink lands stdout on the machine and returns only the ack', async () => {
     mockWrite.mockResolvedValue({ outcome: 'written', path: '/home/user/trace.json' })
     const result = await executeSimCli(
-      { args: ['logs', 'get', 'r1'], outputFile: 'trace.json' },
+      cli(['logs', 'get', 'r1'], { sink: { kind: 'sandbox-file', path: 'trace.json' } }),
       context
     )
     expect(mockWrite).toHaveBeenCalledWith('mothership-chat:chat-1', 'trace.json', 'BIG OUTPUT')
@@ -79,10 +104,10 @@ describe('sim-cli machine file bridge', () => {
     expect(output.stdout).not.toContain('BIG OUTPUT')
   })
 
-  it('outputFile on a cold machine returns output inline with boot guidance', async () => {
+  it('sink on a cold machine returns output inline with boot guidance', async () => {
     mockWrite.mockResolvedValue({ outcome: 'no-session' })
     const result = await executeSimCli(
-      { args: ['logs', 'get', 'r1'], outputFile: 'trace.json' },
+      cli(['logs', 'get', 'r1'], { sink: { kind: 'sandbox-file', path: 'trace.json' } }),
       context
     )
     const output = result.output as { stdout: string }
@@ -90,10 +115,10 @@ describe('sim-cli machine file bridge', () => {
     expect(output.stdout).toContain('not booted')
   })
 
-  it('outputFile is skipped on command failure so the error stays visible', async () => {
+  it('sink is skipped on command failure so the error stays visible', async () => {
     mockRunEmbeddedCli.mockResolvedValue({ exitCode: 1, stdout: '', stderr: 'boom' })
     const result = await executeSimCli(
-      { args: ['logs', 'get', 'r1'], outputFile: 'trace.json' },
+      cli(['logs', 'get', 'r1'], { sink: { kind: 'sandbox-file', path: 'trace.json' } }),
       context
     )
     expect(mockWrite).not.toHaveBeenCalled()
