@@ -70,6 +70,13 @@ interface UserInputProps {
   onStopGeneration: () => void
   isInitialView?: boolean
   onSendQueuedHead?: () => void
+  /**
+   * Whether the text is cleared once submitted. A search keeps its query in
+   * the box, the way a search bar does, so it can be read and refined against
+   * the results; a message to the agent clears, since it now lives in the
+   * transcript. Defaults to clearing.
+   */
+  clearOnSubmit?: boolean
   onEditQueuedTail?: () => void
 }
 
@@ -98,6 +105,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     isInitialView = true,
     onSendQueuedHead,
     onEditQueuedTail,
+    clearOnSubmit = true,
   },
   ref
 ) {
@@ -158,6 +166,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
   const draftScopeKeyRef = useRef(draftScopeKey)
   draftScopeKeyRef.current = draftScopeKey
+  const clearOnSubmitRef = useRef(clearOnSubmit)
+  clearOnSubmitRef.current = clearOnSubmit
 
   const hasRestoredDraftRef = useRef(false)
   useEffect(() => {
@@ -546,15 +556,17 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined,
       activeContexts.length > 0 ? activeContexts : undefined
     )
-    currentEditor.clear()
-    sttPrefixRef.current = ''
-    if (draftSaveTimerRef.current !== null) {
-      window.clearTimeout(draftSaveTimerRef.current)
-      draftSaveTimerRef.current = null
-    }
-    pendingDraftRef.current = null
-    if (draftScopeKeyRef.current) {
-      useMothershipDraftsStore.getState().clearDraft(draftScopeKeyRef.current)
+    if (clearOnSubmitRef.current) {
+      currentEditor.clear()
+      sttPrefixRef.current = ''
+      if (draftSaveTimerRef.current !== null) {
+        window.clearTimeout(draftSaveTimerRef.current)
+        draftSaveTimerRef.current = null
+      }
+      pendingDraftRef.current = null
+      if (draftScopeKeyRef.current) {
+        useMothershipDraftsStore.getState().clearDraft(draftScopeKeyRef.current)
+      }
     }
     resetTranscript()
     currentFiles.clearAttachedFiles()

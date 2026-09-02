@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Button, ChipInput } from '@sim/emcn'
 import { Search as SearchIcon } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
@@ -8,11 +8,13 @@ import { useQueryState } from 'nuqs'
 import {
   canConnectPersonally,
   isSearchConnectorAvailable,
+  personalSetupFields,
   SEARCH_CONNECTORS,
   type SearchConnector,
   SIM_SEARCH_KNOWLEDGE_BASE_NAME,
 } from '@/lib/sim-search/connectors'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components'
+import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
@@ -42,7 +44,7 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
 const CONNECTORS_LABEL = 'Sim Search Connectors'
-const NEEDS_KNOWLEDGE_BASE_SETUP = 'Needs a site or space; set it up from a knowledge base.'
+const NEEDS_KNOWLEDGE_BASE_SETUP = 'Set up by a workspace admin from a knowledge base.'
 const UNAVAILABLE = 'Unavailable in this deployment. Contact your administrator.'
 
 /** What a source row says once the viewer's own indexing has settled. */
@@ -163,6 +165,7 @@ export function Search() {
     [memberConnectors]
   )
   const membershipQueryKeys = useMemo(() => [memberConnectorKeys.list(workspaceId)], [workspaceId])
+  const [setupConnector, setSetupConnector] = useState<SearchConnector | null>(null)
   const { connect, connectSource, isAwaiting, isPending, error } = useMemberEnrollment({
     membershipQueryKeys,
     connectedConnectorIds,
@@ -220,7 +223,9 @@ export function Search() {
                       onConnect={() =>
                         connection
                           ? connect(connection.knowledgeBaseId, connection.connectorId)
-                          : connectSource(workspaceId, connector.type)
+                          : personalSetupFields(connector.meta).length > 0
+                            ? setSetupConnector(connector)
+                            : connectSource(workspaceId, connector.type)
                       }
                     />
                   )
@@ -234,6 +239,18 @@ export function Search() {
             />
 
             {error && <p className='text-[var(--text-error)] text-caption'>{error}</p>}
+            {setupConnector && (
+              <SourceSetupModal
+                connector={setupConnector}
+                fields={personalSetupFields(setupConnector.meta)}
+                onOpenChange={(open) => {
+                  if (!open) setSetupConnector(null)
+                }}
+                onConnect={(sourceConfig) =>
+                  connectSource(workspaceId, setupConnector.type, sourceConfig)
+                }
+              />
+            )}
 
             {showNoResults && (
               <SettingsEmptyState variant='inline'>

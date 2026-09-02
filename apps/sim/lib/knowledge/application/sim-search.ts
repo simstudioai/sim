@@ -8,7 +8,11 @@ import { createKnowledgeConnector } from '@/lib/knowledge/application/connectors
 import { resolveKnowledgeWorkspaceContext } from '@/lib/knowledge/application/contexts'
 import { createKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { canConnectPersonally, SIM_SEARCH_KNOWLEDGE_BASE_NAME } from '@/lib/sim-search/connectors'
+import {
+  canConnectPersonally,
+  missingSetupFields,
+  SIM_SEARCH_KNOWLEDGE_BASE_NAME,
+} from '@/lib/sim-search/connectors'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 
 const SIM_SEARCH_KNOWLEDGE_BASE_DESCRIPTION =
@@ -20,6 +24,8 @@ export interface ConnectSimSearchConnectorInput {
   workspaceId: string
   /** `CONNECTOR_META_REGISTRY` key of the source to connect. */
   connectorType: string
+  /** The source's setup fields (a site, a space); read only when this connect creates the connector. */
+  sourceConfig?: Record<string, string>
 }
 
 export interface ConnectSimSearchConnectorResult {
@@ -69,9 +75,10 @@ async function findSimSearchKnowledgeBase(workspaceId: string) {
 /**
  * One click on a Sim Search source: the workspace's Sim Search knowledge base
  * and a per-member connector for that source exist after this (the first
- * connect creates them, which the connector operation reserves for an admin),
- * and the caller gets the link that connects their own account. The OAuth
- * completion queues their member run, so indexing starts on its own.
+ * connect creates them, which the connector operation reserves for an admin,
+ * and supplies the source's setup fields when it has any), and the caller
+ * gets the link that connects their own account. The OAuth completion queues
+ * their member run, so indexing starts on its own.
  */
 export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.simSearchConnect,
@@ -82,12 +89,20 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
     if (!meta || !canConnectPersonally(meta)) {
       throw new OrchestrationError(
         'validation',
-        'This source needs a site or space to be set up from a knowledge base first'
+        'This source cannot be connected per person; a workspace admin sets it up from a knowledge base'
       )
     }
     const workspaceId = context.workspaceId
     let target = await findSimSearchConnector(workspaceId, input.connectorType)
     if (!target) {
+      const sourceConfig = input.sourceConfig ?? {}
+      const missing = missingSetupFields(meta, sourceConfig)
+      if (missing.length > 0) {
+        throw new OrchestrationError(
+          'validation',
+          `${meta.name} needs ${missing.map((field) => field.title).join(' and ')} to connect`
+        )
+      }
       const knowledgeBaseId =
         (await findSimSearchKnowledgeBase(workspaceId))?.id ??
         (
@@ -108,7 +123,7 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
           knowledgeBaseId,
           assertedWorkspaceId: workspaceId,
           connectorType: input.connectorType,
-          sourceConfig: {},
+          sourceConfig,
           syncIntervalMinutes: SIM_SEARCH_SYNC_INTERVAL_MINUTES,
           accessMode: 'members',
           source: 'ui',

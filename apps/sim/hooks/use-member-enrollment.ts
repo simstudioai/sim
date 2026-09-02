@@ -165,11 +165,19 @@ export function useMemberEnrollment({
       )
     )
 
-  /** Connects a Sim Search source: its per-member connector exists afterwards, and the viewer enrolls. */
-  const connectSource = (workspaceId: string, connectorType: string) =>
+  /**
+   * Connects a Sim Search source: its per-member connector exists afterwards,
+   * and the viewer enrolls. The setup fields are read only when this connect
+   * creates the connector.
+   */
+  const connectSource = (
+    workspaceId: string,
+    connectorType: string,
+    sourceConfig?: Record<string, string>
+  ) =>
     openEnrollment(({ onSuccess, onError }) =>
       sourceConnection.mutate(
-        { workspaceId, connectorType },
+        { workspaceId, connectorType, sourceConfig },
         {
           onSuccess: ({ url, connectorId }) => onSuccess(url, connectorId),
           onError: (err) => {

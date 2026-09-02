@@ -705,6 +705,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
                     defaultValue={initialPrompt}
                     draftScopeKey={draftScopeKey}
                     onSubmit={handleSubmit}
+                    clearOnSubmit={composerMode !== 'search'}
                     isSending={isSending}
                     onStopGeneration={handleStopGeneration}
                   />

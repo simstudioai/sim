@@ -1,16 +1,17 @@
 'use client'
 
-import { useMemo } from 'react'
-import { Chip, cn } from '@sim/emcn'
+import { useMemo, useState } from 'react'
+import { Chip } from '@sim/emcn'
 import { Loader, Plus } from '@sim/emcn/icons'
-import Link from 'next/link'
 import {
   canConnectPersonally,
   isSearchConnectorAvailable,
+  personalSetupFields,
   SEARCH_CONNECTORS,
   type SearchConnector,
   SIM_SEARCH_KNOWLEDGE_BASE_NAME,
 } from '@/lib/sim-search/connectors'
+import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
 import { BrandIcon } from '@/blocks/brand-icon'
 import {
   memberConnectorKeys,
@@ -21,6 +22,16 @@ import { CONNECTABLE_MEMBERSHIPS, useMemberEnrollment } from '@/hooks/use-member
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
+
+/** The sources a person can connect themselves, alphabetical. */
+const PERSONAL_SEARCH_CONNECTORS = SEARCH_CONNECTORS.filter((connector) =>
+  canConnectPersonally(connector.meta)
+)
+
+/** A chip's trailing icon is a component, so the spinning loader needs a wrapper to carry `animate`. */
+function SpinningLoader({ className }: { className?: string }) {
+  return <Loader className={className} animate />
+}
 
 /** The Sim Search connection per source, keyed by connector type. */
 export function simSearchConnectionsByType(
@@ -103,7 +114,7 @@ function SourceChip({
       onClick={actionable ? onConnect : undefined}
       title={title}
       leftAdornment={<BrandIcon icon={connector.meta.icon} className='size-[14px] flex-shrink-0' />}
-      rightIcon={waiting || isIndexing(connection) ? Loader : actionable ? Plus : undefined}
+      rightIcon={waiting || isIndexing(connection) ? SpinningLoader : actionable ? Plus : undefined}
     >
       <span className='flex items-center gap-1.5'>
         <span>{connector.meta.name}</span>
@@ -118,11 +129,12 @@ interface SearchSourcesProps {
 }
 
 /**
- * Every source Sim Search can index for the person, as chips under the
- * composer: connected ones show how many documents they can read (or that
- * indexing is still running), the rest connect with one click. Sources that
- * need a site or space link to Knowledge, where an admin can name it. This is
- * the whole catalog, not a sample, so nothing connectable stays hidden.
+ * Every source a person can connect themselves, as chips under the composer:
+ * connected ones show how many documents they can read (or that indexing is
+ * still running), the rest connect with one click. A source that needs a site
+ * or space asks for it once, in place, on the connect that creates it;
+ * everyone after that clicks straight through. Sources an admin must set up
+ * as workspace connectors do not appear here.
  */
 export function SearchSources({ workspaceId }: SearchSourcesProps) {
   const { integrationAvailability } = usePermissionConfig()
@@ -146,50 +158,35 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
     membershipQueryKeys,
     connectedConnectorIds,
   })
+  const [setupConnector, setSetupConnector] = useState<SearchConnector | null>(null)
 
-  /** Connected first, then one-click sources, then those that need a knowledge base. */
+  /** Connected sources first, then the rest alphabetically. */
   const ordered = useMemo(() => {
-    const rank = (connector: SearchConnector) => {
-      const connection = connectionByType.get(connector.type)
-      if (connection?.viewerMembership === 'connected') return 0
-      if (connection) return 1
-      return canConnectPersonally(connector.meta) ? 2 : 3
-    }
-    return [...SEARCH_CONNECTORS].sort(
+    const rank = (connector: SearchConnector) =>
+      connectionByType.get(connector.type)?.viewerMembership === 'connected' ? 0 : 1
+    return [...PERSONAL_SEARCH_CONNECTORS].sort(
       (a, b) => rank(a) - rank(b) || a.meta.name.localeCompare(b.meta.name)
     )
   }, [connectionByType])
+
+  const startConnect = (connector: SearchConnector) => {
+    const connection = connectionByType.get(connector.type)
+    if (connection) {
+      connect(connection.knowledgeBaseId, connection.connectorId)
+      return
+    }
+    if (personalSetupFields(connector.meta).length > 0) {
+      setSetupConnector(connector)
+      return
+    }
+    connectSource(workspaceId, connector.type)
+  }
 
   return (
     <div className='flex flex-col gap-2'>
       <div className='flex flex-wrap gap-1.5'>
         {ordered.map((connector) => {
           const connection = connectionByType.get(connector.type)
-          if (!canConnectPersonally(connector.meta) && !connection) {
-            return (
-              <Link
-                key={connector.type}
-                href={`/workspace/${workspaceId}/knowledge`}
-                title={`${connector.meta.name} needs a site or space; set it up from a knowledge base`}
-                className={cn('inline-flex')}
-              >
-                <Chip
-                  shape='round'
-                  tabIndex={-1}
-                  leftAdornment={
-                    <BrandIcon icon={connector.meta.icon} className='size-[14px] flex-shrink-0' />
-                  }
-                >
-                  <span className='flex items-center gap-1.5'>
-                    <span>{connector.meta.name}</span>
-                    <span className='text-[var(--text-muted)] text-caption'>
-                      Set up in Knowledge
-                    </span>
-                  </span>
-                </Chip>
-              </Link>
-            )
-          }
           return (
             <SourceChip
               key={connector.type}
@@ -198,16 +195,24 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
               unavailable={!isSearchConnectorAvailable(connector, integrationAvailability)}
               waiting={connection ? isAwaiting(connection.connectorId) : false}
               disabled={isPending}
-              onConnect={() =>
-                connection
-                  ? connect(connection.knowledgeBaseId, connection.connectorId)
-                  : connectSource(workspaceId, connector.type)
-              }
+              onConnect={() => startConnect(connector)}
             />
           )
         })}
       </div>
       {error && <p className='text-[var(--text-error)] text-caption'>{error}</p>}
+      {setupConnector && (
+        <SourceSetupModal
+          connector={setupConnector}
+          fields={personalSetupFields(setupConnector.meta)}
+          onOpenChange={(open) => {
+            if (!open) setSetupConnector(null)
+          }}
+          onConnect={(sourceConfig) =>
+            connectSource(workspaceId, setupConnector.type, sourceConfig)
+          }
+        />
+      )}
     </div>
   )
 }

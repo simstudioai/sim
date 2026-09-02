@@ -91,7 +91,6 @@ import {
   BaseTagsModal,
   ConnectorsSection,
   DocumentContextMenu,
-  MemberConnectBanner,
   RenameDocumentModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { DOCUMENT_COLUMNS } from '@/app/workspace/[workspaceId]/knowledge/[id]/document-columns'
@@ -1313,7 +1312,6 @@ export function KnowledgeBase({
           breadcrumbs={breadcrumbs}
           actions={headerActions}
         />
-        <MemberConnectBanner knowledgeBaseId={id} connectors={connectors} />
         <Resource.Options
           search={{
             value: searchQuery,

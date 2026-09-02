@@ -161,7 +161,7 @@ describe('Search', () => {
     expect(sectionLabels()).toEqual(['Sim Search Connectors', 'Shared with you'])
     const text = container?.textContent ?? ''
     expect(text).toContain('Connected · 12 documents')
-    expect(text).toContain('Needs a site or space; set it up from a knowledge base.')
+    expect(text).toContain('Set up by a workspace admin from a knowledge base.')
     expect(text).toContain('Unavailable in this deployment. Contact your administrator.')
     expect(text).toContain('Sales')
   })

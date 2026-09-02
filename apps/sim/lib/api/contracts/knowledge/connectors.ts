@@ -365,6 +365,8 @@ export type WorkspaceMemberConnector = z.output<typeof workspaceMemberConnectorS
 export const connectSimSearchConnectorBodySchema = z.object({
   workspaceId: workspaceIdSchema,
   connectorType: z.string().min(1, 'connectorType cannot be empty').max(100),
+  /** The source's setup fields, needed only on the connect that creates it. */
+  sourceConfig: z.record(z.string(), z.string().max(500)).optional(),
 })
 export type ConnectSimSearchConnectorBody = z.input<typeof connectSimSearchConnectorBodySchema>
 

@@ -6,7 +6,7 @@ import {
   getServiceConfigByServiceId,
 } from '@/lib/oauth'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import type { ConnectorMeta } from '@/connectors/types'
+import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
 /** The workspace knowledge base Sim Search indexes into, one per workspace, created on first connect. */
 export const SIM_SEARCH_KNOWLEDGE_BASE_NAME = 'Sim Search'
@@ -75,15 +75,37 @@ export const SEARCH_CONNECTORS: readonly SearchConnector[] = Object.entries(CONN
   .sort((a, b) => a.meta.name.localeCompare(b.meta.name))
 
 /**
- * Whether a source connects with one click on Sim Search: it crawls per
- * member, and nothing in its config is required beyond the listing caps
- * members mode clears. A source that needs a site or space (Confluence,
- * Jira) is set up from a knowledge base, where an admin can name it.
+ * Whether a source connects per person on Sim Search: it authenticates with
+ * OAuth and its listing reflects who may read each document, so each member's
+ * own crawl is the permission check. A source that fails this is a workspace
+ * connector an admin sets up from a knowledge base.
  */
 export function canConnectPersonally(meta: ConnectorMeta): boolean {
-  if (meta.auth.mode !== 'oauth' || !meta.permissionScopedListing) return false
-  const capFieldIds = new Set(meta.permissionScopedListing.capFieldIds)
-  return meta.configFields.every((field) => !field.required || capFieldIds.has(field.id))
+  return meta.auth.mode === 'oauth' && meta.permissionScopedListing !== undefined
+}
+
+/**
+ * The fields a person fills in before a source's first connect: its required
+ * config beyond the listing caps members mode clears. A selector needs a
+ * credential the source does not have yet, so a selector's typed twin stands
+ * in for it (Confluence's space key, Jira's project key).
+ */
+export function personalSetupFields(meta: ConnectorMeta): ConnectorConfigField[] {
+  const capFieldIds = new Set(meta.permissionScopedListing?.capFieldIds ?? [])
+  return meta.configFields.filter(
+    (field) => field.required && field.type !== 'selector' && !capFieldIds.has(field.id)
+  )
+}
+
+/** The setup fields a source config leaves empty. */
+export function missingSetupFields(
+  meta: ConnectorMeta,
+  sourceConfig: Record<string, unknown>
+): ConnectorConfigField[] {
+  return personalSetupFields(meta).filter((field) => {
+    const value = sourceConfig[field.id]
+    return typeof value !== 'string' || value.trim() === ''
+  })
 }
 
 /**

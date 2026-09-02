@@ -81,6 +81,8 @@ vi.mock('@/lib/integrations/credential-display', () => ({
 import {
   canConnectPersonally,
   isSearchConnectorAvailable,
+  missingSetupFields,
+  personalSetupFields,
   SEARCH_CONNECTORS,
 } from '@/lib/sim-search/connectors'
 
@@ -112,11 +114,29 @@ describe('SEARCH_CONNECTORS', () => {
 })
 
 describe('canConnectPersonally', () => {
-  it('offers one-click connection only to per-member sources with no required setup', () => {
+  it('offers personal connection to OAuth sources whose listing is permission-scoped', () => {
     const drive = SEARCH_CONNECTORS.find((connector) => connector.type === 'google_drive')!
     const jira = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira')!
+    const gmail = SEARCH_CONNECTORS.find((connector) => connector.type === 'gmail')!
     expect(canConnectPersonally(drive.meta)).toBe(true)
-    expect(canConnectPersonally(jira.meta)).toBe(false)
+    expect(canConnectPersonally(jira.meta)).toBe(true)
+    expect(canConnectPersonally(gmail.meta)).toBe(false)
+  })
+})
+
+describe('personalSetupFields', () => {
+  it('asks for required config beyond the listing caps, never a selector', () => {
+    const drive = SEARCH_CONNECTORS.find((connector) => connector.type === 'google_drive')!
+    const jira = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira')!
+    expect(personalSetupFields(drive.meta)).toEqual([])
+    expect(personalSetupFields(jira.meta).map((field) => field.id)).toEqual(['domain'])
+  })
+
+  it('reports the setup fields a config leaves empty', () => {
+    const jira = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira')!
+    expect(missingSetupFields(jira.meta, {}).map((field) => field.id)).toEqual(['domain'])
+    expect(missingSetupFields(jira.meta, { domain: '  ' })).toHaveLength(1)
+    expect(missingSetupFields(jira.meta, { domain: 'acme.atlassian.net' })).toEqual([])
   })
 })
 
