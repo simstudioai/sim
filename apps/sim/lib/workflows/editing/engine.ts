@@ -242,7 +242,14 @@ export function applyOperationsToWorkflowState(
         continue
       }
 
-      addConnectionsAsEdges(modifiedState, blockId, connections, logger, skippedItems)
+      addConnectionsAsEdges(
+        modifiedState,
+        blockId,
+        connections,
+        logger,
+        skippedItems,
+        validationErrors
+      )
     }
 
     logger.info('Finished processing deferred connections', {

@@ -2177,7 +2177,7 @@
       "post": {
         "operationId": "addTableWorkflowGroup",
         "summary": "Add Workflow Group",
-        "description": "Bind a workflow or enrichment to the table and create the columns populated by its outputs.\n\nOAuth scope: `api:write`.",
+        "description": "Bind a workflow or enrichment to the table and create the columns populated by its outputs. An output whose column the table already has attaches that column to the group instead of creating it, so `outputColumns` may be omitted when every output lands in an existing column.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.groups.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -2518,8 +2518,8 @@
       },
       "get": {
         "operationId": "listTableDispatches",
-        "summary": "List Active Run Dispatches",
-        "description": "List in-flight run dispatches for a table in one page; `nextCursor` is always null. Use Get Run Dispatch to read a settled dispatch.\n\nOAuth scope: `api:read`.",
+        "summary": "List Run Dispatches",
+        "description": "List the run dispatches on one table, most recent first \u2014 settled dispatches (`complete`, `canceled`) alongside the ones still in flight, so a run that finished between two polls is still visible next to the `dispatchId` its create returned. Capped at the 100 most recent, so this list is unpaginated and `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.runs.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -2549,7 +2549,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The table's active run dispatches.",
+            "description": "The table's most recent run dispatches.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -7751,7 +7751,8 @@
             "description": "Workflow or enrichment producer definition."
           },
           "outputColumns": {
-            "minItems": 1,
+            "default": [],
+            "description": "Columns to create for producer outputs. An entry naming a column the table already has attaches that column to the group instead of creating it (its `type` must match), and an output whose column already exists may omit its entry entirely — so `[]` attaches existing columns only.",
             "type": "array",
             "items": {
               "type": "object",
@@ -7777,8 +7778,7 @@
               },
               "required": ["name", "type"],
               "additionalProperties": false
-            },
-            "description": "Columns created for producer outputs."
+            }
           },
           "autoRun": {
             "default": false,
@@ -7786,7 +7786,7 @@
             "type": "boolean"
           }
         },
-        "required": ["workspaceId", "group", "outputColumns"],
+        "required": ["workspaceId", "group"],
         "additionalProperties": false,
         "title": "Add table workflow group request",
         "description": "Workspace scope, producer definition, and output columns.",
@@ -10290,7 +10290,7 @@
         "required": ["data", "nextCursor"],
         "additionalProperties": false,
         "title": "Table run dispatch list response",
-        "description": "The table's active run dispatches."
+        "description": "The table's most recent run dispatches, settled ones included."
       },
       "V2MoveTablesData": {
         "type": "object",

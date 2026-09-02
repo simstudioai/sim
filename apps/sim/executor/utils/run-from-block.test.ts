@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { DAGEdge, NodeMetadata } from '@/executor/dag/types'
-import { computeExecutionSets, validateRunFromBlock } from '@/executor/utils/run-from-block'
+import {
+  computeExecutionSets,
+  RunFromBlockValidationError,
+  validateRunFromBlock,
+} from '@/executor/utils/run-from-block'
 import type { SerializedLoop, SerializedParallel } from '@/serializer/types'
 
 /**
@@ -1662,5 +1666,15 @@ describe('upstream block addition/deletion scenarios', () => {
 
     expect(result.valid).toBe(false)
     expect(result.error).toContain('X')
+  })
+})
+
+describe('RunFromBlockValidationError', () => {
+  it('is a named Error carrying the validation message verbatim', () => {
+    const error = new RunFromBlockValidationError('Upstream dependency not executed: a')
+
+    expect(error).toBeInstanceOf(Error)
+    expect(error.name).toBe('RunFromBlockValidationError')
+    expect(error.message).toBe('Upstream dependency not executed: a')
   })
 })

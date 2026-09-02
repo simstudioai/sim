@@ -25,16 +25,16 @@ function log(blockId: string, output: Record<string, unknown>): BlockLog {
 }
 
 describe('pickRunBlockOutputs', () => {
-  it('returns null when no selectors were requested', () => {
-    expect(pickRunBlockOutputs(undefined, blocks, [log(AGENT_ID, {})])).toBeNull()
-    expect(pickRunBlockOutputs([], blocks, [log(AGENT_ID, {})])).toBeNull()
+  it('returns null when no selectors were requested', async () => {
+    expect(await pickRunBlockOutputs(undefined, blocks, [log(AGENT_ID, {})])).toBeNull()
+    expect(await pickRunBlockOutputs([], blocks, [log(AGENT_ID, {})])).toBeNull()
   })
 
-  it('resolves block names and ids, digging nested paths', () => {
+  it('resolves block names and ids, digging nested paths', async () => {
     const logs = [log(AGENT_ID, { content: 'hi', tokens: { total: 7 } })]
 
     expect(
-      pickRunBlockOutputs(['Agent 1.content', 'Agent 1.tokens.total', AGENT_ID], blocks, logs)
+      await pickRunBlockOutputs(['Agent 1.content', 'Agent 1.tokens.total', AGENT_ID], blocks, logs)
     ).toEqual({
       'Agent 1.content': 'hi',
       'Agent 1.tokens.total': 7,
@@ -42,18 +42,22 @@ describe('pickRunBlockOutputs', () => {
     })
   })
 
-  it('omits selectors for unknown blocks, unexecuted blocks, and absent paths', () => {
+  it('omits selectors for unknown blocks, unexecuted blocks, and absent paths', async () => {
     const logs = [log(AGENT_ID, { content: 'hi' })]
 
-    expect(
-      pickRunBlockOutputs(['Missing.content', 'Router.route', 'Agent 1.absent'], blocks, logs)
-    ).toEqual({})
+    // An unknown block is a caller error and throws (the CLI turns it into
+    // `--select-output did not resolve to any block`); known-but-unexecuted blocks
+    // and absent paths are simply omitted.
+    await expect(pickRunBlockOutputs(['Missing.content'], blocks, logs)).rejects.toThrow(
+      'does not resolve'
+    )
+    expect(await pickRunBlockOutputs(['Router.route', 'Agent 1.absent'], blocks, logs)).toEqual({})
   })
 
-  it('reports the last log per block so loop iterations settle on final state', () => {
+  it('reports the last log per block so loop iterations settle on final state', async () => {
     const logs = [log(AGENT_ID, { content: 'first' }), log(AGENT_ID, { content: 'last' })]
 
-    expect(pickRunBlockOutputs(['Agent 1.content'], blocks, logs)).toEqual({
+    expect(await pickRunBlockOutputs(['Agent 1.content'], blocks, logs)).toEqual({
       'Agent 1.content': 'last',
     })
   })

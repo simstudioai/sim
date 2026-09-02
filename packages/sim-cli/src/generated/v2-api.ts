@@ -246,7 +246,7 @@ export type AddWorkflowGroupBody = {
     deploymentMode?: 'live' | 'deployed'
     autoRun?: boolean
   }
-  outputColumns: Array<{
+  outputColumns?: Array<{
     name: string
     type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
     required?: boolean
@@ -5796,6 +5796,12 @@ export type ImportWorkflowBody = {
 
 type ImportWorkflowResponseRef0 = {
   id: string
+  type: string
+  name: string
+}
+
+type ImportWorkflowResponseRef1 = {
+  id: string
   name: string
   description: string | null
   workspaceId: string
@@ -5840,10 +5846,11 @@ type ImportWorkflowResponseRef0 = {
     copied: number
     failed: number
   }
+  blocks: Array<ImportWorkflowResponseRef0>
 }
 
 export type ImportWorkflowResponse = {
-  data: ImportWorkflowResponseRef0
+  data: ImportWorkflowResponseRef1
 }
 
 /** `GET /api/v2/audit-logs` */
@@ -11258,8 +11265,9 @@ export const V2_OPERATIONS = {
       },
       outputColumns: {
         kind: 'array',
-        required: true,
-        describe: 'Columns created for producer outputs.',
+        default: [],
+        describe:
+          'Columns to create for producer outputs. An entry naming a column the table already has attaches that column to the group instead of creating it (its `type` must match), and an output whose column already exists may omit its entry entirely — so `[]` attaches existing columns only.',
       },
       autoRun: {
         kind: 'boolean',
@@ -15316,7 +15324,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'List Active Run Dispatches',
+    summary: 'List Run Dispatches',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
