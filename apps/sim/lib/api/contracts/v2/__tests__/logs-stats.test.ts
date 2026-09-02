@@ -44,6 +44,19 @@ describe.each([
 })
 
 describe('v2LogStatsQuerySchema', () => {
+  it('defaults includeEmpty off and reads the closed spellings case-sensitively', () => {
+    expect(v2LogStatsQuerySchema.parse({ workspaceId: WORKSPACE_ID }).includeEmpty).toBe(false)
+    expect(
+      v2LogStatsQuerySchema.parse({ workspaceId: WORKSPACE_ID, includeEmpty: 'true' }).includeEmpty
+    ).toBe(true)
+    expect(
+      v2LogStatsQuerySchema.parse({ workspaceId: WORKSPACE_ID, includeEmpty: 'false' }).includeEmpty
+    ).toBe(false)
+    expect(
+      v2LogStatsQuerySchema.safeParse({ workspaceId: WORKSPACE_ID, includeEmpty: 'TRUE' }).success
+    ).toBe(false)
+  })
+
   it('names the failing field and the bound', () => {
     const parsed = v2LogStatsQuerySchema.safeParse({
       workspaceId: WORKSPACE_ID,

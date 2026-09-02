@@ -87,6 +87,28 @@ describe('GET /api/v2/logs/stats', () => {
     )
   })
 
+  it('omits empty buckets by default and forwards an explicit includeEmpty', async () => {
+    await GET(request())
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ includeEmpty: false }) })
+    )
+
+    await GET(request('&includeEmpty=true'))
+    expect(mocks.execute).toHaveBeenLastCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ includeEmpty: true }) })
+    )
+  })
+
+  it('rejects an includeEmpty spelling outside the published vocabulary', async () => {
+    const response = await GET(request('&includeEmpty=maybe'))
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining('expected one of') },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
   /**
    * Each of these produced a 500 before the bounds landed: `0` divided by zero,
    * `1e9` allocated two billion-element arrays, and a fraction indexed between

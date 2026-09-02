@@ -27,6 +27,7 @@ import {
   ensureWorkspaceFileFolderPath,
   listWorkspaceFileFolders,
   normalizeWorkspaceFileItemName,
+  relocateWorkspaceFileFolderByPath,
   WorkspaceFileFolderConflictError,
   WorkspaceFileItemsNotFoundError,
   WorkspaceFileMoveConflictError,
@@ -271,5 +272,83 @@ describe('archiveWorkspaceFileFolderIfEmpty', () => {
     await expect(
       archiveWorkspaceFileFolderIfEmpty({ workspaceId: 'workspace-1', folderId: 'folder-1' })
     ).rejects.toMatchObject({ code: 'conflict' })
+  })
+})
+
+describe('relocateWorkspaceFileFolderByPath', () => {
+  const now = new Date('2026-08-17T12:00:00.000Z')
+  const source = {
+    id: 'folder-source',
+    resourceType: 'file',
+    workspaceId: 'workspace-1',
+    userId: 'user-1',
+    name: 'xp-files',
+    parentId: null,
+    sortOrder: 0,
+    deletedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  }
+  const archive = { ...source, id: 'folder-archive', name: 'fx-archive' }
+
+  beforeEach(() => {
+    resetDbChainMock()
+    mockAcquireFolderMutationLock.mockReset()
+  })
+
+  /**
+   * `mv` semantics: `/xp-files` moved to an existing `/fx-archive` lands at
+   * `/fx-archive/xp-files` instead of being refused as a name collision, while
+   * a destination naming no folder is still the source's new full path.
+   */
+  it('moves a folder into a destination that names an existing folder', async () => {
+    queueTableRows(schemaMock.folder, [source, archive])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...source, parentId: 'folder-archive' }])
+
+    const result = await relocateWorkspaceFileFolderByPath({
+      workspaceId: 'workspace-1',
+      path: '/xp-files',
+      destinationPath: '/fx-archive',
+    })
+
+    expect(result.path).toBe('/fx-archive/xp-files')
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'xp-files', parentId: 'folder-archive' })
+    )
+    expect(mockAcquireFolderMutationLock).toHaveBeenCalledWith(
+      expect.anything(),
+      'workspace-1',
+      'file'
+    )
+  })
+
+  it('renames a folder to a destination that names no folder', async () => {
+    queueTableRows(schemaMock.folder, [source])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...source, name: 'fx-archive' }])
+
+    const result = await relocateWorkspaceFileFolderByPath({
+      workspaceId: 'workspace-1',
+      path: '/xp-files',
+      destinationPath: '/fx-archive',
+    })
+
+    expect(result.path).toBe('/fx-archive')
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'fx-archive', parentId: null })
+    )
+  })
+
+  it('still refuses a move whose source already exists under the destination', async () => {
+    const taken = { ...source, id: 'folder-taken', parentId: 'folder-archive' }
+    queueTableRows(schemaMock.folder, [source, archive, taken])
+
+    await expect(
+      relocateWorkspaceFileFolderByPath({
+        workspaceId: 'workspace-1',
+        path: '/xp-files',
+        destinationPath: '/fx-archive',
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
   })
 })

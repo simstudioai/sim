@@ -17,6 +17,7 @@ import {
   parentFolderPath,
   parseFolderPath,
   requireNonRootFolderPath,
+  resolveFolderMoveDestination,
 } from '@/lib/folders/paths'
 import { FOLDER_SORTS, type FolderSortBy } from '@/lib/folders/queries'
 import { collectDescendantFolderIds } from '@/lib/folders/subtree'
@@ -1478,14 +1479,9 @@ export async function createWorkspaceFileFolderAtPath(params: {
 }
 
 /** Relocates one file folder while source and destination paths share the same tree lock. */
-export async function relocateWorkspaceFileFolderByPath(params: {
-  workspaceId: string
-  path: string
-  destinationPath: string
-}): Promise<WorkspaceFileFolderPathMutation> {
-  requireNonRootFolderPath(params.path)
-  requireNonRootFolderPath(params.destinationPath)
-  const pathName = folderNameFromPath(params.destinationPath)
+/** The validated leaf name a canonical folder path addresses. */
+function workspaceFileFolderLeafName(path: string): string {
+  const pathName = folderNameFromPath(path)
   let name: string
   try {
     name = normalizeWorkspaceFileItemName(pathName, 'Folder')
@@ -1495,17 +1491,36 @@ export async function relocateWorkspaceFileFolderByPath(params: {
   if (name !== pathName) {
     throw new OrchestrationError('validation', 'Folder path leaf cannot have outer spaces')
   }
+  return name
+}
 
-  const folder = await db.transaction(async (tx) => {
+/**
+ * Renames, moves, or both. A destination naming an existing folder receives the
+ * source as a child (`mv` semantics, see {@link resolveFolderMoveDestination});
+ * any other destination becomes the source's new path. `path` on the result is
+ * where the folder actually landed.
+ */
+export async function relocateWorkspaceFileFolderByPath(params: {
+  workspaceId: string
+  path: string
+  destinationPath: string
+}): Promise<WorkspaceFileFolderPathMutation> {
+  requireNonRootFolderPath(params.path)
+  requireNonRootFolderPath(params.destinationPath)
+
+  return db.transaction(async (tx) => {
     await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
     const index = await loadActiveFileFolderPathIndex(tx, params.workspaceId)
     const folderId = index.idByPath.get(params.path)
     if (!folderId) throw new OrchestrationError('not_found', 'Folder not found')
-    if (index.idByPath.has(params.destinationPath)) {
+    /** Resolved under the lock, against the same index the collision check reads. */
+    const destinationPath = resolveFolderMoveDestination(index, params.path, params.destinationPath)
+    const name = workspaceFileFolderLeafName(destinationPath)
+    if (index.idByPath.has(destinationPath)) {
       throw new WorkspaceFileFolderConflictError(name)
     }
 
-    const destinationParentPath = parentFolderPath(params.destinationPath)
+    const destinationParentPath = parentFolderPath(destinationPath)
     if (
       destinationParentPath === params.path ||
       destinationParentPath.startsWith(`${params.path}/`)
@@ -1531,10 +1546,8 @@ export async function relocateWorkspaceFileFolderByPath(params: {
       )
       .returning()
     if (!updated) throw new OrchestrationError('not_found', 'Folder not found')
-    return updated
+    return { folder: updated, path: destinationPath }
   })
-
-  return { folder, path: params.destinationPath }
 }
 
 /** Deletes a file-folder subtree, or only an empty folder when `recursive` is false. */

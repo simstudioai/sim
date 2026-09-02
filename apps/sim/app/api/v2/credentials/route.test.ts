@@ -293,6 +293,70 @@ describe('POST /api/v2/credentials', () => {
     })
   })
 
+  /**
+   * `credentials create slack-custom-bot` used to fail twice over: discovery
+   * demanded a client-generated id, and a caller who then supplied a slug was
+   * refused for not sending a UUID. The id is optional on every provider — the
+   * server mints one — while an explicit UUID keeps working for a caller that
+   * configured its Slack Request URL ahead of time.
+   */
+  it('accepts a Slack custom bot without an id and leaves minting to the server', async () => {
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/v2/credentials', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'slack-custom-bot',
+          credentials: JSON.stringify({ signingSecret: 'sign', botToken: 'xoxb-1' }),
+        }),
+      })
+    )
+
+    expect(response.status).toBe(201)
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          providerId: 'slack-custom-bot',
+          id: undefined,
+          signingSecret: 'sign',
+          botToken: 'xoxb-1',
+        }),
+      })
+    )
+  })
+
+  it('forwards an explicit UUID id and refuses a slug in its place', async () => {
+    const body = (id: string) =>
+      new NextRequest('http://localhost:3000/api/v2/credentials', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'slack-custom-bot',
+          id,
+          credentials: JSON.stringify({ signingSecret: 'sign', botToken: 'xoxb-1' }),
+        }),
+      })
+
+    const accepted = await POST(body('7c9e6679-7425-40de-944b-e07fc1f90ae7'))
+    expect(accepted.status).toBe(201)
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ id: '7c9e6679-7425-40de-944b-e07fc1f90ae7' }),
+      })
+    )
+
+    const refused = await POST(body('my-slack-bot'))
+    expect(refused.status).toBe(400)
+    expect(await refused.json()).toMatchObject({
+      error: { message: expect.stringContaining('id must be a valid UUID') },
+    })
+    expect(mocks.create).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects an unknown service-account provider before the use case', async () => {
     const response = await POST(
       new NextRequest('http://localhost:3000/api/v2/credentials', {

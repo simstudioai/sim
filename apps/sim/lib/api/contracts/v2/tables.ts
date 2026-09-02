@@ -1097,11 +1097,15 @@ export const v2CreateTableRowsContract = defineRouteContract({
   },
 })
 
-/** Bulk update body — v2 accepts ONLY the predicate tree as the filter. */
+/**
+ * Bulk update body. `filter` speaks the same grammar as the rows query and
+ * count `predicate`: a bare `{ field, op, value }` condition or an `all`/`any`
+ * group, normalized to a group. The legacy `$`-operator dialect stays v1-only.
+ */
 export const v2UpdateRowsByPredicateBodySchema = updateRowsByFilterBodySchema
   .omit(OMIT_PRIVATE_PROVENANCE)
   .extend({
-    filter: predicateSchema,
+    filter: predicateInputSchema,
     data: v2RowDataSchema.describe('Row-data patch applied to every matching row.'),
   })
   .strict()
@@ -1124,11 +1128,11 @@ export const v2UpdateRowsByFilterContract = defineRouteContract({
   },
 })
 
-/** Bulk delete body — either row ids or a predicate-tree filter, never both. */
+/** Bulk delete body — either row ids or a predicate filter, never both. */
 export const v2DeleteTableRowsBodySchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    filter: predicateSchema.optional(),
+    filter: predicateInputSchema.optional(),
     limit: z
       .number({ error: 'Limit must be a number' })
       .int('Limit must be an integer')
@@ -1799,11 +1803,12 @@ export const v2DeleteWorkflowGroupContract = defineRouteContract({
 
 /**
  * Run-column body. Identical to the first-party shape except `filter`, which v2
- * narrows to the typed predicate tree — the legacy `$`-operator dialect stays
- * v1-only across the whole v2 surface.
+ * narrows to the typed predicate grammar — a bare condition or a group, as on
+ * every other rows endpoint. The legacy `$`-operator dialect stays v1-only
+ * across the whole v2 surface.
  */
 export const v2RunColumnBodySchema = runColumnBodyBaseSchema
-  .extend({ filter: predicateSchema.optional() })
+  .extend({ filter: predicateInputSchema.optional() })
   .strict()
   .refine(...runColumnScopeMutexRefine)
   .refine(...runColumnExcludeMutexRefine)
@@ -1977,7 +1982,7 @@ export const v2SearchRowsBodySchema = z
       .min(1, 'q must be a non-empty search string')
       .max(V2_SEARCH_MAX_LENGTH, 'q is too long')
       .describe('Case-insensitive cell substring to find.'),
-    predicate: predicateSchema.optional(),
+    predicate: predicateInputSchema.optional(),
     sort: sortSpecSchema.optional().describe('Ordered table-row sort specification.'),
   })
   .strict()
@@ -2474,10 +2479,10 @@ export const v2TableExportDownloadContract = defineRouteContract({
 
 /**
  * Cancel-runs body. Identical to the first-party shape except `filter`, which
- * v2 narrows to the typed predicate tree.
+ * v2 narrows to the typed predicate grammar shared by every rows endpoint.
  */
 export const v2CancelTableRunsBodySchema = cancelTableRunsBodyBaseSchema
-  .extend({ filter: predicateSchema.optional() })
+  .extend({ filter: predicateInputSchema.optional() })
   .strict()
   .superRefine((value, ctx) => {
     for (const issue of refineCancelTableRunsScope(value)) {

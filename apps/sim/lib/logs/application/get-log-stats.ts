@@ -14,6 +14,12 @@ export interface GetLogStatsInput {
   filters: Omit<LogFilters, 'workspaceId' | 'folderIds' | 'cursor' | 'order'>
   folderPaths?: string[]
   segmentCount: number
+  /**
+   * Whether buckets with no runs are published. Off unless asked: this surface
+   * is read by callers that pay per byte of response, and a dense series of
+   * `segmentCount` zero rows says nothing the totals do not.
+   */
+  includeEmpty?: boolean
 }
 
 export type GetLogStatsResult = ReturnType<typeof buildDashboardStats>
@@ -54,6 +60,7 @@ export const getLogStats = defineAuthorizedWorkspaceUseCase({
     const rows = await readLogStatsSegments(where, window.startTime.toISOString(), window.segmentMs)
     return buildDashboardStats(rows, window, input.segmentCount, {
       maxWorkflows: MAX_STATS_WORKFLOWS,
+      includeEmpty: input.includeEmpty === true,
     })
   },
 })

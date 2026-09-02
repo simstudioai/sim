@@ -904,6 +904,15 @@ export async function getTagUsageStats(
         )
       )
 
+    /**
+     * Counted through the document's slot rather than the copy each chunk row
+     * carries. A chunk has no tags of its own — it inherits its document's at
+     * insert time, and every later document tag write fans the value out to
+     * the chunk rows — so the document is the source of truth, and reading the
+     * denormalized copy made this number lag behind whatever most recently
+     * touched the tag: a chunk added, a copy not yet fanned out, a slot cleared.
+     * Joining on the document answers live for every chunk in a tagged document.
+     */
     const chunkCountResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(embedding)
@@ -915,7 +924,7 @@ export async function getTagUsageStats(
           isNull(document.archivedAt),
           isNull(document.deletedAt),
           knowledgeAccessCondition(access),
-          sql`${sql.raw(`embedding.${tagSlot}`)} IS NOT NULL`
+          sql`${sql.raw(`document.${tagSlot}`)} IS NOT NULL`
         )
       )
 

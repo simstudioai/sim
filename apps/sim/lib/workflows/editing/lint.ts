@@ -1,4 +1,8 @@
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
+import {
+  getEffectiveBlockOutputs,
+  getResponseFormatOutputs,
+} from '@/lib/workflows/blocks/block-outputs'
 import { getBlock } from '@/blocks'
 import {
   isTriggerBlockType,
@@ -386,6 +390,20 @@ export function formatWorkflowLintMessage(lint: WorkflowLintIssueView) {
     )
   }
 
+  const blockOutputRefs = unresolved.filter((ref) => ref.kind === 'block-output')
+  if (blockOutputRefs.length > 0) {
+    parts.push(
+      `Block output references that will not resolve: ${blockOutputRefs
+        .map(
+          (ref) =>
+            `"${ref.blockName || ref.blockId}".${ref.field} ${
+              Array.isArray(ref.value) ? ref.value.join(', ') : ref.value
+            } (${ref.reason})`
+        )
+        .join('; ')}`
+    )
+  }
+
   return `Workflow lint found issues. Fix these before continuing: ${parts.join('; ')}`
 }
 
@@ -412,28 +430,141 @@ function referenceCandidates(leaf: string, isCode: boolean): string[] {
     .map((token) => token.value.slice(REFERENCE.START.length, -REFERENCE.END.length))
 }
 
+/**
+ * Block types whose first-segment output keys are decided at run time rather
+ * than by the registry: subflow containers (their outputs are the iteration
+ * results the executor assembles) and table operations (rows take the shape of
+ * the table's own columns).
+ */
+const DYNAMIC_OUTPUT_BLOCK_TYPES = new Set(['loop', 'parallel', 'table', 'table_v2'])
+
+/**
+ * The output field the executor writes on any block that fails. Never declared
+ * in a registry schema, always resolvable — see the block reference resolver.
+ */
+const IMPLICIT_ERROR_OUTPUT = 'error'
+
+/** Trailing `[n]` index suffixes, so `items[0]` compares as the key `items`. */
+const INDEX_SUFFIX = /(?:\[\d+\])+$/
+
+/**
+ * The first path segment of a `block.path` token as an output key, or
+ * `undefined` when it is not a key at all (a bare array index).
+ */
+function firstOutputSegment(token: string): string | undefined {
+  const segment = (token.split('.')[1] ?? '').replace(INDEX_SUFFIX, '')
+  if (!segment || /^\d+$/.test(segment)) return undefined
+  return segment
+}
+
+/**
+ * Output keys a reference into `block` may start with, or `undefined` when they
+ * are not knowable at lint time.
+ *
+ * Mirrors the executor's own validation schema — `getEffectiveBlockOutputs`
+ * with hidden outputs included, which is what `getBlockSchema` reads — so a
+ * segment rejected here is one the run rejects with `InvalidFieldError`, and
+ * one the schema accepts (a `responseFormat` property, an evaluator metric, a
+ * resume-form field) is accepted here. Not knowable: trigger blocks, whose
+ * output is whatever the caller sent; subflow containers and tables; an agent
+ * whose `responseFormat` is set but cannot be parsed, since its fields are
+ * decided when that schema resolves; and any type that declares no outputs.
+ */
+function declaredOutputKeys(block: BlockState): string[] | undefined {
+  const type = block.type
+  if (!type || block.triggerMode === true || isTriggerBlockType(type)) return undefined
+  if (DYNAMIC_OUTPUT_BLOCK_TYPES.has(type)) return undefined
+  const config = getBlock(type)
+  if (!config || config.category === 'triggers') return undefined
+
+  const subBlocks: Record<string, { value?: unknown }> = {}
+  for (const [id, subBlock] of Object.entries(block.subBlocks ?? {})) {
+    if (subBlock) subBlocks[id] = subBlock
+  }
+
+  if (type === 'agent') {
+    const responseFormat = subBlocks.responseFormat?.value
+    const hasResponseFormat =
+      typeof responseFormat === 'string' ? responseFormat.trim() !== '' : Boolean(responseFormat)
+    if (hasResponseFormat && !getResponseFormatOutputs(subBlocks, block.id ?? type)) {
+      return undefined
+    }
+  }
+
+  const keys = Object.keys(
+    getEffectiveBlockOutputs(type, subBlocks, {
+      triggerMode: false,
+      preferToolOutputs: true,
+      includeHidden: true,
+    })
+  )
+  if (keys.length === 0) return undefined
+  /** The resolver's legacy fallback accepts `<response.response.x>` on a Response block. */
+  if (type === 'response') keys.push('response')
+  return keys
+}
+
+interface UnknownFieldGroup {
+  target: BlockState
+  keys: string[]
+  tokens: Set<string>
+  segments: Set<string>
+}
+
+function quoteList(values: Iterable<string>): string {
+  return [...values].map((value) => `"${value}"`).join(', ')
+}
+
 export function collectDanglingBlockOutputReferences(
   workflowState: Pick<WorkflowState, 'blocks'>
 ): WorkflowLintUnresolvedReference[] {
   const blocks = (workflowState.blocks || {}) as Record<string, BlockState>
-  const resolvable = new Set<string>()
+  const targetByKey = new Map<string, string>()
   for (const [id, block] of Object.entries(blocks)) {
-    resolvable.add(id)
-    if (block.name) resolvable.add(normalizeName(block.name))
+    targetByKey.set(id, id)
+    if (block.name) targetByKey.set(normalizeName(block.name), id)
   }
+  /** Output keys per referenced block; `null` once found not knowable. */
+  const outputKeysByTarget = new Map<string, string[] | null>()
+  const outputKeysFor = (targetId: string): string[] | null => {
+    const cached = outputKeysByTarget.get(targetId)
+    if (cached !== undefined) return cached
+    const keys = declaredOutputKeys(blocks[targetId]) ?? null
+    outputKeysByTarget.set(targetId, keys)
+    return keys
+  }
+
   const findings: WorkflowLintUnresolvedReference[] = []
   for (const [blockId, block] of Object.entries(blocks)) {
     for (const [subBlockId, subBlock] of Object.entries(block.subBlocks ?? {})) {
       const leaves: string[] = []
       collectStringLeaves((subBlock as { value?: unknown })?.value, leaves)
       const dangling = new Set<string>()
+      const unknownByTarget = new Map<string, UnknownFieldGroup>()
       for (const leaf of leaves) {
         for (const token of referenceCandidates(leaf, subBlockId === 'code')) {
           if (!token || !REF_TOKEN_SHAPE.test(token)) continue
           const head = token.split('.')[0] ?? ''
           if ((SPECIAL_REFERENCE_PREFIXES as readonly string[]).includes(head)) continue
-          if (resolvable.has(head) || resolvable.has(normalizeName(head))) continue
-          dangling.add(`<${token}>`)
+          const targetId = targetByKey.get(head) ?? targetByKey.get(normalizeName(head))
+          if (targetId === undefined) {
+            dangling.add(`<${token}>`)
+            continue
+          }
+          const keys = outputKeysFor(targetId)
+          const segment = firstOutputSegment(token)
+          if (!keys || !segment || segment === IMPLICIT_ERROR_OUTPUT || keys.includes(segment)) {
+            continue
+          }
+          const group = unknownByTarget.get(targetId) ?? {
+            target: blocks[targetId],
+            keys,
+            tokens: new Set<string>(),
+            segments: new Set<string>(),
+          }
+          group.tokens.add(`<${token}>`)
+          group.segments.add(segment)
+          unknownByTarget.set(targetId, group)
         }
       }
       if (dangling.size > 0) {
@@ -444,6 +575,17 @@ export function collectDanglingBlockOutputReferences(
           kind: 'block-output',
           reason:
             'References a block that does not exist in this workflow — at run time the literal text is passed through (or the block fails), never the intended value.',
+        })
+      }
+      for (const [targetId, group] of unknownByTarget) {
+        const targetName = group.target.name || targetId
+        const plural = group.segments.size === 1 ? 'field' : 'fields'
+        findings.push({
+          ...blockRef(blockId, block),
+          field: subBlockId,
+          value: [...group.tokens],
+          kind: 'block-output',
+          reason: `unknown-field: "${targetName}" (${group.target.type}) has no output ${plural} ${quoteList(group.segments)} — the run fails when the reference resolves. Available fields: ${group.keys.join(', ')}`,
         })
       }
     }

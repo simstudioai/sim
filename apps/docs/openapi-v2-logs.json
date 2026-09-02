@@ -421,7 +421,7 @@
       "get": {
         "operationId": "getLogStats",
         "summary": "Get Log Statistics",
-        "description": "Bucketed run counts, success rate, error count, and mean latency for a workspace and for each of its workflows — the aggregate a caller would otherwise have to page every run to compute. The window spans `startDate` through `endDate` when both are supplied; an omitted edge falls back to the oldest matching run on the left and to the later of the newest matching run and now on the right. With no matching runs the right edge falls back to now and the left to 24 hours before that right edge — the trailing 24 hours when neither edge was supplied, and the 24 hours preceding `endDate` when only `endDate` was supplied. A supplied `startDate` is still used verbatim, so a `startDate` without an `endDate` yields `[startDate, now]`, which can be any width. The window is divided into exactly `segmentCount` equal buckets whose width is `max(60000, floor(windowMs / segmentCount))` milliseconds. The one-minute floor is a floor on bucket width, not on the window: when it applies, the series runs past `timeBounds.end` and the trailing buckets are empty rather than the window being compressed. A folder path covers its whole subtree. Per-workflow series are capped and `workflowsTruncated` reports whether the cap applied; the workspace totals are always computed from every workflow. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override. A workspace folder tree over 10,000 folders is a `413`.",
+        "description": "Bucketed run counts, success rate, error count, and mean latency for a workspace and for each of its workflows — the aggregate a caller would otherwise have to page every run to compute. The window spans `startDate` through `endDate` when both are supplied; an omitted edge falls back to the oldest matching run on the left and to the later of the newest matching run and now on the right. With no matching runs the right edge falls back to now and the left to 24 hours before that right edge — the trailing 24 hours when neither edge was supplied, and the 24 hours preceding `endDate` when only `endDate` was supplied. A supplied `startDate` is still used verbatim, so a `startDate` without an `endDate` yields `[startDate, now]`, which can be any width. The window is divided into `segmentCount` equal buckets whose width is `max(60000, floor(windowMs / segmentCount))` milliseconds. Each series carries only the buckets that hold at least one run unless `includeEmpty` is set, in which case exactly `segmentCount` buckets are returned. The one-minute floor is a floor on bucket width, not on the window: when it applies, the series runs past `timeBounds.end` and the trailing buckets are empty rather than the window being compressed. A folder path covers its whole subtree. Per-workflow series are capped and `workflowsTruncated` reports whether the cap applied; the workspace totals are always computed from every workflow. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Logs"],
         "parameters": [
           {
@@ -505,13 +505,38 @@
             "name": "segmentCount",
             "in": "query",
             "required": false,
-            "description": "Number of equal time buckets to divide the window into, from 1 to 500. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.",
+            "description": "Number of equal time buckets to divide the window into, from 1 to 500. It is the ceiling on how many buckets a series carries: with `includeEmpty=true` exactly this many are returned, otherwise only the buckets holding at least one run. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.",
             "schema": {
               "default": 72,
-              "description": "Number of equal time buckets to divide the window into, from 1 to 500. Exactly this many buckets are always returned. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.",
+              "description": "Number of equal time buckets to divide the window into, from 1 to 500. It is the ceiling on how many buckets a series carries: with `includeEmpty=true` exactly this many are returned, otherwise only the buckets holding at least one run. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.",
               "type": "integer",
               "minimum": 1,
               "maximum": 500
+            }
+          },
+          {
+            "name": "includeEmpty",
+            "in": "query",
+            "required": false,
+            "description": "Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+            "schema": {
+              "default": false,
+              "description": "Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+              "enum": [
+                "true",
+                "1",
+                "yes",
+                "on",
+                "y",
+                "enabled",
+                "false",
+                "0",
+                "no",
+                "off",
+                "n",
+                "disabled"
+              ],
+              "type": "string"
             }
           }
         ],
@@ -1690,7 +1715,7 @@
             "items": {
               "$ref": "#/components/schemas/V2LogStatsSegment"
             },
-            "description": "One entry per bucket, in order, including buckets with no runs."
+            "description": "Buckets in time order. Only the buckets with at least one run unless `includeEmpty` was set, in which case every bucket appears, empty ones included."
           },
           "totalExecutions": {
             "type": "number",
@@ -1763,7 +1788,7 @@
             "items": {
               "$ref": "#/components/schemas/V2LogStatsSegment"
             },
-            "description": "Workspace-wide totals per bucket, in the same order as each workflow series."
+            "description": "Workspace-wide totals per bucket, in time order. Subject to the same `includeEmpty` rule as each workflow series: empty buckets are omitted unless asked for."
           },
           "totalRuns": {
             "type": "number",
