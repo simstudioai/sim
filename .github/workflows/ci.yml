@@ -732,9 +732,7 @@ jobs:
   # release-only simstudioai/sim-desktop-releases repository. Keeping these
   # builds out of this source repository prevents its followers from receiving
   # every internal shell release. Each environment's /api/desktop/update feed
-  # still offers only its own stream. Unlike stable releases, prereleases build
-  # before the Apple signing secrets exist — unsigned, so the update pipeline
-  # remains testable end to end with a manual download.
+  # still offers only its own signed stream.
   create-desktop-prerelease:
     name: Create Desktop Prerelease
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
@@ -742,7 +740,13 @@ jobs:
     needs: [detect-desktop-changes, check-desktop-signing]
     # Requires the signing probe to have actually succeeded (not just "not
     # cancelled") so a probe failure can't produce a release with no build.
-    if: ${{ !cancelled() && needs.detect-desktop-changes.outputs.changed == 'true' && needs.check-desktop-signing.result == 'success' }}
+    if: >-
+      ${{
+        !cancelled() &&
+        needs.detect-desktop-changes.outputs.changed == 'true' &&
+        needs.check-desktop-signing.result == 'success' &&
+        needs.check-desktop-signing.outputs.configured == 'true'
+      }}
     permissions:
       contents: read
     outputs:
@@ -758,13 +762,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PRERELEASE_REPOSITORY: simstudioai/sim-desktop-releases
           SOURCE_REPOSITORY: ${{ github.repository }}
-          SIGNED: ${{ needs.check-desktop-signing.outputs.configured }}
         run: |
           if [ -z "$DESKTOP_RELEASE_TOKEN" ]; then
             echo "::error::DESKTOP_RELEASE_TOKEN is required to publish desktop prereleases."
             exit 1
           fi
-          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNEL=dev; APP_NAME="Sim Dev"; else CHANNEL=staging; APP_NAME="Sim Staging"; fi
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNEL=dev; else CHANNEL=staging; fi
           # Prerelease core = next patch after the latest stable release, so
           # channel builds always outrank the stable they are built on top of
           # and are always superseded by the next stable. The run-attempt
@@ -786,11 +789,6 @@ jobs:
           IFS='.' read -r MAJOR MINOR PATCH <<< "${LATEST#v}"
           TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))-${CHANNEL}.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
           NOTES="Automated ${CHANNEL}-channel desktop build from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}."
-          if [ "$SIGNED" != "true" ]; then
-            NOTES="$NOTES
-
-          ⚠️ Unsigned test build (Apple signing secrets not configured). Gatekeeper will quarantine a downloaded copy: right-click → Open, or clear the flag with \`xattr -dr com.apple.quarantine \"/Applications/${APP_NAME}.app\"\`."
-          fi
           # Draft until the build uploads its artifacts: drafts are invisible
           # to the update feed, so a failed or in-flight build can never take
           # the channel down with an assetless release. The release-only repo
@@ -818,7 +816,7 @@ jobs:
     with:
       version: ${{ needs.create-desktop-prerelease.outputs.version }}
       publish: true
-      sign: ${{ needs.check-desktop-signing.outputs.configured == 'true' }}
+      sign: true
     secrets: inherit
 
   # The draft only becomes visible to the update feed once its artifacts are

@@ -18,6 +18,7 @@ const PRERELEASE_RELEASES_URL = releasesApiUrl(DESKTOP_PRERELEASE_REPOSITORY, 1)
 const FEED_STATUS_HEADER = 'x-sim-desktop-update-feed'
 
 function release(tag: string) {
+  const version = tag.replace(/^v/, '')
   return {
     tag_name: tag,
     draft: false,
@@ -27,12 +28,20 @@ function release(tag: string) {
         name: MANIFEST_ASSET_NAME,
         browser_download_url: `https://downloads.example/${tag}/${MANIFEST_ASSET_NAME}`,
       },
+      {
+        name: `Sim-${version}-universal.zip`,
+        browser_download_url: `https://downloads.example/${tag}/Sim-${version}-universal.zip`,
+      },
+      {
+        name: `Sim-${version}-universal.dmg`,
+        browser_download_url: `https://downloads.example/${tag}/Sim-${version}-universal.dmg`,
+      },
     ],
   }
 }
 
 function manifest(version: string) {
-  return [`version: ${version}`, 'files:', `  - url: Sim-${version}-universal-mac.zip`].join('\n')
+  return [`version: ${version}`, 'files:', `  - url: Sim-${version}-universal.zip`].join('\n')
 }
 
 async function getFeed(hostname: string, headers?: HeadersInit): Promise<Response> {
@@ -84,7 +93,7 @@ describe('desktop update manifest route', () => {
       expect(response.headers.get(FEED_STATUS_HEADER)).toBe('release')
       expect(body).toContain(`version: ${version}`)
       expect(body).toContain(
-        `https://github.com/${repository}/releases/download/${tag}/Sim-${version}-universal-mac.zip`
+        `https://github.com/${repository}/releases/download/${tag}/Sim-${version}-universal.zip`
       )
     }
   )
@@ -158,6 +167,17 @@ describe('desktop update manifest route', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('reports an invalid feed when the release has no updater manifest', async () => {
+    const incomplete = release('v1.1.0')
+    incomplete.assets = incomplete.assets.filter((asset) => asset.name !== MANIFEST_ASSET_NAME)
+    fetchMock.mockResolvedValueOnce(Response.json([incomplete]))
+
+    const response = await getFeed('www.sim.ai')
+
+    expect(response.status).toBe(502)
+    expect(await response.json()).toMatchObject({ error: 'Release manifest unavailable' })
+  })
+
   it('walks past a page of unrelated releases to reach the newest desktop build', async () => {
     const filler = Array.from({ length: DESKTOP_RELEASES_PAGE_SIZE }, (_, index) => ({
       tag_name: `python-sdk-v0.${index}.0`,
@@ -224,5 +244,47 @@ describe('desktop update manifest route', () => {
     expect(response.status).toBe(502)
     expect(await response.json()).toMatchObject({ error: 'Release manifest unavailable' })
     expect(fetchMock).toHaveBeenNthCalledWith(1, PRERELEASE_RELEASES_URL, expect.any(Object))
+  })
+
+  it('falls back when the newest release has an invalid manifest', async () => {
+    setEnv({ APPCONFIG_ENVIRONMENT: 'dev' })
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url === PRERELEASE_RELEASES_URL) {
+        return Response.json([release('v1.2.0-dev.5'), release('v1.2.0-dev.4')])
+      }
+      if (url === `https://downloads.example/v1.2.0-dev.5/${MANIFEST_ASSET_NAME}`) {
+        return new Response(manifest('1.2.0-staging.5'))
+      }
+      if (url === `https://downloads.example/v1.2.0-dev.4/${MANIFEST_ASSET_NAME}`) {
+        return new Response(manifest('1.2.0-dev.4'))
+      }
+      return new Response(null, { status: 404 })
+    })
+
+    const response = await getFeed('www.dev.sim.ai')
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('version: 1.2.0-dev.4')
+  })
+
+  it('rejects an oversized updater manifest', async () => {
+    fetchMock
+      .mockResolvedValueOnce(Response.json([release('v1.1.0')]))
+      .mockResolvedValueOnce(new Response(new Uint8Array(256 * 1024 + 1)))
+
+    const response = await getFeed('www.sim.ai')
+
+    expect(response.status).toBe(502)
+    expect(await response.json()).toMatchObject({ error: 'Release manifest unavailable' })
+  })
+
+  it('surfaces malformed GitHub release data as a feed failure', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('not json'))
+
+    const response = await getFeed('www.sim.ai')
+
+    expect(response.status).toBe(502)
+    expect(await response.json()).toMatchObject({ error: 'Release feed unavailable' })
   })
 })

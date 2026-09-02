@@ -157,7 +157,7 @@ function main(): void {
   let appSession: Session | null = null
   let sessionLifecycle: ReturnType<typeof createSessionLifecycleCoordinator> | null = null
   let resumingQuitAfterTeardown = false
-  let mandatoryRelaunchPending = false
+  let committedRelaunchPending = false
   let tray: TrayHandle | null = null
   let updater: UpdaterHandle | null = null
   let startupReady: Promise<void> | null = null
@@ -383,7 +383,7 @@ function main(): void {
       preloadPath,
       isPackaged: app.isPackaged,
       restorePosition,
-      isMandatoryRelaunchPending: () => mandatoryRelaunchPending,
+      isCommittedRelaunchPending: () => committedRelaunchPending,
       onFullScreenChange: (isFullScreen) => {
         if (!win.isDestroyed()) {
           win.webContents.send('desktop:window-state:changed', { isFullScreen })
@@ -418,7 +418,7 @@ function main(): void {
         }
       },
       allowHttpLocalhost: allowHttpLocalhost(),
-      isMandatoryRelaunchPending: () => mandatoryRelaunchPending,
+      isCommittedRelaunchPending: () => committedRelaunchPending,
     })
     attachContextMenu(win.webContents, {
       isDev: !app.isPackaged,
@@ -554,7 +554,7 @@ function main(): void {
     },
     completeDeploymentScopedStateChange: completeDeploymentScopedTeardown,
     relaunch: () => {
-      mandatoryRelaunchPending = true
+      committedRelaunchPending = true
       relaunchApp()
     },
   })
@@ -585,11 +585,11 @@ function main(): void {
     if (!resumingQuitAfterTeardown && sessionLifecycle?.isTeardownActive()) {
       event.preventDefault()
       void sessionLifecycle.awaitTeardown().then((clean) => {
-        if (!clean && !mandatoryRelaunchPending) {
+        if (!clean && !committedRelaunchPending) {
           logger.error('Quit cancelled because account teardown did not finish safely')
           return
         }
-        if (!mandatoryRelaunchPending && !prepareAccountDataTeardownForQuit()) {
+        if (!committedRelaunchPending && !prepareAccountDataTeardownForQuit()) {
           logger.error('Quit cancelled because account-data recovery could not be persisted')
           return
         }
@@ -603,36 +603,27 @@ function main(): void {
       })
       return
     }
-    /**
-     * A mandatory relaunch is requested only after the server-switch transaction
-     * has cleared deployment-scoped capabilities and committed the replacement
-     * origin. The ordinary quit guard must not strand that committed process on
-     * its old partition; any retained marker is startup retry metadata.
-     */
-    if (!mandatoryRelaunchPending && !prepareAccountDataTeardownForQuit()) {
+    // A committed relaunch is requested only after its prerequisite teardown has
+    // succeeded. The ordinary quit guard must not strand that committed process;
+    // any retained marker is startup retry metadata.
+    if (!committedRelaunchPending && !prepareAccountDataTeardownForQuit()) {
       event.preventDefault()
       logger.error('Quit cancelled because account-data recovery could not be persisted')
       return
     }
-    // Stops the tray's background chat refresh alongside the OS handles.
-    tray?.destroy()
-    tray = null
-    localFilesystem.close()
-    // Quiesce native pages before publishing the final encrypted descriptor
-    // set. This prevents a navigation event racing the synchronous quit flush.
-    quiesceBrowserSessions()
-    terminal.dispose()
-    uninstallDocumentationHelpSearch()
-    flushDesktopChatSessions('before-quit')
-    // Settings writes coalesce, so a change made in the last moments before
-    // quit is still pending here.
-    config.flush()
   })
 
   app.on('will-quit', () => {
-    // Final backstop for any descriptor dirtied while Electron was closing
-    // windows after before-quit.
+    // Renderer unload guards have accepted the quit, so native resources can
+    // now be released without leaving a cancelled quit in a degraded state.
+    tray?.destroy()
+    tray = null
+    localFilesystem.close()
+    quiesceBrowserSessions()
+    terminal.dispose()
+    uninstallDocumentationHelpSearch()
     flushDesktopChatSessions('will-quit')
+    config.flush()
   })
 
   app.on('activate', () => {
@@ -868,6 +859,9 @@ function main(): void {
       events,
       appOrigin,
       autoDownload: () => config.get('autoDownloadUpdates') ?? true,
+      setRelaunchPending: (pending) => {
+        committedRelaunchPending = pending
+      },
       beforeInstall: async () => {
         if (!prepareAccountDataTeardownForQuit()) {
           throw new Error(

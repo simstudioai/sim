@@ -238,10 +238,7 @@ export interface UpdaterDeps {
   loadAutoUpdater?: () => typeof import('electron-updater')['autoUpdater']
   /** Test seam: overrides the origin feed availability probe. */
   probeOriginFeed?: (feedUrl: string) => Promise<boolean | 'no-release'>
-  /**
-   * Test seam: overrides Squirrel self-update capability detection (whether
-   * the running bundle carries a real Developer ID signature).
-   */
+  /** Test seam: overrides Applications-folder and Developer ID eligibility detection. */
   canSelfUpdate?: () => Promise<boolean>
   /** Test seam: overrides the manual-mode manifest fetch (body or null). */
   fetchManifest?: (url: string) => Promise<string | null>
@@ -249,6 +246,8 @@ export interface UpdaterDeps {
   platform?: NodeJS.Platform
   /** Flushes desktop-owned state before Squirrel terminates the process. */
   beforeInstall?: () => Promise<void>
+  /** Bypasses renderer unload guards only after the user confirms a relaunch. */
+  setRelaunchPending?: (pending: boolean) => void
 }
 
 export interface UpdaterHandle {
@@ -256,8 +255,8 @@ export interface UpdaterHandle {
   /** Current pipeline state for the renderer update UI. */
   getState(): DesktopUpdateState
   /**
-   * Renderer-initiated advance: checks for an update, or starts the download
-   * when one is already known to be available (auto-download off / manual).
+   * Renderer-initiated advance: checks for an update, downloads an available
+   * self-update, or opens an available manual installer.
    */
   check(): void
   /**
@@ -285,7 +284,7 @@ export function isNewerVersion(candidateVersion: string, currentVersion: string)
   return isDowngrade(candidateVersion, currentVersion)
 }
 
-/** A signed shell may only install a strictly newer build from its own environment stream. */
+/** Accepts only strictly newer builds from the running shell's environment stream. */
 function isValidUpdateCandidate(candidateVersion: string, currentVersion: string): boolean {
   return (
     resolveUpdateChannel(candidateVersion) === resolveUpdateChannel(currentVersion) &&
@@ -294,16 +293,16 @@ function isValidUpdateCandidate(candidateVersion: string, currentVersion: string
 }
 
 /**
- * Whether Squirrel.Mac can swap this bundle in place. It validates a
- * downloaded update against the running app's code signature, so only builds
- * carrying a real Developer ID (a TeamIdentifier) can self-update. Local
- * `install:local` builds and pre-signing CI prereleases are ad-hoc signed
- * (`TeamIdentifier=not set`) and would fail the swap — those shells get the
- * manual pipeline instead.
+ * Squirrel.Mac can update only an app installed under /Applications whose
+ * running bundle carries a Developer ID TeamIdentifier. Other packaged builds
+ * use the manual-download pipeline.
  */
 async function detectSelfUpdateCapability(): Promise<boolean> {
   if (process.platform !== 'darwin') {
     return true
+  }
+  if (!app.isInApplicationsFolder()) {
+    return false
   }
   const exe = app.getPath('exe')
   const bundleEnd = exe.indexOf('.app/')
@@ -342,11 +341,9 @@ interface UpdateEngine {
  * thirty minutes for production builds, and mirrors pipeline state to the
  * renderer for the settings update UI and the minimum-shell-version gate.
  *
- * Developer-ID-signed builds use electron-updater (background download,
- * then install and relaunch from an explicit Update action). Builds
- * that can't self-update (ad-hoc signed: local installs, pre-signing CI
- * prereleases) still poll the same feed but surface `available` as a manual
- * download link, so the whole pipeline is testable before signing exists.
+ * Developer-ID-signed builds installed under /Applications use electron-updater.
+ * Other packaged builds still poll the same feed but surface available updates
+ * as manual downloads.
  */
 export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
   if ((deps.platform ?? process.platform) !== 'darwin') {
@@ -358,7 +355,6 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
 
   const currentVersion = app.getVersion()
   let state: DesktopUpdateState = { status: 'idle' }
-  let installAfterDownload = false
   const listeners = new Set<(state: DesktopUpdateState) => void>()
   const setState = (next: DesktopUpdateState) => {
     state = next
@@ -384,7 +380,9 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       autoUpdater.allowDowngrade = false
     }
     setChannelWithoutDowngrades(resolveUpdateChannel(currentVersion))
-    autoUpdater.autoDownload = deps.autoDownload?.() ?? true
+    let autoDownloadEnabled = deps.autoDownload?.() ?? true
+    // Prevents the library from fetching a candidate before Sim validates its asset URLs.
+    autoUpdater.autoDownload = false
     // Explicit Update actions must reopen Sim after Squirrel swaps the bundle.
     autoUpdater.autoRunAppAfterInstall = true
     // Never install without vetting the downloaded version first. Enabled per
@@ -394,18 +392,24 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     autoUpdater.autoInstallOnAppQuit = false
     autoUpdater.logger = null
     let installInFlight = false
+    let installConfirmationInFlight = false
 
-    const quitAndInstall = () => {
+    const quitAndInstall = (version: string | undefined) => {
       if (installInFlight) return
-      if (!deps.beforeInstall) {
-        autoUpdater.quitAndInstall()
-        return
-      }
       installInFlight = true
       void Promise.resolve()
         .then(() => deps.beforeInstall?.())
-        .then(() => autoUpdater.quitAndInstall())
+        .then(() => {
+          if (state.status !== 'ready' || state.version !== version) {
+            autoUpdater.autoInstallOnAppQuit = false
+            installInFlight = false
+            return
+          }
+          deps.setRelaunchPending?.(true)
+          autoUpdater.quitAndInstall()
+        })
         .catch((error) => {
+          deps.setRelaunchPending?.(false)
           autoUpdater.autoInstallOnAppQuit = false
           installInFlight = false
           logger.error('Pre-install teardown failed', {
@@ -413,6 +417,39 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
           })
           deps.events.record('update_error', { message: 'Pre-install teardown failed' })
           setState({ status: 'error', version: state.version })
+        })
+    }
+
+    const confirmAndInstall = () => {
+      if (installInFlight || installConfirmationInFlight || state.status !== 'ready') return
+      installConfirmationInFlight = true
+      const version = state.version
+      const options: Electron.MessageBoxOptions = {
+        type: 'question',
+        buttons: ['Later', 'Restart and update'],
+        defaultId: 0,
+        cancelId: 0,
+        message: version ? `Restart to install Sim ${version}?` : 'Restart to update Sim?',
+        detail:
+          'Sim will close all app windows while it updates. Running terminal commands, browser activity, downloads, uploads, and unsaved edits may be interrupted. Choose Later to install the update the next time you quit Sim.',
+      }
+      const win = deps.getWindow()
+      const confirmation = win
+        ? dialog.showMessageBox(win, options)
+        : dialog.showMessageBox(options)
+      void confirmation
+        .then(({ response }) => {
+          if (response === 1 && state.status === 'ready' && state.version === version) {
+            quitAndInstall(version)
+          }
+        })
+        .catch((error) => {
+          logger.warn('Could not show update restart confirmation', {
+            message: getErrorMessage(error, 'unknown'),
+          })
+        })
+        .finally(() => {
+          installConfirmationInFlight = false
         })
     }
 
@@ -452,7 +489,6 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       if (checkId === null) return
       finishUpdaterCheck(checkId)
       if (updaterRequestId === checkId) updaterRequestId = null
-      installAfterDownload = false
       setState({ status: 'idle' })
     })
 
@@ -468,7 +504,6 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
           info.files.every((file) => isReleaseAssetUrl(file.url, info.version, channel)))
       if (!isValidUpdateCandidate(info.version, currentVersion) || !validOriginAssets) {
         acceptedUpdateVersion = null
-        installAfterDownload = false
         autoUpdater.autoInstallOnAppQuit = false
         deps.events.record('update_blocked_version', {
           version: info.version,
@@ -479,12 +514,17 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       }
       acceptedUpdateVersion = info.version
       deps.events.record('update_check', { available: info.version })
-      // With auto-download on, download-progress events follow immediately;
-      // `available` is the terminal state only when downloads are manual.
       setState({
-        status: autoUpdater.autoDownload ? 'downloading' : 'available',
+        status: autoDownloadEnabled ? 'downloading' : 'available',
         version: info.version,
       })
+      if (autoDownloadEnabled) {
+        void autoUpdater.downloadUpdate().catch((error) => {
+          logger.warn('Update download failed', { message: getErrorMessage(error, 'unknown') })
+          deps.events.record('update_error', { message: getErrorMessage(error, 'unknown') })
+          setState({ status: 'error', version: info.version })
+        })
+      }
     })
 
     autoUpdater.on('download-progress', (progress) => {
@@ -497,13 +537,12 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
     })
 
     autoUpdater.on('update-downloaded', (info) => {
-      if (state.status !== 'downloading' && !installAfterDownload) return
+      if (state.status !== 'downloading') return
       if (
         acceptedUpdateVersion !== info.version ||
         !isValidUpdateCandidate(info.version, currentVersion)
       ) {
         acceptedUpdateVersion = null
-        installAfterDownload = false
         autoUpdater.autoInstallOnAppQuit = false
         deps.events.record('update_blocked_version', { version: info.version })
         setState({ status: 'idle' })
@@ -513,10 +552,6 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       autoUpdater.autoInstallOnAppQuit = true
       deps.events.record('update_downloaded', { version: info.version })
       setState({ status: 'ready', version: info.version })
-      if (installAfterDownload) {
-        installAfterDownload = false
-        quitAndInstall()
-      }
     })
 
     autoUpdater.on('error', (error) => {
@@ -524,10 +559,12 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       if (checkId !== null) {
         finishUpdaterCheck(checkId)
         if (updaterRequestId === checkId) updaterRequestId = null
-      } else if (state.status !== 'downloading') {
+      } else if (state.status !== 'downloading' && state.status !== 'ready' && !installInFlight) {
         return
       }
-      installAfterDownload = false
+      installInFlight = false
+      deps.setRelaunchPending?.(false)
+      autoUpdater.autoInstallOnAppQuit = false
       deps.events.record('update_error', { message: getErrorMessage(error, 'unknown') })
       setState({ status: 'error', version: state.version })
     })
@@ -662,16 +699,16 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
       advance() {
         setState({ status: 'downloading', version: state.version })
         autoUpdater.downloadUpdate().catch((error) => {
-          installAfterDownload = false
           logger.warn('Update download failed', { message: getErrorMessage(error, 'unknown') })
+          deps.events.record('update_error', { message: getErrorMessage(error, 'unknown') })
           setState({ status: 'error', version: state.version })
         })
       },
       install() {
-        quitAndInstall()
+        confirmAndInstall()
       },
       setAutoDownload(enabled) {
-        autoUpdater.autoDownload = enabled
+        autoDownloadEnabled = enabled
       },
     }
   }
@@ -830,7 +867,6 @@ export function initUpdater(deps: UpdaterDeps): UpdaterHandle {
         return
       }
       if (state.status === 'available') {
-        installAfterDownload = !state.manual
         engine.advance()
         return
       }
@@ -917,7 +953,7 @@ export function checkForUpdatesInteractive(
         })
         return
       case 'ready':
-        // The download pipeline already shows its own restart prompt.
+        handle.install()
         return
       case 'error':
         void showDialog({

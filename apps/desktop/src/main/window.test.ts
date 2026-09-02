@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { BrowserWindow, dialog, systemPreferences } from 'electron'
+import { BrowserWindow, dialog, screen, systemPreferences } from 'electron'
 import type { ConfigStore } from '@/main/config'
 import type { EventRecorder } from '@/main/observability'
 import {
@@ -10,6 +10,7 @@ import {
   createMainWindow,
   createSecureWebPreferences,
   ensureMicrophoneAccess,
+  fitBoundsToWorkArea,
   resolvePermission,
   sanitizeBounds,
   setupPermissionHandlers,
@@ -24,8 +25,8 @@ describe('resolvePermission', () => {
     expect(resolvePermission('clipboard-sanitized-write', '', APP)).toBe(false)
   })
 
-  it('allows clipboard reads from the trusted origin only, so terminal Paste works', () => {
-    expect(resolvePermission('clipboard-read', APP, APP)).toBe(true)
+  it('denies clipboard reads, including from the trusted origin', () => {
+    expect(resolvePermission('clipboard-read', APP, APP)).toBe(false)
     expect(resolvePermission('clipboard-read', 'https://evil.example', APP)).toBe(false)
     expect(resolvePermission('clipboard-read', '', APP)).toBe(false)
   })
@@ -166,13 +167,13 @@ describe('setupPermissionHandlers', () => {
     expect(systemPreferences.getMediaAccessStatus).not.toHaveBeenCalled()
   })
 
-  it('answers a clipboard request synchronously', () => {
+  it('denies a clipboard read request synchronously', () => {
     const { request } = createSession()
     const callback = vi.fn()
 
     request(null, 'clipboard-read', callback, { requestingUrl: `${APP}/workspace` })
 
-    expect(callback).toHaveBeenCalledWith(true)
+    expect(callback).toHaveBeenCalledWith(false)
   })
 
   it('reports microphone as permitted on the check path', () => {
@@ -217,6 +218,26 @@ describe('sanitizeBounds', () => {
   })
 })
 
+describe('fitBoundsToWorkArea', () => {
+  it('clamps an off-screen window into the matched display work area', () => {
+    expect(
+      fitBoundsToWorkArea(
+        { x: 3000, y: -800, width: 1200, height: 800 },
+        { x: 0, y: 25, width: 1440, height: 875 }
+      )
+    ).toEqual({ x: 240, y: 25, width: 1200, height: 800 })
+  })
+
+  it('shrinks oversized bounds to fit the available work area', () => {
+    expect(
+      fitBoundsToWorkArea(
+        { x: -200, y: -100, width: 1800, height: 1200 },
+        { x: 0, y: 25, width: 1440, height: 875 }
+      )
+    ).toEqual({ x: 0, y: 25, width: 1440, height: 875 })
+  })
+})
+
 describe('createSecureWebPreferences', () => {
   it('locks down the renderer', () => {
     const prefs = createSecureWebPreferences('persist:sim', '/tmp/preload.cjs', true)
@@ -246,9 +267,12 @@ describe('createSecureWebPreferences', () => {
 describe('createMainWindow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(screen.getDisplayMatching).mockReturnValue({
+      workArea: { x: 0, y: 0, width: 1440, height: 900 },
+    } as never)
   })
 
-  function createTestWindow(isMandatoryRelaunchPending: () => boolean = () => false) {
+  function createTestWindow(isCommittedRelaunchPending: () => boolean = () => false) {
     const config = {
       filePath: '/tmp/settings.json',
       getOrigin: vi.fn(() => APP),
@@ -268,7 +292,7 @@ describe('createMainWindow', () => {
       preloadPath: '/tmp/preload.cjs',
       isPackaged: false,
       onClosed: vi.fn(),
-      isMandatoryRelaunchPending,
+      isCommittedRelaunchPending,
     })
     const contentHandlers = new Map(
       vi.mocked(win.webContents.on).mock.calls as unknown as Array<
@@ -364,7 +388,7 @@ describe('createMainWindow', () => {
       preloadPath: '/tmp/preload.cjs',
       isPackaged: false,
       onClosed: vi.fn(),
-      isMandatoryRelaunchPending: () => false,
+      isCommittedRelaunchPending: () => false,
       platform: 'darwin',
     })
 
@@ -431,7 +455,7 @@ describe('createMainWindow', () => {
       preloadPath: '/tmp/preload.cjs',
       isPackaged: false,
       onClosed: vi.fn(),
-      isMandatoryRelaunchPending: () => false,
+      isCommittedRelaunchPending: () => false,
       restorePosition: false,
     })
 
@@ -441,5 +465,46 @@ describe('createMainWindow', () => {
     expect(MockBrowserWindow.lastOptions).toMatchObject({ width: 1200, height: 800 })
     expect(MockBrowserWindow.lastOptions?.x).toBeUndefined()
     expect(MockBrowserWindow.lastOptions?.y).toBeUndefined()
+    expect(screen.getDisplayMatching).not.toHaveBeenCalled()
+  })
+
+  it('restores the first window within the closest connected display', () => {
+    const config = {
+      filePath: '/tmp/settings.json',
+      getOrigin: vi.fn(() => APP),
+      setOrigin: vi.fn(),
+      get: vi.fn(() => ({ x: 3000, y: -400, width: 1200, height: 800 })),
+      set: vi.fn(),
+    } as unknown as ConfigStore
+    vi.mocked(screen.getDisplayMatching).mockReturnValue({
+      workArea: { x: 1440, y: 25, width: 1440, height: 875 },
+    } as never)
+
+    createMainWindow({
+      config,
+      events: { filePath: '/tmp/events.jsonl', record: vi.fn() },
+      appOrigin: () => APP,
+      partition: 'persist:sim',
+      preloadPath: '/tmp/preload.cjs',
+      isPackaged: false,
+      onClosed: vi.fn(),
+      isCommittedRelaunchPending: () => false,
+    })
+
+    const MockBrowserWindow = BrowserWindow as typeof BrowserWindow & {
+      lastOptions?: Record<string, unknown>
+    }
+    expect(screen.getDisplayMatching).toHaveBeenCalledWith({
+      x: 3000,
+      y: -400,
+      width: 1200,
+      height: 800,
+    })
+    expect(MockBrowserWindow.lastOptions).toMatchObject({
+      x: 1680,
+      y: 25,
+      width: 1200,
+      height: 800,
+    })
   })
 })

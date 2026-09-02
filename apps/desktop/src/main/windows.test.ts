@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import type { WebContents } from 'electron'
-import { shell } from 'electron'
+import { dialog, shell } from 'electron'
 import { attachWindowOpenPolicy, isPopupContents, registerPopupContents } from '@/main/windows'
 
 const APP = 'https://sim.ai'
@@ -29,14 +29,14 @@ describe('attachWindowOpenPolicy', () => {
     vi.mocked(shell.openExternal).mockClear()
   })
 
-  function setup(isMandatoryRelaunchPending: () => boolean = () => false) {
+  function setup(isCommittedRelaunchPending: () => boolean = () => false) {
     const contents = makeContents()
     const openAppWindow = vi.fn()
     attachWindowOpenPolicy(contents as unknown as WebContents, {
       appOrigin: () => APP,
       openAppWindow,
       allowHttpLocalhost: false,
-      isMandatoryRelaunchPending,
+      isCommittedRelaunchPending,
     })
     return { contents, openAppWindow }
   }
@@ -98,7 +98,7 @@ describe('attachWindowOpenPolicy', () => {
     expect(didCreateWindow).toBeDefined()
   })
 
-  it('allows a mandatory relaunch through a child beforeunload', () => {
+  it('allows a committed relaunch through a child beforeunload', () => {
     const { contents } = setup(() => true)
     const childContents = makeContents()
     const child = { webContents: childContents }
@@ -114,7 +114,7 @@ describe('attachWindowOpenPolicy', () => {
     expect(event.preventDefault).toHaveBeenCalledOnce()
   })
 
-  it('leaves child beforeunload untouched during ordinary use', () => {
+  it('asks before leaving a child window during ordinary use', () => {
     const { contents } = setup()
     const childContents = makeContents()
     const child = { webContents: childContents }
@@ -128,6 +128,14 @@ describe('attachWindowOpenPolicy', () => {
     willPreventUnload?.[1](event)
 
     expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(dialog.showMessageBoxSync).toHaveBeenCalledWith(
+      child,
+      expect.objectContaining({
+        buttons: ['Stay', 'Leave'],
+        defaultId: 0,
+        cancelId: 0,
+      })
+    )
   })
 })
 
