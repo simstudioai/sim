@@ -14,6 +14,9 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
     requiredScopes: ['https://www.googleapis.com/auth/drive'],
   },
 
+  /** `files.list` under a member's token returns only what that member can open. */
+  permissionScopedListing: { capFieldIds: ['maxFiles'] },
+
   configFields: [
     {
       id: 'folderSelector',

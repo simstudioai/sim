@@ -9,9 +9,15 @@ export interface CredentialGroupActorResourcePolicyPrincipal {
   type: 'credential_group_actor'
 }
 
+export interface KnowledgeConnectorResourcePolicyPrincipal {
+  type: 'knowledge_connector'
+  connectorId: string
+}
+
 export type ResourcePolicyPrincipal =
   | WorkflowResourcePolicyPrincipal
   | CredentialGroupActorResourcePolicyPrincipal
+  | KnowledgeConnectorResourcePolicyPrincipal
 export type ResourcePolicyPrincipalType = ResourcePolicyPrincipal['type']
 
 export interface ResourcePolicyPrincipalEvaluationFacts {
@@ -19,6 +25,9 @@ export interface ResourcePolicyPrincipalEvaluationFacts {
   currentWorkflow?: {
     workflowId: string
     mode: 'draft' | 'deployment'
+  }
+  currentKnowledgeConnector?: {
+    connectorId: string
   }
 }
 

@@ -160,6 +160,80 @@ describe('monday listDocuments', () => {
   })
 })
 
+describe('monday listDocuments with configured boards the caller cannot reach', () => {
+  it('reports the sole configured board coming back absent as the scope being unavailable', async () => {
+    mockMonday([{ body: { data: { boards: [] } } }])
+    const syncContext: Record<string, unknown> = {}
+
+    const error = await mondayConnector
+      .listDocuments('token', { boardIds: '1' }, undefined, syncContext)
+      .catch((caught: unknown) => caught)
+
+    expect(mondayConnector.isListingScopeUnavailableError?.(error)).toBe(true)
+  })
+
+  it('skips only the unreachable board when another configured board is reachable', async () => {
+    mockMonday([
+      { body: { data: { boards: [] } } },
+      {
+        body: {
+          data: {
+            boards: [
+              { id: '2', name: 'Board Two', items_page: { cursor: null, items: [item('a')] } },
+            ],
+          },
+        },
+      },
+    ])
+    const syncContext: Record<string, unknown> = {}
+
+    const first = await mondayConnector.listDocuments(
+      'token',
+      { boardIds: '1,2' },
+      undefined,
+      syncContext
+    )
+    expect(first.documents).toHaveLength(0)
+    expect(first.hasMore).toBe(true)
+
+    const second = await mondayConnector.listDocuments(
+      'token',
+      { boardIds: '1,2' },
+      first.nextCursor,
+      syncContext
+    )
+    expect(second.documents.map((doc) => doc.externalId)).toEqual(['a'])
+    expect(second.hasMore).toBe(false)
+  })
+
+  it('reports every configured board coming back absent once the last one is walked', async () => {
+    mockMonday([{ body: { data: { boards: [] } } }, { body: { data: { boards: [] } } }])
+    const syncContext: Record<string, unknown> = {}
+
+    const first = await mondayConnector.listDocuments(
+      'token',
+      { boardIds: '1,2' },
+      undefined,
+      syncContext
+    )
+    expect(first.hasMore).toBe(true)
+
+    const error = await mondayConnector
+      .listDocuments('token', { boardIds: '1,2' }, first.nextCursor, syncContext)
+      .catch((caught: unknown) => caught)
+    expect(mondayConnector.isListingScopeUnavailableError?.(error)).toBe(true)
+  })
+
+  it('does not doubt an enumerated board list, which only ever holds reachable boards', async () => {
+    mockMonday([{ body: { data: { boards: [] } } }])
+    const syncContext: Record<string, unknown> = {}
+
+    const result = await mondayConnector.listDocuments('token', {}, undefined, syncContext)
+    expect(result.documents).toHaveLength(0)
+    expect(result.hasMore).toBe(false)
+  })
+})
+
 describe('monday content extraction', () => {
   it('falls back to display_value for columns that do not populate text', async () => {
     mockMonday([

@@ -89,6 +89,7 @@ interface FetchStubResponses {
   drive: { status: number; body: unknown }
   values?: unknown
   spreadsheet?: unknown
+  spreadsheetStatus?: number
 }
 
 /**
@@ -110,7 +111,7 @@ function stubFetch(responses: FetchStubResponses) {
     }
     if (url.startsWith('https://sheets.googleapis.com/v4/spreadsheets/')) {
       return new Response(JSON.stringify(responses.spreadsheet ?? SPREADSHEET_METADATA), {
-        status: 200,
+        status: responses.spreadsheetStatus ?? 200,
       })
     }
     throw new Error(`Unexpected fetch to ${url}`)
@@ -177,6 +178,38 @@ describe('googleSheetsConnector trashed handling', () => {
       const result = await googleSheetsConnector.listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
 
       expect(result.documents).toHaveLength(2)
+    })
+
+    it.each([403, 404])(
+      'reports a spreadsheet the token cannot reach (%i) as an unavailable listing scope',
+      async (status) => {
+        stubFetch({
+          drive: { status: 200, body: {} },
+          spreadsheet: { error: 'denied' },
+          spreadsheetStatus: status,
+        })
+
+        const error = await googleSheetsConnector
+          .listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
+          .catch((caught: unknown) => caught)
+
+        expect(googleSheetsConnector.isListingScopeUnavailableError?.(error)).toBe(true)
+      }
+    )
+
+    it('keeps any other metadata failure retryable', async () => {
+      stubFetch({
+        drive: { status: 200, body: {} },
+        spreadsheet: { error: 'backend' },
+        spreadsheetStatus: 500,
+      })
+
+      const error = await googleSheetsConnector
+        .listDocuments(ACCESS_TOKEN, SOURCE_CONFIG)
+        .catch((caught: unknown) => caught)
+
+      expect(error).toBeInstanceOf(Error)
+      expect(googleSheetsConnector.isListingScopeUnavailableError?.(error)).toBe(false)
     })
   })
 

@@ -14,6 +14,7 @@ export const mondayConnectorMeta: ConnectorMeta = {
     requiredScopes: ['boards:read', 'updates:read', 'me:read'],
   },
 
+  permissionScopedListing: { capFieldIds: ['maxItems'] },
   configFields: [
     {
       id: 'boardSelector',

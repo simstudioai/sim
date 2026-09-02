@@ -76,6 +76,13 @@ import {
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
+import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import {
+  type KnowledgeAccessScope,
+  SYSTEM_ACCESS_SCOPE,
+  type SystemAccessScope,
+} from '@/lib/knowledge/access/types'
+import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
 import {
   assertDocumentChunkCountWithinLimit,
   isPermanentDocumentProcessingError,
@@ -84,7 +91,10 @@ import {
   toPermanentDocumentProcessingError,
   UsageLimitDocumentProcessingError,
 } from '@/lib/knowledge/documents/document-processing-error'
-import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import {
+  processDocument,
+  type SourceFileAccess,
+} from '@/lib/knowledge/documents/document-processor'
 import {
   failStaleDocumentProcessingClaim,
   recordUndispatchedDocumentFailure,
@@ -811,14 +821,27 @@ async function isDocumentAcceptedWithoutDispatch(
   return accepted.length > 0
 }
 
+/**
+ * The sync run a connector dispatch proves before it queues processing. The
+ * document writes prove the lease in their own transactions, but the queue
+ * write is a later transaction: a run reclaimed in between would otherwise
+ * install a processing generation, spend an attempt, and dispatch a worker
+ * beside the replacement run's own dispatch for the same document.
+ */
+export interface ProcessingDispatchLease extends SyncWriteLease {
+  connectorId: string
+}
+
 async function markDocumentsQueued(
   documentIds: string[],
   knowledgeBaseId: string,
   queueToken: string,
-  queuedAt: Date
+  queuedAt: Date,
+  lease: ProcessingDispatchLease | undefined
 ): Promise<MarkDocumentsQueuedResult> {
   const legacyAdoptionCutoff = new Date(queuedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
   return db.transaction(async (tx) => {
+    if (lease) await assertSyncLeaseHeldInTx(tx, lease.connectorId, lease)
     const claimed = await tx
       .update(document)
       .set({
@@ -1007,14 +1030,16 @@ async function bestEffortWithdrawDocumentsQueued(
  * available, or in-process otherwise. Throws only when every dispatch fails;
  * partial failures are returned and recovered by the next sync's stuck-doc
  * pass. A successful Trigger.dev hand-off is only an accepted child run, not a
- * claim about its eventual processing outcome.
+ * claim about its eventual processing outcome. A connector sync passes its
+ * lease, and the queue write then lands only while the run still holds it.
  */
 export async function processDocumentsWithQueue(
   createdDocuments: DocumentData[],
   knowledgeBaseId: string,
   processingOptions: ProcessingOptions,
   requestId: string,
-  billingAttribution: BillingAttributionSnapshot | undefined
+  billingAttribution: BillingAttributionSnapshot | undefined,
+  lease?: ProcessingDispatchLease
 ): Promise<DocumentProcessingDispatchResult> {
   const seenDocumentIds = new Set<string>()
   const uniqueDocuments = createdDocuments.filter((createdDocument) => {
@@ -1033,7 +1058,7 @@ export async function processDocumentsWithQueue(
     generations: queuedGenerations,
     acceptedWithoutDispatchIds,
     unresolvedIds,
-  } = await markDocumentsQueued(documentIds, knowledgeBaseId, requestId, queuedAt)
+  } = await markDocumentsQueued(documentIds, knowledgeBaseId, requestId, queuedAt, lease)
   const generationByDocumentId = new Map(
     queuedGenerations.map((generation) => [generation.documentId, generation])
   )
@@ -1325,6 +1350,18 @@ function queueGenerationConditions(
  * invocation against the document's retry budget. Direct callers omit it and
  * therefore cannot refund an attempt they never charged.
  */
+/**
+ * Who the processor reads a document's source file as. Always the actor, not
+ * the payer: authorizing as the KB owner would let a writer ingest an internal
+ * file only the owner can read. A connector-owned row was written by the sync
+ * from bytes it fetched, not from a caller-supplied URL, so it is read as the
+ * system: in members mode the row stays hidden until the sync materializes who
+ * observed it, and the actor's own scope would deny the read.
+ */
+function sourceFileAccessFor(connectorId: string | null, actorUserId: string): SourceFileAccess {
+  return { userId: actorUserId, knowledgeAccess: connectorId ? SYSTEM_ACCESS_SCOPE : undefined }
+}
+
 export async function processDocumentAsync(
   knowledgeBaseId: string,
   documentId: string,
@@ -1358,6 +1395,7 @@ export async function processDocumentAsync(
         embeddingModel: knowledgeBase.embeddingModel,
         billedAccountUserId: workspaceTable.billedAccountUserId,
         uploadedBy: document.uploadedBy,
+        connectorId: document.connectorId,
         filename: document.filename,
         fileUrl: document.fileUrl,
         fileSize: document.fileSize,
@@ -1568,12 +1606,7 @@ export async function processDocumentAsync(
             kbConfig.maxSize,
             kbConfig.overlap,
             kbConfig.minSize,
-            /**
-             * Authorize source-file processing as the actor, not the payer. Using
-             * the KB owner would let a writer ingest an internal file that only the
-             * owner can read.
-             */
-            documentActorUserId,
+            sourceFileAccessFor(ctx.connectorId, documentActorUserId),
             ctx.workspaceId,
             rawConfig?.strategy,
             rawConfig?.strategyOptions
@@ -2341,7 +2374,8 @@ export async function getDocuments(
     sortOrder?: SortOrder
     tagFilters?: TagFilterCondition[]
   },
-  requestId: string
+  requestId: string,
+  access: KnowledgeAccessScope | SystemAccessScope
 ): Promise<{
   documents: Array<{
     id: string
@@ -2402,6 +2436,7 @@ export async function getDocuments(
     eq(document.userExcluded, false),
     isNull(document.archivedAt),
     isNull(document.deletedAt),
+    knowledgeAccessCondition(access),
   ]
 
   if (enabledFilter === 'enabled') {
@@ -2555,10 +2590,15 @@ export type ActiveKnowledgeDocument = typeof document.$inferSelect & {
   connectorType: string | null
 }
 
-/** Loads one visible document and its connector metadata for every API adapter. */
+/**
+ * Loads one visible document and its connector metadata for every API adapter.
+ * A document the caller may not read is reported as absent, the same as one
+ * that does not exist, so no surface can confirm a restricted document exists.
+ */
 export async function getKnowledgeDocument(
   knowledgeBaseId: string,
-  documentId: string
+  documentId: string,
+  access: KnowledgeAccessScope | SystemAccessScope
 ): Promise<ActiveKnowledgeDocument | null> {
   const [row] = await db
     .select({
@@ -2573,7 +2613,8 @@ export async function getKnowledgeDocument(
         eq(document.knowledgeBaseId, knowledgeBaseId),
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
-        isNull(document.deletedAt)
+        isNull(document.deletedAt),
+        knowledgeAccessCondition(access)
       )
     )
     .limit(1)
@@ -2583,7 +2624,8 @@ export async function getKnowledgeDocument(
 
 /** Loads one visible document by its canonical ID before any asserted parent is trusted. */
 export async function getKnowledgeDocumentById(
-  documentId: string
+  documentId: string,
+  access: KnowledgeAccessScope | SystemAccessScope
 ): Promise<ActiveKnowledgeDocument | null> {
   const [row] = await db
     .select({
@@ -2597,7 +2639,8 @@ export async function getKnowledgeDocumentById(
         eq(document.id, documentId),
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
-        isNull(document.deletedAt)
+        isNull(document.deletedAt),
+        knowledgeAccessCondition(access)
       )
     )
     .limit(1)
@@ -2933,6 +2976,7 @@ export async function bulkDocumentOperation(
   knowledgeBaseId: string,
   operation: 'enable' | 'disable' | 'delete',
   documentIds: string[],
+  access: KnowledgeAccessScope,
   requestId: string
 ): Promise<{
   success: boolean
@@ -2960,7 +3004,8 @@ export async function bulkDocumentOperation(
         inArray(document.id, documentIds),
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
-        isNull(document.deletedAt)
+        isNull(document.deletedAt),
+        knowledgeAccessCondition(access)
       )
     )
 
@@ -2996,7 +3041,10 @@ export async function bulkDocumentOperation(
       .where(
         and(
           eq(document.knowledgeBaseId, knowledgeBaseId),
-          inArray(document.id, documentIds),
+          inArray(
+            document.id,
+            documentsToUpdate.map((doc) => doc.id)
+          ),
           eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt)
@@ -3022,6 +3070,7 @@ export async function bulkDocumentOperationByFilter(
   knowledgeBaseId: string,
   operation: 'enable' | 'disable' | 'delete',
   enabledFilter: 'all' | 'enabled' | 'disabled' | undefined,
+  access: KnowledgeAccessScope,
   requestId: string
 ): Promise<{
   success: boolean
@@ -3041,6 +3090,8 @@ export async function bulkDocumentOperationByFilter(
     eq(document.userExcluded, false),
     isNull(document.archivedAt),
     isNull(document.deletedAt),
+    /** "Every document" means every document the caller can see. */
+    knowledgeAccessCondition(access),
   ]
 
   if (enabledFilter === 'enabled') {
@@ -3636,10 +3687,17 @@ async function excludeConnectorDocuments(
   return updated.length
 }
 
+/**
+ * Deletes documents by their lifecycle: connector-owned ones are excluded,
+ * uploads are hard deleted. `access`, when given, is applied to the selection
+ * and to every write, so a document the caller stopped being able to read
+ * after they looked it up is left alone rather than deleted on a stale view.
+ */
 async function deleteDocumentsByLifecyclePolicy(
   documentIds: string[],
   requestId: string,
-  expectedKnowledgeBaseId?: string
+  expectedKnowledgeBaseId?: string,
+  access?: KnowledgeAccessScope
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   if (ids.length === 0) {
@@ -3659,7 +3717,8 @@ async function deleteDocumentsByLifecyclePolicy(
             eq(document.knowledgeBaseId, expectedKnowledgeBaseId),
             eq(document.userExcluded, false),
             isNull(document.archivedAt),
-            isNull(document.deletedAt)
+            isNull(document.deletedAt),
+            access ? knowledgeAccessCondition(access) : undefined
           )
         : inArray(document.id, ids)
     )
@@ -3669,9 +3728,21 @@ async function deleteDocumentsByLifecyclePolicy(
 
   const [excludedCount, hardDeletedCount] = await Promise.all([
     expectedKnowledgeBaseId
-      ? excludeConnectorKnowledgeDocuments(expectedKnowledgeBaseId, connectorBackedIds, requestId)
+      ? excludeConnectorKnowledgeDocuments(
+          expectedKnowledgeBaseId,
+          connectorBackedIds,
+          requestId,
+          access
+        )
       : excludeConnectorDocuments(connectorBackedIds, requestId),
-    hardDeleteDocuments(hardDeleteIds, requestId, undefined, expectedKnowledgeBaseId),
+    hardDeleteDocuments(
+      hardDeleteIds,
+      requestId,
+      undefined,
+      expectedKnowledgeBaseId,
+      undefined,
+      access
+    ),
   ])
 
   return excludedCount + hardDeletedCount
@@ -3688,6 +3759,25 @@ export interface ConnectorSyncDeletionGuard {
   connectorId: string
   knowledgeBaseId: string
   syncLockToken: string
+  /**
+   * Which engine's lease the token belongs to. The content engine locks
+   * `sync_lock_token`; the members-mode engine locks `member_sync_lock_token`,
+   * and the two never coexist on one connector.
+   */
+  lease?: 'content' | 'member'
+}
+
+/** The lease predicate a deletion guard re-verifies under `FOR UPDATE`. */
+function connectorSyncGuardHeld(guard: ConnectorSyncDeletionGuard) {
+  return guard.lease === 'member'
+    ? and(
+        eq(knowledgeConnector.memberSyncStatus, 'running'),
+        eq(knowledgeConnector.memberSyncLockToken, guard.syncLockToken)
+      )
+    : and(
+        eq(knowledgeConnector.status, 'syncing'),
+        eq(knowledgeConnector.syncLockToken, guard.syncLockToken)
+      )
 }
 
 export async function hardDeleteDocuments(
@@ -3704,7 +3794,9 @@ export async function hardDeleteDocuments(
    */
   expectedConnectorId?: string,
   expectedKnowledgeBaseId?: string,
-  connectorSyncGuard?: ConnectorSyncDeletionGuard
+  connectorSyncGuard?: ConnectorSyncDeletionGuard,
+  /** When provided, only documents the caller may currently read are deleted, re-verified at the delete itself. */
+  access?: KnowledgeAccessScope
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   if (ids.length === 0) {
@@ -3718,7 +3810,8 @@ export async function hardDeleteDocuments(
       requestId,
       expectedConnectorId,
       expectedKnowledgeBaseId,
-      connectorSyncGuard
+      connectorSyncGuard,
+      access
     )
   }
   return deletedCount
@@ -3733,13 +3826,15 @@ async function hardDeleteDocumentBatch(
   requestId: string,
   expectedConnectorId?: string,
   expectedKnowledgeBaseId?: string,
-  connectorSyncGuard?: ConnectorSyncDeletionGuard
+  connectorSyncGuard?: ConnectorSyncDeletionGuard,
+  access?: KnowledgeAccessScope
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   const scopedConnectorId = connectorSyncGuard?.connectorId ?? expectedConnectorId
   const scopedKnowledgeBaseId = connectorSyncGuard?.knowledgeBaseId ?? expectedKnowledgeBaseId
   const requireEligibleDocument = Boolean(expectedKnowledgeBaseId || connectorSyncGuard)
   const requireVisibleDocument = Boolean(expectedKnowledgeBaseId && !connectorSyncGuard)
+  const accessCondition = access ? knowledgeAccessCondition(access) : undefined
   const documentsToDelete = await db
     .select({
       id: document.id,
@@ -3760,7 +3855,8 @@ async function hardDeleteDocumentBatch(
         scopedKnowledgeBaseId ? eq(document.knowledgeBaseId, scopedKnowledgeBaseId) : undefined,
         requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
         requireEligibleDocument ? isNull(document.archivedAt) : undefined,
-        requireVisibleDocument ? isNull(document.deletedAt) : undefined
+        requireVisibleDocument ? isNull(document.deletedAt) : undefined,
+        accessCondition
       )
     )
 
@@ -3849,8 +3945,7 @@ async function hardDeleteDocumentBatch(
           and(
             eq(knowledgeConnector.id, connectorSyncGuard.connectorId),
             eq(knowledgeConnector.knowledgeBaseId, connectorSyncGuard.knowledgeBaseId),
-            eq(knowledgeConnector.status, 'syncing'),
-            eq(knowledgeConnector.syncLockToken, connectorSyncGuard.syncLockToken),
+            connectorSyncGuardHeld(connectorSyncGuard),
             isNull(knowledgeConnector.archivedAt),
             isNull(knowledgeConnector.deletedAt)
           )
@@ -3873,7 +3968,7 @@ async function hardDeleteDocumentBatch(
      * ID set rather than the stale `existingIds`.
      */
     const stillTargetedIds =
-      scopedConnectorId || scopedKnowledgeBaseId
+      scopedConnectorId || scopedKnowledgeBaseId || accessCondition
         ? (
             await tx
               .select({ id: document.id })
@@ -3887,7 +3982,8 @@ async function hardDeleteDocumentBatch(
                     : undefined,
                   requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
                   requireEligibleDocument ? isNull(document.archivedAt) : undefined,
-                  requireVisibleDocument ? isNull(document.deletedAt) : undefined
+                  requireVisibleDocument ? isNull(document.deletedAt) : undefined,
+                  accessCondition
                 )
               )
               .orderBy(asc(document.id))
@@ -3960,22 +4056,33 @@ export async function deleteDocument(
   }
 }
 
-/** Deletes one currently visible document within its canonical knowledge base. */
+/**
+ * Deletes one currently visible document within its canonical knowledge base.
+ * The caller's access is re-applied at the delete itself, so a token member
+ * sync revokes between the lookup and the write cannot still delete.
+ */
 export async function deleteKnowledgeDocumentInKnowledgeBase(
   knowledgeBaseId: string,
   documentId: string,
-  requestId: string
+  requestId: string,
+  access: KnowledgeAccessScope
 ): Promise<void> {
-  const current = await getKnowledgeDocument(knowledgeBaseId, documentId)
+  const current = await getKnowledgeDocument(knowledgeBaseId, documentId, access)
   if (!current) throw new OrchestrationError('not_found', 'Document not found')
-  const affected = await deleteDocumentsByLifecyclePolicy([documentId], requestId, knowledgeBaseId)
+  const affected = await deleteDocumentsByLifecyclePolicy(
+    [documentId],
+    requestId,
+    knowledgeBaseId,
+    access
+  )
   if (affected !== 1) throw new OrchestrationError('not_found', 'Document not found')
 }
 
 async function excludeConnectorKnowledgeDocuments(
   knowledgeBaseId: string,
   documentIds: string[],
-  requestId: string
+  requestId: string,
+  access?: KnowledgeAccessScope
 ): Promise<number> {
   if (documentIds.length === 0) return 0
   const updated = await db
@@ -3988,7 +4095,8 @@ async function excludeConnectorKnowledgeDocuments(
         isNotNull(document.connectorId),
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
-        isNull(document.deletedAt)
+        isNull(document.deletedAt),
+        access ? knowledgeAccessCondition(access) : undefined
       )
     )
     .returning({ id: document.id })

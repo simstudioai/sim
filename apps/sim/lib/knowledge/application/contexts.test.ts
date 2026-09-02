@@ -12,6 +12,13 @@ const mocks = vi.hoisted(() => ({
   getConnector: vi.fn(),
   loadWorkspace: vi.fn(),
   loadWorkspaceIncludingArchived: vi.fn(),
+  createAccessProvider: vi.fn(() => ({
+    get: async () => ({ kind: 'workspace', tokens: ['pub', 'ws'] }),
+  })),
+}))
+
+vi.mock('@/lib/knowledge/access/scope', () => ({
+  createKnowledgeAccessProvider: mocks.createAccessProvider,
 }))
 
 vi.mock('@/lib/knowledge/service', () => ({
@@ -53,6 +60,7 @@ const workspace = {
   billedAccountUserId: 'billing-user-1',
 }
 const knowledgeBase = { id: 'knowledge-1', workspaceId: 'workspace-1' }
+const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
 
 describe('knowledge application contexts', () => {
   beforeEach(() => {
@@ -82,7 +90,7 @@ describe('knowledge application contexts', () => {
     mocks.loadWorkspace.mockResolvedValueOnce(null)
 
     await expect(
-      resolveActiveKnowledgeBaseContext({ knowledgeBaseId: 'knowledge-1' })
+      resolveActiveKnowledgeBaseContext({ knowledgeBaseId: 'knowledge-1' }, principal)
     ).rejects.toMatchObject({ code: 'not_found', message: 'Knowledge base not found' })
   })
 
@@ -91,7 +99,7 @@ describe('knowledge application contexts', () => {
     mocks.loadWorkspace.mockRejectedValueOnce(failure)
 
     await expect(
-      resolveActiveKnowledgeBaseContext({ knowledgeBaseId: 'knowledge-1' })
+      resolveActiveKnowledgeBaseContext({ knowledgeBaseId: 'knowledge-1' }, principal)
     ).rejects.toBe(failure)
   })
 
@@ -103,7 +111,7 @@ describe('knowledge application contexts', () => {
     })
 
     await expect(
-      resolveActiveKnowledgeResourceContext({ knowledgeBaseId: 'legacy-knowledge' })
+      resolveActiveKnowledgeResourceContext({ knowledgeBaseId: 'legacy-knowledge' }, principal)
     ).resolves.toMatchObject({
       knowledgeBaseId: 'legacy-knowledge',
       workspaceId: undefined,
@@ -120,10 +128,13 @@ describe('knowledge application contexts', () => {
     })
 
     await expect(
-      resolveActiveKnowledgeResourceContext({
-        knowledgeBaseId: 'legacy-knowledge',
-        assertedWorkspaceId: 'workspace-1',
-      })
+      resolveActiveKnowledgeResourceContext(
+        {
+          knowledgeBaseId: 'legacy-knowledge',
+          assertedWorkspaceId: 'workspace-1',
+        },
+        principal
+      )
     ).rejects.toMatchObject({ code: 'not_found' })
   })
 
@@ -139,10 +150,13 @@ describe('knowledge application contexts', () => {
     })
 
     await expect(
-      resolveCanonicalActiveKnowledgeDocumentContext({
-        knowledgeBaseId: 'legacy-knowledge',
-        documentId: 'legacy-document',
-      })
+      resolveCanonicalActiveKnowledgeDocumentContext(
+        {
+          knowledgeBaseId: 'legacy-knowledge',
+          documentId: 'legacy-document',
+        },
+        principal
+      )
     ).resolves.toMatchObject({
       documentId: 'legacy-document',
       knowledgeBaseId: 'legacy-knowledge',
@@ -174,25 +188,31 @@ describe('knowledge application contexts', () => {
       })
     })
 
-    it('resolves a document parent canonically before comparing the trusted workspace', async () => {
+    it('resolves the asserted parent and conceals a foreign document without loading it', async () => {
       await expect(
-        resolveCanonicalActiveKnowledgeDocumentContext({
-          knowledgeBaseId: 'knowledge-b',
-          documentId: 'document-b',
-          assertedWorkspaceId: 'workspace-a',
-        })
+        resolveCanonicalActiveKnowledgeDocumentContext(
+          {
+            knowledgeBaseId: 'knowledge-b',
+            documentId: 'document-b',
+            assertedWorkspaceId: 'workspace-a',
+          },
+          principal
+        )
       ).rejects.toMatchObject({ code: 'not_found' })
 
-      expect(mocks.getDocumentById).toHaveBeenCalledWith('document-b')
       expect(mocks.getKnowledgeBase).toHaveBeenCalledWith('knowledge-b')
+      expect(mocks.getDocumentById).not.toHaveBeenCalled()
     })
 
     it('resolves a tag parent canonically before comparing the trusted workspace', async () => {
       await expect(
-        resolveActiveKnowledgeTagContext({
-          tagDefinitionId: 'tag-b',
-          assertedWorkspaceId: 'workspace-a',
-        })
+        resolveActiveKnowledgeTagContext(
+          {
+            tagDefinitionId: 'tag-b',
+            assertedWorkspaceId: 'workspace-a',
+          },
+          principal
+        )
       ).rejects.toMatchObject({ code: 'not_found' })
 
       expect(mocks.getTag).toHaveBeenCalledWith('tag-b')
@@ -201,10 +221,13 @@ describe('knowledge application contexts', () => {
 
     it('resolves a connector parent canonically before comparing the trusted workspace', async () => {
       await expect(
-        resolveActiveKnowledgeConnectorContext({
-          connectorId: 'connector-b',
-          assertedWorkspaceId: 'workspace-a',
-        })
+        resolveActiveKnowledgeConnectorContext(
+          {
+            connectorId: 'connector-b',
+            assertedWorkspaceId: 'workspace-a',
+          },
+          principal
+        )
       ).rejects.toMatchObject({ code: 'not_found' })
 
       expect(mocks.getConnector).toHaveBeenCalledWith('connector-b')

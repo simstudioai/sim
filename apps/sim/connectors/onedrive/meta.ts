@@ -10,6 +10,7 @@ export const onedriveConnectorMeta: ConnectorMeta = {
 
   auth: { mode: 'oauth', provider: 'onedrive', requiredScopes: ['Files.Read'] },
 
+  permissionScopedListing: { capFieldIds: ['maxFiles'] },
   configFields: [
     {
       id: 'folderPath',

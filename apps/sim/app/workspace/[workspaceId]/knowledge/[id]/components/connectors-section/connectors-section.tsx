@@ -26,11 +26,16 @@ import {
   Settings,
   Trash,
   TriangleAlert,
+  Users,
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
-import { CONNECTOR_SYNC_STALE_LOCK_TTL_MS } from '@/lib/knowledge/connectors/sync-limits'
+import {
+  CONNECTOR_SYNC_STALE_LOCK_TTL_MS,
+  MEMBER_SYNC_STALE_LOCK_TTL_MS,
+} from '@/lib/knowledge/connectors/sync-limits'
+import type { MemberSyncStatus } from '@/lib/knowledge/types'
 import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
@@ -38,7 +43,12 @@ import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]
 import { getBlock } from '@/blocks'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
+import type {
+  ConnectorData,
+  ConnectorMemberSummary,
+  MemberSyncLogData,
+  SyncLogData,
+} from '@/hooks/queries/kb/connectors'
 import {
   isConnectorSyncingOrPending,
   useConnectorDetail,
@@ -76,6 +86,21 @@ const SYNC_IN_FLIGHT_TOOLTIP = {
   pending: 'Sync queued',
   syncing: 'Sync in progress',
 } as const
+
+/** The member engine's own in-flight states, shown when the connector syncs per member. */
+const MEMBER_SYNC_IN_FLIGHT_TOOLTIP: Partial<Record<MemberSyncStatus, string>> = {
+  pending: 'Member sync queued',
+  running: 'Syncing members',
+}
+
+/** How each member-engine status reads on the card's badge. */
+const MEMBER_SYNC_STATUS_AS_CONNECTOR_STATUS = {
+  idle: 'active',
+  pending: 'pending',
+  running: 'syncing',
+  error: 'error',
+  disabled: 'disabled',
+} as const satisfies Record<MemberSyncStatus, keyof typeof STATUS_CONFIG>
 
 const CONNECTOR_ACTION_BUTTON_CLASSES =
   'size-7 rounded-lg p-0 text-[var(--text-muted)] hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
@@ -144,10 +169,18 @@ export function ConnectorsSection({
     )
   }
 
+  const deletingMembersConnector =
+    connectors.find((connector) => connector.id === deleteTarget)?.accessMode === 'members'
+
   const handleDeleteConnector = () => {
     if (!deleteTarget) return
     deleteConnector(
-      { knowledgeBaseId, connectorId: deleteTarget, deleteDocuments },
+      {
+        knowledgeBaseId,
+        connectorId: deleteTarget,
+        /** Documents synced per member have no meaning without their members. */
+        deleteDocuments: deleteDocuments || deletingMembersConnector,
+      },
       {
         onSuccess: () => {
           setError(null)
@@ -216,7 +249,11 @@ export function ConnectorsSection({
         }}
         srTitle='Remove Connector'
         title='Remove Connector'
-        text='This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
+        text={
+          deletingMembersConnector
+            ? 'This will disconnect the source, stop future syncs, and delete the documents it synced per member.'
+            : 'This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
+        }
         confirm={{
           label: 'Remove',
           onClick: handleDeleteConnector,
@@ -224,19 +261,21 @@ export function ConnectorsSection({
           pendingLabel: 'Removing...',
         }}
       >
-        <div className='flex items-center gap-2 px-2'>
-          <Checkbox
-            id={deleteDocumentsId}
-            checked={deleteDocuments}
-            onCheckedChange={(checked) => setDeleteDocuments(checked === true)}
-          />
-          <label
-            htmlFor={deleteDocumentsId}
-            className='cursor-pointer text-[var(--text-secondary)] text-small'
-          >
-            Also delete all synced documents
-          </label>
-        </div>
+        {!deletingMembersConnector && (
+          <div className='flex items-center gap-2 px-2'>
+            <Checkbox
+              id={deleteDocumentsId}
+              checked={deleteDocuments}
+              onCheckedChange={(checked) => setDeleteDocuments(checked === true)}
+            />
+            <label
+              htmlFor={deleteDocumentsId}
+              className='cursor-pointer text-[var(--text-secondary)] text-small'
+            >
+              Also delete all synced documents
+            </label>
+          </div>
+        )}
       </ChipConfirmModal>
     </div>
   )
@@ -271,8 +310,17 @@ function ConnectorCard({
   const connectorDef = CONNECTOR_META_REGISTRY[connector.connectorType]
   const Icon = connectorDef?.icon
   const brandBg = getBlock(connector.connectorType)?.bgColor ?? null
+  /**
+   * A members-mode connector's content status stays `active` while the member
+   * engine does the work, so its badge reads the member engine's status. A
+   * paused or disabled content status still wins: the user set it.
+   */
+  const effectiveStatus =
+    connector.accessMode === 'members' && connector.status === 'active'
+      ? MEMBER_SYNC_STATUS_AS_CONNECTOR_STATUS[connector.memberSyncStatus]
+      : connector.status
   const statusConfig =
-    STATUS_CONFIG[connector.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.active
+    STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.active
 
   const serviceId = connectorDef?.auth.mode === 'oauth' ? connectorDef.auth.provider : undefined
   const providerId = serviceId ? getProviderIdFromServiceId(serviceId) : undefined
@@ -317,19 +365,39 @@ function ConnectorCard({
     expanded ? connector.id : undefined
   )
   const syncLogs = detail?.syncLogs ?? []
+  const memberSyncLogs = detail?.memberSyncLogs ?? []
+  const members = detail?.members
 
-  const canFullResync = Boolean(connectorDef?.rehydrateOnFullSync)
+  const syncsPerMember = connector.accessMode === 'members'
+  /** A per-member connector re-hydrates through its members; the content resync has no meaning there. */
+  const canFullResync = Boolean(connectorDef?.rehydrateOnFullSync) && !syncsPerMember
   const syncInFlight = isConnectorSyncingOrPending(connector)
   const isPaused = connector.status === 'paused'
+  const memberSyncDisabled = syncsPerMember && connector.memberSyncStatus === 'disabled'
   /**
    * A queued sync is what stops a second one being dispatched — the server
    * rejects it as a conflict anyway, so the button reflects that rather than
    * running a client-side cooldown timer alongside it.
    */
-  const syncDisabled = syncInFlight || connector.status === 'disabled' || isPaused
+  const syncDisabled =
+    syncInFlight || connector.status === 'disabled' || isPaused || memberSyncDisabled
   const syncTooltip =
     SYNC_IN_FLIGHT_TOOLTIP[connector.status as keyof typeof SYNC_IN_FLIGHT_TOOLTIP] ??
-    (isPaused ? 'Resume to sync' : canFullResync ? 'Sync' : 'Sync now')
+    (syncsPerMember ? MEMBER_SYNC_IN_FLIGHT_TOOLTIP[connector.memberSyncStatus] : undefined) ??
+    (isPaused
+      ? 'Resume to sync'
+      : memberSyncDisabled
+        ? 'Member sync is disabled'
+        : canFullResync
+          ? 'Sync'
+          : syncsPerMember
+            ? 'Sync members now'
+            : 'Sync now')
+  const lastSyncAt = syncsPerMember ? connector.lastMemberSyncAt : connector.lastSyncAt
+  const nextSyncAt = syncsPerMember ? connector.nextMemberSyncAt : connector.nextSyncAt
+  const lastSyncError = syncsPerMember
+    ? (connector.lastMemberSyncError ?? connector.lastSyncError)
+    : connector.lastSyncError
 
   return (
     <div
@@ -369,35 +437,49 @@ function ConnectorCard({
               <Badge variant={statusConfig.variant} size='sm' dot className='flex-shrink-0'>
                 {statusConfig.label}
               </Badge>
+              {syncsPerMember && (
+                <Badge variant='gray' size='sm' icon={Users} className='flex-shrink-0'>
+                  Per member
+                </Badge>
+              )}
             </div>
             <div className='flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[var(--text-muted)] text-xs'>
-              {connector.lastSyncAt && (
-                <span>Last sync: {format(new Date(connector.lastSyncAt), 'MMM d, h:mm a')}</span>
+              {lastSyncAt && (
+                <span>Last sync: {format(new Date(lastSyncAt), 'MMM d, h:mm a')}</span>
               )}
-              {connector.lastSyncDocCount !== null && (
+              {!syncsPerMember && connector.lastSyncDocCount !== null && (
                 <>
                   <span>·</span>
                   <span>{connector.lastSyncDocCount} docs</span>
                 </>
               )}
-              {connector.nextSyncAt && connector.status === 'active' && !syncInFlight && (
+              {nextSyncAt && connector.status === 'active' && !syncInFlight && (
                 <>
                   <span>·</span>
                   <span>
                     Next sync:{' '}
-                    {isPast(new Date(connector.nextSyncAt))
+                    {isPast(new Date(nextSyncAt))
                       ? 'pending'
-                      : formatDistanceToNow(new Date(connector.nextSyncAt), { addSuffix: true })}
+                      : formatDistanceToNow(new Date(nextSyncAt), { addSuffix: true })}
                   </span>
                 </>
               )}
-              {connector.lastSyncError && (
+              {lastSyncError && (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <CircleAlert className='size-3 text-[var(--text-error)]' />
                   </Tooltip.Trigger>
-                  <Tooltip.Content>{connector.lastSyncError}</Tooltip.Content>
+                  <Tooltip.Content>{lastSyncError}</Tooltip.Content>
                 </Tooltip.Root>
+              )}
+              {connector.accessRewritePending && (
+                <>
+                  <span>·</span>
+                  <span className='flex items-center gap-1'>
+                    <Loader className='size-3' animate />
+                    Updating access
+                  </span>
+                </>
               )}
             </div>
           </div>
@@ -518,6 +600,22 @@ function ConnectorCard({
         </div>
       </div>
 
+      {syncsPerMember && connector.memberSyncStatus === 'disabled' && (
+        <div className='border-[var(--border-muted)] border-t px-2 py-2'>
+          <div className='flex flex-col gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-3)] px-2.5 py-2'>
+            <div className='flex items-center gap-1.5 text-[var(--text-primary)] text-caption'>
+              <TriangleAlert className='size-3 flex-shrink-0 text-[var(--caution)]' />
+              Per-member sync is disabled
+            </div>
+            <p className='text-[var(--text-muted)] text-caption leading-snug'>
+              {connector.lastMemberSyncError ?? 'The connector can no longer sync per member.'}{' '}
+              Members keep no access until it is fixed; switch the connector's access to re-enable
+              it.
+            </p>
+          </div>
+        </div>
+      )}
+
       {connector.status === 'disabled' && (
         <div className='border-[var(--border-muted)] border-t px-2 py-2'>
           <div className='flex flex-col gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-3)] px-2.5 py-2'>
@@ -599,7 +697,11 @@ function ConnectorCard({
 
       {expanded && (
         <div className='border-[var(--border-muted)] border-t px-2 py-2'>
-          <SyncHistory logs={syncLogs} isLoading={detailLoading} />
+          {syncsPerMember ? (
+            <MemberSyncHistory logs={memberSyncLogs} members={members} isLoading={detailLoading} />
+          ) : (
+            <SyncHistory logs={syncLogs} isLoading={detailLoading} />
+          )}
         </div>
       )}
 
@@ -799,6 +901,133 @@ export function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function getMemberSyncLogState(log: MemberSyncLogData, now: number): SyncLogState {
+  switch (log.status) {
+    case 'completed':
+      return 'completed'
+    case 'failed':
+      return 'failed'
+    case 'started': {
+      const ageMs = now - new Date(log.startedAt).getTime()
+      return ageMs > MEMBER_SYNC_STALE_LOCK_TTL_MS ? 'interrupted' : 'running'
+    }
+    default: {
+      const exhaustive: never = log.status
+      return exhaustive
+    }
+  }
+}
+
+interface MemberSyncHistoryProps {
+  logs: MemberSyncLogData[]
+  members: ConnectorMemberSummary | undefined
+  isLoading: boolean
+}
+
+/**
+ * The per-member run history: who was crawled, what changed, and how the
+ * membership stands. A run that ended with members still due re-dispatches
+ * itself, so several short rows in a row are one drain, not a fault.
+ */
+function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistoryProps) {
+  if (isLoading) {
+    return (
+      <div className='flex items-center gap-2 rounded-md bg-[var(--surface-3)] px-2 py-2 text-[var(--text-muted)] text-xs'>
+        <Loader className='size-3' animate />
+        Loading member sync history…
+      </div>
+    )
+  }
+
+  const now = Date.now()
+
+  return (
+    <div className='flex flex-col gap-1.5'>
+      {members && (
+        <div className='flex flex-wrap items-center gap-x-1.5 rounded-md bg-[var(--surface-3)] px-2 py-1.5 text-[var(--text-muted)] text-xs'>
+          <Users className='size-3' />
+          <span>
+            {members.active} connected
+            {members.suspended > 0 && ` · ${members.suspended} need reconnecting`}
+            {members.stale > 0 && ` · ${members.stale} not synced recently`}
+          </span>
+        </div>
+      )}
+      {logs.length === 0 ? (
+        <p className='rounded-md bg-[var(--surface-3)] px-2 py-2 text-[var(--text-muted)] text-xs'>
+          No member sync history yet.
+        </p>
+      ) : (
+        <div className='flex flex-col gap-0.5'>
+          {logs.map((log) => {
+            const state = getMemberSyncLogState(log, now)
+            const changes = log.docsAdded + log.docsUpdated + log.docsTombstoned + log.docsPurged
+            return (
+              <div key={log.id} className='flex items-start gap-2 rounded-md px-2 py-1.5 text-xs'>
+                <div className='mt-[1px] flex-shrink-0'>
+                  {state === 'running' ? (
+                    <Loader className='size-3 text-[var(--text-muted)]' animate />
+                  ) : state === 'interrupted' ? (
+                    <TriangleAlert className='size-3 text-[var(--caution)]' />
+                  ) : state === 'failed' ? (
+                    <CircleX className='size-3 text-[var(--text-error)]' />
+                  ) : (
+                    <CircleCheck className='size-3 text-[var(--success)]' />
+                  )}
+                </div>
+                <div className='flex min-w-0 flex-1 flex-col gap-[1px]'>
+                  <div className='flex flex-wrap items-center gap-1.5 text-[var(--text-muted)]'>
+                    <span>{format(new Date(log.startedAt), 'MMM d, h:mm a')}</span>
+                    {state === 'completed' && (
+                      <span>
+                        {log.membersCompleted + log.membersIncomplete + log.membersFailed} member
+                        {log.membersCompleted + log.membersIncomplete + log.membersFailed === 1
+                          ? ''
+                          : 's'}
+                        {log.membersFailed > 0 && (
+                          <span className='text-[var(--text-error)]'>
+                            {' '}
+                            · {log.membersFailed} failed
+                          </span>
+                        )}
+                        {changes > 0 ? (
+                          <>
+                            {log.docsAdded > 0 && (
+                              <span className='text-[var(--success)]'> +{log.docsAdded}</span>
+                            )}
+                            {log.docsUpdated > 0 && (
+                              <span className='text-[var(--caution)]'> ~{log.docsUpdated}</span>
+                            )}
+                            {log.docsTombstoned + log.docsPurged > 0 && (
+                              <span className='text-[var(--text-error)]'>
+                                {' '}
+                                -{log.docsTombstoned + log.docsPurged}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          ' · no changes'
+                        )}
+                      </span>
+                    )}
+                    {state === 'running' && <span>In progress…</span>}
+                    {state === 'interrupted' && (
+                      <span className='text-[var(--caution)]'>Interrupted</span>
+                    )}
+                  </div>
+                  {state === 'failed' && log.errorMessage && (
+                    <span className='truncate text-[var(--text-error)]'>{log.errorMessage}</span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

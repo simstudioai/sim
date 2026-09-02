@@ -42,6 +42,7 @@ export {
   PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
   requireAllowedWorkspacePrincipal,
+  requireCurrentHumanRole,
   requirePersonalApiKeysAllowed,
   WorkspaceApiKeyAuthorizationError,
   WorkspaceApiKeyScopeAuthorizationError,

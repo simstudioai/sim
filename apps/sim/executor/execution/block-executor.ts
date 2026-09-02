@@ -331,6 +331,7 @@ export class BlockExecutor {
           fileKeys: blockCtx.fileKeys,
           allowLargeValueWorkflowScope: blockCtx.allowLargeValueWorkflowScope,
           userId: blockCtx.userId,
+          principal: blockCtx.principal,
           maxBytes: blockCtx.base64MaxBytes,
           preserveLargeValueMetadata: true,
         })) as NormalizedBlockOutput

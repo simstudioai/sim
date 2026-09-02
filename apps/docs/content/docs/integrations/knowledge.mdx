@@ -33,7 +33,7 @@ Integrate Knowledge into the workflow. Perform full CRUD operations on documents
 
 ### Knowledge Search
 
-Search for similar content in a knowledge base using vector similarity
+Search for similar content in a knowledge base by relevance
 
 #### Input
 
@@ -43,7 +43,7 @@ Search for similar content in a knowledge base using vector similarity
 | `query` | string | No | Search query text \(optional when using tag filters\) |
 | `topK` | number | No | Number of most similar results to return \(1-100\) |
 | `tagFilters` | array | No | Array of tag filters with tagName and tagValue properties |
-| `searchMode` | string | No | Retrieval mode: 'vector' \(default\) uses semantic similarity only, 'hybrid' also runs a full-text leg and fuses both |
+| `searchMode` | string | No | Retrieval mode: 'hybrid' fuses a full-text leg with semantic similarity, 'vector' uses semantic similarity only; omit for the workspace's default |
 | `rerankerEnabled` | boolean | No | Whether to apply Cohere reranking to vector search results |
 | `rerankerModel` | string | No | Cohere rerank model to use \(one of: rerank-v4.0-pro, rerank-v4.0-fast, rerank-v3.5\) |
 | `rerankerInputCount` | number | No | Number of vector results sent to the Cohere reranker \(1–100\). Defaults to topK × 4 capped at 100. |

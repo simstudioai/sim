@@ -13456,7 +13456,6 @@ export const V2_OPERATIONS = {
       },
       searchMode: {
         kind: 'enum',
-        default: 'vector',
         describe:
           'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.',
       },

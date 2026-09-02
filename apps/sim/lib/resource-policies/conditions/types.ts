@@ -5,6 +5,8 @@ export type ResourcePolicyConditionOperator = (typeof RESOURCE_POLICY_CONDITION_
 export interface ResourcePolicyConditionEvaluationFacts {
   credentialGroupActorEnrollmentId?: string
   credentialGroupCredentialEnrollmentId?: string
+  /** The option the credential being accessed was collected under. */
+  credentialGroupOptionId?: string
   currentWorkflow?: {
     workflowId: string
     mode: 'draft' | 'deployment'
@@ -33,6 +35,7 @@ export interface ResourcePolicyConditionDefinition {
 
 export type ResourcePolicyConditionKey =
   | 'credential_group:ActorOwnsCredential'
+  | 'credential_group:OptionId'
   | 'execution:WorkflowMode'
 
 export function defineResourcePolicyCondition(

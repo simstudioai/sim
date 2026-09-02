@@ -11,12 +11,8 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
-import {
-  connectorIsLive,
-  executeSync,
-  isConnectorRunnableStatus,
-  LOCKABLE_CONNECTOR_STATUSES,
-} from '@/lib/knowledge/connectors/sync-engine'
+import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
+import { connectorIsLive, LOCKABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('ConnectorSyncQueue')
@@ -165,6 +161,7 @@ async function markSyncPending(connectorId: string): Promise<string | null> {
     .where(
       and(
         eq(knowledgeConnector.id, connectorId),
+        eq(knowledgeConnector.accessMode, 'workspace'),
         inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
         isNull(knowledgeConnector.syncLockToken),
         connectorIsLive()
@@ -296,6 +293,7 @@ export async function dispatchSync(
     .select({
       knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
       connectorStatus: knowledgeConnector.status,
+      connectorAccessMode: knowledgeConnector.accessMode,
       connectorArchivedAt: knowledgeConnector.archivedAt,
       connectorDeletedAt: knowledgeConnector.deletedAt,
       connectorNextSyncAt: knowledgeConnector.nextSyncAt,
@@ -348,6 +346,13 @@ export async function dispatchSync(
       requestId,
     })
     return { queued: false, reason: 'Connector has been archived or deleted' }
+  }
+  if (row.connectorAccessMode !== 'workspace') {
+    logger.info('Skipping sync dispatch: connector syncs per member', { connectorId, requestId })
+    return {
+      queued: false,
+      reason: 'Connector syncs per member and is not synced as the workspace',
+    }
   }
   if (payload.requireRunnable && !isConnectorRunnableStatus(row.connectorStatus)) {
     logger.info('Skipping automatic sync dispatch: connector is not runnable', {

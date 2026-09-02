@@ -10,6 +10,7 @@ export const asanaConnectorMeta: ConnectorMeta = {
 
   auth: { mode: 'oauth', provider: 'asana', requiredScopes: ['default'] },
 
+  permissionScopedListing: { capFieldIds: ['maxTasks'] },
   configFields: [
     {
       id: 'workspaceSelector',

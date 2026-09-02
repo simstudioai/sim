@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { googleCalendarConnector } from '@/connectors/google-calendar/google-calendar'
 import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
+import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
 
 const ORGANIZER_EMAIL = 'organizer@example.com'
 const ATTENDEE_EMAIL = 'attendee@example.com'
@@ -57,6 +58,81 @@ async function listOne(sourceConfig: Record<string, unknown>) {
   expect(result.documents).toHaveLength(1)
   return result.documents[0]
 }
+
+describe('google-calendar listDocuments with a calendar the caller cannot reach', () => {
+  function mockCalendars(unreachable: string) {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes(`/calendars/${unreachable}/events?`)) {
+        return jsonResponse({ error: { code: 404 } }, 404)
+      }
+      if (url.includes('/events?')) return jsonResponse({ items: [EVENT] })
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+  }
+
+  it("skips only the unreachable calendar under a member's own token", async () => {
+    mockCalendars('alpha')
+    const sourceConfig = { calendarId: 'alpha,beta' }
+    const syncContext: Record<string, unknown> = { ...PER_MEMBER_LISTING_CONTEXT }
+
+    const first = await googleCalendarConnector.listDocuments(
+      'token',
+      sourceConfig,
+      undefined,
+      syncContext
+    )
+    expect(first.documents).toHaveLength(0)
+    expect(first.hasMore).toBe(true)
+    expect(JSON.parse(first.nextCursor ?? '{}')).toEqual({ calendarIndex: 1 })
+
+    const second = await googleCalendarConnector.listDocuments(
+      'token',
+      sourceConfig,
+      first.nextCursor,
+      syncContext
+    )
+    expect(second.documents).toHaveLength(1)
+    expect(second.hasMore).toBe(false)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('ends the listing when the unreachable calendar is the last one', async () => {
+    mockCalendars('beta')
+    const sourceConfig = { calendarId: 'alpha,beta' }
+    const syncContext: Record<string, unknown> = { ...PER_MEMBER_LISTING_CONTEXT }
+
+    const first = await googleCalendarConnector.listDocuments(
+      'token',
+      sourceConfig,
+      undefined,
+      syncContext
+    )
+    const second = await googleCalendarConnector.listDocuments(
+      'token',
+      sourceConfig,
+      first.nextCursor,
+      syncContext
+    )
+    expect(second.documents).toHaveLength(0)
+    expect(second.hasMore).toBe(false)
+  })
+
+  it('reports a sole unreachable calendar as the whole scope being unavailable', async () => {
+    mockCalendars('alpha')
+    const error = await googleCalendarConnector
+      .listDocuments('token', { calendarId: 'alpha' }, undefined, { ...PER_MEMBER_LISTING_CONTEXT })
+      .catch((caught: unknown) => caught)
+    expect(googleCalendarConnector.isListingScopeUnavailableError?.(error)).toBe(true)
+  })
+
+  it('still fails the sync under a shared credential rather than dropping the calendar', async () => {
+    mockCalendars('alpha')
+    await expect(
+      googleCalendarConnector.listDocuments('token', { calendarId: 'alpha,beta' }, undefined, {})
+    ).rejects.toThrow('Failed to list Google Calendar events: 404')
+  })
+})
 
 describe('google-calendar attendee PII opt-out', () => {
   it('exposes an includeAttendees config field defaulting to on', () => {

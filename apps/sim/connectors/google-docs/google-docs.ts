@@ -11,7 +11,9 @@ import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/
 import {
   buildDriveParentsClause,
   ConnectorFileTooLargeError,
+  isListingScopeUnavailableError,
   joinTagArray,
+  listingRequestError,
   markSkipped,
   parseMultiValue,
   parseOptionalUnlimitedSafeInteger,
@@ -493,6 +495,8 @@ function buildQuery(sourceConfig: Record<string, unknown>): string {
 export const googleDocsConnector: ConnectorConfig = {
   ...googleDocsConnectorMeta,
 
+  isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -553,7 +557,7 @@ export const googleDocsConnector: ConnectorConfig = {
         status: response.status,
         error: failure,
       })
-      throw new Error(`Failed to list Google Docs: ${failure}`)
+      throw listingRequestError(`Failed to list Google Docs: ${failure}`, response.status)
     }
 
     const data = parseDriveFileListResponse(await response.json())

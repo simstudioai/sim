@@ -4,7 +4,10 @@
  */
 
 import { createLogger } from '@sim/logger'
-import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
+import type {
+  ChatRequestMode,
+  FileAttachmentForApi,
+} from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
 
 const logger = createLogger('BrowserStorage')
@@ -317,6 +320,8 @@ export interface MothershipHandoff {
    * chat and billing a second turn.
    */
   resumeUserMessageId?: string
+  /** The request mode the withdrawn send asked for, so a retry stays the same kind of turn. */
+  requestMode?: ChatRequestMode
 }
 
 interface StoredHandoff extends MothershipHandoff {
@@ -365,6 +370,7 @@ export class MothershipHandoffStorage {
         : [...MothershipHandoffStorage.pendingContexts(workspaceId), ...contexts],
       ...(handoff.fileAttachments?.length ? { fileAttachments: handoff.fileAttachments } : {}),
       ...(handoff.resumeUserMessageId ? { resumeUserMessageId: handoff.resumeUserMessageId } : {}),
+      ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
       workspaceId,
       timestamp: Date.now(),
     })
@@ -424,6 +430,7 @@ export class MothershipHandoffStorage {
     return {
       ...(data.message ? { message: data.message } : {}),
       contexts,
+      ...(data.requestMode === 'ask' ? { requestMode: 'ask' as const } : {}),
       ...(Array.isArray(data.fileAttachments) && data.fileAttachments.length > 0
         ? { fileAttachments: data.fileAttachments }
         : {}),

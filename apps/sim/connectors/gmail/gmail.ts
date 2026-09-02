@@ -3,7 +3,13 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_THREADS, gmailConnectorMeta } from '@/connectors/gmail/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
+import {
+  htmlToPlainText,
+  joinTagArray,
+  parseDefaultedUnlimitedSafeInteger,
+  parseMultiValue,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('GmailConnector')
 
@@ -446,17 +452,20 @@ export const gmailConnector: ConnectorConfig = {
       labelIndex = resolved
     }
     const searchQuery = buildSearchQuery(sourceConfig, labelIndex)
-    const maxThreads = sourceConfig.maxThreads
-      ? Number(sourceConfig.maxThreads)
-      : DEFAULT_MAX_THREADS
+    /** A blank field keeps the default cap; an explicit 0 (a per-member sync) means unlimited. */
+    const maxThreads = parseDefaultedUnlimitedSafeInteger(
+      sourceConfig.maxThreads,
+      DEFAULT_MAX_THREADS,
+      'maxThreads must be a non-negative integer'
+    )
 
     const totalFetched = (syncContext?.totalThreadsFetched as number) ?? 0
-    if (totalFetched >= maxThreads) {
+    if (maxThreads > 0 && totalFetched >= maxThreads) {
       return { documents: [], hasMore: false }
     }
 
-    const remaining = maxThreads - totalFetched
-    const pageSize = Math.min(THREADS_PER_PAGE, remaining)
+    const pageSize =
+      maxThreads > 0 ? Math.min(THREADS_PER_PAGE, maxThreads - totalFetched) : THREADS_PER_PAGE
 
     const queryParams = new URLSearchParams({
       maxResults: String(pageSize),
@@ -501,7 +510,7 @@ export const gmailConnector: ConnectorConfig = {
     const newTotal = totalFetched + documents.length
     if (syncContext) syncContext.totalThreadsFetched = newTotal
 
-    const hitLimit = newTotal >= maxThreads
+    const hitLimit = maxThreads > 0 && newTotal >= maxThreads
 
     /**
      * Only a cap that actually truncates a longer listing blocks deletion
@@ -556,10 +565,15 @@ export const gmailConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const maxThreads = sourceConfig.maxThreads as string | undefined
-
-    if (maxThreads && (Number.isNaN(Number(maxThreads)) || Number(maxThreads) <= 0)) {
-      return { valid: false, error: 'Max threads must be a positive number' }
+    /** The same parser the sync uses, so a value that saves is a value that syncs. */
+    try {
+      parseDefaultedUnlimitedSafeInteger(
+        sourceConfig.maxThreads,
+        DEFAULT_MAX_THREADS,
+        'Max threads must be a non-negative whole number'
+      )
+    } catch (error) {
+      return { valid: false, error: getErrorMessage(error) }
     }
 
     try {

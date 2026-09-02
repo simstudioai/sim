@@ -34,7 +34,7 @@ export class InteractiveCopilotExecutionRequiredError extends Error {
 
 export type CopilotResourceScope = Pick<
   NonNullable<DelegatedPrincipal['resourceScope']>,
-  'fileId' | 'tableId'
+  'fileId' | 'tableId' | 'credentialId'
 >
 
 export interface CopilotDelegationConfiguration {
@@ -125,11 +125,17 @@ export function createTrustedCopilotPrincipal(
   if (options.resourceScope?.tableId !== undefined) {
     requireNonEmpty(options.resourceScope.tableId, 'a valid table scope')
   }
+  if (options.resourceScope?.credentialId !== undefined) {
+    requireNonEmpty(options.resourceScope.credentialId, 'a valid credential scope')
+  }
 
   const issuedAt = new Date()
   const resourceScope = Object.freeze({
     ...(options.resourceScope?.fileId ? { fileId: options.resourceScope.fileId } : {}),
     ...(options.resourceScope?.tableId ? { tableId: options.resourceScope.tableId } : {}),
+    ...(options.resourceScope?.credentialId
+      ? { credentialId: options.resourceScope.credentialId }
+      : {}),
     ...(input.chatId ? { chatId: input.chatId } : {}),
     ...(input.executionId ? { executionId: input.executionId } : {}),
   })

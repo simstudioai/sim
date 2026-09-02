@@ -41,6 +41,7 @@ import {
   restoreKnowledgeBaseContract,
   type SaveDocumentTagDefinitionsResult,
   saveDocumentTagDefinitionsContract,
+  searchWorkspaceKnowledgeContract,
   type TagDefinitionData,
   type TagUsageData,
   type UpdateKnowledgeDocumentResponseData,
@@ -48,6 +49,8 @@ import {
   updateKnowledgeChunkContract,
   updateKnowledgeDocumentContract,
   updateKnowledgeDocumentTagsContract,
+  type WorkspaceKnowledgeSearchBody,
+  type WorkspaceKnowledgeSearchResult,
 } from '@/lib/api/contracts/knowledge'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
@@ -74,6 +77,7 @@ export const KNOWLEDGE_DOCUMENT_DETAIL_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_DOCUMENT_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_CHUNK_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_CHUNK_SEARCH_STALE_TIME = 60 * 1000
+export const WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_TAG_USAGE_STALE_TIME = 60 * 1000
 export const KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME = 60 * 1000
@@ -1151,5 +1155,40 @@ export function useBulkDeleteKnowledgeBases(workspaceId: string) {
         queryClient.removeQueries({ queryKey: knowledgeKeys.detail(knowledgeBaseId) })
       }
     },
+  })
+}
+
+async function searchWorkspaceKnowledge(
+  body: WorkspaceKnowledgeSearchBody,
+  signal?: AbortSignal
+): Promise<WorkspaceKnowledgeSearchResult[]> {
+  const data = await requestJson(searchWorkspaceKnowledgeContract, { body, signal })
+  return data.data.results
+}
+
+/**
+ * What the signed-in person may read that matches `query`, across the given
+ * knowledge bases. Off until there is a query and a base to search.
+ */
+export function useWorkspaceKnowledgeSearch(
+  workspaceId: string | undefined,
+  knowledgeBaseIds: readonly string[],
+  query: string
+) {
+  const trimmed = query.trim()
+  return useQuery({
+    queryKey: knowledgeKeys.search(workspaceId, knowledgeBaseIds, trimmed),
+    queryFn: ({ signal }) =>
+      searchWorkspaceKnowledge(
+        {
+          workspaceId: workspaceId as string,
+          knowledgeBaseIds: [...knowledgeBaseIds],
+          query: trimmed,
+        },
+        signal
+      ),
+    enabled: Boolean(workspaceId) && knowledgeBaseIds.length > 0 && trimmed.length > 0,
+    staleTime: WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
+    placeholderData: keepPreviousData,
   })
 }
