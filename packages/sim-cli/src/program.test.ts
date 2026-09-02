@@ -1,17 +1,19 @@
 /**
  * @vitest-environment node
  */
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Command } from 'commander'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { buildProgram } from './program'
 import { CLI_VERSION } from './version'
 
 /** Parses argv against a program whose output and exits are captured, not taken. */
-async function parse(argv: string[]): Promise<{ out: string; code: string | null }> {
-  const program = buildProgram()
+async function parse(
+  argv: string[],
+  program: Command = buildProgram()
+): Promise<{ out: string; code: string | null }> {
   let out = ''
   const capture = (command: Command) => {
     command.exitOverride()
@@ -163,33 +165,48 @@ describe('help typed after a command that does not exist', () => {
   })
 })
 
+/** Commander keeps lifecycle hooks on a private field and offers no getter. */
+function preActionHooks(program: Command): Array<(a: Command, b: Command) => unknown> {
+  const { _lifeCycleHooks: hooks } = program as Command & {
+    _lifeCycleHooks?: Record<string, Array<(a: Command, b: Command) => unknown>>
+  }
+  return hooks?.preAction ?? []
+}
+
 describe('the update check', () => {
   /**
    * The notice must cost `--version` and `--help` nothing. Commander answers
    * both during parsing, before any action hook runs, so the guarantee is
    * structural — this holds it in place if the check is ever moved.
+   *
+   * It swaps in a sentinel hook rather than watching for a request or a cache
+   * file. Those side effects never appear from inside a checkout no matter
+   * what runs, because the check suppresses itself there — so asserting on
+   * them would pass even if the hook fired, which is precisely the regression
+   * this is meant to catch.
    */
-  it('never runs for the two commands commander answers during parsing', async () => {
-    const stderr = process.stderr
-    const wasTty = stderr.isTTY
-    const dir = mkdtempSync(join(tmpdir(), 'sim-cli-program-'))
-    const requests: string[] = []
-    Object.defineProperty(stderr, 'isTTY', { configurable: true, value: true })
-    process.env.SIM_CONFIG_DIR = dir
-    vi.stubGlobal('fetch', (input: URL) => {
-      requests.push(String(input))
-      return Promise.resolve(Response.json({ latest: '99.0.0' }))
+  it('fires no preAction hook for the two commands commander answers while parsing', async () => {
+    let fired = 0
+    const program = buildProgram()
+    const hooks = preActionHooks(program)
+    expect(hooks).toHaveLength(1)
+    hooks.splice(0, hooks.length, () => {
+      fired += 1
     })
 
+    await parse(['--version'], program)
+    await parse(['--help'], program)
+    expect(fired).toBe(0)
+
+    // And the sentinel is not inert: the same hook does fire for a real action,
+    // which is what makes the assertion above mean something.
+    const dir = mkdtempSync(join(tmpdir(), 'sim-cli-program-'))
+    process.env.SIM_CONFIG_DIR = dir
     try {
-      await parse(['--version'])
-      await parse(['--help'])
-      expect(requests).toEqual([])
-      expect(readdirSync(dir)).toEqual([])
+      await parse(['configure', '--set-output', 'json'], program)
+      expect(fired).toBe(1)
     } finally {
-      vi.unstubAllGlobals()
       process.env.SIM_CONFIG_DIR = undefined
-      Object.defineProperty(stderr, 'isTTY', { configurable: true, value: wasTty })
       rmSync(dir, { recursive: true, force: true })
     }
   })
@@ -207,12 +224,7 @@ describe('the update check', () => {
    */
   it('registers the update check as a root preAction hook', async () => {
     const program = buildProgram()
-    // Commander keeps lifecycle hooks on a private field and offers no getter,
-    // the same way `rawArgs` is read elsewhere in this file.
-    const { _lifeCycleHooks: hooks } = program as Command & {
-      _lifeCycleHooks?: Record<string, Array<(a: Command, b: Command) => unknown>>
-    }
-    const preAction = hooks?.preAction ?? []
+    const preAction = preActionHooks(program)
 
     expect(preAction).toHaveLength(1)
     // Invoking it must resolve, never throw: it runs in front of the user's

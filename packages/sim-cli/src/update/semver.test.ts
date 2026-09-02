@@ -34,6 +34,8 @@ describe('parsing a published version', () => {
     ['01.2.3', 'a leading zero'],
     ['2.1.2-', 'an empty prerelease'],
     ['2.1.2-preview..1', 'an empty identifier'],
+    ['2.1.3-preview.09', 'a zero-padded numeric identifier'],
+    ['2.1.3-01', 'a zero-padded identifier on its own'],
     ['', 'nothing at all'],
     ['latest', 'a dist-tag mistaken for a version'],
   ])('rejects %s (%s)', (version) => {
@@ -61,6 +63,13 @@ describe('precedence', () => {
     // The mirror of the case above, and a distinct branch: it is the only way
     // to reach the comparison with an empty prerelease list on the left.
     expect(order('2.1.3', '2.1.3-preview.44.1')).toBe(1)
+  })
+
+  it('does not let a malformed identifier outrank every number', () => {
+    // `09` is not a valid numeric identifier. Accepting it would reclassify it
+    // as alphanumeric, and alphanumerics outrank numbers — so `preview.010`
+    // would sort above `preview.2`.
+    expect(parseVersion('2.1.3-preview.010')).toBeNull()
   })
 
   it('orders two alphanumeric identifiers by ASCII', () => {

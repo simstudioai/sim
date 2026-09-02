@@ -132,8 +132,16 @@ both versions and the command that upgrades:
 Update available: sim 2.1.2 → 2.1.5. Run: npm install -g sim@latest
 ```
 
-The request carries the CLI version and nothing else — no API key, no workspace,
-no command — and it never follows a redirect away from the registry you asked.
+The request carries the CLI version and nothing else — no Sim API key, no
+workspace, no command — and it never follows a redirect away from the registry
+it asked.
+
+One caveat worth stating plainly: if you point `npm_config_registry` at a
+private mirror, the check goes to that mirror instead of npm, and any
+credentials embedded in that URL (an Artifactory or Nexus `?token=…`) are sent
+with it — they have to be, or the mirror would reject the request. Those are
+your registry's credentials, not Sim's, and they go only to the host you
+configured.
 
 The notice is skipped entirely when:
 
@@ -148,6 +156,11 @@ The notice is skipped entirely when:
 
 Set `npm_config_registry` to ask a mirror instead; its path and query are
 preserved, so a token-authenticated Artifactory or Nexus base works.
+
+The command the notice prints matches how Sim was installed — `npm install -g`,
+`pnpm add -g`, `bun add -g`, or `yarn global add` — so running it updates the
+executable already on your `PATH` rather than installing a second copy under a
+different package manager.
 
 Node ignores `HTTPS_PROXY` unless you also set `NODE_USE_ENV_PROXY=1`, and only
 from Node 22.21 and 24.5. The CLI warns when a proxy is configured but will not

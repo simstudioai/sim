@@ -19,6 +19,15 @@ const VERSION_PATTERN =
 /** A prerelease identifier that is all digits compares as a number. */
 const NUMERIC_IDENTIFIER = /^(0|[1-9]\d*)$/
 
+/**
+ * A numeric prerelease identifier carrying a leading zero, which the
+ * specification forbids. It has to be spotted rather than simply failing
+ * `NUMERIC_IDENTIFIER`: falling through would silently reclassify `09` as an
+ * alphanumeric identifier, and alphanumerics outrank every number — so
+ * `preview.010` would sort above `preview.2`.
+ */
+const LEADING_ZERO_IDENTIFIER = /^0\d+$/
+
 export interface ParsedVersion {
   major: number
   minor: number
@@ -58,13 +67,12 @@ export function parseVersion(version: string): ParsedVersion | null {
     return null
   }
 
-  const prerelease = match[4]
-    ? match[4]
-        .split('.')
-        .map((identifier) =>
-          NUMERIC_IDENTIFIER.test(identifier) ? Number(identifier) : identifier
-        )
-    : []
+  const identifiers = match[4] ? match[4].split('.') : []
+  if (identifiers.some((identifier) => LEADING_ZERO_IDENTIFIER.test(identifier))) return null
+
+  const prerelease = identifiers.map((identifier) =>
+    NUMERIC_IDENTIFIER.test(identifier) ? Number(identifier) : identifier
+  )
   if (
     prerelease.some(
       (identifier) => typeof identifier === 'number' && !Number.isSafeInteger(identifier)
