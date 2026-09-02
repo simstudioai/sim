@@ -26,6 +26,7 @@ import {
   memberFailureBackoffMs,
   memberNextAttemptAt,
   nextMemberSyncTime,
+  persistedDocumentsByObserver,
   shouldListFully,
 } from '@/lib/knowledge/connectors/member-sync-engine'
 import {
@@ -270,6 +271,26 @@ describe('member sync engine decisions', () => {
       expect(union.get('b')?.observers).toEqual(['m-1'])
       expect(union.get('c')?.observers).toEqual(['m-2'])
       expect(second.retainedBytes).toBeGreaterThan(first.retainedBytes)
+    })
+
+    it('grants a persisted batch to every member who listed each document, as it lands', () => {
+      const union = new Map()
+      admitMemberListing(union, 'm-1', [doc('a'), doc('b')], 'c-1', 0)
+      admitMemberListing(union, 'm-2', [doc('a'), doc('c')], 'c-1', 0)
+
+      const byMember = persistedDocumentsByObserver(
+        [
+          { externalId: 'a', documentId: 'd-a' },
+          { externalId: 'b', documentId: 'd-b' },
+          { externalId: 'zzz', documentId: 'd-z' },
+        ],
+        union
+      )
+
+      expect([...byMember.entries()]).toEqual([
+        ['m-1', ['d-a', 'd-b']],
+        ['m-2', ['d-a']],
+      ])
     })
 
     it('counts a member once per external id even when their listing repeats it', () => {

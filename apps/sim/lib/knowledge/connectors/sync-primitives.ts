@@ -1496,6 +1496,12 @@ export interface ProcessDocOpsInput {
   state: SyncRunState
   hydration: DocOpHydration
   lease: Pick<SyncRunLease, 'beatIfDue' | 'beatLive' | 'stillHeld'>
+  /**
+   * Runs after each batch's rows are written, with the documents that landed.
+   * A members-mode run grants access here, batch by batch, so a long first
+   * crawl becomes searchable as it goes rather than all at once at the end.
+   */
+  onBatchPersisted?: (persisted: readonly PersistedDocument[]) => Promise<void>
   /** Who may read the documents this pass writes. */
   documentAccess: SyncDocumentAccess
 }
@@ -1507,6 +1513,12 @@ export interface ProcessDocOpsInput {
  * run so the connector backs off, and a lost lease, which ends it so no
  * further write lands beside the replacement run's.
  */
+/** A document a batch wrote, by the id the source knows it by and the id the row has. */
+export interface PersistedDocument {
+  externalId: string
+  documentId: string
+}
+
 export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
   const {
     connectorId,
@@ -1744,10 +1756,15 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
     if (leaseLost) throw leaseLost.reason
 
     const batchDocs: DocumentData[] = []
+    const persisted: PersistedDocument[] = []
     for (let j = 0; j < settled.length; j++) {
       const outcome = settled[j]
       if (outcome.status === 'fulfilled') {
         batchDocs.push(outcome.value)
+        persisted.push({
+          externalId: batch[j].extDoc.externalId,
+          documentId: outcome.value.documentId,
+        })
         if (batch[j].type === 'add') result.docsAdded++
         else result.docsUpdated++
       } else {
@@ -1760,6 +1777,8 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
         })
       }
     }
+
+    if (persisted.length > 0) await input.onBatchPersisted?.(persisted)
 
     if (batchDocs.length > 0) {
       result.processingDispatch.requested += batchDocs.length
