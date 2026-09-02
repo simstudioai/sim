@@ -352,6 +352,59 @@ function validateAgentSkillEntry(item: any, index: number): string | null {
   return null
 }
 
+/** Parses a JSON-string array input; any other value passes through to the array check. */
+function parseArrayInput(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+const ROUTER_ROUTE_KEYS: ReadonlySet<string> = new Set(['id', 'title', 'value'])
+const ROUTER_ROUTE_SHAPE =
+  'a route is {id?, title, value}; "value" holds the description the model reads'
+
+/**
+ * Validates one router route against the shape the runtime reads.
+ *
+ * `generateRouterV2Prompt` shows the model each route's `value` as its
+ * description, so a route that carries the description under another key
+ * (`description`, `prompt`) is stored intact yet presented as having no
+ * description at all, and every request falls through to the first route.
+ * The stray key is named so the caller can see what to rename; `id` is
+ * optional because the engine rewrites route ids on write.
+ *
+ * Unknown keys are only named when `value` is unusable: the editor persists
+ * its own UI state (`showTags`, cursor position) beside the three keys, so a
+ * stored route echoed back must not be refused for carrying it.
+ */
+function validateRouterRouteEntry(route: unknown, index: number): string | null {
+  const where = `Invalid route at index ${index}`
+  if (route === null || typeof route !== 'object' || Array.isArray(route)) {
+    return `${where}: expected an object — ${ROUTER_ROUTE_SHAPE}`
+  }
+
+  const record = route as Record<string, unknown>
+  const problems: string[] = []
+  if (typeof record.title !== 'string' || record.title.trim() === '') {
+    problems.push('"title" must be a non-empty string')
+  }
+  if (typeof record.value !== 'string' || record.value.trim() === '') {
+    problems.push(
+      record.value === undefined ? 'missing "value"' : '"value" must be a non-empty string'
+    )
+    const unknownKeys = Object.keys(record).filter((key) => !ROUTER_ROUTE_KEYS.has(key))
+    if (unknownKeys.length > 0) {
+      const keys = unknownKeys.map((key) => `"${key}"`).join(', ')
+      problems.push(`unknown ${unknownKeys.length === 1 ? 'key' : 'keys'} ${keys}`)
+    }
+  }
+  if (problems.length === 0) return null
+  return `${where}: ${problems.join(', ')} — ${ROUTER_ROUTE_SHAPE}`
+}
+
 /**
  * Validates a value against its expected subBlock type
  * Returns validation result with the value or an error
@@ -490,21 +543,44 @@ export function validateValueForSubBlockType(
       return { valid: true, value }
     }
 
+    case 'router-input': {
+      const parsedValue = parseArrayInput(value)
+      if (!Array.isArray(parsedValue)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid ${type} value for field "${fieldName}" - expected a JSON array`,
+          },
+        }
+      }
+
+      const routeErrors = parsedValue
+        .map((route: unknown, index: number) => validateRouterRouteEntry(route, index))
+        .filter((err): err is string => err !== null)
+      if (routeErrors.length > 0) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: routeErrors.join('; '),
+          },
+        }
+      }
+
+      return { valid: true, value }
+    }
+
     case 'condition-input':
-    case 'router-input':
     case 'knowledge-tag-filters':
     case 'document-tag-entry': {
-      const parsedValue =
-        typeof value === 'string'
-          ? (() => {
-              try {
-                return JSON.parse(value)
-              } catch {
-                return null
-              }
-            })()
-          : value
-
+      const parsedValue = parseArrayInput(value)
       if (!Array.isArray(parsedValue)) {
         return {
           valid: false,

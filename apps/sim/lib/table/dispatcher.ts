@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import {
   and,
   asc,
+  desc,
   eq,
   gt,
   inArray,
@@ -321,47 +322,7 @@ export async function countRunningCells(
   return { byRowId, hasRunning }
 }
 
-/** Read every dispatch on a table whose status is still `pending` or
- *  `dispatching`. Drives the client-side "about to run" overlay: rows in an
- *  active dispatch's scope ahead of its cursor are rendered as queued even
- *  before the dispatcher has reached them, so refresh during a long Run-all
- *  doesn't lose the queued indicators. */
-export async function listActiveDispatches(tableId: string): Promise<DispatchRow[]> {
-  const rows = await db
-    .select()
-    .from(tableRunDispatches)
-    .where(
-      and(
-        eq(tableRunDispatches.tableId, tableId),
-        inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES])
-      )
-    )
-  return rows.map((row) => ({
-    id: row.id,
-    tableId: row.tableId,
-    workspaceId: row.workspaceId,
-    requestId: row.requestId,
-    mode: row.mode as DispatchMode,
-    scope: row.scope as DispatchScope,
-    status: row.status as DispatchStatus,
-    cursor: row.cursor,
-    limit: (row.limit as DispatchLimit | null) ?? null,
-    processedCount: row.processedCount,
-    isManualRun: row.isManualRun,
-    triggeredByUserId: row.triggeredByUserId,
-    requestedAt: row.requestedAt,
-    completedAt: row.completedAt,
-    cancelledAt: row.cancelledAt,
-  }))
-}
-
-export async function readDispatch(dispatchId: string): Promise<DispatchRow | null> {
-  const [row] = await db
-    .select()
-    .from(tableRunDispatches)
-    .where(eq(tableRunDispatches.id, dispatchId))
-    .limit(1)
-  if (!row) return null
+function toDispatchRow(row: typeof tableRunDispatches.$inferSelect): DispatchRow {
   return {
     id: row.id,
     tableId: row.tableId,
@@ -379,6 +340,58 @@ export async function readDispatch(dispatchId: string): Promise<DispatchRow | nu
     completedAt: row.completedAt,
     cancelledAt: row.cancelledAt,
   }
+}
+
+/** Read every dispatch on a table whose status is still `pending` or
+ *  `dispatching`. Drives the client-side "about to run" overlay: rows in an
+ *  active dispatch's scope ahead of its cursor are rendered as queued even
+ *  before the dispatcher has reached them, so refresh during a long Run-all
+ *  doesn't lose the queued indicators. */
+export async function listActiveDispatches(tableId: string): Promise<DispatchRow[]> {
+  const rows = await db
+    .select()
+    .from(tableRunDispatches)
+    .where(
+      and(
+        eq(tableRunDispatches.tableId, tableId),
+        inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES])
+      )
+    )
+  return rows.map(toDispatchRow)
+}
+
+/**
+ * How many dispatches {@link listDispatches} returns at most. Settled dispatches accumulate
+ * for the life of the table, so the public list needs a ceiling where the active-only read
+ * had the dispatcher's own bound; a table's recent history is what a caller polls for.
+ */
+export const MAX_LISTED_DISPATCHES = 100
+
+/**
+ * Every dispatch on a table, settled ones included, most recent first.
+ *
+ * The public `GET /tables/{tableId}/dispatches` returned only {@link listActiveDispatches},
+ * so a run that had just finished vanished from the list while `GET .../dispatches/{id}`
+ * still reported it `complete` — a caller polling the list right after a create saw `[]`
+ * and could not tell a completed run from one that never started.
+ */
+export async function listDispatches(tableId: string): Promise<DispatchRow[]> {
+  const rows = await db
+    .select()
+    .from(tableRunDispatches)
+    .where(eq(tableRunDispatches.tableId, tableId))
+    .orderBy(desc(tableRunDispatches.requestedAt), desc(tableRunDispatches.id))
+    .limit(MAX_LISTED_DISPATCHES)
+  return rows.map(toDispatchRow)
+}
+
+export async function readDispatch(dispatchId: string): Promise<DispatchRow | null> {
+  const [row] = await db
+    .select()
+    .from(tableRunDispatches)
+    .where(eq(tableRunDispatches.id, dispatchId))
+    .limit(1)
+  return row ? toDispatchRow(row) : null
 }
 
 /** Drive `dispatcherStep` to completion. Shared between the trigger.dev task

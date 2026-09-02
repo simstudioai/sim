@@ -389,6 +389,58 @@ describe('workflow and enrichment Table application commands', () => {
     expect(v2WorkflowGroupSchema.safeParse(result.group).success).toBe(true)
   })
 
+  /**
+   * A group whose outputs all land in columns the table already has needs no
+   * `outputColumns` at all; the service attaches those columns. The use case
+   * used to require at least one entry and the service refused a matching
+   * name, so a group could never be attached to existing columns.
+   */
+  it('creates a group over existing columns with outputColumns omitted', async () => {
+    await createTableGroupUseCase.execute({
+      principal,
+      input: {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        group: {
+          workflowId: 'workflow-1',
+          outputs: [{ blockId: 'block-2', path: 'score', columnName: 'name' }],
+        },
+      },
+    })
+
+    expect(mocks.addGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        group: expect.objectContaining({
+          outputs: [{ blockId: 'block-2', path: 'score', columnName: 'name' }],
+        }),
+        outputColumns: [],
+      }),
+      'request-1'
+    )
+  })
+
+  it('refuses an output whose column is neither declared nor existing', async () => {
+    await expect(
+      createTableGroupUseCase.execute({
+        principal,
+        input: {
+          tableId: table.id,
+          workspaceId: table.workspaceId,
+          group: {
+            workflowId: 'workflow-1',
+            outputs: [{ blockId: 'block-2', path: 'score', columnName: 'tier' }],
+          },
+          outputColumns: [],
+        },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('"tier" names neither an outputColumns entry'),
+    })
+
+    expect(mocks.addGroup).not.toHaveBeenCalled()
+  })
+
   it('preserves the internal create contract for an invalid related workflow', async () => {
     mocks.resolveWorkflowContext.mockRejectedValueOnce(
       new OrchestrationError('not_found', 'Workflow not found')

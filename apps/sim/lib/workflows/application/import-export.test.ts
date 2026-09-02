@@ -81,6 +81,11 @@ const imported = {
   folderId: 'folder-1',
   createdAt: new Date('2026-01-01T00:00:00Z'),
   updatedAt: new Date('2026-01-01T00:00:00Z'),
+  blocks: [
+    { id: 'block-1', type: 'starter', name: 'Start' },
+    { id: 'block-2', type: 'agent', name: 'Classify' },
+    { id: 'block-3', type: 'response', name: 'Reply' },
+  ],
 }
 const exportPayload = {
   version: '1.0' as const,
@@ -150,6 +155,7 @@ describe('workflow import and export application operations', () => {
         metadata: expect.objectContaining({
           operation: 'workflows.import',
           actor: { kind: 'workspace_api_key', keyId: 'key-1', workspaceId: 'ws-1' },
+          blocksCount: 3,
         }),
       })
     )

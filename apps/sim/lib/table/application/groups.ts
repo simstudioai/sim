@@ -8,6 +8,7 @@ import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   type ColumnDefinition,
+  columnMatchesRef,
   type DeleteWorkflowGroupData,
   getColumnId,
   TABLE_LIMITS,
@@ -264,12 +265,32 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
         input.group.outputs.map((output) => output.outputId)
       )
     }
+    const outputColumns = input.outputColumns ?? []
     const outputNames = new Set(input.group.outputs.map((output) => output.columnName))
-    const orphan = input.outputColumns.find((column) => !outputNames.has(column.name))
+    const orphan = outputColumns.find((column) => !outputNames.has(column.name))
     if (orphan) {
       throw new OrchestrationError(
         'validation',
         `outputColumns entry "${orphan.name}" has no matching group.outputs[].columnName`
+      )
+    }
+    /**
+     * Every output needs a column to land in: one this call creates, or one the
+     * table already has, which the group attaches instead of recreating. Checked
+     * here so the caller learns the offending name rather than hitting the
+     * schema invariant's generic failure inside the write.
+     */
+    const providedNames = new Set(outputColumns.map((column) => column.name))
+    const existingColumns = (context.table.schema as TableSchema).columns
+    const homeless = input.group.outputs.find(
+      (output) =>
+        !providedNames.has(output.columnName) &&
+        !existingColumns.some((column) => columnMatchesRef(column, output.columnName))
+    )
+    if (homeless) {
+      throw new OrchestrationError(
+        'validation',
+        `group.outputs[].columnName "${homeless.columnName}" names neither an outputColumns entry nor an existing column`
       )
     }
 
@@ -295,7 +316,7 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
         tableId: context.table.id,
         workspaceId: context.workspaceId,
         group,
-        outputColumns: input.outputColumns.map((column) => ({
+        outputColumns: outputColumns.map((column) => ({
           ...column,
           workflowGroupId: groupId,
         })),

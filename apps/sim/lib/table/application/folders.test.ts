@@ -55,7 +55,9 @@ vi.mock('@/lib/table/application/context', () => ({
   resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
 }))
 
-import { listTableFoldersUseCase } from '@/lib/table/application/folders'
+import { restoreFolder } from '@/lib/folders/orchestration'
+import { findArchivedFolderIdByPath } from '@/lib/folders/queries'
+import { listTableFoldersUseCase, restoreTableFolderUseCase } from '@/lib/table/application/folders'
 
 const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
 
@@ -102,5 +104,74 @@ describe('listTableFoldersUseCase', () => {
 
     expect(result.folders).toEqual([])
     expect(mocks.listRows).not.toHaveBeenCalled()
+  })
+})
+
+describe('restoreTableFolderUseCase', () => {
+  const restoredRow = {
+    id: 'folder-1',
+    name: 'xp-explore-renamed',
+    parentId: null,
+    workspaceId: 'ws-1',
+    resourceType: 'table',
+    deletedAt: null,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveWorkspaceContext.mockResolvedValue({
+      workspaceId: 'ws-1',
+      billedAccountUserId: 'owner-1',
+    })
+    mocks.resolvePermission.mockResolvedValue('admin')
+    vi.mocked(findArchivedFolderIdByPath).mockResolvedValue('folder-1')
+    vi.mocked(restoreFolder).mockResolvedValue({
+      success: true,
+      restoredItems: { folders: 1, tables: 2 },
+    })
+    mocks.loadFolderIndex.mockResolvedValue({
+      idByPath: new Map([['/xp-explore-renamed', 'folder-1']]),
+      pathById: new Map([['folder-1', '/xp-explore-renamed']]),
+      rowById: new Map([['folder-1', restoredRow]]),
+    })
+  })
+
+  /**
+   * The folder is addressed by the path it held when the recursive delete archived it, which
+   * only an archived-aware lookup can resolve — the active index no longer knows it. The id
+   * that lookup yields is what the orchestration restores; the path itself never reaches it.
+   */
+  it('restores the archived folder resolved from its delete-time path and reports what came back', async () => {
+    const result = await restoreTableFolderUseCase.execute({
+      principal,
+      input: { workspaceId: 'ws-1', path: '/xp-explore-renamed' },
+    })
+
+    expect(findArchivedFolderIdByPath).toHaveBeenCalledWith(
+      'ws-1',
+      'table',
+      '/xp-explore-renamed',
+      expect.objectContaining({ maxRows: expect.any(Number) })
+    )
+    expect(restoreFolder).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceType: 'table', workspaceId: 'ws-1', folderId: 'folder-1' }),
+      { projectAudit: false }
+    )
+    expect(result.folder).toBe(restoredRow)
+    expect(result.restoredItems).toEqual({ folders: 1, tables: 2 })
+    expect(result.requestedPath).toBe('/xp-explore-renamed')
+  })
+
+  it('reports a path no archived folder held as not found without touching the tree', async () => {
+    vi.mocked(findArchivedFolderIdByPath).mockResolvedValue(null)
+
+    await expect(
+      restoreTableFolderUseCase.execute({
+        principal,
+        input: { workspaceId: 'ws-1', path: '/never-existed' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(restoreFolder).not.toHaveBeenCalled()
   })
 })

@@ -165,6 +165,41 @@ describe('workflow mutation Copilot adapters', () => {
     )
   })
 
+  it('compacts echoed block inputs in run logs and leaves outputs whole', async () => {
+    const rows = Array.from({ length: 40 }, (_, index) => ({ id: index, name: `row ${index}` }))
+    const code = `const rows = ${JSON.stringify(rows)}; return rows.length`
+    const note = 'n'.repeat(2_001)
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: { count: 40 },
+      logs: [
+        {
+          blockName: 'Count rows',
+          input: { code, language: 'javascript', note },
+          output: { result: code },
+        },
+        { blockName: 'Start', input: 'raw', output: {} },
+      ],
+      metadata: { executionId: 'execution-1' },
+    })
+
+    const result = await executeRunWorkflow({ workflowId: 'workflow-1' }, context)
+
+    const output = result.output as {
+      logs: [{ input: Record<string, string>; output: Record<string, string> }, { input: string }]
+    }
+    expect(code.length).toBeGreaterThan(240)
+    expect(output.logs[0].input.code).toBe(
+      `${code.slice(0, 200)} …[${code.length} chars, see logs get execution-1 --trace]`
+    )
+    expect(output.logs[0].input.note).toBe(
+      `${'n'.repeat(200)} …[2001 chars, see logs get execution-1 --trace]`
+    )
+    expect(output.logs[0].input.language).toBe('javascript')
+    expect(output.logs[0].output.result).toBe(code)
+    expect(output.logs[1].input).toBe('raw')
+  })
+
   it('cancels a workflow run through the canonical application use case', async () => {
     mocks.executeWorkflowUseCase.mockResolvedValue({
       success: true,

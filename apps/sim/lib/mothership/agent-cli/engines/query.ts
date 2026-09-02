@@ -21,6 +21,33 @@ const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 50
 const TRACE_FETCH_CONCURRENCY = 5
 const VALUE_MAX_CHARS = 600
+const PATH_NOT_FOUND_NOTE = 'path not found on span'
+
+/**
+ * Keys that live on the span itself. A path whose head is anything else is read
+ * relative to the block's output when it resolves to nothing at the span root —
+ * `result.count` means `output.result.count`, which is where a block's fields live.
+ * Without this every run answered `value: null` for a path that was merely one
+ * segment short, indistinguishable from a block that produced nothing.
+ */
+const SPAN_LEVEL_KEYS: ReadonlySet<string> = new Set([
+  'input',
+  'output',
+  'status',
+  'name',
+  'type',
+  'duration',
+  'blockId',
+  'children',
+  'tokens',
+  'cost',
+  'executionOrder',
+  'errorHandled',
+  'tries',
+  'id',
+  'startTime',
+  'endTime',
+])
 
 interface QueryTraceSpan {
   name?: string
@@ -37,6 +64,13 @@ interface RunListItem {
   trigger?: string
   startedAt?: string
   durationMs?: number
+}
+
+interface ResolvedSpanPath {
+  value: unknown
+  /** The path that produced `value`: as given, or prefixed when the fallback applied. */
+  path: string
+  resolvedUnder?: 'output'
 }
 
 function collectSpansByName(
@@ -59,6 +93,18 @@ function resolveSpanPath(span: QueryTraceSpan, path: string): unknown {
   return current
 }
 
+/** The path as given first; under `output.` when the head is not a span-level key. */
+function resolveSpanPathWithFallback(span: QueryTraceSpan, path: string): ResolvedSpanPath {
+  const direct = resolveSpanPath(span, path)
+  if (direct !== undefined) return { value: direct, path }
+  const head = path.split('.')[0] ?? ''
+  if (SPAN_LEVEL_KEYS.has(head)) return { value: undefined, path }
+  const underOutput = `output.${path}`
+  const value = resolveSpanPath(span, underOutput)
+  if (value === undefined) return { value: undefined, path }
+  return { value, path: underOutput, resolvedUnder: 'output' }
+}
+
 function clipValue(value: unknown): unknown {
   if (value === undefined) return null
   const serialized = JSON.stringify(value)
@@ -78,7 +124,8 @@ export const logsQueryCommand: AgentCliEngine = {
     if (!workflowId || !blockName) {
       return agentCliFail(
         'Usage: sim logs query <workflowId> --block <name> [--field <path>] [--where <path>=<value>] [--status <s>] [--trigger <t>] [--limit N]\n' +
-          'Paths resolve inside the matched block span: output.content, input.action_id, status, duration.'
+          'Paths resolve inside the matched block span: output.content, input.action_id, status, duration. ' +
+          'A path that names no span-level key is read under output. (result.count means output.result.count).'
       )
     }
     const field = stringFlag(flags, 'field') ?? 'output'
@@ -111,6 +158,8 @@ export const logsQueryCommand: AgentCliEngine = {
     const rows: (Record<string, unknown> | undefined)[] = new Array(runItems.length)
     let filteredOut = 0
     let missingTrace = 0
+    let fieldResolvedUnder: 'output' | undefined
+    let whereResolvedUnder: 'output' | undefined
     for (let start = 0; start < runItems.length; start += TRACE_FETCH_CONCURRENCY) {
       const chunk = runItems.slice(start, start + TRACE_FETCH_CONCURRENCY)
       await Promise.all(
@@ -135,18 +184,31 @@ export const logsQueryCommand: AgentCliEngine = {
           collectSpansByName(spans, normalizedBlockName, matches)
           const last = matches[matches.length - 1]
           if (!last) {
+            // Under --where a run the block never reached cannot match; returning it as
+            // `hits: 0` made matches indistinguishable from padding.
+            if (wherePath) {
+              filteredOut++
+              return
+            }
             rows[start + offset] = { ...base, hits: 0, value: null }
             return
           }
-          if (wherePath && String(resolveSpanPath(last, wherePath)) !== whereValue) {
-            filteredOut++
-            return
+          if (wherePath) {
+            const matched = resolveSpanPathWithFallback(last, wherePath)
+            if (matched.resolvedUnder) whereResolvedUnder = matched.resolvedUnder
+            if (String(matched.value) !== whereValue) {
+              filteredOut++
+              return
+            }
           }
+          const resolved = resolveSpanPathWithFallback(last, field)
+          if (resolved.resolvedUnder) fieldResolvedUnder = resolved.resolvedUnder
           rows[start + offset] = {
             ...base,
             hits: matches.length,
             blockStatus: last.status ?? 'success',
-            value: clipValue(resolveSpanPath(last, field)),
+            value: clipValue(resolved.value),
+            ...(resolved.value === undefined ? { note: PATH_NOT_FOUND_NOTE } : {}),
           }
         })
       )
@@ -158,9 +220,16 @@ export const logsQueryCommand: AgentCliEngine = {
         {
           workflowId,
           block: blockName,
-          field,
+          field: fieldResolvedUnder ? `output.${field}` : field,
+          ...(fieldResolvedUnder ? { fieldResolvedUnder } : {}),
           runsScanned: runItems.length,
-          ...(wherePath ? { where, filteredOut } : {}),
+          ...(wherePath
+            ? {
+                where: whereResolvedUnder ? `output.${where}` : where,
+                ...(whereResolvedUnder ? { whereResolvedUnder } : {}),
+                filteredOut,
+              }
+            : {}),
           ...(missingTrace ? { missingTrace } : {}),
           rows: kept,
         },

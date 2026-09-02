@@ -1689,10 +1689,19 @@ export const v2AddWorkflowGroupBodySchema = z
           ),
       })
       .describe('Workflow or enrichment producer definition.'),
+    /**
+     * `min(1)` here, together with the service refusing any name the table
+     * already had, made it impossible to attach a group to existing columns:
+     * `[]` was rejected as too small and a matching entry as a duplicate.
+     * Existing columns are attached rather than recreated, and an output whose
+     * column already exists needs no entry at all.
+     */
     outputColumns: z
       .array(v2WorkflowGroupOutputColumnSchema)
-      .min(1)
-      .describe('Columns created for producer outputs.'),
+      .default([])
+      .describe(
+        'Columns to create for producer outputs. An entry naming a column the table already has attaches that column to the group instead of creating it (its `type` must match), and an output whose column already exists may omit its entry entirely — so `[]` attaches existing columns only.'
+      ),
     autoRun: z
       .boolean()
       .optional()
@@ -2627,12 +2636,13 @@ export const v2CancelTableDispatchContract = defineRouteContract({
 })
 
 /**
- * What is currently running on one table. Returns only the in-flight
- * dispatches (`pending`, `dispatching`); a settled one is reachable by id.
+ * The dispatches on one table, most recent first. Settled dispatches
+ * (`complete`, `canceled`) are listed alongside the in-flight ones, so a run
+ * that finished between two polls is still visible next to the `dispatchId`
+ * its create returned rather than vanishing into an empty list.
  *
- * Unpaged: the dispatcher keeps at most a handful of active dispatches per
- * table, so the set is bounded by construction the same way a table's saved
- * views and workflow groups are.
+ * Unpaged: the list is capped at the 100 most recent dispatches, which bounds
+ * it the same way a table's saved views and workflow groups are bounded.
  */
 export const v2ListTableDispatchesContract = defineRouteContract({
   method: 'GET',

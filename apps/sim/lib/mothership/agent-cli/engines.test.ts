@@ -80,3 +80,151 @@ describe('workflows lint', () => {
     expect(result.stderr).toContain('Unexpected request')
   })
 })
+
+const RUNS_PATH = '/api/v2/workflows/wf-1/runs'
+const COUNT_ROWS_RUNS = {
+  [RUNS_PATH]: {
+    data: [
+      { runId: 'run-1', status: 'completed' },
+      { runId: 'run-2', status: 'completed' },
+      { runId: 'run-3', status: 'completed' },
+    ],
+  },
+  '/api/v2/logs/run-1': {
+    data: {
+      traceSpans: [{ name: 'Count rows', status: 'success', output: { result: { count: 6 } } }],
+    },
+  },
+  // Nested under a parent span: the walk is recursive.
+  '/api/v2/logs/run-2': {
+    data: {
+      traceSpans: [
+        {
+          name: 'Loop 1',
+          children: [{ name: 'Count rows', status: 'success', output: { result: { count: 2 } } }],
+        },
+      ],
+    },
+  },
+  // The block never executed in this run.
+  '/api/v2/logs/run-3': { data: { traceSpans: [{ name: 'Other', output: {} }] } },
+}
+
+async function logsQuery(flags: Record<string, string>) {
+  const result = await runEngine('logs query', ['wf-1'], runtimeWith(COUNT_ROWS_RUNS), {
+    block: 'Count rows',
+    ...flags,
+  })
+  expect(result.exitCode).toBe(0)
+  return JSON.parse(result.stdout)
+}
+
+describe('logs query', () => {
+  it('reads a field with no span-level head under output and reports the resolved path', async () => {
+    const report = await logsQuery({ field: 'result.count' })
+    expect(report.field).toBe('output.result.count')
+    expect(report.fieldResolvedUnder).toBe('output')
+    expect(report.rows.map((row: { value: unknown }) => row.value)).toEqual([6, 2, null])
+    expect(report.rows[2]).toMatchObject({ runId: 'run-3', hits: 0, value: null })
+    expect(report.rows[2].note).toBeUndefined()
+
+    const explicit = await logsQuery({ field: 'output.result.count' })
+    expect(explicit.field).toBe('output.result.count')
+    expect(explicit.fieldResolvedUnder).toBeUndefined()
+  })
+
+  it('marks a matched span whose path resolves to nothing, distinct from a genuine null', async () => {
+    const report = await logsQuery({ field: 'input.code' })
+    expect(report.field).toBe('input.code')
+    expect(report.fieldResolvedUnder).toBeUndefined()
+    expect(report.rows[0]).toMatchObject({
+      runId: 'run-1',
+      hits: 1,
+      value: null,
+      note: 'path not found on span',
+    })
+
+    const missing = await logsQuery({ field: 'result.missing' })
+    expect(missing.rows[0]).toMatchObject({ value: null, note: 'path not found on span' })
+  })
+
+  it('filters out runs the block never reached under --where, with the same output fallback', async () => {
+    const report = await logsQuery({ where: 'result.count=6' })
+    expect(report.where).toBe('output.result.count=6')
+    expect(report.whereResolvedUnder).toBe('output')
+    expect(report.filteredOut).toBe(2)
+    expect(report.rows).toHaveLength(1)
+    expect(report.rows[0]).toMatchObject({ runId: 'run-1', hits: 1 })
+  })
+})
+
+const DEPS_STATE = {
+  blocks: {
+    'trigger-1': { type: 'starter', name: 'Start' },
+    fetch: { type: 'function', name: 'Fetch rows' },
+    gate: { type: 'condition', name: 'Gate' },
+    enrich: { type: 'workflow', name: 'Enrich' },
+    target: {
+      type: 'function',
+      name: 'Summarize',
+      subBlocks: {
+        code: { value: 'return <fetchrows.result>.length + <enrich.result.data.total>' },
+      },
+    },
+  },
+  edges: [
+    { id: 'e1', source: 'trigger-1', target: 'fetch', sourceHandle: 'source' },
+    { id: 'e2', source: 'fetch', target: 'target', sourceHandle: 'source' },
+    { id: 'e3', source: 'gate', target: 'target', sourceHandle: 'condition-true' },
+    { id: 'e4', source: 'enrich', target: 'target', sourceHandle: 'source' },
+    { id: 'e5', source: 'trigger-1', target: 'target', sourceHandle: 'source' },
+    { id: 'e6', source: 'target', target: 'target', sourceHandle: 'source' },
+  ],
+}
+
+describe('workflows deps', () => {
+  it('lists graph predecessors beside token references and mocks both', async () => {
+    const result = await runEngine(
+      'workflows deps',
+      ['wf-1', 'target'],
+      runtimeWith({ [STATE_PATH]: { data: DEPS_STATE } }),
+      {}
+    )
+    expect(result.exitCode).toBe(0)
+    const report = JSON.parse(result.stdout)
+    expect(report.references.map((d: { blockId?: string }) => d.blockId)).toEqual([
+      'fetch',
+      'enrich',
+    ])
+    // The trigger and the block itself are skipped; the unreferenced gate is not.
+    expect(report.predecessors).toEqual([
+      { blockId: 'fetch', blockName: 'Fetch rows', sourceHandle: 'source' },
+      { blockId: 'gate', blockName: 'Gate', sourceHandle: 'condition-true' },
+      { blockId: 'enrich', blockName: 'Enrich', sourceHandle: 'source' },
+    ])
+    expect(report.mock).toEqual({
+      'Fetch rows': ['result'],
+      Enrich: ['result.data.total'],
+      Gate: ['<output>'],
+    })
+    expect(report.childReturns).toEqual([
+      {
+        blockId: 'enrich',
+        blockName: 'Enrich',
+        note: expect.stringContaining('result.data.<field>'),
+      },
+    ])
+  })
+
+  it('omits childReturns when no upstream block runs a child workflow', async () => {
+    const result = await runEngine(
+      'workflows deps',
+      ['wf-1', 'fetch'],
+      runtimeWith({ [STATE_PATH]: { data: DEPS_STATE } }),
+      {}
+    )
+    const report = JSON.parse(result.stdout)
+    expect(report.predecessors).toEqual([])
+    expect(report.childReturns).toBeUndefined()
+  })
+})

@@ -1169,3 +1169,99 @@ describe('permission-group tool access', () => {
     )
   })
 })
+
+/**
+ * A `connections` value the parser does not understand used to be ignored: the
+ * block landed, `applied` counted it, and nothing said the wiring never
+ * happened. The handle and the accepted shapes are now named as a dropped input.
+ */
+describe('connection shape validation', () => {
+  const BLOCK_A = '44444444-4444-4444-8444-444444444444'
+
+  function workflowWithStart() {
+    return {
+      blocks: {
+        'start-1': {
+          id: 'start-1',
+          type: 'function',
+          name: 'Start',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: {},
+          outputs: {},
+          data: {},
+        },
+      },
+      edges: [] as any[],
+      loops: {},
+      parallels: {},
+    }
+  }
+
+  it('reports a connections value of an unsupported shape instead of dropping it silently', () => {
+    const { state, validationErrors, skippedItems } = applyOperationsToWorkflowState(
+      workflowWithStart(),
+      [
+        {
+          operation_type: 'add',
+          block_id: BLOCK_A,
+          params: {
+            type: 'function',
+            name: 'Block A',
+            inputs: { code: 'return 1' },
+            connections: { source: { target: 'start-1' }, error: [{ target: 'start-1' }] },
+          },
+        },
+      ]
+    )
+
+    expect(state.blocks[BLOCK_A]).toBeDefined()
+    expect(state.edges).toEqual([])
+    expect(skippedItems).toEqual([])
+    expect(validationErrors).toEqual([
+      {
+        blockId: BLOCK_A,
+        blockType: 'function',
+        field: 'connections',
+        value: { target: 'start-1' },
+        error:
+          'connections["source"]: expected a target block id, {block, handle?}, or an array of those',
+      },
+      {
+        blockId: BLOCK_A,
+        blockType: 'function',
+        field: 'connections',
+        value: { target: 'start-1' },
+        error: 'connections["error"][0]: expected a target block id or {block, handle?}',
+      },
+    ])
+  })
+
+  it('wires the accepted shapes and reports a handle the block lacks as a skip', () => {
+    const { state, validationErrors, skippedItems } = applyOperationsToWorkflowState(
+      workflowWithStart(),
+      [
+        {
+          operation_type: 'add',
+          block_id: BLOCK_A,
+          params: {
+            type: 'function',
+            name: 'Block A',
+            inputs: { code: 'return 1' },
+            connections: { success: 'start-1', error: [{ block: 'start-1' }], incoming: 'start-1' },
+          },
+        },
+      ]
+    )
+
+    expect(validationErrors).toEqual([])
+    expect(state.edges.map((edge: any) => edge.sourceHandle).sort()).toEqual(['error', 'source'])
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'invalid_source_handle',
+        blockId: BLOCK_A,
+        details: expect.objectContaining({ sourceHandle: 'incoming' }),
+      }),
+    ])
+  })
+})

@@ -30,7 +30,10 @@ import {
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
 import { attachAttemptedExecutionId, hasExecutionResult } from '@/executor/utils/errors'
-import { emptyRunFromBlockSnapshot } from '@/executor/utils/run-from-block'
+import {
+  emptyRunFromBlockSnapshot,
+  RunFromBlockValidationError,
+} from '@/executor/utils/run-from-block'
 
 const logger = createLogger('CopilotWorkflowRun')
 
@@ -331,7 +334,17 @@ async function executeCopilotRun(params: {
       )
     }
     return result
-  } catch (error) {
+  } catch (caught) {
+    /**
+     * A refused run-from-block start — block missing, inside a loop, or an upstream block the
+     * snapshot never executed — is the caller's to fix, so it crosses as a classified validation
+     * failure. Left bare, the Copilot projection reduced it to "Workflow execution failed" and
+     * the agent had to recover the reason from the trace.
+     */
+    const error =
+      caught instanceof RunFromBlockValidationError
+        ? new OrchestrationError('validation', caught.message)
+        : caught
     /**
      * `executeWorkflow` names the run itself once it crosses its own dispatch boundary, so
      * preflight failures inside it correctly carry nothing. This covers only the window it

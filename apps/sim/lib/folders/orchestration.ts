@@ -884,8 +884,15 @@ async function deleteFolderWithoutTreeLock(
  * a folder whose parent is still archived is re-rooted, and the restored name is
  * deduplicated against the *resolved* parent's active siblings — the caller cannot rename
  * an archived folder, so a taken name would otherwise make it permanently unrestorable.
+ *
+ * The tree lock is taken inside the folder-row transaction at the end, not around the whole
+ * restore. Wrapping everything in `withFolderTreeLock` — as this once did — ran the pool reads
+ * below and the `restoreChildren` hook's own transactions inside a transaction callback, which
+ * the `@sim/db` tripwire refuses outside production: every table-folder restore 500ed in dev
+ * while the file-folder restore, which does all its work on the locked handle, kept working.
+ * `deleteFolder` releases its lock before the cascade for the same reason.
  */
-async function restoreFolderWithoutTreeLock(
+async function restoreFolderTree(
   params: RestoreFolderParams,
   options: { projectAudit: boolean }
 ): Promise<RestoreFolderResult> {
@@ -950,6 +957,7 @@ async function restoreFolderWithoutTreeLock(
   let counts: { folders: number; children: number }
   try {
     counts = await db.transaction(async (tx) => {
+      await acquireFolderMutationLock(tx, workspaceId, resourceType)
       const now = new Date()
 
       let resolvedParentId = folder.parentId
@@ -1045,7 +1053,8 @@ async function restoreFolderWithoutTreeLock(
 }
 
 /**
- * Restores a folder while serializing against every writer for the resource tree.
+ * Restores a folder, serializing the folder-row write against every writer for the resource
+ * tree (see {@link restoreFolderTree} for why the lock is scoped that narrowly).
  *
  * `projectAudit: false` for a caller that projects `FOLDER_RESTORED` itself — an application
  * use case attributes the entry to the acting `Principal`, which the `actorId: userId` entry
@@ -1056,7 +1065,5 @@ export async function restoreFolder(
   params: RestoreFolderParams,
   options?: { projectAudit?: boolean }
 ): Promise<RestoreFolderResult> {
-  return withFolderTreeLock(params.workspaceId, params.resourceType, () =>
-    restoreFolderWithoutTreeLock(params, { projectAudit: options?.projectAudit ?? true })
-  )
+  return restoreFolderTree(params, { projectAudit: options?.projectAudit ?? true })
 }

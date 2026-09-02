@@ -64,11 +64,13 @@ vi.mock('@sim/workflow-persistence/subblocks', () => ({
 vi.mock('@sim/utils/id', () => ({ generateId: vi.fn(() => 'child-execution-1') }))
 vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: vi.fn(() => 'request-1') }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   runFromBlockFromCopilot,
   runWorkflowFromCopilot,
 } from '@/lib/workflows/application/run-workflow-from-copilot'
 import { readAttemptedExecutionId } from '@/executor/utils/errors'
+import { RunFromBlockValidationError } from '@/executor/utils/run-from-block'
 
 const principal = {
   kind: 'delegated' as const,
@@ -288,6 +290,40 @@ describe('Copilot workflow run application commands', () => {
       }),
       'child-execution-1'
     )
+  })
+
+  it('surfaces a refused run-from-block start as a validation failure the caller can act on', async () => {
+    mocks.sourceState.mockResolvedValueOnce({
+      blockStates: {},
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: {},
+      completedLoops: [],
+      activeExecutionPath: [],
+    })
+    mocks.executeWorkflow.mockRejectedValueOnce(
+      new RunFromBlockValidationError('Upstream dependency not executed: fetch-1')
+    )
+
+    const error = await runFromBlockFromCopilot
+      .execute({
+        principal,
+        input: {
+          workflowId: 'workflow-1',
+          useDraftState: true,
+          lifecycle,
+          blockId: 'agent-1',
+          sourceExecutionId: 'source-execution-1',
+        },
+      })
+      .catch((thrown) => thrown)
+
+    expect(error).toBeInstanceOf(OrchestrationError)
+    expect(error).toMatchObject({
+      code: 'validation',
+      message: 'Upstream dependency not executed: fetch-1',
+    })
+    expect(readAttemptedExecutionId(error)).toBe('child-execution-1')
   })
 
   it('propagates unexpected execution infrastructure failures', async () => {

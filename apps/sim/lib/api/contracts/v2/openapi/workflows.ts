@@ -991,6 +991,11 @@ const declaredRoutes = [
               folderPath: '/Operations',
               createdAt: WORKFLOW_EXAMPLE.createdAt,
               updatedAt: WORKFLOW_EXAMPLE.updatedAt,
+              blocks: [
+                { id: 'block_start', type: 'starter', name: 'Start' },
+                { id: 'block_triage', type: 'agent', name: 'Triage' },
+                { id: 'block_reply', type: 'response', name: 'Reply' },
+              ],
             },
           },
         ]

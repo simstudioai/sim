@@ -1,7 +1,9 @@
 /**
  * @vitest-environment node
  */
+import { generateId } from '@sim/utils/id'
 import { describe, expect, it, vi } from 'vitest'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/types'
 import {
   applyBlockRetry,
   applyTriggerConfigToBlockSubblocks,
@@ -72,12 +74,53 @@ const apiBlockConfig = {
   ],
 }
 
+/** Mirrors generic_webhook: the token is pre-filled by a thunk, the URL is display-only. */
+const webhookBlockConfig = {
+  type: 'generic_webhook',
+  name: 'Webhook Trigger',
+  category: 'triggers',
+  outputs: {},
+  subBlocks: [
+    { id: 'webhookUrlDisplay', type: 'short-input', readOnly: true, value: () => 'display-only' },
+    { id: 'requireAuth', type: 'switch', defaultValue: true },
+    { id: 'token', type: 'short-input', password: true, value: () => generateId() },
+    { id: 'signingSecret', type: 'short-input', hidden: true, value: () => 'run-time-only' },
+  ],
+}
+
+/** An operation dropdown pre-filled by a thunk, so the seed meets the permission gate. */
+const gatedOperationBlockConfig = {
+  type: 'gated',
+  name: 'Gated',
+  outputs: {},
+  subBlocks: [
+    {
+      id: 'operation',
+      type: 'dropdown',
+      options: [
+        { label: 'Canvas', id: 'canvas' },
+        { label: 'Send', id: 'send' },
+      ],
+      value: () => 'canvas',
+    },
+  ],
+  tools: {
+    access: ['gated_canvas', 'gated_send'],
+    config: {
+      tool: ({ operation }: { operation?: string }) =>
+        operation === 'canvas' ? 'gated_canvas' : 'gated_send',
+    },
+  },
+}
+
 const blocksByType: Record<string, unknown> = {
   api: apiBlockConfig,
   agent: agentBlockConfig,
   condition: conditionBlockConfig,
   knowledge: knowledgeBlockConfig,
   slack: slackBlockConfig,
+  generic_webhook: webhookBlockConfig,
+  gated: gatedOperationBlockConfig,
 }
 
 vi.mock('@/blocks/registry', () => ({
@@ -87,6 +130,8 @@ vi.mock('@/blocks/registry', () => ({
     conditionBlockConfig,
     knowledgeBlockConfig,
     slackBlockConfig,
+    webhookBlockConfig,
+    gatedOperationBlockConfig,
   ],
   getBlock: (type: string) => blocksByType[type],
 }))
@@ -174,6 +219,67 @@ describe('createBlockFromParams', () => {
 
     expect(block.subBlocks.redirectPolicyVersion.value).toBe('standard-v1')
     expect(block.subBlocks.sendCredentialsOnCrossOriginRedirect.value).toBeNull()
+  })
+
+  /**
+   * The editor pre-fills a webhook trigger's token from its `value()` thunk;
+   * without the same seeding here a trigger added over the API deployed with
+   * `token: null` and was refused as "authentication enabled but no token".
+   */
+  it('seeds editor defaults from value() thunks so an API-added webhook trigger has a token', () => {
+    const block = createBlockFromParams('hook-1', {
+      type: 'generic_webhook',
+      name: 'Webhook',
+      triggerMode: true,
+    })
+
+    expect(block.subBlocks.token.value).toEqual(expect.any(String))
+    expect(block.subBlocks.token.value).not.toBe('')
+    expect(block.subBlocks.webhookUrlDisplay.value).toBeNull()
+    expect(block.subBlocks.signingSecret.value).toBeNull()
+    expect(block.subBlocks.requireAuth.value).toBeNull()
+  })
+
+  it('never overrides an explicit input with a seeded default', () => {
+    const explicit = createBlockFromParams('hook-1', {
+      type: 'generic_webhook',
+      name: 'Webhook',
+      inputs: { token: 'my-token' },
+    })
+    const cleared = createBlockFromParams('hook-2', {
+      type: 'generic_webhook',
+      name: 'Webhook',
+      inputs: { token: null },
+    })
+
+    expect(explicit.subBlocks.token.value).toBe('my-token')
+    expect(cleared.subBlocks.token.value).toBeNull()
+  })
+
+  it('withholds a seeded operation the permission group denies without recording a skip', () => {
+    const skippedItems: SkippedItem[] = []
+    const denyCanvas = { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedTools: ['gated_canvas'] }
+
+    const denied = createBlockFromParams(
+      'g-1',
+      { type: 'gated', name: 'Gated' },
+      undefined,
+      undefined,
+      denyCanvas,
+      skippedItems
+    )
+    const allowed = createBlockFromParams(
+      'g-2',
+      { type: 'gated', name: 'Gated' },
+      undefined,
+      undefined,
+      DEFAULT_PERMISSION_GROUP_CONFIG,
+      skippedItems
+    )
+
+    expect(denied.subBlocks.operation.value).toBeNull()
+    expect(allowed.subBlocks.operation.value).toBe('canvas')
+    expect(skippedItems).toEqual([])
   })
 })
 

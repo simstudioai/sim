@@ -2126,7 +2126,7 @@
       "post": {
         "operationId": "addTableWorkflowGroup",
         "summary": "Add Workflow Group",
-        "description": "Bind a workflow or enrichment to the table and create the columns populated by its outputs.",
+        "description": "Bind a workflow or enrichment to the table and create the columns populated by its outputs. An output whose column the table already has attaches that column to the group instead of creating it, so `outputColumns` may be omitted when every output lands in an existing column.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2459,8 +2459,8 @@
       },
       "get": {
         "operationId": "listTableDispatches",
-        "summary": "List Active Run Dispatches",
-        "description": "List the run dispatches still in flight on one table. Bounded by the dispatcher rather than by a page size, so this list is unpaginated and `nextCursor` is always null. A settled dispatch is read by identifier.",
+        "summary": "List Run Dispatches",
+        "description": "List the run dispatches on one table, most recent first — settled dispatches (`complete`, `canceled`) alongside the ones still in flight, so a run that finished between two polls is still visible next to the `dispatchId` its create returned. Capped at the 100 most recent, so this list is unpaginated and `nextCursor` is always null.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2488,7 +2488,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The table's active run dispatches.",
+            "description": "The table's most recent run dispatches.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -7630,7 +7630,8 @@
             "description": "Workflow or enrichment producer definition."
           },
           "outputColumns": {
-            "minItems": 1,
+            "default": [],
+            "description": "Columns to create for producer outputs. An entry naming a column the table already has attaches that column to the group instead of creating it (its `type` must match), and an output whose column already exists may omit its entry entirely — so `[]` attaches existing columns only.",
             "type": "array",
             "items": {
               "type": "object",
@@ -7665,8 +7666,7 @@
               },
               "required": ["name", "type"],
               "additionalProperties": false
-            },
-            "description": "Columns created for producer outputs."
+            }
           },
           "autoRun": {
             "default": false,
@@ -7674,7 +7674,7 @@
             "type": "boolean"
           }
         },
-        "required": ["workspaceId", "group", "outputColumns"],
+        "required": ["workspaceId", "group"],
         "additionalProperties": false,
         "title": "Add table workflow group request",
         "description": "Workspace scope, producer definition, and output columns.",
@@ -10196,7 +10196,7 @@
         "required": ["data", "nextCursor"],
         "additionalProperties": false,
         "title": "Table run dispatch list response",
-        "description": "The table's active run dispatches."
+        "description": "The table's most recent run dispatches, settled ones included."
       },
       "V2MoveTablesData": {
         "type": "object",

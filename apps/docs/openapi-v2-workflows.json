@@ -8383,6 +8383,27 @@
           }
         ]
       },
+      "ImportedWorkflowBlock": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Block identifier."
+          },
+          "type": {
+            "type": "string",
+            "description": "Registered block type."
+          },
+          "name": {
+            "type": "string",
+            "description": "Block display name."
+          }
+        },
+        "required": ["id", "type", "name"],
+        "additionalProperties": false,
+        "title": "Imported workflow block",
+        "description": "A block the import created in the new workflow."
+      },
       "ImportedWorkflow": {
         "type": "object",
         "properties": {
@@ -8424,6 +8445,13 @@
             "type": "string",
             "description": "ISO 8601 timestamp when the workflow was last updated.",
             "format": "date-time"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportedWorkflowBlock"
+            },
+            "description": "Blocks the import created, in payload order. A summary only; `GET /workflows/{workflowId}/state` returns the full graph."
           }
         },
         "required": [
@@ -8433,7 +8461,8 @@
           "workspaceId",
           "folderPath",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "blocks"
         ],
         "additionalProperties": false,
         "title": "Imported workflow",
@@ -8460,7 +8489,24 @@
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
               "folderPath": "/Operations",
               "createdAt": "2026-05-01T09:00:00.000Z",
-              "updatedAt": "2026-08-09T18:04:11.000Z"
+              "updatedAt": "2026-08-09T18:04:11.000Z",
+              "blocks": [
+                {
+                  "id": "block_start",
+                  "type": "starter",
+                  "name": "Start"
+                },
+                {
+                  "id": "block_triage",
+                  "type": "agent",
+                  "name": "Triage"
+                },
+                {
+                  "id": "block_reply",
+                  "type": "response",
+                  "name": "Reply"
+                }
+              ]
             }
           }
         ]

@@ -93,6 +93,7 @@ export const importWorkflow = defineAuthorizedWorkflowUseCase({
         workspaceId: result.workflow.workspaceId,
         folderId: result.workflow.folderId || undefined,
         sortOrder: result.workflow.sortOrder,
+        blocksCount: result.workflow.blocks.length,
       },
     }
   },

@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   collectToolReferences: vi.fn(),
   assertIdsUnclaimed: vi.fn(),
   collectGraphIds: vi.fn(),
+  lintGraph: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -73,14 +74,7 @@ vi.mock('@/lib/workflows/editing/validation', () => ({
 vi.mock('@/lib/workflows/editing/lint', () => ({
   collectWorkflowFieldIssues: () => [],
   collectDanglingBlockOutputReferences: () => [],
-  lintEditedWorkflowState: () => ({
-    sources: [],
-    sinks: [],
-    orphanBlocks: [],
-    emptyOutgoingPorts: [],
-    invalidBranchPorts: [],
-    invalidConnectionTargets: [],
-  }),
+  lintEditedWorkflowState: mocks.lintGraph,
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   hasWorkspaceSandboxAccess: mocks.sandboxAccess,
@@ -159,6 +153,16 @@ function graph(blocks: Record<string, unknown> = { 'block-1': BLOCK }) {
 
 const GRAPH_IDS = { blockIds: ['block-1'], edgeIds: [], subflowIds: [] }
 
+/** The graph lint with no findings, in the shape `lintEditedWorkflowState` returns. */
+const EMPTY_GRAPH_LINT = {
+  sources: [],
+  sinks: [],
+  orphanBlocks: [],
+  emptyOutgoingPorts: [],
+  invalidBranchPorts: [],
+  invalidConnectionTargets: [],
+}
+
 describe('applyWorkflowOperations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -183,6 +187,7 @@ describe('applyWorkflowOperations', () => {
     mocks.needsRedeployment.mockResolvedValue(true)
     mocks.collectGraphIds.mockReturnValue(GRAPH_IDS)
     mocks.assertIdsUnclaimed.mockResolvedValue(undefined)
+    mocks.lintGraph.mockReturnValue(EMPTY_GRAPH_LINT)
   })
 
   it('writes once, through the shared persistence primitive', async () => {
@@ -227,6 +232,40 @@ describe('applyWorkflowOperations', () => {
     expect(mocks.applyOperations).toHaveBeenCalledWith(emptyGraph, operations, null)
     expect(mocks.replace).toHaveBeenCalledTimes(1)
     expect(result.graph.blocks).toEqual(graphWithAddedBlock.blocks)
+  })
+
+  /**
+   * A delete is exactly when orphans and dangling references appear, so the
+   * report must be built from the post-delete graph even though the batch adds
+   * and edits nothing — never skipped or answered as `null`.
+   */
+  it('lints the post-delete graph for a delete-only batch', async () => {
+    const deleteOnly = [{ operation_type: 'delete' as const, block_id: 'block-2' }]
+    const orphan = { blockId: 'block-1', blockName: 'Start', blockType: 'starter' }
+    mocks.preValidate.mockResolvedValue({ filteredOperations: deleteOnly, errors: [] })
+    mocks.applyOperations.mockReturnValue({
+      state: graph({ 'block-1': BLOCK }),
+      validationErrors: [],
+      skippedItems: [],
+      mintedBlockIds: {},
+    })
+    mocks.lintGraph.mockReturnValue({ ...EMPTY_GRAPH_LINT, orphanBlocks: [orphan] })
+
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: { workflowId: 'workflow-1', operations: deleteOnly },
+    })
+
+    expect(result.applied).toBe(1)
+    expect(mocks.lintGraph).toHaveBeenCalledTimes(1)
+    expect(mocks.lintGraph.mock.calls[0][0].blocks).not.toHaveProperty('block-2')
+    expect(result.lint).toEqual({
+      ...EMPTY_GRAPH_LINT,
+      orphanBlocks: [orphan],
+      fieldIssues: [],
+      unresolvedReferences: [],
+      notes: [],
+    })
   })
 
   describe('dry run', () => {

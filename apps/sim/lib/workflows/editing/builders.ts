@@ -13,6 +13,7 @@ import {
   isOperationAllowed,
   MODEL_SUBBLOCK_ID,
   OPERATION_SUBBLOCK_ID,
+  type SeedValueGate,
 } from '@/lib/permission-groups/operation-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
@@ -24,7 +25,7 @@ import {
 } from '@/lib/workflows/subblocks/visibility'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks/registry'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type { EditWorkflowOperation, SkippedItem, ValidationError } from './types'
@@ -100,6 +101,49 @@ export function applyBlockRetry(
   }
 
   block.retry = resolveBlockRetryUpdate(requested as Partial<BlockRetryConfig>, block.retry)
+}
+
+/**
+ * The value an unset sub-block starts with on the API path.
+ *
+ * Mirrors the editor's `prepareBlockState`: a sub-block whose config declares a
+ * `value()` thunk is pre-filled from it, so a block added through
+ * `operations apply` carries the same defaults as one dropped on the canvas.
+ * Without this a `generic_webhook` arrives with `token: null` and deploy
+ * refuses it as "authentication enabled but no token", although the editor
+ * would have generated one. The thunk sees the values the caller did write, so
+ * a default that depends on a sibling field resolves against the real block.
+ *
+ * Hidden and read-only sub-blocks are left alone: a hidden thunk is computed
+ * by the serializer at run time from the block's other fields, and a read-only
+ * field is display-only. Hidden `defaultValue`s keep their compatibility
+ * seeding. A seeded value the caller's permission group denies is withheld
+ * silently, as the editor withholds it — it is a default nobody asked for, not
+ * a refused operation, so it records no skip.
+ */
+function resolveSeededSubBlockValue(
+  subBlock: SubBlockConfig,
+  writtenValues: Record<string, unknown>,
+  isSeededValueAllowed: SeedValueGate
+): unknown {
+  if (typeof subBlock.value === 'function' && !subBlock.hidden && !subBlock.readOnly) {
+    try {
+      const seeded: unknown = subBlock.value(writtenValues)
+      if (
+        seeded !== undefined &&
+        seeded !== null &&
+        (typeof seeded !== 'string' || isSeededValueAllowed(subBlock.id, seeded))
+      ) {
+        return seeded
+      }
+    } catch {
+      /* An unresolvable thunk seeds nothing, same as the editor. */
+    }
+  }
+  if (subBlock.hidden && subBlock.defaultValue !== undefined) {
+    return structuredClone(subBlock.defaultValue)
+  }
+  return null
 }
 
 /**
@@ -226,15 +270,19 @@ export function createBlockFromParams(
 
   // Set up subBlocks from block configuration
   if (blockConfig) {
+    const isSeededValueAllowed = createSeededValueGate(params.type, permissionConfig)
+    const writtenValues: Record<string, unknown> = Object.fromEntries(
+      Object.entries(blockState.subBlocks).map(([key, subBlock]: [string, any]) => [
+        key,
+        subBlock.value,
+      ])
+    )
     blockConfig.subBlocks.forEach((subBlock) => {
       if (!blockState.subBlocks[subBlock.id]) {
         blockState.subBlocks[subBlock.id] = {
           id: subBlock.id,
           type: subBlock.type,
-          value:
-            subBlock.hidden && subBlock.defaultValue !== undefined
-              ? structuredClone(subBlock.defaultValue)
-              : null,
+          value: resolveSeededSubBlockValue(subBlock, writtenValues, isSeededValueAllowed),
         }
       } else {
         blockState.subBlocks[subBlock.id].type = subBlock.type
@@ -656,29 +704,67 @@ export function createValidatedEdge(
   return true
 }
 
+/** A connection target as `{ block, handle? }`, or `null` when the value is not one. */
+function asConnectionTarget(value: unknown): { block: string; handle?: string } | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  if (typeof record.block !== 'string' || record.block === '') return null
+  return {
+    block: record.block,
+    handle: typeof record.handle === 'string' ? record.handle : undefined,
+  }
+}
+
+const CONNECTION_TARGET_SHAPES = 'a target block id, {block, handle?}, or an array of those'
+const CONNECTION_ARRAY_ENTRY_SHAPES = 'a target block id or {block, handle?}'
+
 /**
  * Adds connections as edges for a block.
  * Supports multiple target formats:
  * - String: "target-block-id"
  * - Object: { block: "target-block-id", handle?: "custom-target-handle" }
  * - Array of strings or objects
+ *
+ * A value of any other shape — `{ incoming: [...] }`, `{ source: { target } }`
+ * — is recorded as an input validation error naming the handle and the
+ * accepted shapes. It used to be ignored, so an operation whose wiring never
+ * happened still answered `applied: 1` with nothing in `skipped`. A handle the
+ * block type does not have is already reported by {@link createValidatedEdge}
+ * as an `invalid_source_handle` skip.
  */
 export function addConnectionsAsEdges(
   modifiedState: any,
   blockId: string,
   connections: Record<string, any>,
   logger: ReturnType<typeof createLogger>,
-  skippedItems?: SkippedItem[]
+  skippedItems?: SkippedItem[],
+  validationErrors?: ValidationError[]
 ): void {
   const normalizeHandle = (handle: string): string => {
     if (handle === 'success') return 'source'
     return handle
   }
 
+  const rejectShape = (path: string, value: unknown, expected: string) => {
+    const error = `connections${path}: expected ${expected}`
+    logger.warn('Connection target has an unsupported shape. Connection dropped.', {
+      blockId,
+      error,
+    })
+    validationErrors?.push({
+      blockId,
+      blockType: modifiedState.blocks?.[blockId]?.type ?? 'unknown',
+      field: 'connections',
+      value,
+      error,
+    })
+  }
+
   Object.entries(connections).forEach(([rawHandle, targets]) => {
-    if (targets === null) return
+    if (targets === null || targets === undefined) return
 
     const sourceHandle = normalizeHandle(rawHandle)
+    const handlePath = `[${JSON.stringify(rawHandle)}]`
 
     const addEdgeForTarget = (targetBlock: string, targetHandle?: string) => {
       createValidatedEdge(
@@ -695,17 +781,31 @@ export function addConnectionsAsEdges(
 
     if (typeof targets === 'string') {
       addEdgeForTarget(targets)
-    } else if (Array.isArray(targets)) {
-      targets.forEach((target: any) => {
+      return
+    }
+
+    if (Array.isArray(targets)) {
+      targets.forEach((target: unknown, index: number) => {
         if (typeof target === 'string') {
           addEdgeForTarget(target)
-        } else if (target?.block) {
-          addEdgeForTarget(target.block, target.handle)
+          return
         }
+        const parsed = asConnectionTarget(target)
+        if (parsed) {
+          addEdgeForTarget(parsed.block, parsed.handle)
+          return
+        }
+        rejectShape(`${handlePath}[${index}]`, target, CONNECTION_ARRAY_ENTRY_SHAPES)
       })
-    } else if (typeof targets === 'object' && targets?.block) {
-      addEdgeForTarget(targets.block, targets.handle)
+      return
     }
+
+    const parsed = asConnectionTarget(targets)
+    if (parsed) {
+      addEdgeForTarget(parsed.block, parsed.handle)
+      return
+    }
+    rejectShape(handlePath, targets, CONNECTION_TARGET_SHAPES)
   })
 }
 
@@ -869,14 +969,13 @@ export function createSubBlockInputGate(context: SubBlockInputGateContext): SubB
   const { blockType, permissionConfig, blockId, operationType, skippedItems } = context
   if (!permissionConfig) return ALLOW_ALL_INPUTS
 
-  const isToolAllowed = createToolAccessGate(permissionConfig.deniedTools)
-  const isModelUsable = createModelAccessGate(permissionConfig)
+  const isValueAllowed = createSeededValueGate(blockType, permissionConfig)
 
   return (key: string, value: unknown) => {
     if (typeof value !== 'string') return true
+    if (isValueAllowed(key, value)) return true
 
     if (key === OPERATION_SUBBLOCK_ID) {
-      if (isOperationAllowed(getBlock(blockType), value, isToolAllowed)) return true
       logSkippedItem(skippedItems, {
         type: 'tool_not_allowed',
         operationType,
@@ -884,11 +983,7 @@ export function createSubBlockInputGate(context: SubBlockInputGateContext): SubB
         reason: `Operation "${value}" on block type "${blockType}" is blocked by access control - operation not set`,
         details: { blockType, operation: value },
       })
-      return false
-    }
-
-    if (key === MODEL_SUBBLOCK_ID) {
-      if (isModelUsable(value)) return true
+    } else {
       logSkippedItem(skippedItems, {
         type: 'model_not_allowed',
         operationType,
@@ -896,9 +991,38 @@ export function createSubBlockInputGate(context: SubBlockInputGateContext): SubB
         reason: `Model "${value}" is blocked by access control - model not set`,
         details: { blockType, model: value },
       })
-      return false
     }
+    return false
+  }
+}
 
+/** Shared allow-everything seed gate, so the unrestricted case allocates nothing. */
+const ALLOW_ALL_SEEDS: SeedValueGate = () => true
+
+/**
+ * The silent form of the permission gate: whether a string may be written to
+ * `operation` or `model`, with nothing recorded when it may not.
+ *
+ * {@link createSubBlockInputGate} answers the same question for values the
+ * caller sent and reports a denial as a skip. A block's declared defaults go
+ * through this one instead — the editor's `isSeededValueAllowed` — because a
+ * default the group denies is simply not seeded; it is not an operation the
+ * caller asked for, so a skip would charge them for it.
+ */
+export function createSeededValueGate(
+  blockType: string,
+  permissionConfig: PermissionGroupConfig | null | undefined
+): SeedValueGate {
+  if (!permissionConfig) return ALLOW_ALL_SEEDS
+
+  const isToolAllowed = createToolAccessGate(permissionConfig.deniedTools)
+  const isModelUsable = createModelAccessGate(permissionConfig)
+
+  return (key: string, value: string) => {
+    if (key === OPERATION_SUBBLOCK_ID) {
+      return isOperationAllowed(getBlock(blockType), value, isToolAllowed)
+    }
+    if (key === MODEL_SUBBLOCK_ID) return isModelUsable(value)
     return true
   }
 }

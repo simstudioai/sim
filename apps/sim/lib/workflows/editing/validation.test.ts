@@ -339,6 +339,78 @@ describe('validateInputsForBlock', () => {
     expect(result.errors[0]?.error).toContain('expected a JSON array')
   })
 
+  it.each([
+    ['a JSON string', JSON.stringify([{ title: 'Billing', value: 'Invoices and payments' }])],
+    [
+      'a raw array with optional ids',
+      [
+        { id: 'r-1', title: 'Billing', value: 'Invoices and payments' },
+        { title: 'Other', value: 'Everything else' },
+      ],
+    ],
+  ])('accepts router routes shaped {id?, title, value} given as %s', (_label, routes) => {
+    const result = validateInputsForBlock('router_v2', { routes }, 'router-1')
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.routes).toEqual(routes)
+  })
+
+  /**
+   * The runtime shows the model each route's `value` as its description. A
+   * route stored as `{title, description}` reads as having no description, so
+   * every request falls through to route 1 — silently, unless the key is named.
+   */
+  it('rejects a router route that carries its description under an unknown key', () => {
+    const result = validateInputsForBlock(
+      'router_v2',
+      {
+        routes: [
+          { id: 'r-1', title: 'Billing', value: 'Invoices and payments' },
+          { id: 'r-2', title: 'Support', description: 'Help requests' },
+        ],
+      },
+      'router-1'
+    )
+
+    expect(result.validInputs.routes).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatchObject({ blockId: 'router-1', field: 'routes' })
+    expect(result.errors[0]?.error).toBe(
+      'Invalid route at index 1: missing "value", unknown key "description" — a route is {id?, title, value}; "value" holds the description the model reads'
+    )
+  })
+
+  it.each([
+    ['an empty value', [{ title: 'Billing', value: '' }], '"value" must be a non-empty string'],
+    ['a missing title', [{ value: 'Invoices' }], '"title" must be a non-empty string'],
+    ['a non-object entry', ['Billing'], 'expected an object'],
+  ])('rejects router routes with %s', (_label, routes, message) => {
+    const result = validateInputsForBlock('router_v2', { routes }, 'router-1')
+
+    expect(result.validInputs.routes).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('Invalid route at index 0')
+    expect(result.errors[0]?.error).toContain(message)
+  })
+
+  it('tolerates editor UI state beside a complete route so stored routes round-trip', () => {
+    const routes = [
+      { id: 'r-1', title: 'Billing', value: 'Invoices', showTags: false, cursorPosition: 0 },
+    ]
+    const result = validateInputsForBlock('router_v2', { routes }, 'router-1')
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.routes).toEqual(routes)
+  })
+
+  it('rejects non-array router-input values', () => {
+    const result = validateInputsForBlock('router_v2', { routes: 'not-json' }, 'router-1')
+
+    expect(result.validInputs.routes).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('expected a JSON array')
+  })
+
   // Without this guard, normalizeArrayWithIds coerces any unparseable value to [], which the
   // write path then persists as "[]" -- silently destroying a tag filter the user configured.
   it.each([

@@ -16,7 +16,7 @@ const {
   mockTranslatePredicate,
   mockGetTableById,
   mockReadDispatch,
-  mockListActiveDispatches,
+  mockListDispatches,
   mockCancelDispatchById,
   mockResolveWorkspaceContext,
 } = vi.hoisted(() => ({
@@ -30,7 +30,7 @@ const {
   mockTranslatePredicate: vi.fn(),
   mockGetTableById: vi.fn(),
   mockReadDispatch: vi.fn(),
-  mockListActiveDispatches: vi.fn(),
+  mockListDispatches: vi.fn(),
   mockCancelDispatchById: vi.fn(),
   mockResolveWorkspaceContext: vi.fn(),
 }))
@@ -60,7 +60,7 @@ vi.mock('@/lib/table/application/context', () => ({
 
 vi.mock('@/lib/table/dispatcher', () => ({
   cancelDispatchById: mockCancelDispatchById,
-  listActiveDispatches: mockListActiveDispatches,
+  listDispatches: mockListDispatches,
   readDispatch: mockReadDispatch,
 }))
 
@@ -341,7 +341,7 @@ describe('table run dispatch reads', () => {
     })
     mockGetTableById.mockResolvedValue(TABLE)
     mockReadDispatch.mockResolvedValue(DISPATCH)
-    mockListActiveDispatches.mockResolvedValue([DISPATCH])
+    mockListDispatches.mockResolvedValue([DISPATCH])
   })
 
   it.each(['pending', 'dispatching', 'complete', 'cancelled'] as const)(
@@ -451,13 +451,27 @@ describe('table run dispatch reads', () => {
     expect(mockCancelDispatchById).not.toHaveBeenCalled()
   })
 
-  it('lists the active dispatches for the canonical table', async () => {
+  /**
+   * The list read every dispatch through the active-only query the dispatcher and the
+   * editor overlay use, so a run that had just completed was missing from the list while
+   * `GET .../dispatches/{id}` still reported it — a poll right after a create saw `[]`.
+   */
+  it('lists settled dispatches alongside the in-flight ones for the canonical table', async () => {
+    const completed = {
+      ...DISPATCH,
+      id: 'dispatch-2',
+      status: 'complete' as const,
+      processedCount: 13,
+      completedAt: new Date('2026-01-01T00:05:00Z'),
+    }
+    mockListDispatches.mockResolvedValueOnce([completed, DISPATCH])
+
     const result = await listTableDispatches.execute({
       principal: PRINCIPAL,
       input: { tableId: TABLE.id, assertedWorkspaceId: TABLE.workspaceId },
     })
 
-    expect(mockListActiveDispatches).toHaveBeenCalledWith(TABLE.id)
-    expect(result.dispatches).toEqual([DISPATCH])
+    expect(mockListDispatches).toHaveBeenCalledWith(TABLE.id)
+    expect(result.dispatches).toEqual([completed, DISPATCH])
   })
 })

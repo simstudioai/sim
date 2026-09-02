@@ -24,7 +24,7 @@ import {
   type DispatchLimit,
   type DispatchMode,
   type DispatchRow,
-  listActiveDispatches,
+  listDispatches,
   readDispatch,
 } from '@/lib/table/dispatcher'
 import { signalTableRowsChanged } from '@/lib/table/events'
@@ -308,14 +308,16 @@ export interface ListTableDispatchesResult extends TableRunResult {
 }
 
 /**
- * The dispatches still in flight on one table. Bounded by the dispatcher rather
- * than by a page size, which is why the surface publishes it unpaged.
+ * The dispatches on one table, most recent first — in flight and settled alike,
+ * so a run that just completed is still listed next to the id its create
+ * returned. Capped at `MAX_LISTED_DISPATCHES`, which is why the surface
+ * publishes it unpaged.
  */
 export const listTableDispatches = defineAuthorizedTableUseCase({
   operation: tableOperations.readRun,
   resolveContext: ({ input }: { input: ListTableDispatchesInput }) =>
     resolveActiveTableContext(input),
   async execute({ context }): Promise<ListTableDispatchesResult> {
-    return { table: context.table, dispatches: await listActiveDispatches(context.tableId) }
+    return { table: context.table, dispatches: await listDispatches(context.tableId) }
   },
 })
