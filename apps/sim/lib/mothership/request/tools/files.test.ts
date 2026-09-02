@@ -160,14 +160,27 @@ describe('maybeWriteOutputToFile', () => {
   })
 
   it('does not deny a read-only principal when no workspace write occurs (sandbox export active)', async () => {
+    const exportedResult = {
+      success: true,
+      output: {
+        result: [{ name: 'Alice', age: 30 }],
+        exported: {
+          message: 'Sandbox file exported to files/report.csv (12 bytes)',
+          files: [{ fileId: 'file-1', fileName: 'report.csv', vfsPath: 'files/report.csv' }],
+        },
+        message: 'Sandbox file exported to files/report.csv (12 bytes)',
+        stdout: '',
+      },
+    }
+
     const result = await maybeWriteOutputToFile(
       RunFunction.id,
       { outputs: { files: [{ path: 'files/report.csv', mode: 'overwrite' }] } },
-      { success: true, output: { result: { files: [{ path: 'report.csv' }] }, stdout: '' } },
+      exportedResult,
       buildContext({ userPermission: 'read' })
     )
 
-    expect(result.success).toBe(true)
+    expect(result).toBe(exportedResult)
     expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
   })
 

@@ -921,12 +921,62 @@ describe('Function execution request', () => {
           }),
         })
       )
-      expect(data.output.result.files).toHaveLength(2)
+      expect(data.output.result).toBe('done')
+      expect(data.output.exported.files).toHaveLength(2)
+      expect(data.output.message).toContain('Exported 2 sandbox files')
+      expect(data.output.exported.message).toBe(data.output.message)
       expect(data.output.cost).toEqual({ input: 0, output: 0, total: 0.00023456 })
       expect(data.resources).toEqual([
         expect.objectContaining({ path: 'files/reports/chart.png' }),
         expect.objectContaining({ path: 'files/reports/summary.json' }),
       ])
+    })
+
+    it("keeps the code's returned rows beside the sandbox export receipt", async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const rows = [{ name: 'Ada' }, { name: 'Grace' }]
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: rows,
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: { '/home/user/report.txt': 'name\nAda\nGrace\n' },
+      })
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: '__sim_result__ = [{"name": "Ada"}, {"name": "Grace"}]',
+          language: 'python',
+          workspaceId: 'workspace-1',
+          outputs: {
+            files: [
+              {
+                path: 'files/report.txt',
+                sandboxPath: '/home/user/report.txt',
+                mimeType: 'text/plain',
+              },
+            ],
+          },
+        })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      // The table writer and the returned-value file writer both read
+      // `output.result`, so the export receipt must not displace the rows.
+      expect(data.output.result).toEqual(rows)
+      expect(data.output.exported).toEqual({
+        message: expect.stringContaining('Sandbox file exported to files/report.txt'),
+        files: [
+          expect.objectContaining({
+            fileId: 'wf_report_txt',
+            vfsPath: 'files/report.txt',
+            sandboxPath: '/home/user/report.txt',
+          }),
+        ],
+      })
+      expect(data.output.message).toBe(data.output.exported.message)
+      expect(data.resources).toEqual([expect.objectContaining({ path: 'files/report.txt' })])
     })
 
     it('atomically classifies text exports and acknowledges the durable v2 capability', async () => {
@@ -1221,9 +1271,9 @@ describe('Function execution request', () => {
       )
 
       expect(response.status).toBe(200)
-      expect((await response.json()).output.result).toEqual(
-        expect.objectContaining({ fileId: 'wf_output_txt', vfsPath: 'files/output.txt' })
-      )
+      expect((await response.json()).output.exported.files).toEqual([
+        expect.objectContaining({ fileId: 'wf_output_txt', vfsPath: 'files/output.txt' }),
+      ])
       expect(mockExecuteInSandbox).toHaveBeenCalledOnce()
       expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -2005,9 +2055,10 @@ describe('Function execution request', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
-      expect(data.output.result.unchanged).toBe(true)
-      expect(data.output.result.message).toContain('byte-identical to the previous version')
-      expect(data.output.result.message).toContain('/home/user/doc.md')
+      expect(data.output.result).toBe('done')
+      expect(data.output.exported.files[0].unchanged).toBe(true)
+      expect(data.output.message).toContain('byte-identical to the previous version')
+      expect(data.output.message).toContain('/home/user/doc.md')
     })
 
     it('continues an overwrite when the advisory comparison fails', async () => {
@@ -2045,8 +2096,8 @@ describe('Function execution request', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
-      expect(data.output.result).toMatchObject({ unchanged: false })
-      expect(data.output.result).not.toHaveProperty('previousSize')
+      expect(data.output.exported.files[0]).toMatchObject({ unchanged: false })
+      expect(data.output.exported.files[0]).not.toHaveProperty('previousSize')
     })
 
     it('reports size, previousSize, and sha256 receipts on a successful overwrite export', async () => {
@@ -2088,12 +2139,13 @@ describe('Function execution request', () => {
       expect(data.success).toBe(true)
       // Sizes differ, so the current content is never downloaded for comparison.
       expect(mockFetchWorkspaceFileBuffer).not.toHaveBeenCalled()
-      expect(data.output.result.size).toBe(Buffer.byteLength(newContent, 'utf-8'))
-      expect(data.output.result.previousSize).toBe(36728)
-      expect(data.output.result.sha256).toMatch(/^[0-9a-f]{64}$/)
-      expect(data.output.result.unchanged).toBe(false)
-      expect(data.output.result.message).toContain('replaced 36728 bytes')
-      expect(data.output.result.message).toContain('sha256:')
+      const [exportedFile] = data.output.exported.files
+      expect(exportedFile.size).toBe(Buffer.byteLength(newContent, 'utf-8'))
+      expect(exportedFile.previousSize).toBe(36728)
+      expect(exportedFile.sha256).toMatch(/^[0-9a-f]{64}$/)
+      expect(exportedFile.unchanged).toBe(false)
+      expect(data.output.message).toContain('replaced 36728 bytes')
+      expect(data.output.message).toContain('sha256:')
       // The python wrapper prints the marker with a leading \n so it always
       // starts a fresh line even after non-newline-terminated user output.
       const e2bCode = mockExecuteInSandbox.mock.calls[0][0].code as string

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isPlainRecord } from '@sim/utils/object'
+import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { createCopilotWorkspaceApiKey } from '@/lib/api-key/application/create-api-key'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
@@ -126,6 +126,34 @@ function settledPhase(status: ExecutionResultStatus): ToolEffectPhase {
 
 type ExecutionResultStatus = 'completed' | 'paused' | 'cancelled' | undefined
 
+/** `undefined`, `null`, or a keyless object: a run whose top-level output says nothing. */
+function isEmptyOutput(value: unknown): boolean {
+  return (
+    value === undefined ||
+    value === null ||
+    (isPlainRecord(value) && Object.keys(value).length === 0)
+  )
+}
+
+/**
+ * The last executed block's output, for a run whose own `output` came back empty.
+ *
+ * run_block and run_workflow_until_block stop before any Response block, so the executor's
+ * top-level `output` is `{}` while the block's result sits in the final log entry — which a
+ * caller read as "the block produced nothing". `outputFrom` names the block it was lifted from.
+ */
+function lastBlockOutput(
+  logs: unknown
+): { output: unknown; outputFrom: Record<string, unknown> } | undefined {
+  if (!Array.isArray(logs) || logs.length === 0) return undefined
+  const last = logs[logs.length - 1]
+  if (!isPlainRecord(last)) return undefined
+  return {
+    output: last.output,
+    outputFrom: filterUndefined({ blockId: last.blockId, blockName: last.blockName }),
+  }
+}
+
 function buildExecutionOutput(
   result: {
     success: boolean
@@ -136,20 +164,70 @@ function buildExecutionOutput(
     status?: ExecutionResultStatus
   },
   phase: ToolEffectPhase,
-  extra?: Record<string, unknown>
+  extra?: Record<string, unknown>,
+  select?: string[]
 ): ToolCallResult {
+  const executionId = result.metadata?.executionId
+  const output = stripBinaryFields(result.output)
+  const logs = compactBlockLogInputs(stripBinaryFields(result.logs), executionId)
+  const lifted = isEmptyOutput(output) ? lastBlockOutput(logs) : undefined
+  // A caller that names the outputs it wants gets those and nothing else: a seven-block
+  // run otherwise costs ~14K chars of logs to learn one headline.
+  const selected =
+    select && select.length > 0
+      ? selectFromLogs(select, Array.isArray(logs) ? logs : [])
+      : undefined
   return {
     success: result.success,
     output: {
-      executionId: result.metadata?.executionId,
+      executionId,
       success: result.success,
       ...extra,
-      output: stripBinaryFields(result.output),
-      logs: compactBlockLogInputs(stripBinaryFields(result.logs), result.metadata?.executionId),
+      output: lifted ? lifted.output : output,
+      ...(lifted ? { outputFrom: lifted.outputFrom } : {}),
+      ...(selected ? { selected, logsOmitted: true } : { logs }),
     },
     error: result.success ? undefined : result.error || 'Workflow execution failed',
-    effect: executionEffect(phase, result.metadata?.executionId),
+    effect: executionEffect(phase, executionId),
   }
+}
+
+/** The executor's block-name rule: lowercase, whitespace and dots removed. */
+function normalizeSelectorHead(value: string): string {
+  return value.toLowerCase().replace(/[\s.]+/g, '')
+}
+
+/**
+ * Resolves `blockName.path` selectors against the run's block logs (the last log per block
+ * wins, so loop iterations settle on final state) — names or ids for the head, dotted
+ * paths into that block's output. An unresolved selector is reported, never thrown.
+ */
+function selectFromLogs(selectors: string[], logs: unknown[]): Record<string, unknown> {
+  const byHead = new Map<string, Record<string, unknown>>()
+  for (const entry of logs) {
+    if (!isRecordLike(entry)) continue
+    const log = entry as Record<string, unknown>
+    const output = isRecordLike(log.output) ? (log.output as Record<string, unknown>) : undefined
+    if (!output) continue
+    if (typeof log.blockId === 'string') byHead.set(log.blockId, output)
+    if (typeof log.blockName === 'string') byHead.set(normalizeSelectorHead(log.blockName), output)
+  }
+  const selected: Record<string, unknown> = {}
+  for (const selector of selectors) {
+    const [head = '', ...path] = selector.split('.')
+    const base = byHead.get(head) ?? byHead.get(normalizeSelectorHead(head))
+    if (!base) {
+      selected[selector] = { unresolved: `no executed block named "${head}"` }
+      continue
+    }
+    let value: unknown = base
+    for (const segment of path) {
+      value = isRecordLike(value) ? (value as Record<string, unknown>)[segment] : undefined
+    }
+    selected[selector] =
+      value === undefined ? { unresolved: `no "${path.join('.')}" on ${head}` } : value
+  }
+  return selected
 }
 
 function buildExecutionError(error: unknown): ToolCallResult {
@@ -307,7 +385,7 @@ export async function executeRunWorkflow(
       lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result, settledPhase(result.status))
+    return buildExecutionOutput(result, settledPhase(result.status), undefined, params.select)
   } catch (error) {
     return buildExecutionError(error)
   }
@@ -468,9 +546,12 @@ export async function executeRunWorkflowUntilBlock(
       lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result, settledPhase(result.status), {
-      stoppedAfterBlockId: params.stopAfterBlockId,
-    })
+    return buildExecutionOutput(
+      result,
+      settledPhase(result.status),
+      { stoppedAfterBlockId: params.stopAfterBlockId },
+      params.select
+    )
   } catch (error) {
     return buildExecutionError(error)
   }
@@ -546,9 +627,12 @@ export async function executeRunFromBlock(
       lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result, settledPhase(result.status), {
-      startBlockId: params.startBlockId,
-    })
+    return buildExecutionOutput(
+      result,
+      settledPhase(result.status),
+      { startBlockId: params.startBlockId },
+      params.select
+    )
   } catch (error) {
     return buildExecutionError(error)
   }
@@ -635,7 +719,12 @@ export async function executeRunBlock(
       lifecycle: copilotRunLifecycle(context),
     })
 
-    return buildExecutionOutput(result, settledPhase(result.status), { blockId: params.blockId })
+    return buildExecutionOutput(
+      result,
+      settledPhase(result.status),
+      { blockId: params.blockId },
+      params.select
+    )
   } catch (error) {
     return buildExecutionError(error)
   }

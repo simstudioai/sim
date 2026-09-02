@@ -270,6 +270,46 @@ describe('automatic Copilot tool-output table persistence', () => {
     expect(result.output).toBeUndefined()
   })
 
+  it('still sees the returned rows when the run also exported sandbox files', async () => {
+    const context = buildContext()
+    const rows = [{ name: 'Ada' }, { name: 'Grace' }]
+    const message = 'Sandbox file exported to files/report.csv (12 bytes)'
+
+    const result = await maybeWriteOutputToTable(
+      RunFunction.id,
+      {
+        outputTable: 'table-1',
+        outputs: { files: [{ path: 'files/report.csv', sandboxPath: '/home/user/report.csv' }] },
+      },
+      {
+        success: true,
+        output: {
+          result: rows,
+          exported: {
+            message,
+            files: [{ fileId: 'file-1', fileName: 'report.csv', vfsPath: 'files/report.csv' }],
+          },
+          message,
+          stdout: '',
+        },
+      },
+      context
+    )
+
+    expect(result).toEqual({
+      success: true,
+      output: {
+        message: 'Wrote 2 rows to table table-1',
+        tableId: 'table-1',
+        rowCount: 2,
+      },
+    })
+    expect(mocks.executeReplace).toHaveBeenCalledWith(
+      context,
+      expect.objectContaining({ tableId: 'table-1', sourceRows: rows })
+    )
+  })
+
   it('fails closed when the authoritative inserted count is inconsistent', async () => {
     mocks.executeReplace.mockResolvedValueOnce({ table, deletedCount: 1, insertedCount: 1 })
 

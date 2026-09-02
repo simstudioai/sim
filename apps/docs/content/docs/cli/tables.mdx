@@ -112,7 +112,7 @@ sim tables groups create <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--group <json\|@file>` | Yes | Workflow or enrichment producer definition. (JSON, or @path / @- to read a file or stdin). |
-| `--output-columns <json\|@file>` | Yes | Columns created for producer outputs. (JSON, or @path / @- to read a file or stdin). |
+| `--output-columns <json\|@file>` | No | Columns to create for producer outputs. An entry naming a column the table already has attaches that column to the group instead of creating it (its `type` must match), and an output whose column already exists may omit its entry entirely — so `[]` attaches existing columns only. (JSON, or @path / @- to read a file or stdin). |
 | `--auto-run` | No | Whether to schedule existing rows after group creation. |
 | `--no-auto-run` | No | Send --auto-run as false. |
 
@@ -614,7 +614,7 @@ sim tables dispatches get <tableId> <dispatchId>
 
 </CommandTable>
 
-## List active run dispatches
+## List run dispatches
 
 ```bash
 sim tables dispatches list <tableId>

@@ -1462,6 +1462,60 @@ function workspaceFileExportErrorStatus(error: unknown): number {
   return asOrchestrationError(error)?.code === 'forbidden' ? 403 : 400
 }
 
+interface SandboxExportedFile {
+  fileId: string
+  fileName: string
+  vfsPath: string
+  downloadUrl?: string
+  sandboxPath?: string
+  size: number
+  previousSize?: number
+  sha256: string
+  unchanged: boolean
+}
+
+/**
+ * Builds the success response for a sandbox file export.
+ *
+ * The code's own return value stays in `output.result`, so the consumers that
+ * read it — `outputTable`, the returned-value file writer — keep seeing the rows
+ * when a call also exports files. The export receipt sits beside it under
+ * `output.exported`, and its `message` is mirrored at the top level so the
+ * human-readable receipt stays visible in the tool result. Routed through
+ * {@link functionJsonResponse} so a large returned value is compacted exactly as
+ * it is on the ordinary success path.
+ */
+function sandboxExportResponse(args: {
+  routeContext: FunctionRouteExecutionContext
+  result: unknown
+  message: string
+  files: SandboxExportedFile[]
+  stdout: string
+  executionTime: number
+  cost?: FunctionExecutionCost
+}) {
+  return functionJsonResponse(
+    {
+      success: true,
+      output: {
+        result: args.result ?? null,
+        exported: { message: args.message, files: args.files },
+        message: args.message,
+        stdout: cleanStdout(args.stdout),
+        executionTime: args.executionTime,
+        ...(args.cost ? { cost: args.cost } : {}),
+      },
+      resources: args.files.map((file) => ({
+        type: 'file',
+        id: file.fileId,
+        title: file.fileName,
+        path: file.vfsPath,
+      })),
+    },
+    args.routeContext
+  )
+}
+
 async function maybeExportSandboxFileToWorkspace(args: {
   routeContext: FunctionRouteExecutionContext
   authUserId: string
@@ -1474,6 +1528,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
   overwriteFileId?: string
   outputMode?: 'create' | 'overwrite'
   exportedFileContent?: string
+  result: unknown
   stdout: string
   executionTime: number
   cost?: FunctionExecutionCost
@@ -1490,6 +1545,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
     overwriteFileId,
     outputMode,
     exportedFileContent,
+    result,
     stdout,
     executionTime,
     cost,
@@ -1598,15 +1654,16 @@ async function maybeExportSandboxFileToWorkspace(args: {
       sha256,
       unchanged,
     })
-    return NextResponse.json({
-      success: true,
-      output: {
-        result: {
-          message: `Sandbox file exported to ${written.vfsPath} ${formatExportReceipt(
-            fileBuffer.length,
-            previousSize,
-            sha256
-          )}${unchanged ? ` — ${exportUnchangedNote(outputSandboxPath)}` : ''}`,
+    return sandboxExportResponse({
+      routeContext,
+      result,
+      message: `Sandbox file exported to ${written.vfsPath} ${formatExportReceipt(
+        fileBuffer.length,
+        previousSize,
+        sha256
+      )}${unchanged ? ` — ${exportUnchangedNote(outputSandboxPath)}` : ''}`,
+      files: [
+        {
           fileId: written.id,
           fileName: written.name,
           vfsPath: written.vfsPath,
@@ -1617,11 +1674,10 @@ async function maybeExportSandboxFileToWorkspace(args: {
           sha256,
           unchanged,
         },
-        stdout: cleanStdout(stdout),
-        executionTime,
-        ...(cost ? { cost } : {}),
-      },
-      resources: [{ type: 'file', id: written.id, title: written.name, path: written.vfsPath }],
+      ],
+      stdout,
+      executionTime,
+      cost,
     })
   } catch (error) {
     return exportFailure(
@@ -1642,6 +1698,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   outputFiles: OutputFileDeclaration[]
   exportedFiles?: Record<string, string>
   exportedFileContent?: string
+  result: unknown
   stdout: string
   executionTime: number
   cost?: FunctionExecutionCost
@@ -1673,6 +1730,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       exportedFileContent:
         (file.sandboxPath ? args.exportedFiles?.[file.sandboxPath] : undefined) ??
         args.exportedFileContent,
+      result: args.result,
       stdout: args.stdout,
       executionTime: args.executionTime,
       cost: args.cost,
@@ -1845,48 +1903,39 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   }
 
   const unchangedFiles = writtenFiles.filter((file) => file.unchanged)
-  return NextResponse.json({
-    success: true,
-    output: {
-      result: {
-        message: `Exported ${writtenFiles.length} sandbox files: ${writtenFiles
-          .map(
-            (file) =>
-              `${file.vfsPath} ${formatExportReceipt(
-                file.exportedBytes,
-                file.previousSize,
-                file.sha256
-              )}${file.unchanged ? ' [UNCHANGED]' : ''}`
-          )
-          .join('; ')}${
-          unchangedFiles.length > 0
-            ? ` — WARNING: ${unchangedFiles.map((file) => file.vfsPath).join(', ')} ${
-                unchangedFiles.length === 1 ? 'is' : 'are'
-              } byte-identical to the previous version (nothing changed). If you expected new content there, your code did not modify the corresponding sandbox file.`
-            : ''
-        }`,
-        files: writtenFiles.map((file) => ({
-          fileId: file.id,
-          fileName: file.name,
-          vfsPath: file.vfsPath,
-          downloadUrl: file.downloadUrl,
-          sandboxPath: file.sandboxPath,
-          size: file.exportedBytes,
-          previousSize: file.previousSize,
-          sha256: file.sha256,
-          unchanged: file.unchanged,
-        })),
-      },
-      stdout: cleanStdout(args.stdout),
-      executionTime: args.executionTime,
-      ...(args.cost ? { cost: args.cost } : {}),
-    },
-    resources: writtenFiles.map((file) => ({
-      type: 'file',
-      id: file.id,
-      title: file.name,
-      path: file.vfsPath,
+  return sandboxExportResponse({
+    routeContext: args.routeContext,
+    result: args.result,
+    message: `Exported ${writtenFiles.length} sandbox files: ${writtenFiles
+      .map(
+        (file) =>
+          `${file.vfsPath} ${formatExportReceipt(
+            file.exportedBytes,
+            file.previousSize,
+            file.sha256
+          )}${file.unchanged ? ' [UNCHANGED]' : ''}`
+      )
+      .join('; ')}${
+      unchangedFiles.length > 0
+        ? ` — WARNING: ${unchangedFiles.map((file) => file.vfsPath).join(', ')} ${
+            unchangedFiles.length === 1 ? 'is' : 'are'
+          } byte-identical to the previous version (nothing changed). If you expected new content there, your code did not modify the corresponding sandbox file.`
+        : ''
+    }`,
+    files: writtenFiles.map((file) => ({
+      fileId: file.id,
+      fileName: file.name,
+      vfsPath: file.vfsPath,
+      downloadUrl: file.downloadUrl,
+      sandboxPath: file.sandboxPath,
+      size: file.exportedBytes,
+      previousSize: file.previousSize,
+      sha256: file.sha256,
+      unchanged: file.unchanged,
     })),
+    stdout: args.stdout,
+    executionTime: args.executionTime,
+    cost: args.cost,
   })
 }
 
@@ -2622,6 +2671,7 @@ export async function executeFunctionRequest(
           outputFiles,
           exportedFiles,
           exportedFileContent,
+          result: shellResult,
           stdout: shellStdout,
           executionTime,
           cost: shellCost,
@@ -2785,6 +2835,7 @@ export async function executeFunctionRequest(
             outputFiles,
             exportedFiles,
             exportedFileContent,
+            result: e2bResult,
             stdout,
             executionTime,
             cost: sandboxCost,
@@ -2910,6 +2961,7 @@ export async function executeFunctionRequest(
           outputFiles,
           exportedFiles,
           exportedFileContent,
+          result: e2bResult,
           stdout,
           executionTime,
           cost: sandboxCost,
