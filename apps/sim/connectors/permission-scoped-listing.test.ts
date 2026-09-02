@@ -3,11 +3,28 @@
  */
 import { describe, expect, it } from 'vitest'
 import { getManagedOAuthConnectorPolicy } from '@/lib/auth/connectors/managed-oauth'
+import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
+  type CredentialGroupProvider,
+  getCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderService,
-  getCredentialGroupStandardOAuthProviderFromProviderId,
+  isCredentialGroupStandardOAuthProvider,
 } from '@/lib/credential-groups/providers'
+import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+
+/**
+ * The scopes an option of the provider requests from every member: the
+ * provider's service scopes plus its managed policy's additions for a standard
+ * OAuth provider, and the fixed user-token policy for Slack.
+ */
+function optionScopesFor(provider: CredentialGroupProvider): string[] {
+  if (!isCredentialGroupStandardOAuthProvider(provider)) return [...SLACK_MANAGED_USER_SCOPES]
+  const service = getCredentialGroupProviderService(provider)
+  const policy = getManagedOAuthConnectorPolicy(service.providerId)
+  expect(policy).toBeDefined()
+  return [...new Set([...service.scopes, ...(policy?.additionalScopes ?? [])])]
+}
 
 const permissionScoped = Object.values(CONNECTOR_META_REGISTRY).filter(
   (meta) => meta.permissionScopedListing !== undefined
@@ -50,32 +67,22 @@ describe('permission-scoped connector listings', () => {
       'outlook',
       'salesforce',
       'sharepoint',
+      'slack',
       'zoom',
     ])
   })
 
   it.each(permissionScoped.map((meta) => [meta.id, meta] as const))(
-    '%s authenticates through a managed OAuth provider whose option scopes cover its read scopes',
+    '%s authenticates through a Credential Group provider whose option scopes cover its read scopes',
     (_id, meta) => {
       expect(meta.auth.mode).toBe('oauth')
       if (meta.auth.mode !== 'oauth') return
 
-      const policy = getManagedOAuthConnectorPolicy(meta.auth.provider)
-      expect(policy).toBeDefined()
-      if (!policy) return
-
-      const groupProvider = getCredentialGroupStandardOAuthProviderFromProviderId(
-        meta.auth.provider
-      )
-      expect(groupProvider).toBeDefined()
-
-      const optionScopes = [
-        ...new Set([
-          ...getCredentialGroupProviderService(groupProvider).scopes,
-          ...policy.additionalScopes,
-        ]),
-      ]
-      expect(policy.hasRequiredScopes(optionScopes, meta.auth.requiredScopes ?? [])).toBe(true)
+      const provider = getCredentialGroupProviderFromProviderId(meta.auth.provider)
+      const adapter = getCredentialGroupProviderAdapter(provider)
+      expect(
+        adapter.hasRequiredScopes(optionScopesFor(provider), meta.auth.requiredScopes ?? [])
+      ).toBe(true)
     }
   )
 

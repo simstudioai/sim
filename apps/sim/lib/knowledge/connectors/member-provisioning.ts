@@ -17,9 +17,11 @@ import {
   inviteCredentialGroupEnrollment,
 } from '@/lib/credential-groups/enrollments'
 import {
+  type CredentialGroupProvider,
+  getCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderId,
-  getCredentialGroupStandardOAuthProviderFromProviderId,
   isCredentialGroupProvider,
+  isCredentialGroupStandardOAuthProvider,
 } from '@/lib/credential-groups/providers'
 import { createCredentialGroup, listCredentialGroups } from '@/lib/credential-groups/service'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
@@ -113,9 +115,9 @@ export async function provisionKnowledgeConnectorMembersBinding(input: {
     throw new OrchestrationError('validation', 'Only an OAuth connector can sync per member')
   }
   const providerId = connectorMeta.auth.provider
-  let provider: ReturnType<typeof getCredentialGroupStandardOAuthProviderFromProviderId>
+  let provider: CredentialGroupProvider
   try {
-    provider = getCredentialGroupStandardOAuthProviderFromProviderId(providerId)
+    provider = getCredentialGroupProviderFromProviderId(providerId)
   } catch {
     throw new OrchestrationError(
       'validation',
@@ -128,7 +130,7 @@ export async function provisionKnowledgeConnectorMembersBinding(input: {
   for (const group of groups) {
     if (group.status !== 'active') continue
     for (const option of group.options) {
-      if (option.status !== 'active') continue
+      if (option.status !== 'active' || option.configurationStatus !== 'ready') continue
       if (!isCredentialGroupProvider(option.provider)) continue
       if (getCredentialGroupProviderId(option.provider) !== providerId) continue
       candidates.push({ credentialGroupId: group.id, credentialGroupOptionId: option.id })
@@ -146,6 +148,22 @@ export async function provisionKnowledgeConnectorMembersBinding(input: {
     throw new OrchestrationError(
       'validation',
       `Several Credential Groups collect ${connectorMeta.name} accounts for other connectors; choose which one this connector syncs through`
+    )
+  }
+
+  if (!isCredentialGroupStandardOAuthProvider(provider)) {
+    /**
+     * A Slack option authorizes through the workspace's own Slack app, which
+     * only an admin can configure in Settings, so no group can be created
+     * here. The one option already set up for it is what the connector was
+     * meant to crawl through; anything else needs the admin's choice.
+     */
+    if (candidates.length === 1) return candidates[0]
+    throw new OrchestrationError(
+      'validation',
+      candidates.length === 0
+        ? `Add a ${connectorMeta.name} option to a Credential Group in Settings, using your own ${connectorMeta.name} app, then connect again`
+        : `Several Credential Groups collect ${connectorMeta.name} accounts; choose which one this connector syncs through`
     )
   }
 
