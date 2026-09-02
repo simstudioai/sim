@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import type { WorkflowStateContractInput } from '@/lib/api/contracts/workflows'
 import { readSSEEvents } from '@/lib/core/utils/sse'
 import type {
@@ -67,8 +68,8 @@ export class SSEStreamInterruptedError extends Error {
  * Detects errors caused by the browser killing a fetch (page refresh, navigation, tab close).
  * These should be treated as clean disconnects, not execution errors.
  */
-function isClientDisconnectError(error: any): boolean {
-  return error.name === 'AbortError'
+function isClientDisconnectError(error: unknown): boolean {
+  return isRecordLike(error) && error.name === 'AbortError'
 }
 
 /**
@@ -83,9 +84,9 @@ const TRANSPORT_FAILURE_MESSAGE_PATTERNS = [
   /load failed/,
 ] as const
 
-function isRecoverableStreamError(error: any): boolean {
-  if (isClientDisconnectError(error)) return false
-  const msg = (error.message ?? '').toLowerCase()
+function isRecoverableStreamError(error: unknown): boolean {
+  if (!isRecordLike(error) || isClientDisconnectError(error)) return false
+  const msg = typeof error.message === 'string' ? error.message.toLowerCase() : ''
   return TRANSPORT_FAILURE_MESSAGE_PATTERNS.some((pattern) => pattern.test(msg))
 }
 

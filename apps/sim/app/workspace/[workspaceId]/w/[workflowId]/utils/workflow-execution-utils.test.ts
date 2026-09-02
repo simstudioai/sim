@@ -129,6 +129,7 @@ describe('workflow-execution-utils', () => {
     )
 
     it.each([
+      ['a nullish rejection', null],
       ['a client abort', new DOMException('Aborted', 'AbortError')],
       [
         'the run tool stop reason, which aborts with a plain string',
