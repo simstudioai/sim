@@ -118,14 +118,10 @@ export function KnowledgeSearchResults({
    * The list also carries the viewer's legacy personal bases, which have no
    * workspace; a search names one workspace and refuses a base outside it.
    */
-  const knowledgeBaseIds = useMemo(
-    () =>
-      knowledgeBases
-        .filter((kb) => kb.workspaceId === workspaceId)
-        .slice(0, MAX_SEARCHED_KNOWLEDGE_BASES)
-        .map((kb) => kb.id),
-    [knowledgeBases, workspaceId]
-  )
+  const knowledgeBaseIds = knowledgeBases
+    .filter((kb) => kb.workspaceId === workspaceId)
+    .slice(0, MAX_SEARCHED_KNOWLEDGE_BASES)
+    .map((kb) => kb.id)
   const {
     data: results,
     isPending,
@@ -134,16 +130,13 @@ export function KnowledgeSearchResults({
   } = useWorkspaceKnowledgeSearch(workspaceId, knowledgeBaseIds, query)
   const { data: memberConnectors = [] } = useWorkspaceMemberConnectors(workspaceId)
   /** Every per-member connector still indexing for the viewer, in any base the search spans. */
-  const indexing = useMemo(
-    () => [
-      ...new Set(
-        memberConnectors
-          .filter(isIndexing)
-          .map((connection) => connectorName(connection.connectorType))
-      ),
-    ],
-    [memberConnectors]
-  )
+  const indexing = [
+    ...new Set(
+      memberConnectors
+        .filter(isIndexing)
+        .map((connection) => connectorName(connection.connectorType))
+    ),
+  ]
   const documents = useMemo(() => groupResultsByDocument(results ?? []), [results])
   const sourceTypes = useMemo(
     () => [...new Set(documents.map((result) => result.connectorType ?? 'upload'))],

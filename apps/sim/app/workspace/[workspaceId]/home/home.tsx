@@ -475,11 +475,11 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       prepareResourceViewForAgentTurn()
       sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
-    [workspaceId, chatId, prepareResourceViewForAgentTurn, sendMessage]
+    [workspaceId, chatId, prepareResourceViewForAgentTurn, sendMessage, setSearchQuery]
   )
 
   /** An emptied search box returns to the sources; nothing else reads the cleared query. */
-  const clearSearch = useCallback(() => setSearchQuery(''), [])
+  const clearSearch = useCallback(() => setSearchQuery(''), [setSearchQuery])
 
   /** Summarize on a result: hand the document to the agent in Build mode. */
   const handleSummarize = useCallback(
@@ -488,7 +488,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       setSearchQuery('')
       handleSubmit(prompt)
     },
-    [handleSubmit]
+    [handleSubmit, setSearchQuery]
   )
   /**
    * A chat that already exists opens in Build: its transcript is a
@@ -498,7 +498,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   useEffect(() => {
     if (chatId) useMothershipModeStore.getState().setMode('build')
   }, [chatId])
-  const showSearchResults = composerMode === 'search' && searchQuery.length > 0
+  const showSearchResults = composerMode === 'search' && searchQuery.trim().length > 0
   const searchResults = showSearchResults ? (
     <KnowledgeSearchResults
       workspaceId={workspaceId}

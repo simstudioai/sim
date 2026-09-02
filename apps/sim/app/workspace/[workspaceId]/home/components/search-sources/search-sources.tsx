@@ -169,14 +169,11 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
   })
   const [setupConnector, setSetupConnector] = useState<SearchConnector | null>(null)
 
-  /** Connected sources first, then the rest alphabetically. */
-  const ordered = useMemo(() => {
-    const rank = (connector: SearchConnector) =>
-      connectionByType.get(connector.type)?.viewerMembership === 'connected' ? 0 : 1
-    return [...PERSONAL_SEARCH_CONNECTORS].sort(
-      (a, b) => rank(a) - rank(b) || a.meta.name.localeCompare(b.meta.name)
-    )
-  }, [connectionByType])
+  const rank = (connector: SearchConnector) =>
+    connectionByType.get(connector.type)?.viewerMembership === 'connected' ? 0 : 1
+  const ordered = [...PERSONAL_SEARCH_CONNECTORS].sort(
+    (a, b) => rank(a) - rank(b) || a.meta.name.localeCompare(b.meta.name)
+  )
 
   const startConnect = (connector: SearchConnector) => {
     const connection = connectionByType.get(connector.type)

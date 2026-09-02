@@ -11,8 +11,10 @@ import {
 } from '@sim/emcn'
 import { Check } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
+import { searchQueryParam } from '@/app/workspace/[workspaceId]/home/search-params'
 import {
   MOTHERSHIP_MODES,
   type MothershipMode,
@@ -37,9 +39,13 @@ export const ModeSwitcher = memo(function ModeSwitcher() {
   const mode = useMothershipModeStore((state) => state.mode)
   const setMode = useMothershipModeStore((state) => state.setMode)
 
+  const [, setSearchQueryParam] = useQueryState(searchQueryParam.key, searchQueryParam.parser)
+
+  /** Leaving Search drops the query from the URL, so a clean URL always means no search is showing. */
   const handleSelect = (next: MothershipMode) => {
     if (next === mode) return
     setMode(next)
+    if (next !== 'search') void setSearchQueryParam(null, { history: 'replace', scroll: false })
     captureEvent(posthog, 'chat_mode_changed', { workspace_id: workspaceId, mode: next })
   }
 

@@ -5,11 +5,15 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCaptureEvent } = vi.hoisted(() => ({ mockCaptureEvent: vi.fn() }))
+const { mockCaptureEvent, mockSetSearchQuery } = vi.hoisted(() => ({
+  mockCaptureEvent: vi.fn(),
+  mockSetSearchQuery: vi.fn(),
+}))
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
 }))
+vi.mock('nuqs', () => ({ useQueryState: () => [null, mockSetSearchQuery] }))
 vi.mock('posthog-js/react', () => ({ usePostHog: () => null }))
 vi.mock('@/lib/posthog/client', () => ({ captureEvent: mockCaptureEvent }))
 
@@ -94,6 +98,20 @@ describe('ModeSwitcher', () => {
       workspace_id: 'workspace-1',
       mode: 'search',
     })
+    expect(mockSetSearchQuery).not.toHaveBeenCalled()
+  })
+
+  it('drops the search query from the URL when leaving Search', () => {
+    useMothershipModeStore.getState().setMode('search')
+    mount()
+    openMenu()
+
+    act(() => {
+      items()[0].dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
+    })
+
+    expect(useMothershipModeStore.getState().mode).toBe('build')
+    expect(mockSetSearchQuery).toHaveBeenCalledWith(null, { history: 'replace', scroll: false })
   })
 
   it('does not report re-selecting the active mode', () => {

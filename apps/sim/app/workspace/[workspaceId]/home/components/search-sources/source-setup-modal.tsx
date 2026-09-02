@@ -57,6 +57,7 @@ export function SourceSetupModal({
                 label: option.label,
               }))}
               placeholder={field.placeholder}
+              hint={field.description}
               required
             />
           ) : (
