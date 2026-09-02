@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { Combobox, type ComboboxOption } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { useQueries } from '@tanstack/react-query'
@@ -129,23 +129,51 @@ export function KnowledgeBaseSelector({
     return ids
   }, [folderScopePath, folderScopeIncludesSubfolders, resourceFolders])
 
+  const isInFolderScope = useCallback(
+    (knowledgeBase: { folderId: string | null }) =>
+      !scopedFolderIds ||
+      (knowledgeBase.folderId !== null && scopedFolderIds.has(knowledgeBase.folderId)),
+    [scopedFolderIds]
+  )
+
   const combinedKnowledgeBases = useMemo<KnowledgeBaseData[]>(() => {
     const merged = new Map<string, KnowledgeBaseData>()
-    const inScope = (kb: KnowledgeBaseData) =>
-      !scopedFolderIds || (kb.folderId !== null && scopedFolderIds.has(kb.folderId))
     knowledgeBases.forEach((kb) => {
-      if (inScope(kb)) merged.set(kb.id, kb)
+      if (isInFolderScope(kb)) merged.set(kb.id, kb)
     })
 
     /* A knowledge base already chosen stays listed, or the chip loses its label. */
     selectedKnowledgeBaseQueries.forEach((query) => {
-      if (query.data) {
+      if (query.data && isInFolderScope(query.data)) {
         merged.set(query.data.id, query.data)
       }
     })
 
     return Array.from(merged.values())
-  }, [knowledgeBases, selectedKnowledgeBaseQueries, scopedFolderIds])
+  }, [knowledgeBases, selectedKnowledgeBaseQueries, isInFolderScope])
+
+  /**
+   * Drops a selection the folder scope no longer contains.
+   *
+   * Leaving it is not neutral: the block's params transformer treats a present
+   * knowledge base as the narrower answer and drops the folder, so the run would
+   * search a knowledge base the editor is no longer showing while displaying a
+   * folder scope that never reaches the wire. Clearing keeps what runs and what
+   * is on screen the same thing.
+   *
+   * A knowledge base that has not loaded yet is kept rather than cleared —
+   * absence of data is not evidence of being out of scope.
+   */
+  useEffect(() => {
+    if (isPreview || !scopedFolderIds || selectedIds.length === 0) return
+    const loaded = new Map(knowledgeBases.map((kb) => [kb.id, kb]))
+    const surviving = selectedIds.filter((id) => {
+      const knowledgeBase = loaded.get(id)
+      return !knowledgeBase || isInFolderScope(knowledgeBase)
+    })
+    if (surviving.length === selectedIds.length) return
+    setStoreValue(surviving.length > 0 ? surviving.join(',') : null)
+  }, [isPreview, scopedFolderIds, selectedIds, knowledgeBases, isInFolderScope, setStoreValue])
 
   /**
    * Display names, with the folder path appended when two knowledge bases share

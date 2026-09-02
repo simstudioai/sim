@@ -645,6 +645,34 @@ describe('knowledge search application use case', () => {
       ).rejects.toThrow('holds 21 knowledge bases; a search covers at most 20')
     })
 
+    /**
+     * The fan-out error names the folder and its knowledge-base count, so the
+     * expansion must not run for a caller who cannot read the workspace —
+     * otherwise a 400 becomes a probe. Authorization runs between
+     * `resolveContext` and `execute`, so "did we read?" is the observable proof
+     * that the expansion sits on the right side of it.
+     */
+    it('does not read the folder when the caller cannot access the workspace', async () => {
+      mocks.resolvePermission.mockResolvedValue(null)
+
+      await expect(
+        searchKnowledge.execute({
+          principal: SESSION,
+          input: {
+            workspaceId: 'workspace-1',
+            knowledgeBaseIds: [],
+            folderPath: '/Support',
+            folderIncludeSubfolders: true,
+            query: 'answer',
+            topK: 5,
+          },
+        })
+      ).rejects.toThrow()
+
+      expect(mocks.getWorkspaceKnowledgeBases).not.toHaveBeenCalled()
+      expect(mocks.loadActiveFolderPathIndex).not.toHaveBeenCalled()
+    })
+
     it('refuses a folder scope with no workspace to resolve it against', async () => {
       await expect(
         searchKnowledge.execute({

@@ -11,7 +11,7 @@ import { readFolderPath } from '@/app/workspace/[workspaceId]/w/[workflowId]/com
 import type { BlockConfig } from '@/blocks/types'
 import { getCohereRerankerApiKeyCondition, parseOptionalNumberInput } from '@/blocks/utils'
 
-/*
+/**
  * Canonical basic/advanced pairs, shared by the card sentences below. Listing
  * both members is what keeps the sentence working for an advanced-mode user,
  * who has only the manual field filled.
@@ -19,7 +19,7 @@ import { getCohereRerankerApiKeyCondition, parseOptionalNumberInput } from '@/bl
 const KNOWLEDGE_BASE_FIELD = ['knowledgeBaseSelector', 'manualKnowledgeBaseId'] as const
 const DOCUMENT_FIELD = ['documentSelector', 'documentId'] as const
 const SEARCH_FOLDER_FIELD = ['searchFolder', 'manualSearchFolder'] as const
-/*
+/**
  * Search takes either a knowledge base or a folder standing for the knowledge
  * bases inside it, so the clause names whichever one the card actually carries.
  */
@@ -46,7 +46,7 @@ const KNOWLEDGE_BASE_OPERATIONS = [
   'trigger_sync',
 ] as const
 
-/*
+/**
  * Search is absent: a folder alone is a valid target there, so requiring a
  * knowledge base would reject a well-formed folder-scoped search.
  */
@@ -71,7 +71,7 @@ const SEARCH_FOLDER_SCOPE = {
   recursiveFieldId: 'searchFolderIncludeSubfolders',
 } as const
 
-/*
+/**
  * An untouched text subblock arrives as '', not undefined, and '' is not a
  * canonical folder path — so an omitted optional path has to be normalized away
  * rather than forwarded. A switch arrives as either a boolean or the string

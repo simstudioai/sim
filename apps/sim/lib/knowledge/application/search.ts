@@ -208,90 +208,38 @@ async function resolveFolderScopeKnowledgeBases(
  * What the search will actually read: the knowledge bases named outright, plus
  * whatever the folder scope expands to, deduplicated.
  */
-interface ResolvedSearchTargets {
-  knowledgeBaseIds: string[]
-  /**
-   * Rows the folder expansion already read, so the context load does not fetch
-   * them a second time. Expansion returns whole rows; re-reading each id would
-   * be one aggregate query per knowledge base, up to the fan-out cap.
-   */
-  preloaded: Map<string, KnowledgeBaseWithCounts>
-  /** Set only for a folder scope, where it is required and therefore known. */
-  folderWorkspaceId?: string
-}
-
-async function resolveSearchTargets(input: SearchKnowledgeInput): Promise<ResolvedSearchTargets> {
-  if (input.folderPath === undefined) {
-    return { knowledgeBaseIds: input.knowledgeBaseIds, preloaded: new Map() }
-  }
-  const workspaceId = input.workspaceId
-  if (!workspaceId) {
-    throw new OrchestrationError(
-      'validation',
-      'A folder scope requires a workspace, because a folder is only meaningful inside one'
-    )
-  }
-  /*
-   * Named knowledge bases win. A folder is a scope, so naming one knowledge base
-   * inside it is the narrower answer, not an addition to it — unioning the two
-   * would make "search this folder, specifically this one" search MORE than
-   * either alone, which is the opposite of what a scope means.
-   */
-  if (input.knowledgeBaseIds.length > 0) {
-    return {
-      knowledgeBaseIds: input.knowledgeBaseIds,
-      preloaded: new Map(),
-      folderWorkspaceId: workspaceId,
-    }
-  }
-  const expanded = await resolveFolderScopeKnowledgeBases(
-    workspaceId,
-    input.folderPath,
-    input.folderIncludeSubfolders ?? false
-  )
-  return {
-    knowledgeBaseIds: expanded.map((base) => base.id),
-    preloaded: new Map(expanded.map((base) => [base.id, base])),
-    folderWorkspaceId: workspaceId,
-  }
-}
-
 async function resolveKnowledgeSearchContext(
   input: SearchKnowledgeInput
 ): Promise<KnowledgeSearchContext> {
-  const { knowledgeBaseIds, preloaded, folderWorkspaceId } = await resolveSearchTargets(input)
-
-  /*
-   * A folder that holds nothing is an empty result, not an error — but it still
-   * resolves a workspace context so the operation is authorized exactly as a
-   * populated folder would be. Pointing at an empty folder must not be a way
-   * around the permission check.
-   *
-   * `folderWorkspaceId` carries the narrowing from the guard that produced it,
-   * so this branch cannot be reached without a workspace.
+  /**
+   * A folder scope resolves NOTHING here. Expanding it would read the caller's
+   * asserted workspace before the wrapper authorizes it, and the fan-out error
+   * names the folder and its knowledge-base count — enough for an unauthorized
+   * caller to probe a workspace they cannot read. The expansion therefore waits
+   * until `execute`, which only runs after authorization.
    */
-  if (knowledgeBaseIds.length === 0 && folderWorkspaceId !== undefined) {
+  if (input.folderPath !== undefined && input.knowledgeBaseIds.length === 0) {
+    if (!input.workspaceId) {
+      throw new OrchestrationError(
+        'validation',
+        'A folder scope requires a workspace, because a folder is only meaningful inside one'
+      )
+    }
     return {
-      ...(await resolveKnowledgeWorkspaceContext({ workspaceId: folderWorkspaceId })),
+      ...(await resolveKnowledgeWorkspaceContext({ workspaceId: input.workspaceId })),
       knowledgeBases: [],
     }
   }
+
+  const knowledgeBaseIds = input.knowledgeBaseIds
 
   if (
     knowledgeBaseIds.length < 1 ||
     knowledgeBaseIds.length > KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases
   ) {
-    /*
-     * A folder scope resolves when the workflow runs, so this can start failing
-     * because someone else added a knowledge base to the folder. The message has
-     * to name the folder and the count, or the owner of a workflow they did not
-     * change is left with an error that mentions neither.
-     */
     throw new OrchestrationError(
       'validation',
-      input.folderPath !== undefined
-        ? `Folder "${input.folderPath}" holds ${knowledgeBaseIds.length} knowledge bases; a search covers at most ${KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases}. Narrow the folder or turn off Include Subfolders.`
-        : `Knowledge search requires between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases} knowledge bases`
+      `Knowledge search requires between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases} knowledge bases`
     )
   }
   if (
@@ -304,11 +252,7 @@ async function resolveKnowledgeSearchContext(
       `topK must be an integer between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxTopK}`
     )
   }
-  const knowledgeBases = await Promise.all(
-    knowledgeBaseIds.map(
-      async (id) => preloaded.get(id) ?? (await getKnowledgeBaseById(id)) ?? undefined
-    )
-  )
+  const knowledgeBases = await Promise.all(knowledgeBaseIds.map(getKnowledgeBaseById))
   const missingIds = knowledgeBaseIds.filter((_, index) => !knowledgeBases[index])
   if (missingIds.length > 0) {
     throw new OrchestrationError(
@@ -392,7 +336,37 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       }
     }
 
-    const knowledgeBaseIds = context.knowledgeBases.map((knowledgeBase) => knowledgeBase.id)
+    /**
+     * The folder is expanded HERE, not in `resolveContext`, because everything
+     * above this line has already been authorized against the workspace. The
+     * fan-out error below names the folder and its count, which is exactly the
+     * kind of detail a caller who cannot read the workspace must not learn.
+     */
+    const searchKnowledgeBases =
+      context.knowledgeBases.length === 0 &&
+      input.folderPath !== undefined &&
+      context.workspaceId !== undefined
+        ? await resolveFolderScopeKnowledgeBases(
+            context.workspaceId,
+            input.folderPath,
+            input.folderIncludeSubfolders ?? false
+          )
+        : context.knowledgeBases
+
+    if (searchKnowledgeBases.length > KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases) {
+      /*
+       * A folder scope resolves when the workflow runs, so this can start
+       * failing because someone else added a knowledge base to the folder. The
+       * message names the folder and the count, or the owner of a workflow they
+       * did not change is left with an error that mentions neither.
+       */
+      throw new OrchestrationError(
+        'validation',
+        `Folder "${input.folderPath}" holds ${searchKnowledgeBases.length} knowledge bases; a search covers at most ${KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases}. Narrow the folder or turn off Include Subfolders.`
+      )
+    }
+
+    const knowledgeBaseIds = searchKnowledgeBases.map((knowledgeBase) => knowledgeBase.id)
     let structuredFilters: StructuredFilter[] = []
     let definitionsByKnowledgeBase = new Map<string, DocumentTagDefinition[]>()
     if (filters.length > 0) {
@@ -401,7 +375,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       definitionsByKnowledgeBase = built.definitionsByKnowledgeBase
     }
 
-    const embeddingModels = [...new Set(context.knowledgeBases.map((kb) => kb.embeddingModel))]
+    const embeddingModels = [...new Set(searchKnowledgeBases.map((kb) => kb.embeddingModel))]
     if (hasQuery && embeddingModels.length > 1) {
       throw new OrchestrationError(
         'validation',
@@ -419,7 +393,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
      * generated or billed. Returning here rather than falling through keeps the
      * "no knowledge bases" case from paying for a query it cannot run.
      */
-    if (context.knowledgeBases.length === 0) {
+    if (searchKnowledgeBases.length === 0) {
       return {
         results: [] as KnowledgeSearchItem[],
         query: input.query ?? '',
@@ -723,7 +697,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       results,
       query: input.query ?? '',
       knowledgeBaseIds,
-      knowledgeBases: context.knowledgeBases.map((knowledgeBase) => ({
+      knowledgeBases: searchKnowledgeBases.map((knowledgeBase) => ({
         id: knowledgeBase.id,
         name: knowledgeBase.name,
       })),
