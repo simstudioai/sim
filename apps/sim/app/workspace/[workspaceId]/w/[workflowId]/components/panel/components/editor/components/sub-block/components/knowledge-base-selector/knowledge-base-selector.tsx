@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { Combobox, type ComboboxOption } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { useQueries } from '@tanstack/react-query'
@@ -168,43 +168,20 @@ export function KnowledgeBaseSelector({
       if (isInFolderScope(kb)) merged.set(kb.id, kb)
     })
 
-    /* A knowledge base already chosen stays listed, or the chip loses its label. */
+    /*
+     * An already-chosen knowledge base stays listed even when the folder scope
+     * excludes it, or its chip loses its label. It is not silently dropped
+     * either: a picked knowledge base is what the run searches, the card
+     * sentence names it, and the Folder field says so.
+     */
     selectedKnowledgeBaseQueries.forEach((query) => {
-      if (query.data && isInFolderScope(query.data)) {
+      if (query.data) {
         merged.set(query.data.id, query.data)
       }
     })
 
     return Array.from(merged.values())
   }, [knowledgeBases, selectedKnowledgeBaseQueries, isInFolderScope])
-
-  /**
-   * Drops a selection the folder scope no longer contains.
-   *
-   * Leaving it is not neutral: the block's params transformer treats a present
-   * knowledge base as the narrower answer and drops the folder, so the run would
-   * search a knowledge base the editor is no longer showing while displaying a
-   * folder scope that never reaches the wire. Clearing keeps what runs and what
-   * is on screen the same thing.
-   *
-   * A knowledge base that has not loaded yet is kept rather than cleared —
-   * absence of data is not evidence of being out of scope.
-   */
-  useEffect(() => {
-    /*
-     * Only a RESOLVED scope may erase a selection. While the folder query is in
-     * flight there is no scope to judge against, and a path that resolves to no
-     * folder is more likely a typo than a reason to discard the user's pick.
-     */
-    if (isPreview || folderScopeState.kind !== 'resolved' || selectedIds.length === 0) return
-    const loaded = new Map(knowledgeBases.map((kb) => [kb.id, kb]))
-    const surviving = selectedIds.filter((id) => {
-      const knowledgeBase = loaded.get(id)
-      return !knowledgeBase || isInFolderScope(knowledgeBase)
-    })
-    if (surviving.length === selectedIds.length) return
-    setStoreValue(surviving.length > 0 ? surviving.join(',') : null)
-  }, [isPreview, folderScopeState, selectedIds, knowledgeBases, isInFolderScope, setStoreValue])
 
   /**
    * Display names, with the folder path appended when two knowledge bases share

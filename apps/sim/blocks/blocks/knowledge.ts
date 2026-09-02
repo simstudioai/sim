@@ -238,7 +238,7 @@ export const KnowledgeBlock: BlockConfig = {
       mode: 'basic',
       placeholder: 'Anywhere in the workspace',
       description:
-        'Narrows the knowledge bases below. With none picked, searches every knowledge base in the folder.',
+        'Narrows the knowledge bases below. With none picked, searches every knowledge base in the folder; pick one and only it is searched.',
       condition: { field: 'operation', value: 'search' },
     },
     {
