@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   completeEnrollment: vi.fn(),
+  completeOAuth: vi.fn(),
+  fireTrigger: vi.fn(),
   getEnrollment: vi.fn(),
   getOAuthContext: vi.fn(),
   startOAuth: vi.fn(),
@@ -19,11 +21,17 @@ vi.mock('@/lib/credential-groups/enrollments', () => ({
 }))
 
 vi.mock('@/lib/credential-groups/oauth', () => ({
-  completeCredentialGroupOAuth: vi.fn(),
+  completeCredentialGroupOAuth: mocks.completeOAuth,
   startCredentialGroupOAuth: mocks.startOAuth,
 }))
 
+vi.mock('@/lib/credential-groups/trigger', () => ({
+  fireCredentialGroupTrigger: mocks.fireTrigger,
+}))
+
 import {
+  completePublicCredentialGroupEnrollment,
+  completePublicCredentialGroupOAuth,
   readPublicCredentialGroupEnrollment,
   startPublicCredentialGroupOAuth,
 } from '@/lib/credential-groups/application/public-enrollment'
@@ -44,15 +52,43 @@ const identity = {
   email: principal.email,
   invitationTokenHash: principal.invitationTokenHash,
 }
+const oauthAttempt = {
+  state: 'state-1',
+  provider: 'gmail' as const,
+  nonceHash: 'nonce-hash',
+  enrollmentId: principal.enrollmentId,
+  credentialGroupId: principal.credentialGroupId,
+  optionId: 'option-1',
+  authorizationAppId: 'google:client',
+  scopeVersion: 1,
+  requiredScopes: ['openid'],
+  redirectUri: 'https://sim.ai/api/auth/oauth2/callback/google-email',
+  invitationToken,
+  createdAt: Date.now(),
+}
 
 describe('public Credential Group enrollment application operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getEnrollment.mockResolvedValue({ status: 'invited', options: [] })
+    mocks.getEnrollment.mockResolvedValue({
+      status: 'invited',
+      credentialGroupName: 'Credential Group',
+      options: [],
+    })
     mocks.getOAuthContext.mockResolvedValue({
       enrollmentId: 'enrollment-1',
       credentialGroupId: 'group-1',
-      option: { id: 'option-1' },
+      credentialGroupName: 'Credential Group',
+      option: { id: 'option-1', provider: 'gmail' },
+    })
+    mocks.completeOAuth.mockResolvedValue({
+      created: true,
+      credentialId: 'credential-1',
+      credentialGroupOptionId: 'option-1',
+      provider: 'gmail',
+      providerId: 'google-email',
+      displayName: 'person@example.com',
+      enrollmentStatus: 'in_progress',
     })
     mocks.startOAuth.mockResolvedValue('https://accounts.example/authorize')
   })
@@ -74,7 +110,13 @@ describe('public Credential Group enrollment application operations', () => {
     const result = await readPublicCredentialGroupEnrollment.execute({ principal, input: {} })
 
     expect(mocks.getEnrollment).toHaveBeenCalledWith(identity)
-    expect(result).toEqual({ enrollment: { status: 'invited', options: [] } })
+    expect(result).toEqual({
+      enrollment: {
+        status: 'invited',
+        credentialGroupName: 'Credential Group',
+        options: [],
+      },
+    })
   })
 
   it('fails closed when the current invitation no longer resolves', async () => {
@@ -103,5 +145,79 @@ describe('public Credential Group enrollment application operations', () => {
 
     expect(mocks.getOAuthContext).toHaveBeenCalledWith(identity, 'option-1')
     expect(result).toEqual({ authorizationUrl: 'https://accounts.example/authorize' })
+  })
+
+  it('fires form submitted only for the first completion transition', async () => {
+    mocks.completeEnrollment.mockResolvedValue({ completed: true, transitioned: true })
+
+    const result = await completePublicCredentialGroupEnrollment.execute({
+      principal,
+      input: {},
+    })
+
+    expect(result).toEqual({ completed: true })
+    expect(mocks.fireTrigger).toHaveBeenCalledWith({
+      event: 'form_submitted',
+      workspaceId: 'workspace-1',
+      credentialGroupId: 'group-1',
+      credentialGroupName: 'Credential Group',
+      enrollmentId: 'enrollment-1',
+      email: 'person@example.com',
+      enrollmentStatus: 'completed',
+    })
+
+    vi.clearAllMocks()
+    mocks.getEnrollment.mockResolvedValue({
+      status: 'completed',
+      credentialGroupName: 'Credential Group',
+      options: [],
+    })
+    mocks.completeEnrollment.mockResolvedValue({ completed: true, transitioned: false })
+
+    await completePublicCredentialGroupEnrollment.execute({ principal, input: {} })
+
+    expect(mocks.fireTrigger).not.toHaveBeenCalled()
+  })
+
+  it('distinguishes a new credential from a reconnection', async () => {
+    await completePublicCredentialGroupOAuth.execute({
+      principal,
+      input: { attempt: oauthAttempt, code: 'authorization-code' },
+    })
+
+    expect(mocks.fireTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'credential_added',
+        credentialGroupId: 'group-1',
+        enrollmentId: 'enrollment-1',
+        credential: expect.objectContaining({ credentialId: 'credential-1' }),
+      })
+    )
+
+    vi.clearAllMocks()
+    mocks.getOAuthContext.mockResolvedValue({
+      enrollmentId: 'enrollment-1',
+      credentialGroupId: 'group-1',
+      credentialGroupName: 'Credential Group',
+      option: { id: 'option-1', provider: 'gmail' },
+    })
+    mocks.completeOAuth.mockResolvedValue({
+      created: false,
+      credentialId: 'credential-1',
+      credentialGroupOptionId: 'option-1',
+      provider: 'gmail',
+      providerId: 'google-email',
+      displayName: 'person@example.com',
+      enrollmentStatus: 'completed',
+    })
+
+    await completePublicCredentialGroupOAuth.execute({
+      principal,
+      input: { attempt: oauthAttempt, code: 'authorization-code' },
+    })
+
+    expect(mocks.fireTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'credential_reconnected', enrollmentStatus: 'completed' })
+    )
   })
 })

@@ -21,6 +21,7 @@ import {
 } from '@/lib/credential-groups/provider-adapter'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
+  type CredentialGroupProvider,
   getCredentialGroupProviderService,
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'
@@ -56,6 +57,16 @@ function getOptionAdapter(context: CredentialGroupOAuthContext): CredentialGroup
     throw new Error(`Unsupported Credential Group provider: ${context.option.provider}`)
   }
   return getCredentialGroupProviderAdapter(context.option.provider)
+}
+
+export interface CredentialGroupOAuthCompletion {
+  created: boolean
+  credentialId: string
+  credentialGroupOptionId: string
+  provider: CredentialGroupProvider
+  providerId: string
+  displayName: string
+  enrollmentStatus: 'in_progress' | 'completed'
 }
 
 async function assertCurrentPolicy(
@@ -111,12 +122,12 @@ async function persistGrant(
   adapter: CredentialGroupProviderAdapter,
   policy: CredentialGroupProviderPolicy,
   grant: VerifiedCredentialGroupGrant
-): Promise<void> {
+): Promise<CredentialGroupOAuthCompletion> {
   if (grant.providerId !== policy.providerId) {
     throw new CredentialGroupOAuthError('Provider returned a credential for another app.', 502)
   }
 
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     await lockCredentialGroupEnrollmentLifecycle(tx, context.enrollmentId)
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-oauth:${context.enrollmentId}:${context.option.id}`}, 0))`
@@ -231,6 +242,7 @@ async function persistGrant(
       updatedAt: now,
     }
 
+    let credentialId: string
     if (existing) {
       const [updated] = await tx
         .update(credential)
@@ -238,6 +250,7 @@ async function persistGrant(
         .where(eq(credential.id, existing.id))
         .returning({ id: credential.id })
       if (!updated) throw new Error('Managed OAuth credential update returned no row')
+      credentialId = updated.id
     } else {
       const [inserted] = await tx
         .insert(credential)
@@ -249,12 +262,14 @@ async function persistGrant(
         })
         .returning({ id: credential.id })
       if (!inserted) throw new Error('Managed OAuth credential insert returned no row')
+      credentialId = inserted.id
     }
 
+    const enrollmentStatus = enrollment.status === 'completed' ? 'completed' : 'in_progress'
     const [updatedEnrollment] = await tx
       .update(credentialGroupEnrollment)
       .set({
-        status: enrollment.status === 'completed' ? 'completed' : 'in_progress',
+        status: enrollmentStatus,
         ...(enrollment.status === 'completed' ? {} : { completedAt: null }),
         updatedAt: now,
       })
@@ -268,6 +283,15 @@ async function persistGrant(
     if (!updatedEnrollment) {
       throw new CredentialGroupInvitationUnavailableError()
     }
+    return {
+      created: !existing,
+      credentialId,
+      credentialGroupOptionId: context.option.id,
+      provider: adapter.provider,
+      providerId: policy.providerId,
+      displayName: grant.displayName,
+      enrollmentStatus,
+    }
   })
 }
 
@@ -276,7 +300,7 @@ export async function completeCredentialGroupOAuth(
   context: CredentialGroupOAuthContext,
   attempt: CredentialGroupOAuthAttempt,
   code: string
-): Promise<void> {
+): Promise<CredentialGroupOAuthCompletion> {
   if (
     attempt.enrollmentId !== context.enrollmentId ||
     attempt.credentialGroupId !== context.credentialGroupId ||
@@ -288,5 +312,5 @@ export async function completeCredentialGroupOAuth(
   const adapter = getOptionAdapter(context)
   const policy = await assertCurrentPolicy(context, adapter, attempt)
   const grant = await adapter.exchangeAndVerify({ context, attempt, code, policy })
-  await persistGrant(context, adapter, policy, grant)
+  return persistGrant(context, adapter, policy, grant)
 }
