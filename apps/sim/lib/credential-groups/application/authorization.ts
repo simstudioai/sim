@@ -16,7 +16,11 @@ import {
   evaluateCredentialGroupWorkflowAccess,
 } from '@/lib/credential-groups/application/workflow-access-policy'
 import type { CredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
-import { loadCredentialGroupEnrollmentAccessForSubject } from '@/lib/credential-groups/credentials'
+import {
+  isManagedCredentialGroupBindingLive,
+  loadCredentialGroupEnrollmentAccessForSubject,
+  loadManagedCredentialGroupBinding,
+} from '@/lib/credential-groups/credentials'
 import type { ResourcePolicyBindingFor } from '@/lib/resource-policies/registry'
 import { requireResourcePolicy } from '@/lib/resource-policies/repository'
 
@@ -93,14 +97,17 @@ export function requireCredentialGroupWorkflowActor(principal: Principal): Princ
  */
 async function requireCredentialGroupActorCredentialAccess(
   principal: Extract<Principal, { kind: 'delegated' }>,
-  context: CredentialGroupAuthorizationContext & { credentialGroupEnrollmentId: string },
+  context: CredentialGroupAuthorizationContext & {
+    credentialId: string
+    credentialGroupEnrollmentId: string
+  },
   resourcePolicy: ResourcePolicyBindingFor<'credential_group'>
 ): Promise<void> {
   const subject = resolvePrincipalSubject(principal)
   if (subject?.kind !== 'sim_user' || !subject.userId) {
     throw new OrchestrationError('forbidden', 'Credential Group actor access required')
   }
-  const [policy, actorAccess] = await Promise.all([
+  const [policy, actorAccess, binding] = await Promise.all([
     requireResourcePolicy({
       workspaceId: context.workspaceId,
       resourceType: 'credential_group',
@@ -108,8 +115,10 @@ async function requireCredentialGroupActorCredentialAccess(
       codec: credentialGroupWorkflowAccessPolicyCodec,
     }),
     loadCredentialGroupEnrollmentAccessForSubject(context.credentialGroupId, subject),
+    loadManagedCredentialGroupBinding(context.credentialId),
   ])
-  if (!actorAccess) {
+  /** A disabled group or option denies here, as it does for every other consumer of a binding. */
+  if (!actorAccess || !binding || !isManagedCredentialGroupBindingLive(binding)) {
     throw new OrchestrationError('forbidden', 'Credential Group credential access denied')
   }
   const decision = evaluateCredentialGroupActorCredentialAccess({
@@ -126,7 +135,10 @@ async function requireCredentialGroupActorCredentialAccess(
 
 export async function requireCredentialGroupCredentialAccess(
   principal: Principal,
-  context: CredentialGroupAuthorizationContext & { credentialGroupEnrollmentId: string },
+  context: CredentialGroupAuthorizationContext & {
+    credentialId: string
+    credentialGroupEnrollmentId: string
+  },
   resourcePolicy: ResourcePolicyBindingFor<'credential_group'>
 ): Promise<void> {
   if (principal.kind === 'delegated' && principal.serviceId === 'copilot') {

@@ -14,7 +14,7 @@ import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
-import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
+import { isManagedCredentialGroupBindingLive } from '@/lib/credential-groups/credentials'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   getEffectiveWorkspacePermission,
@@ -843,10 +843,11 @@ export interface AccessibleOAuthCredential {
 
 /**
  * The Credential Group credentials a verified person holds through their own
- * live enrollments in the workspace: active managed OAuth rows whose enrollment
- * email is the person's. These are theirs to use as themselves; the policy's
- * actor statement is what a use is authorized against, so nothing here widens
- * access, it only tells the person (and the agent acting for them) what exists.
+ * enrollments in the workspace and may use right now: the credential, its
+ * enrollment, its option, and its group are all live, the same bar every mint
+ * applies. These are theirs to use as themselves; the policy's actor statement
+ * is what a use is authorized against, so nothing here widens access, it only
+ * tells the person (and the agent acting for them) what exists.
  */
 export async function getEnrolledManagedOAuthCredentials(
   workspaceId: string,
@@ -857,7 +858,12 @@ export async function getEnrolledManagedOAuthCredentials(
       id: credential.id,
       providerId: credential.providerId,
       displayName: credential.displayName,
+      credentialGroupOptionId: credential.credentialGroupOptionId,
+      managedOauthStatus: credential.managedOauthStatus,
+      enrollmentStatus: credentialGroupEnrollment.status,
       groupName: credentialGroup.name,
+      groupStatus: credentialGroup.status,
+      groupOptions: credentialGroup.options,
       updatedAt: credential.updatedAt,
     })
     .from(credential)
@@ -871,15 +877,25 @@ export async function getEnrolledManagedOAuthCredentials(
       and(
         eq(credential.workspaceId, workspaceId),
         eq(credential.type, 'managed_oauth'),
-        eq(credential.managedOauthStatus, 'active'),
-        inArray(credentialGroupEnrollment.status, [...LIVE_ENROLLMENT_STATUSES]),
         eq(user.id, userId),
         eq(user.emailVerified, true)
       )
     )
 
   return rows
-    .filter((row): row is typeof row & { providerId: string } => Boolean(row.providerId))
+    .filter(
+      (row): row is typeof row & { providerId: string } =>
+        Boolean(row.providerId) &&
+        row.managedOauthStatus !== null &&
+        isManagedCredentialGroupBindingLive({
+          managedOauthStatus: row.managedOauthStatus,
+          enrollmentStatus: row.enrollmentStatus,
+          groupStatus: row.groupStatus,
+          optionStatus:
+            row.groupOptions.find((option) => option.id === row.credentialGroupOptionId)?.status ??
+            null,
+        })
+    )
     .map((row) => ({
       id: row.id,
       providerId: row.providerId,

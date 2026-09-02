@@ -9,11 +9,23 @@ import { credentialOperations } from '@/lib/credentials/application/operations'
 
 const mocks = vi.hoisted(() => ({
   loadEnrollmentAccess: vi.fn(),
+  loadBinding: vi.fn(),
   requirePolicy: vi.fn(),
 }))
 
 vi.mock('@/lib/credential-groups/credentials', () => ({
   loadCredentialGroupEnrollmentAccessForSubject: mocks.loadEnrollmentAccess,
+  loadManagedCredentialGroupBinding: mocks.loadBinding,
+  isManagedCredentialGroupBindingLive: (binding: {
+    managedOauthStatus: string
+    enrollmentStatus: string
+    groupStatus: string
+    optionStatus: string | null
+  }) =>
+    binding.managedOauthStatus === 'active' &&
+    ['in_progress', 'completed'].includes(binding.enrollmentStatus) &&
+    binding.groupStatus === 'active' &&
+    binding.optionStatus === 'active',
 }))
 
 vi.mock('@/lib/resource-policies/repository', () => ({
@@ -29,8 +41,21 @@ const context = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: null,
   allowPersonalApiKeys: true,
+  credentialId: 'credential-1',
   credentialGroupId: 'group-1',
   credentialGroupEnrollmentId: 'enrollment-1',
+}
+
+const liveBinding = {
+  credentialId: 'credential-1',
+  workspaceId: 'workspace-1',
+  providerId: 'google-email',
+  credentialGroupId: 'group-1',
+  credentialGroupOptionId: 'option-1',
+  managedOauthStatus: 'active',
+  enrollmentStatus: 'completed',
+  groupStatus: 'active',
+  optionStatus: 'active',
 }
 
 function storedPolicy(allowedWorkflowIds: string[] = []) {
@@ -112,6 +137,15 @@ describe('requireCredentialGroupCredentialAccess', () => {
       enrollmentId: 'enrollment-1',
       email: 'person@example.com',
     })
+    mocks.loadBinding.mockResolvedValue(liveBinding)
+  })
+
+  it('denies a Chat turn once the credential group or its option is disabled', async () => {
+    mocks.loadBinding.mockResolvedValue({ ...liveBinding, optionStatus: 'disabled' })
+    await expect(requireAccess(copilotPrincipal())).rejects.toMatchObject({ code: 'forbidden' })
+
+    mocks.loadBinding.mockResolvedValue({ ...liveBinding, groupStatus: 'disabled' })
+    await expect(requireAccess(copilotPrincipal())).rejects.toMatchObject({ code: 'forbidden' })
   })
 
   it("allows a Chat turn to use only the credential under the signed-in user's own enrollment", async () => {

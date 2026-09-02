@@ -57,10 +57,15 @@ export async function resolveExecutorCredentialToken(
     throw new Error('Managed credential delegation is missing current workflow authority')
   }
 
+  /**
+   * A Chat proof needs the per-call id the delegation is minted under; a
+   * context that lacks it is not a Chat tool call and leaves managed
+   * credentials unproven, so the resolver answers with its own refusal.
+   */
   const resolveManagedPrincipal = executorDelegationOrigin
     ? (managedCredentialId: string) =>
         bindExecutorManagedOAuthDelegation(executorDelegationOrigin, managedCredentialId)
-    : copilotExecutionContext?.copilotToolExecution
+    : copilotExecutionContext?.copilotToolExecution && copilotExecutionContext.toolCallId
       ? async (managedCredentialId: string) =>
           createCopilotManagedOAuthPrincipal(copilotExecutionContext, managedCredentialId)
       : undefined

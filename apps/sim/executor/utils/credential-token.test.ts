@@ -128,16 +128,22 @@ describe('resolveExecutorCredentialToken', () => {
   })
 
   it('leaves managed credentials unproven for a context that is not a trusted Chat call', async () => {
-    await resolveExecutorCredentialToken({
-      requestId: 'req-1',
-      credentialId: 'cred-1',
-      userId: 'user-1',
-      copilotExecutionContext: { userId: 'user-1', workspaceId: 'ws-1' },
-    })
+    for (const copilotExecutionContext of [
+      { userId: 'user-1', workspaceId: 'ws-1' },
+      { userId: 'user-1', workspaceId: 'ws-1', copilotToolExecution: true as const },
+    ]) {
+      mockResolveCredentialAccessToken.mockClear()
+      await resolveExecutorCredentialToken({
+        requestId: 'req-1',
+        credentialId: 'cred-1',
+        userId: 'user-1',
+        copilotExecutionContext,
+      })
 
-    expect(
-      mockResolveCredentialAccessToken.mock.calls[0][0].resolveManagedPrincipal
-    ).toBeUndefined()
+      expect(
+        mockResolveCredentialAccessToken.mock.calls[0][0].resolveManagedPrincipal
+      ).toBeUndefined()
+    }
   })
 
   it('fails before dispatch when the origin lacks current workflow authority', async () => {
