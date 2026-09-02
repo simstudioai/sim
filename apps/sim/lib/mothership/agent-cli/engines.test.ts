@@ -74,6 +74,29 @@ describe('workflows lint', () => {
     })
   })
 
+  it('says what a clean report checked so it is not read as a working workflow', async () => {
+    buildWorkflowLintReport.mockResolvedValueOnce({
+      sources: ['block-1'],
+      sinks: ['block-2'],
+      orphanBlocks: [],
+      emptyOutgoingPorts: [],
+      invalidBranchPorts: [],
+      invalidConnectionTargets: [],
+      fieldIssues: [],
+      unresolvedReferences: [],
+    })
+    const result = await runEngine(
+      'workflows lint',
+      ['wf-1'],
+      runtimeWith({ [STATE_PATH]: stateResponse }),
+      {}
+    )
+    expect(result.exitCode).toBe(0)
+    expect(JSON.parse(result.stdout).summary).toBe(
+      'No structural issues found (orphans, ports, required fields, references). Code and runtime behaviour are not checked — run it.'
+    )
+  })
+
   it('surfaces execution errors as a failed result, never a throw', async () => {
     const result = await runEngine('workflows lint', ['wf-missing'], runtimeWith({}), {})
     expect(result.exitCode).toBe(1)
@@ -202,11 +225,18 @@ describe('workflows deps', () => {
       { blockId: 'gate', blockName: 'Gate', sourceHandle: 'condition-true' },
       { blockId: 'enrich', blockName: 'Enrich', sourceHandle: 'source' },
     ])
+    // The mock is the variableInputs skeleton itself: the child-workflow return is
+    // nested at result.data.<field>, and the unread predecessor is an empty entry.
     expect(report.mock).toEqual({
-      'Fetch rows': ['result'],
-      Enrich: ['result.data.total'],
-      Gate: ['<output>'],
+      'Fetch rows': { result: null },
+      Enrich: { result: { data: { total: null } } },
+      Gate: {},
     })
+    expect(report.mockNote).toBe(
+      'variableInputs: fill each null with the value the block would output'
+    )
+    expect(report.mockEmptyNote).toContain('Gate')
+    expect(report.mockEmptyNote).not.toContain('Enrich')
     expect(report.childReturns).toEqual([
       {
         blockId: 'enrich',
@@ -214,6 +244,35 @@ describe('workflows deps', () => {
         note: expect.stringContaining('result.data.<field>'),
       },
     ])
+  })
+
+  it('merges sibling and whole-object paths of one block into a single nested skeleton', async () => {
+    const state = {
+      ...DEPS_STATE,
+      blocks: {
+        ...DEPS_STATE.blocks,
+        target: {
+          type: 'function',
+          name: 'Summarize',
+          subBlocks: {
+            code: {
+              value:
+                'return [<fetchrows.result>, <fetchrows.result.tier>, <fetchrows.result.score.raw>]',
+            },
+          },
+        },
+      },
+      edges: [{ id: 'e2', source: 'fetch', target: 'target', sourceHandle: 'source' }],
+    }
+    const result = await runEngine(
+      'workflows deps',
+      ['wf-1', 'target'],
+      runtimeWith({ [STATE_PATH]: { data: state } }),
+      {}
+    )
+    const report = JSON.parse(result.stdout)
+    expect(report.mock).toEqual({ 'Fetch rows': { result: { tier: null, score: { raw: null } } } })
+    expect(report.mockEmptyNote).toBeUndefined()
   })
 
   it('omits childReturns when no upstream block runs a child workflow', async () => {
@@ -225,6 +284,8 @@ describe('workflows deps', () => {
     )
     const report = JSON.parse(result.stdout)
     expect(report.predecessors).toEqual([])
+    expect(report.mock).toEqual({})
+    expect(report.mockEmptyNote).toBeUndefined()
     expect(report.childReturns).toBeUndefined()
   })
 })
