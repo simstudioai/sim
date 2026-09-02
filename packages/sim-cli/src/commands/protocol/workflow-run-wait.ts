@@ -101,6 +101,11 @@ function optionalString(value: unknown): string | null {
  * record — what a self-hosted deployment behind an unwrapping proxy hands back —
  * still polls, rather than refusing to find a status that is right there.
  */
+/** The run itself: v2 answers `{ data: run }` and the renderer prints exactly what it is handed. */
+function runData(raw: unknown): unknown {
+  return isRecord(raw) && isRecord(raw.data) ? raw.data : raw
+}
+
 function readRun(raw: unknown): RunSnapshot {
   const run = isRecord(raw) && isRecord(raw.data) ? raw.data : raw
   if (!isRecord(run) || typeof run.status !== 'string') {
@@ -254,7 +259,7 @@ export function attachWorkflowRunWait(runs: Command): void {
 
             if (outcome) {
               progress.finish()
-              renderResult('getWorkflowRun', profile.output, raw, runSpec())
+              renderResult('getWorkflowRun', profile.output, runData(raw), runSpec())
               const message = explain(outcome, runId, options.workflow, snapshot)
               if (message) console.error(chalk.red(message))
               setSoftExitCode(WAIT_EXIT_CODES[outcome])
@@ -264,7 +269,7 @@ export function attachWorkflowRunWait(runs: Command): void {
             const remainingMs = deadline - Date.now()
             if (remainingMs <= 0) {
               progress.finish()
-              renderResult('getWorkflowRun', profile.output, raw, runSpec())
+              renderResult('getWorkflowRun', profile.output, runData(raw), runSpec())
               console.error(
                 chalk.red(
                   `Timed out after ${timeoutSeconds}s waiting for run ${runId} (status: ${snapshot.status}${
