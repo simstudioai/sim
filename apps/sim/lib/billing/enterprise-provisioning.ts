@@ -79,6 +79,7 @@ import { withEnterpriseReconciliationLease } from '@/lib/billing/webhooks/enterp
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { env } from '@/lib/core/config/env'
 import {
+  continueOutboxHandler,
   deferOutboxHandler,
   enqueueOutboxEvent,
   type OutboxEventContext,
@@ -3108,7 +3109,7 @@ export const reconcileEnterpriseMembers: OutboxHandler<unknown> = async (rawPayl
 
   if (!nextCursor) return
   await context.checkpointPayload({ afterUserId: nextCursor })
-  return deferOutboxHandler('Continuing bounded Enterprise member reconciliation', undefined, false)
+  return continueOutboxHandler('Continuing bounded Enterprise member reconciliation')
 }
 
 export const enterpriseIssuanceOutboxHandlers = {

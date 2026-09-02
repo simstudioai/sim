@@ -61,6 +61,11 @@ vi.mock('@/lib/billing/webhooks/enterprise-reconciliation-lease', () => ({
   ),
 }))
 vi.mock('@/lib/core/outbox/service', () => ({
+  continueOutboxHandler: (reason: string) => ({
+    outcome: 'deferred',
+    reason,
+    consumeAttempt: false,
+  }),
   deferOutboxHandler: (reason: string, minimumBackoffMs?: number, consumeAttempt = true) => ({
     outcome: 'deferred',
     reason,
