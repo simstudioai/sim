@@ -33,6 +33,8 @@ export const fileCompressTool: InternalToolConfig<FileCompressParams, ToolRespon
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
+      maxItems: 64,
+      items: { type: 'string' },
       description:
         'Folders whose files are included, as canonical percent-encoded paths, e.g. ["/Reports/Q3%20Results"]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up.',
     },
