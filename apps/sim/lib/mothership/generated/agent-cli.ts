@@ -69,6 +69,12 @@ export interface AgentCliRequest {
   invocation: AgentCliInvocation;
   pipeline: AgentCliPipeStage[];
   sink?: AgentCliSink;
+  /**
+   * Viewer curation sim applies to the raw result before the pipeline: "block" trims a
+   * block detail to the operations, inputs and models this viewer may use. Decided by the
+   * worker's parse, applied by sim's primitive, so both sides see one policy.
+   */
+  curate?: "block";
 }
 
 /** What sim returns; the worker shapes the model-facing result from it. */

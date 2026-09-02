@@ -36,4 +36,5 @@ export const agentCliRequestSchema = z.object({
     ])
   ),
   sink: z.object({ kind: z.literal('sandbox-file'), path: z.string().min(1).max(300) }).optional(),
+  curate: z.literal('block').optional(),
 }) satisfies z.ZodType<AgentCliRequest>
