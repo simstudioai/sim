@@ -1742,6 +1742,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           }
 
           let fileName: string
+          let resolvedById = false
           if (typeof appendInput === 'string') {
             fileName = appendInput.trim()
           } else {
@@ -1755,6 +1756,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
              * file.
              */
             const pickedId = typeof file?.id === 'string' ? file.id : ''
+            resolvedById = Boolean(pickedId)
             fileName = pickedId || ((file?.name as string) ?? '')
           }
 
@@ -1762,8 +1764,22 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
             throw new Error('Could not determine file name')
           }
 
+          /*
+           * The folder travels only when the name is what identifies the file.
+           * A picked file is a canonical id and already exact, so sending the
+           * folder beside it would imply a second constraint on one target.
+           */
+          const appendFolder = resolvedById ? undefined : folderScopePath(params.folderScopeRef)
           return {
             fileName,
+            ...(appendFolder
+              ? {
+                  folderPath: appendFolder,
+                  ...(switchValue(params.folderIncludeSubfolders, true)
+                    ? {}
+                    : { includeSubfolders: false }),
+                }
+              : {}),
             content: params.appendContent,
             workspaceId: params._context?.workspaceId,
           }

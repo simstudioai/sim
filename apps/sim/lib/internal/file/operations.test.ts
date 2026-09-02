@@ -337,6 +337,11 @@ describe('file manage folder wiring', () => {
       key: 'workspace/workspace-1/new.txt',
       url: '/api/files/serve/new-file',
     })
+    mockResolveWorkspaceFileReference.mockImplementation(
+      async ({ reference }: { reference: string }) => workspaceFile(reference)
+    )
+    mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('before'))
+    mockUpdateWorkspaceFileContent.mockResolvedValue({ file: workspaceFile('file-1') })
   })
 
   it('expands a folder-only read instead of rejecting it', async () => {
@@ -397,6 +402,60 @@ describe('file manage folder wiring', () => {
     expect(mockEnsureWorkspaceFileFolderPath).toHaveBeenCalledWith(
       expect.objectContaining({ input: expect.objectContaining({ pathSegments: [] }) })
     )
+  })
+
+  /*
+   * The case that motivated this: two files share a name in different folders,
+   * and a typed name alone resolves to the oldest match anywhere. The folder is
+   * the only thing telling them apart.
+   */
+  it('appends to the file in the chosen folder, not a same-named file elsewhere', async () => {
+    mockListAllWorkspaceFiles.mockResolvedValue({
+      files: [
+        { ...workspaceFile('notes-elsewhere'), name: 'notes.md', folderId: null },
+        { ...workspaceFile('notes-in-reports'), name: 'notes.md', folderId: 'folder-reports' },
+      ],
+    })
+    mockGetWorkspaceFile.mockImplementation(async (_ws: string, fileId: string) => ({
+      ...workspaceFile(fileId),
+      name: 'notes.md',
+    }))
+
+    await POST(
+      createMockRequest('POST', {
+        operation: 'append',
+        workspaceId: 'workspace-1',
+        fileName: 'notes.md',
+        folderPath: '/Reports',
+        content: 'more',
+      })
+    )
+
+    // Resolved by the id found inside the folder, never by the bare name.
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
+      'workspace-1',
+      'notes-in-reports'
+    )
+  })
+
+  it('refuses rather than appending to a same-named file outside the folder', async () => {
+    mockListAllWorkspaceFiles.mockResolvedValue({
+      files: [{ ...workspaceFile('notes-elsewhere'), name: 'notes.md', folderId: null }],
+    })
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'append',
+        workspaceId: 'workspace-1',
+        fileName: 'notes.md',
+        folderPath: '/Reports',
+        content: 'more',
+      })
+    )
+    const body = await response.json()
+
+    expect(body.success).toBe(false)
+    expect(String(body.error)).toContain('No file named notes.md in /Reports')
   })
 
   it('lists what a folder holds, folders and files together', async () => {

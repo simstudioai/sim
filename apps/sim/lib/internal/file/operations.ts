@@ -578,12 +578,12 @@ export function fileContentJsonResponse(
  * Path resolution itself lives in {@link resolveFolderIdsForPaths}; this is the
  * IO around it.
  */
-async function expandFolderPathsToFileIds(args: {
+async function expandFolderPathsToFiles(args: {
   principal: Principal
   workspaceId: string
   folderPaths: string[] | undefined
   includeSubfolders: boolean | undefined
-}): Promise<string[]> {
+}): Promise<Array<{ id: string; name: string; folderId?: string | null }>> {
   if (!args.folderPaths?.length) return []
 
   const [{ folders }, { files }] = await Promise.all([
@@ -609,9 +609,16 @@ async function expandFolderPathsToFileIds(args: {
     throw new OrchestrationError('not_found', `Folder not found: ${selection.missingPath}`)
   }
 
-  return files
-    .filter((file) => file.folderId && selection.folderIds.has(file.folderId))
-    .map((file) => file.id)
+  return files.filter((file) => file.folderId && selection.folderIds.has(file.folderId))
+}
+
+async function expandFolderPathsToFileIds(args: {
+  principal: Principal
+  workspaceId: string
+  folderPaths: string[] | undefined
+  includeSubfolders: boolean | undefined
+}): Promise<string[]> {
+  return (await expandFolderPathsToFiles(args)).map((file) => file.id)
 }
 
 export async function executeFileManageOperation(
@@ -1187,14 +1194,37 @@ export async function executeFileManageOperation(
       }
 
       case 'append': {
-        const { fileName, content } = body
+        const { fileName, content, folderPath, includeSubfolders } = body
         signal?.throwIfAborted()
+
+        /*
+         * A picked file arrives as a canonical id, which is already exact. A
+         * typed name is not: the same name can exist in several folders, and a
+         * workspace-wide lookup takes the oldest match anywhere. When a folder
+         * was chosen it is the only thing disambiguating the target, so the
+         * name is resolved inside it — by id, so the slash-in-a-folder-name
+         * hazard of a path-shaped reference never arises.
+         */
+        let scopedReference = fileName
+        if (folderPath && !fileName.startsWith('wf_')) {
+          const scoped = await expandFolderPathsToFiles({
+            principal,
+            workspaceId,
+            folderPaths: [folderPath],
+            includeSubfolders,
+          })
+          const match = scoped.find((file) => file.name === fileName)
+          if (!match) {
+            throw new OrchestrationError('not_found', `No file named ${fileName} in ${folderPath}`)
+          }
+          scopedReference = match.id
+        }
 
         const existing = await resolveWorkspaceFileReference({
           principal,
           operation: fileOperations.updateContent,
           workspaceId,
-          reference: fileName,
+          reference: scopedReference,
         })
 
         const lockKey = `file-append:${workspaceId}:${existing.id}`

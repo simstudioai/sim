@@ -57,7 +57,13 @@ export const fileManageAppendBodySchema = z.object({
   operation: z.literal('append'),
   workspaceId: z.string().min(1).optional(),
   fileName: z.string({ error: 'fileName is required for append operation' }).min(1),
+  /**
+   * Folder the name is resolved inside. A name is only unique within a folder,
+   * so without this a duplicate name resolves to the oldest match anywhere.
+   * Ignored when `fileName` is already a canonical id.
+   */
   folderPath: v2FolderPathInputSchema.optional(),
+  includeSubfolders: z.boolean().optional(),
   content: z.string({ error: 'content is required for append operation' }),
   [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })

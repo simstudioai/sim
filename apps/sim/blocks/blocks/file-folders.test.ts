@@ -190,7 +190,12 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
      * target. The earlier version of this field was removed precisely because
      * it looked like it scoped the picker without doing so; now it does.
      */
-    it('sends no folder on append even when one narrows the picker', () => {
+    /*
+     * A picked file is a canonical id and already exact, so the folder beside
+     * it would be a second constraint on one target. A typed name is not
+     * exact — that case is the next test.
+     */
+    it('sends no folder when append resolved the file by id', () => {
       const params = paramsFor('file_append', {
         appendFileInput: { id: 'wf_abc', name: 'notes.md' },
         appendContent: 'more',
@@ -199,6 +204,42 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
 
       expect(params.folderPath).toBeUndefined()
       expect(params.folderPaths).toBeUndefined()
+    })
+
+    /*
+     * The advanced entry supplies a name, and a name is only unique inside a
+     * folder — without the scope a duplicate resolves to the oldest match
+     * anywhere in the workspace.
+     */
+    it('sends the folder when append resolved the file by name', () => {
+      const params = paramsFor('file_append', {
+        appendFileInput: 'notes.md',
+        appendContent: 'more',
+        folderScopeRef: '/Reports',
+      })
+
+      expect(params.folderPath).toBe('/Reports')
+    })
+
+    it('carries the subfolder scope with a name-based append', () => {
+      expect(
+        paramsFor('file_append', {
+          appendFileInput: 'notes.md',
+          appendContent: 'more',
+          folderScopeRef: '/Reports',
+          folderIncludeSubfolders: 'false',
+        }).includeSubfolders
+      ).toBe(false)
+    })
+
+    it('still sends no folder when the pick carried an id', () => {
+      expect(
+        paramsFor('file_append', {
+          appendFileInput: { id: 'wf_abc', name: 'notes.md' },
+          appendContent: 'more',
+          folderScopeRef: '/Reports',
+        }).folderPath
+      ).toBeUndefined()
     })
 
     it('appends by the picked file id, not its name', () => {
