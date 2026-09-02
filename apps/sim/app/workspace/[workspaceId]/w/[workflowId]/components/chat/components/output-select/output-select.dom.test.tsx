@@ -149,8 +149,11 @@ describe('OutputSelect DOM interaction', () => {
     act(() => resultOption.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
 
     expect(trigger.textContent).toContain('1 output')
-    expect(document.body.textContent).toContain('Selected')
-    expect(document.body.textContent).toContain('invokeChild.result')
+    expect(document.body.textContent).not.toContain('Selected')
+    const selectedResultOption = [
+      ...document.querySelectorAll<HTMLElement>('[role="option"]'),
+    ].find((candidate) => candidate.textContent === 'result')
+    expect(selectedResultOption?.getAttribute('aria-selected')).toBe('true')
     expect(document.body.textContent).not.toContain('researchAgent')
   })
 
@@ -187,7 +190,10 @@ describe('OutputSelect DOM interaction', () => {
     act(() => outputOption.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
 
     expect(trigger.textContent).toContain('1 output')
-    expect(document.body.textContent).toContain('Selected')
-    expect(document.body.textContent).toContain('invokeChild / researchAgent.content')
+    expect(document.body.textContent).not.toContain('Selected')
+    const selectedOutputOption = [
+      ...document.querySelectorAll<HTMLElement>('[role="option"]'),
+    ].find((candidate) => candidate.textContent === 'content')
+    expect(selectedOutputOption?.getAttribute('aria-selected')).toBe('true')
   })
 })

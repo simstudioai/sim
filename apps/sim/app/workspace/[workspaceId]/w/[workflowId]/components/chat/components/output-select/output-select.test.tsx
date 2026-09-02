@@ -298,14 +298,15 @@ describe('OutputSelect nested workflow menu', () => {
     expect(onOutputSelect).toHaveBeenCalledWith(['child-workflow.agent_answer'])
   })
 
-  it('keeps every selected output at the top and deselects nested outputs from there', () => {
+  it('keeps a nested selection in its subworkflow and deselects it there', () => {
     const onOutputSelect = renderOutputSelect(['child-workflow.agent_answer'])
 
-    const sections = [...document.querySelectorAll('[data-section]')]
-    expect(sections[0]?.textContent).toBe('Selected')
-    expect(document.body.textContent).toContain('Research / Writer.answer')
+    expect(document.body.textContent).not.toContain('Selected')
+    expect(document.body.textContent).not.toContain('Writer')
 
-    clickOption('Research / Writer.answer')
+    clickOption('Research')
+    expect(document.body.textContent).toContain('Writer')
+    clickOption('answer')
     expect(onOutputSelect).toHaveBeenCalledWith([])
   })
 

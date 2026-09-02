@@ -293,16 +293,12 @@ function OutputSelectMenu({
         <span className='text-small'>{node.blockName}</span>
       </div>
     ),
-    items: node.outputs
-      .filter((output) => !selectedValueSet.has(getOutputValue(output, valueMode)))
-      .map((output) => outputOption(output)),
+    items: node.outputs.map((output) => outputOption(output)),
   })
 
   const menuNodes = activeMenuNode ? activeMenuNode.children : outputMenu
   const subworkflowNodes = menuNodes.filter((node) => node.children.length > 0)
-  const availableOutputNodes = menuNodes.filter((node) =>
-    node.outputs.some((output) => !selectedValueSet.has(getOutputValue(output, valueMode)))
-  )
+  const outputNodes = menuNodes.filter((node) => node.outputs.length > 0)
   const menuGroups: ComboboxOptionGroup[] = [
     ...(activeMenuNode
       ? [
@@ -328,27 +324,15 @@ function OutputSelectMenu({
           },
         ]
       : []),
-    ...availableOutputNodes.map(outputGroup),
+    ...outputNodes.map(outputGroup),
   ]
-  const selectedGroup: ComboboxOptionGroup[] =
-    selectedOutputOptions.length > 0
-      ? [
-          {
-            section: 'Selected',
-            items: selectedOutputOptions.map((output) =>
-              outputOption(output, `${output.groupLabel}.${output.path}`)
-            ),
-          },
-        ]
-      : []
-  const comboboxGroups = [...selectedGroup, ...menuGroups]
   const Trigger = size === 'md' ? ChipCombobox : Combobox
 
   return (
     <Trigger
       size={size}
       className={cn('min-w-[100px]', size === 'sm' && '!py-0.5 w-fit rounded-md px-2.5', className)}
-      groups={comboboxGroups}
+      groups={menuGroups}
       options={[]}
       multiSelect
       multiSelectValues={normalizedSelectedValues}
