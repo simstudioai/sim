@@ -114,6 +114,14 @@ const TOOL_METADATA: Record<string, Record<string, unknown>> = {
     },
     hosting: { apiKeyParam: 'apiKey' },
   },
+  snowflake_execute_sql: {
+    id: 'snowflake_execute_sql',
+    name: 'Snowflake Execute SQL',
+    params: {
+      oauthCredential: { type: 'string', required: true, visibility: 'user-only' },
+      statement: { type: 'string', required: true, visibility: 'user-or-llm' },
+    },
+  },
   thinking_tool: {
     id: 'thinking_tool',
     name: 'Thinking',
@@ -176,6 +184,7 @@ const previewBlock = block({
 })
 const zendeskBlock = block({ type: 'zendesk', tools: { access: ['zendesk_get_ticket'] } })
 const thinkingBlock = block({ type: 'thinking', tools: { access: ['thinking_tool'] } })
+const snowflakeBlock = block({ type: 'snowflake', tools: { access: ['snowflake_execute_sql'] } })
 const confluenceBlock = block({
   type: 'confluence_v2',
   tools: { access: ['confluence_read_v2'] },
@@ -213,6 +222,7 @@ describe('executeToolForCaller', () => {
       confluenceBlock,
       zendeskBlock,
       thinkingBlock,
+      snowflakeBlock,
     ])
     mocks.executeRegistryTool.mockResolvedValue({ success: true, output: { markdown: '# Hi' } })
     mocks.resolveBillingAttribution.mockResolvedValue({ workspaceId: WORKSPACE_ID })
@@ -387,6 +397,54 @@ describe('executeToolForCaller', () => {
     await expect(run({ toolId: 'slack_message', input: { text: 'hi' } })).rejects.toMatchObject({
       code: 'validation',
       message: expect.stringContaining('credentialId is required'),
+    })
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Sixty-eight tools declare the selector as a required `user-only` parameter
+   * (`oauthCredential` or `credential`) with no `oauth` block — Snowflake among
+   * them. Validating required inputs against the raw body rejected a valid
+   * top-level `credentialId` as a missing `oauthCredential`.
+   */
+  it('satisfies a declared credential selector with the top-level credentialId', async () => {
+    await expect(
+      run({
+        toolId: 'snowflake_execute_sql',
+        credentialId: 'cred-sf',
+        input: { statement: 'select 1' },
+      })
+    ).resolves.toMatchObject({ status: 'succeeded' })
+
+    const [, params] = mocks.executeRegistryTool.mock.calls[0]
+    expect(params.oauthCredential).toBe('cred-sf')
+    expect(params.credential).toBeUndefined()
+  })
+
+  it('demands credentialId for a declared required selector even without an oauth block', async () => {
+    await expect(
+      run({ toolId: 'snowflake_execute_sql', input: { statement: 'select 1' } })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('credentialId is required'),
+    })
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The alias check has to run before the declared-key check, or a tool that
+   * declares `oauthCredential` lets a caller bypass the top-level field and
+   * credential precedence starts differing per tool.
+   */
+  it('refuses input.oauthCredential even where the tool declares it', async () => {
+    await expect(
+      run({
+        toolId: 'snowflake_execute_sql',
+        input: { statement: 'select 1', oauthCredential: 'cred-sf' },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('top-level credentialId'),
     })
     expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
   })

@@ -65,6 +65,30 @@ function hostedKeyParamFor(
 }
 
 /**
+ * The three spellings the executor accepts for "which credential".
+ *
+ * Inside the executor they are interchangeable: `normalizeCopilotCredentialParams`
+ * folds `credentialId` into `credential`, and `oauthCredential` is copied onto
+ * `credential` before resolution. On a public contract the credential is named
+ * once, at the top level, and mapped onto whichever of these the tool declares.
+ */
+const CREDENTIAL_SELECTORS = ['credential', 'credentialId', 'oauthCredential'] as const
+
+/**
+ * The credential-selector parameter a tool declares, if it declares one.
+ *
+ * Two shapes exist. A tool with an `oauth` block hides `accessToken` and lets
+ * resolution fill it, declaring no selector at all. Sixty-eight others —
+ * Snowflake among them — declare the selector itself as a required `user-only`
+ * parameter (`oauthCredential` or `credential`) that their block fills from an
+ * `oauth-input` field. Both are the same contract to a caller: a top-level
+ * `credentialId`, placed where the tool expects it.
+ */
+function declaredCredentialSelector(tool: ExecutableToolConfig): string | undefined {
+  return CREDENTIAL_SELECTORS.find((name) => tool.params?.[name] !== undefined)
+}
+
+/**
  * Refuses an input key the tool does not declare.
  *
  * Strict rather than a denylist, because the denylist was already wrong twice
@@ -95,6 +119,22 @@ function assertNoUndeclaredInputs(
   const params = tool.params ?? {}
 
   /**
+   * Unconditional, and first: a tool may *declare* `oauthCredential` as a
+   * parameter, and it would otherwise pass the declared-key check below and
+   * bypass the top-level `credentialId` — giving credential precedence that
+   * differs from one tool to the next.
+   */
+  const credentialAlias = Object.keys(args).find((key) =>
+    (CREDENTIAL_SELECTORS as readonly string[]).includes(key)
+  )
+  if (credentialAlias) {
+    throw new OrchestrationError(
+      'validation',
+      `input.${credentialAlias} is not accepted; pass the credential as the top-level credentialId field`
+    )
+  }
+
+  /**
    * Declared is not the same as accepted. A `hidden` parameter is Sim's to fill
    * — a resolved credential's `accessToken`, a hosted key, a block-composed
    * shape — and `createUserToolSchema` omits it from what this endpoint and
@@ -112,16 +152,6 @@ function assertNoUndeclaredInputs(
 
   const undeclared = Object.keys(args).filter((key) => !Object.hasOwn(params, key))
   if (undeclared.length === 0) return
-
-  const credentialAlias = undeclared.find((key) =>
-    ['credential', 'credentialId', 'oauthCredential'].includes(key)
-  )
-  if (credentialAlias) {
-    throw new OrchestrationError(
-      'validation',
-      `input.${credentialAlias} is not accepted; pass the credential as the top-level credentialId field`
-    )
-  }
 
   throw new OrchestrationError(
     'validation',
@@ -234,14 +264,30 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
 
     const tool = getTool(toolId)
     if (!tool) throw new OrchestrationError('not_found', 'Tool not found')
-    if (tool.oauth?.required && !input.credentialId) {
+    assertNoUndeclaredInputs(tool, toolId, input.input)
+
+    const selector = declaredCredentialSelector(tool)
+    const requiresCredential =
+      tool.oauth?.required === true || (selector !== undefined && tool.params[selector]?.required)
+    if (requiresCredential && !input.credentialId) {
       throw new OrchestrationError(
         'validation',
-        `credentialId is required: ${toolId} authenticates with a ${tool.oauth.provider} credential`
+        `credentialId is required: ${toolId} authenticates with a ${tool.oauth?.provider ?? 'connected'} credential`
       )
     }
-    assertNoUndeclaredInputs(tool, toolId, input.input)
-    assertRequiredCallerInputsPresent(tool, toolId, input.input)
+
+    /**
+     * What the executor will receive, minus `_context`. The credential lands
+     * under the selector the tool declares, so a declared required
+     * `oauthCredential` is satisfied by the top-level `credentialId` rather than
+     * rejected as missing; a tool that declares none gets `credential`, which the
+     * executor reads for OAuth resolution.
+     */
+    const callerParams: Record<string, unknown> = {
+      ...input.input,
+      ...(input.credentialId ? { [selector ?? 'credential']: input.credentialId } : {}),
+    }
+    assertRequiredCallerInputsPresent(tool, toolId, callerParams)
 
     const userId = principalUserId(principal)
     if (!userId) {
@@ -254,8 +300,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
     })
 
     const params: Record<string, unknown> = {
-      ...input.input,
-      ...(input.credentialId ? { credential: input.credentialId } : {}),
+      ...callerParams,
       _context: {
         userId,
         workspaceId: context.workspaceId,
