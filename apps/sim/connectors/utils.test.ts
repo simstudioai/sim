@@ -63,6 +63,7 @@ import { typeformConnector } from '@/connectors/typeform/typeform'
 import {
   appendPendingMicrosoftGraphFolders,
   assertMicrosoftGraphNextLink,
+  BoundedLines,
   ConnectorFileTooLargeError,
   ConnectorListingScopeUnavailableError,
   decodeMicrosoftGraphTraversalCursor,
@@ -1637,5 +1638,28 @@ describe('isSkippableMicrosoftGraphFolderError', () => {
 
   it('never skips a fault the engine should retry', () => {
     expect(isSkippableMicrosoftGraphFolderError(new Error('500'), perMember, false)).toBe(false)
+  })
+})
+
+describe('BoundedLines', () => {
+  it('joins everything when the text fits', () => {
+    const lines = new BoundedLines(64)
+    expect(lines.push('Subject: hi', '')).toBe(true)
+    expect(lines.push('--- a ---', 'body')).toBe(true)
+    expect(lines.join()).toBe('Subject: hi\n\n--- a ---\nbody')
+  })
+
+  it('refuses a record that would cross the ceiling, whole, and says so in the output', () => {
+    const lines = new BoundedLines(20)
+    expect(lines.push('first')).toBe(true)
+    expect(lines.push('--- header ---', 'a long body')).toBe(false)
+    expect(lines.push('x')).toBe(false)
+    expect(lines.join()).toBe('first\n[Truncated: the indexed text reached the size limit]')
+  })
+
+  it('counts encoded bytes, not characters', () => {
+    const lines = new BoundedLines(6)
+    expect(lines.push('éé')).toBe(true)
+    expect(lines.push('é')).toBe(false)
   })
 })
