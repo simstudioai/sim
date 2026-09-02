@@ -80,8 +80,7 @@ describe('searchDocsServerTool', () => {
     const output = await searchDocsServerTool.execute({ query: 'brand new feature' }, CONTEXT)
 
     expect(output.note).toContain('search index may lag')
-    expect(output.note).toContain('read it directly')
-    expect(output.note).toContain('glob("docs/**")')
+    expect(output.note).toContain('blocks tips')
   })
 
   it('explains an empty result set caused by filtering, so it does not read as missing docs', async () => {

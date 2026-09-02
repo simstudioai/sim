@@ -31,7 +31,7 @@ interface SearchDocsOutput {
 function shortfallNote(outcome: Awaited<ReturnType<typeof searchDocs>>): string | undefined {
   const { results, candidatesConsidered, droppedBelowThreshold, droppedStale } = outcome
   if (results.length === 0 && candidatesConsidered === 0) {
-    return 'No indexed candidates were returned. The search index may lag the live docs. If you know the page, read it directly; otherwise use glob("docs/**") to find the current path.'
+    return 'No indexed candidates were returned. The search index may lag the live docs. Rephrase the query, or read the block definition and tips directly (blocks get / blocks tips).'
   }
   if (droppedBelowThreshold === 0 && droppedStale === 0) return undefined
 
@@ -46,7 +46,7 @@ function shortfallNote(outcome: Awaited<ReturnType<typeof searchDocs>>): string 
   const dropped = reasons.join(' and ')
 
   return results.length === 0
-    ? `No relevant matches. The search index returned ${candidatesConsidered} candidate(s), but ${dropped} — this does NOT mean the docs lack this topic. Rephrase the query, widen it by dropping the path scope, or browse with glob("docs/**").`
+    ? `No relevant matches. The search index returned ${candidatesConsidered} candidate(s), but ${dropped} — this does NOT mean the docs lack this topic. Rephrase the query, widen it by dropping the path scope, or read the block definition and tips directly (blocks get / blocks tips).`
     : `Returned ${results.length} of ${candidatesConsidered} candidate(s); ${dropped}. Rephrase or widen the query if these look off-topic.`
 }
 
