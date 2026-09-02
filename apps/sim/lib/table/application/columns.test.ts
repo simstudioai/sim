@@ -8,6 +8,8 @@ import type { TableDefinition } from '@/lib/table/types'
 const mocks = vi.hoisted(() => ({
   audit: vi.fn(),
   deleteColumns: vi.fn(),
+  findUnmigrated: vi.fn(),
+  performUpdate: vi.fn(),
   resolveContext: vi.fn(),
   resolvePermission: vi.fn(),
   signal: vi.fn(),
@@ -38,10 +40,16 @@ vi.mock('@/lib/table', () => ({
 vi.mock('@/lib/table/application/context', () => ({
   resolveActiveTableContext: mocks.resolveContext,
 }))
+vi.mock('@/lib/table/columns/workflow-references', () => ({
+  findUnmigratedTableBlockReferences: mocks.findUnmigrated,
+}))
 vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal }))
-vi.mock('@/lib/table/orchestration', () => ({ performUpdateTableColumn: vi.fn() }))
+vi.mock('@/lib/table/orchestration', () => ({ performUpdateTableColumn: mocks.performUpdate }))
 
-import { deleteTableColumnsUseCase } from '@/lib/table/application/columns'
+import {
+  deleteTableColumnsUseCase,
+  updateTableColumnUseCase,
+} from '@/lib/table/application/columns'
 
 const table: TableDefinition = {
   id: 'table-1',
@@ -185,5 +193,82 @@ describe('multi-column delete application use case', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.deleteColumns).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * A rename leaves workflow Table blocks pointing at the old name — nothing
+ * rewrites workflow state, lint stays clean, and the next run fails inside an
+ * error edge. The use case reports those blocks so the caller can migrate them.
+ */
+describe('column rename application use case', () => {
+  const unmigrated = [
+    {
+      workflowId: 'wf-1',
+      workflowName: 'Alerts',
+      blockId: 'blk-1',
+      blockName: 'Query',
+      fields: ['filter' as const],
+    },
+  ]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolvePermission.mockResolvedValue('write')
+    mocks.resolveContext.mockResolvedValue({
+      tableId: table.id,
+      table,
+      workspaceId: table.workspaceId,
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+    mocks.findUnmigrated.mockResolvedValue(unmigrated)
+  })
+
+  function update(updates: { name?: string; required?: boolean }) {
+    mocks.performUpdate.mockResolvedValue({
+      success: true,
+      table: {
+        ...table,
+        schema: {
+          columns: table.schema.columns.map((column) =>
+            column.name === 'first' ? { ...column, ...updates } : column
+          ),
+        },
+      },
+    })
+    return updateTableColumnUseCase.execute({
+      principal,
+      input: { tableId: 'table-1', workspaceId: 'workspace-1', columnName: 'first', updates },
+    })
+  }
+
+  it('reports the workflow Table blocks a rename did not migrate', async () => {
+    const result = await update({ name: 'given' })
+
+    expect(mocks.findUnmigrated).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      tableId: 'table-1',
+      columnName: 'first',
+    })
+    expect(result.unmigrated).toEqual(unmigrated)
+    expect(result.changed).toBe(true)
+  })
+
+  it('does not scan when the update is not a rename', async () => {
+    const result = await update({ required: true })
+
+    expect(mocks.findUnmigrated).not.toHaveBeenCalled()
+    expect(result.unmigrated).toEqual([])
+  })
+
+  it('reports nothing rather than failing a rename that already committed when the scan fails', async () => {
+    mocks.findUnmigrated.mockRejectedValue(new Error('workflow tables unavailable'))
+
+    const result = await update({ name: 'given' })
+
+    expect(result.unmigrated).toEqual([])
+    expect(result.table.schema.columns[1].name).toBe('given')
   })
 })

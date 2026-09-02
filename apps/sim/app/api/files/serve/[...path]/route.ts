@@ -15,8 +15,6 @@ import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-com
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveServableDocBytes } from '@/lib/mothership/tools/server/files/doc-compile'
-import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { readOrganizationAssistantImage } from '@/lib/uploads/contexts/organization-assistant/application'
