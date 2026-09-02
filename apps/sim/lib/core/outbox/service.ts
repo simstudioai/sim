@@ -81,8 +81,9 @@ export interface DeferredOutboxHandlerResult {
   minimumBackoffMs?: number
   /**
    * Defaults to true for an external acknowledgement with a finite retry
-   * budget. Set false only for an internal dependency whose own outbox row
-   * independently reaches completed or dead-letter.
+   * budget. False is reserved for waits on an internal dependency whose own
+   * outbox row independently reaches completed or dead-letter, and for
+   * bounded continuation after durable progress (`continueOutboxHandler`).
    */
   consumeAttempt?: boolean
 }
@@ -98,6 +99,19 @@ export function deferOutboxHandler(
     ...(minimumBackoffMs !== undefined ? { minimumBackoffMs } : {}),
     ...(consumeAttempt ? {} : { consumeAttempt: false }),
   }
+}
+
+/**
+ * Yields after durable progress so the worker re-runs the event without
+ * spending an attempt. For bounded batches whose remaining work shrinks on
+ * every run; a run that made no progress must throw or `deferOutboxHandler`
+ * instead, or the event never reaches a terminal state.
+ */
+export function continueOutboxHandler(
+  reason: string,
+  minimumBackoffMs?: number
+): DeferredOutboxHandlerResult {
+  return deferOutboxHandler(reason, minimumBackoffMs, false)
 }
 
 export type OutboxHandler<T = unknown> = (

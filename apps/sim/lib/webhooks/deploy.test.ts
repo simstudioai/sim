@@ -1,9 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { account, credential } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
-import { eq } from 'drizzle-orm'
+import { account, credential, webhook, workflowDeploymentVersion } from '@sim/db/schema'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
+import { eq, ne } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -29,6 +35,12 @@ vi.mock('@/lib/webhooks/utils.server', () => ({
 vi.mock('@/lib/webhooks/pending-verification', () => ({
   PendingWebhookVerificationTracker: vi.fn(),
 }))
+const { mockIsDeploymentVersionProtected } = vi.hoisted(() => ({
+  mockIsDeploymentVersionProtected: vi.fn(),
+}))
+vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
+  isDeploymentVersionProtectedByCurrentOperation: mockIsDeploymentVersionProtected,
+}))
 
 const {
   mockGetSlackBotCredential,
@@ -52,9 +64,11 @@ vi.mock('@/lib/webhooks/providers/slack', () => ({
 
 import {
   buildProviderConfig,
+  cleanupInactiveDeploymentWebhooks,
   resolveTriggerCredentialId,
   resolveWebhookConfigForBlock,
 } from '@/lib/webhooks/deploy'
+import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import { getBlock } from '@/blocks'
 import { getTrigger } from '@/triggers'
 
@@ -637,5 +651,97 @@ describe('resolveWebhookConfigForBlock — TikTok routing', () => {
     expect(result?.success).toBe(false)
     if (result?.success) throw new Error('expected failure')
     expect(result?.error.message).toContain('Reconnect')
+  })
+})
+
+describe('cleanupInactiveDeploymentWebhooks', () => {
+  const workflow = { id: 'workflow-1', userId: 'user-1', workspaceId: 'workspace-1' }
+  const input = {
+    workflowId: 'workflow-1',
+    workflow,
+    requestId: 'request-1',
+    protectedDeploymentVersionId: null,
+    limit: 5,
+  }
+
+  function staleWebhookRow(id: string) {
+    return {
+      id,
+      workflowId: 'workflow-1',
+      deploymentVersionId: 'version-1',
+      provider: 'github',
+      providerConfig: {},
+      archivedAt: null,
+      createdAt: new Date('2026-07-14T08:00:00.000Z'),
+    }
+  }
+
+  beforeEach(() => {
+    mockIsDeploymentVersionProtected.mockResolvedValue(false)
+  })
+
+  it('retires one bounded batch of stale rows and reports the remainder', async () => {
+    queueTableRows(webhook, [
+      staleWebhookRow('wh-1'),
+      staleWebhookRow('wh-2'),
+      staleWebhookRow('wh-3'),
+    ])
+    queueTableRows(workflowDeploymentVersion, [{ id: 'version-1' }])
+    queueTableRows(workflowDeploymentVersion, [{ id: 'version-1' }])
+
+    await expect(cleanupInactiveDeploymentWebhooks({ ...input, limit: 2 })).resolves.toEqual({
+      hasMore: true,
+    })
+
+    expect(vi.mocked(cleanupExternalWebhook)).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(cleanupExternalWebhook)).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'wh-1' }),
+      workflow,
+      'request-1',
+      { throwOnError: true }
+    )
+    expect(dbChainMockFns.delete).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports completion once the batch drains every stale row', async () => {
+    queueTableRows(webhook, [staleWebhookRow('wh-1')])
+    queueTableRows(workflowDeploymentVersion, [{ id: 'version-1' }])
+
+    await expect(cleanupInactiveDeploymentWebhooks(input)).resolves.toEqual({ hasMore: false })
+
+    expect(vi.mocked(cleanupExternalWebhook)).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.delete).toHaveBeenCalledTimes(1)
+  })
+
+  it('excludes the version the current operation is preparing from the batch', async () => {
+    queueTableRows(webhook, [])
+
+    await expect(
+      cleanupInactiveDeploymentWebhooks({ ...input, protectedDeploymentVersionId: 'version-3' })
+    ).resolves.toEqual({ hasMore: false })
+
+    expect(ne).toHaveBeenCalledWith(webhook.deploymentVersionId, 'version-3')
+  })
+
+  it('stops before any provider call once the fence reports a change', async () => {
+    queueTableRows(webhook, [staleWebhookRow('wh-1')])
+
+    await expect(
+      cleanupInactiveDeploymentWebhooks({ ...input, shouldContinue: async () => false })
+    ).resolves.toEqual({ hasMore: true })
+
+    expect(vi.mocked(cleanupExternalWebhook)).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+
+  it('leaves a row alone when its version became the current candidate mid-batch', async () => {
+    queueTableRows(webhook, [staleWebhookRow('wh-1')])
+    mockIsDeploymentVersionProtected.mockResolvedValue(true)
+
+    await expect(cleanupInactiveDeploymentWebhooks(input)).resolves.toEqual({ hasMore: true })
+
+    expect(mockIsDeploymentVersionProtected).toHaveBeenCalledWith('workflow-1', 'version-1')
+    expect(vi.mocked(cleanupExternalWebhook)).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 })

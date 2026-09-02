@@ -51,6 +51,11 @@ vi.mock('@/lib/workspaces/organization-workspaces', () => ({
   ownedAttachableWorkspacesWhere: vi.fn(() => undefined),
 }))
 vi.mock('@/lib/core/outbox/service', () => ({
+  continueOutboxHandler: (reason: string) => ({
+    outcome: 'deferred',
+    reason,
+    consumeAttempt: false,
+  }),
   deferOutboxHandler: (reason: string, _minimum?: number, consumeAttempt = true) => ({
     outcome: 'deferred',
     reason,

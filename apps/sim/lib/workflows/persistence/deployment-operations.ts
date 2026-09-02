@@ -70,6 +70,15 @@ export interface DeploymentOperationGeneration {
   generation: number
 }
 
+/**
+ * Identifies the operation a fenced step belongs to, optionally narrowed to
+ * the version it targets and the statuses it may currently hold.
+ */
+export type DeploymentOperationFence = DeploymentOperationGeneration & {
+  deploymentVersionId?: string
+  statuses?: readonly DeploymentOperationStatus[]
+}
+
 export interface WorkflowDeploymentStatus {
   activeDeployment: {
     deploymentVersionId: string
@@ -282,10 +291,7 @@ export async function getDeploymentOperation(
  * Confirms an operation still owns the workflow's latest generation.
  */
 export async function isDeploymentOperationCurrent(
-  params: DeploymentOperationGeneration & {
-    deploymentVersionId?: string
-    statuses?: readonly DeploymentOperationStatus[]
-  },
+  params: DeploymentOperationFence,
   executor: Pick<DbOrTx, 'select'> = db
 ): Promise<boolean> {
   const [latestOperation] = await executor
@@ -322,6 +328,19 @@ export async function isDeploymentVersionProtectedByCurrentOperation(
   deploymentVersionId: string,
   executor: Pick<DbOrTx, 'select'> = db
 ): Promise<boolean> {
+  return (await getProtectedDeploymentVersionId(workflowId, executor)) === deploymentVersionId
+}
+
+/**
+ * The deployment version the current operation is still preparing, or null
+ * once the latest operation is terminal. Cleanup must leave this version
+ * alone: it is inactive until cutover, yet its schedules and webhook
+ * candidates are live preparation state.
+ */
+export async function getProtectedDeploymentVersionId(
+  workflowId: string,
+  executor: Pick<DbOrTx, 'select'> = db
+): Promise<string | null> {
   const [latestOperation] = await executor
     .select({
       deploymentVersionId: workflowDeploymentOperation.deploymentVersionId,
@@ -333,12 +352,15 @@ export async function isDeploymentVersionProtectedByCurrentOperation(
     .orderBy(desc(workflowDeploymentOperation.generation))
     .limit(1)
 
-  return (
-    latestOperation?.deploymentVersionId === deploymentVersionId &&
-    latestOperation.protocolVersion === DEPLOYMENT_OPERATION_PROTOCOL_VERSION &&
-    isDeploymentOperationStatus(latestOperation.status) &&
-    IN_FLIGHT_STATUSES.includes(latestOperation.status)
-  )
+  if (
+    !latestOperation ||
+    latestOperation.protocolVersion !== DEPLOYMENT_OPERATION_PROTOCOL_VERSION ||
+    !isDeploymentOperationStatus(latestOperation.status) ||
+    !IN_FLIGHT_STATUSES.includes(latestOperation.status)
+  ) {
+    return null
+  }
+  return latestOperation.deploymentVersionId
 }
 
 /**

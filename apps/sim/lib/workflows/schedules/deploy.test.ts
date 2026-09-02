@@ -3,12 +3,21 @@
  *
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  flattenMockConditions,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRandomUUID } = vi.hoisted(() => ({
-  mockRandomUUID: vi.fn(),
-}))
+const { mockRandomUUID, mockGetProtectedDeploymentVersionId, mockIsDeploymentOperationCurrent } =
+  vi.hoisted(() => ({
+    mockRandomUUID: vi.fn(),
+    mockGetProtectedDeploymentVersionId: vi.fn(),
+    mockIsDeploymentOperationCurrent: vi.fn(),
+  }))
 
 vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
@@ -16,7 +25,17 @@ vi.mock('@/lib/webhooks/deploy', () => ({
   cleanupWebhooksForWorkflow: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { createSchedulesForDeploy, deleteSchedulesForWorkflow } from './deploy'
+vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
+  getProtectedDeploymentVersionId: mockGetProtectedDeploymentVersionId,
+  isDeploymentOperationCurrent: mockIsDeploymentOperationCurrent,
+  setDeploymentTxTimeouts: vi.fn(),
+}))
+
+import {
+  createSchedulesForDeploy,
+  deleteInactiveDeploymentSchedules,
+  deleteSchedulesForWorkflow,
+} from './deploy'
 import type { BlockState } from './utils'
 import * as scheduleUtils from './utils'
 import { findScheduleBlocks, validateScheduleBlock, validateWorkflowSchedules } from './validation'
@@ -793,5 +812,68 @@ describe('Schedule Deploy Utilities', () => {
       expect(dbChainMockFns.delete).toHaveBeenCalled()
       expect(dbChainMockFns.where).toHaveBeenCalled()
     })
+  })
+})
+
+describe('deleteInactiveDeploymentSchedules', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
+    mockGetProtectedDeploymentVersionId.mockResolvedValue(null)
+  })
+
+  it('deletes every schedule owned by an inactive version in one statement', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'schedule-1' }, { id: 'schedule-2' }])
+
+    await expect(deleteInactiveDeploymentSchedules({ workflowId: 'workflow-1' })).resolves.toEqual({
+      status: 'deleted',
+      count: 2,
+    })
+
+    expect(dbChainMockFns.delete).toHaveBeenCalledTimes(1)
+    const conditions = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0])
+    expect(conditions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'inArray',
+          column: schemaMock.workflowSchedule.deploymentVersionId,
+        }),
+        expect.objectContaining({ type: 'isNull', column: schemaMock.workflowSchedule.archivedAt }),
+      ])
+    )
+    expect(conditions).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'ne' })])
+    )
+  })
+
+  it('shields the version an in-flight operation is preparing', async () => {
+    mockGetProtectedDeploymentVersionId.mockResolvedValue('version-3')
+
+    await deleteInactiveDeploymentSchedules({ workflowId: 'workflow-1' })
+
+    const conditions = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0])
+    expect(conditions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'ne',
+          left: schemaMock.workflowSchedule.deploymentVersionId,
+          right: 'version-3',
+        }),
+      ])
+    )
+  })
+
+  it('deletes nothing once a newer operation owns the workflow', async () => {
+    mockIsDeploymentOperationCurrent.mockResolvedValue(false)
+
+    await expect(
+      deleteInactiveDeploymentSchedules({
+        workflowId: 'workflow-1',
+        operationFence: { workflowId: 'workflow-1', operationId: 'operation-1', generation: 2 },
+      })
+    ).resolves.toEqual({ status: 'superseded' })
+
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 })
