@@ -135,6 +135,13 @@ function toFileIdList(value: string | string[] | null | undefined): string[] {
   return Array.isArray(value) ? value : [value]
 }
 
+/** Only the fields {@link fileFamilyInput} reads, so a shape change fails here rather than at run time. */
+interface FileFamilyParams {
+  folderScopeRef?: unknown
+  folderIncludeSubfolders?: unknown
+  _context?: { workspaceId?: string }
+}
+
 /**
  * What read, get content, and compress send: the files picked, the folder they
  * were picked from, or the folder alone.
@@ -146,7 +153,7 @@ function toFileIdList(value: string | string[] | null | undefined): string[] {
  * the ids it covers today.
  */
 function fileFamilyInput(
-  params: Record<string, any>,
+  params: FileFamilyParams,
   label: string,
   pickerValue: unknown
 ): Record<string, unknown> {

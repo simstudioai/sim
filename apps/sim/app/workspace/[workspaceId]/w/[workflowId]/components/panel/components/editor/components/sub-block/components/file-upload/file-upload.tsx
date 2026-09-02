@@ -735,7 +735,7 @@ export function FileUpload({
         }
       }),
     ],
-    [workspaceFiles, acceptedTypes, cloudUploadBlocked]
+    [scopedWorkspaceFiles, acceptedTypes, cloudUploadBlocked]
   )
 
   // Find the selected file's workspace ID for highlighting in single file mode

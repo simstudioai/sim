@@ -32,10 +32,7 @@ export const GET = defineV2JsonRoute({
     sortOrder: query.sortOrder,
   }),
   useCase: listWorkspaceFileFoldersOperation,
-  present: ({ folders }) => ({
-    data: folders.map(toWorkspaceFileFolderPathView),
-    nextCursor: null,
-  }),
+  present: ({ folders }) => ({ data: folders.map(toV2Folder), nextCursor: null }),
 })
 
 export const POST = defineV2JsonRoute({
@@ -46,7 +43,7 @@ export const POST = defineV2JsonRoute({
   errorPolicy: v2FileErrorPolicies.default,
   mapInput: ({ body }) => ({ workspaceId: body.workspaceId, path: body.path }),
   useCase: createWorkspaceFileFolderOperation,
-  present: ({ folder }) => ({ data: toWorkspaceFileFolderPathView(folder) }),
+  present: ({ folder }) => ({ data: toV2Folder(folder) }),
 })
 
 export const PATCH = defineV2JsonRoute({
@@ -61,7 +58,7 @@ export const PATCH = defineV2JsonRoute({
     destinationPath: body.destinationPath,
   }),
   useCase: updateWorkspaceFileFolderOperation,
-  present: ({ folder }) => ({ data: toWorkspaceFileFolderPathView(folder) }),
+  present: ({ folder }) => ({ data: toV2Folder(folder) }),
 })
 
 export const DELETE = defineV2JsonRoute({
