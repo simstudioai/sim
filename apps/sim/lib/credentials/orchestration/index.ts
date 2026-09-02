@@ -82,6 +82,9 @@ const ROTATABLE_SECRET_FIELDS: readonly ServiceAccountFieldId[] = [
   'authMethod',
   'privateKey',
   'username',
+  'instanceUrl',
+  'tokenUrl',
+  'scope',
 ]
 
 /**
@@ -126,13 +129,13 @@ async function readStoredSecretBlob(credentialId: string): Promise<Record<string
 
 /**
  * A non-secret string field already stored in a service-account blob. Used on
- * reconnect so a selector the modal did not resubmit (the Zoho data center,
- * the Salesforce auth method and run-as username) survives a secret rotation;
+ * reconnect so a selector the modal did not resubmit (for example a region,
+ * grant choice, run-as username, or customer-owned endpoint) survives a secret rotation;
  * undefined lets the provider's own default apply.
  */
 function readStoredField(
   blob: Record<string, unknown> | null,
-  field: 'dataCenter' | 'authMethod' | 'username'
+  field: 'dataCenter' | 'authMethod' | 'username' | 'instanceUrl' | 'tokenUrl' | 'scope'
 ): string | undefined {
   const value = blob?.[field]
   return typeof value === 'string' && value ? value : undefined
@@ -194,6 +197,9 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   authMethod?: string
   privateKey?: string
   username?: string
+  instanceUrl?: string
+  tokenUrl?: string
+  scope?: string
 }
 
 export interface PerformCredentialResult {
@@ -292,14 +298,20 @@ export async function updateCredentialRecord(
       // credential back to the US accounts server. Carry the stored value forward
       // when the caller did not supply one.
       const isClientCredentialProvider = isClientCredentialAccountProviderId(providerId)
+      const clientCredentialDescriptor = getClientCredentialAccountDescriptor(providerId)
+      const usesClientCredentialField = (field: ServiceAccountFieldId) =>
+        clientCredentialDescriptor?.fields?.some((candidate) => candidate.id === field) === true
       const needsStoredDataCenter = params.dataCenter === undefined && isClientCredentialProvider
       // Only a multi-grant provider stores these, so single-grant ones must not
       // pay for a row read + decrypt that can only ever return undefined.
-      const isMultiGrantProvider = Boolean(
-        getClientCredentialAccountDescriptor(providerId)?.defaultAuthMethod
-      )
+      const isMultiGrantProvider = Boolean(clientCredentialDescriptor?.defaultAuthMethod)
       const needsStoredAuthMethod = params.authMethod === undefined && isMultiGrantProvider
       const needsStoredUsername = params.username === undefined && isMultiGrantProvider
+      const needsStoredInstanceUrl =
+        params.instanceUrl === undefined && usesClientCredentialField('instanceUrl')
+      const needsStoredTokenUrl =
+        params.tokenUrl === undefined && usesClientCredentialField('tokenUrl')
+      const needsStoredScope = params.scope === undefined && usesClientCredentialField('scope')
 
       // Rotating to a key that belongs to a different principal makes an
       // identity-derived label (a Google `client_email`, a Slack team name)
@@ -312,7 +324,13 @@ export async function updateCredentialRecord(
 
       // One read + decrypt at most, and only for the providers that can use it.
       const storedBlob =
-        needsStoredDataCenter || needsStoredAuthMethod || needsStoredUsername || needsStoredIdentity
+        needsStoredDataCenter ||
+        needsStoredAuthMethod ||
+        needsStoredUsername ||
+        needsStoredInstanceUrl ||
+        needsStoredTokenUrl ||
+        needsStoredScope ||
+        needsStoredIdentity
           ? await readStoredSecretBlob(params.credential.id)
           : null
 
@@ -370,6 +388,11 @@ export async function updateCredentialRecord(
             : params.authMethod,
           privateKey: params.privateKey,
           username: needsStoredUsername ? readStoredField(storedBlob, 'username') : params.username,
+          instanceUrl: needsStoredInstanceUrl
+            ? readStoredField(storedBlob, 'instanceUrl')
+            : params.instanceUrl,
+          tokenUrl: needsStoredTokenUrl ? readStoredField(storedBlob, 'tokenUrl') : params.tokenUrl,
+          scope: needsStoredScope ? readStoredField(storedBlob, 'scope') : params.scope,
         })
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
         rotatedSlackBotUserId = secret.botUserId

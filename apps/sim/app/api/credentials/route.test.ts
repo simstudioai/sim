@@ -445,6 +445,64 @@ describe('POST /api/credentials', () => {
       )
     })
 
+    it('threads Oracle Fusion endpoints and scope through the generic create contract', async () => {
+      mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
+        providerId: 'oracle-fusion-service-account',
+        encryptedServiceAccountKey: 'encrypted-oracle-fusion-blob',
+        displayName: 'Oracle Fusion Cloud vision.fa.us2.oraclecloud.com',
+        auditMetadata: {
+          principalKind: 'tenant',
+          principalId: 'vision.fa.us2.oraclecloud.com',
+        },
+        principal: { kind: 'tenant', id: 'vision.fa.us2.oraclecloud.com' },
+      })
+      queueTableRows(credential, [])
+      queueTableRows(credential, [])
+      queueTableRows(credential, [
+        {
+          id: 'credential-oracle-fusion',
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          displayName: 'Oracle Fusion Cloud vision.fa.us2.oraclecloud.com',
+          description: null,
+          unredacted: false,
+          providerId: 'oracle-fusion-service-account',
+          accountId: null,
+          envKey: null,
+          envOwnerUserId: null,
+          encryptedServiceAccountKey: 'encrypted-oracle-fusion-blob',
+          createdBy: 'user-1',
+          createdAt: new Date('2026-08-11T00:00:00.000Z'),
+          updatedAt: new Date('2026-08-11T00:00:00.000Z'),
+        },
+      ])
+
+      const response = await POST(
+        createMockRequest('POST', {
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'oracle-fusion-service-account',
+          instanceUrl: 'https://vision.fa.us2.oraclecloud.com',
+          tokenUrl: 'https://idcs-abc.identity.oraclecloud.com/oauth2/v1/token',
+          clientId: 'oracle-client-id',
+          clientSecret: 'oracle-client-secret',
+          scope: 'urn:opc:resource:fa:scope',
+        })
+      )
+
+      expect(response.status).toBe(201)
+      expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+        'oracle-fusion-service-account',
+        expect.objectContaining({
+          instanceUrl: 'https://vision.fa.us2.oraclecloud.com',
+          tokenUrl: 'https://idcs-abc.identity.oraclecloud.com/oauth2/v1/token',
+          clientId: 'oracle-client-id',
+          clientSecret: 'oracle-client-secret',
+          scope: 'urn:opc:resource:fa:scope',
+        })
+      )
+    })
+
     it('maps a verification failure to a 400 with the validation code', async () => {
       mockVerifyAndBuildServiceAccountSecret.mockRejectedValueOnce(
         new TokenServiceAccountValidationError('invalid_credentials', 400, {

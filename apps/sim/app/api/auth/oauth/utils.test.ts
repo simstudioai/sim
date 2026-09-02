@@ -28,6 +28,7 @@ import { db } from '@sim/db'
 import { __resetCoalesceLocallyForTests } from '@/lib/concurrency/singleflight'
 import {
   NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
+  ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
   ZOOM_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { refreshOAuthToken } from '@/lib/oauth'
@@ -598,6 +599,41 @@ describe('OAuth Utils', () => {
 
       mockCredentialRow(ENCRYPTED_KEY_A)
       const cached = await resolveServiceAccountToken(credId, NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID)
+      expect(cached).toEqual(first)
+      expect(mockMinter).toHaveBeenCalledTimes(1)
+    })
+
+    it('forwards Oracle Fusion endpoints and scope and caches its application URL', async () => {
+      const credId = 'ccsa-oracle-fusion'
+      const fields = {
+        clientId: 'oracle-client',
+        clientSecret: 'oracle-secret',
+        orgId: '',
+        instanceUrl: 'https://vision.fa.us2.oraclecloud.com',
+        tokenUrl: 'https://idcs-abc.identity.oraclecloud.com/oauth2/v1/token',
+        scope: 'urn:opc:resource:fa:scope',
+      }
+      mockDecryptSecret.mockResolvedValueOnce({ decrypted: JSON.stringify(fields) })
+      mockCredentialRow(ENCRYPTED_KEY_A)
+      mockMinter.mockResolvedValueOnce({
+        accessToken: 'oracle-token',
+        expiresInSeconds: 3600,
+        instanceUrl: fields.instanceUrl,
+      })
+
+      const first = await resolveServiceAccountToken(
+        credId,
+        ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
+      )
+
+      expect(first).toEqual({ accessToken: 'oracle-token', instanceUrl: fields.instanceUrl })
+      expect(mockMinter).toHaveBeenCalledWith(fields, { skipIdentity: true })
+
+      mockCredentialRow(ENCRYPTED_KEY_A)
+      const cached = await resolveServiceAccountToken(
+        credId,
+        ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
+      )
       expect(cached).toEqual(first)
       expect(mockMinter).toHaveBeenCalledTimes(1)
     })

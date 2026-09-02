@@ -7,6 +7,9 @@ import {
   getClientCredentialAccountDescriptor,
   NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
   normalizeNetSuiteSuiteTalkOrigin,
+  normalizeOracleFusionApplicationOrigin,
+  normalizeOracleFusionTokenUrl,
+  ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
   partitionClientCredentialFields,
   resolveClientCredentialAuthMethod,
   resolveSalesforceAuthMethod,
@@ -19,6 +22,9 @@ const salesforce = getClientCredentialAccountDescriptor(SALESFORCE_SERVICE_ACCOU
 const box = getClientCredentialAccountDescriptor(BOX_SERVICE_ACCOUNT_PROVIDER_ID)!
 const zohoDesk = getClientCredentialAccountDescriptor(ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID)!
 const netSuite = getClientCredentialAccountDescriptor(NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID)!
+const oracleFusion = getClientCredentialAccountDescriptor(
+  ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
+)!
 
 const ids = (fields: { id: string }[]) => fields.map((field) => field.id)
 
@@ -49,6 +55,21 @@ describe('partitionClientCredentialFields', () => {
       expect(netSuite.fields.find((field) => field.id === 'privateKey')).toMatchObject({
         secret: true,
         multiline: true,
+      })
+    })
+
+    it('declares the complete Oracle Fusion confidential application credential', () => {
+      const { visible, required } = partitionClientCredentialFields(oracleFusion, undefined)
+      expect(ids(visible)).toEqual(['instanceUrl', 'tokenUrl', 'clientId', 'clientSecret', 'scope'])
+      expect(ids(required)).toEqual([
+        'instanceUrl',
+        'tokenUrl',
+        'clientId',
+        'clientSecret',
+        'scope',
+      ])
+      expect(oracleFusion.fields.find((field) => field.id === 'clientSecret')).toMatchObject({
+        secret: true,
       })
     })
   })
@@ -106,6 +127,40 @@ describe('normalizeNetSuiteSuiteTalkOrigin', () => {
     'https://user@1234567.suitetalk.api.netsuite.com',
   ])('rejects the non-authoritative SuiteTalk URL %j', (value) => {
     expect(normalizeNetSuiteSuiteTalkOrigin(value)).toBeUndefined()
+  })
+})
+
+describe('Oracle Fusion URL normalization', () => {
+  it('accepts only canonical Oracle-assigned application and identity-domain URLs', () => {
+    expect(normalizeOracleFusionApplicationOrigin(' https://vision.fa.us2.oraclecloud.com/ ')).toBe(
+      'https://vision.fa.us2.oraclecloud.com'
+    )
+    expect(normalizeOracleFusionApplicationOrigin('https://vision.fa.ocs.oraclecloud.com')).toBe(
+      'https://vision.fa.ocs.oraclecloud.com'
+    )
+    expect(
+      normalizeOracleFusionTokenUrl('https://idcs-abc.identity.oraclecloud.com/oauth2/v1/token')
+    ).toBe('https://idcs-abc.identity.oraclecloud.com/oauth2/v1/token')
+  })
+
+  it.each([
+    'http://vision.fa.us2.oraclecloud.com',
+    'https://vision.fa.us2.oraclecloud.com/fscmRestApi',
+    'https://vision.fa.us2.oraclecloud.com:443',
+    'https://user@vision.fa.us2.oraclecloud.com',
+    'https://vision.example.com',
+  ])('rejects noncanonical Fusion application URL %j', (value) => {
+    expect(normalizeOracleFusionApplicationOrigin(value)).toBeUndefined()
+  })
+
+  it.each([
+    'http://idcs-abc.identity.oraclecloud.com/oauth2/v1/token',
+    'https://idcs-abc.identity.oraclecloud.com/oauth2/v1/authorize',
+    'https://idcs-abc.identity.oraclecloud.com:443/oauth2/v1/token',
+    'https://idcs-abc.identity.oraclecloud.com/oauth2/v1/token?scope=x',
+    'https://identity.oraclecloud.com/oauth2/v1/token',
+  ])('rejects noncanonical Fusion token URL %j', (value) => {
+    expect(normalizeOracleFusionTokenUrl(value)).toBeUndefined()
   })
 })
 

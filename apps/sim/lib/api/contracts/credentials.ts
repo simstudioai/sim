@@ -161,6 +161,12 @@ export const createCredentialBodySchema = z
     privateKey: z.string().trim().min(1).max(8192).optional(),
     /** Run-as username for key-based grants (Salesforce JWT `sub`). */
     username: z.string().trim().min(1).max(255).optional(),
+    /** Canonical provider application origin for dynamic-tenant integrations. */
+    instanceUrl: z.string().trim().url().max(2048).optional(),
+    /** OAuth token endpoint for customer-owned confidential applications. */
+    tokenUrl: z.string().trim().url().max(2048).optional(),
+    /** Space-delimited provider OAuth scope string. */
+    scope: z.string().trim().min(1).max(4096).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'oauth') {
@@ -242,6 +248,9 @@ export const updateCredentialByIdBodySchema = z
     authMethod: z.string().trim().min(1).max(64).optional(),
     privateKey: z.string().trim().min(1).max(8192).optional(),
     username: z.string().trim().min(1).max(255).optional(),
+    instanceUrl: z.string().trim().url().max(2048).optional(),
+    tokenUrl: z.string().trim().url().max(2048).optional(),
+    scope: z.string().trim().min(1).max(4096).optional(),
   })
   .strict()
   .refine(
@@ -261,7 +270,10 @@ export const updateCredentialByIdBodySchema = z
       data.dataCenter !== undefined ||
       data.authMethod !== undefined ||
       data.privateKey !== undefined ||
-      data.username !== undefined,
+      data.username !== undefined ||
+      data.instanceUrl !== undefined ||
+      data.tokenUrl !== undefined ||
+      data.scope !== undefined,
     {
       message: 'At least one field must be provided',
       path: ['displayName'],

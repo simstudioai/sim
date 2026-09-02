@@ -57,6 +57,9 @@ export interface ServiceAccountSecretFields {
   authMethod?: string
   privateKey?: string
   username?: string
+  instanceUrl?: string
+  tokenUrl?: string
+  scope?: string
 }
 
 export interface ServiceAccountSecretResult {
@@ -304,6 +307,9 @@ async function buildClientCredentialAccountSecret(
     clientSecret: usesField('clientSecret') ? fields.clientSecret?.trim() || undefined : undefined,
     privateKey: usesField('privateKey') ? fields.privateKey?.trim() || undefined : undefined,
     username: usesField('username') ? fields.username?.trim() || undefined : undefined,
+    instanceUrl: usesField('instanceUrl') ? fields.instanceUrl?.trim() || undefined : undefined,
+    tokenUrl: usesField('tokenUrl') ? fields.tokenUrl?.trim() || undefined : undefined,
+    scope: usesField('scope') ? fields.scope?.trim() || undefined : undefined,
   }
 
   // Requirements are per-auth-method, not per-provider: Salesforce's JWT

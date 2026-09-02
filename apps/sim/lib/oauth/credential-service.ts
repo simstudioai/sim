@@ -403,7 +403,7 @@ export interface ServiceAccountTokenResult {
   cloudId?: string
   /** Atlassian and domain-scoped token providers (e.g. Shopify) — the site/store domain. */
   domain?: string
-  /** Salesforce or NetSuite — the provider origin the token must be used against. */
+  /** Salesforce, NetSuite, or Oracle Fusion — the provider origin the token is bound to. */
   instanceUrl?: string
   /**
    * Zoho Desk only — the data-center-scoped Desk REST base the token must be
@@ -587,6 +587,9 @@ async function resolveClientCredentialAccountToken(
           authMethod: blob.authMethod,
           privateKey: blob.privateKey,
           username: blob.username,
+          instanceUrl: blob.instanceUrl,
+          tokenUrl: blob.tokenUrl,
+          scope: blob.scope,
         },
         { skipIdentity: true }
       )

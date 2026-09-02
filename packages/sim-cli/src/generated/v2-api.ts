@@ -7873,6 +7873,9 @@ export type UpdateCredentialBody = {
   authMethod?: string
   privateKey?: string
   username?: string
+  instanceUrl?: string
+  tokenUrl?: string
+  scope?: string
 }
 
 type UpdateCredentialResponseRef0 = {
@@ -13644,6 +13647,9 @@ export const V2_OPERATIONS = {
       authMethod: { kind: 'string', describe: 'Provider authentication method.' },
       privateKey: { kind: 'string', describe: 'Write-only PEM private key.' },
       username: { kind: 'string', describe: 'Provider run-as username.' },
+      instanceUrl: { kind: 'string', describe: 'Canonical provider application origin.' },
+      tokenUrl: { kind: 'string', describe: 'Customer-owned OAuth token endpoint.' },
+      scope: { kind: 'string', describe: 'Provider OAuth scope string.' },
     },
   },
   updateCustomTool: {

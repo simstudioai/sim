@@ -1,0 +1,164 @@
+import { interruptibleSleep } from '@sim/utils/helpers'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
+import { truncate } from '@sim/utils/string'
+import {
+  type SecureFetchResponse,
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
+import { consumeOrCancelBody } from '@/lib/core/utils/stream-limits'
+import { normalizeOracleFusionApplicationOrigin } from '@/lib/credentials/client-credential-accounts/descriptors'
+import type { OracleFusionAuthInput } from '@/lib/internal/oracle-fusion-financials/schema'
+
+const REQUEST_TIMEOUT_MS = 30_000
+const RESPONSE_MAX_BYTES = 5 * 1024 * 1024
+const MAX_RETRIES = 2
+const TRANSIENT_STATUSES = new Set([429, 503, 504])
+
+export class OracleFusionFinancialsProviderError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message)
+    this.name = 'OracleFusionFinancialsProviderError'
+  }
+}
+
+function collectOracleErrorMessages(payload: unknown, depth = 0): string[] {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return []
+  const object = payload as Record<string, unknown>
+  const messages: string[] = []
+  for (const key of ['title', 'detail', 'message']) {
+    const value = object[key]
+    if (typeof value === 'string' && value.trim()) messages.push(value.trim())
+  }
+  const nested = object.error
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+    const message = (nested as Record<string, unknown>).message
+    if (typeof message === 'string' && message.trim()) messages.push(message.trim())
+  }
+  const details = object['o:errorDetails']
+  if (Array.isArray(details) && depth < 2) {
+    for (const detail of details.slice(0, 5)) {
+      messages.push(...collectOracleErrorMessages(detail, depth + 1))
+    }
+  }
+  return messages
+}
+
+function sanitizeOracleError(body: string, accessToken: string, status: number): string {
+  let messages: string[] = []
+  try {
+    messages = collectOracleErrorMessages(JSON.parse(body))
+  } catch {
+    // Non-JSON proxy pages are intentionally not reflected to tool callers.
+  }
+  const unique = [...new Set(messages)]
+  const safe = truncate(unique.join(' — ').replaceAll(accessToken, '[REDACTED]'), 1_000)
+  return safe || `Oracle Fusion Financials request failed with HTTP ${status}`
+}
+
+export interface OracleFusionRequest {
+  path: string
+  query?: Record<string, string | number | boolean | undefined>
+}
+
+function buildRequestUrl(origin: string, request: OracleFusionRequest): string {
+  const url = new URL(request.path, origin)
+  for (const [key, value] of Object.entries(request.query ?? {})) {
+    if (value !== undefined) url.searchParams.set(key, String(value))
+  }
+  return url.toString()
+}
+
+async function fetchAttempt(
+  url: string,
+  resolvedIP: string,
+  accessToken: string,
+  signal?: AbortSignal
+): Promise<SecureFetchResponse> {
+  return secureFetchWithPinnedIP(url, resolvedIP, {
+    profile: 'configuredEndpoint',
+    method: 'GET',
+    headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
+    timeout: REQUEST_TIMEOUT_MS,
+    maxRedirects: 0,
+    maxResponseBytes: RESPONSE_MAX_BYTES,
+    signal,
+    logUrlValidationDetails: false,
+  })
+}
+
+/** Executes one bounded, credential-bound Oracle GET with transient-status retries. */
+export async function requestOracleFusionJson(
+  auth: Pick<OracleFusionAuthInput, 'accessToken' | 'instanceUrl'>,
+  request: OracleFusionRequest,
+  signal?: AbortSignal
+): Promise<unknown> {
+  signal?.throwIfAborted()
+  const origin = normalizeOracleFusionApplicationOrigin(auth.instanceUrl)
+  if (!origin)
+    throw new Error('Oracle Fusion credential is not bound to a canonical application URL')
+  const validation = await validateUrlWithDNS(
+    origin,
+    'Fusion Applications URL',
+    'configuredEndpoint',
+    {
+      logDetails: false,
+    }
+  )
+  if (!validation.isValid) {
+    throw new Error('Oracle Fusion credential application URL is not a public endpoint')
+  }
+  const url = buildRequestUrl(origin, request)
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    signal?.throwIfAborted()
+    let response: SecureFetchResponse
+    try {
+      response = await fetchAttempt(url, validation.resolvedIP, auth.accessToken, signal)
+    } catch {
+      signal?.throwIfAborted()
+      throw new Error('Could not reach Oracle Fusion Financials')
+    }
+
+    if (TRANSIENT_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
+      const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
+      await consumeOrCancelBody(response)
+      await interruptibleSleep(
+        backoffWithJitter(attempt + 1, retryAfterMs, { baseMs: 250, maxMs: 5_000 }),
+        signal
+      )
+      signal?.throwIfAborted()
+      continue
+    }
+
+    let body: string
+    try {
+      body = await response.text()
+    } catch {
+      signal?.throwIfAborted()
+      throw new OracleFusionFinancialsProviderError(
+        'Oracle Fusion Financials response could not be read',
+        502
+      )
+    }
+    signal?.throwIfAborted()
+    if (!response.ok) {
+      throw new OracleFusionFinancialsProviderError(
+        sanitizeOracleError(body, auth.accessToken, response.status),
+        response.status
+      )
+    }
+    try {
+      return JSON.parse(body) as unknown
+    } catch {
+      throw new OracleFusionFinancialsProviderError(
+        'Oracle Fusion Financials returned a malformed JSON response',
+        502
+      )
+    }
+  }
+  throw new Error('Oracle Fusion Financials retry loop exhausted')
+}

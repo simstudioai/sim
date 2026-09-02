@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-01",
+  "updatedAt": "2026-09-02",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,49 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_fusion_financials",
+      "slug": "oracle-fusion-cloud-financials",
+      "name": "Oracle Fusion Cloud Financials",
+      "description": "Read Oracle Fusion Payables invoices, lines, installments, and payments",
+      "longDescription": "Connect a reusable Oracle Fusion Cloud Financials service account with OAuth 2.0 client credentials. Read bounded pages of Payables invoices, invoice lines, payment schedules, and payments without exposing write operations, arbitrary expansions, or opaque credential secrets.",
+      "bgColor": "#FFFFFF",
+      "iconName": "OracleIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_financials",
+      "operations": [
+        {
+          "name": "List Payables Invoices",
+          "description": "List one page of Oracle Fusion Payables invoices using a fixed safe projection."
+        },
+        {
+          "name": "Get Payables Invoice",
+          "description": "Get one Oracle Fusion Payables invoice by its opaque Oracle resource key."
+        },
+        {
+          "name": "List Payables Invoice Lines",
+          "description": "List one page of lines for an Oracle Fusion Payables invoice."
+        },
+        {
+          "name": "List Payables Invoice Installments",
+          "description": "List one page of payment installments for an Oracle Fusion Payables invoice."
+        },
+        {
+          "name": "List Payables Payments",
+          "description": "List one page of Oracle Fusion Payables payments using a fixed safe projection."
+        },
+        {
+          "name": "Get Payables Payment",
+          "description": "Get one Oracle Fusion Payables payment by its CheckId."
+        }
+      ],
+      "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["automation", "data-analytics", "payments"]
     },
     {
       "type": "netsuite",

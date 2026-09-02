@@ -783,6 +783,16 @@ const NETSUITE_TOOL_IDS = [
 ] as const
 
 const OKTA_TOOL_IDS = ['okta_update_group'] as const
+
+const ORACLE_FUSION_FINANCIALS_TOOL_IDS = [
+  'oracle_fusion_financials_list_payables_invoices',
+  'oracle_fusion_financials_get_payables_invoice',
+  'oracle_fusion_financials_list_payables_invoice_lines',
+  'oracle_fusion_financials_list_payables_invoice_installments',
+  'oracle_fusion_financials_list_payables_payments',
+  'oracle_fusion_financials_get_payables_payment',
+] as const
+
 const SALESFORCE_TOOL_IDS = ['salesforce_update_custom_field'] as const
 
 const SLACK_TOOL_IDS = [
@@ -1423,6 +1433,10 @@ registerFamily(handlerLoaders, NETSUITE_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, OKTA_TOOL_IDS, async () => {
   return (await import('@/lib/internal/okta/execute-tool')).executeOktaTool
+})
+registerFamily(handlerLoaders, ORACLE_FUSION_FINANCIALS_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-fusion-financials/execute-tool'))
+    .executeOracleFusionFinancialsTool
 })
 registerFamily(handlerLoaders, SALESFORCE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/salesforce/execute-tool')).executeSalesforceTool

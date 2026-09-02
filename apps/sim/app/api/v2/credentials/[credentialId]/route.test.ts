@@ -127,6 +127,26 @@ describe('PATCH /api/v2/credentials/[credentialId]', () => {
     expect(body).not.toContain('MUST_NOT_LEAK_CIPHERTEXT')
   })
 
+  it('forwards Oracle Fusion endpoint and scope rotation fields', async () => {
+    const instanceUrl = 'https://vision.fa.us2.oraclecloud.com'
+    const tokenUrl = 'https://idcs-abc.identity.oraclecloud.com/oauth2/v1/token'
+    const scope = 'urn:opc:resource:fa:scope'
+
+    await PATCH(patchRequest({ instanceUrl, tokenUrl, scope }), context)
+
+    expect(mocks.update).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: {
+        credentialId: CREDENTIAL_ID,
+        assertedWorkspaceId: WORKSPACE_ID,
+        instanceUrl,
+        tokenUrl,
+        scope,
+      },
+      request: expect.any(NextRequest),
+    })
+  })
+
   it('asserts the workspace scope and preserves the credential id', async () => {
     const request = patchRequest({ displayName: 'Zoom prod' })
     await PATCH(request, context)

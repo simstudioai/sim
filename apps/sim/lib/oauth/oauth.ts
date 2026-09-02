@@ -46,6 +46,7 @@ import {
   MondayIcon,
   NetSuiteIcon,
   NotionIcon,
+  OracleIcon,
   OutlookIcon,
   PipedriveIcon,
   RedditIcon,
@@ -977,6 +978,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'netsuite',
+  },
+  oracle_fusion_financials: {
+    name: 'Oracle Fusion Cloud Financials',
+    icon: OracleIcon,
+    services: {
+      oracle_fusion_financials: {
+        name: 'Oracle Fusion Cloud Financials',
+        description: 'Read Payables invoices, invoice details, schedules, lines, and payments.',
+        providerId: 'oracle_fusion_financials',
+        serviceAccountProviderId: 'oracle-fusion-service-account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oracle_fusion_financials',
   },
   reddit: {
     name: 'Reddit',

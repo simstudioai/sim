@@ -23,6 +23,9 @@ export type ClientCredentialAccountFieldId =
   | 'authMethod'
   | 'privateKey'
   | 'username'
+  | 'instanceUrl'
+  | 'tokenUrl'
+  | 'scope'
 
 /**
  * The field id that selects between a descriptor's auth methods. A descriptor
@@ -111,6 +114,7 @@ export const BOX_SERVICE_ACCOUNT_PROVIDER_ID = 'box-service-account' as const
 export const SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID = 'salesforce-service-account' as const
 export const ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID = 'zoho-desk-service-account' as const
 export const NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID = 'netsuite-service-account' as const
+export const ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-fusion-service-account' as const
 
 export type ClientCredentialAccountProviderId =
   | typeof ZOOM_SERVICE_ACCOUNT_PROVIDER_ID
@@ -118,6 +122,7 @@ export type ClientCredentialAccountProviderId =
   | typeof SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -152,6 +157,46 @@ export function normalizeNetSuiteSuiteTalkOrigin(rawUrl: string): string | undef
   } catch {
     return undefined
   }
+}
+
+/** Canonical Oracle-assigned Fusion Applications origin used by REST integrations. */
+export const ORACLE_FUSION_APPLICATION_ORIGIN_REGEX =
+  /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.fa\.(?:ocs|[a-z0-9-]+)\.oraclecloud\.com$/
+
+/** OCI IAM identity-domain token endpoint used by Fusion client credentials. */
+export const ORACLE_FUSION_TOKEN_URL_REGEX =
+  /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.identity\.oraclecloud\.com\/oauth2\/v1\/token$/
+
+function normalizeExactHttpsUrl(rawUrl: string, pattern: RegExp, originOnly: boolean) {
+  try {
+    const trimmed = rawUrl.trim()
+    const authority = /^https:\/\/([^/?#]+)/i.exec(trimmed)?.[1]
+    if (!authority || /:\d+$/.test(authority)) return undefined
+    const parsed = new URL(trimmed)
+    if (
+      parsed.protocol !== 'https:' ||
+      parsed.port ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash ||
+      (originOnly && parsed.pathname !== '' && parsed.pathname !== '/')
+    ) {
+      return undefined
+    }
+    const normalized = originOnly ? parsed.origin : parsed.toString().replace(/\/$/, '')
+    return pattern.test(normalized) ? normalized : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export function normalizeOracleFusionApplicationOrigin(rawUrl: string): string | undefined {
+  return normalizeExactHttpsUrl(rawUrl, ORACLE_FUSION_APPLICATION_ORIGIN_REGEX, true)
+}
+
+export function normalizeOracleFusionTokenUrl(rawUrl: string): string | undefined {
+  return normalizeExactHttpsUrl(rawUrl, ORACLE_FUSION_TOKEN_URL_REGEX, false)
 }
 
 /**
@@ -530,6 +575,56 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/netsuite-service-account',
     helpText:
       'Use the account-specific SuiteTalk URL and the client ID, certificate ID, and private key from one OAuth 2.0 client-credentials mapping.',
+  },
+  [ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Oracle Fusion Cloud Financials',
+    connectNoun: 'confidential application',
+    fields: [
+      {
+        id: 'instanceUrl',
+        label: 'Fusion Applications URL',
+        placeholder: 'https://your-environment.fa.ocs.oraclecloud.com',
+        secret: false,
+        hintPattern: ORACLE_FUSION_APPLICATION_ORIGIN_REGEX,
+        hintNormalize: (value) =>
+          normalizeOracleFusionApplicationOrigin(value) ?? value.trim().toLowerCase(),
+        hintMessage:
+          'Expected the canonical Oracle-assigned HTTPS application URL with no path, port, query, or fragment.',
+      },
+      {
+        id: 'tokenUrl',
+        label: 'Access token URL',
+        placeholder: 'https://idcs-xxxx.identity.oraclecloud.com/oauth2/v1/token',
+        secret: false,
+        hintPattern: ORACLE_FUSION_TOKEN_URL_REGEX,
+        hintNormalize: (value) =>
+          normalizeOracleFusionTokenUrl(value) ?? value.trim().toLowerCase(),
+        hintMessage: 'Expected an OCI IAM identity-domain HTTPS URL ending in /oauth2/v1/token.',
+      },
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the confidential application client ID',
+        secret: false,
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the confidential application client secret',
+        secret: true,
+      },
+      {
+        id: 'scope',
+        label: 'Scope',
+        placeholder: 'urn:opc:resource:fa:... urn:opc:resource:consumer::all',
+        secret: false,
+        hint: 'Use the IDCS_CONNECTOR_CLIENT_SCOPE value from the Oracle Applications Cloud (Fusion) service.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/oracle_fusion_financials',
+    helpText:
+      'Activate a Client Credentials confidential application, configure the client ID as a Fusion Applications user, and grant it least-privilege Payables read access for the required business units.',
   },
 }
 

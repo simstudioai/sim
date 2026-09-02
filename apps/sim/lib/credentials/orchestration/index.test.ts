@@ -414,6 +414,53 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     )
   })
 
+  it('preserves Oracle Fusion endpoints and scope when reconnect rotates the secret', async () => {
+    mockCredential({
+      providerId: 'oracle-fusion-service-account',
+      displayName: 'Production Oracle Fusion',
+    })
+    mockIsClientCredentialAccountProviderId.mockReturnValue(true)
+    mockGetClientCredentialAccountDescriptor.mockReturnValue({
+      fields: [
+        { id: 'instanceUrl' },
+        { id: 'tokenUrl' },
+        { id: 'clientId' },
+        { id: 'clientSecret' },
+        { id: 'scope' },
+      ],
+    } as never)
+    mockStoredBlob({
+      type: 'client_credential_account',
+      instanceUrl: 'https://vision.fa.us2.oraclecloud.com',
+      tokenUrl: 'https://idcs-abc.identity.oraclecloud.com/oauth2/v1/token',
+      scope: 'urn:opc:resource:fa:scope',
+    })
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'oracle-fusion-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: 'Production Oracle Fusion',
+      auditMetadata: {},
+    })
+
+    await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      clientId: 'client-id',
+      clientSecret: 'rotated-secret',
+    })
+
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'oracle-fusion-service-account',
+      expect.objectContaining({
+        instanceUrl: 'https://vision.fa.us2.oraclecloud.com',
+        tokenUrl: 'https://idcs-abc.identity.oraclecloud.com/oauth2/v1/token',
+        scope: 'urn:opc:resource:fa:scope',
+        clientId: 'client-id',
+        clientSecret: 'rotated-secret',
+      })
+    )
+  })
+
   it('surfaces a rebuild failure as a validation error and writes nothing', async () => {
     mockCredential()
     mockStoredBlob({ type: 'service_account', client_email: OLD_EMAIL })

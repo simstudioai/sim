@@ -21,6 +21,9 @@ export type ServiceAccountFieldId =
   | 'authMethod'
   | 'privateKey'
   | 'username'
+  | 'instanceUrl'
+  | 'tokenUrl'
+  | 'scope'
 
 /**
  * Required create-body fields per service-account provider — the client-safe

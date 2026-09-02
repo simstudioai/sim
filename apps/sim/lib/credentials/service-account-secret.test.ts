@@ -43,7 +43,8 @@ vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
   getClientCredentialAccountMinter: (providerId: string) =>
     providerId === 'zoom-service-account' ||
     providerId === 'box-service-account' ||
-    providerId === 'netsuite-service-account'
+    providerId === 'netsuite-service-account' ||
+    providerId === 'oracle-fusion-service-account'
       ? mockClientCredentialMinter
       : undefined,
 }))
@@ -258,6 +259,45 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       providerId: 'netsuite-service-account',
       certificateId: 'certificate-id',
       privateKey: '-----BEGIN PRIVATE KEY-----key',
+    })
+  })
+
+  it('threads Oracle Fusion URLs and scope into the minter and encrypted blob', async () => {
+    mockClientCredentialMinter.mockResolvedValue({
+      accessToken: 'minted',
+      expiresInSeconds: 3600,
+      instanceUrl: 'https://vision.fa.us2.oraclecloud.com',
+      identity: {
+        displayName: 'Oracle Fusion Cloud vision.fa.us2.oraclecloud.com',
+        principal: { kind: 'tenant', id: 'vision.fa.us2.oraclecloud.com' },
+        auditMetadata: { oracleFusionHost: 'vision.fa.us2.oraclecloud.com' },
+      },
+    })
+
+    const result = await verifyAndBuildServiceAccountSecret('oracle-fusion-service-account', {
+      instanceUrl: ' https://vision.fa.us2.oraclecloud.com ',
+      tokenUrl: ' https://idcs-abc.identity.oraclecloud.com/oauth2/v1/token ',
+      clientId: ' client-id ',
+      clientSecret: ' client-secret ',
+      scope: ' urn:opc:resource:fa:scope ',
+    })
+
+    expect(mockClientCredentialMinter).toHaveBeenCalledWith({
+      orgId: '',
+      instanceUrl: 'https://vision.fa.us2.oraclecloud.com',
+      tokenUrl: 'https://idcs-abc.identity.oraclecloud.com/oauth2/v1/token',
+      clientId: 'client-id',
+      clientSecret: 'client-secret',
+      scope: 'urn:opc:resource:fa:scope',
+    })
+    expect(JSON.parse(result.encryptedServiceAccountKey)).toMatchObject({
+      type: 'client_credential_account',
+      providerId: 'oracle-fusion-service-account',
+      instanceUrl: 'https://vision.fa.us2.oraclecloud.com',
+      tokenUrl: 'https://idcs-abc.identity.oraclecloud.com/oauth2/v1/token',
+      clientId: 'client-id',
+      clientSecret: 'client-secret',
+      scope: 'urn:opc:resource:fa:scope',
     })
   })
 

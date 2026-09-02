@@ -358,6 +358,21 @@ const v2ServiceAccountCredentialFieldsSchema = z
       .describe('Write-only PEM private key.')
       .meta({ writeOnly: true }),
     username: z.string().trim().min(1).max(255).optional().describe('Provider run-as username.'),
+    instanceUrl: z
+      .string()
+      .trim()
+      .url()
+      .max(2048)
+      .optional()
+      .describe('Canonical provider application origin.'),
+    tokenUrl: z
+      .string()
+      .trim()
+      .url()
+      .max(2048)
+      .optional()
+      .describe('Customer-owned OAuth token endpoint.'),
+    scope: z.string().trim().min(1).max(4096).optional().describe('Provider OAuth scope string.'),
   })
   .strict()
 
@@ -597,6 +612,21 @@ const v2ServiceAccountSecretFieldsShape = {
     .describe('Write-only PEM private key.')
     .meta({ writeOnly: true }),
   username: z.string().trim().min(1).max(255).optional().describe('Provider run-as username.'),
+  instanceUrl: z
+    .string()
+    .trim()
+    .url()
+    .max(2048)
+    .optional()
+    .describe('Canonical provider application origin.'),
+  tokenUrl: z
+    .string()
+    .trim()
+    .url()
+    .max(2048)
+    .optional()
+    .describe('Customer-owned OAuth token endpoint.'),
+  scope: z.string().trim().min(1).max(4096).optional().describe('Provider OAuth scope string.'),
 } as const
 
 export const v2UpdateCredentialBodySchema = z

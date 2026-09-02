@@ -117,4 +117,33 @@ describe('parseClientCredentialAccountSecretBlob', () => {
       )
     ).toThrow(MALFORMED)
   })
+
+  it('round-trips every Oracle Fusion endpoint and scope field', () => {
+    const oracleBlob = blob({
+      providerId: 'oracle-fusion-service-account',
+      orgId: '',
+      instanceUrl: 'https://vision.fa.us2.oraclecloud.com',
+      tokenUrl: 'https://idcs-abc.identity.oraclecloud.com/oauth2/v1/token',
+      scope: 'urn:opc:resource:fa:scope',
+    })
+    expect(
+      parseClientCredentialAccountSecretBlob(oracleBlob, 'oracle-fusion-service-account')
+    ).toMatchObject({
+      instanceUrl: 'https://vision.fa.us2.oraclecloud.com',
+      tokenUrl: 'https://idcs-abc.identity.oraclecloud.com/oauth2/v1/token',
+      scope: 'urn:opc:resource:fa:scope',
+    })
+    expect(() =>
+      parseClientCredentialAccountSecretBlob(
+        blob({
+          providerId: 'oracle-fusion-service-account',
+          orgId: '',
+          instanceUrl: 'https://vision.fa.us2.oraclecloud.com',
+          tokenUrl: undefined,
+          scope: 'urn:opc:resource:fa:scope',
+        }),
+        'oracle-fusion-service-account'
+      )
+    ).toThrow(MALFORMED)
+  })
 })

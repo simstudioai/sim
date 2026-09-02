@@ -8210,6 +8210,24 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255
+          },
+          "instanceUrl": {
+            "description": "Canonical provider application origin.",
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          },
+          "tokenUrl": {
+            "description": "Customer-owned OAuth token endpoint.",
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          },
+          "scope": {
+            "description": "Provider OAuth scope string.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
           }
         },
         "additionalProperties": false,
