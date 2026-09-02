@@ -13,6 +13,7 @@ const {
   mockDeleteFile,
   mockEnqueueWorkspaceFileStorageCleanup,
   mockEnqueueWorkspaceFileLiveDocReconciliation,
+  mockFileNameExistsInWorkspaceFolder,
   mockGetWorkspaceWithOwner,
   mockHasCloudStorage,
   mockHeadObject,
@@ -27,6 +28,7 @@ const {
   mockProcessWorkspaceFileLiveDocReconciliationNow,
   mockResolveStorageBillingContext,
   mockResolveFolderPathFromIndex,
+  mockResolveRestoredFolderId,
   mockResolveWorkspaceFileFolderTarget,
   mockReplaceWorkspaceFileSecretProvenanceInTx,
   mockSaveCollabDocStateInTx,
@@ -36,6 +38,7 @@ const {
   mockDeleteFile: vi.fn(),
   mockEnqueueWorkspaceFileStorageCleanup: vi.fn(),
   mockEnqueueWorkspaceFileLiveDocReconciliation: vi.fn(),
+  mockFileNameExistsInWorkspaceFolder: vi.fn(),
   mockGetWorkspaceWithOwner: vi.fn(),
   mockHasCloudStorage: vi.fn(),
   mockHeadObject: vi.fn(),
@@ -50,6 +53,7 @@ const {
   mockProcessWorkspaceFileLiveDocReconciliationNow: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
   mockResolveFolderPathFromIndex: vi.fn(),
+  mockResolveRestoredFolderId: vi.fn(),
   mockResolveWorkspaceFileFolderTarget: vi.fn(),
   mockReplaceWorkspaceFileSecretProvenanceInTx: vi.fn(),
   mockSaveCollabDocStateInTx: vi.fn(),
@@ -104,7 +108,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
   assertWorkspaceFileFolderTarget: mockAssertWorkspaceFileFolderTarget,
   buildWorkspaceFileFolderPathMap: vi.fn(() => new Map()),
-  fileNameExistsInWorkspaceFolder: vi.fn(async () => false),
+  fileNameExistsInWorkspaceFolder: mockFileNameExistsInWorkspaceFolder,
   findWorkspaceFileFolderIdByPath: vi.fn(),
   getWorkspaceFileFolderPath: vi.fn(),
   listWorkspaceFileFolders: vi.fn(async () => []),
@@ -119,6 +123,7 @@ vi.mock('@/lib/folders/locks', () => ({
 vi.mock('@/lib/folders/queries', () => ({
   loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
   resolveFolderPathFromIndex: mockResolveFolderPathFromIndex,
+  resolveRestoredFolderId: mockResolveRestoredFolderId,
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -178,6 +183,8 @@ describe('workspace file metadata and storage accounting', () => {
     mockHeadObject.mockResolvedValue({ size: FILE_ROW.size })
     mockUploadFile.mockResolvedValue({ key: FILE_ROW.key })
     mockGetWorkspaceWithOwner.mockResolvedValue({ archivedAt: null })
+    mockFileNameExistsInWorkspaceFolder.mockResolvedValue(false)
+    mockResolveRestoredFolderId.mockResolvedValue(null)
     mockIncrementStorageUsageForBillingContextInTx.mockResolvedValue(10)
     mockInitializeWorkspaceFileSecretProvenanceInTx.mockResolvedValue(undefined)
     mockDecrementStorageUsageForBillingContextInTx.mockResolvedValue(undefined)
@@ -684,6 +691,56 @@ describe('workspace file metadata and storage accounting', () => {
 
     expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+  })
+
+  it('restores a file into its folder while that folder is still active', async () => {
+    const archivedFile = {
+      ...FILE_ROW,
+      folderId: 'folder-1',
+      deletedAt: new Date('2026-07-02T00:00:00.000Z'),
+    }
+    mockResolveRestoredFolderId.mockResolvedValueOnce('folder-1')
+    dbChainMockFns.limit.mockResolvedValueOnce([archivedFile])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...FILE_ROW, folderId: 'folder-1' }])
+
+    await restoreWorkspaceFile(FILE_ROW.workspaceId, FILE_ROW.id)
+
+    expect(mockResolveRestoredFolderId).toHaveBeenCalledWith(
+      'folder-1',
+      FILE_ROW.workspaceId,
+      'file'
+    )
+    // The name must be free in the folder the file lands in, not at the root.
+    expect(mockFileNameExistsInWorkspaceFolder).toHaveBeenCalledWith(
+      FILE_ROW.workspaceId,
+      FILE_ROW.originalName,
+      'folder-1'
+    )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ deletedAt: null, folderId: 'folder-1' })
+    )
+  })
+
+  it('re-roots a restored file whose folder has since been archived', async () => {
+    const archivedFile = {
+      ...FILE_ROW,
+      folderId: 'folder-1',
+      deletedAt: new Date('2026-07-02T00:00:00.000Z'),
+    }
+    mockResolveRestoredFolderId.mockResolvedValueOnce(null)
+    dbChainMockFns.limit.mockResolvedValueOnce([archivedFile])
+    dbChainMockFns.returning.mockResolvedValueOnce([FILE_ROW])
+
+    await restoreWorkspaceFile(FILE_ROW.workspaceId, FILE_ROW.id)
+
+    expect(mockFileNameExistsInWorkspaceFolder).toHaveBeenCalledWith(
+      FILE_ROW.workspaceId,
+      FILE_ROW.originalName,
+      null
+    )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ deletedAt: null, folderId: null })
+    )
   })
 
   it('uploads an overwrite before atomically swapping the locked row and exact delta', async () => {

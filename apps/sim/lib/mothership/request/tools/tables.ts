@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { parse as csvParse } from 'csv-parse/sync'
 import { executeCopilotReplaceProjectedWireRows } from '@/lib/mothership/application/table-commands'
 import { messageForCopilotTableError } from '@/lib/mothership/auth/table-delegation'
@@ -17,6 +18,24 @@ import { ProjectedWireRowsValidationError } from '@/lib/table/application/rows'
 const logger = createLogger('CopilotToolResultTables')
 
 const MAX_OUTPUT_TABLE_ROWS = 10_000
+/** Python has no top-level `return`; the sandbox reads the `__sim_result__` global instead. */
+const RETURN_ROWS_HINT = 'JavaScript: `return [...]`; Python: assign `__sim_result__ = [...]`'
+const ARRAY_OF_OBJECTS_ERROR = `outputTable requires the code to return an array of objects (${RETURN_ROWS_HINT})`
+
+/**
+ * Declared output files are written before the table step runs, so a table
+ * failure after them is a partial success. The error result keeps the written
+ * files so the caller sees what landed instead of re-running the code for it.
+ */
+function outputTableFailure(error: string, rawOutput: unknown): ToolCallResult {
+  const files = isRecordLike(rawOutput) && Array.isArray(rawOutput.files) ? rawOutput.files : []
+  if (files.length === 0) return { success: false, error }
+  return {
+    success: false,
+    error: `${error}. The declared output files were already written.`,
+    output: { files },
+  }
+}
 /**
  * Replaces a table's rows with wire rows keyed by column name. Translates the
  * projected values through one authorized application command. That command
@@ -94,37 +113,31 @@ export async function maybeWriteOutputToTable(
             rows = inner
           } else {
             span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.InvalidShape)
-            return {
-              success: false,
-              error: 'outputTable requires the code to return an array of objects',
-            }
+            return outputTableFailure(ARRAY_OF_OBJECTS_ERROR, rawOutput)
           }
         } else if (Array.isArray(rawOutput)) {
           rows = rawOutput
         } else {
           span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.InvalidShape)
-          return {
-            success: false,
-            error: 'outputTable requires the code to return an array of objects',
-          }
+          return outputTableFailure(ARRAY_OF_OBJECTS_ERROR, rawOutput)
         }
 
         span.setAttribute(TraceAttr.CopilotTableRowCount, rows.length)
 
         if (rows.length > MAX_OUTPUT_TABLE_ROWS) {
           span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.RowLimitExceeded)
-          return {
-            success: false,
-            error: `outputTable row limit exceeded: got ${rows.length}, max is ${MAX_OUTPUT_TABLE_ROWS}`,
-          }
+          return outputTableFailure(
+            `outputTable row limit exceeded: got ${rows.length}, max is ${MAX_OUTPUT_TABLE_ROWS}`,
+            rawOutput
+          )
         }
 
         if (rows.length === 0) {
           span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.EmptyRows)
-          return {
-            success: false,
-            error: 'outputTable requires at least one row — code returned an empty array',
-          }
+          return outputTableFailure(
+            'outputTable requires at least one row — code returned an empty array',
+            rawOutput
+          )
         }
 
         if (context.abortSignal?.aborted) {
@@ -133,7 +146,7 @@ export async function maybeWriteOutputToTable(
         const replaceResult = await replaceTableRowsFromWire(outputTable, rows, context)
         if (!replaceResult.success) {
           span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.InvalidShape)
-          return { success: false, error: replaceResult.error }
+          return outputTableFailure(replaceResult.error, rawOutput)
         }
 
         logger.info('Tool output written to table', {

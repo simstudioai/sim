@@ -51,15 +51,15 @@ function runtimeWith(responses: Record<string, unknown>): AgentCliRuntime {
   }
 }
 
-const EXPORT_PATH = '/api/v2/workflows/wf-1/export'
-const exportResponse = { data: { state: WORKFLOW_STATE } }
+const STATE_PATH = '/api/v2/workflows/wf-1/state'
+const stateResponse = { data: WORKFLOW_STATE }
 
 describe('workflows lint', () => {
   it('lints a workflow through the shared engine with the caller scoped as subject', async () => {
     const result = await runEngine(
       'workflows lint',
       ['wf-1'],
-      runtimeWith({ [EXPORT_PATH]: exportResponse }),
+      runtimeWith({ [STATE_PATH]: stateResponse }),
       {}
     )
     expect(result.stderr).toBe('')

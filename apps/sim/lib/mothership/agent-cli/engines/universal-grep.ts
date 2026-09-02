@@ -103,12 +103,12 @@ const MATERIALIZERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<Materia
     const list = await listAll(runtime, '/api/v2/workflows')
     return mapConcurrent(list, FETCH_CONCURRENCY, async (w) => {
       const id = str(w.id) ?? ''
-      // The export route scopes by workflow id alone (`query: noInputSchema`); a
-      // workspaceId here is an "Unrecognized key" — the other detail routes require it.
-      const exported = await runtime.client.request<{ data: { state: unknown } }>(
-        `/api/v2/workflows/${id}/export`
-      )
-      return render('workflows', id, str(w.name) ?? id, exported.data.state)
+      // The draft state, not the export: export is sanitized for sharing and nulls
+      // workspace-specific fields (a Table block's `tableId`), so a grep for a table id
+      // inside a workflow would miss it. The state route scopes by workflow id alone
+      // (`query: noInputSchema`); a workspaceId here is an "Unrecognized key".
+      const state = await runtime.client.request<{ data: unknown }>(`/api/v2/workflows/${id}/state`)
+      return render('workflows', id, str(w.name) ?? id, state.data)
     })
   },
   blocks: async (runtime) => {
@@ -178,9 +178,11 @@ const MATERIALIZERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<Materia
     })
     return texts.flatMap(({ file, text }) => {
       if (text === null) return []
-      const folder = (str(file.folderPath) ?? '').replace(/\/+$/, '')
+      // `folderPath` is `/` at the root and `/Ops` below it; the match header already
+      // supplies the `files/` prefix, so the label carries no slash of its own.
+      const folder = (str(file.folderPath) ?? '').replace(/^\/+|\/+$/g, '')
       const name = str(file.name) ?? str(file.id) ?? ''
-      const label = folder ? `${folder}/${name}` : `/${name}`
+      const label = folder ? `${folder}/${name}` : name
       return [{ scope: 'files' as const, id: str(file.id) ?? '', label, text }]
     })
   },
