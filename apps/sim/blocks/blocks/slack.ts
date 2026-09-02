@@ -2140,13 +2140,20 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           case 'list_channels': {
             baseParams.includePrivate = includePrivate !== 'false'
             baseParams.excludeArchived = true
-            const parsedLimit =
-              channelLimit === undefined || channelLimit === '' ? 100 : Number(channelLimit)
+            const hasChannelLimit =
+              channelLimit !== undefined &&
+              channelLimit !== null &&
+              (typeof channelLimit !== 'string' || Boolean(channelLimit.trim()))
+            const parsedLimit = hasChannelLimit ? Number(channelLimit) : 100
             if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 200) {
               throw new Error('Conversations per page must be an integer between 1 and 200')
             }
             baseParams.limit = parsedLimit
-            if (channelMaxPages !== undefined && channelMaxPages !== '') {
+            const hasChannelMaxPages =
+              channelMaxPages !== undefined &&
+              channelMaxPages !== null &&
+              (typeof channelMaxPages !== 'string' || Boolean(channelMaxPages.trim()))
+            if (hasChannelMaxPages) {
               const parsedMaxPages = Number(channelMaxPages)
               if (!Number.isInteger(parsedMaxPages) || parsedMaxPages < 1 || parsedMaxPages > 10) {
                 throw new Error('Max pages must be an integer between 1 and 10')

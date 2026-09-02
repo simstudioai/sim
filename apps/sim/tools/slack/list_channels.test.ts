@@ -191,6 +191,20 @@ describe('Slack list channels', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('uses defaults for unresolved optional pagination values', async () => {
+    fetchMock.mockResolvedValueOnce(
+      slackResponse({ ok: true, channels: [], response_metadata: { next_cursor: '' } })
+    )
+
+    await executeSlackListConversationsOperation({
+      ...BASE_PARAMS,
+      limit: null as never,
+      maxPages: ' ' as never,
+    })
+
+    expect(new URL(String(fetchMock.mock.calls[0]?.[0])).searchParams.get('limit')).toBe('100')
+  })
+
   it('fails fast on malformed successful responses and repeated cursors', async () => {
     fetchMock.mockResolvedValueOnce(slackResponse({ ok: true }))
     await expect(executeSlackListConversationsOperation(BASE_PARAMS)).rejects.toThrow(
