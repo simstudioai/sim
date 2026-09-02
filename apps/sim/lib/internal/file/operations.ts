@@ -28,6 +28,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
 import { buildFolderPath, parseFolderPath, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
+import { isWithinFolderIdScope } from '@/lib/folders/scope'
 import { ShareValidationError } from '@/lib/public-shares/share-manager'
 import {
   ArchiveError,
@@ -84,11 +85,8 @@ import { selectDirectoryEntries } from '@/lib/workspace-files/directory-listing'
 import { countLines } from '@/lib/workspace-files/edit-content'
 import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 import { resolveFolderIdsForPaths } from '@/lib/workspace-files/folder-path-selection'
-import {
-  isFileInWorkspaceFolderScope,
-  resolveWorkspaceFolderScope,
-} from '@/lib/workspace-files/folder-scope'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
+import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
 import { isWorkspaceAccessDeniedError } from '@/lib/workspaces/permissions/utils'
 import type { UserFile } from '@/executor/types'
 import {
@@ -658,7 +656,7 @@ async function expandFolderPathsToFiles(args: {
     }),
   ])
 
-  return files.filter((file) => isFileInWorkspaceFolderScope(file.folderId, scope))
+  return files.filter((file) => isWithinFolderIdScope(file.folderId, scope))
 }
 
 async function expandFolderPathsToFileIds(args: {

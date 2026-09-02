@@ -2,7 +2,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/folder-scope'
+import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
 import {
   compileFileSearchPattern,
   type FileSearchMode,

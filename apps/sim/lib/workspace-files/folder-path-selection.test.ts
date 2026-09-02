@@ -175,7 +175,7 @@ describe('the workspace root', () => {
     const result = resolveFolderIdsForPaths(folders, ['/'])
 
     expect(result.missingPath).toBeUndefined()
-    expect(result.includeRootFiles).toBe(true)
+    expect(result.includeRootItems).toBe(true)
   })
 
   it('takes every folder with it by default', () => {
@@ -188,12 +188,12 @@ describe('the workspace root', () => {
     const result = resolveFolderIdsForPaths(folders, ['/'], { includeSubfolders: false })
 
     expect([...(result.folderIds ?? [])]).toEqual([])
-    expect(result.includeRootFiles).toBe(true)
+    expect(result.includeRootItems).toBe(true)
   })
 
   it('is not implied by an ordinary folder scope', () => {
     const result = resolveFolderIdsForPaths(folders, ['/Reports'])
 
-    expect(result.includeRootFiles).toBe(false)
+    expect(result.includeRootItems).toBe(false)
   })
 })

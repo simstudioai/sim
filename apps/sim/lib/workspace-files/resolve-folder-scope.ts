@@ -1,33 +1,33 @@
 import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { FolderIdScope } from '@/lib/folders/scope'
 import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 import { resolveFolderIdsForPaths } from '@/lib/workspace-files/folder-path-selection'
 
-/** The folders a run may read from, plus whether files at the root are in scope. */
-export interface WorkspaceFolderScope {
-  folderIds: Set<string>
-  /** Files carrying no folder id are in scope. See {@link resolveFolderIdsForPaths}. */
-  includeRootFiles: boolean
-}
-
 /**
- * Resolves canonical folder paths to the folder scope a run may read from.
+ * Loads a workspace's folders and resolves canonical paths to the scope a run
+ * may read from.
+ *
+ * The scope itself is {@link FolderIdScope}, shared with the other resource
+ * types; this is the workspace-file IO around it, and lives here rather than in
+ * `lib/folders` because it reaches into the application layer, which a generic
+ * folder utility must not.
  *
  * Resolution happens at run time rather than when a block is configured:
  * choosing a folder means "whatever is in it when this runs", so a file added
  * tomorrow is read tomorrow. Expanding in the picker would freeze a snapshot.
  *
- * This loads folders only. Callers that need the files themselves filter their
- * own listing against the returned scope — the search path pushes it down into
- * SQL instead, which is why the folder half is separated from the file half.
+ * Folders only. Callers that need the files filter their own listing against
+ * the result; the search path pushes it into SQL instead, which is why the
+ * folder half is resolved separately from the file half.
  */
 export async function resolveWorkspaceFolderScope(args: {
   principal: Principal
   workspaceId: string
   folderPaths: readonly string[]
   includeSubfolders: boolean | undefined
-}): Promise<WorkspaceFolderScope> {
+}): Promise<FolderIdScope> {
   const { folders } = await listWorkspaceFileFoldersOperation.execute({
     principal: args.principal,
     input: { workspaceId: args.workspaceId },
@@ -45,13 +45,5 @@ export async function resolveWorkspaceFolderScope(args: {
     throw new OrchestrationError('not_found', `Folder not found: ${selection.missingPath}`)
   }
 
-  return { folderIds: selection.folderIds, includeRootFiles: selection.includeRootFiles }
-}
-
-/** Whether a file belongs to a resolved scope. Root files carry no folder id. */
-export function isFileInWorkspaceFolderScope(
-  folderId: string | null | undefined,
-  scope: WorkspaceFolderScope
-): boolean {
-  return folderId ? scope.folderIds.has(folderId) : scope.includeRootFiles
+  return { folderIds: selection.folderIds, includeRootItems: selection.includeRootItems }
 }

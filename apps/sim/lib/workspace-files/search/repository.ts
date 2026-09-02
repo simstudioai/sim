@@ -5,8 +5,8 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { and, desc, eq, inArray, isNull, lte, or, type SQL, sql } from 'drizzle-orm'
+import type { FolderIdScope } from '@/lib/folders/scope'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import type { WorkspaceFolderScope } from '@/lib/workspace-files/folder-scope'
 import {
   FILE_SEARCH_LOCK_TIMEOUT_MS,
   FILE_SEARCH_SEGMENT_CHARS,
@@ -51,7 +51,7 @@ interface SearchWorkspaceFileIndexInput {
   pattern: CompiledFileSearchPattern
   maxResults: number
   /** Restricts the search to one folder scope. Absent searches the workspace. */
-  folderScope?: WorkspaceFolderScope
+  folderScope?: FolderIdScope
   signal?: AbortSignal
 }
 
@@ -206,10 +206,10 @@ function buildSurroundingContext(
  * means every path resolved to a folder holding no subtree, and answering it
  * with an unrestricted search would leak the whole workspace.
  */
-function buildFolderPredicate(scope: WorkspaceFolderScope): SQL | undefined {
+function buildFolderPredicate(scope: FolderIdScope): SQL | undefined {
   const ids = [...scope.folderIds]
   const inScope = ids.length > 0 ? inArray(workspaceFiles.folderId, ids) : undefined
-  const atRoot = scope.includeRootFiles ? isNull(workspaceFiles.folderId) : undefined
+  const atRoot = scope.includeRootItems ? isNull(workspaceFiles.folderId) : undefined
   if (inScope && atRoot) return or(inScope, atRoot)
   return inScope ?? atRoot ?? sql`false`
 }

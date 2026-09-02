@@ -1,4 +1,9 @@
 import { parseFolderPath } from '@/lib/folders/paths'
+import {
+  type FolderIdScope,
+  type FolderScopeOptions,
+  isWithinFolderScope,
+} from '@/lib/folders/scope'
 import { collectFolderDepths } from '@/lib/folders/subtree'
 import { folderPathSegments } from '@/lib/workspace-files/folder-display-path'
 
@@ -11,8 +16,8 @@ export interface SelectableFolder {
 }
 
 export type FolderPathSelection =
-  | { folderIds: Set<string>; includeRootFiles: boolean; missingPath?: undefined }
-  | { folderIds?: undefined; includeRootFiles?: undefined; missingPath: string }
+  | (FolderIdScope & { missingPath?: undefined })
+  | { folderIds?: undefined; includeRootItems?: undefined; missingPath: string }
 
 /**
  * Resolves canonical folder paths to the folder ids a run should read from.
@@ -29,7 +34,7 @@ export type FolderPathSelection =
  * so the caller decides how a missing folder is reported. Silently dropping it
  * would turn a typo into a quietly smaller read.
  *
- * The workspace root is reported as `includeRootFiles` rather than as an entry
+ * The workspace root is reported as `includeRootItems` rather than as an entry
  * in `folderIds`, because the root is the *absence* of a folder id: a file at
  * the root carries `null`, so there is no id to match. Encoding it as a
  * sentinel string in a set of real ids would survive every type check and then
@@ -43,7 +48,7 @@ export function resolveFolderIdsForPaths(
   const includeSubfolders = options?.includeSubfolders !== false
   const maxDepth = includeSubfolders ? undefined : 0
   const folderIds = new Set<string>()
-  let includeRootFiles = false
+  let includeRootItems = false
 
   for (const folderPath of folderPaths) {
     const segments = parseFolderPath(folderPath)
@@ -54,7 +59,7 @@ export function resolveFolderIdsForPaths(
      * folder beneath it unless the scope is explicitly shallow.
      */
     if (segments.length === 0) {
-      includeRootFiles = true
+      includeRootItems = true
       if (includeSubfolders) {
         for (const folder of folders) folderIds.add(folder.id)
       }
@@ -76,7 +81,7 @@ export function resolveFolderIdsForPaths(
     }
   }
 
-  return { folderIds, includeRootFiles }
+  return { folderIds, includeRootItems }
 }
 
 /**
@@ -91,16 +96,11 @@ export function resolveFolderIdsForPaths(
 export function isFileInFolderScope(
   fileFolderPath: string | null | undefined,
   scopeCanonicalPath: string,
-  options?: { includeSubfolders?: boolean }
+  options?: FolderScopeOptions
 ): boolean {
-  const scope = parseFolderPath(scopeCanonicalPath)
-  if (scope.length === 0) return true
-
-  const fileSegments = fileFolderPath ? folderPathSegments(fileFolderPath) : []
-  if (options?.includeSubfolders === false) {
-    if (fileSegments.length !== scope.length) return false
-  } else if (fileSegments.length < scope.length) {
-    return false
-  }
-  return scope.every((segment, index) => fileSegments[index] === segment)
+  return isWithinFolderScope(
+    fileFolderPath ? folderPathSegments(fileFolderPath) : [],
+    parseFolderPath(scopeCanonicalPath),
+    options
+  )
 }
