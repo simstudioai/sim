@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import {
+  credential,
   document,
   knowledgeBase,
   knowledgeConnector,
@@ -10,7 +11,8 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
-import { and, eq, inArray, isNull, lte, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lte, notExists, sql } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
@@ -34,6 +36,7 @@ import {
   recordMemberObservations,
   removeMemberObservationsForDocuments,
   removeUnseenMemberObservations,
+  rewriteConnectorAcls,
 } from '@/lib/knowledge/connectors/member-observations'
 import { inviteWorkspaceMembersToCredentialGroup } from '@/lib/knowledge/connectors/member-provisioning'
 import {
@@ -86,10 +89,10 @@ const logger = createLogger('ConnectorMemberSyncEngine')
 const HYDRATION_OBSERVER_ATTEMPTS = 3
 /** A minted token is reused for this long before the member is re-minted. */
 const MEMBER_TOKEN_REUSE_MS = 45 * 60 * 1000
+/** Members whose tokens one run keeps at once; a memory backstop, not a working-set limit. */
+const MEMBER_TOKEN_CACHE_MAX = 10_000
 /** Overlap subtracted from a member's incremental watermark, covering source clock skew. */
 const INCREMENTAL_OVERLAP_MS = 5 * 60 * 1000
-/** Rows rewritten per statement while finishing a mode switch's ACL rewrite. */
-const ACCESS_REWRITE_BATCH_SIZE = 1000
 /** Member rows read per page while reconciling membership. */
 const MEMBER_CREDENTIAL_PAGE_SIZE = 100
 /** Backoff ceiling for one member's failure ladder. */
@@ -152,6 +155,11 @@ interface MemberListingOutcome {
    * retry cannot improve on, such as a capped or truncated source.
    */
   resumable: boolean
+  /**
+   * The member was the run's only claim and still ran out of budget: a listing
+   * no run can finish alone, so it backs off instead of re-dispatching forever.
+   */
+  exhaustedRunAlone: boolean
   suspect: boolean
   /** Cursor to store when this outcome lands: a value, null to close the feed, undefined to leave it. */
   changeCursor: string | null | undefined
@@ -283,6 +291,15 @@ export function buildMemberSyncFailureUpdate(
   }
 }
 
+/**
+ * When a member who completed is next due: exactly one interval on, with no
+ * jitter, so they are due whenever the connector's own (jittered) run lands.
+ * Null on a manual-only connector: with its next manual run.
+ */
+export function memberNextAttemptAt(now: Date, syncIntervalMinutes: number): Date | null {
+  return syncIntervalMinutes > 0 ? new Date(now.getTime() + syncIntervalMinutes * 60_000) : null
+}
+
 /** The next scheduled run: immediately while members remain due, else the interval plus jitter. */
 export function nextMemberSyncTime(
   now: Date,
@@ -351,14 +368,12 @@ function createMemberTokenCache(input: {
   connectorConfig: Pick<ConnectorConfig, 'auth'>
   credentialIdByMemberId: Map<string, string>
 }): MemberTokenCache {
-  const tokens = new Map<string, { accessToken: string; mintedAtMs: number }>()
   const { auth } = input.connectorConfig
   if (auth.mode !== 'oauth') throw new Error('Members mode requires an OAuth connector')
-  return {
-    async get(memberId) {
-      const cached = tokens.get(memberId)
-      if (cached && Date.now() - cached.mintedAtMs < MEMBER_TOKEN_REUSE_MS)
-        return cached.accessToken
+  const tokens = new LRUCache<string, string>({
+    max: MEMBER_TOKEN_CACHE_MAX,
+    ttl: MEMBER_TOKEN_REUSE_MS,
+    fetchMethod: async (memberId) => {
       const credentialId = input.credentialIdByMemberId.get(memberId)
       if (!credentialId) throw new Error(`Member ${memberId} has no credential in this run`)
       const minted = await mintKnowledgeConnectorMemberToken({
@@ -370,8 +385,14 @@ function createMemberTokenCache(input: {
         runId: input.run.runId,
       })
       input.run.result.credentialsAudited += 1
-      tokens.set(memberId, { accessToken: minted.accessToken, mintedAtMs: Date.now() })
       return minted.accessToken
+    },
+  })
+  return {
+    async get(memberId) {
+      const accessToken = await tokens.fetch(memberId)
+      if (!accessToken) throw new Error(`No token could be minted for member ${memberId}`)
+      return accessToken
     },
   }
 }
@@ -420,27 +441,7 @@ async function insertMemberSyncLog(runId: string, connectorId: string, startedAt
  * makes it visible again.
  */
 async function finishPendingAccessRewrite(run: MemberSyncRun): Promise<void> {
-  for (;;) {
-    await run.lease.beatIfDue()
-    const rewritten = await db
-      .update(document)
-      .set({ acl: [...EMPTY_ACL] })
-      .where(
-        and(
-          eq(
-            document.id,
-            sql`ANY(ARRAY(
-            SELECT ${document.id} FROM ${document}
-            WHERE ${document.connectorId} = ${run.connectorId}
-              AND cardinality(${document.acl}) > 0
-            LIMIT ${ACCESS_REWRITE_BATCH_SIZE}
-          ))`
-          )
-        )
-      )
-      .returning({ id: document.id })
-    if (rewritten.length < ACCESS_REWRITE_BATCH_SIZE) break
-  }
+  await rewriteConnectorAcls(run.connectorId, EMPTY_ACL, { beforeBatch: run.lease.beatIfDue })
   await db
     .update(knowledgeConnector)
     .set({ accessRewritePending: false, updatedAt: new Date() })
@@ -649,8 +650,11 @@ async function claimNextMember(run: MemberSyncRun): Promise<MemberRow | null> {
  * connector's next run" — a member that completed on a manual-only connector
  * — and must not keep the connector re-dispatching itself.
  */
-async function countDueMembers(run: MemberSyncRun): Promise<number> {
-  const [row] = await db
+async function countDueMembers(
+  run: MemberSyncRun,
+  binding: { credentialGroupOptionId: string }
+): Promise<number> {
+  const [due] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(knowledgeConnectorMember)
     .where(
@@ -660,7 +664,30 @@ async function countDueMembers(run: MemberSyncRun): Promise<number> {
         lte(knowledgeConnectorMember.nextAttemptAt, new Date())
       )
     )
-  return row?.count ?? 0
+  /** An account that connected while this run was listing has no member row yet. */
+  const [unenrolled] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(credential)
+    .where(
+      and(
+        eq(credential.workspaceId, run.workspaceId),
+        eq(credential.credentialGroupOptionId, binding.credentialGroupOptionId),
+        eq(credential.type, 'managed_oauth'),
+        eq(credential.managedOauthStatus, 'active'),
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(knowledgeConnectorMember)
+            .where(
+              and(
+                eq(knowledgeConnectorMember.connectorId, run.connectorId),
+                eq(knowledgeConnectorMember.credentialId, credential.id)
+              )
+            )
+        )
+      )
+    )
+  return (due?.count ?? 0) + (unenrolled?.count ?? 0)
 }
 
 async function recordMemberFailure(
@@ -865,6 +892,7 @@ async function applyMemberListing(
     if (documentId) seenDocumentIds.push(documentId)
   }
   const removesAllowed = outcome.mode === 'full' && outcome.complete && !outcome.suspect
+  const exhaustedFailures = (outcome.member.consecutiveFailures ?? 0) + 1
   const now = new Date()
 
   await db.transaction(async (tx) => {
@@ -898,12 +926,18 @@ async function applyMemberListing(
     await tx
       .update(knowledgeConnectorMember)
       .set({
-        consecutiveFailures: 0,
-        lastError: null,
+        ...(outcome.exhaustedRunAlone
+          ? {
+              consecutiveFailures: exhaustedFailures,
+              lastError: 'Listing did not finish within one run',
+            }
+          : { consecutiveFailures: 0, lastError: null }),
         ...(outcome.mode === 'full' ? { lastListedCount: outcome.listedCount } : {}),
-        nextAttemptAt: outcome.resumable
-          ? now
-          : nextMemberSyncTime(now, syncIntervalMinutes, false),
+        nextAttemptAt: outcome.exhaustedRunAlone
+          ? new Date(now.getTime() + memberFailureBackoffMs(exhaustedFailures, syncIntervalMinutes))
+          : outcome.resumable
+            ? now
+            : memberNextAttemptAt(now, syncIntervalMinutes),
         ...(removesAllowed
           ? { lastCompleteListingAt: now, memberSyncedThrough: outcome.listingStartedAt }
           : {}),
@@ -1372,6 +1406,8 @@ export async function executeMemberSync(
         listedCount: admitted.seenExternalIds.size,
         complete: listed.complete,
         resumable: listed.resumable,
+        exhaustedRunAlone:
+          listed.resumable && result.membersClaimed === 1 && Date.now() >= run.deadlineAt,
         suspect,
         /** A doubted listing does not open the feed either: the next full listing decides. */
         changeCursor: suspect ? undefined : listed.changeCursor,
@@ -1476,7 +1512,7 @@ export async function executeMemberSync(
       lease: run.lease,
     })
 
-    result.membersRemaining = (await countDueMembers(run)) > 0
+    result.membersRemaining = (await countDueMembers(run, binding)) > 0
     const landed = await completeMemberSync(run, connector.syncIntervalMinutes)
     if (!landed) {
       logger.warn(
@@ -1500,7 +1536,12 @@ export async function executeMemberSync(
     }
     if (error instanceof ConnectorDeletedException) {
       logger.info('Connector deleted during member sync', { connectorId })
-      await failMemberSyncLog(runId, result, 'Connector deleted during sync').catch(() => undefined)
+      await failMemberSyncLog(runId, result, 'Connector deleted during sync').catch((logError) =>
+        logger.error('Failed to record member sync failure', {
+          connectorId,
+          error: getErrorMessage(logError),
+        })
+      )
       return skipped(result, 'connector_deleted_during_sync')
     }
     if (error instanceof MemberBindingGoneError) {

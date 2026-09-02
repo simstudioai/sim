@@ -161,6 +161,7 @@ async function markSyncPending(connectorId: string): Promise<string | null> {
     .where(
       and(
         eq(knowledgeConnector.id, connectorId),
+        eq(knowledgeConnector.accessMode, 'workspace'),
         inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
         isNull(knowledgeConnector.syncLockToken),
         connectorIsLive()
@@ -346,7 +347,7 @@ export async function dispatchSync(
     })
     return { queued: false, reason: 'Connector has been archived or deleted' }
   }
-  if (row.connectorAccessMode !== undefined && row.connectorAccessMode !== 'workspace') {
+  if (row.connectorAccessMode !== 'workspace') {
     logger.info('Skipping sync dispatch: connector syncs per member', { connectorId, requestId })
     return {
       queued: false,

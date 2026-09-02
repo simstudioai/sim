@@ -96,9 +96,9 @@ async function assertCurrentPolicy(
   return policy
 }
 
-/** Builds a provider authorization URL after persisting a provider-bound one-time attempt. */
 const logger = createLogger('CredentialGroupOAuth')
 
+/** Builds a provider authorization URL after persisting a provider-bound one-time attempt. */
 export async function startCredentialGroupOAuth(
   context: CredentialGroupOAuthContext,
   invitationToken: string
@@ -303,18 +303,20 @@ async function persistGrant(
    * their next run; queue one now so their documents arrive within minutes.
    * Loaded lazily: credential groups do not otherwise depend on knowledge.
    */
-  const { dispatchMemberSyncsForCredentialOption } = await import(
-    '@/lib/knowledge/connectors/member-queue'
-  )
-  await dispatchMemberSyncsForCredentialOption({
-    workspaceId: context.workspaceId,
-    credentialGroupOptionId: context.option.id,
-  }).catch((error) => {
+  try {
+    const { dispatchMemberSyncsForCredentialOption } = await import(
+      '@/lib/knowledge/connectors/member-queue'
+    )
+    await dispatchMemberSyncsForCredentialOption({
+      workspaceId: context.workspaceId,
+      credentialGroupOptionId: context.option.id,
+    })
+  } catch (error) {
     logger.warn('Failed to queue member syncs after an account connected', {
       credentialGroupOptionId: context.option.id,
       error: getErrorMessage(error),
     })
-  })
+  }
   return completion
 }
 

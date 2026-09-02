@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, exists, isNull, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
+import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
 import { EMPTY_ACL, WORKSPACE_ACL } from '@/lib/knowledge/access/tokens'
 import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
@@ -46,16 +47,7 @@ export async function restoreWorkspaceDocumentAcls(
   executor: DbOrTx,
   connectorId: string
 ): Promise<number> {
-  /**
-   * The comparison array is assembled from scalar binds: the shared pool runs
-   * with `fetch_types: false`, under which a JS array bound as one parameter
-   * fails at execution (see packages/db/db.ts). The write itself goes through
-   * the typed column, which encodes the array literal itself.
-   */
-  const workspaceAcl = sql`ARRAY[${sql.join(
-    WORKSPACE_ACL.map((token) => sql`${token}`),
-    sql`, `
-  )}]::text[]`
+  const workspaceAcl = textArrayLiteral(WORKSPACE_ACL)
   const restored = await executor
     .update(document)
     .set({ acl: [...WORKSPACE_ACL] })
@@ -407,8 +399,8 @@ export async function persistSkippedRetryHashes(
 }
 
 /**
- * Upload content to storage as a .txt file, create a document record,
- * and trigger processing via the existing pipeline.
+ * Stores the document's bytes (see {@link connectorStoredArtifact}) and inserts
+ * its `pending` row; the caller dispatches processing.
  */
 export async function addDocument(
   knowledgeBaseId: string,
@@ -488,10 +480,7 @@ export async function addDocument(
   }
 }
 
-/**
- * Update an existing connector-sourced document with new content.
- * Updates in-place to avoid unique constraint violations on (connectorId, externalId).
- */
+/** The row a connector-owned document write may target: live, connector-owned, and not user-excluded. */
 export function connectorDocumentSyncTarget(
   documentId: string,
   knowledgeBaseId: string,
@@ -506,6 +495,10 @@ export function connectorDocumentSyncTarget(
   )
 }
 
+/**
+ * Update an existing connector-sourced document with new content.
+ * Updates in-place to avoid unique constraint violations on (connectorId, externalId).
+ */
 export async function updateDocument(
   existingDocId: string,
   knowledgeBaseId: string,
@@ -602,7 +595,6 @@ export async function updateDocument(
     throw error
   }
 
-  // Clean up old storage file and its ownership binding
   if (oldFileUrl) {
     try {
       const urlPath = new URL(oldFileUrl, 'http://localhost').pathname

@@ -2,13 +2,11 @@
 
 import type { ReactNode } from 'react'
 import { ButtonGroup, ButtonGroupItem, ChipCombobox, ChipModalField } from '@sim/emcn'
-import Link from 'next/link'
 import {
   type ConnectorMemberGroupOptions,
   decodeConnectorMemberGroupOption,
   encodeConnectorMemberGroupOption,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-member-group-options'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import type { ConnectorMeta } from '@/connectors/types'
 
 /** What the caller chose; `members` may name the option the connector crawls with. */
@@ -19,7 +17,6 @@ export interface ConnectorAccessSelection {
 }
 
 interface ConnectorAccessFieldProps {
-  workspaceId: string
   connectorConfig: ConnectorMeta
   value: ConnectorAccessSelection
   onChange: (value: ConnectorAccessSelection) => void
@@ -30,6 +27,11 @@ interface ConnectorAccessFieldProps {
   disabled?: boolean
   /** Whether per-member access may be chosen; false leaves only the way back to workspace access. */
   allowMembers?: boolean
+  /**
+   * Whether the connector already syncs per member, so any matching group may
+   * be chosen, not only when several make the choice necessary.
+   */
+  canRebind?: boolean
   /** Rendered under the selection, for a caller that applies the change with its own control. */
   footer?: ReactNode
 }
@@ -43,7 +45,6 @@ interface ConnectorAccessFieldProps {
  * several matching groups is asked which one to use.
  */
 export function ConnectorAccessField({
-  workspaceId,
   connectorConfig,
   value,
   onChange,
@@ -51,11 +52,9 @@ export function ConnectorAccessField({
   canAdmin,
   disabled = false,
   allowMembers = true,
+  canRebind = false,
   footer,
 }: ConnectorAccessFieldProps) {
-  const { features } = useWorkspaceHostContext()
-  const credentialGroupsAvailable = features?.credentialGroups === true
-
   if (!groupOptions.supported) return null
 
   if (!canAdmin) {
@@ -79,11 +78,7 @@ export function ConnectorAccessField({
       ? encodeConnectorMemberGroupOption(value.credentialGroupId, value.credentialGroupOptionId)
       : undefined
   const { options, needsChoice, isLoading, error } = groupOptions
-  const membersHint = !credentialGroupsAvailable
-    ? 'Per-member access needs Credential Groups, which are not available on this plan.'
-    : !allowMembers
-      ? 'Per-member access is turned off for this workspace.'
-      : undefined
+  const showPicker = needsChoice || (canRebind && options.length > 0)
 
   return (
     <ChipModalField
@@ -92,8 +87,10 @@ export function ConnectorAccessField({
       error={error?.message}
       hint={
         value.accessMode === 'members'
-          ? 'Each member sees only the documents their own account can open. Scheduled, API, and chat runs see workspace-visible documents only.'
-          : membersHint
+          ? `Everyone in the workspace is invited by email to connect their ${connectorConfig.name} account when the first sync starts. Each member sees only the documents their own account can open; scheduled, API, and chat runs see workspace-visible documents only.`
+          : allowMembers
+            ? undefined
+            : 'Per-member access is turned off for this workspace.'
       }
     >
       <div className='flex flex-col gap-2'>
@@ -106,47 +103,23 @@ export function ConnectorAccessField({
           <ButtonGroupItem value='workspace' disabled={disabled}>
             Workspace
           </ButtonGroupItem>
-          <ButtonGroupItem
-            value='members'
-            disabled={disabled || !allowMembers || !credentialGroupsAvailable}
-          >
+          <ButtonGroupItem value='members' disabled={disabled || !allowMembers}>
             Per member
           </ButtonGroupItem>
         </ButtonGroup>
 
-        {value.accessMode === 'members' && (
-          <>
-            {needsChoice && (
-              <ChipCombobox
-                options={options}
-                value={selectedValue}
-                onChange={(next) => {
-                  const decoded = decodeConnectorMemberGroupOption(next)
-                  if (decoded) onChange({ accessMode: 'members', ...decoded })
-                }}
-                placeholder='Choose which credential group members connect through'
-                isLoading={isLoading}
-                disabled={disabled || Boolean(error)}
-              />
-            )}
-            <p className='text-[var(--text-muted)] text-caption leading-snug'>
-              {options.length === 1
-                ? `Members connect through ${options[0].label}. `
-                : options.length === 0
-                  ? `A credential group named ${connectorConfig.name} is created. `
-                  : ''}
-              Everyone in the workspace is invited by email to connect their own{' '}
-              {connectorConfig.name} account as the first sync starts, and people who join later are
-              invited automatically. Manage members in{' '}
-              <Link
-                href={`/workspace/${workspaceId}/settings/credential-groups`}
-                className='text-[var(--text-primary)] underline underline-offset-2'
-              >
-                Settings
-              </Link>
-              .
-            </p>
-          </>
+        {value.accessMode === 'members' && showPicker && (
+          <ChipCombobox
+            options={options}
+            value={selectedValue}
+            onChange={(next) => {
+              const decoded = decodeConnectorMemberGroupOption(next)
+              if (decoded) onChange({ accessMode: 'members', ...decoded })
+            }}
+            placeholder='Choose which credential group members connect through'
+            isLoading={isLoading}
+            disabled={disabled || Boolean(error)}
+          />
         )}
 
         {footer}

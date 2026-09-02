@@ -378,8 +378,9 @@ function isCapFieldSet(value: unknown): boolean {
 }
 
 /**
- * The source config without its listing caps. A cap has no meaning once a
- * connector syncs per member, so the switch clears it rather than refusing a
+ * The source config with its listing caps set to 0, which every connector
+ * reads as unlimited (an absent cap falls back to a connector's default). A
+ * cap has no meaning once a connector syncs per member, so the switch clears it rather than refusing a
  * connector the admin can no longer see the field on.
  */
 export function stripListingCapFields(
@@ -389,7 +390,7 @@ export function stripListingCapFields(
   const capFieldIds = connectorMeta.permissionScopedListing?.capFieldIds ?? []
   if (capFieldIds.length === 0) return sourceConfig
   const stripped = { ...sourceConfig }
-  for (const fieldId of capFieldIds) delete stripped[fieldId]
+  for (const fieldId of capFieldIds) stripped[fieldId] = 0
   return stripped
 }
 

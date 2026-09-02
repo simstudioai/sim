@@ -248,7 +248,7 @@ export async function requirePersonalApiKeysAllowed(
  * raising a role, rather than chasing an admin about a group setting that is
  * not why they were refused.
  */
-async function requireCurrentHumanRole<C extends WorkspaceAuthorizationContext>(
+export async function requireCurrentHumanRole<C extends WorkspaceAuthorizationContext>(
   userId: string,
   context: C,
   required: PermissionType,
@@ -271,14 +271,6 @@ async function requireCurrentHumanRole<C extends WorkspaceAuthorizationContext>(
  * enrolled member is an admin decision even though creating a connector is
  * not — so the operation keeps its role and the variant asserts its own.
  */
-export async function requireWorkspaceRole<C extends WorkspaceAuthorizationContext>(
-  userId: string,
-  context: C,
-  required: PermissionType
-): Promise<void> {
-  await requireCurrentHumanRole(userId, context, required)
-}
-
 async function requireCurrentHumanAccess<C extends WorkspaceAuthorizationContext>(
   userId: string,
   context: C,

@@ -36,10 +36,16 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
-import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
+import {
+  BROWSE_WITH_HINT,
+  SYNC_INTERVALS,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import { useConnectorMemberGroupOptions } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-member-group-options'
+import {
+  memberCapFieldIds,
+  useConnectorMemberGroupOptions,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-member-group-options'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks'
@@ -104,11 +110,9 @@ export function AddConnectorModal({
   /** Several groups collect this provider's accounts: the admin has to say which. */
   const membersChoiceOpen =
     isMembersMode && groupOptions.needsChoice && !access.credentialGroupOptionId
-  /** Fields a per-member crawl refuses: a cap would hide part of a member's corpus. */
-  const memberCapFieldIds = useMemo(
-    () =>
-      new Set(isMembersMode ? (connectorConfig?.permissionScopedListing?.capFieldIds ?? []) : []),
-    [isMembersMode, connectorConfig]
+  const hiddenCapFieldIds = useMemo(
+    () => memberCapFieldIds(connectorConfig, access.accessMode),
+    [connectorConfig, access.accessMode]
   )
   /** True when the connector declares its key optional (public sources need none). */
   const isApiKeyOptional =
@@ -202,7 +206,7 @@ export function AddConnectorModal({
     for (const field of connectorConfig.configFields) {
       if (!field.required) continue
       if (!isFieldVisible(field)) continue
-      if (memberCapFieldIds.has(field.id)) continue
+      if (hiddenCapFieldIds.has(field.id)) continue
       if (!isFieldPopulated(field)) return false
     }
     return true
@@ -211,7 +215,7 @@ export function AddConnectorModal({
     isApiKeyMode,
     isMembersMode,
     membersChoiceOpen,
-    memberCapFieldIds,
+    hiddenCapFieldIds,
     isApiKeyOptional,
     apiKeyValue,
     effectiveCredentialId,
@@ -226,7 +230,7 @@ export function AddConnectorModal({
 
     const resolvedConfig: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(resolveSourceConfig())) {
-      if (memberCapFieldIds.has(key)) continue
+      if (hiddenCapFieldIds.has(key)) continue
       if (Array.isArray(value)) {
         if (value.length > 0) resolvedConfig[key] = value
       } else if (typeof value === 'string') {
@@ -345,7 +349,6 @@ export function AddConnectorModal({
             <>
               {!isApiKeyMode && memberAccessAvailable && (
                 <ConnectorAccessField
-                  workspaceId={workspaceId}
                   connectorConfig={connectorConfig}
                   value={access}
                   onChange={setAccess}
@@ -382,11 +385,7 @@ export function AddConnectorModal({
                 <ChipModalField
                   type='custom'
                   title={isMembersMode ? 'Browse with' : 'Account'}
-                  hint={
-                    isMembersMode
-                      ? `Only used to pick folders and spaces below. The connector syncs as each member, not as this account.`
-                      : undefined
-                  }
+                  hint={isMembersMode ? BROWSE_WITH_HINT : undefined}
                 >
                   <ChipCombobox
                     options={[
@@ -425,7 +424,7 @@ export function AddConnectorModal({
                 canonicalGroups={canonicalGroups}
                 canonicalModes={canonicalModes}
                 isFieldVisible={(field) =>
-                  isFieldVisible(field) && !memberCapFieldIds.has(field.id)
+                  isFieldVisible(field) && !hiddenCapFieldIds.has(field.id)
                 }
                 onFieldChange={handleFieldChange}
                 onToggleCanonicalMode={toggleCanonicalMode}
@@ -502,7 +501,13 @@ export function AddConnectorModal({
           <ChipModalFooter
             onCancel={() => onOpenChange(false)}
             primaryAction={{
-              label: isCreating ? 'Connecting…' : 'Connect & Sync',
+              label: isCreating
+                ? isMembersMode
+                  ? 'Creating…'
+                  : 'Connecting…'
+                : isMembersMode
+                  ? 'Create & Invite'
+                  : 'Connect & Sync',
               onClick: handleSubmit,
               disabled: !canSubmit || isCreating,
             }}

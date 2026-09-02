@@ -15,8 +15,17 @@ import type { KnowledgeAccessScope, SystemAccessScope } from '@/lib/knowledge/ac
 export function knowledgeAccessCondition(scope: KnowledgeAccessScope | SystemAccessScope): SQL {
   if (scope.kind === 'system') return sql`true`
   if (scope.tokens.length === 0) return sql`false`
-  return sql`${document.acl} && ARRAY[${sql.join(
-    scope.tokens.map((token) => sql`${token}`),
+  return sql`${document.acl} && ${textArrayLiteral(scope.tokens)}`
+}
+
+/**
+ * A `text[]` literal assembled from scalar binds, for comparing against an
+ * ACL column. Every place that compares ACLs builds its array this way, for
+ * the `fetch_types: false` reason above.
+ */
+export function textArrayLiteral(values: readonly string[]): SQL {
+  return sql`ARRAY[${sql.join(
+    values.map((value) => sql`${value}`),
     sql`, `
   )}]::text[]`
 }

@@ -5454,7 +5454,7 @@
       "checkConstraints": {
         "doc_acl_token_shape_check": {
           "name": "doc_acl_token_shape_check",
-          "value": "array_position(\"document\".\"acl\", NULL) IS NULL AND (cardinality(\"document\".\"acl\") = 0 OR array_to_string(\"document\".\"acl\", E'\\n') ~ '^((ws|pub|link|u:[^\\nA-Z]+@[^\\nA-Z]+|[gs]:[^\\n:]+:[^\\n:]+:[^\\n]+)(\\n(ws|pub|link|u:[^\\nA-Z]+@[^\\nA-Z]+|[gs]:[^\\n:]+:[^\\n:]+:[^\\n]+))*)$')"
+          "value": "array_position(\"document\".\"acl\", NULL) IS NULL AND (cardinality(\"document\".\"acl\") = 0 OR (cardinality(\"document\".\"acl\") = array_length(string_to_array(array_to_string(\"document\".\"acl\", E'\\n'), E'\\n'), 1) AND array_to_string(\"document\".\"acl\", E'\\n') ~ '^((ws|pub|link|u:[^\\nA-Z]+@[^\\nA-Z]+|[gs]:[^\\n:]+:[^\\n:]+:[^\\n]+)(\\n(ws|pub|link|u:[^\\nA-Z]+@[^\\nA-Z]+|[gs]:[^\\n:]+:[^\\n:]+:[^\\n]+))*)$'))"
         }
       },
       "isRLSEnabled": false

@@ -686,8 +686,8 @@ export function classifySuspectListing(
 /**
  * Decides whether a suspect listing may still reconcile deletions.
  *
- * A suspect listing is only acted on after a consecutive suspect observation, so a
- * consecutive sync, so a single transient upstream fault can never remove
+ * A suspect listing is only acted on after a consecutive sync observes the same
+ * thing, so a single transient upstream fault can never remove
  * documents — not even reversibly, since a soft delete hides them from search
  * immediately. A genuinely emptied source keeps reconciling: its second sync
  * corroborates the first and tombstones everything, and a later sync — once the
@@ -1666,7 +1666,6 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
       }
     }
 
-    // Record all skipped (oversized) docs in this batch in one bulk insert.
     if (skipOps.length > 0) {
       try {
         const recorded = await persistSkippedDocuments(
@@ -1809,13 +1808,6 @@ export async function reconcileDeletions(input: ReconcileDeletionsInput): Promis
   let reconcileDeletionsAllowed = shouldReconcileDeletions(isIncremental, syncContext, fullSync)
 
   /**
-   * Backstop shared by every connector: a listing that reports (almost)
-   * nothing while this connector still owns a real corpus is treated as a
-   * fault, not as evidence of deletion, until a consecutive sync sees the
-   * same thing. Only evaluated when reconciliation would otherwise run, so
-   * healthy syncs pay nothing and no existing gate is loosened.
-   */
-  /**
    * Counted over deletion-eligible rows on both sides. The live read filters
    * excluded documents in SQL; the tombstoned read only projects the flag, so
    * excluded tombstones must be dropped here or they inflate a denominator
@@ -1828,6 +1820,13 @@ export async function reconcileDeletions(input: ReconcileDeletionsInput): Promis
    * are absent from the live read, so they must not inflate the numerator.
    */
   const listedDocCount = countNonExcludedListed(seenExternalIds, excludedExternalIds)
+  /**
+   * Backstop shared by every connector: a listing that reports (almost)
+   * nothing while this connector still owns a real corpus is treated as a
+   * fault, not as evidence of deletion, until a consecutive sync sees the
+   * same thing. Only evaluated when reconciliation would otherwise run, so
+   * healthy syncs pay nothing and no existing gate is loosened.
+   */
   if (reconcileDeletionsAllowed && classifySuspectListing(listedDocCount, ownedDocCount)) {
     const previousObservation = await loadPreviousListingObservation(
       connectorId,

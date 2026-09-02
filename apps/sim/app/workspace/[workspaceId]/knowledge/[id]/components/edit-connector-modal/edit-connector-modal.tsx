@@ -27,14 +27,20 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
-import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
+import {
+  BROWSE_WITH_HINT,
+  SYNC_INTERVALS,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import type {
   ConfigFieldMap,
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import { useConnectorMemberGroupOptions } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-member-group-options'
+import {
+  memberCapFieldIds,
+  useConnectorMemberGroupOptions,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-member-group-options'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { withBrandIcon } from '@/blocks/brand-icon'
@@ -259,11 +265,7 @@ export function EditConnectorModal({
   /** A disabled member sync is re-enabled by applying the current binding again. */
   const canReenableMemberSync =
     !accessDirty && connector.accessMode === 'members' && connector.memberSyncStatus === 'disabled'
-  const memberCapFieldIds = new Set(
-    access.accessMode === 'members'
-      ? (connectorConfig?.permissionScopedListing?.capFieldIds ?? [])
-      : []
-  )
+  const hiddenCapFieldIds = memberCapFieldIds(connectorConfig, access.accessMode)
 
   const persistedCanonicalModes = useMemo(
     () => readPersistedCanonicalModes(connector.sourceConfig),
@@ -394,13 +396,14 @@ export function EditConnectorModal({
         {activeTab === 'settings' ? (
           <SettingsTab
             connectorConfig={connectorConfig}
+            persistedAccessMode={connector.accessMode === 'members' ? 'members' : 'workspace'}
             sourceConfig={sourceConfig}
             credentialId={connector.credentialId}
             canonicalGroups={canonicalGroups}
             canonicalModes={canonicalModes}
             onToggleCanonicalMode={toggleCanonicalMode}
             onFieldChange={handleFieldChange}
-            isFieldVisible={(field) => isFieldVisible(field) && !memberCapFieldIds.has(field.id)}
+            isFieldVisible={(field) => isFieldVisible(field) && !hiddenCapFieldIds.has(field.id)}
             syncInterval={syncInterval}
             setSyncInterval={setSyncInterval}
             hasMaxAccess={hasMaxAccess}
@@ -445,6 +448,8 @@ export function EditConnectorModal({
 
 interface SettingsTabProps {
   connectorConfig: ConnectorMeta | null
+  /** The mode the connector is saved in, which the draft `access` may differ from. */
+  persistedAccessMode: 'workspace' | 'members'
   sourceConfig: ConfigFieldMap
   credentialId: string | null
   canonicalGroups: Map<string, ConnectorConfigField[]>
@@ -477,6 +482,7 @@ interface SettingsTabProps {
 
 function SettingsTab({
   connectorConfig,
+  persistedAccessMode,
   sourceConfig,
   credentialId,
   canonicalGroups,
@@ -511,6 +517,8 @@ function SettingsTab({
       ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
       : null
   const syncsPerMember = access.accessMode === 'members'
+  /** Staying per member but through a different group. */
+  const isRebind = accessDirty && persistedAccessMode === 'members' && syncsPerMember
   const { data: rawCredentials = [], isLoading: credentialsLoading } = useOAuthCredentials(
     providerId ?? undefined,
     { enabled: (needsWorkspaceCredential || syncsPerMember) && Boolean(providerId), workspaceId }
@@ -533,12 +541,12 @@ function SettingsTab({
     <>
       {connectorConfig && connectorConfig.auth.mode === 'oauth' && showAccessField && (
         <ConnectorAccessField
-          workspaceId={workspaceId}
           connectorConfig={connectorConfig}
           value={access}
           onChange={onAccessChange}
           canAdmin={canAdmin}
           allowMembers={allowMembers}
+          canRebind={persistedAccessMode === 'members'}
           groupOptions={groupOptions}
           disabled={isSaving}
           footer={
@@ -581,18 +589,22 @@ function SettingsTab({
                   >
                     {isSwitchingAccess
                       ? 'Switching…'
-                      : access.accessMode === 'members'
-                        ? 'Switch to per-member access'
-                        : 'Switch to workspace access'}
+                      : isRebind
+                        ? 'Change credential group'
+                        : access.accessMode === 'members'
+                          ? 'Switch to per-member access'
+                          : 'Switch to workspace access'}
                   </Button>
                   <Button variant='default' size='sm' onClick={onResetAccess} disabled={isSaving}>
                     Cancel
                   </Button>
                 </div>
                 <p className='text-[var(--text-muted)] text-caption leading-snug'>
-                  {access.accessMode === 'members'
-                    ? 'Everyone in the workspace is invited to connect their account. Documents stay hidden until members connect and sync; listing caps are cleared.'
-                    : 'Every workspace member can read every synced document once the next sync completes.'}
+                  {isRebind
+                    ? 'Members of the previous group lose access; members of the new group are invited to connect.'
+                    : access.accessMode === 'members'
+                      ? 'Everyone in the workspace is invited to connect their account. Documents stay hidden until members connect and sync; listing caps are cleared.'
+                      : 'Every workspace member can read every synced document once the next sync completes.'}
                 </p>
               </div>
             ) : undefined
@@ -601,11 +613,7 @@ function SettingsTab({
       )}
 
       {connectorConfig && syncsPerMember && (
-        <ChipModalField
-          type='custom'
-          title='Browse with'
-          hint='Only used to pick folders and spaces below. The connector syncs as each member, not as this account.'
-        >
+        <ChipModalField type='custom' title='Browse with' hint={BROWSE_WITH_HINT}>
           <ChipCombobox
             options={credentialOptions}
             value={browseCredentialId ?? undefined}

@@ -57,6 +57,7 @@ import type {
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
 import {
+  attachKnowledgeBaseConnectors,
   createAuthorizedKnowledgeBase,
   deleteKnowledgeBase,
   getKnowledgeBaseById,
@@ -345,7 +346,7 @@ async function executeReadKnowledgeBase(args: {
     { maxRows: MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE }
   )
   return {
-    knowledgeBase: args.context.knowledgeBase,
+    knowledgeBase: await attachKnowledgeBaseConnectors(args.context.knowledgeBase),
     folderPath: knowledgeFolderPathForId(index, args.context.knowledgeBase.folderId),
   }
 }
@@ -397,25 +398,15 @@ async function executeDeleteKnowledgeBase(args: {
 
 export const listKnowledgeBases = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.list,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: ListKnowledgeBasesInput
-  }) => resolveKnowledgeWorkspaceContext(input),
+  resolveContext: ({ input }: { input: ListKnowledgeBasesInput }) =>
+    resolveKnowledgeWorkspaceContext(input),
   execute: executeListKnowledgeBases,
 })
 
 export const listKnowledgeBaseCatalog = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.list,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: ListKnowledgeBasesInput
-  }) => resolveKnowledgeWorkspaceContext(input),
+  resolveContext: ({ input }: { input: ListKnowledgeBasesInput }) =>
+    resolveKnowledgeWorkspaceContext(input),
   async execute({ input, context }): Promise<ListKnowledgeBaseCatalogResult> {
     const result = await executeListKnowledgeBases({ input, context })
     const knowledgeBaseIds = result.knowledgeBases.map(({ knowledgeBase }) => knowledgeBase.id)
@@ -555,13 +546,8 @@ export const listInternalKnowledgeBases = {
 
 export const createKnowledgeBase = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.create,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: CreateKnowledgeBaseInput
-  }) => resolveKnowledgeWorkspaceContext(input),
+  resolveContext: ({ input }: { input: CreateKnowledgeBaseInput }) =>
+    resolveKnowledgeWorkspaceContext(input),
   execute: executeCreateKnowledgeBase,
   projectAudit: ({ input, result }) => ({
     action: AuditAction.KNOWLEDGE_BASE_CREATED,

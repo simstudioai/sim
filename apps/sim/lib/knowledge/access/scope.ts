@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { sortAccessTokens, subjectToken } from '@/lib/knowledge/access/tokens'
 import {
@@ -23,7 +24,6 @@ export const WORKSPACE_ACCESS_SCOPE: WorkspaceAccessScope = Object.freeze({
 })
 
 /** Enrollment states under which a credential-group membership counts as live. */
-const LIVE_ENROLLMENT_STATUSES = ['in_progress', 'completed'] as const
 
 export interface KnowledgeAccessScopeContext {
   /** Undefined only for a legacy personal knowledge base, which cannot own connectors. */
@@ -51,6 +51,16 @@ async function loadUserAccessTokens(
    */
   const workspaceAccess = await checkWorkspaceAccess(workspaceId, userId)
   if (!workspaceAccess.hasAccess) return [...WORKSPACE_ACCESS_TOKENS]
+  /**
+   * A member token only counts where permission-aware knowledge is on, so
+   * turning the feature off hides every member-scoped document at once — on
+   * the next read, before any run has suspended anyone — rather than leaving
+   * enrolled members reading them until a run happens to land. Read first, so
+   * a workspace without the feature never pays for the enrollment join.
+   */
+  if (!(await isKnowledgeMemberAccessAvailable({ workspaceId }))) {
+    return [...WORKSPACE_ACCESS_TOKENS]
+  }
 
   const rows = await db
     .select({
@@ -106,15 +116,6 @@ async function loadUserAccessTokens(
         error: getErrorMessage(error),
       })
     }
-  }
-  /**
-   * A member token only counts where permission-aware knowledge is on, so
-   * turning the feature off hides every member-scoped document at once — on
-   * the next read, before any run has suspended anyone — rather than leaving
-   * enrolled members reading them until a run happens to land.
-   */
-  if (subjectTokens.size > 0 && !(await isKnowledgeMemberAccessAvailable({ workspaceId }))) {
-    return [...WORKSPACE_ACCESS_TOKENS]
   }
   return sortAccessTokens(new Set([...WORKSPACE_ACCESS_TOKENS, ...subjectTokens]))
 }

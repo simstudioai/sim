@@ -3010,7 +3010,10 @@ export async function bulkDocumentOperation(
       .where(
         and(
           eq(document.knowledgeBaseId, knowledgeBaseId),
-          inArray(document.id, documentIds),
+          inArray(
+            document.id,
+            documentsToUpdate.map((doc) => doc.id)
+          ),
           eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt)

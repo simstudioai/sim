@@ -60,6 +60,9 @@ export interface ManagedCredentialGroupBinding {
   optionStatus: 'active' | 'disabled' | null
 }
 
+/** Enrollment statuses under which a person's managed credentials count as theirs. */
+export const LIVE_ENROLLMENT_STATUSES = ['in_progress', 'completed'] as const
+
 /**
  * Whether a managed credential may be used right now: the credential, its
  * enrollment, its option, and its group are all live. Every consumer that
@@ -75,7 +78,7 @@ export function isManagedCredentialGroupBindingLive(
 ): boolean {
   return (
     binding.managedOauthStatus === 'active' &&
-    (binding.enrollmentStatus === 'in_progress' || binding.enrollmentStatus === 'completed') &&
+    (LIVE_ENROLLMENT_STATUSES as readonly string[]).includes(binding.enrollmentStatus) &&
     binding.groupStatus === 'active' &&
     binding.optionStatus === 'active'
   )
@@ -128,7 +131,7 @@ export async function loadCredentialGroupEnrollmentAccess(
         eq(user.id, userId),
         eq(user.emailVerified, true),
         eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
-        inArray(credentialGroupEnrollment.status, ['in_progress', 'completed'])
+        inArray(credentialGroupEnrollment.status, [...LIVE_ENROLLMENT_STATUSES])
       )
     )
     .limit(1)
@@ -155,7 +158,7 @@ export async function loadCredentialGroupEnrollmentAccessForSubject(
     .where(
       and(
         eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
-        inArray(credentialGroupEnrollment.status, ['in_progress', 'completed']),
+        inArray(credentialGroupEnrollment.status, [...LIVE_ENROLLMENT_STATUSES]),
         eq(credential.type, 'managed_oauth'),
         eq(credential.managedOauthStatus, 'active'),
         eq(credential.providerId, providerId),
@@ -359,7 +362,7 @@ export async function listCredentialGroupCredentialReferences({
       credentialProviderIds?.length
         ? inArray(credential.providerId, credentialProviderIds)
         : undefined,
-      inArray(credentialGroupEnrollment.status, ['in_progress', 'completed']),
+      inArray(credentialGroupEnrollment.status, [...LIVE_ENROLLMENT_STATUSES]),
     ],
     limit,
     cursor

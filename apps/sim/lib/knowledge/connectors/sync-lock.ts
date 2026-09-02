@@ -183,7 +183,7 @@ export interface SyncRunLease {
 
 /**
  * The lease of the content sync engine, held through `syncLockToken`. The
- * heartbeat clock is seeded at lock acquisition, which wrote `updatedAt` itself.
+ * heartbeat clock is seeded at lock acquisition, which opened `syncLockLeaseAt`.
  */
 export function createContentSyncLease(connectorId: string, syncLogId: string): SyncRunLease {
   let lastHeartbeatAtMs = Date.now()

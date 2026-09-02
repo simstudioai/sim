@@ -1,4 +1,4 @@
-import { PUBLIC_ACCESS_TOKEN, WORKSPACE_ACCESS_TOKEN } from '@/lib/knowledge/access/types'
+import { WORKSPACE_ACCESS_TOKEN } from '@/lib/knowledge/access/types'
 
 /**
  * Shape of one access token, mirroring `doc_acl_token_shape_check` in the
@@ -60,9 +60,3 @@ export function sortAccessTokens(tokens: Iterable<string>): string[] {
   unique.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))
   return unique
 }
-
-/**
- * The ACL of a members-mode document: the sorted subject tokens of its active
- * observers. Rejects anything that is not a well-formed token so a malformed
- * value fails here rather than denying access silently.
- */

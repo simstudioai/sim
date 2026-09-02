@@ -31,7 +31,7 @@ export function decodeConnectorMemberGroupOption(
 }
 
 /** The credential-group provider that collects accounts for this connector, if any. */
-export function connectorMemberGroupProvider(
+function connectorMemberGroupProvider(
   connectorConfig: ConnectorMeta
 ): CredentialGroupStandardOAuthProvider | null {
   if (connectorConfig.auth.mode !== 'oauth' || !connectorConfig.permissionScopedListing) return null
@@ -40,6 +40,16 @@ export function connectorMemberGroupProvider(
   } catch {
     return null
   }
+}
+
+/** The config fields a per-member connector hides: its listing caps, which the server clears. */
+export function memberCapFieldIds(
+  connectorConfig: ConnectorMeta | null,
+  accessMode: 'workspace' | 'members'
+): ReadonlySet<string> {
+  return new Set(
+    accessMode === 'members' ? (connectorConfig?.permissionScopedListing?.capFieldIds ?? []) : []
+  )
 }
 
 interface UseConnectorMemberGroupOptionsInput {

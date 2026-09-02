@@ -20,6 +20,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
+import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
 import {
   MEMBER_OBSERVATION_STALE_AFTER_HOURS,
   MEMBER_PURGE_MAX_PER_RUN,
@@ -168,6 +169,44 @@ export async function listObservedDocumentIds(
  * document id that was detached or re-owned since it was collected is left
  * alone.
  */
+/** Documents rewritten per statement while a mode switch rewrites a connector's ACLs. */
+const ACCESS_REWRITE_BATCH_SIZE = 1000
+
+/**
+ * Rewrites every document ACL of the connector to `target`, in bounded
+ * batches, until done or `deadlineAt` passes. Returns whether every row was
+ * rewritten. `beforeBatch` runs ahead of each statement, for a lease heartbeat.
+ */
+export async function rewriteConnectorAcls(
+  connectorId: string,
+  target: readonly string[],
+  options: { deadlineAt?: number; beforeBatch?: () => Promise<void> } = {}
+): Promise<boolean> {
+  const mismatch =
+    target.length === 0
+      ? sql`cardinality(${document.acl}) > 0`
+      : sql`${document.acl} <> ${textArrayLiteral(target)}`
+  for (;;) {
+    await options.beforeBatch?.()
+    const rewritten = await db
+      .update(document)
+      .set({ acl: [...target] })
+      .where(
+        eq(
+          document.id,
+          sql`ANY(ARRAY(
+            SELECT ${document.id} FROM ${document}
+            WHERE ${document.connectorId} = ${connectorId} AND ${mismatch}
+            LIMIT ${ACCESS_REWRITE_BATCH_SIZE}
+          ))`
+        )
+      )
+      .returning({ id: document.id })
+    if (rewritten.length < ACCESS_REWRITE_BATCH_SIZE) return true
+    if (options.deadlineAt !== undefined && Date.now() >= options.deadlineAt) return false
+  }
+}
+
 export async function materializeDocumentAcls(
   connectorId: string,
   documentIds: Iterable<string>
@@ -273,20 +312,22 @@ export async function applyMemberDocumentLifecycle(input: {
           .returning({ id: document.id })
 
   const purgeCutoff = new Date(now.getTime() - MEMBER_TOMBSTONE_PURGE_DAYS * 24 * 60 * 60 * 1000)
-  const purgeCandidates = await db
-    .select({ id: document.id })
-    .from(document)
-    .where(
-      and(
-        eq(document.connectorId, connectorId),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNotNull(document.deletedAt),
-        lt(document.deletedAt, purgeCutoff),
-        hasNoObservation()
-      )
-    )
-    .limit(MEMBER_PURGE_MAX_PER_RUN)
+  const purgeCandidates = input.allowRemoval
+    ? await db
+        .select({ id: document.id })
+        .from(document)
+        .where(
+          and(
+            eq(document.connectorId, connectorId),
+            eq(document.userExcluded, false),
+            isNull(document.archivedAt),
+            isNotNull(document.deletedAt),
+            lt(document.deletedAt, purgeCutoff),
+            hasNoObservation()
+          )
+        )
+        .limit(MEMBER_PURGE_MAX_PER_RUN)
+    : []
 
   const guard: ConnectorSyncDeletionGuard = {
     connectorId,
@@ -296,7 +337,7 @@ export async function applyMemberDocumentLifecycle(input: {
   }
   let purged = 0
   const purgeIds = purgeCandidates.map((row) => row.id)
-  for (let offset = 0; input.allowRemoval && offset < purgeIds.length; offset += PURGE_CHUNK_SIZE) {
+  for (let offset = 0; offset < purgeIds.length; offset += PURGE_CHUNK_SIZE) {
     await input.lease.beatIfDue()
     purged += await hardDeleteDocuments(
       purgeIds.slice(offset, offset + PURGE_CHUNK_SIZE),
@@ -321,9 +362,11 @@ export interface StaleMemberSweepResult {
  * Removes the observations of members whose crawls have stopped, so the
  * documents only they observed go dark instead of staying readable forever.
  *
- * Fail-closed but schedule-relative: an active member is swept only when both
- * their last start and their last complete listing are older than
- * `max(24 h, 2 × interval)`, so queue lag in a large group never trips it. A
+ * Fail-closed but schedule-relative: an active member is swept only when the
+ * connector itself completed a run inside `max(24 h, 2 × interval)` while both
+ * the member's last start and last complete listing are older than that, so
+ * queue lag in a large group, a deferred connector, or one on its failure
+ * ladder never trips it. A
  * suspended member is not swept at all: suspension already drops their token
  * from every ACL, and their observations are kept so a re-auth restores access
  * without a re-crawl until membership reconciliation purges the row after
@@ -348,10 +391,17 @@ export async function sweepStaleMemberObservations(now: Date): Promise<StaleMemb
       and(
         eq(knowledgeConnector.accessMode, 'members'),
         /** Only a connector that is meant to be crawling can have stopped crawling. */
-        eq(knowledgeConnector.status, 'active'),
+        inArray(knowledgeConnector.status, ['active', 'error']),
         gt(knowledgeConnector.syncIntervalMinutes, 0),
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt),
+        /**
+         * Only a connector that is still completing runs can have left a member
+         * behind; one that is deferred, disabled, or backing off keeps every
+         * observation until it runs again.
+         */
+        ne(knowledgeConnector.memberSyncStatus, 'disabled'),
+        gt(knowledgeConnector.lastMemberSyncAt, cutoff),
         exists(
           db
             .select({ one: sql`1` })

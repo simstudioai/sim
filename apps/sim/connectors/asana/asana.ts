@@ -314,7 +314,8 @@ async function listWorkspaceProjects(
 export const asanaConnector: ConnectorConfig = {
   ...asanaConnectorMeta,
 
-  isListingScopeUnavailableError: (error) => error instanceof AsanaApiError && error.status === 404,
+  isListingScopeUnavailableError: (error) =>
+    error instanceof AsanaApiError && (error.status === 404 || error.status === 403),
 
   listDocuments: async (
     accessToken: string,

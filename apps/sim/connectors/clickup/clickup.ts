@@ -187,7 +187,11 @@ export const clickupConnector: ConnectorConfig = {
     if (!response.ok) {
       const errorText = await response.text()
       logger.error('Failed to list ClickUp Docs', { status: response.status, error: errorText })
-      throw listingRequestError('Failed to list ClickUp Docs', response.status)
+      throw listingRequestError(
+        'Failed to list ClickUp Docs',
+        response.status,
+        response.status === 404 || (response.status === 401 && /OAUTH_02[37]/.test(errorText))
+      )
     }
 
     const data = (await response.json()) as Record<string, unknown>

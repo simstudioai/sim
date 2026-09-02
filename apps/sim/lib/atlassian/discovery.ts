@@ -204,14 +204,22 @@ export function atlassianDiscoveryKey(resource: string, accessToken: string): st
 }
 
 /**
- * The credential reaches no Atlassian site, or none matching the configured
- * domain. Typed so a caller acting for one person can tell "this person is
- * not on the site" from a transport failure.
+ * The credential reaches no Atlassian site at all. Typed so a caller acting
+ * for one person can tell "this person is not on the site" from a transport
+ * failure or a misconfigured domain.
  */
 export class AtlassianSiteNotAccessibleError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'AtlassianSiteNotAccessibleError'
+  }
+}
+
+/** The credential reaches sites, but none matches the configured domain. */
+export class AtlassianSiteNotMatchedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AtlassianSiteNotMatchedError'
   }
 }
 
@@ -243,7 +251,7 @@ export function selectAtlassianCloudId(
 
   if (resources.length === 1) return resources[0].id
 
-  throw new AtlassianSiteNotAccessibleError(
+  throw new AtlassianSiteNotMatchedError(
     `Could not match ${product} domain "${domain}" to any accessible resource. ` +
       `Available sites: ${resources.map((r) => r.url).join(', ')}`
   )

@@ -2,10 +2,12 @@
  * @vitest-environment node
  */
 
-// Renders the real predicate against the real drizzle dialect and schema. The
-// shared client sets `fetch_types: false` (packages/db/db.ts), under which an
-// array bound as one parameter fails at execution with 22P02, so the assertion
-// that matters is that every bind is a scalar.
+/**
+ * Renders the real predicate against the real drizzle dialect and schema. The
+ * shared client sets `fetch_types: false` (packages/db/db.ts), under which an
+ * array bound as one parameter fails at execution with 22P02, so the assertion
+ * that matters is that every bind is a scalar.
+ */
 import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('drizzle-orm')

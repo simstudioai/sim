@@ -6,10 +6,10 @@ import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/
 import {
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
-  ConnectorListingScopeUnavailableError,
   htmlToPlainText,
   isListingScopeUnavailableError,
   isSkippedDocument,
+  listingRequestError,
   markSkipped,
   parseTagDate,
   readBodyWithLimit,
@@ -231,13 +231,15 @@ export const dropboxConnector: ConnectorConfig = {
           status: response.status,
           error: errorText,
         })
-        /** Dropbox reports a path the caller cannot reach as 409 path/not_found. */
-        throw response.status === 409
-          ? new ConnectorListingScopeUnavailableError(
-              `Failed to list Dropbox folder: ${response.status}`,
-              response.status
-            )
-          : new Error(`Failed to list Dropbox folder: ${response.status}`)
+        /**
+         * Dropbox answers every endpoint-specific failure with 409; only
+         * path/not_found means the caller cannot reach the folder.
+         */
+        throw listingRequestError(
+          'Failed to list Dropbox folder',
+          response.status,
+          response.status === 409 && /path\/not_found/.test(errorText)
+        )
       }
 
       data = await response.json()

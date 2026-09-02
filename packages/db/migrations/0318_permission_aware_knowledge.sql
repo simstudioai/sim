@@ -115,7 +115,7 @@ COMMIT;--> statement-breakpoint
 -- '{ws}', 'workspace', 'idle', and has no member lease — so validation cannot fail.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM "pg_constraint" WHERE "conname" = 'doc_acl_token_shape_check' AND "conrelid" = '"document"'::regclass) THEN
-    ALTER TABLE "document" ADD CONSTRAINT "doc_acl_token_shape_check" CHECK (array_position("document"."acl", NULL) IS NULL AND (cardinality("document"."acl") = 0 OR array_to_string("document"."acl", E'\n') ~ '^((ws|pub|link|u:[^\nA-Z]+@[^\nA-Z]+|[gs]:[^\n:]+:[^\n:]+:[^\n]+)(\n(ws|pub|link|u:[^\nA-Z]+@[^\nA-Z]+|[gs]:[^\n:]+:[^\n:]+:[^\n]+))*)$')) NOT VALID;
+    ALTER TABLE "document" ADD CONSTRAINT "doc_acl_token_shape_check" CHECK (array_position("document"."acl", NULL) IS NULL AND (cardinality("document"."acl") = 0 OR (cardinality("document"."acl") = array_length(string_to_array(array_to_string("document"."acl", E'\n'), E'\n'), 1) AND array_to_string("document"."acl", E'\n') ~ '^((ws|pub|link|u:[^\nA-Z]+@[^\nA-Z]+|[gs]:[^\n:]+:[^\n:]+:[^\n]+)(\n(ws|pub|link|u:[^\nA-Z]+@[^\nA-Z]+|[gs]:[^\n:]+:[^\n:]+:[^\n]+))*)$'))) NOT VALID;
   END IF;
 END $$;--> statement-breakpoint
 ALTER TABLE "document" VALIDATE CONSTRAINT "doc_acl_token_shape_check";--> statement-breakpoint

@@ -135,9 +135,12 @@ export function toInternalKnowledgeConnector<
     nextSyncAt: Date | string | null
     lastMemberSyncAt: Date | string | null
     nextMemberSyncAt: Date | string | null
+    viewerMembership?: ConnectorData['viewerMembership']
   },
 >(connector: T): ConnectorData {
   return connectorDataSchema.parse({
+    /** A mutation answers with the row alone; only a viewer's read carries their membership. */
+    viewerMembership: null,
     ...connector,
     createdAt: serializeDate(connector.createdAt),
     updatedAt: serializeDate(connector.updatedAt),

@@ -88,10 +88,10 @@ const SYNC_IN_FLIGHT_TOOLTIP = {
 } as const
 
 /** The member engine's own in-flight states, shown when the connector syncs per member. */
-const MEMBER_SYNC_IN_FLIGHT_TOOLTIP = {
+const MEMBER_SYNC_IN_FLIGHT_TOOLTIP: Partial<Record<MemberSyncStatus, string>> = {
   pending: 'Member sync queued',
   running: 'Syncing members',
-} as const
+}
 
 /** How each member-engine status reads on the card's badge. */
 const MEMBER_SYNC_STATUS_AS_CONNECTOR_STATUS = {
@@ -383,11 +383,7 @@ function ConnectorCard({
     syncInFlight || connector.status === 'disabled' || isPaused || memberSyncDisabled
   const syncTooltip =
     SYNC_IN_FLIGHT_TOOLTIP[connector.status as keyof typeof SYNC_IN_FLIGHT_TOOLTIP] ??
-    (syncsPerMember
-      ? MEMBER_SYNC_IN_FLIGHT_TOOLTIP[
-          connector.memberSyncStatus as keyof typeof MEMBER_SYNC_IN_FLIGHT_TOOLTIP
-        ]
-      : undefined) ??
+    (syncsPerMember ? MEMBER_SYNC_IN_FLIGHT_TOOLTIP[connector.memberSyncStatus] : undefined) ??
     (isPaused
       ? 'Resume to sync'
       : memberSyncDisabled
@@ -442,18 +438,9 @@ function ConnectorCard({
                 {statusConfig.label}
               </Badge>
               {syncsPerMember && (
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Badge variant='gray' size='sm' className='flex-shrink-0'>
-                      <Users className='size-3' />
-                      Per member
-                    </Badge>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>
-                    Synced once per enrolled member; each person sees only the documents their own
-                    account can open.
-                  </Tooltip.Content>
-                </Tooltip.Root>
+                <Badge variant='gray' size='sm' icon={Users} className='flex-shrink-0'>
+                  Per member
+                </Badge>
               )}
             </div>
             <div className='flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[var(--text-muted)] text-xs'>
@@ -946,7 +933,7 @@ interface MemberSyncHistoryProps {
  * membership stands. A run that ended with members still due re-dispatches
  * itself, so several short rows in a row are one drain, not a fault.
  */
-export function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistoryProps) {
+function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistoryProps) {
   if (isLoading) {
     return (
       <div className='flex items-center gap-2 rounded-md bg-[var(--surface-3)] px-2 py-2 text-[var(--text-muted)] text-xs'>
@@ -1002,7 +989,10 @@ export function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistor
                           ? ''
                           : 's'}
                         {log.membersFailed > 0 && (
-                          <span className='text-[var(--text-error)]'> !{log.membersFailed}</span>
+                          <span className='text-[var(--text-error)]'>
+                            {' '}
+                            · {log.membersFailed} failed
+                          </span>
                         )}
                         {changes > 0 ? (
                           <>

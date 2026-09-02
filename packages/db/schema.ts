@@ -2854,7 +2854,7 @@ export const document = pgTable(
      */
     aclTokenShapeCheck: check(
       'doc_acl_token_shape_check',
-      sql`array_position(${table.acl}, NULL) IS NULL AND (cardinality(${table.acl}) = 0 OR array_to_string(${table.acl}, E'\\n') ~ '^((ws|pub|link|u:[^\\nA-Z]+@[^\\nA-Z]+|[gs]:[^\\n:]+:[^\\n:]+:[^\\n]+)(\\n(ws|pub|link|u:[^\\nA-Z]+@[^\\nA-Z]+|[gs]:[^\\n:]+:[^\\n:]+:[^\\n]+))*)$')`
+      sql`array_position(${table.acl}, NULL) IS NULL AND (cardinality(${table.acl}) = 0 OR (cardinality(${table.acl}) = array_length(string_to_array(array_to_string(${table.acl}, E'\\n'), E'\\n'), 1) AND array_to_string(${table.acl}, E'\\n') ~ '^((ws|pub|link|u:[^\\nA-Z]+@[^\\nA-Z]+|[gs]:[^\\n:]+:[^\\n:]+:[^\\n]+)(\\n(ws|pub|link|u:[^\\nA-Z]+@[^\\nA-Z]+|[gs]:[^\\n:]+:[^\\n:]+:[^\\n]+))*)$'))`
     ),
     // Search by filename
     filenameIdx: index('doc_filename_idx').on(table.filename),
@@ -4793,8 +4793,9 @@ export const knowledgeConnectorMember = pgTable(
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
     /**
      * When the member is next due. NULL means "with the connector's next run":
-     * a new member, or one that completed on a manual-only connector. An explicit
-     * time that has passed is what keeps a connector re-dispatching itself.
+     * a member that completed on a manual-only connector. A new member is due
+     * now. An explicit time that has passed is what keeps a connector
+     * re-dispatching itself.
      */
     nextAttemptAt: timestamp('next_attempt_at'),
     lastStartedAt: timestamp('last_started_at'),

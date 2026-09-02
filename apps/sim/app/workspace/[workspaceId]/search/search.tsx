@@ -17,7 +17,10 @@ import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/c
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
 import { CONNECTED_LABEL } from '@/app/workspace/[workspaceId]/integrations/search-params'
-import { MemberConnectorsSection } from '@/app/workspace/[workspaceId]/search/components/member-connectors-section/member-connectors-section'
+import {
+  MemberConnectorsSection,
+  memberConnectorName,
+} from '@/app/workspace/[workspaceId]/search/components/member-connectors-section/member-connectors-section'
 import { useSearchCredentials } from '@/app/workspace/[workspaceId]/search/hooks/use-search-credentials'
 import {
   connectorSearchParam,
@@ -26,10 +29,15 @@ import {
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import type { WorkspaceCredential } from '@/hooks/queries/credentials'
+import {
+  useWorkspaceMemberConnectors,
+  type WorkspaceMemberConnector,
+} from '@/hooks/queries/kb/connectors'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
+const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
 const CONNECTORS_LABEL = 'Sim Search Connectors'
 
 interface ConnectorItemProps {
@@ -131,8 +139,21 @@ export function Search() {
       )
     : SEARCH_CONNECTORS
 
+  const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS } =
+    useWorkspaceMemberConnectors(workspaceId)
+  const visibleMemberConnectors = normalizedSearch
+    ? memberConnectors.filter((connector) =>
+        [memberConnectorName(connector), connector.knowledgeBaseName].some((text) =>
+          text.toLowerCase().includes(normalizedSearch)
+        )
+      )
+    : memberConnectors
+
   const showNoResults =
-    Boolean(normalizedSearch) && visibleCredentials.length === 0 && visibleConnectors.length === 0
+    Boolean(normalizedSearch) &&
+    visibleCredentials.length === 0 &&
+    visibleConnectors.length === 0 &&
+    visibleMemberConnectors.length === 0
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
@@ -151,7 +172,10 @@ export function Search() {
           />
 
           <div className='flex flex-col gap-7'>
-            <MemberConnectorsSection workspaceId={workspaceId} search={normalizedSearch} />
+            <MemberConnectorsSection
+              workspaceId={workspaceId}
+              connectors={visibleMemberConnectors}
+            />
 
             {visibleCredentials.length > 0 && (
               <IntegrationSection label={CONNECTED_LABEL}>

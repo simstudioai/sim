@@ -231,7 +231,12 @@ export const jiraConnector: ConnectorConfig = {
         status: response.status,
         error: errorText,
       })
-      throw listingRequestError('Failed to search Jira issues', response.status)
+      throw listingRequestError(
+        'Failed to search Jira issues',
+        response.status,
+        response.status === 404 ||
+          (response.status === 400 && /does not exist for the field 'project'/i.test(errorText))
+      )
     }
 
     const data = await response.json()

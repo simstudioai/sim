@@ -714,12 +714,17 @@ export class ConnectorListingScopeUnavailableError extends Error {
 
 /**
  * The error a listing request throws for a failed response: scope-unavailable
- * when the source says the scope does not exist for this caller (404), a plain
- * error for anything else, which the sync engines retry with backoff.
+ * when the source says the scope does not exist for this caller (404, or
+ * whatever `scopeUnavailable` recognises in the source's own error body), a
+ * plain error for anything else, which the sync engines retry with backoff.
  */
-export function listingRequestError(message: string, status: number): Error {
+export function listingRequestError(
+  message: string,
+  status: number,
+  scopeUnavailable: boolean = status === 404
+): Error {
   const described = `${message}: ${status}`
-  return status === 404
+  return scopeUnavailable
     ? new ConnectorListingScopeUnavailableError(described, status)
     : new Error(described)
 }

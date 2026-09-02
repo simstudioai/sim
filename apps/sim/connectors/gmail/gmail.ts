@@ -3,7 +3,13 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_THREADS, gmailConnectorMeta } from '@/connectors/gmail/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
+import {
+  htmlToPlainText,
+  joinTagArray,
+  parseMultiValue,
+  parseOptionalUnlimitedSafeInteger,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('GmailConnector')
 
@@ -446,17 +452,22 @@ export const gmailConnector: ConnectorConfig = {
       labelIndex = resolved
     }
     const searchQuery = buildSearchQuery(sourceConfig, labelIndex)
-    const maxThreads = sourceConfig.maxThreads
-      ? Number(sourceConfig.maxThreads)
-      : DEFAULT_MAX_THREADS
+    /** Absent means the default cap; an explicit 0 (a per-member sync) means unlimited. */
+    const maxThreads =
+      sourceConfig.maxThreads === undefined
+        ? DEFAULT_MAX_THREADS
+        : parseOptionalUnlimitedSafeInteger(
+            sourceConfig.maxThreads,
+            'maxThreads must be a non-negative integer'
+          )
 
     const totalFetched = (syncContext?.totalThreadsFetched as number) ?? 0
-    if (totalFetched >= maxThreads) {
+    if (maxThreads > 0 && totalFetched >= maxThreads) {
       return { documents: [], hasMore: false }
     }
 
-    const remaining = maxThreads - totalFetched
-    const pageSize = Math.min(THREADS_PER_PAGE, remaining)
+    const pageSize =
+      maxThreads > 0 ? Math.min(THREADS_PER_PAGE, maxThreads - totalFetched) : THREADS_PER_PAGE
 
     const queryParams = new URLSearchParams({
       maxResults: String(pageSize),

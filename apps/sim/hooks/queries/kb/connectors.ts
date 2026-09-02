@@ -261,6 +261,7 @@ export function useCreateConnector() {
     onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
     },
   })
 }
@@ -403,8 +404,9 @@ export function useUpdateConnectorAccess() {
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
         exact: true,
       })
-      /** The base list says whether any connector syncs per member. */
+      /** The base list says whether any connector syncs per member, and the Search tab lists them. */
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
     },
   })
 }
@@ -439,6 +441,7 @@ export function useDeleteConnector() {
      */
     onSettled: (_data, _error, { knowledgeBaseId, deleteDocuments }) => {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentLists(knowledgeBaseId) })
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),

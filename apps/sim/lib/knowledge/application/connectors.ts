@@ -13,7 +13,7 @@ import {
 import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { requireWorkspaceRole } from '@/lib/core/application'
+import { requireCurrentHumanRole } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -34,7 +34,10 @@ import {
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { resolveViewerConnectorMemberships } from '@/lib/knowledge/connectors/member-provisioning'
+import {
+  resolveViewerConnectorMemberships,
+  type ViewerConnectorMembership,
+} from '@/lib/knowledge/connectors/member-provisioning'
 import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
 import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
@@ -326,7 +329,7 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
         : await orderedQuery.limit(input.limit + 1).offset(offset)
     const hasMore = input.limit !== undefined && rows.length > input.limit
     const page = input.limit === undefined ? rows : rows.slice(0, input.limit)
-    const viewerUserId = resolvePrincipalSubjectUserId(principal)
+    const viewerUserId = principal.kind === 'session' ? principal.userId : null
     const memberships =
       viewerUserId && context.workspaceId
         ? await resolveViewerConnectorMemberships({
@@ -334,7 +337,7 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
             workspaceId: context.workspaceId,
             connectors: page,
           })
-        : new Map()
+        : new Map<string, ViewerConnectorMembership>()
     return {
       connectors: page.map(({ encryptedApiKey: _encryptedApiKey, ...rest }) => ({
         ...rest,
@@ -396,7 +399,10 @@ export const listWorkspaceMemberConnectors = defineAuthorizedKnowledgeUseCase({
       connectors: rows.flatMap((row) => {
         const viewerMembership = memberships.get(row.id)
         if (!isMemberSyncStatus(row.memberSyncStatus)) {
-          throw new Error(`Unexpected member sync status ${row.memberSyncStatus}`)
+          throw new OrchestrationError(
+            'conflict',
+            `Unexpected member sync status ${row.memberSyncStatus}`
+          )
         }
         return viewerMembership
           ? [
@@ -440,10 +446,12 @@ export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
         .where(eq(knowledgeConnectorMemberSyncLog.connectorId, context.connectorId))
         .orderBy(desc(knowledgeConnectorMemberSyncLog.startedAt))
         .limit(10),
-      summarizeConnectorMembers(context.connectorId, connector.syncIntervalMinutes),
+      connector.accessMode === 'members'
+        ? summarizeConnectorMembers(context.connectorId, connector.syncIntervalMinutes)
+        : { active: 0, suspended: 0, stale: 0 },
     ])
     const { encryptedApiKey: _encryptedApiKey, ...connectorData } = connector
-    const viewerUserId = resolvePrincipalSubjectUserId(principal)
+    const viewerUserId = principal.kind === 'session' ? principal.userId : null
     const memberships =
       viewerUserId && context.workspaceId
         ? await resolveViewerConnectorMemberships({
@@ -451,7 +459,7 @@ export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
             workspaceId: context.workspaceId,
             connectors: [connector],
           })
-        : new Map()
+        : new Map<string, ViewerConnectorMembership>()
     return {
       connector: {
         ...connectorData,
@@ -530,7 +538,7 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
           'A members-mode connector needs a signed-in admin'
         )
       }
-      await requireWorkspaceRole(subjectUserId, context, 'admin')
+      await requireCurrentHumanRole(subjectUserId, context, 'admin')
       const connectorMeta = getConnectorMeta(input.connectorType)
       if (!connectorMeta) {
         throw new OrchestrationError('validation', `Unknown connector type: ${input.connectorType}`)

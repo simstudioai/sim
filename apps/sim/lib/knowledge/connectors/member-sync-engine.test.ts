@@ -24,6 +24,7 @@ import {
   buildMemberSyncFailureUpdate,
   deriveMemberActive,
   memberFailureBackoffMs,
+  memberNextAttemptAt,
   nextMemberSyncTime,
   shouldListFully,
 } from '@/lib/knowledge/connectors/member-sync-engine'
@@ -177,6 +178,18 @@ describe('member sync engine decisions', () => {
       expect(result.budgetAborted).toBe(true)
       expect(result.exhausted).toBe(false)
       expect(feed.listChanges).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('memberNextAttemptAt', () => {
+    const now = new Date('2026-09-01T12:00:00Z')
+
+    it('is exactly one interval on, with no jitter, so the connector run finds the member due', () => {
+      expect(memberNextAttemptAt(now, 60)).toEqual(new Date('2026-09-01T13:00:00Z'))
+    })
+
+    it('waits for the next manual run on a manual-only connector', () => {
+      expect(memberNextAttemptAt(now, 0)).toBeNull()
     })
   })
 

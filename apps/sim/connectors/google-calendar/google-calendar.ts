@@ -348,9 +348,9 @@ export const googleCalendarConnector: ConnectorConfig = {
     const calendarId = calendarIds[calendarIndex]
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
-    const rawMaxEvents = sourceConfig.maxEvents
-      ? Number(sourceConfig.maxEvents)
-      : DEFAULT_MAX_EVENTS
+    /** Absent means the default cap; an explicit 0 (a per-member sync) means unlimited. */
+    const rawMaxEvents =
+      sourceConfig.maxEvents === undefined ? DEFAULT_MAX_EVENTS : Number(sourceConfig.maxEvents)
     const maxEvents = Number.isFinite(rawMaxEvents) ? rawMaxEvents : 0
     const isCapped = maxEvents > 0
     /**

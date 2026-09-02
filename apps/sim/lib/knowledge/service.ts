@@ -29,6 +29,7 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
+import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -249,6 +250,21 @@ async function attachConnectorTypes(
     if (!types.includes(row.connectorType)) types.push(row.connectorType)
     connectorTypesByKb.set(row.knowledgeBaseId, types)
     if (row.accessMode === 'members') memberScopedKbIds.add(row.knowledgeBaseId)
+  }
+  /**
+   * A members-mode connector only scopes documents where the feature is on;
+   * off, its documents read as workspace-visible and the base must say so.
+   */
+  const memberScopedWorkspaceIds = new Set(
+    knowledgeBases
+      .filter((kb) => memberScopedKbIds.has(kb.id) && kb.workspaceId)
+      .map((kb) => kb.workspaceId as string)
+  )
+  for (const workspaceId of memberScopedWorkspaceIds) {
+    if (await isKnowledgeMemberAccessAvailable({ workspaceId })) continue
+    for (const kb of knowledgeBases) {
+      if (kb.workspaceId === workspaceId) memberScopedKbIds.delete(kb.id)
+    }
   }
 
   return knowledgeBases.map((kb) => ({
@@ -1008,13 +1024,24 @@ export async function getKnowledgeBaseById(
     return null
   }
 
-  const [withConnectors] = await attachConnectorTypes([
-    {
-      ...result[0],
-      chunkingConfig: result[0].chunkingConfig as ChunkingConfig,
-      docCount: Number(result[0].docCount),
-    },
-  ])
+  return {
+    ...result[0],
+    chunkingConfig: result[0].chunkingConfig as ChunkingConfig,
+    docCount: Number(result[0].docCount),
+    connectorTypes: [],
+    hasMemberScopedConnector: false,
+  }
+}
+
+/**
+ * The knowledge base with its connector summary, for the surfaces that show
+ * it. Kept off {@link getKnowledgeBaseById} so every operation that only
+ * resolves its context does not pay for the connector read.
+ */
+export async function attachKnowledgeBaseConnectors(
+  knowledgeBase: KnowledgeBaseWithCounts
+): Promise<KnowledgeBaseWithCounts> {
+  const [withConnectors] = await attachConnectorTypes([knowledgeBase])
   return withConnectors
 }
 

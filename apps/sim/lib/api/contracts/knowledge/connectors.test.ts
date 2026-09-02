@@ -60,6 +60,13 @@ describe('connector access binding contracts', () => {
     ).toBe(false)
   })
 
+  it('refuses a mode switch that names no mode', () => {
+    expect(updateConnectorAccessBodySchema.safeParse({}).success).toBe(false)
+    expect(updateConnectorAccessBodySchema.safeParse({ credentialId: 'cred-1' }).success).toBe(
+      false
+    )
+  })
+
   it('applies the same rules to a mode switch', () => {
     expect(
       updateConnectorAccessBodySchema.safeParse({

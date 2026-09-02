@@ -4,7 +4,7 @@ import {
   knowledgeConnectorParamsSchema,
   successResponseSchema,
 } from '@/lib/api/contracts/knowledge/shared'
-import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
+import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
@@ -88,6 +88,8 @@ export const createConnectorBodySchema = z
 export const updateConnectorAccessBodySchema = z
   .object({
     ...connectorAccessBindingShape,
+    /** A switch names the mode it moves to; nothing is implied by omission. */
+    accessMode: connectorRequestedAccessModeSchema,
     credentialId: z.string().min(1).optional(),
   })
   .superRefine((value, ctx) => {
@@ -361,7 +363,7 @@ export type WorkspaceMemberConnector = z.output<typeof workspaceMemberConnectorS
 export const listWorkspaceMemberConnectorsContract = defineRouteContract({
   method: 'GET',
   path: '/api/knowledge/member-connectors',
-  query: z.object({ workspaceId: z.string().min(1) }),
+  query: z.object({ workspaceId: workspaceIdSchema }),
   response: {
     mode: 'json',
     schema: successResponseSchema(z.array(workspaceMemberConnectorSchema)),

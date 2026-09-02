@@ -1,10 +1,10 @@
 import { db } from '@sim/db'
 import { document, embedding } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
-import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
+import { type KnowledgeAccessScope, WORKSPACE_ACCESS_TOKENS } from '@/lib/knowledge/access/types'
 import { applyRecencyBoost, RRF_K } from '@/lib/knowledge/search/recency'
 import {
   coerceTagFilterValue,
@@ -17,6 +17,8 @@ const logger = createLogger('KnowledgeSearchQueries')
 
 /** SQLSTATE for an unrecognised configuration parameter — pgvector older than 0.8. */
 const UNDEFINED_OBJECT_SQLSTATE = '42704'
+/** Tuples a relaxed-order scan may visit before giving up on filling the limit. */
+const HNSW_MAX_SCAN_TUPLES = '20000'
 
 /** How long to stop trying the iterative-scan settings after the server rejected them. */
 const HNSW_SETTINGS_UNSUPPORTED_RETRY_MS = 10 * 60 * 1000
@@ -36,24 +38,35 @@ type SearchExecutor = Pick<typeof db, 'select'>
  * and the attempt is retried after a while so an upgrade is picked up.
  */
 async function withVectorScanSettings<T>(
+  access: KnowledgeAccessScope,
   run: (executor: SearchExecutor) => Promise<T>
 ): Promise<T> {
-  if (Date.now() < hnswSettingsUnsupportedUntil) return run(db)
+  /**
+   * The workspace pair matches every row, so a plain index scan already fills
+   * the limit; only a personal token set is selective enough to need the
+   * iterative scan, and existing workspaces keep the query they had.
+   */
+  if (!hasSubjectTokens(access) || Date.now() < hnswSettingsUnsupportedUntil) return run(db)
   try {
     return await db.transaction(async (tx) => {
       await tx.execute(
-        sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', '20000', true)`
+        sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${HNSW_MAX_SCAN_TUPLES}, true)`
       )
       return run(tx)
     })
   } catch (error) {
-    if ((error as { code?: unknown } | null)?.code !== UNDEFINED_OBJECT_SQLSTATE) throw error
+    if (getPostgresErrorCode(error) !== UNDEFINED_OBJECT_SQLSTATE) throw error
     hnswSettingsUnsupportedUntil = Date.now() + HNSW_SETTINGS_UNSUPPORTED_RETRY_MS
     logger.warn('pgvector iterative scan is unavailable; vector legs run without it', {
       error: getErrorMessage(error),
     })
     return run(db)
   }
+}
+
+/** Whether the caller holds tokens beyond the workspace pair every document carries. */
+function hasSubjectTokens(access: KnowledgeAccessScope): boolean {
+  return access.kind === 'user' && access.tokens.length > WORKSPACE_ACCESS_TOKENS.length
 }
 
 export interface DocumentMetadata {
@@ -421,7 +434,7 @@ async function executeVectorSearchOnIds(
     return []
   }
 
-  const rows = await withVectorScanSettings((executor) =>
+  const rows = await withVectorScanSettings(access, (executor) =>
     executor
       .select(
         getSearchResultFields(
@@ -520,7 +533,7 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
    */
   if (strategy.useParallel) {
     const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
-    const allResults = await withVectorScanSettings(async (executor) => {
+    const allResults = await withVectorScanSettings(access, async (executor) => {
       const parallelResults = await Promise.all(
         knowledgeBaseIds.map((kbId) =>
           vectorLeg(executor, eq(embedding.knowledgeBaseId, kbId), parallelLimit)
@@ -530,7 +543,7 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
     })
     return allResults.sort((a, b) => a.distance - b.distance).slice(0, topK)
   }
-  const rows = await withVectorScanSettings((executor) =>
+  const rows = await withVectorScanSettings(access, (executor) =>
     vectorLeg(executor, inArray(embedding.knowledgeBaseId, knowledgeBaseIds), topK)
   )
   return rows.sort((a, b) => a.distance - b.distance)

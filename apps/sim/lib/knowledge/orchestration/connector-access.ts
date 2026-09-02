@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
-import { document, knowledgeConnector, knowledgeConnectorMember } from '@sim/db/schema'
+import { knowledgeConnector, knowledgeConnectorMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -16,6 +16,7 @@ import {
   stripListingCapFields,
   validateKnowledgeConnectorMembersBinding,
 } from '@/lib/knowledge/connectors/member-access'
+import { rewriteConnectorAcls } from '@/lib/knowledge/connectors/member-observations'
 import { provisionKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-provisioning'
 import {
   type ConnectorWithoutSecret,
@@ -40,8 +41,6 @@ class SwitchLeaseLostError extends Error {
   }
 }
 
-/** Documents rewritten per statement while switching modes. */
-const ACCESS_REWRITE_BATCH_SIZE = 1000
 /** Wall-clock the request spends rewriting before handing the rest to the member run. */
 const ACCESS_REWRITE_REQUEST_BUDGET_MS = 20_000
 /** Connector statuses a switch may start from; a running or queued sync owns the row. */
@@ -116,43 +115,6 @@ export async function resolveKnowledgeConnectorMembersBinding(input: {
   })
   if (!validation.ok) throw new OrchestrationError('validation', validation.message)
   return { ...binding, sourceConfig }
-}
-
-/**
- * Rewrites the connector's document ACLs to `target` in bounded batches until
- * done or the budget runs out. Returns whether every row was rewritten.
- */
-async function rewriteConnectorAcls(
-  connectorId: string,
-  target: readonly string[],
-  deadlineAt: number
-): Promise<boolean> {
-  const targetArray = sql`ARRAY[${sql.join(
-    target.map((token) => sql`${token}`),
-    sql`, `
-  )}]::text[]`
-  const mismatch =
-    target.length === 0
-      ? sql`cardinality(${document.acl}) > 0`
-      : sql`${document.acl} <> ${targetArray}`
-  for (;;) {
-    const rewritten = await db
-      .update(document)
-      .set({ acl: [...target] })
-      .where(
-        eq(
-          document.id,
-          sql`ANY(ARRAY(
-            SELECT ${document.id} FROM ${document}
-            WHERE ${document.connectorId} = ${connectorId} AND ${mismatch}
-            LIMIT ${ACCESS_REWRITE_BATCH_SIZE}
-          ))`
-        )
-      )
-      .returning({ id: document.id })
-    if (rewritten.length < ACCESS_REWRITE_BATCH_SIZE) return true
-    if (Date.now() >= deadlineAt) return false
-  }
 }
 
 /**
@@ -333,7 +295,9 @@ export async function performUpdateKnowledgeConnectorAccess(
         params.userId
       )
       try {
-        const rewritten = await rewriteConnectorAcls(connectorId, EMPTY_ACL, deadlineAt)
+        const rewritten = await rewriteConnectorAcls(connectorId, EMPTY_ACL, {
+          deadlineAt: deadlineAt,
+        })
         const now = new Date()
         const [updated] = await db
           .update(knowledgeConnector)
@@ -459,7 +423,9 @@ export async function performUpdateKnowledgeConnectorAccess(
         .returning({ id: knowledgeConnector.id })
       if (!row) throw new SwitchLeaseLostError()
     })
-    const rewritten = await rewriteConnectorAcls(connectorId, WORKSPACE_ACL, deadlineAt)
+    const rewritten = await rewriteConnectorAcls(connectorId, WORKSPACE_ACL, {
+      deadlineAt: deadlineAt,
+    })
     const now = new Date()
     const [updated] = await db
       .update(knowledgeConnector)

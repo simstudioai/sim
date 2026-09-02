@@ -19,6 +19,7 @@ import {
   findListingCapViolation,
   grantKnowledgeConnectorCredentialAccess,
   revokeKnowledgeConnectorCredentialAccess,
+  stripListingCapFields,
 } from '@/lib/knowledge/connectors/member-access'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
 import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
@@ -602,6 +603,7 @@ export async function performUpdateKnowledgeConnector(
     }
   }
 
+  let sourceConfigToStore = updates.sourceConfig
   if (updates.sourceConfig !== undefined) {
     if (existing.accessMode === 'members') {
       /**
@@ -615,6 +617,9 @@ export async function performUpdateKnowledgeConnector(
         ? findListingCapViolation(connectorConfig, updates.sourceConfig)
         : null
       if (capViolation) return fail(capViolation, 'validation')
+      if (connectorConfig) {
+        sourceConfigToStore = stripListingCapFields(connectorConfig, updates.sourceConfig)
+      }
     } else if (validateSourceConfig) {
       const rejection = await validateSourceConfig(existing, updates.sourceConfig)
       if (rejection) {
@@ -646,8 +651,8 @@ export async function performUpdateKnowledgeConnector(
   const values: Partial<typeof knowledgeConnector.$inferInsert> = {
     updatedAt: updateTimestamp,
   }
-  if (updates.sourceConfig !== undefined) {
-    values.sourceConfig = updates.sourceConfig
+  if (sourceConfigToStore !== undefined) {
+    values.sourceConfig = sourceConfigToStore
   }
   if (updates.syncIntervalMinutes !== undefined) {
     values.syncIntervalMinutes = updates.syncIntervalMinutes
@@ -1028,6 +1033,12 @@ export async function performSyncKnowledgeConnector(
     return classifyKnowledgeFailure(error, requestId, `Sync connector ${connectorId}`)
   }
 
+  if (rehydrate && connector.accessMode === 'members') {
+    return fail(
+      'A connector that syncs per member re-hydrates through its members; run a sync instead',
+      'validation'
+    )
+  }
   logger.info(
     `[${requestId}] Manual sync${rehydrate ? ' (full rehydrate)' : ''} triggered for connector ${connectorId}`
   )
