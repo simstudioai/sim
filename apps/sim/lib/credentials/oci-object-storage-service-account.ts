@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { credential } from '@sim/db/schema'
+import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { decryptSecret } from '@/lib/core/security/encryption'
@@ -84,7 +85,7 @@ export function normalizeOciObjectStorageCredentialFields(
     }
   } catch (error) {
     throw new OciObjectStorageCredentialError(
-      error instanceof Error ? error.message : 'Invalid OCI namespace or region'
+      getErrorMessage(error, 'Invalid OCI namespace or region')
     )
   }
 }
