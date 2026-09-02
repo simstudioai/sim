@@ -240,6 +240,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       return
     }
     if (isRenaming) return
+    if (e.detail > 1) return
     onColumnSelect(colIndex, e.shiftKey)
   }
 
@@ -300,7 +301,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
-            isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
+            isWorkflowColumn={isWorkflowOutput}
             blockIconInfo={sourceInfo?.blockIconInfo}
             blockMissing={blockMissing}
           />
@@ -325,7 +326,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
-            isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
+            isWorkflowColumn={isWorkflowOutput}
             blockIconInfo={sourceInfo?.blockIconInfo}
             blockMissing={blockMissing}
           />
@@ -357,7 +358,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           >
             <ColumnTypeIcon
               type={column.type}
-              isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
+              isWorkflowColumn={isWorkflowOutput}
               blockIconInfo={sourceInfo?.blockIconInfo}
               blockMissing={blockMissing}
             />

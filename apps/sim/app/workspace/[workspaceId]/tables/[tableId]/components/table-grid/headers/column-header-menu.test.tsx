@@ -132,12 +132,12 @@ describe('ColumnHeaderMenu interactions', () => {
     const headerButton = renderHeader({ onColumnSelect, onRenameColumn })
 
     act(() => {
-      headerButton.click()
-      headerButton.click()
+      headerButton.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }))
+      headerButton.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 }))
       headerButton.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
     })
 
-    expect(onColumnSelect).toHaveBeenCalledTimes(2)
+    expect(onColumnSelect).toHaveBeenCalledTimes(1)
     expect(onRenameColumn).toHaveBeenCalledWith('col-name')
   })
 
