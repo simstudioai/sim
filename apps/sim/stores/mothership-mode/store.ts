@@ -1,30 +1,24 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
-export const MOTHERSHIP_MODES = ['build', 'search'] as const
+export const MOTHERSHIP_MODES = ['build', 'search', 'assistant'] as const
 
 export type MothershipMode = (typeof MOTHERSHIP_MODES)[number]
 
 interface MothershipModeState {
   mode: MothershipMode
-  /** Sources mode's Assistant choice: Sim answers from the sources instead of listing them. */
-  assistant: boolean
   setMode: (mode: MothershipMode) => void
-  setAssistant: (assistant: boolean) => void
   reset: () => void
 }
 
-const initialState: Pick<MothershipModeState, 'mode' | 'assistant'> = {
-  mode: 'build',
-  assistant: false,
-}
+const initialState: Pick<MothershipModeState, 'mode'> = { mode: 'build' }
 
 /**
- * The chat composer's mode — Build (default) or Sources (`search`) — and
- * Sources mode's Search / Assistant choice, read by the input's controls and by
- * the suggested actions beneath the input. Search lists the matching documents
- * with no turn at all; Assistant makes a query a turn of the agent grounded in
- * the searched sources.
+ * The chat composer's mode — Build (default), Search, or Assistant — read by
+ * the input's mode switcher and by the suggested actions beneath the input.
+ * Build is the agent with everything it can do; Search lists the matching
+ * documents with no turn at all; Assistant is a turn of the agent grounded in
+ * the searched sources, answering in natural language.
  *
  * A store rather than `Home` state because `Home` remounts per chat
  * (`key={chatId}`) and the new-chat → `/chat/[chatId]` handoff must carry the
@@ -40,7 +34,6 @@ export const useMothershipModeStore = create<MothershipModeState>()(
     (set) => ({
       ...initialState,
       setMode: (mode) => set({ mode }),
-      setAssistant: (assistant) => set({ assistant }),
       reset: () => set(initialState),
     }),
     { name: 'mothership-mode-store' }

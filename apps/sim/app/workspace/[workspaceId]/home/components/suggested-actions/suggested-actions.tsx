@@ -235,6 +235,7 @@ const INITIAL_ACTIONS: Action[] = [
 const HEADINGS: Record<MothershipMode, string> = {
   build: 'Suggested actions',
   search: 'Sources',
+  assistant: 'Sources',
 }
 
 interface SuggestedActionsProps {
@@ -372,7 +373,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
               `collapsible-up`/`-down` interpolate height alone, so a margin here
               would hold its full value through the close and then vanish on unmount,
               snapping the content below up. */}
-          {mode === 'search' && workspaceId ? (
+          {mode !== 'build' && workspaceId ? (
             <div className='pt-1.5'>
               <SearchSources workspaceId={workspaceId} />
             </div>

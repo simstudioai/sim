@@ -78,14 +78,15 @@ describe('ModeSwitcher', () => {
     expect(button.querySelector('svg')).toBeNull()
   })
 
-  it('lists both modes and checks the active one', () => {
+  it('lists every mode and checks the active one', () => {
     mount()
     openMenu()
 
     const rows = items()
-    expect(rows.map((row) => row.textContent)).toEqual(['Build', 'Sources'])
+    expect(rows.map((row) => row.textContent)).toEqual(['Build', 'Search', 'Assistant'])
     expect(rows[0].querySelector('svg')).not.toBeNull()
     expect(rows[1].querySelector('svg')).toBeNull()
+    expect(rows[2].querySelector('svg')).toBeNull()
   })
 
   it('switches the shared mode and reports the change', () => {
@@ -97,7 +98,7 @@ describe('ModeSwitcher', () => {
     })
 
     expect(useMothershipModeStore.getState().mode).toBe('search')
-    expect(trigger().textContent).toBe('Sources')
+    expect(trigger().textContent).toBe('Search')
     expect(mockCaptureEvent).toHaveBeenCalledWith(null, 'chat_mode_changed', {
       workspace_id: 'workspace-1',
       mode: 'search',
@@ -105,7 +106,7 @@ describe('ModeSwitcher', () => {
     expect(mockSetSearchQuery).not.toHaveBeenCalled()
   })
 
-  it('drops the search query from the URL when leaving Sources', () => {
+  it('drops the search query from the URL when leaving Search', () => {
     useMothershipModeStore.getState().setMode('search')
     mount()
     openMenu()

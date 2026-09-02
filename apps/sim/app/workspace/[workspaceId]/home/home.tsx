@@ -195,7 +195,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     if (searchQuery) useMothershipModeStore.getState().setMode('search')
   }, [searchQuery])
   const composerMode = useMothershipModeStore((state) => state.mode)
-  const assistantMode = useMothershipModeStore((state) => state.assistant)
   /** The bases an Ask turn is grounded in; read through a ref so a list refresh never rebuilds the submit handler. */
   const { data: knowledgeBases = EMPTY_KNOWLEDGE_BASES } = useKnowledgeBasesQuery(workspaceId)
   const knowledgeBasesRef = useRef(knowledgeBases)
@@ -488,13 +487,13 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       })
 
       /**
-       * Sources mode's Search lists documents, not a turn of the agent, and only
-       * a query can be searched: attachments alone have nothing to search for.
-       * Its Assistant makes the query a turn of the agent grounded in the sources.
+       * Search lists documents, not a turn of the agent, and only a query can
+       * be searched: attachments alone have nothing to search for. Assistant
+       * makes the query a turn of the agent grounded in the sources.
        */
-      const { mode, assistant } = useMothershipModeStore.getState()
-      const answering = mode === 'search' && assistant
-      if (mode === 'search' && !assistant) {
+      const mode = useMothershipModeStore.getState().mode
+      const answering = mode === 'assistant'
+      if (mode === 'search') {
         if (trimmed) setSearchQuery(trimmed)
         return
       }
@@ -525,21 +524,18 @@ export function Home({ chatId, userName, userId }: HomeProps) {
 
   /** Summarize or Answer on a result: switch to Assistant and hand the question to it. */
   const handleSummarize = (prompt: string) => {
-    const store = useMothershipModeStore.getState()
-    store.setMode('search')
-    store.setAssistant(true)
+    useMothershipModeStore.getState().setMode('assistant')
     setSearchQuery('')
     handleSubmit(prompt)
   }
   /**
-   * A chat that already exists never opens in Sources' document-listing
-   * Search: its transcript is a conversation, and search results never join
-   * it. Build and the Assistant both carry over, so a follow-up stays grounded
-   * in the sources.
+   * A chat that already exists never opens in Search: its transcript is a
+   * conversation, and search results never join it. Build and Assistant both
+   * carry over, so a follow-up stays grounded in the sources.
    */
   useEffect(() => {
     const store = useMothershipModeStore.getState()
-    if (chatId && store.mode === 'search' && !store.assistant) store.setMode('build')
+    if (chatId && store.mode === 'search') store.setMode('build')
   }, [chatId])
   const showSearchResults = composerMode === 'search' && searchQuery.trim().length > 0
   const searchResults = showSearchResults ? (
@@ -772,7 +768,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
                     draftScopeKey={draftScopeKey}
                     onSubmit={handleSubmit}
                     canSearch
-                    clearOnSubmit={composerMode !== 'search' || assistantMode}
+                    clearOnSubmit={composerMode !== 'search'}
                     onCleared={clearSearch}
                     isSending={isSending}
                     onStopGeneration={handleStopGeneration}
@@ -801,7 +797,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
             isLoading={showChatSkeleton}
             onSubmit={handleSubmit}
             canSearch
-            clearOnSubmit={composerMode !== 'search' || assistantMode}
+            clearOnSubmit={composerMode !== 'search'}
             onCleared={clearSearch}
             onStopGeneration={handleStopGeneration}
             messageQueue={messageQueue}

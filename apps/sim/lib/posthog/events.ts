@@ -617,13 +617,7 @@ export interface PostHogEventMap {
   /** The chat composer's mode switcher picked a different mode. */
   chat_mode_changed: {
     workspace_id: string
-    mode: 'build' | 'search'
-  }
-
-  /** Sources mode's Search / Assistant choice changed. */
-  chat_sources_mode_changed: {
-    workspace_id: string
-    mode: 'search' | 'assistant'
+    mode: 'build' | 'search' | 'assistant'
   }
 
   /**
