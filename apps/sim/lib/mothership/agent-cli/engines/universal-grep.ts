@@ -241,14 +241,19 @@ export const universalGrepCommand: AgentCliEngine = {
     const ignoreCase = flags.i === true
     const countOnly = flags.count === true
     const within = typeof flags.in === 'string' ? flags.in.toLowerCase() : undefined
+    // `--in tables` reads as "search the tables world", so a world name narrows the scope;
+    // anything else is a resource id or name inside the searched worlds.
+    const withinScope = SCOPES.find((scope) => scope === within)
+    const searched: Scope[] = withinScope ? [withinScope] : scopes
+    const nameFilter = withinScope ? undefined : within
     const matches = compilePattern(pattern, ignoreCase)
 
     const materialized = (
-      await Promise.all(scopes.map((scope) => MATERIALIZERS[scope](runtime)))
+      await Promise.all(searched.map((scope) => MATERIALIZERS[scope](runtime)))
     ).flat()
-    const candidates = within
+    const candidates = nameFilter
       ? materialized.filter(
-          (m) => m.id.toLowerCase() === within || m.label.toLowerCase().includes(within)
+          (m) => m.id.toLowerCase() === nameFilter || m.label.toLowerCase().includes(nameFilter)
         )
       : materialized
 
@@ -282,7 +287,7 @@ export const universalGrepCommand: AgentCliEngine = {
     }
     if (out.length === 0) {
       return agentCliOk(
-        `No matches for ${JSON.stringify(pattern)} in ${scopes.join(', ')}${within ? ` within "${within}"` : ''}.`
+        `No matches for ${JSON.stringify(pattern)} in ${searched.join(', ')}${nameFilter ? ` within "${nameFilter}"` : ''}.`
       )
     }
     const truncated =
