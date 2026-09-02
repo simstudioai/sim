@@ -991,6 +991,34 @@ describe('restoreFolder', () => {
     expect(result).toEqual({ success: true, restoredItems: { folders: 1, tables: 5 } })
   })
 
+  /**
+   * Regression: the restore used to run inside `withFolderTreeLock`, so the pool read of the
+   * folder row and the table cascade's own transactions all ran inside a transaction callback —
+   * which the `@sim/db` tripwire refuses outside production, 500ing every table-folder restore.
+   * The lock now lives inside the one folder-row transaction, after the hook has finished.
+   */
+  it('takes the tree lock inside the folder-row transaction, after the restoreChildren hook', async () => {
+    setConfig({ restoreChildren: mockRestoreChildren })
+    mockRestoreChildren.mockResolvedValueOnce(2)
+    queueTableRows(schemaMock.folder, [folderRow({ deletedAt: ARCHIVED_AT })])
+
+    const result = await restoreFolder(baseRestore)
+
+    expect(result).toEqual({ success: true, restoredItems: { folders: 1, tables: 2 } })
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(mockRestoreChildren.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.transaction.mock.invocationCallOrder[0]
+    )
+    // The advisory lock is the first statement on the transaction handle, ahead of the row writes.
+    expect(dbChainMockFns.execute).toHaveBeenCalled()
+    expect(dbChainMockFns.execute.mock.invocationCallOrder[0]).toBeGreaterThan(
+      dbChainMockFns.transaction.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.execute.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRestoreFolderRows.mock.invocationCallOrder[0]
+    )
+  })
+
   it('returns a conflict when a concurrent create takes the name after the dedup check', async () => {
     // Dedup covers the restore root, but clearing deletedAt brings the row back under the
     // active-name unique index and that window is real.

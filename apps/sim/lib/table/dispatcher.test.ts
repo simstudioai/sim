@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -48,7 +48,7 @@ vi.mock('@/lib/table/workflow-columns', () => ({
   }),
 }))
 
-import { dispatcherStep } from '@/lib/table/dispatcher'
+import { dispatcherStep, listDispatches, MAX_LISTED_DISPATCHES } from '@/lib/table/dispatcher'
 
 const DISPATCH = {
   id: 'tdsp_1',
@@ -164,5 +164,39 @@ describe('dispatcherStep processedCount', () => {
     await dispatcherStep('tdsp_1')
 
     expect(processedCountDelta()).toBeNull()
+  })
+})
+
+/**
+ * The public list is the table's recent history, not the dispatcher's in-flight
+ * set: a run that just completed must still be listed, most recent first.
+ */
+describe('listDispatches', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('returns settled dispatches too, bounded to the most recent', async () => {
+    const completed = {
+      ...DISPATCH,
+      id: 'tdsp_2',
+      status: 'complete',
+      processedCount: 13,
+      completedAt: new Date('2026-08-21T15:05:00.000Z'),
+    }
+    dbChainMockFns.limit.mockResolvedValueOnce([completed, DISPATCH])
+
+    const dispatches = await listDispatches('table-1')
+
+    expect(dispatches.map((dispatch) => [dispatch.id, dispatch.status])).toEqual([
+      ['tdsp_2', 'complete'],
+      ['tdsp_1', 'dispatching'],
+    ])
+    expect(
+      hasMockCondition(dbChainMockFns.where.mock.calls[0][0], (node) => node.type === 'inArray')
+    ).toBe(false)
+    expect(dbChainMockFns.orderBy).toHaveBeenCalled()
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(MAX_LISTED_DISPATCHES)
   })
 })

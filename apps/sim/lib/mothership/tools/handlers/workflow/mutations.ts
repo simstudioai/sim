@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isPlainRecord } from '@sim/utils/object'
 import { createCopilotWorkspaceApiKey } from '@/lib/api-key/application/create-api-key'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
@@ -48,6 +49,35 @@ import { hasExecutionResult, readAttemptedExecutionId } from '@/executor/utils/e
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowMutations')
+
+/** Above this a Function block's `input.code` is echoed upstream JSON, not code worth reading. */
+const LOG_CODE_INPUT_MAX_CHARS = 240
+/** Any other echoed input string over this is data the caller already has, or can fetch. */
+const LOG_INPUT_STRING_MAX_CHARS = 2_000
+const LOG_INPUT_KEEP_CHARS = 200
+
+/**
+ * Compacts the block inputs echoed back in `logs`. A Function block's `input.code` embeds the
+ * fully serialized upstream rows, so a seven-block run repeated the same rows several times
+ * across ~14k chars of tool result. Outputs are never touched — they are what the run was for —
+ * and the full input stays one `logs get <executionId> --trace` away.
+ */
+function compactBlockLogInputs(logs: unknown, executionId: string | undefined): unknown {
+  if (!Array.isArray(logs)) return logs
+  const reference = executionId ?? '<executionId>'
+  return logs.map((entry) => {
+    if (!isPlainRecord(entry) || !isPlainRecord(entry.input)) return entry
+    const input: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(entry.input)) {
+      const limit = key === 'code' ? LOG_CODE_INPUT_MAX_CHARS : LOG_INPUT_STRING_MAX_CHARS
+      input[key] =
+        typeof value === 'string' && value.length > limit
+          ? `${value.slice(0, LOG_INPUT_KEEP_CHARS)} …[${value.length} chars, see logs get ${reference} --trace]`
+          : value
+    }
+    return { ...entry, input }
+  })
+}
 
 function stripBinaryFields(value: unknown): unknown {
   if (value === null || value === undefined) return value
@@ -115,7 +145,7 @@ function buildExecutionOutput(
       success: result.success,
       ...extra,
       output: stripBinaryFields(result.output),
-      logs: stripBinaryFields(result.logs),
+      logs: compactBlockLogInputs(stripBinaryFields(result.logs), result.metadata?.executionId),
     },
     error: result.success ? undefined : result.error || 'Workflow execution failed',
     effect: executionEffect(phase, result.metadata?.executionId),

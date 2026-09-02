@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { beforeEach, describe, expect, it } from 'vitest'
-import { BrowserToolReplayLedger } from '@/lib/copilot/tools/client/browser-tool-replay-ledger'
+import { BrowserToolReplayLedger } from '@/lib/mothership/tools/client/browser-tool-replay-ledger'
 
 const STORAGE_KEY = 'test:browser-tool-ledger:v1'
 const LEGACY_PREFIX = 'test:browser-tool-executed:'

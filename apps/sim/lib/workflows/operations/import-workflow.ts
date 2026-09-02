@@ -81,6 +81,13 @@ export interface ImportWorkflowParams {
   requestId: string
 }
 
+/** One block the import created — a summary, not the graph. */
+export interface ImportedWorkflowBlock {
+  id: string
+  type: string
+  name: string
+}
+
 export interface ImportedWorkflow {
   id: string
   name: string
@@ -90,6 +97,8 @@ export interface ImportedWorkflow {
   sortOrder: number
   createdAt: Date
   updatedAt: Date
+  /** The blocks the import persisted, in payload order, so a caller can see what landed without a second read. */
+  blocks: ImportedWorkflowBlock[]
 }
 
 export type ImportWorkflowResult =
@@ -423,6 +432,11 @@ async function executeImportWorkflowIntoWorkspace(
       sortOrder: created.workflow.sortOrder,
       createdAt: created.workflow.createdAt,
       updatedAt: created.workflow.updatedAt,
+      blocks: Object.values(workflowState.blocks).map((block) => ({
+        id: block.id,
+        type: block.type,
+        name: block.name,
+      })),
     },
   }
 }

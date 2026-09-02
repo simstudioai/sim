@@ -7,6 +7,7 @@ import { DAGBuilder } from '@/executor/dag/builder'
 import { DAGExecutor } from '@/executor/execution/executor'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionContext, ExecutionResult } from '@/executor/types'
+import { RunFromBlockValidationError } from '@/executor/utils/run-from-block'
 import { buildSentinelStartId } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
@@ -328,6 +329,36 @@ describe('DAGExecutor run-from-block snapshot metadata', () => {
       result: 'global-branch-0',
     })
     expect(capturedContext?.blockStates.has('unreachable__obranch-0')).toBe(false)
+  })
+  it('refuses a start block whose upstream never executed with a typed validation error', async () => {
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        createBlock('start', BlockType.STARTER),
+        createBlock('producer', BlockType.FUNCTION),
+        createBlock('consumer', BlockType.FUNCTION),
+      ],
+      connections: [
+        { source: 'start', target: 'producer' },
+        { source: 'producer', target: 'consumer' },
+      ],
+      loops: {},
+      parallels: {},
+    }
+    const executor = new DAGExecutor({ workflow })
+    const sourceSnapshot: SerializableExecutionState = {
+      blockStates: {},
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: [],
+    }
+
+    const error = await executor.executeFromBlock('wf', 'consumer', sourceSnapshot).catch((e) => e)
+
+    expect(error).toBeInstanceOf(RunFromBlockValidationError)
+    expect(error.message).toBe('Upstream dependency not executed: producer')
   })
 })
 

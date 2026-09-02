@@ -2001,6 +2001,25 @@ export const v2ImportWorkflowBodySchema = v1ImportWorkflowBodySchema
     ],
   })
 
+const v2ImportedBlockSchema = z
+  .object({
+    id: z.string().describe('Block identifier.'),
+    type: z.string().describe('Registered block type.'),
+    name: z.string().describe('Block display name.'),
+  })
+  .strict()
+  .meta({
+    id: 'ImportedWorkflowBlock',
+    title: 'Imported workflow block',
+    description: 'A block the import created in the new workflow.',
+  })
+
+/**
+ * Import result. Carries the created blocks as a summary — the same shape the
+ * create result uses for its seeded blocks — so a caller can confirm what
+ * landed without reading the whole graph back. An import that reported no
+ * blocks was indistinguishable from one that imported an empty payload.
+ */
 export const v2ImportWorkflowDataSchema = z
   .object({
     id: z.string().describe('Identifier of the imported workflow.'),
@@ -2016,6 +2035,11 @@ export const v2ImportWorkflowDataSchema = z
       .string()
       .describe('ISO 8601 timestamp when the workflow was last updated.')
       .meta({ format: 'date-time' }),
+    blocks: z
+      .array(v2ImportedBlockSchema)
+      .describe(
+        'Blocks the import created, in payload order. A summary only; `GET /workflows/{workflowId}/state` returns the full graph.'
+      ),
   })
   .meta({
     id: 'ImportedWorkflow',

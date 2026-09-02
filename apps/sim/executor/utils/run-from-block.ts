@@ -42,6 +42,19 @@ export interface RunFromBlockValidation {
 }
 
 /**
+ * A run-from-block start the executor refused before running anything: the block is
+ * missing, sits inside a loop or parallel, or has an upstream dependency the source
+ * snapshot never executed. Its own class so the application layer can hand the reason
+ * to the caller as a validation failure instead of the generic system-error fallback.
+ */
+export class RunFromBlockValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'RunFromBlockValidationError'
+  }
+}
+
+/**
  * Context for run-from-block execution mode.
  */
 export interface RunFromBlockContext {

@@ -32,6 +32,7 @@ export const POST = defineV2JsonRoute({
       folderPath,
       createdAt: workflow.createdAt.toISOString(),
       updatedAt: workflow.updatedAt.toISOString(),
+      blocks: workflow.blocks,
     },
   }),
 })
