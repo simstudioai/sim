@@ -38,6 +38,8 @@ let listNextCursor = ''
 let history: Record<string, unknown>[] = MESSAGES
 /** Whether `conversations.info` reports the channel as missing; per-test overridable. */
 let channelMissing = false
+/** The channel `conversations.info` returns; per-test overridable. */
+let infoChannel: Record<string, unknown> = GENERAL
 
 beforeEach(() => {
   requestedUrls.length = 0
@@ -45,6 +47,7 @@ beforeEach(() => {
   listNextCursor = ''
   history = MESSAGES
   channelMissing = false
+  infoChannel = GENERAL
   fetchMock.mockReset()
   fetchMock.mockImplementation(async (input) => {
     const url = new URL(String(input))
@@ -61,7 +64,7 @@ beforeEach(() => {
       case '/api/conversations.info':
         return channelMissing
           ? jsonResponse({ ok: false, error: 'channel_not_found' })
-          : jsonResponse({ ok: true, channel: GENERAL })
+          : jsonResponse({ ok: true, channel: infoChannel })
       case '/api/conversations.history':
         return jsonResponse({ ok: true, messages: history, response_metadata: {} })
       case '/api/users.info': {
@@ -163,7 +166,9 @@ describe('getDocument', () => {
     expect(doc).toMatchObject({
       externalId: 'C0GENERAL',
       title: '#general',
-      contentHash: 'slack-v3:C0GENERAL:1700000000.000100:1700000200.000100:3:noedit:noreply:0',
+      contentHash: expect.stringMatching(
+        /^slack-v3:C0GENERAL:[0-9a-f]{16}:1700000000\.000100:1700000200\.000100:3:noedit:noreply:0$/
+      ),
       metadata: expect.objectContaining({ channelName: 'general', messageCount: 2 }),
     })
     expect(doc?.content).toBe(
@@ -175,6 +180,22 @@ describe('getDocument', () => {
         '[2023-11-14T22:16:40.000Z] Person U2: Shipping today',
       ].join('\n')
     )
+  })
+
+  it('moves the hash when the header changes without any message changing', async () => {
+    const before = await slackConnector.getDocument('token', {}, 'C0GENERAL', {})
+
+    infoChannel = { ...GENERAL, name: 'general-renamed' }
+    const renamed = await slackConnector.getDocument('token', {}, 'C0GENERAL', {})
+    expect(renamed?.contentHash).not.toBe(before?.contentHash)
+
+    infoChannel = { ...GENERAL, topic: { value: 'A new topic' } }
+    const retopiced = await slackConnector.getDocument('token', {}, 'C0GENERAL', {})
+    expect(retopiced?.contentHash).not.toBe(before?.contentHash)
+
+    infoChannel = GENERAL
+    const again = await slackConnector.getDocument('token', {}, 'C0GENERAL', {})
+    expect(again?.contentHash).toBe(before?.contentHash)
   })
 
   it('keeps a channel with no messages as a live document', async () => {

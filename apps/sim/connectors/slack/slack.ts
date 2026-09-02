@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -602,13 +603,15 @@ async function buildSlackChannelDocument(
     maxMessages
   )
 
-  const lines = new BoundedLines(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES, 'last')
-  lines.pin(`Channel: #${channel.name}`)
+  const header = [`Channel: #${channel.name}`]
   const topic = channel.topic?.value?.trim()
-  if (topic) lines.pin(`Topic: ${topic}`)
+  if (topic) header.push(`Topic: ${topic}`)
   const purpose = channel.purpose?.value?.trim()
-  if (purpose) lines.pin(`Purpose: ${purpose}`)
-  lines.pin('')
+  if (purpose) header.push(`Purpose: ${purpose}`)
+
+  /** The newest messages survive when the window does not fit; the header always does. */
+  const lines = new BoundedLines(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES, 'last')
+  lines.pin(...header, '')
   await appendMessages(accessToken, lines, messages, syncContext)
   const messageCount = lines.count
 
@@ -633,13 +636,20 @@ async function buildSlackChannelDocument(
    * in catches deletes (count drops) but still cannot detect reply edits
    * without fetching `conversations.replies` for each parent.
    *
+   * The header is digested into the hash because it is part of the document:
+   * renaming a channel or editing its topic changes the indexed text without
+   * touching a single message, and the sync engine drops a refresh whose hash
+   * matches the stored one. A digest keeps the hash bounded and free of the
+   * delimiter collisions raw topic text would bring.
+   *
    * The `slack-v3` prefix forces a one-time re-index of channels indexed
    * before the document gained its header and size ceiling; `slack-v2` did the
    * same when attachment and Block Kit content started being extracted.
    * Per-message `ts` and the window are unchanged by either, so without the
    * bump the hash would match and the richer content would never be embedded.
    */
-  const contentHash = `slack-v3:${channel.id}:${oldestTs ?? 'empty'}:${lastActivityTs ?? 'empty'}:${messages.length}:${maxEditTs || 'noedit'}:${maxReplyTs || 'noreply'}:${totalReplies}`
+  const headerDigest = createHash('sha256').update(header.join('\n')).digest('hex').slice(0, 16)
+  const contentHash = `slack-v3:${channel.id}:${headerDigest}:${oldestTs ?? 'empty'}:${lastActivityTs ?? 'empty'}:${messages.length}:${maxEditTs || 'noedit'}:${maxReplyTs || 'noreply'}:${totalReplies}`
 
   return { content: lines.join(), contentHash, messageCount, lastActivityTs }
 }
