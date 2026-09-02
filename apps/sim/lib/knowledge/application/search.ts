@@ -486,17 +486,21 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       })
     )
     const tagMaps = new Map(tagDefinitionEntries)
-    const basicDocumentMetadata = provenanceSnapshot
-      ? {}
-      : await getDocumentMetadataByIds(
-          rows.map((row) => row.documentId),
-          access
-        )
+    /**
+     * Always read: the provenance snapshot vouches for the name, URL, and tags
+     * a model may see, but the source card's modified time and connector type
+     * are only carried here, under the same access predicate as the search.
+     */
+    const basicDocumentMetadata = await getDocumentMetadataByIds(
+      rows.map((row) => row.documentId),
+      access
+    )
     const results = rows.map((row): KnowledgeSearchItem => {
       const metadata: Record<string, unknown> = {}
       const tagMap = tagMaps.get(row.knowledgeBaseId)
       const provenanceDocument = provenanceSnapshot?.documentMetadata[row.documentId]
-      const document = provenanceDocument ?? basicDocumentMetadata[row.documentId]
+      const basicDocument = basicDocumentMetadata[row.documentId]
+      const document = provenanceDocument ?? basicDocument
       for (const slot of ALL_TAG_SLOTS) {
         const value =
           provenanceDocument && slot.startsWith('tag')
@@ -513,10 +517,8 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
         documentId: row.documentId,
         documentName: document?.filename ?? null,
         sourceUrl: document?.sourceUrl ?? null,
-        sourceModifiedAt:
-          document && 'sourceModifiedAt' in document ? (document.sourceModifiedAt ?? null) : null,
-        connectorType:
-          document && 'connectorType' in document ? (document.connectorType ?? null) : null,
+        sourceModifiedAt: basicDocument?.sourceModifiedAt ?? null,
+        connectorType: basicDocument?.connectorType ?? null,
         content: row.content,
         chunkIndex: row.chunkIndex,
         metadata,

@@ -9,6 +9,7 @@ const NOW = new Date('2026-09-01T12:00:00Z')
 describe('resolveSourceModifiedAt', () => {
   it.each([
     ['modifiedTime', '2026-08-20T12:00:00Z'],
+    ['updatedTime', '2026-08-20T12:00:00Z'],
     ['lastModified', '2026-08-20T12:00:00.000Z'],
     ['lastModifiedDateTime', '2026-08-20T12:00:00Z'],
     ['updatedAt', '2026-08-20T12:00:00Z'],

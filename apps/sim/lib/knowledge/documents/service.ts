@@ -3669,10 +3669,17 @@ async function excludeConnectorDocuments(
   return updated.length
 }
 
+/**
+ * Deletes documents by their lifecycle: connector-owned ones are excluded,
+ * uploads are hard deleted. `access`, when given, is applied to the selection
+ * and to every write, so a document the caller stopped being able to read
+ * after they looked it up is left alone rather than deleted on a stale view.
+ */
 async function deleteDocumentsByLifecyclePolicy(
   documentIds: string[],
   requestId: string,
-  expectedKnowledgeBaseId?: string
+  expectedKnowledgeBaseId?: string,
+  access?: KnowledgeAccessScope
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   if (ids.length === 0) {
@@ -3692,7 +3699,8 @@ async function deleteDocumentsByLifecyclePolicy(
             eq(document.knowledgeBaseId, expectedKnowledgeBaseId),
             eq(document.userExcluded, false),
             isNull(document.archivedAt),
-            isNull(document.deletedAt)
+            isNull(document.deletedAt),
+            access ? knowledgeAccessCondition(access) : undefined
           )
         : inArray(document.id, ids)
     )
@@ -3702,9 +3710,21 @@ async function deleteDocumentsByLifecyclePolicy(
 
   const [excludedCount, hardDeletedCount] = await Promise.all([
     expectedKnowledgeBaseId
-      ? excludeConnectorKnowledgeDocuments(expectedKnowledgeBaseId, connectorBackedIds, requestId)
+      ? excludeConnectorKnowledgeDocuments(
+          expectedKnowledgeBaseId,
+          connectorBackedIds,
+          requestId,
+          access
+        )
       : excludeConnectorDocuments(connectorBackedIds, requestId),
-    hardDeleteDocuments(hardDeleteIds, requestId, undefined, expectedKnowledgeBaseId),
+    hardDeleteDocuments(
+      hardDeleteIds,
+      requestId,
+      undefined,
+      expectedKnowledgeBaseId,
+      undefined,
+      access
+    ),
   ])
 
   return excludedCount + hardDeletedCount
@@ -3756,7 +3776,9 @@ export async function hardDeleteDocuments(
    */
   expectedConnectorId?: string,
   expectedKnowledgeBaseId?: string,
-  connectorSyncGuard?: ConnectorSyncDeletionGuard
+  connectorSyncGuard?: ConnectorSyncDeletionGuard,
+  /** When provided, only documents the caller may currently read are deleted, re-verified at the delete itself. */
+  access?: KnowledgeAccessScope
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   if (ids.length === 0) {
@@ -3770,7 +3792,8 @@ export async function hardDeleteDocuments(
       requestId,
       expectedConnectorId,
       expectedKnowledgeBaseId,
-      connectorSyncGuard
+      connectorSyncGuard,
+      access
     )
   }
   return deletedCount
@@ -3785,13 +3808,15 @@ async function hardDeleteDocumentBatch(
   requestId: string,
   expectedConnectorId?: string,
   expectedKnowledgeBaseId?: string,
-  connectorSyncGuard?: ConnectorSyncDeletionGuard
+  connectorSyncGuard?: ConnectorSyncDeletionGuard,
+  access?: KnowledgeAccessScope
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   const scopedConnectorId = connectorSyncGuard?.connectorId ?? expectedConnectorId
   const scopedKnowledgeBaseId = connectorSyncGuard?.knowledgeBaseId ?? expectedKnowledgeBaseId
   const requireEligibleDocument = Boolean(expectedKnowledgeBaseId || connectorSyncGuard)
   const requireVisibleDocument = Boolean(expectedKnowledgeBaseId && !connectorSyncGuard)
+  const accessCondition = access ? knowledgeAccessCondition(access) : undefined
   const documentsToDelete = await db
     .select({
       id: document.id,
@@ -3812,7 +3837,8 @@ async function hardDeleteDocumentBatch(
         scopedKnowledgeBaseId ? eq(document.knowledgeBaseId, scopedKnowledgeBaseId) : undefined,
         requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
         requireEligibleDocument ? isNull(document.archivedAt) : undefined,
-        requireVisibleDocument ? isNull(document.deletedAt) : undefined
+        requireVisibleDocument ? isNull(document.deletedAt) : undefined,
+        accessCondition
       )
     )
 
@@ -3924,7 +3950,7 @@ async function hardDeleteDocumentBatch(
      * ID set rather than the stale `existingIds`.
      */
     const stillTargetedIds =
-      scopedConnectorId || scopedKnowledgeBaseId
+      scopedConnectorId || scopedKnowledgeBaseId || accessCondition
         ? (
             await tx
               .select({ id: document.id })
@@ -3938,7 +3964,8 @@ async function hardDeleteDocumentBatch(
                     : undefined,
                   requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
                   requireEligibleDocument ? isNull(document.archivedAt) : undefined,
-                  requireVisibleDocument ? isNull(document.deletedAt) : undefined
+                  requireVisibleDocument ? isNull(document.deletedAt) : undefined,
+                  accessCondition
                 )
               )
               .orderBy(asc(document.id))
@@ -4011,7 +4038,11 @@ export async function deleteDocument(
   }
 }
 
-/** Deletes one currently visible document within its canonical knowledge base. */
+/**
+ * Deletes one currently visible document within its canonical knowledge base.
+ * The caller's access is re-applied at the delete itself, so a token member
+ * sync revokes between the lookup and the write cannot still delete.
+ */
 export async function deleteKnowledgeDocumentInKnowledgeBase(
   knowledgeBaseId: string,
   documentId: string,
@@ -4020,14 +4051,20 @@ export async function deleteKnowledgeDocumentInKnowledgeBase(
 ): Promise<void> {
   const current = await getKnowledgeDocument(knowledgeBaseId, documentId, access)
   if (!current) throw new OrchestrationError('not_found', 'Document not found')
-  const affected = await deleteDocumentsByLifecyclePolicy([documentId], requestId, knowledgeBaseId)
+  const affected = await deleteDocumentsByLifecyclePolicy(
+    [documentId],
+    requestId,
+    knowledgeBaseId,
+    access
+  )
   if (affected !== 1) throw new OrchestrationError('not_found', 'Document not found')
 }
 
 async function excludeConnectorKnowledgeDocuments(
   knowledgeBaseId: string,
   documentIds: string[],
-  requestId: string
+  requestId: string,
+  access?: KnowledgeAccessScope
 ): Promise<number> {
   if (documentIds.length === 0) return 0
   const updated = await db
@@ -4040,7 +4077,8 @@ async function excludeConnectorKnowledgeDocuments(
         isNotNull(document.connectorId),
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
-        isNull(document.deletedAt)
+        isNull(document.deletedAt),
+        access ? knowledgeAccessCondition(access) : undefined
       )
     )
     .returning({ id: document.id })

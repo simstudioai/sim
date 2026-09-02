@@ -54,6 +54,7 @@ import {
 import {
   createMemberSyncLease,
   holdsMemberSyncLockToken,
+  MEMBER_LOCKABLE_CONNECTOR_STATUSES,
   SyncLockLostException,
   stillHoldsMemberSyncLock,
 } from '@/lib/knowledge/connectors/sync-lock'
@@ -438,6 +439,7 @@ async function acquireMemberSyncLock(
       and(
         eq(knowledgeConnector.id, connectorId),
         eq(knowledgeConnector.accessMode, 'members'),
+        inArray(knowledgeConnector.status, MEMBER_LOCKABLE_CONNECTOR_STATUSES),
         inArray(knowledgeConnector.memberSyncStatus, ['idle', 'pending', 'error']),
         ...(dispatchToken ? [eq(knowledgeConnector.memberSyncLockToken, dispatchToken)] : []),
         isNull(knowledgeConnector.syncLockToken),
@@ -851,6 +853,13 @@ async function listForMember(input: {
       full || !member.memberSyncedThrough
         ? undefined
         : new Date(member.memberSyncedThrough.getTime() - INCREMENTAL_OVERLAP_MS)
+    /**
+     * A listing pass has no cursor to resume from, so a page cap would relist
+     * the same first pages every run and never reach the documents behind
+     * them. The run's deadline is its only bound: a member the budget cuts off
+     * is re-armed at once (`resumable`), and one no run can finish alone
+     * backs off (`exhaustedRunAlone`) instead of being silently truncated.
+     */
     const listing = await runListingPass({
       connectorId: run.connectorId,
       connectorConfig,
@@ -860,7 +869,7 @@ async function listForMember(input: {
       beforePage: run.lease.beatIfDue,
       getAccessToken: () => input.tokens.get(member.id),
       deadlineAt: run.deadlineAt,
-      maxPages: MEMBER_SYNC_MAX_PAGES_PER_MEMBER,
+      maxPages: Number.POSITIVE_INFINITY,
     })
     const complete =
       listing.exhausted &&
@@ -1285,6 +1294,7 @@ export async function executeMemberSync(
   if (!connector) {
     const [current] = await db
       .select({
+        status: knowledgeConnector.status,
         memberSyncStatus: knowledgeConnector.memberSyncStatus,
         memberSyncLockToken: knowledgeConnector.memberSyncLockToken,
         syncLockToken: knowledgeConnector.syncLockToken,
@@ -1292,8 +1302,15 @@ export async function executeMemberSync(
       .from(knowledgeConnector)
       .where(eq(knowledgeConnector.id, connectorId))
       .limit(1)
-    if (current?.memberSyncStatus === 'disabled' || current?.syncLockToken) {
-      logger.info('Connector is not accepting member syncs, skipping', { connectorId })
+    if (
+      current?.memberSyncStatus === 'disabled' ||
+      current?.syncLockToken ||
+      (current && !MEMBER_LOCKABLE_CONNECTOR_STATUSES.some((status) => status === current.status))
+    ) {
+      logger.info('Connector is not accepting member syncs, skipping', {
+        connectorId,
+        status: current.status,
+      })
       return skipped(result, 'connector_not_syncable')
     }
     if (options.dispatchToken && current?.memberSyncLockToken !== options.dispatchToken) {

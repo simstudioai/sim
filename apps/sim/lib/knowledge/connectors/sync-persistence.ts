@@ -9,6 +9,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
 import { EMPTY_ACL, WORKSPACE_ACL } from '@/lib/knowledge/access/tokens'
 import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
+import { SyncLockLostException, type SyncRunLease } from '@/lib/knowledge/connectors/sync-lock'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { StorageService } from '@/lib/uploads'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
@@ -148,6 +149,30 @@ async function isKnowledgeBaseActiveInTx(
   return rows.length > 0
 }
 
+/** The lease a document write proves before it lands, as the run that makes it holds it. */
+export type SyncWriteLease = Pick<SyncRunLease, 'stillHeld'>
+
+/**
+ * Proves, inside the write's own transaction, that the run still owns the
+ * connector. A heartbeat taken before the batch only says the lease was held
+ * then; the hydration and storage work between it and the row write can
+ * outlast the lease. The share lock keeps the scheduler's reclaim from landing
+ * until this write commits, and a row that no longer matches aborts the write
+ * instead of landing stale content over the replacement run's.
+ */
+async function assertSyncLeaseHeldInTx(
+  tx: KnowledgeBaseLockingTx,
+  connectorId: string,
+  lease: SyncWriteLease
+): Promise<void> {
+  const [held] = await tx
+    .select({ id: knowledgeConnector.id })
+    .from(knowledgeConnector)
+    .where(lease.stillHeld())
+    .for('share')
+  if (!held) throw new SyncLockLostException(connectorId)
+}
+
 /**
  * Resolves tag values from connector metadata using the connector's mapTags function.
  * Translates semantic keys returned by mapTags to actual DB slots using the
@@ -256,7 +281,8 @@ export async function persistSkippedDocuments(
     extDoc: ExternalDocument
   }>,
   sourceConfig: Record<string, unknown> | undefined,
-  access: SyncDocumentAccess
+  access: SyncDocumentAccess,
+  lease: SyncWriteLease
 ): Promise<number> {
   if (skipOps.length === 0) {
     return 0
@@ -283,6 +309,7 @@ export async function persistSkippedDocuments(
     if (!isActive) {
       throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
     }
+    await assertSyncLeaseHeldInTx(tx, connectorId, lease)
 
     if (inserts.length > 0) {
       await tx.insert(document).values(inserts)
@@ -371,7 +398,8 @@ export async function persistSkippedDocuments(
 export async function persistSkippedRetryHashes(
   knowledgeBaseId: string,
   connectorId: string,
-  updates: Array<{ existingId: string; externalId: string; contentHash: string }>
+  updates: Array<{ existingId: string; externalId: string; contentHash: string }>,
+  lease: SyncWriteLease
 ): Promise<string[]> {
   if (updates.length === 0) return []
 
@@ -382,6 +410,7 @@ export async function persistSkippedRetryHashes(
     if (!isActive) {
       throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
     }
+    await assertSyncLeaseHeldInTx(tx, connectorId, lease)
 
     for (const update of updates) {
       const persisted = await tx
@@ -409,7 +438,8 @@ export async function addDocument(
   extDoc: ExternalDocument,
   kbOwner: KnowledgeBaseOwner,
   sourceConfig: Record<string, unknown> | undefined,
-  access: SyncDocumentAccess
+  access: SyncDocumentAccess,
+  lease: SyncWriteLease
 ): Promise<DocumentData> {
   const documentId = generateId()
   const artifact = connectorStoredArtifact(extDoc)
@@ -437,6 +467,7 @@ export async function addDocument(
       if (!isActive) {
         throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
       }
+      await assertSyncLeaseHeldInTx(tx, connectorId, lease)
 
       await tx.insert(document).values({
         id: documentId,
@@ -507,7 +538,8 @@ export async function updateDocument(
   extDoc: ExternalDocument,
   kbOwner: KnowledgeBaseOwner,
   sourceConfig: Record<string, unknown> | undefined,
-  access: SyncDocumentAccess
+  access: SyncDocumentAccess,
+  lease: SyncWriteLease
 ): Promise<DocumentData> {
   const existingRows = await db
     .select({ fileUrl: document.fileUrl })
@@ -543,6 +575,7 @@ export async function updateDocument(
       if (!isActive) {
         throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
       }
+      await assertSyncLeaseHeldInTx(tx, connectorId, lease)
 
       await tx
         .update(document)

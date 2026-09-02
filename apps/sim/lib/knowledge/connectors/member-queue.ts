@@ -17,7 +17,10 @@ import {
   SYNC_DISPATCH_FAILED_ERROR,
   type SyncDispatchResult,
 } from '@/lib/knowledge/connectors/queue'
-import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
+import {
+  connectorIsLive,
+  MEMBER_LOCKABLE_CONNECTOR_STATUSES,
+} from '@/lib/knowledge/connectors/sync-lock'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('ConnectorMemberSyncQueue')
@@ -77,9 +80,16 @@ export function assertMemberSyncPayload(value: unknown): MemberSyncPayload {
 /**
  * Takes the member-sync queue entry, mirroring `markSyncPending` over the
  * member lease columns. Refuses while the content engine holds its lock, so
- * the two engines can never be queued against one connector at once.
+ * the two engines can never be queued against one connector at once, and
+ * refuses a connector that is no longer runnable or whose schedule moved
+ * since the dispatch read it: the guards above this CAS cannot see a pause
+ * or a schedule change that lands after they ran, so the CAS is where those
+ * are decided.
  */
-async function markMemberSyncPending(connectorId: string): Promise<string | null> {
+async function markMemberSyncPending(
+  connectorId: string,
+  expectedNextMemberSyncAt: Date | undefined
+): Promise<string | null> {
   const dispatchToken = generateId()
   const now = new Date()
   const taken = await db
@@ -94,7 +104,11 @@ async function markMemberSyncPending(connectorId: string): Promise<string | null
       and(
         eq(knowledgeConnector.id, connectorId),
         eq(knowledgeConnector.accessMode, 'members'),
+        inArray(knowledgeConnector.status, MEMBER_LOCKABLE_CONNECTOR_STATUSES),
         inArray(knowledgeConnector.memberSyncStatus, QUEUEABLE_MEMBER_SYNC_STATUSES),
+        ...(expectedNextMemberSyncAt
+          ? [eq(knowledgeConnector.nextMemberSyncAt, expectedNextMemberSyncAt)]
+          : []),
         isNull(knowledgeConnector.memberSyncLockToken),
         isNull(knowledgeConnector.syncLockToken),
         connectorIsLive()
@@ -104,11 +118,16 @@ async function markMemberSyncPending(connectorId: string): Promise<string | null
   return taken.length > 0 ? dispatchToken : null
 }
 
-async function describeUnacceptedMemberSync(connectorId: string): Promise<string> {
+async function describeUnacceptedMemberSync(
+  connectorId: string,
+  expectedNextMemberSyncAt: Date | undefined
+): Promise<string> {
   const [row] = await db
     .select({
       accessMode: knowledgeConnector.accessMode,
+      status: knowledgeConnector.status,
       memberSyncStatus: knowledgeConnector.memberSyncStatus,
+      nextMemberSyncAt: knowledgeConnector.nextMemberSyncAt,
       syncLockToken: knowledgeConnector.syncLockToken,
       archivedAt: knowledgeConnector.archivedAt,
       deletedAt: knowledgeConnector.deletedAt,
@@ -119,8 +138,17 @@ async function describeUnacceptedMemberSync(connectorId: string): Promise<string
   if (!row) return 'Connector no longer exists'
   if (row.archivedAt || row.deletedAt) return 'Connector has been archived or deleted'
   if (row.accessMode !== 'members') return 'Connector no longer syncs per member'
+  if (!MEMBER_LOCKABLE_CONNECTOR_STATUSES.some((status) => status === row.status)) {
+    return `Connector is ${row.status} and is not synced`
+  }
   if (row.syncLockToken) return 'A workspace sync is still running for this connector'
   if (row.memberSyncStatus === 'disabled') return 'Member sync is disabled for this connector'
+  if (
+    expectedNextMemberSyncAt &&
+    row.nextMemberSyncAt?.getTime() !== expectedNextMemberSyncAt.getTime()
+  ) {
+    return 'The member sync schedule changed after this run was scheduled'
+  }
   return 'A member sync is already queued or running for this connector'
 }
 
@@ -266,9 +294,9 @@ export async function dispatchMemberSync(
     )
   }
 
-  const dispatchToken = await markMemberSyncPending(connectorId)
+  const dispatchToken = await markMemberSyncPending(connectorId, options.expectedNextMemberSyncAt)
   if (!dispatchToken) {
-    const reason = await describeUnacceptedMemberSync(connectorId)
+    const reason = await describeUnacceptedMemberSync(connectorId, options.expectedNextMemberSyncAt)
     logger.info('Skipping member sync dispatch: connector is not accepting a queued run', {
       connectorId,
       reason,
@@ -323,8 +351,9 @@ export async function dispatchMemberSync(
 /**
  * Queues a member run for every connector that crawls through the option a
  * member just connected, so their documents arrive within minutes rather
- * than at the next scheduled run. Best effort: a refused dispatch is logged
- * and the schedule catches up.
+ * than at the next scheduled run. Best effort: a refused or failed dispatch is
+ * logged, the remaining connectors are still queued, and the schedule catches
+ * up on whichever was not.
  */
 export async function dispatchMemberSyncsForCredentialOption(input: {
   workspaceId: string
@@ -348,11 +377,18 @@ export async function dispatchMemberSyncsForCredentialOption(input: {
   if (connectors.length === 0) return
   const billingAttribution = await resolveSystemBillingAttribution(input.workspaceId)
   for (const connector of connectors) {
-    const dispatch = await dispatchMemberSync(connector.id, { billingAttribution })
-    if (!dispatch.queued) {
-      logger.info('Member sync after a member connected was not queued', {
+    try {
+      const dispatch = await dispatchMemberSync(connector.id, { billingAttribution })
+      if (!dispatch.queued) {
+        logger.info('Member sync after a member connected was not queued', {
+          connectorId: connector.id,
+          reason: dispatch.reason,
+        })
+      }
+    } catch (error) {
+      logger.warn('Member sync after a member connected could not be dispatched', {
         connectorId: connector.id,
-        reason: dispatch.reason,
+        error: toError(error).message,
       })
     }
   }

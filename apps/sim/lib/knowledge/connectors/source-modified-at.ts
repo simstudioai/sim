@@ -5,6 +5,7 @@
  */
 const SOURCE_MODIFIED_AT_KEYS = [
   'modifiedTime',
+  'updatedTime',
   'lastModified',
   'lastModifiedDateTime',
   'modifiedAt',

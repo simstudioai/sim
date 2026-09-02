@@ -12,6 +12,7 @@ import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  CredentialGroupEnrollmentError,
   createCredentialGroupInvitationLink,
   inviteCredentialGroupEnrollment,
 } from '@/lib/credential-groups/enrollments'
@@ -174,9 +175,11 @@ export interface InviteWorkspaceMembersResult {
 /**
  * Invites every workspace member who has no enrollment in the group yet, so
  * joining the workspace is all a person has to do before connecting their
- * account. An enrollment an admin revoked is left alone. Runs inside a member
- * run: `beforeBatch` beats the run's lease between batches, and failures are
- * logged per person rather than aborting the run.
+ * account. An enrollment an admin revoked is left alone — the invitation is
+ * issued with `reject`, so a revocation that lands after the enrollments were
+ * read is refused inside the issuing transaction rather than reactivated.
+ * Runs inside a member run: `beforeBatch` beats the run's lease between
+ * batches, and failures are logged per person rather than aborting the run.
  */
 export async function inviteWorkspaceMembersToCredentialGroup(input: {
   workspaceId: string
@@ -205,7 +208,8 @@ export async function inviteWorkspaceMembersToCredentialGroup(input: {
           input.credentialGroupId,
           undefined,
           undefined,
-          email
+          email,
+          'reject'
         )
         result.invited += 1
       } catch (error) {
@@ -326,7 +330,9 @@ export async function resolveViewerConnectorMemberships(input: {
  * on demand so a workspace member never has to find the invitation email.
  * Issued without an inviter — the person is inviting themselves — and refused
  * for an enrollment an admin revoked or an account whose email is unverified,
- * which could connect but would never be granted a token.
+ * which could connect but would never be granted a token. The revocation is
+ * decided inside the issuing transaction (`reject`), so an admin who revokes
+ * between the read here and the issue is never overridden by a link.
  */
 export async function createViewerConnectorEnrollmentLink(input: {
   userId: string
@@ -346,27 +352,43 @@ export async function createViewerConnectorEnrollmentLink(input: {
     )
   }
   const email = normalizeEmail(viewer.email)
+  const revoked = new OrchestrationError(
+    'forbidden',
+    'A workspace admin removed your access to this connector'
+  )
+  if (await isEnrollmentRevoked(input.credentialGroupId, email)) throw revoked
+  try {
+    const { invitationLink } = await createCredentialGroupInvitationLink(
+      input.workspaceId,
+      input.credentialGroupId,
+      undefined,
+      email,
+      'reject'
+    )
+    return invitationLink
+  } catch (error) {
+    /** The issue refused a revocation that landed after the read above; report it as such. */
+    if (
+      error instanceof CredentialGroupEnrollmentError &&
+      error.status === 409 &&
+      (await isEnrollmentRevoked(input.credentialGroupId, email))
+    ) {
+      throw revoked
+    }
+    throw error
+  }
+}
+
+async function isEnrollmentRevoked(credentialGroupId: string, email: string): Promise<boolean> {
   const [enrollment] = await db
     .select({ status: credentialGroupEnrollment.status })
     .from(credentialGroupEnrollment)
     .where(
       and(
-        eq(credentialGroupEnrollment.credentialGroupId, input.credentialGroupId),
+        eq(credentialGroupEnrollment.credentialGroupId, credentialGroupId),
         eq(credentialGroupEnrollment.email, email)
       )
     )
     .limit(1)
-  if (enrollment?.status === 'revoked') {
-    throw new OrchestrationError(
-      'forbidden',
-      'A workspace admin removed your access to this connector'
-    )
-  }
-  const { invitationLink } = await createCredentialGroupInvitationLink(
-    input.workspaceId,
-    input.credentialGroupId,
-    undefined,
-    email
-  )
-  return invitationLink
+  return enrollment?.status === 'revoked'
 }
