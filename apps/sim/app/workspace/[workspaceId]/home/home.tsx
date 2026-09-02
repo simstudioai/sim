@@ -185,11 +185,15 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     },
     [setSearchQueryParam, setSearchFilters]
   )
-  /** A link that carries a query opens in Search mode with the query in the box. */
-  const [initialSearchQuery] = useState(searchQuery)
+  /**
+   * A URL that carries a query opens in Search mode with the query in the box,
+   * whether it arrived by link or by navigating back to it; the composer
+   * follows the live query the same way (below), so the box and the results
+   * never show two different queries.
+   */
   useEffect(() => {
-    if (initialSearchQuery) useMothershipModeStore.getState().setMode('search')
-  }, [initialSearchQuery])
+    if (searchQuery) useMothershipModeStore.getState().setMode('search')
+  }, [searchQuery])
   const composerMode = useMothershipModeStore((state) => state.mode)
   /** The bases an Ask turn is grounded in; read through a ref so a list refresh never rebuilds the submit handler. */
   const { data: knowledgeBases = EMPTY_KNOWLEDGE_BASES } = useKnowledgeBasesQuery(workspaceId)
@@ -758,7 +762,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
                 >
                   <UserInput
                     ref={initialViewUserInputRef}
-                    defaultValue={initialPrompt || initialSearchQuery}
+                    defaultValue={initialPrompt || searchQuery}
                     draftScopeKey={draftScopeKey}
                     onSubmit={handleSubmit}
                     canSearch
