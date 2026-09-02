@@ -1030,6 +1030,25 @@ describe('MothershipBlockHandler', () => {
     ])
   })
 
+  it('does not forward tools for a blank advanced MCP server binding', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+
+    await handler.execute(context, block, {
+      prompt: 'Continue without MCP tools',
+      tools: [
+        {
+          type: 'mcp-server-advanced',
+          params: { serverId: '' },
+          usageControl: 'auto',
+        },
+      ],
+    })
+
+    expect(mockDiscoverMcpServerToolsAsExecutor).not.toHaveBeenCalled()
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(JSON.parse(String(options.body))).not.toHaveProperty('mcpTools')
+  })
+
   it('does not scan arbitrary Mothership metadata, attachment names, or payloads', async () => {
     const secret = 'boundary-secret'
     const registry = new ResolvedSecretTraceRegistry([

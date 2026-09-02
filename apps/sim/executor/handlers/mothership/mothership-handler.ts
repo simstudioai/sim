@@ -161,9 +161,10 @@ async function expandMothershipMcpTools(
         throw new Error('MCP Server (Advanced) requires params.serverId')
       }
       const serverId = candidate.params.serverId
-      if (typeof serverId !== 'string' || !serverId.trim()) {
+      if (typeof serverId !== 'string') {
         throw new Error('MCP Server (Advanced) requires params.serverId')
       }
+      if (!serverId.trim()) return []
       const usageControl: 'auto' | 'force' = candidate.usageControl === 'force' ? 'force' : 'auto'
       return [{ serverId, usageControl }]
     }

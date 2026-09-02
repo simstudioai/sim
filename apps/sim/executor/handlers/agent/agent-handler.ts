@@ -803,6 +803,8 @@ export class AgentBlockHandler implements BlockHandler {
       if (entry.tool.type === 'mcp') {
         mcpTools.push(entry)
       } else if (entry.tool.type === MCP_SERVER_ADVANCED_TOOL_TYPE) {
+        const serverId = entry.tool.params?.serverId
+        if (typeof serverId === 'string' && !serverId.trim()) continue
         advancedMcpServers.push(entry)
       } else {
         otherTools.push(entry)

@@ -3779,6 +3779,32 @@ describe('AgentBlockHandler', () => {
       ])
     })
 
+    it('does not create tools for a blank advanced MCP server binding', async () => {
+      await handler.execute(
+        {
+          ...mockContext,
+          workspaceId: 'test-workspace-123',
+          workflowId: 'test-workflow-456',
+        },
+        mockBlock,
+        {
+          model: 'gpt-4o',
+          userPrompt: 'Continue without MCP tools',
+          apiKey: 'test-api-key',
+          tools: [
+            {
+              type: 'mcp-server-advanced',
+              params: { serverId: '' },
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+      )
+
+      expect(mockDiscoverMcpServerToolsAsExecutor).not.toHaveBeenCalled()
+      expect(mockExecuteProviderRequest.mock.calls[0][1].tools).toEqual([])
+    })
+
     describe('customToolId resolution - DB as source of truth', () => {
       const staleInlineSchema = {
         function: {

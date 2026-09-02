@@ -49,9 +49,10 @@ export function assertValidMcpServerToolBindings(value: unknown): void {
     }
     if (tool.type !== MCP_SERVER_ADVANCED_TOOL_TYPE) continue
     const serverId = tool.params?.serverId
-    if (typeof serverId !== 'string' || !serverId.trim()) {
+    if (typeof serverId !== 'string') {
       throw new Error('MCP Server (Advanced) requires params.serverId')
     }
+    if (!serverId.trim()) continue
     if (advancedServerIds.has(serverId)) {
       throw new Error(`Duplicate MCP Server (Advanced) binding for ${serverId}`)
     }
