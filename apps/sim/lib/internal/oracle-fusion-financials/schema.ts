@@ -203,7 +203,7 @@ export const oracleFusionPaymentSchema = z
 
 export const oracleFusionListEnvelopeSchema = z
   .object({
-    items: z.array(z.unknown()).max(100).default([]),
+    items: z.array(z.unknown()).max(100),
     count: z.number().int().nonnegative().max(100),
     hasMore: z.boolean(),
     limit: z.number().int().positive().max(100),

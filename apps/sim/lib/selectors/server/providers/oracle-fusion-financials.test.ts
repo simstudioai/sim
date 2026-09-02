@@ -211,9 +211,15 @@ describe('Oracle Fusion Financials invoice selector', () => {
     mocks.request.mockRejectedValue(
       new OracleFusionFinancialsProviderError('provider-secret-canary', 401)
     )
-    await expect(attachment.execute(args({ kind: 'list' }), prepared())).rejects.toEqual(
-      expect.objectContaining({ name: 'SelectorConnectionUnavailableError' })
-    )
+    const authenticationError = await attachment
+      .execute(args({ kind: 'list' }), prepared())
+      .catch((error) => error)
+    expect(authenticationError).toMatchObject({
+      name: 'SelectorConnectionUnavailableError',
+      message: 'Connection unavailable',
+      status: 401,
+    })
+    expect((authenticationError as Error).message).not.toContain('provider-secret-canary')
 
     mocks.request.mockRejectedValue(
       new OracleFusionFinancialsProviderError('provider-secret-canary', 404)

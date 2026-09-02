@@ -305,23 +305,33 @@ describe('Oracle Fusion Financials provider', () => {
   })
 
   it('stops after two retries and surfaces a sanitized Oracle error', async () => {
+    const accessToken = 'short/lived+access~token='
+    const encodedAccessToken = encodeURIComponent(accessToken)
+    const formEncodedAccessToken = new URLSearchParams({ value: accessToken })
+      .toString()
+      .slice('value='.length)
     mockSecureFetch
       .mockResolvedValueOnce(response(504, { title: 'gateway timeout' }))
       .mockResolvedValueOnce(response(503, { title: 'unavailable' }))
       .mockResolvedValueOnce(
         response(429, {
-          title: `Token ${AUTH.accessToken}`,
-          detail: 'Request temporarily throttled',
+          title: `Token ${encodedAccessToken}`,
+          detail: `Token ${formEncodedAccessToken}`,
+          message: 'access_token=provider-detail-canary&scope=read',
         })
       )
 
-    const error = await requestOracleFusionJson(AUTH, {
-      path: '/fscmRestApi/resources/11.13.18.05/invoices',
-    }).catch((caught) => caught)
+    const error = await requestOracleFusionJson(
+      { ...AUTH, accessToken },
+      { path: '/fscmRestApi/resources/11.13.18.05/invoices' }
+    ).catch((caught) => caught)
     expect(error).toBeInstanceOf(OracleFusionFinancialsProviderError)
     expect(error).toMatchObject({ status: 429 })
     expect((error as Error).message).toContain('[REDACTED]')
-    expect((error as Error).message).not.toContain(AUTH.accessToken)
+    expect((error as Error).message).not.toContain(accessToken)
+    expect((error as Error).message).not.toContain(encodedAccessToken)
+    expect((error as Error).message).not.toContain(formEncodedAccessToken)
+    expect((error as Error).message).not.toContain('provider-detail-canary')
     expect(mockSecureFetch).toHaveBeenCalledTimes(3)
   })
 
@@ -353,6 +363,7 @@ describe('Oracle Fusion Financials provider', () => {
 
   it('rejects malformed Oracle list envelopes and projected field types', async () => {
     mockSecureFetch
+      .mockResolvedValueOnce(response(200, { count: 0, hasMore: false, limit: 50, offset: 0 }))
       .mockResolvedValueOnce(
         response(200, { items: [], count: '0', hasMore: false, limit: 50, offset: 0 })
       )
@@ -361,6 +372,16 @@ describe('Oracle Fusion Financials provider', () => {
       )
       .mockResolvedValueOnce(response(200, page([{ CheckId: 'not-a-number' }])))
 
+    await expect(
+      executeOracleFusionFinancialsOperation(
+        'oracle_fusion_financials_list_payables_payments',
+        AUTH
+      )
+    ).rejects.toMatchObject({
+      name: 'OracleFusionFinancialsProviderError',
+      status: 502,
+      message: 'Oracle Fusion Financials returned an unexpected response shape',
+    })
     await expect(
       executeOracleFusionFinancialsOperation(
         'oracle_fusion_financials_list_payables_payments',

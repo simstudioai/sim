@@ -6,6 +6,7 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { redactExactSensitiveValues } from '@/lib/core/security/redaction'
 import { consumeOrCancelBody } from '@/lib/core/utils/stream-limits'
 import { normalizeOracleFusionApplicationOrigin } from '@/lib/credentials/client-credential-accounts/descriptors'
 import type { OracleFusionAuthInput } from '@/lib/internal/oracle-fusion-financials/schema'
@@ -55,7 +56,7 @@ function sanitizeOracleError(body: string, accessToken: string, status: number):
     // Non-JSON proxy pages are intentionally not reflected to tool callers.
   }
   const unique = [...new Set(messages)]
-  const safe = truncate(unique.join(' — ').replaceAll(accessToken, '[REDACTED]'), 1_000)
+  const safe = truncate(redactExactSensitiveValues(unique.join(' — '), [accessToken]), 1_000)
   return safe || `Oracle Fusion Financials request failed with HTTP ${status}`
 }
 
