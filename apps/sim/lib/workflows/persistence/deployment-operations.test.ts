@@ -21,6 +21,7 @@ vi.mock('@sim/utils/id', () => ({
 
 import {
   activateDeploymentOperation,
+  getProtectedDeploymentVersionId,
   markDeploymentComponentReadiness,
   markDeploymentOperationFailed,
   prepareWorkflowDeployment,
@@ -487,5 +488,32 @@ describe('deployment operation persistence', () => {
     )
     expect(dbChainMockFns.update).not.toHaveBeenCalledWith(schemaMock.workflowDeploymentVersion)
     expect(dbChainMockFns.update).not.toHaveBeenCalledWith(schemaMock.workflow)
+  })
+})
+
+describe('getProtectedDeploymentVersionId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('returns the version the in-flight current operation is preparing', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { deploymentVersionId: 'version-3', protocolVersion: 2, status: 'preparing' },
+    ])
+
+    await expect(getProtectedDeploymentVersionId(WORKFLOW_ID)).resolves.toBe('version-3')
+  })
+
+  it('protects nothing once the latest operation is terminal', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { deploymentVersionId: 'version-3', protocolVersion: 2, status: 'active' },
+    ])
+
+    await expect(getProtectedDeploymentVersionId(WORKFLOW_ID)).resolves.toBeNull()
+  })
+
+  it('protects nothing for a workflow without operations', async () => {
+    await expect(getProtectedDeploymentVersionId(WORKFLOW_ID)).resolves.toBeNull()
   })
 })

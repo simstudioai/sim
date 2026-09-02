@@ -25,6 +25,7 @@ vi.mock('@sim/utils/id', () => ({
 }))
 
 import {
+  continueOutboxHandler,
   deferOutboxHandler,
   enqueueOrReschedulePendingOutboxEvent,
   enqueueOutboxEvent,
@@ -385,6 +386,20 @@ describe('processOutboxEvents — handler success and retry', () => {
     expect(result.retried).toBe(1)
     const deferredUpdate = updateSets().find((set) => set.status === 'pending' && 'attempts' in set)
     expect(deferredUpdate).toMatchObject({ attempts: 4, lastError: null, lockedAt: null })
+  })
+
+  it('re-runs a continued handler without consuming its attempt budget', async () => {
+    const handler = vi.fn(async () => continueOutboxHandler('continuing bounded cleanup'))
+    queueTableRows(outboxEvent, [makePendingRow({ attempts: 4, maxAttempts: 5 })])
+    holdLease()
+
+    const result = await processOutboxEvents({ 'test.event': handler })
+
+    expect(result.retried).toBe(1)
+    const continuedUpdate = updateSets().find(
+      (set) => set.status === 'pending' && 'attempts' in set
+    )
+    expect(continuedUpdate).toMatchObject({ attempts: 4, lastError: null, lockedAt: null })
   })
 
   it('dead-letters on failure when attempts reaches maxAttempts', async () => {
