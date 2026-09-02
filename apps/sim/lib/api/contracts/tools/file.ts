@@ -160,6 +160,14 @@ export const fileManageContentBodySchema = z
     workspaceId: z.string().min(1).optional(),
     fileId: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
     fileInput: z.unknown().optional(),
+    /**
+     * First line to return, 1-based. Applied to each selected file separately,
+     * because a selection can be several files and one running offset across
+     * them would depend on an ordering the caller cannot see.
+     */
+    offset: z.number().int().min(1, 'offset starts at line 1').optional(),
+    /** How many lines to return from `offset`. Absent reads to the end. */
+    limit: z.number().int().min(1, 'limit must be at least 1').optional(),
   })
   .refine(
     (data) =>
@@ -263,9 +271,54 @@ export const fileManageRestoreFolderBodySchema = z.object({
   folderId: z.string().min(1, 'folderId is required for restore_folder operation'),
 })
 
+/**
+ * The shared half of an in-place edit: which file, resolved the same way a
+ * named append resolves one.
+ */
+const fileEditTargetShape = {
+  workspaceId: z.string().min(1).optional(),
+  fileName: z.string({ error: 'fileName is required' }).min(1),
+  /**
+   * Folder the name is resolved inside. A name is only unique within a folder,
+   * so without this a duplicate name resolves to the oldest match anywhere.
+   * Ignored when `fileName` is already a canonical id.
+   */
+  folderPath: v2FolderPathInputSchema.optional(),
+  includeSubfolders: z.boolean().optional(),
+} as const
+
+export const fileManageEditBodySchema = z.object({
+  operation: z.literal('edit'),
+  ...fileEditTargetShape,
+  /**
+   * Must match exactly once. The operation refuses several matches rather than
+   * choosing one, so this carries enough surrounding text to be unique.
+   */
+  oldString: z
+    .string({ error: 'oldString is required for edit operation' })
+    .min(1, 'oldString cannot be empty'),
+  /** Empty deletes the matched text. */
+  newString: z.string({ error: 'newString is required for edit operation' }),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
+})
+
+export const fileManageInsertBodySchema = z.object({
+  operation: z.literal('insert'),
+  ...fileEditTargetShape,
+  /** 1-based line to insert after; 0 inserts at the top. Past the end is refused. */
+  afterLine: z
+    .number({ error: 'afterLine is required for insert operation' })
+    .int('afterLine must be a whole number')
+    .min(0, 'afterLine cannot be negative'),
+  content: z.string({ error: 'content is required for insert operation' }),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
+})
+
 export const fileManageBodySchema = z.union([
   fileManageWriteBodySchema,
   fileManageAppendBodySchema,
+  fileManageEditBodySchema,
+  fileManageInsertBodySchema,
   fileManageGetBodySchema,
   fileManageMoveBodySchema,
   fileManageSharingBodySchema,

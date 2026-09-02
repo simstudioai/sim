@@ -397,7 +397,15 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
 
       expect(folder?.condition).toEqual({
         field: 'operation',
-        value: ['file_read', 'file_get_content', 'file_compress', 'file_append', 'file_search'],
+        value: [
+          'file_read',
+          'file_get_content',
+          'file_compress',
+          'file_append',
+          'file_search',
+          'file_edit',
+          'file_insert',
+        ],
       })
     })
 

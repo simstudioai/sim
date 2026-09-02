@@ -7,6 +7,7 @@ import {
 
 export { fileAppendTool } from '@/tools/file/append'
 export { fileCompressTool, fileDecompressTool } from '@/tools/file/compress'
+export { fileEditTool, fileInsertTool } from '@/tools/file/edit'
 export {
   fileCreateFolderTool,
   fileDeleteFolderTool,

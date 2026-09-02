@@ -58,6 +58,7 @@ import {
   createWorkspaceFile,
   createWorkspaceFileFromBuffer,
 } from '@/lib/workspace-files/application/create-workspace-file'
+import { editWorkspaceFileContent } from '@/lib/workspace-files/application/edit-workspace-file-content'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -287,6 +288,44 @@ interface ArchiveEntry {
 }
 
 const isLikelyTextBuffer = (buffer: Buffer): boolean => isUtf8(buffer) && !buffer.includes(0)
+
+/** What a caller needs to tell a file that ended from a window that ran out. */
+interface FileContentLineRange {
+  offset: number
+  lineCount: number
+  totalLines: number
+}
+
+/**
+ * Narrows extracted text to a line window.
+ *
+ * Reported alongside the text rather than inferred from it: without
+ * `totalLines` a caller cannot distinguish a file that ended from a window
+ * that stopped early, which is the same absent-versus-unknown confusion the
+ * search index carries.
+ */
+function sliceTextLines(
+  text: string,
+  offset: number | undefined,
+  limit: number | undefined
+): { text: string; range?: FileContentLineRange } {
+  if (offset === undefined && limit === undefined) return { text }
+
+  const lines = text.split(/\r\n|\n/)
+  /*
+   * Text ending in a newline splits to a trailing empty element that is not a
+   * line a reader sees, so it is dropped to keep these numbers agreeing with
+   * the line numbers search reports and insert accepts.
+   */
+  const effective = lines.length > 1 && lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines
+  const start = Math.max((offset ?? 1) - 1, 0)
+  const window = effective.slice(start, limit === undefined ? undefined : start + limit)
+
+  return {
+    text: window.join('\n'),
+    range: { offset: start + 1, lineCount: window.length, totalLines: effective.length },
+  }
+}
 
 /**
  * Download a stored file and extract its text content. Parseable types (PDF, DOCX,
@@ -635,6 +674,62 @@ async function expandFolderPathsToFileIds(args: {
   return (await expandFolderPathsToFiles(args)).map((file) => file.id)
 }
 
+/**
+ * Resolves a typed file name inside a chosen folder to a canonical id.
+ *
+ * A picked file arrives as a canonical id, which is already exact. A typed name
+ * is not: the same name can exist in several folders, and a workspace-wide
+ * lookup takes the oldest match anywhere. When a folder was chosen it is the
+ * only thing disambiguating the target, so the name is resolved inside it, by
+ * id, so the slash-in-a-folder-name hazard of a path-shaped reference never
+ * arises.
+ *
+ * Shared by every operation that writes to a named file, because each of them
+ * has the same way to go wrong and this logic has already been rewritten twice
+ * under review.
+ */
+async function resolveScopedFileReference(args: {
+  principal: Principal
+  workspaceId: string
+  fileName: string
+  folderPath: string | undefined
+  includeSubfolders: boolean | undefined
+}): Promise<string> {
+  const { fileName, folderPath } = args
+  if (!folderPath) return fileName
+
+  const scoped = await expandFolderPathsToFiles({
+    principal: args.principal,
+    workspaceId: args.workspaceId,
+    folderPaths: [folderPath],
+    includeSubfolders: args.includeSubfolders,
+  })
+  /*
+   * Matched on id as well as name rather than inferring which one this is from
+   * its shape. A `wf_` prefix is a legal filename, so reading it as "already an
+   * id" would silently drop the scope for a file someone named `wf_notes.md`.
+   */
+  const matches = scoped.filter((file) => file.id === fileName || file.name === fileName)
+  if (matches.length === 0) {
+    throw new OrchestrationError('not_found', `No file named ${fileName} in ${folderPath}`)
+  }
+  /*
+   * A recursive scope can hold the same name at several depths, and writing to
+   * whichever the walk happened to reach first is a silent write to an
+   * arbitrary file. Refusing names the candidates so the caller can pick one,
+   * which is the whole reason the scope exists.
+   */
+  if (matches.length > 1) {
+    throw new OrchestrationError(
+      'validation',
+      `${matches.length} files named ${fileName} under ${folderPath}: ${matches
+        .map((file) => file.id)
+        .join(', ')}. Narrow the folder, turn off Include Subfolders, or give the file ID.`
+    )
+  }
+  return matches[0].id
+}
+
 export async function executeFileManageOperation(
   body: FileManageOperationInput,
   context: FileManageOperationContext
@@ -876,6 +971,7 @@ export async function executeFileManageOperation(
         const sources = canonicalSources.concat(selectedSources)
 
         const contents: string[] = []
+        const lineRanges: FileContentLineRange[] = []
         let totalBytes = 0
         for (const source of sources) {
           signal?.throwIfAborted()
@@ -891,7 +987,9 @@ export async function executeFileManageOperation(
             })
           }
 
-          const content = await extractUserFileTextContent(source.file, requestId)
+          const extracted = await extractUserFileTextContent(source.file, requestId)
+          const { text: content, range } = sliceTextLines(extracted, body.offset, body.limit)
+          if (range) lineRanges.push(range)
           totalBytes += Buffer.byteLength(content, 'utf8')
           if (totalBytes > MAX_GET_CONTENT_TOTAL_BYTES) {
             return contentResponse(
@@ -912,7 +1010,14 @@ export async function executeFileManageOperation(
           ? await getFileContentProvenance(principal, workspaceId, sources, signal)
           : undefined
 
-        return contentResponse({ success: true, data: { contents } }, undefined, provenance)
+        return contentResponse(
+          {
+            success: true,
+            data: { contents, ...(lineRanges.length > 0 ? { lineRanges } : {}) },
+          },
+          undefined,
+          provenance
+        )
       }
 
       case 'write': {
@@ -1212,48 +1317,13 @@ export async function executeFileManageOperation(
         const { fileName, content, folderPath, includeSubfolders } = body
         signal?.throwIfAborted()
 
-        /*
-         * A picked file arrives as a canonical id, which is already exact. A
-         * typed name is not: the same name can exist in several folders, and a
-         * workspace-wide lookup takes the oldest match anywhere. When a folder
-         * was chosen it is the only thing disambiguating the target, so the
-         * name is resolved inside it — by id, so the slash-in-a-folder-name
-         * hazard of a path-shaped reference never arises.
-         */
-        let scopedReference = fileName
-        if (folderPath) {
-          const scoped = await expandFolderPathsToFiles({
-            principal,
-            workspaceId,
-            folderPaths: [folderPath],
-            includeSubfolders,
-          })
-          /*
-           * Matched on id as well as name rather than inferring which one this
-           * is from its shape. A `wf_` prefix is a legal filename, so reading it
-           * as "already an id" would silently drop the scope for a file someone
-           * named `wf_notes.md`.
-           */
-          const matches = scoped.filter((file) => file.id === fileName || file.name === fileName)
-          if (matches.length === 0) {
-            throw new OrchestrationError('not_found', `No file named ${fileName} in ${folderPath}`)
-          }
-          /*
-           * A recursive scope can hold the same name at several depths, and
-           * appending to whichever the walk happened to reach first is a silent
-           * write to an arbitrary file. Refusing names the candidates so the
-           * caller can pick one, which is the whole reason the scope exists.
-           */
-          if (matches.length > 1) {
-            throw new OrchestrationError(
-              'validation',
-              `${matches.length} files named ${fileName} under ${folderPath}: ${matches
-                .map((file) => file.id)
-                .join(', ')}. Narrow the folder, turn off Include Subfolders, or give the file ID.`
-            )
-          }
-          scopedReference = matches[0].id
-        }
+        const scopedReference = await resolveScopedFileReference({
+          principal,
+          workspaceId,
+          fileName,
+          folderPath,
+          includeSubfolders,
+        })
 
         const existing = await resolveWorkspaceFileReference({
           principal,
@@ -1344,6 +1414,48 @@ export async function executeFileManageOperation(
         } finally {
           await releaseLock(lockKey, lockValue)
         }
+      }
+
+      case 'edit':
+      case 'insert': {
+        const { fileName, folderPath, includeSubfolders } = body
+        signal?.throwIfAborted()
+
+        const reference = await resolveScopedFileReference({
+          principal,
+          workspaceId,
+          fileName,
+          folderPath,
+          includeSubfolders,
+        })
+        const target = await resolveWorkspaceFileReference({
+          principal,
+          operation: fileOperations.updateContent,
+          workspaceId,
+          reference,
+        })
+
+        signal?.throwIfAborted()
+        const { file, lineCount } = await editWorkspaceFileContent.execute({
+          principal,
+          input: {
+            fileId: target.id,
+            assertedWorkspaceId: workspaceId,
+            edit:
+              body.operation === 'edit'
+                ? {
+                    mode: 'replace_string',
+                    oldString: body.oldString,
+                    newString: body.newString,
+                  }
+                : { mode: 'insert_lines', afterLine: body.afterLine, content: body.content },
+          },
+        })
+
+        return Response.json({
+          success: true,
+          data: { id: file.id, name: file.name, size: file.size, lineCount },
+        })
       }
 
       case 'compress': {

@@ -87,6 +87,7 @@ const V3_PARSE_FILE_FIELD = ['file', 'fileUrl'] as const
 const V3_GET_FILE_FIELD = ['getFile', 'getFileId'] as const
 const READ_FILE_FIELD = ['readFile', 'readFileId'] as const
 const GET_CONTENT_FILE_FIELD = ['getContentFile', 'getContentFileId'] as const
+const EDIT_FILE_FIELD = ['editFile', 'editFileName'] as const
 const APPEND_FILE_FIELD = ['appendFile', 'appendFileName'] as const
 const COMPRESS_FILE_FIELD = ['compressFile', 'compressFileId'] as const
 const DECOMPRESS_FILE_FIELD = ['decompressFile', 'decompressFileId'] as const
@@ -191,6 +192,58 @@ function fileFamilyInput(
  * it when the workflow runs — so a folder means whatever is inside it then, and
  * a file added tomorrow is read tomorrow.
  */
+/**
+ * Resolves a picker or typed name into the target of a named-file write.
+ *
+ * Shared by append, edit and insert because all three identify one existing
+ * file the same way, and the folder-versus-id precedence below is what stopped
+ * a picked file resolving to a different one.
+ */
+function namedFileTarget(
+  params: FileFamilyParams & { folderScopeRef?: unknown },
+  pickerValue: unknown,
+  label: string
+): { fileName: string; folderPath?: string; includeSubfolders?: false } {
+  if (!pickerValue) {
+    throw new Error(`File is required for ${label}`)
+  }
+
+  let fileName: string
+  let resolvedById = false
+  if (typeof pickerValue === 'string') {
+    fileName = pickerValue.trim()
+  } else {
+    const normalized = normalizeFileInput(pickerValue, { single: true })
+    const file = normalized as Record<string, unknown> | null
+    /*
+     * Prefer the picked file's id over its name. The reference resolver accepts
+     * a canonical id, and a bare name is ambiguous once the same one exists in
+     * more than one folder, so discarding the identity the picker already held
+     * is what let a pick resolve to another file.
+     */
+    const pickedId = typeof file?.id === 'string' ? file.id : ''
+    resolvedById = Boolean(pickedId)
+    fileName = pickedId || ((file?.name as string) ?? '')
+  }
+
+  if (!fileName) {
+    throw new Error('Could not determine file name')
+  }
+
+  /*
+   * The folder travels only when the name is what identifies the file. A picked
+   * file is a canonical id and already exact, so sending the folder beside it
+   * would imply a second constraint on one target.
+   */
+  const folderPath = resolvedById ? undefined : folderScopePath(params.folderScopeRef)
+  if (!folderPath) return { fileName }
+  return {
+    fileName,
+    folderPath,
+    ...(switchValue(params.folderIncludeSubfolders, true) ? {} : { includeSubfolders: false }),
+  }
+}
+
 function folderScopePath(value: unknown): string | undefined {
   const path = readFolderPath(value)
   return path === ROOT_FOLDER_PATH ? undefined : path || undefined
@@ -1053,6 +1106,16 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           { text: 'to', field: APPEND_FILE_FIELD, core: true },
           { text: 'in', field: FOLDER_SCOPE_FIELD },
         ],
+        file_edit: [
+          { text: 'Replace', field: 'oldString', core: true },
+          { text: 'in', field: EDIT_FILE_FIELD, core: true },
+          { text: 'with', field: 'newString' },
+        ],
+        file_insert: [
+          { text: 'Insert', field: 'insertContent', core: true },
+          { text: 'into', field: EDIT_FILE_FIELD, core: true },
+          { text: 'after line', field: 'afterLine' },
+        ],
         file_compress: [
           { text: 'Compress', field: COMPRESS_FILE_FIELD, core: true },
           { text: 'in', field: FOLDER_SCOPE_FIELD },
@@ -1094,6 +1157,8 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         { label: 'Fetch', id: 'file_fetch' },
         { label: 'Write', id: 'file_write' },
         { label: 'Append', id: 'file_append' },
+        { label: 'Edit', id: 'file_edit' },
+        { label: 'Insert', id: 'file_insert' },
         { label: 'Compress', id: 'file_compress' },
         { label: 'Decompress', id: 'file_decompress' },
         { label: 'Manage Sharing', id: 'file_manage_sharing' },
@@ -1117,7 +1182,15 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         'Narrows the file options below. Read, get content, and compress also take the whole folder when no file is picked, and search is confined to it.',
       condition: {
         field: 'operation',
-        value: ['file_read', 'file_get_content', 'file_compress', 'file_append', 'file_search'],
+        value: [
+          'file_read',
+          'file_get_content',
+          'file_compress',
+          'file_append',
+          'file_search',
+          'file_edit',
+          'file_insert',
+        ],
       },
     },
     {
@@ -1129,7 +1202,15 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       placeholder: '/Reports/Q3%20Results',
       condition: {
         field: 'operation',
-        value: ['file_read', 'file_get_content', 'file_compress', 'file_append', 'file_search'],
+        value: [
+          'file_read',
+          'file_get_content',
+          'file_compress',
+          'file_append',
+          'file_search',
+          'file_edit',
+          'file_insert',
+        ],
       },
     },
     {
@@ -1139,7 +1220,15 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       value: () => 'true',
       condition: {
         field: 'operation',
-        value: ['file_read', 'file_get_content', 'file_compress', 'file_append', 'file_search'],
+        value: [
+          'file_read',
+          'file_get_content',
+          'file_compress',
+          'file_append',
+          'file_search',
+          'file_edit',
+          'file_insert',
+        ],
       },
     },
     {
@@ -1333,6 +1422,62 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       placeholder: 'Content to append...',
       condition: { field: 'operation', value: 'file_append' },
       required: { field: 'operation', value: 'file_append' },
+    },
+    {
+      id: 'editFile',
+      title: 'File',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'editFileInput',
+      acceptedTypes: '.txt,.md,.json,.csv,.xml,.html,.htm,.yaml,.yml,.log',
+      placeholder: 'Select or upload a workspace file',
+      folderScope: FOLDER_SCOPE,
+      mode: 'basic',
+      condition: { field: 'operation', value: ['file_edit', 'file_insert'] },
+      required: { field: 'operation', value: ['file_edit', 'file_insert'] },
+    },
+    {
+      id: 'editFileName',
+      title: 'File',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'editFileInput',
+      placeholder: 'File name (e.g., self.md)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['file_edit', 'file_insert'] },
+      required: { field: 'operation', value: ['file_edit', 'file_insert'] },
+    },
+    {
+      id: 'oldString',
+      title: 'Find',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'The exact text to replace...',
+      description:
+        'Must match exactly once. If it appears several times the edit is refused and the matching line numbers are reported, so include enough surrounding text to be unique.',
+      condition: { field: 'operation', value: 'file_edit' },
+      required: { field: 'operation', value: 'file_edit' },
+    },
+    {
+      id: 'newString',
+      title: 'Replace With',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'Leave empty to delete the matched text...',
+      condition: { field: 'operation', value: 'file_edit' },
+    },
+    {
+      id: 'afterLine',
+      title: 'After Line',
+      type: 'short-input' as SubBlockType,
+      placeholder: '0',
+      description: 'The line to insert after. 0 inserts at the top of the file.',
+      condition: { field: 'operation', value: 'file_insert' },
+      required: { field: 'operation', value: 'file_insert' },
+    },
+    {
+      id: 'insertContent',
+      title: 'Content',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'Lines to insert...',
+      condition: { field: 'operation', value: 'file_insert' },
+      required: { field: 'operation', value: 'file_insert' },
     },
     {
       id: 'compressFile',
@@ -1604,6 +1749,8 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       'file_fetch',
       'file_write',
       'file_append',
+      'file_edit',
+      'file_insert',
       'file_compress',
       'file_decompress',
       'file_manage_sharing',
@@ -1746,51 +1893,34 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         }
 
         if (operation === 'file_append') {
-          const appendInput = params.appendFileInput
-          if (!appendInput) {
-            throw new Error('File is required for append')
-          }
-
-          let fileName: string
-          let resolvedById = false
-          if (typeof appendInput === 'string') {
-            fileName = appendInput.trim()
-          } else {
-            const normalized = normalizeFileInput(appendInput, { single: true })
-            const file = normalized as Record<string, unknown> | null
-            /*
-             * Prefer the picked file's id over its name. The reference resolver
-             * accepts a canonical id, and a bare name is ambiguous once the same
-             * one exists in more than one folder — so discarding the identity
-             * the picker already held is what let a pick resolve to another
-             * file.
-             */
-            const pickedId = typeof file?.id === 'string' ? file.id : ''
-            resolvedById = Boolean(pickedId)
-            fileName = pickedId || ((file?.name as string) ?? '')
-          }
-
-          if (!fileName) {
-            throw new Error('Could not determine file name')
-          }
-
-          /*
-           * The folder travels only when the name is what identifies the file.
-           * A picked file is a canonical id and already exact, so sending the
-           * folder beside it would imply a second constraint on one target.
-           */
-          const appendFolder = resolvedById ? undefined : folderScopePath(params.folderScopeRef)
           return {
-            fileName,
-            ...(appendFolder
-              ? {
-                  folderPath: appendFolder,
-                  ...(switchValue(params.folderIncludeSubfolders, true)
-                    ? {}
-                    : { includeSubfolders: false }),
-                }
-              : {}),
+            ...namedFileTarget(params, params.appendFileInput, 'append'),
             content: params.appendContent,
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_edit') {
+          return {
+            ...namedFileTarget(params, params.editFileInput, 'edit'),
+            oldString: params.oldString,
+            newString: params.newString ?? '',
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_insert') {
+          const afterLineInput = params.afterLine
+          const afterLine = Number(
+            afterLineInput === '' || afterLineInput == null ? 0 : afterLineInput
+          )
+          if (!Number.isInteger(afterLine) || afterLine < 0) {
+            throw new Error('Insert After Line must be a whole number, 0 or greater')
+          }
+          return {
+            ...namedFileTarget(params, params.editFileInput, 'insert'),
+            afterLine,
+            content: params.insertContent,
             workspaceId: params._context?.workspaceId,
           }
         }
@@ -1937,6 +2067,11 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     },
     appendFileInput: { type: 'json', description: 'File to append to' },
     appendContent: { type: 'string', description: 'Content to append to file' },
+    editFileInput: { type: 'json', description: 'File to edit in place' },
+    oldString: { type: 'string', description: 'Exact text to replace, matched once (edit)' },
+    newString: { type: 'string', description: 'Replacement text; empty deletes (edit)' },
+    afterLine: { type: 'number', description: 'Line to insert after, 0 for the top (insert)' },
+    insertContent: { type: 'string', description: 'Lines to insert (insert)' },
     archiveName: { type: 'string', description: 'Name for the compressed .zip archive' },
     decompressInput: {
       type: 'json',
@@ -2032,6 +2167,15 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       type: 'array',
       description: 'Array of file text contents, one entry per file (get content)',
     },
+    lineRanges: {
+      type: 'array',
+      description:
+        'Line window returned per file when a range was requested, as objects with offset, lineCount, and totalLines (get content)',
+    },
+    lineCount: {
+      type: 'number',
+      description: 'Lines in the file after the change (edit, insert)',
+    },
     results: {
       type: 'array',
       description: 'Matching lines as objects with fileId, lineNumber, and text fields (search)',
@@ -2044,7 +2188,8 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     },
     complete: {
       type: 'boolean',
-      description: 'Whether all current workspace file revisions are indexed without failures',
+      description:
+        'Whether every file revision in the searched scope is indexed without failures. When false, a term that was not found is unknown rather than absent (search)',
     },
     indexStatus: {
       type: 'json',

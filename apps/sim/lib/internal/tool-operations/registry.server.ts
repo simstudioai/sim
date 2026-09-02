@@ -833,6 +833,8 @@ const FILE_TOOL_IDS = [
   'file_compress',
   'file_decompress',
   'file_manage_sharing',
+  'file_edit',
+  'file_insert',
   'file_fetch',
   'file_parser',
   'file_parser_v2',
