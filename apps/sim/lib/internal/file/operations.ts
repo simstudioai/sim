@@ -28,7 +28,6 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
 import { buildFolderPath, parseFolderPath, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
-import { isWithinFolderIdScope } from '@/lib/folders/scope'
 import { ShareValidationError } from '@/lib/public-shares/share-manager'
 import {
   ArchiveError,
@@ -37,7 +36,11 @@ import {
   MAX_ARCHIVE_BYTES,
   statusForArchiveError,
 } from '@/lib/uploads/archive'
-import type { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { normalizeWorkspaceFileItemName } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import type {
+  getWorkspaceFile,
+  WorkspaceFileRecord,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
@@ -60,7 +63,10 @@ import {
   createWorkspaceFileFromBuffer,
 } from '@/lib/workspace-files/application/create-workspace-file'
 import { editWorkspaceFileContent } from '@/lib/workspace-files/application/edit-workspace-file-content'
-import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
+import {
+  listWorkspaceFilesInFolderScope,
+  queryWorkspaceFilePage,
+} from '@/lib/workspace-files/application/list-workspace-files'
 import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
@@ -69,7 +75,7 @@ import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/r
 import { readWorkspaceFileSecretProvenance } from '@/lib/workspace-files/application/read-workspace-file-secret-provenance'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import {
-  getWorkspaceFileShare,
+  getWorkspaceFileShares,
   updateWorkspaceFileShare,
 } from '@/lib/workspace-files/application/share-workspace-file'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
@@ -85,8 +91,11 @@ import { selectDirectoryEntries } from '@/lib/workspace-files/directory-listing'
 import { countLines, detectLineEnding } from '@/lib/workspace-files/edit-content'
 import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 import { resolveFolderIdsForPaths } from '@/lib/workspace-files/folder-path-selection'
+import {
+  MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
+  MAX_ZIP_DOWNLOAD_FILES,
+} from '@/lib/workspace-files/limits'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
-import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
 import { isWorkspaceAccessDeniedError } from '@/lib/workspaces/permissions/utils'
 import type { UserFile } from '@/executor/types'
 import {
@@ -217,17 +226,25 @@ const normalizeFileIdList = (value: unknown): string[] => {
     .filter((id) => id.length > 0)
 }
 
-const extractUserFilesFromInput = (fileInput: unknown) => {
+const fileInputs = (fileInput: unknown): unknown[] => {
   const inputs = Array.isArray(fileInput) ? fileInput : fileInput ? [fileInput] : []
+  if (inputs.length > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `File input contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+    )
+  }
   return inputs
+}
+
+const extractUserFilesFromInput = (fileInput: unknown) => {
+  return fileInputs(fileInput)
     .map((input) => fileInputToUserFile(input))
     .filter((file): file is NonNullable<ReturnType<typeof fileInputToUserFile>> => Boolean(file))
 }
 
 const extractFileIdsFromInput = (fileInput: unknown): string[] => {
-  const inputs = Array.isArray(fileInput) ? fileInput : fileInput ? [fileInput] : []
-
-  return inputs
+  return fileInputs(fileInput)
     .flatMap((input) => {
       if (typeof input === 'string') return normalizeFileIdList(input)
       if (input && typeof input === 'object') {
@@ -275,9 +292,12 @@ const stripExtension = (name: string): string => {
  * untrusted input cannot introduce nested or zip-slip-style paths.
  */
 const toFlatFileName = (name: string, fallback: string): string => {
-  const leaf = name.replace(/\\/g, '/').split('/').pop()?.trim()
-  if (!leaf || leaf === '.' || leaf === '..') return fallback
-  return leaf
+  const { leafName } = splitWorkspaceFilePath(name.replaceAll('\\', '/'))
+  try {
+    return normalizeWorkspaceFileItemName(leafName, 'File')
+  } catch {
+    return fallback
+  }
 }
 
 /** A file bound for a compress archive, paired with the workspace folder it lives in. */
@@ -658,63 +678,90 @@ export function fileContentJsonResponse(
  * The scope resolution is shared with content search, which pushes the same
  * scope down into SQL rather than listing files; this is the file half of it.
  */
-/** The file fields folder expansion and reference resolution need. */
-interface WorkspaceFileSummary {
-  id: string
-  name: string
-  folderId?: string | null
-}
-
 async function expandFolderPathsToFiles(args: {
   principal: Principal
   workspaceId: string
   folderPaths: string[] | undefined
   includeSubfolders: boolean | undefined
-}): Promise<WorkspaceFileSummary[]> {
+  limit?: number
+}): Promise<WorkspaceFileRecord[]> {
   if (!args.folderPaths?.length) return []
 
-  const [scope, { files }] = await Promise.all([
-    resolveWorkspaceFolderScope({
-      principal: args.principal,
+  const limit = args.limit ?? MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS
+  const { files, truncated } = await listWorkspaceFilesInFolderScope.execute({
+    principal: args.principal,
+    input: {
       workspaceId: args.workspaceId,
       folderPaths: args.folderPaths,
       includeSubfolders: args.includeSubfolders,
-    }),
-    listAllWorkspaceFiles.execute({
-      principal: args.principal,
-      input: { workspaceId: args.workspaceId, scope: 'active' },
-    }),
-  ])
-
-  return files.filter((file) => isWithinFolderIdScope(file.folderId, scope))
+      limit,
+    },
+  })
+  if (truncated) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `Folder selection contains more than ${limit} files`
+    )
+  }
+  return files
 }
 
 /**
- * The same expansion, keeping the whole workspace listing alongside the scoped
- * one. Reference resolution needs both: to answer whether a reference is a real
- * file id at all, it has to look past the scope, and the listing is already in
- * hand rather than a second query.
+ * Resolves explicit ids and dynamic folder contents into one bounded metadata
+ * selection. Folder rows already crossed the authorized list boundary, so only
+ * explicit ids need individual lookup; a folder-only read remains two bounded
+ * queries instead of becoming one metadata query per file.
  */
-async function expandFolderPathsWithWorkspace(args: {
+async function loadSelectedWorkspaceFileMetadata(args: {
   principal: Principal
   workspaceId: string
-  folderPaths: string[]
+  fileIds: string[]
+  folderPaths: string[] | undefined
   includeSubfolders: boolean | undefined
-}): Promise<{ scoped: WorkspaceFileSummary[]; all: WorkspaceFileSummary[] }> {
-  const [scope, { files }] = await Promise.all([
-    resolveWorkspaceFolderScope({
-      principal: args.principal,
-      workspaceId: args.workspaceId,
-      folderPaths: args.folderPaths,
-      includeSubfolders: args.includeSubfolders,
-    }),
-    listAllWorkspaceFiles.execute({
-      principal: args.principal,
-      input: { workspaceId: args.workspaceId, scope: 'active' },
-    }),
-  ])
+}): Promise<WorkspaceFileRecord[]> {
+  const folderFiles = await expandFolderPathsToFiles(args)
+  const folderFileById = new Map(folderFiles.map((file) => [file.id, file]))
+  const files: WorkspaceFileRecord[] = []
+  const seen = new Set<string>()
 
-  return { scoped: files.filter((file) => isWithinFolderIdScope(file.folderId, scope)), all: files }
+  for (const id of args.fileIds) {
+    if (seen.has(id)) continue
+    const folderFile = folderFileById.get(id)
+    if (folderFile) {
+      files.push(folderFile)
+      seen.add(id)
+      continue
+    }
+    try {
+      files.push(
+        (
+          await readWorkspaceFileMetadata.execute({
+            principal: args.principal,
+            input: { fileId: id, assertedWorkspaceId: args.workspaceId },
+          })
+        ).file
+      )
+      seen.add(id)
+    } catch (error) {
+      if (error instanceof OrchestrationError && error.code === 'not_found') {
+        throw new OrchestrationError('not_found', `File not found: "${id}"`)
+      }
+      throw error
+    }
+  }
+
+  for (const file of folderFiles) {
+    if (seen.has(file.id)) continue
+    files.push(file)
+    seen.add(file.id)
+  }
+  if (files.length > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+    )
+  }
+  return files
 }
 
 async function expandFolderPathsToFileIds(args: {
@@ -722,6 +769,7 @@ async function expandFolderPathsToFileIds(args: {
   workspaceId: string
   folderPaths: string[] | undefined
   includeSubfolders: boolean | undefined
+  limit?: number
 }): Promise<string[]> {
   return (await expandFolderPathsToFiles(args)).map((file) => file.id)
 }
@@ -745,15 +793,18 @@ async function resolveScopedFileReference(args: {
   workspaceId: string
   fileName: string
   folderPath: string | undefined
+  folderPaths: string[] | undefined
   includeSubfolders: boolean | undefined
 }): Promise<string> {
-  const { fileName, folderPath } = args
-  if (!folderPath) return fileName
+  const { fileName } = args
+  const folderPaths = args.folderPaths ?? (args.folderPath ? [args.folderPath] : [])
+  if (folderPaths.length === 0) return fileName
+  const scopeLabel = folderPaths.join(', ')
 
-  const { scoped, all } = await expandFolderPathsWithWorkspace({
+  const scoped = await expandFolderPathsToFiles({
     principal: args.principal,
     workspaceId: args.workspaceId,
-    folderPaths: [folderPath],
+    folderPaths,
     includeSubfolders: args.includeSubfolders,
   })
   /*
@@ -775,14 +826,23 @@ async function resolveScopedFileReference(args: {
    * legal filename prefix and inferring from it is what this resolution has
    * twice been wrong about.
    */
-  if (all.some((file) => file.id === fileName)) {
-    throw new OrchestrationError('not_found', `File ${fileName} is not in ${folderPath}`)
+  let exactIdExists = false
+  try {
+    await readWorkspaceFileMetadata.execute({
+      principal: args.principal,
+      input: { fileId: fileName, assertedWorkspaceId: args.workspaceId },
+    })
+    exactIdExists = true
+  } catch (error) {
+    if (!(error instanceof OrchestrationError) || error.code !== 'not_found') throw error
+  }
+  if (exactIdExists) {
+    throw new OrchestrationError('not_found', `File ${fileName} is not in ${scopeLabel}`)
   }
 
-  /* Only then by name. */
   const matches = scoped.filter((file) => file.name === fileName)
   if (matches.length === 0) {
-    throw new OrchestrationError('not_found', `No file named ${fileName} in ${folderPath}`)
+    throw new OrchestrationError('not_found', `No file named ${fileName} in ${scopeLabel}`)
   }
   /*
    * A recursive scope can hold the same name at several depths, and writing to
@@ -793,7 +853,7 @@ async function resolveScopedFileReference(args: {
   if (matches.length > 1) {
     throw new OrchestrationError(
       'validation',
-      `${matches.length} files named ${fileName} under ${folderPath}: ${matches
+      `${matches.length} files named ${fileName} under ${scopeLabel}: ${matches
         .map((file) => file.id)
         .join(', ')}. Give the file ID, name a deeper folder, or set includeSubfolders to false.`
     )
@@ -873,7 +933,7 @@ export async function executeFileManageOperation(
 
       case 'read': {
         const { fileId, fileInput, folderPaths, includeSubfolders } = body
-        const selectedFileIds = Array.isArray(fileId)
+        const explicitFileIds = Array.isArray(fileId)
           ? fileId.map((id) => id.trim()).filter(Boolean)
           : fileId
             ? normalizeFileIdList(fileId)
@@ -881,58 +941,28 @@ export async function executeFileManageOperation(
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
 
         signal?.throwIfAborted()
-        for (const id of await expandFolderPathsToFileIds({
+        const files = await loadSelectedWorkspaceFileMetadata({
           principal,
           workspaceId,
+          fileIds: explicitFileIds,
           folderPaths,
           includeSubfolders,
-        })) {
-          if (!selectedFileIds.includes(id)) selectedFileIds.push(id)
-        }
+        })
 
-        if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
+        if (files.length === 0 && selectedInputFiles.length === 0) {
           return Response.json({ success: false, error: 'File is required' }, { status: 400 })
         }
-
-        const files = [] as Array<NonNullable<Awaited<ReturnType<typeof getWorkspaceFile>>>>
-        for (const id of selectedFileIds) {
-          signal?.throwIfAborted()
-          try {
-            files.push(
-              (
-                await readWorkspaceFileMetadata.execute({
-                  principal,
-                  input: { fileId: id, assertedWorkspaceId: workspaceId },
-                })
-              ).file
-            )
-          } catch (error) {
-            if (error instanceof OrchestrationError && error.code === 'not_found') {
-              return Response.json(
-                { success: false, error: `File not found: "${id}"` },
-                { status: 404 }
-              )
-            }
-            throw error
-          }
+        if (files.length + selectedInputFiles.length > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
+          throw new OrchestrationError(
+            'payload_too_large',
+            `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+          )
         }
 
-        const shares = new Map(
-          await Promise.all(
-            files.map(
-              async (file) =>
-                [
-                  file.id,
-                  (
-                    await getWorkspaceFileShare.execute({
-                      principal,
-                      input: { fileId: file.id, assertedWorkspaceId: workspaceId },
-                    })
-                  ).share,
-                ] as const
-            )
-          )
-        )
+        const { shares } = await getWorkspaceFileShares.execute({
+          principal,
+          input: { workspaceId, fileIds: files.map((file) => file.id) },
+        })
         const privateReadShare = () => ({
           visibility: 'private' as const,
           url: null,
@@ -974,7 +1004,7 @@ export async function executeFileManageOperation(
 
       case 'content': {
         const { fileId, fileInput, folderPaths, includeSubfolders } = body
-        const selectedFileIds = Array.isArray(fileId)
+        const explicitFileIds = Array.isArray(fileId)
           ? fileId.map((id) => id.trim()).filter(Boolean)
           : fileId
             ? normalizeFileIdList(fileId)
@@ -982,42 +1012,25 @@ export async function executeFileManageOperation(
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
 
         signal?.throwIfAborted()
-        for (const id of await expandFolderPathsToFileIds({
+        const workspaceFiles = await loadSelectedWorkspaceFileMetadata({
           principal,
           workspaceId,
+          fileIds: explicitFileIds,
           folderPaths,
           includeSubfolders,
-        })) {
-          if (!selectedFileIds.includes(id)) selectedFileIds.push(id)
-        }
+        })
 
-        if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
+        if (workspaceFiles.length === 0 && selectedInputFiles.length === 0) {
           return contentResponse({ success: false, error: 'File is required' }, { status: 400 })
         }
-
-        const workspaceFiles = [] as Array<
-          NonNullable<Awaited<ReturnType<typeof getWorkspaceFile>>>
-        >
-        for (const id of selectedFileIds) {
-          signal?.throwIfAborted()
-          try {
-            workspaceFiles.push(
-              (
-                await readWorkspaceFileMetadata.execute({
-                  principal,
-                  input: { fileId: id, assertedWorkspaceId: workspaceId },
-                })
-              ).file
-            )
-          } catch (error) {
-            if (error instanceof OrchestrationError && error.code === 'not_found') {
-              return contentResponse(
-                { success: false, error: `File not found: "${id}"` },
-                { status: 404 }
-              )
-            }
-            throw error
-          }
+        if (
+          workspaceFiles.length + selectedInputFiles.length >
+          MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS
+        ) {
+          throw new OrchestrationError(
+            'payload_too_large',
+            `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+          )
         }
 
         const canonicalSources: FileContentSource[] = workspaceFiles.flatMap((file) => {
@@ -1390,7 +1403,7 @@ export async function executeFileManageOperation(
       }
 
       case 'append': {
-        const { fileName, content, folderPath, includeSubfolders } = body
+        const { fileName, content, folderPath, folderPaths, includeSubfolders } = body
         signal?.throwIfAborted()
 
         const scopedReference = await resolveScopedFileReference({
@@ -1398,6 +1411,7 @@ export async function executeFileManageOperation(
           workspaceId,
           fileName,
           folderPath,
+          folderPaths,
           includeSubfolders,
         })
 
@@ -1494,7 +1508,7 @@ export async function executeFileManageOperation(
 
       case 'edit':
       case 'insert': {
-        const { fileName, folderPath, includeSubfolders } = body
+        const { fileName, folderPath, folderPaths, includeSubfolders } = body
         signal?.throwIfAborted()
 
         const reference = await resolveScopedFileReference({
@@ -1502,6 +1516,7 @@ export async function executeFileManageOperation(
           workspaceId,
           fileName,
           folderPath,
+          folderPaths,
           includeSubfolders,
         })
         const target = await resolveWorkspaceFileReference({
@@ -1584,12 +1599,19 @@ export async function executeFileManageOperation(
           workspaceId,
           folderPaths,
           includeSubfolders,
+          limit: MAX_ZIP_DOWNLOAD_FILES,
         })) {
           if (!selectedFileIds.includes(id)) selectedFileIds.push(id)
         }
 
         if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
           return Response.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+        if (selectedFileIds.length + selectedInputFiles.length > MAX_ZIP_DOWNLOAD_FILES) {
+          throw new OrchestrationError(
+            'payload_too_large',
+            `Compress accepts at most ${MAX_ZIP_DOWNLOAD_FILES} files`
+          )
         }
         await admitCreateWorkspaceFile(principal, workspaceId)
 
@@ -1889,10 +1911,25 @@ export async function executeFileManageOperation(
          * filtered queries cannot be interleaved afterwards.
          */
         signal?.throwIfAborted()
-        const [{ folders }, { files }] = await Promise.all([
+        const [{ folders }, filePage] = await Promise.all([
           listWorkspaceFileFoldersOperation.execute({ principal, input: { workspaceId } }),
-          listAllWorkspaceFiles.execute({ principal, input: { workspaceId, scope: 'active' } }),
+          queryWorkspaceFilePage.execute({
+            principal,
+            input: {
+              workspaceId,
+              sortBy: 'uploadedAt',
+              sortOrder: 'asc',
+              limit: MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
+            },
+          }),
         ])
+        if (filePage.nextKeys) {
+          throw new OrchestrationError(
+            'payload_too_large',
+            `Directory listing contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+          )
+        }
+        const { files } = filePage
 
         const rootPath = body.path ?? ROOT_FOLDER_PATH
         const projected = folders.map((folder) => ({

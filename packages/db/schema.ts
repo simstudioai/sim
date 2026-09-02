@@ -1878,6 +1878,8 @@ export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_typ
   'knowledge_base',
   'knowledge_document',
   'file',
+  /** Canonical path identity for a workspace file-folder referenced by a workflow. */
+  'file_folder',
   'mcp_server',
   /** Workflow-publishing MCP server identity (fork shell copy), for attachment sync. */
   'workflow_mcp_server',

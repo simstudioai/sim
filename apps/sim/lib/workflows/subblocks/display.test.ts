@@ -299,13 +299,17 @@ describe('getDisplayValue', () => {
   })
 })
 
-/*
+/**
  * A type listed in SELECTOR_TYPES_HYDRATION_REQUIRED with no resolver renders
  * as the unset placeholder, so a folder picked in the editor showed as "-" on
- * the canvas — indistinguishable from having picked nothing.
+ * the canvas, indistinguishable from having picked nothing.
  */
 describe('resolveFolderPathLabel', () => {
-  const folderSubBlock = { id: 'createParentPath', type: 'sim-folder-tree-selector' } as any
+  const folderSubBlock = {
+    id: 'createParentPath',
+    type: 'folder-selector',
+    resourceType: 'file',
+  } as any
 
   it('names a folder from its canonical path', () => {
     expect(resolveFolderPathLabel(folderSubBlock, '/Other')).toBe('Other')
@@ -331,14 +335,13 @@ describe('resolveFolderPathLabel', () => {
     expect(resolveFolderPathLabel(folderSubBlock, '/')).toBeNull()
   })
 
-  /*
-   * The selector's own reader and the block both tolerate an array shape, so a
-   * third reader that returned null left one surface unable to name a value the
-   * other two could.
-   */
   it('reads an array-shaped value the other readers accept', () => {
     expect(resolveFolderPathLabel(folderSubBlock, ['/Other/Vik'])).toBe('Other / Vik')
     expect(resolveFolderPathLabel(folderSubBlock, '["/Other/Vik"]')).toBe('Other / Vik')
+  })
+
+  it('summarizes every selected folder', () => {
+    expect(resolveFolderPathLabel(folderSubBlock, ['/One', '/Two', '/Three'])).toBe('One, Two +1')
   })
 
   it('leaves an empty array to the placeholder', () => {

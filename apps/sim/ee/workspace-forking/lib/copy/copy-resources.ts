@@ -659,7 +659,7 @@ export async function copyForkResourceContainers(
       views.push(view)
       sourceViewsByTable.set(view.tableId, views)
     }
-    const tableFolderIdMap = await resolveForkFolderMapping({
+    const { folderIdMap: tableFolderIdMap } = await resolveForkFolderMapping({
       tx,
       sourceWorkspaceId,
       targetWorkspaceId: childWorkspaceId,
@@ -753,7 +753,7 @@ export async function copyForkResourceContainers(
           isNull(knowledgeBase.deletedAt)
         )
       )
-    const kbFolderIdMap = await resolveForkFolderMapping({
+    const { folderIdMap: kbFolderIdMap } = await resolveForkFolderMapping({
       tx,
       sourceWorkspaceId,
       targetWorkspaceId: childWorkspaceId,

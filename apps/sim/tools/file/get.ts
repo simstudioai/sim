@@ -41,6 +41,8 @@ const createFileReadTool = (config: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
+      maxItems: 64,
+      items: { type: 'string' },
       description:
         'Folders whose files are included, as canonical percent-encoded paths, e.g. ["/Reports/Q3%20Results"]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up.',
     },
@@ -123,7 +125,8 @@ export const fileGetTool: InternalToolConfig<FileGetParams, ToolResponse> = {
 export const fileReadTool = createFileReadTool({
   id: 'file_read',
   name: 'File Read',
-  description: 'Read workspace file objects from selected files or canonical workspace file IDs.',
+  description:
+    'Read workspace file objects from selected files, canonical workspace file IDs, or one or more workspace folders.',
 })
 
 interface FileGetContentParams {
@@ -140,7 +143,7 @@ export const fileGetContentTool: InternalToolConfig<FileGetContentParams, ToolRe
   id: 'file_get_content',
   name: 'File Get Content',
   description:
-    'Extract the text content of one or more workspace files from selected file objects or canonical workspace file IDs.',
+    'Extract the text content of workspace files selected directly, identified by canonical file ID, or collected from one or more workspace folders.',
   version: '1.0.0',
 
   params: {
@@ -160,6 +163,8 @@ export const fileGetContentTool: InternalToolConfig<FileGetContentParams, ToolRe
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
+      maxItems: 64,
+      items: { type: 'string' },
       description:
         'Folders whose files are included, as canonical percent-encoded paths, e.g. ["/Reports/Q3%20Results"]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up.',
     },

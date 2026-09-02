@@ -133,7 +133,6 @@ export function selectDirectoryEntries(
     })
   }
 
-  /* Shallowest first, folders before files, then by name — the order a file browser shows. */
   entries.sort(
     (a, b) =>
       a.depth - b.depth ||

@@ -314,6 +314,7 @@ describe('getForkMappingView', () => {
     skill: [],
     'knowledge-document': [],
     file: [],
+    'file-folder': [],
   }
 
   /** Pull: parent is the source, child the target — the direction the raw-id rows showed up in. */

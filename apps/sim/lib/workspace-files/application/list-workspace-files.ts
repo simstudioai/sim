@@ -11,6 +11,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
 
 export interface ListAllWorkspaceFilesInput {
   workspaceId: string
@@ -33,6 +34,13 @@ export interface QueryWorkspaceFilePageInput {
   sortOrder: 'asc' | 'desc'
   limit: number
   after?: CursorKey[]
+}
+
+export interface ListWorkspaceFilesInFolderScopeInput {
+  workspaceId: string
+  folderPaths: readonly string[]
+  includeSubfolders?: boolean
+  limit: number
 }
 
 /**
@@ -91,15 +99,19 @@ export const queryWorkspaceFilePage = defineAuthorizedWorkspaceFileUseCase({
      * for a folder that has files in it. The cap turns that into the same 413
      * the sibling lists answer.
      */
-    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'file', undefined, {
-      maxRows: MAX_FOLDERS_PER_WORKSPACE,
-    })
-    const folderFilter = resolveFolderPathFilter(folderIndex, input.folderPath)
-    if (folderFilter.kind === 'noMatch') return { files: [], nextKeys: null }
+    let folderId: string | null | string[] | undefined
+    if (input.folderPath !== undefined) {
+      const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'file', undefined, {
+        maxRows: MAX_FOLDERS_PER_WORKSPACE,
+      })
+      const folderFilter = resolveFolderPathFilter(folderIndex, input.folderPath)
+      if (folderFilter.kind === 'noMatch') return { files: [], nextKeys: null }
+      folderId = resolveFolderScope(folderIndex, folderFilter, input.recursive)
+    }
 
     const { files, nextKeys } = await queryWorkspaceFiles(context.workspaceId, {
       scope: input.scope,
-      folderId: resolveFolderScope(folderIndex, folderFilter, input.recursive),
+      folderId,
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,
@@ -107,5 +119,32 @@ export const queryWorkspaceFilePage = defineAuthorizedWorkspaceFileUseCase({
       after: input.after,
     })
     return { files, nextKeys }
+  },
+})
+
+/**
+ * Resolves one or more canonical folder paths and returns a bounded page of the
+ * files they cover. The scope is pushed into SQL, so a small folder never
+ * requires materializing every file in its workspace first.
+ */
+export const listWorkspaceFilesInFolderScope = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.list,
+  resolveContext: ({ input }: { input: ListWorkspaceFilesInFolderScopeInput }) =>
+    resolveListWorkspaceFileContext(input.workspaceId),
+  async execute({ principal, input, context }) {
+    const folderScope = await resolveWorkspaceFolderScope({
+      principal,
+      workspaceId: context.workspaceId,
+      folderPaths: input.folderPaths,
+      includeSubfolders: input.includeSubfolders,
+    })
+    const { files, nextKeys } = await queryWorkspaceFiles(context.workspaceId, {
+      scope: 'active',
+      folderScope,
+      sortBy: 'uploadedAt',
+      sortOrder: 'asc',
+      limit: input.limit,
+    })
+    return { files, truncated: nextKeys !== null }
   },
 })

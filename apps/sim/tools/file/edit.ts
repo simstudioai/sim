@@ -1,10 +1,13 @@
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
-const FOLDER_PATH_DESCRIPTION = `Folder the file lives in. Naming it targets exactly one file when the same name exists in several folders. Canonical folder path, percent-encoded, e.g. "/memory/user-a/people". The workspace root is "/".`
+const FOLDER_PATH_DESCRIPTION = `Single folder in which to resolve the file name or validate the file ID. Canonical folder path, percent-encoded, e.g. "/memory/user-a/people". The workspace root is "/". Use folderPaths for multiple folders; do not provide both fields.`
+const FOLDER_PATHS_DESCRIPTION =
+  'Folders to search for the named file or validate the file ID against. The name must resolve to exactly one file across the selected scopes. Do not provide folderPath as well.'
 
 interface FileEditParams {
   fileName: string
   folderPath?: string
+  folderPaths?: string[]
   includeSubfolders?: boolean
   oldString: string
   newString: string
@@ -14,6 +17,7 @@ interface FileEditParams {
 interface FileInsertParams {
   fileName: string
   folderPath?: string
+  folderPaths?: string[]
   includeSubfolders?: boolean
   afterLine: number
   content: string
@@ -47,6 +51,14 @@ export const fileEditTool: InternalToolConfig<FileEditParams, ToolResponse> = {
       visibility: 'user-or-llm',
       description: FOLDER_PATH_DESCRIPTION,
     },
+    folderPaths: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      maxItems: 64,
+      items: { type: 'string' },
+      description: FOLDER_PATHS_DESCRIPTION,
+    },
     includeSubfolders: {
       type: 'boolean',
       required: false,
@@ -74,6 +86,7 @@ export const fileEditTool: InternalToolConfig<FileEditParams, ToolResponse> = {
       operation: 'edit',
       fileName: params.fileName,
       folderPath: params.folderPath?.trim() || undefined,
+      folderPaths: params.folderPaths,
       ...(params.includeSubfolders === false ? { includeSubfolders: false } : {}),
       oldString: params.oldString,
       newString: params.newString,
@@ -115,6 +128,14 @@ export const fileInsertTool: InternalToolConfig<FileInsertParams, ToolResponse> 
       visibility: 'user-or-llm',
       description: FOLDER_PATH_DESCRIPTION,
     },
+    folderPaths: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      maxItems: 64,
+      items: { type: 'string' },
+      description: FOLDER_PATHS_DESCRIPTION,
+    },
     includeSubfolders: {
       type: 'boolean',
       required: false,
@@ -143,6 +164,7 @@ export const fileInsertTool: InternalToolConfig<FileInsertParams, ToolResponse> 
       operation: 'insert',
       fileName: params.fileName,
       folderPath: params.folderPath?.trim() || undefined,
+      folderPaths: params.folderPaths,
       ...(params.includeSubfolders === false ? { includeSubfolders: false } : {}),
       afterLine: params.afterLine,
       content: params.content,

@@ -6,8 +6,8 @@ import {
   MAX_FOLDER_PATH_SEGMENTS,
   ROOT_FOLDER_PATH,
 } from '@/lib/folders/paths'
+import { readFolderPaths } from '@/lib/folders/selection'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
-import { readFolderPath } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sim-folder-tree-selector/selection'
 import type { BlockConfig, SubBlockType } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import {
@@ -103,23 +103,18 @@ const DESTINATION_PARENT_FIELD = ['destinationParentPath', 'manualDestinationPar
 const MOVE_TARGET_FIELD = ['moveTargetFolderPath', 'manualMoveTargetFolderPath'] as const
 
 /**
- * The folder field, and the switch saying how deep it reaches, as the file
- * picker beside it needs them: a picker offering files outside the chosen
- * folder would let a selection be built that the run then ignores.
- */
-/**
  * The folder that narrows a picker's options, and how deep it reaches.
  *
- * Neither field is half of a basic/advanced pair: the scope is an advanced-only
- * refinement, and a canonical pair always renders one of its halves, so a pair
- * could not be kept out of the basic view.
+ * The multi-folder picker stays in the main form while its recursion switch is
+ * an advanced refinement. Neither is a canonical pair: they are one scope and
+ * one optional behavior, not alternate representations of the same value.
  */
 const FOLDER_SCOPE = {
   fieldId: 'folderSelection',
   recursiveFieldId: 'folderIncludeSubfolders',
 } as const
 
-/*
+/**
  * An untouched text subblock arrives as '', not undefined, and '' is not a
  * canonical folder path — so an omitted optional path has to be normalized away
  * rather than forwarded. A switch arrives as either a boolean or the string
@@ -177,25 +172,18 @@ function fileFamilyInput(
   const normalized = pickerValue ? normalizeFileInput(pickerValue) : null
   if (normalized && normalized.length > 0) return { fileInput: normalized, workspaceId }
 
-  const folderPath = folderScopePath(params.folderSelection)
-  if (!folderPath) {
+  const folderPaths = folderScopePaths(params.folderSelection)
+  if (!folderPaths) {
     throw new Error(`File or folder is required for ${label}`)
   }
   return {
-    folderPaths: [folderPath],
+    folderPaths,
     /* Absent already means "descend", so only the off case travels. */
     ...(switchValue(params.folderIncludeSubfolders, true) ? {} : { includeSubfolders: false }),
     workspaceId,
   }
 }
 
-/**
- * The folder scope on a file operation: where the run looks.
- *
- * Kept as a path rather than the files it holds today, because the tools expand
- * it when the workflow runs — so a folder means whatever is inside it then, and
- * a file added tomorrow is read tomorrow.
- */
 /**
  * Resolves a picker or typed name into the target of a named-file write.
  *
@@ -207,7 +195,12 @@ function namedFileTarget(
   params: FileFamilyParams & { folderSelection?: unknown; folderIncludeSubfolders?: unknown },
   pickerValue: unknown,
   label: string
-): { fileName: string; folderPath?: string; includeSubfolders?: false } {
+): {
+  fileName: string
+  folderPath?: string
+  folderPaths?: string[]
+  includeSubfolders?: false
+} {
   if (!pickerValue) {
     throw new Error(`File is required for ${label}`)
   }
@@ -241,9 +234,9 @@ function namedFileTarget(
    */
   if (resolvedById) return { fileName }
 
-  const scope = readFolderPath(params.folderSelection)
+  const scopes = readFolderPaths(params.folderSelection)
   /*
-   * `folderScopePath` drops the root, because for a whole-folder read the root
+   * `folderScopePaths` drops the root, because for a whole-folder read the root
    * and no folder mean the same thing. For a NAMED target they never do:
    *
    * - a shallow root means the file sitting AT the root, and dropping it
@@ -253,11 +246,10 @@ function namedFileTarget(
    *   candidates named; with no scope the workspace-wide lookup silently takes
    *   the oldest match. The refusal is the whole point of naming a folder.
    */
-  const folderPath = scope === ROOT_FOLDER_PATH ? ROOT_FOLDER_PATH : folderScopePath(scope)
-  if (!folderPath) return { fileName }
+  if (scopes.length === 0) return { fileName }
   return {
     fileName,
-    folderPath,
+    ...(scopes.length === 1 ? { folderPath: scopes[0] } : { folderPaths: scopes }),
     ...(switchValue(params.folderIncludeSubfolders, true) ? {} : { includeSubfolders: false }),
   }
 }
@@ -277,9 +269,9 @@ function optionalPositiveInt(value: unknown, label: string): number | undefined 
   return parsed
 }
 
-function folderScopePath(value: unknown): string | undefined {
-  const path = readFolderPath(value)
-  return path === ROOT_FOLDER_PATH ? undefined : path || undefined
+function folderScopePaths(value: unknown): string[] | undefined {
+  const paths = readFolderPaths(value).filter((path) => path !== ROOT_FOLDER_PATH)
+  return paths.length > 0 ? paths : undefined
 }
 
 export const FileBlock: BlockConfig<FileParserOutput> = {
@@ -1099,14 +1091,14 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   description:
     'Read, search, get content, fetch, write, append, compress, decompress, and manage sharing for files',
   longDescription:
-    'Read workspace file objects, search indexed text across all active workspace files, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.',
+    'Read workspace file objects, search indexed text across the workspace or selected folder scopes, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.',
   hideFromToolbar: false,
   bestPractices: `
-  - Read returns workspace file objects in the "files" output and does NOT include their text. Use it to pick files or pass file references downstream (e.g. as attachments).
-  - Get Content is how you read file text. It accepts file objects or canonical file IDs and returns a "contents" array with one extracted text string per file (PDF, DOCX, CSV, etc. are parsed automatically).
+  - Read returns workspace file objects in the "files" output and does NOT include their text. It accepts selected files, canonical file IDs, or one or more workspace folders expanded at run time. Use it to pick files or pass file references downstream (e.g. as attachments).
+  - Get Content is how you read file text. It accepts file objects, canonical file IDs, or one or more workspace folders and returns a "contents" array with one extracted text string per file (PDF, DOCX, CSV, etc. are parsed automatically).
   - To read the text of files produced by another block, chain into Get Content: set its file input to the upstream file output, e.g. <file.files>, <agent.files>, or <start.files>. Never assume Read (or any file-object output) already contains the text.
   - Get Content's "contents" can be large; it is persisted through the execution large-value system automatically, so prefer it over inlining file text any other way.
-  - Search finds text across all active workspace files and returns one result per matching line — not per match — with fileId, lineNumber, and text. Queries are case-insensitive until they contain an uppercase letter being searched for; in a regular expression, uppercase inside an escape or character class such as \\D or [A-Z] does not affect this.
+  - Search finds text across all active workspace files, or only the selected folder scopes, and returns one result per matching line — not per match — with fileId, lineNumber, and text. Queries are case-insensitive until they contain an uppercase letter being searched for; in a regular expression, uppercase inside an escape or character class such as \\D or [A-Z] does not affect this.
   - Search reads the query as a line-oriented regular expression: quantifiers, character classes, \\d \\w \\s, alternation, groups, "^" and "$" anchors, and \\b word boundaries. Lookaround, backreferences and patterns spanning a line break are not supported, and a pattern needs at least 3 consecutive literal characters that every match will contain. Set Match to "Exact match" to search for the query text verbatim instead.
   - Match is a builder setting, not an agent one: the agent writes the query, and Match decides how every query from that block is read.
   - Search is eventually consistent. Check "complete" and "indexStatus" when pending, failed, skipped, or partially indexed files matter to the task.
@@ -1206,9 +1198,10 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     {
       id: 'folderSelection',
       title: 'Folder',
-      type: 'sim-folder-tree-selector' as SubBlockType,
+      type: 'folder-selector' as SubBlockType,
       resourceType: 'file',
-      mode: 'advanced',
+      mode: 'both',
+      multiSelect: true,
       placeholder: 'Anywhere in the workspace',
       description:
         'Narrows the file options below. Read, get content, and compress also take the whole folder when no file is picked, and search is confined to it.',
@@ -1344,7 +1337,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     {
       id: 'writeFolderPath',
       title: 'Folder',
-      type: 'sim-folder-tree-selector' as SubBlockType,
+      type: 'folder-selector' as SubBlockType,
       resourceType: 'file',
       placeholder: 'Workspace root',
       canonicalParamId: 'writeFolderRef',
@@ -1633,7 +1626,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     {
       id: 'folderPath',
       title: 'Folder',
-      type: 'sim-folder-tree-selector' as SubBlockType,
+      type: 'folder-selector' as SubBlockType,
       resourceType: 'file',
       placeholder: 'Select a folder',
       canonicalParamId: 'folderRef',
@@ -1660,7 +1653,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     {
       id: 'createParentPath',
       title: 'Parent Folder',
-      type: 'sim-folder-tree-selector' as SubBlockType,
+      type: 'folder-selector' as SubBlockType,
       resourceType: 'file',
       placeholder: 'Workspace root',
       canonicalParamId: 'createParentRef',
@@ -1687,7 +1680,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     {
       id: 'destinationParentPath',
       title: 'Move Into',
-      type: 'sim-folder-tree-selector' as SubBlockType,
+      type: 'folder-selector' as SubBlockType,
       resourceType: 'file',
       placeholder: 'Workspace root',
       canonicalParamId: 'destinationParentRef',
@@ -1750,7 +1743,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     {
       id: 'moveTargetFolderPath',
       title: 'Move Into',
-      type: 'sim-folder-tree-selector' as SubBlockType,
+      type: 'folder-selector' as SubBlockType,
       resourceType: 'file',
       placeholder: 'Workspace root',
       canonicalParamId: 'moveTargetRef',
@@ -1812,13 +1805,13 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
            * has its query, so an unset folder means the whole workspace and
            * never an incomplete configuration.
            */
-          const folderPath = folderScopePath(params.folderSelection)
+          const folderPaths = folderScopePaths(params.folderSelection)
           return {
             query: params.query,
             mode: params.mode === 'exact' ? 'exact' : 'regex',
             maxResults,
-            ...(folderPath ? { folderPaths: [folderPath] } : {}),
-            ...(folderPath && !switchValue(params.folderIncludeSubfolders, true)
+            ...(folderPaths ? { folderPaths } : {}),
+            ...(folderPaths && !switchValue(params.folderIncludeSubfolders, true)
               ? { includeSubfolders: false }
               : {}),
           }
@@ -2189,9 +2182,9 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       description: 'Whether the folder scope reaches into nested folders; on by default',
     },
     folderSelection: {
-      type: 'string',
+      type: 'array',
       description:
-        'Folder the operation is scoped to, including everything nested inside it, expanded at run time when no file is picked (read, get content, compress, search, append, edit, insert)',
+        'Folders the operation is scoped to, including everything nested inside them, expanded at run time when no file is picked (read, get content, compress, search, append, edit, insert)',
     },
     folderLimit: {
       type: 'number',

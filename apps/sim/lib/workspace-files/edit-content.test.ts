@@ -62,7 +62,6 @@ describe('applyStringReplacement', () => {
     }
   })
 
-  /** Overlapping text must not be double-counted into a false ambiguity. */
   it('does not count overlapping matches twice', () => {
     expect(applyStringReplacement('aaa', 'aa', 'b')).toBe('ba')
   })
@@ -87,7 +86,10 @@ describe('applyLineInsertion', () => {
     expect(applyLineInsertion('a\nb', 1, 'x\ny')).toBe('a\nx\ny\nb')
   })
 
-  /** Clamping would silently write to the wrong end of the file. */
+  it('does not turn an inserted trailing newline into an extra blank line', () => {
+    expect(applyLineInsertion('a\nb', 1, 'x\n')).toBe('a\nx\nb')
+  })
+
   it('refuses a line past the end instead of clamping', () => {
     try {
       applyLineInsertion('a\nb', 9, 'x')
@@ -111,7 +113,6 @@ describe('applyLineInsertion', () => {
     expect(applyLineInsertion('a\nb\n', 2, 'c')).toBe('a\nb\nc\n')
   })
 
-  /** A note written on Windows must not come back with one stray LF in it. */
   it('matches the line ending the file already uses', () => {
     expect(applyLineInsertion('a\r\nb\r\n', 1, 'x')).toBe('a\r\nx\r\nb\r\n')
   })

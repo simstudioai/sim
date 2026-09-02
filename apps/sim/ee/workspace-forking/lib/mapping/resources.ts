@@ -19,6 +19,9 @@ import { and, count, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { ForkCopyableKind } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
+import { parseFolderPath } from '@/lib/folders/paths'
+import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import type { ForkResourceType } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import type {
   ForkMcpServerMeta,
@@ -189,6 +192,23 @@ const fileCandidatesQuery = (executor: DbOrTx, workspaceId: string, keys?: strin
   return keys ? query : query.limit(CANDIDATE_LIMIT)
 }
 
+/** Workspace file-folder candidates keyed by their canonical path, matching workflow storage. */
+const fileFolderCandidatesQuery = async (
+  executor: DbOrTx,
+  workspaceId: string,
+  paths?: string[]
+): Promise<ForkResourceCandidate[]> => {
+  const index = await loadActiveFolderPathIndex(workspaceId, 'file', executor, {
+    maxRows: MAX_FOLDERS_PER_WORKSPACE,
+  })
+  const requested = paths ? new Set(paths) : null
+  const candidates = Array.from(index.idByPath.keys())
+    .filter((path) => !requested || requested.has(path))
+    .map((path) => ({ id: path, label: parseFolderPath(path).join(' / ') }))
+    .sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id))
+  return paths ? candidates : candidates.slice(0, CANDIDATE_LIMIT)
+}
+
 // Copyable workspace files WITH their folder grouping (LEFT JOIN gated on a live folder, so a file
 // whose folder was deleted shows ungrouped). Shared by the fork-copy picker (unfiltered, capped)
 // and the promote copyable-label lookup (filtered by exact storage keys, never capped), so the
@@ -234,13 +254,14 @@ const fileCandidatesWithFolderQuery = (
  * source resources being mapped. `knowledge-document` is intentionally left empty:
  * documents are not a standalone mappable kind - they are dependent fields of their
  * knowledge base, re-picked in the per-KB reconfigure flow (and auto-remapped when
- * their KB is copied). `file` candidates are keyed by storage key.
+ * their KB is copied). `file` candidates are keyed by storage key and `file-folder`
+ * candidates by canonical path.
  */
 export async function listForkResourceCandidates(
   executor: DbOrTx,
   workspaceId: string
 ): Promise<Record<ForkRemapKind, ForkResourceCandidate[]>> {
-  const [creds, wsEnvRows, tables, kbs, servers, tools, skills, files, customBlocks] =
+  const [creds, wsEnvRows, tables, kbs, servers, tools, skills, files, fileFolders, customBlocks] =
     await Promise.all([
       executor
         .select({
@@ -270,6 +291,7 @@ export async function listForkResourceCandidates(
       customToolCandidatesQuery(executor, workspaceId),
       skillCandidatesQuery(executor, workspaceId),
       fileCandidatesQuery(executor, workspaceId),
+      fileFolderCandidatesQuery(executor, workspaceId),
       customBlockCandidatesQuery(executor, workspaceId),
     ])
 
@@ -294,6 +316,7 @@ export async function listForkResourceCandidates(
     skill: skills,
     'knowledge-document': [],
     file: files,
+    'file-folder': fileFolders,
   }
 }
 
@@ -308,7 +331,7 @@ interface ForkResourceRow {
  * (same archived/deleted filters as `listForkResourceCandidates`). Queries the exact ids - NOT
  * the capped candidate list - so a resource sitting past `CANDIDATE_LIMIT` is never mistaken for
  * a missing one. Only the DB-backed kinds are checked: env-var existence is handled by the
- * resolver's `targetEnvKeys`, and `file`/`workflow` are resolved by other paths.
+ * resolver's `targetEnvKeys`, and `workflow` is resolved by another path.
  *
  * Backs both {@link filterExistingForkTargets} (existence) and {@link loadForkResourceLabels}
  * (display names), so the two can never disagree about what "exists" means.
@@ -333,9 +356,10 @@ async function loadForkResourceRows(
   // Files are identified by storage key (not `workspace_files.id`); a copied file's mapping
   // target is its child storage key, so existence is checked by key in the target workspace.
   const fileKeys = ids('file')
+  const fileFolderPaths = ids('file-folder')
 
-  const [creds, tables, kbs, docs, servers, tools, skills, files, customBlocks] = await Promise.all(
-    [
+  const [creds, tables, kbs, docs, servers, tools, skills, files, fileFolders, customBlocks] =
+    await Promise.all([
       credIds.length === 0
         ? Promise.resolve([] as ForkResourceRow[])
         : executor
@@ -383,11 +407,13 @@ async function loadForkResourceRows(
       fileKeys.length === 0
         ? Promise.resolve([] as ForkResourceRow[])
         : fileCandidatesQuery(executor, workspaceId, fileKeys),
+      fileFolderPaths.length === 0
+        ? Promise.resolve([] as ForkResourceRow[])
+        : fileFolderCandidatesQuery(executor, workspaceId, fileFolderPaths),
       customBlockIds.length === 0
         ? Promise.resolve([] as ForkResourceRow[])
         : customBlockCandidatesQuery(executor, workspaceId, customBlockIds),
-    ]
-  )
+    ])
 
   const result: Partial<Record<ForkRemapKind, ForkResourceRow[]>> = {}
   if (credIds.length > 0) result.credential = creds
@@ -399,6 +425,7 @@ async function loadForkResourceRows(
   if (skillIds.length > 0) result.skill = skills
   // `fileCandidatesQuery` exposes the storage key under `id`, so file rows key by `r.id`.
   if (fileKeys.length > 0) result.file = files
+  if (fileFolderPaths.length > 0) result['file-folder'] = fileFolders
   // Resolved through the workspace's ORGANIZATION, so a block published from a sibling
   // workspace still counts as existing here - which is the normal case for an environment.
   if (customBlockIds.length > 0) result['custom-block'] = customBlocks

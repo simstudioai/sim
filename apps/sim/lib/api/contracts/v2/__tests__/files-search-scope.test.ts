@@ -78,6 +78,13 @@ describe('parseFolderPathList', () => {
     ])
   })
 
+  it('does not split a percent-encoded comma inside a folder name', () => {
+    expect(parseFolderPathList('/Finance%2CLegal,/Reports')).toEqual([
+      '/Finance%2CLegal',
+      '/Reports',
+    ])
+  })
+
   it('drops empty entries rather than emitting a blank scope', () => {
     expect(parseFolderPathList('/a,,/b')).toEqual(['/a', '/b'])
   })

@@ -192,18 +192,12 @@ describe.concurrent('Blocks Module', () => {
       )
       expect(block?.tools.config?.tool({ operation: 'file_compress' })).toBe('file_compress')
       expect(block?.tools.config?.tool({ operation: 'file_decompress' })).toBe('file_decompress')
-      /*
-       * A folder is a scope on a file operation rather than an operation of its
-       * own, so read keeps its multi-file picker and gains a folder that
-       * narrows what the picker offers.
-       */
       expect(block?.subBlocks.find((subBlock) => subBlock.id === 'readFile')?.folderScope).toEqual({
         fieldId: 'folderSelection',
         recursiveFieldId: 'folderIncludeSubfolders',
       })
-      /* Advanced-only and unpaired: the scope is a refinement, not a primary input. */
       expect(block?.subBlocks.find((subBlock) => subBlock.id === 'folderSelection')?.mode).toBe(
-        'advanced'
+        'both'
       )
       expect(block?.tools.config?.tool({ operation: 'file_read' })).toBe('file_read')
       expect(block?.tools.config?.tool({ operation: 'file_get_content' })).toBe('file_get_content')
@@ -592,7 +586,6 @@ describe.concurrent('Blocks Module', () => {
         'channel-selector',
         'user-selector',
         'folder-selector',
-        'sim-folder-tree-selector',
         'knowledge-base-selector',
         'knowledge-tag-filters',
         'document-selector',

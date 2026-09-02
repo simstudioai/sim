@@ -93,7 +93,6 @@ describe('useWorkspaceInvalidationRoom', () => {
     expect(emitted('leave-workspace-files')).toBe(1)
   })
 
-  /* Counted per room, so holding one open does not hold another. */
   it('leaves a room whose own subscriber went, while another room is still held', () => {
     const files = mount('ws-1', 'workspace-files')
     mount('ws-1', 'workspace-tables')
@@ -104,7 +103,6 @@ describe('useWorkspaceInvalidationRoom', () => {
     expect(emitted('leave-workspace-tables')).toBe(0)
   })
 
-  /* And per workspace, so one workspace cannot hold another one open. */
   it('does not let one workspace hold another open', () => {
     const a = mount('ws-1', 'workspace-files')
     mount('ws-2', 'workspace-files')

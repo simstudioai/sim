@@ -118,7 +118,6 @@ export function useWorkspaceInvalidationRoom(
       socket.off(errorEvent, handleJoinError)
       socket.off(changedEvent, handleChanged)
 
-      // Leave only once the last subscriber to this room has gone; see `roomSubscribers`.
       const remaining = (roomSubscribers.get(subscriberKey) ?? 1) - 1
       if (remaining > 0) {
         roomSubscribers.set(subscriberKey, remaining)

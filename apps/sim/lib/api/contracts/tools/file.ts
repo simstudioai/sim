@@ -9,11 +9,31 @@ import {
 } from '@/lib/api/contracts/v2/shared'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
+import { MAX_WORKSPACE_FILE_BULK_REQUEST_IDS } from '@/lib/workspace-files/limits'
 
 export const fileManageQuerySchema = z.object({
   userId: z.string().min(1).nullable().optional(),
   workspaceId: z.string().min(1).nullable().optional(),
 })
+
+const fileIdSelectionSchema = z.union([
+  z.string().min(1),
+  z.array(z.string().min(1)).min(1).max(MAX_WORKSPACE_FILE_BULK_REQUEST_IDS, 'Too many file IDs'),
+])
+const fileFolderPathsSchema = z.array(v2FolderPathInputSchema).max(64, 'Too many folders')
+
+function validateFolderTarget(
+  data: { folderPath?: string; folderPaths?: string[] },
+  context: z.RefinementCtx
+): void {
+  if (data.folderPath !== undefined && data.folderPaths !== undefined) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['folderPaths'],
+      message: 'Provide folderPath or folderPaths, not both',
+    })
+  }
+}
 
 export const fileManageWriteBodySchema = z
   .object({
@@ -53,24 +73,19 @@ export const fileManageWriteBodySchema = z
     }
   })
 
-export const fileManageAppendBodySchema = z.object({
-  operation: z.literal('append'),
-  workspaceId: z.string().min(1).optional(),
-  fileName: z.string({ error: 'fileName is required for append operation' }).min(1),
-  /**
-   * Folder the name is resolved inside. A name is only unique within a folder,
-   * so without this a duplicate name resolves to the oldest match anywhere.
-   *
-   * It constrains a canonical id too, rather than being ignored for one: an id
-   * that does not sit in the named folder is a `404`. Refusing is the safer
-   * reading of a contradictory request — silently preferring the id would write
-   * to a file outside the folder the caller named.
-   */
-  folderPath: v2FolderPathInputSchema.optional(),
-  includeSubfolders: z.boolean().optional(),
-  content: z.string({ error: 'content is required for append operation' }),
-  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
-})
+export const fileManageAppendBodySchema = z
+  .object({
+    operation: z.literal('append'),
+    workspaceId: z.string().min(1).optional(),
+    fileName: z.string({ error: 'fileName is required for append operation' }).min(1),
+    /** Folder(s) the name is resolved inside, singular retained for existing callers. */
+    folderPath: v2FolderPathInputSchema.optional(),
+    folderPaths: fileFolderPathsSchema.optional(),
+    includeSubfolders: z.boolean().optional(),
+    content: z.string({ error: 'content is required for append operation' }),
+    [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
+  })
+  .superRefine(validateFolderTarget)
 
 export const fileManageGetBodySchema = z
   .object({
@@ -127,7 +142,7 @@ export const fileManageReadBodySchema = z
      * the workflow runs rather than when it is configured — so a folder means
      * whatever is inside it at run time.
      */
-    folderPaths: z.array(v2FolderPathInputSchema).max(64, 'Too many folders').optional(),
+    folderPaths: fileFolderPathsSchema.optional(),
     /**
      * Whether folder expansion descends into nested folders. Absent means yes —
      * a folder normally stands for everything under it, and this narrows that
@@ -135,7 +150,7 @@ export const fileManageReadBodySchema = z
      */
     includeSubfolders: z.boolean().optional(),
     workspaceId: z.string().min(1).optional(),
-    fileId: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
+    fileId: fileIdSelectionSchema.optional(),
     fileInput: z.unknown().optional(),
   })
   .refine(
@@ -154,7 +169,7 @@ export const fileManageContentBodySchema = z
      * the workflow runs rather than when it is configured — so a folder means
      * whatever is inside it at run time.
      */
-    folderPaths: z.array(v2FolderPathInputSchema).max(64, 'Too many folders').optional(),
+    folderPaths: fileFolderPathsSchema.optional(),
     /**
      * Whether folder expansion descends into nested folders. Absent means yes —
      * a folder normally stands for everything under it, and this narrows that
@@ -162,7 +177,7 @@ export const fileManageContentBodySchema = z
      */
     includeSubfolders: z.boolean().optional(),
     workspaceId: z.string().min(1).optional(),
-    fileId: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
+    fileId: fileIdSelectionSchema.optional(),
     fileInput: z.unknown().optional(),
     /**
      * First line to return, 1-based. Applied to each selected file separately,
@@ -189,7 +204,7 @@ export const fileManageCompressBodySchema = z
      * the workflow runs rather than when it is configured — so a folder means
      * whatever is inside it at run time.
      */
-    folderPaths: z.array(v2FolderPathInputSchema).max(64, 'Too many folders').optional(),
+    folderPaths: fileFolderPathsSchema.optional(),
     /**
      * Whether folder expansion descends into nested folders. Absent means yes —
      * a folder normally stands for everything under it, and this narrows that
@@ -197,7 +212,7 @@ export const fileManageCompressBodySchema = z
      */
     includeSubfolders: z.boolean().optional(),
     workspaceId: z.string().min(1).optional(),
-    fileId: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
+    fileId: fileIdSelectionSchema.optional(),
     fileInput: z.unknown().optional(),
     archiveName: z.string().min(1).max(255).optional(),
   })
@@ -283,8 +298,8 @@ const fileEditTargetShape = {
   workspaceId: z.string().min(1).optional(),
   fileName: z.string({ error: 'fileName is required' }).min(1),
   /**
-   * Folder the name is resolved inside. A name is only unique within a folder,
-   * so without this a duplicate name resolves to the oldest match anywhere.
+   * Folder scopes the name is resolved inside. A name must be unique across the
+   * selected scopes; otherwise the caller has to provide the canonical file ID.
    *
    * It constrains a canonical id too, rather than being ignored for one: an id
    * that does not sit in the named folder is a `404`. Refusing is the safer
@@ -292,35 +307,40 @@ const fileEditTargetShape = {
    * a file outside the folder the caller named.
    */
   folderPath: v2FolderPathInputSchema.optional(),
+  folderPaths: fileFolderPathsSchema.optional(),
   includeSubfolders: z.boolean().optional(),
 } as const
 
-export const fileManageEditBodySchema = z.object({
-  operation: z.literal('edit'),
-  ...fileEditTargetShape,
-  /**
-   * Must match exactly once. The operation refuses several matches rather than
-   * choosing one, so this carries enough surrounding text to be unique.
-   */
-  oldString: z
-    .string({ error: 'oldString is required for edit operation' })
-    .min(1, 'oldString cannot be empty'),
-  /** Empty deletes the matched text. */
-  newString: z.string({ error: 'newString is required for edit operation' }),
-  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
-})
+export const fileManageEditBodySchema = z
+  .object({
+    operation: z.literal('edit'),
+    ...fileEditTargetShape,
+    /**
+     * Must match exactly once. The operation refuses several matches rather than
+     * choosing one, so this carries enough surrounding text to be unique.
+     */
+    oldString: z
+      .string({ error: 'oldString is required for edit operation' })
+      .min(1, 'oldString cannot be empty'),
+    /** Empty deletes the matched text. */
+    newString: z.string({ error: 'newString is required for edit operation' }),
+    [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
+  })
+  .superRefine(validateFolderTarget)
 
-export const fileManageInsertBodySchema = z.object({
-  operation: z.literal('insert'),
-  ...fileEditTargetShape,
-  /** 1-based line to insert after; 0 inserts at the top. Past the end is refused. */
-  afterLine: z
-    .number({ error: 'afterLine is required for insert operation' })
-    .int('afterLine must be a whole number')
-    .min(0, 'afterLine cannot be negative'),
-  content: z.string({ error: 'content is required for insert operation' }),
-  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
-})
+export const fileManageInsertBodySchema = z
+  .object({
+    operation: z.literal('insert'),
+    ...fileEditTargetShape,
+    /** 1-based line to insert after; 0 inserts at the top. Past the end is refused. */
+    afterLine: z
+      .number({ error: 'afterLine is required for insert operation' })
+      .int('afterLine must be a whole number')
+      .min(0, 'afterLine cannot be negative'),
+    content: z.string({ error: 'content is required for insert operation' }),
+    [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
+  })
+  .superRefine(validateFolderTarget)
 
 export const fileManageBodySchema = z.union([
   fileManageWriteBodySchema,

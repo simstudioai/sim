@@ -15,20 +15,20 @@ The File block is a built-in Sim block for working with files stored in the work
 
 With the File block, you can:
 
-- **Read and extract content**: Load workspace file objects and extract their text content
-- **Search workspace content**: Match a regular expression, or an exact piece of text, against the indexed lines of active workspace files with bounded line-level results
+- **Read and extract content**: Load workspace file objects and extract their text content from selected files or one or more folders
+- **Search workspace content**: Match a regular expression, or an exact piece of text, across the workspace or selected folder scopes with bounded line-level results
 - **Fetch from URLs**: Retrieve and parse files from external URLs with custom headers
 - **Write and append**: Create new workspace files or append content to existing ones
 - **Compress and decompress**: Bundle files into a .zip archive or extract an archive into the workspace
 - **Manage sharing**: Enable or disable a public share link for a file, with public, password, email, or SSO access modes
 
-In Sim, the File block allows your agents to search, read, and extract text from workspace files, fetch and parse files from URLs, write or append content to files, bundle files into or out of .zip archives, and control public sharing access for a file—all programmatically as steps in a workflow. This makes it possible to explore workspace content, move file content into and out of a workflow, package outputs for download or transfer, and expose files to external users through a managed share link.
+In Sim, the File block allows your agents to search, read, and extract text from workspace files, fetch and parse files from URLs, write or append content to files, bundle files into or out of .zip archives, and control public sharing access for a file—all programmatically as steps in a workflow. Folder selection is optional and supports multiple folders; when no folder is selected, search spans the workspace and file pickers are unscoped. Selected folders are expanded when the workflow runs, so newly added files are included automatically. This makes it possible to explore workspace content, move file content into and out of a workflow, package outputs for download or transfer, and expose files to external users through a managed share link.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Read workspace file objects, search indexed text across all active workspace files, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
+Read workspace file objects, search indexed text across the workspace or selected folder scopes, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
 
 
 
@@ -36,7 +36,7 @@ Read workspace file objects, search indexed text across all active workspace fil
 
 ### File Read
 
-Read workspace file objects from selected files or canonical workspace file IDs.
+Read workspace file objects from selected files, canonical workspace file IDs, or one or more workspace folders.
 
 #### Input
 
@@ -55,7 +55,7 @@ Read workspace file objects from selected files or canonical workspace file IDs.
 
 ### File Get Content
 
-Extract the text content of one or more workspace files from selected file objects or canonical workspace file IDs.
+Extract the text content of workspace files selected directly, identified by canonical file ID, or collected from one or more workspace folders.
 
 #### Input
 
@@ -77,7 +77,7 @@ Extract the text content of one or more workspace files from selected file objec
 
 ### File Search
 
-Search the indexed text of active workspace files for lines matching a query, and return each matching line once with its file ID and line number. By default the query is a regular expression; in exact mode it is matched verbatim and metacharacters are literal. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped or partial files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one folder tree, which also narrows "indexStatus" to that tree.
+Search the indexed text of active workspace files for lines matching a query, and return each matching line once with its file ID and line number. By default the query is a regular expression; in exact mode it is matched verbatim and metacharacters are literal. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped or partial files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one or more folder trees, which also narrows "indexStatus" to those trees.
 
 #### Input
 
@@ -158,7 +158,9 @@ Append content to an existing workspace file. The file must already exist. Conte
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | Yes | Name of an existing workspace file to append to. |
-| `folderPath` | string | No | Folder the file lives in. Naming it targets exactly one file when the same name exists in several folders. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
+| `folderPath` | string | No | Single folder in which to resolve the file name. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". Use folderPaths for multiple folders; do not provide both fields. |
+| `folderPaths` | array | No | Folders to search for the named file. The name must resolve to exactly one file across the selected scopes. Do not provide folderPath as well. |
+| `includeSubfolders` | boolean | No | Whether the folder scope includes nested folders. Defaults to true; set false to target only files directly in the folder. |
 | `content` | string | Yes | The text content to append to the file. |
 
 #### Output
@@ -179,7 +181,8 @@ Replace one exact piece of text in an existing workspace file, leaving the rest 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | Yes | Name or ID of the workspace file to edit. |
-| `folderPath` | string | No | Folder the file lives in. Naming it targets exactly one file when the same name exists in several folders. Canonical folder path, percent-encoded, e.g. "/memory/user-a/people". The workspace root is "/". |
+| `folderPath` | string | No | Single folder in which to resolve the file name or validate the file ID. Canonical folder path, percent-encoded, e.g. "/memory/user-a/people". The workspace root is "/". Use folderPaths for multiple folders; do not provide both fields. |
+| `folderPaths` | array | No | Folders to search for the named file or validate the file ID against. The name must resolve to exactly one file across the selected scopes. Do not provide folderPath as well. |
 | `includeSubfolders` | boolean | No | Whether the folder is searched for the file recursively. Defaults to true; set false to match only its direct contents, which is how a name shared with a file in a nested folder is disambiguated. |
 | `oldString` | string | Yes | The exact text to replace, matched verbatim including whitespace and line breaks. It must appear exactly once in the file. |
 | `newString` | string | Yes | The text to put in its place. Pass an empty string to delete the old text. |
@@ -225,7 +228,8 @@ Insert new lines into an existing workspace file at a given line, leaving the re
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | Yes | Name or ID of the workspace file to insert into. |
-| `folderPath` | string | No | Folder the file lives in. Naming it targets exactly one file when the same name exists in several folders. Canonical folder path, percent-encoded, e.g. "/memory/user-a/people". The workspace root is "/". |
+| `folderPath` | string | No | Single folder in which to resolve the file name or validate the file ID. Canonical folder path, percent-encoded, e.g. "/memory/user-a/people". The workspace root is "/". Use folderPaths for multiple folders; do not provide both fields. |
+| `folderPaths` | array | No | Folders to search for the named file or validate the file ID against. The name must resolve to exactly one file across the selected scopes. Do not provide folderPath as well. |
 | `includeSubfolders` | boolean | No | Whether the folder is searched for the file recursively. Defaults to true; set false to match only its direct contents, which is how a name shared with a file in a nested folder is disambiguated. |
 | `afterLine` | number | Yes | The 1-based line to insert after. Use 0 to insert at the top of the file. A line past the end of the file is refused rather than appended, so read or search first if you are not sure how long the file is. |
 | `content` | string | Yes | The text to insert. Multiple lines are inserted as multiple lines; no trailing newline is needed. |

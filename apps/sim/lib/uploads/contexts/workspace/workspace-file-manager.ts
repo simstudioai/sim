@@ -54,6 +54,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { parseFolderPath } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
+import type { FolderIdScope } from '@/lib/folders/scope'
 import { mergeEditIntoLiveFileDoc, notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
@@ -1337,6 +1338,8 @@ export interface QueryWorkspaceFilesOptions {
    * shape Drizzle already emits (`false`) for an empty `IN`.
    */
   folderId?: string | null | readonly string[]
+  /** A resolved union of folder ids and workspace-root files. */
+  folderScope?: FolderIdScope
   /** Case-insensitive substring match on the file name. */
   search?: string
   sortBy: V2FileSortBy
@@ -1362,6 +1365,16 @@ function workspaceFileFolderCondition(
   return eq(workspaceFiles.folderId, folderId as string)
 }
 
+/** The SQL predicate for a folder scope that can include both ids and root files. */
+function workspaceFileFolderScopeCondition(scope: FolderIdScope | undefined): SQL | undefined {
+  if (!scope) return undefined
+  const ids = [...scope.folderIds]
+  const inScope = ids.length > 0 ? inArray(workspaceFiles.folderId, ids) : undefined
+  const atRoot = scope.includeRootItems ? isNull(workspaceFiles.folderId) : undefined
+  if (inScope && atRoot) return or(inScope, atRoot)
+  return inScope ?? atRoot ?? sql`false`
+}
+
 /**
  * One filtered, sorted, bounded page of a workspace's files.
  *
@@ -1379,7 +1392,19 @@ export async function queryWorkspaceFiles(
   workspaceId: string,
   options: QueryWorkspaceFilesOptions
 ): Promise<QueryWorkspaceFilesResult> {
-  const { scope = 'active', folderId, search, sortBy, sortOrder, limit, after } = options
+  const {
+    scope = 'active',
+    folderId,
+    folderScope,
+    search,
+    sortBy,
+    sortOrder,
+    limit,
+    after,
+  } = options
+  if (folderId !== undefined && folderScope !== undefined) {
+    throw new OrchestrationError('validation', 'Specify either folderId or folderScope, not both')
+  }
   const keys: readonly KeysetKey<WorkspaceFileRecord>[] = WORKSPACE_FILE_SORTS[sortBy]
 
   let resumeAfter: SQL | undefined
@@ -1392,6 +1417,7 @@ export async function queryWorkspaceFiles(
   const conditions = [
     workspaceFileScopeCondition(workspaceId, scope),
     workspaceFileFolderCondition(folderId),
+    workspaceFileFolderScopeCondition(folderScope),
     searchFilter(workspaceFiles.originalName, search),
     resumeAfter,
   ]

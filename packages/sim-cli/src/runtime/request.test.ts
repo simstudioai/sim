@@ -502,6 +502,24 @@ describe('folder paths are typed by the name the app shows', () => {
     expect(built.query.folderPaths).toBe('/a%20b,/c')
   })
 
+  it('encodes and joins every folder in a file-content search', () => {
+    const built = buildRequest(
+      'searchFileContent',
+      [],
+      {
+        query: 'quarterly',
+        folder: ['/Q1 reports', '/Finance,Legal'],
+        includeSubfolders: false,
+      },
+      WORKSPACE
+    )
+
+    expect(built.query).toMatchObject({
+      folderPaths: '/Q1%20reports,/Finance%2CLegal',
+      includeSubfolders: false,
+    })
+  })
+
   it('leaves a field the contract has not marked untouched', () => {
     // `files upload` and `knowledge documents upload` take a LOCAL path; the
     // marker is what keeps the encoder away from one.

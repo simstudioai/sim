@@ -9,6 +9,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { parseFolderPath } from '@/lib/folders/paths'
+import { readFolderPaths } from '@/lib/folders/selection'
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import type { FilterRule, SortRule } from '@/lib/table/types'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
@@ -616,42 +617,19 @@ export function resolveSandboxLabel(
  * request per canvas row, no loading state, and nothing to go stale that the
  * stored path has not gone stale with.
  */
-function readStoredFolderPath(value: unknown): string {
-  if (Array.isArray(value)) {
-    const first = value.find((entry) => typeof entry === 'string' && entry.trim() !== '')
-    return typeof first === 'string' ? first.trim() : ''
-  }
-  if (typeof value !== 'string') return ''
-  const trimmed = value.trim()
-  if (trimmed.startsWith('[')) {
-    try {
-      return readStoredFolderPath(JSON.parse(trimmed))
-    } catch {
-      return trimmed
-    }
-  }
-  return trimmed
-}
-
 export function resolveFolderPathLabel(
   subBlock: SubBlockConfig | undefined,
   rawValue: unknown
 ): string | null {
-  if (subBlock?.type !== 'sim-folder-tree-selector') return null
+  if (subBlock?.type !== 'folder-selector' || !subBlock.resourceType) return null
 
-  /*
-   * The picker stores a plain string, but an array and a JSON-array string both
-   * reach the selector's own reader and the block's. Normalizing here too keeps
-   * all three readers agreeing about what a stored folder value is.
-   */
-  const path = readStoredFolderPath(rawValue)
-  if (!path) return null
-
-  try {
-    const segments = parseFolderPath(path)
-    return segments.length > 0 ? segments.join(' / ') : null
-  } catch {
-    /* A hand-typed path that will not parse is still worth showing as typed. */
-    return path
-  }
+  const names = readFolderPaths(rawValue).flatMap((path) => {
+    try {
+      const segments = parseFolderPath(path)
+      return segments.length > 0 ? [segments.join(' / ')] : []
+    } catch {
+      return [path]
+    }
+  })
+  return summarizeNames(names)
 }

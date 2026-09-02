@@ -583,6 +583,20 @@ export const CLI_CONTRACT: CliContract = {
     flags: { folderPaths: FOLDER_PATHS_FLAG },
     confirm: 'This deletes every listed table and all of their rows.',
   },
+  searchFileContent: {
+    flags: {
+      folderPaths: {
+        ...FOLDER_PATHS_FLAG,
+        describe:
+          'Folders to search, by path as shown in the app; omit to search the whole workspace',
+      },
+      includeSubfolders: {
+        boolean: true,
+        negatable: true,
+        describe: 'Whether each folder scope includes nested folders; on by default',
+      },
+    },
+  },
   searchKnowledge: {
     // Accepts a string or an array on the wire; the CLI always sends the array.
     flags: {

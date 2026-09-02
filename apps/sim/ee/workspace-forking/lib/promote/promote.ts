@@ -552,7 +552,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     // the folders that will hold a synced workflow (plus ancestors) - a folder whose subtree
     // syncs nothing is never created empty in the target, though it still maps onto a matching
     // existing target folder so prior syncs' refs keep resolving.
-    const folderIdMap = await resolveForkFolderMapping({
+    const { folderIdMap } = await resolveForkFolderMapping({
       tx,
       sourceWorkspaceId,
       targetWorkspaceId,

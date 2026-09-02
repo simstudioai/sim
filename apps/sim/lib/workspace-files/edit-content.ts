@@ -1,11 +1,3 @@
-/**
- * The text transforms behind in-place file editing.
- *
- * Pure and separate from the IO around them because the uniqueness rule is the
- * load-bearing part: an edit that silently picks one of several matches
- * rewrites a line nobody chose, in a file nobody read.
- */
-
 export type EditContentFailure =
   | { reason: 'empty_search' }
   | { reason: 'not_found' }
@@ -153,7 +145,7 @@ export function applyLineInsertion(text: string, afterLine: number, content: str
     )
   }
 
-  const inserted = content.split(/\r\n|\n/)
+  const inserted = visibleLines(content)
   const next = [...effective.slice(0, afterLine), ...inserted, ...effective.slice(afterLine)]
   return next.join(eol) + (hasTrailingNewline ? eol : '')
 }

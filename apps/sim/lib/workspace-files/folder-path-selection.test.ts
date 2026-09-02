@@ -7,7 +7,7 @@ import {
   resolveFolderIdsForPaths,
 } from '@/lib/workspace-files/folder-path-selection'
 
-/*
+/**
  * `Q3/Q4` is a folder whose NAME contains a slash: stored display paths escape
  * it, canonical paths percent-encode it. It is here because comparing the two
  * spellings as raw strings is the mistake this resolution exists to avoid.

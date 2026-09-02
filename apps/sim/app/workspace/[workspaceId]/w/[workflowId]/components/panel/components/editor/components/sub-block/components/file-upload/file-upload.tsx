@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Combobox, cn } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -13,11 +13,13 @@ import { Progress } from '@/components/ui/progress'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { fileDeleteContract } from '@/lib/api/contracts/storage-transfer'
-import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
+import { readFolderPaths } from '@/lib/folders/selection'
+import { formatFileSize, getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
+import { containsReference } from '@/lib/workflows/sanitization/references'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { isFileInFolderScope } from '@/lib/workspace-files/folder-path-selection'
+import { findSelectedWorkspaceFile } from '@/lib/workspace-files/selection'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
-import { readFolderPath } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sim-folder-tree-selector/selection'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
@@ -80,13 +82,17 @@ function workspaceFileOptionLabel(file: { name: string; folderPath?: string | nu
   }
 }
 
-/** Groups files by folder, then by name, so the list reads folder by folder. */
 function byFolderThenName(
   a: { name: string; folderPath?: string | null },
   b: { name: string; folderPath?: string | null }
 ): number {
   const folderOrder = (a.folderPath ?? '').localeCompare(b.folderPath ?? '')
   return folderOrder !== 0 ? folderOrder : a.name.localeCompare(b.name)
+}
+
+/** Uses the shared formatter while preserving exact values below one kilobyte. */
+function workspaceFileSizeLabel(bytes: number): string {
+  return formatFileSize(bytes, { includeBytes: true })
 }
 
 export interface UploadedFile {
@@ -151,7 +157,7 @@ function SingleFileSelector({
   isDeleting,
   workflowSearchHighlight,
 }: SingleFileSelectorProps) {
-  const displayLabel = `${truncateMiddle(file.name, 20, 12)} (${formatFileSize(file.size)})`
+  const displayLabel = `${truncateMiddle(file.name, 20, 12)} (${workspaceFileSizeLabel(file.size)})`
   const [searchQuery, setSearchQuery] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   // When not editing, always show the file's display label. When editing, show the user's query.
@@ -244,14 +250,17 @@ export function FileUpload({
    * Persists a new value. In controlled mode the caller owns persistence; in
    * store mode we write through the subblock store and notify collaborators.
    */
-  const commitValue = (next: UploadedFile | UploadedFile[] | null) => {
-    if (isControlled) {
-      onValueChange(next)
-      return
-    }
-    setStoreValue(next)
-    useWorkflowStore.getState().triggerUpdate()
-  }
+  const commitValue = useCallback(
+    (next: UploadedFile | UploadedFile[] | null) => {
+      if (isControlled) {
+        onValueChange(next)
+        return
+      }
+      setStoreValue(next)
+      useWorkflowStore.getState().triggerUpdate()
+    },
+    [isControlled, onValueChange, setStoreValue]
+  )
   const [modelValue] = useSubBlockValue(blockId, 'model')
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -269,6 +278,7 @@ export function FileUpload({
   const {
     data: workspaceFiles = [],
     isLoading: loadingWorkspaceFiles,
+    isPlaceholderData: workspaceFilesArePlaceholderData,
     refetch: refetchWorkspaceFiles,
   } = useWorkspaceFiles(isPreview ? '' : workspaceId)
 
@@ -285,6 +295,10 @@ export function FileUpload({
   const queryClient = useQueryClient()
 
   const value = isControlled ? controlledValue : isPreview ? previewValue : storeValue
+  const filesArray = useMemo<UploadedFile[]>(
+    () => (Array.isArray(value) ? value : value ? [value] : []),
+    [value]
+  )
 
   const maxSizeInBytes = useMemo(() => {
     const fallback = maxSize * 1024 * 1024
@@ -339,18 +353,18 @@ export function FileUpload({
    */
   const [folderScopeValue] = useSubBlockValue<unknown>(blockId, folderScope?.fieldId ?? subBlockId)
   /*
-   * Through `readFolderPath` rather than a `typeof === 'string'` check: a value
-   * saved by the multi-select tree that preceded this one is a JSON array, and
-   * its literal text passes a string check and then matches no folder, so every
-   * file is filtered out of a picker that looks correctly configured.
+   * Through `readFolderPaths` rather than a string check so current arrays and
+   * legacy serialized arrays resolve to the same canonical scopes.
    */
   const [manualFolderScopeValue] = useSubBlockValue<unknown>(
     blockId,
     folderScope?.manualFieldId ?? folderScope?.fieldId ?? subBlockId
   )
-  const folderScopePath = folderScope
-    ? readFolderPath(folderScopeValue) || readFolderPath(manualFolderScopeValue)
-    : ''
+  const folderScopePaths = useMemo(() => {
+    if (!folderScope) return []
+    const selectedPaths = readFolderPaths(folderScopeValue)
+    return selectedPaths.length > 0 ? selectedPaths : readFolderPaths(manualFolderScopeValue)
+  }, [folderScope, folderScopeValue, manualFolderScopeValue])
 
   const [folderScopeRecursive] = useSubBlockValue<unknown>(
     blockId,
@@ -368,26 +382,72 @@ export function FileUpload({
     folderScopeRecursive === true ||
     folderScopeRecursive === 'true'
 
-  const scopedWorkspaceFiles = folderScopePath
-    ? workspaceFiles.filter((workspaceFile) =>
-        isFileInFolderScope(workspaceFile.folderPath, folderScopePath, {
-          includeSubfolders: folderScopeIncludesSubfolders,
+  const hasConcreteFolderScope =
+    folderScopePaths.length > 0 && folderScopePaths.every((path) => !containsReference(path))
+  const scopedWorkspaceFiles = useMemo(
+    () =>
+      hasConcreteFolderScope
+        ? workspaceFiles.filter((workspaceFile) =>
+            folderScopePaths.some((folderScopePath) =>
+              isFileInFolderScope(workspaceFile.folderPath, folderScopePath, {
+                includeSubfolders: folderScopeIncludesSubfolders,
+              })
+            )
+          )
+        : workspaceFiles,
+    [folderScopeIncludesSubfolders, folderScopePaths, hasConcreteFolderScope, workspaceFiles]
+  )
+
+  const selectedWorkspaceFileIds = useMemo(
+    () =>
+      new Set(
+        filesArray.flatMap((file) => {
+          const match = findSelectedWorkspaceFile(file, workspaceFiles)
+          return match ? [match.id] : []
         })
-      )
-    : workspaceFiles
+      ),
+    [filesArray, workspaceFiles]
+  )
 
-  const availableWorkspaceFiles = scopedWorkspaceFiles.filter((workspaceFile) => {
-    const existingFiles = Array.isArray(value) ? value : value ? [value] : []
+  useEffect(() => {
+    if (
+      !folderScope ||
+      !hasConcreteFolderScope ||
+      loadingWorkspaceFiles ||
+      workspaceFilesArePlaceholderData ||
+      isPreview
+    ) {
+      return
+    }
 
-    const isAlreadySelected = existingFiles.some(
-      (existing) =>
-        existing.name === workspaceFile.name ||
-        existing.path?.includes(workspaceFile.key) ||
-        existing.key === workspaceFile.key
-    )
+    const scopedIds = new Set(scopedWorkspaceFiles.map((file) => file.id))
+    const nextFiles = filesArray.filter((file) => {
+      const workspaceFile = findSelectedWorkspaceFile(file, workspaceFiles)
+      return !workspaceFile || scopedIds.has(workspaceFile.id)
+    })
+    if (nextFiles.length === filesArray.length) return
 
-    return !isAlreadySelected
-  })
+    commitValue(multiple ? (nextFiles.length > 0 ? nextFiles : null) : (nextFiles[0] ?? null))
+  }, [
+    commitValue,
+    filesArray,
+    folderScope,
+    hasConcreteFolderScope,
+    isPreview,
+    loadingWorkspaceFiles,
+    multiple,
+    scopedWorkspaceFiles,
+    workspaceFiles,
+    workspaceFilesArePlaceholderData,
+  ])
+
+  const availableWorkspaceFiles = useMemo(
+    () =>
+      scopedWorkspaceFiles.filter(
+        (workspaceFile) => !selectedWorkspaceFileIds.has(workspaceFile.id)
+      ),
+    [scopedWorkspaceFiles, selectedWorkspaceFileIds]
+  )
 
   /**
    * Opens file dialog
@@ -402,15 +462,6 @@ export function FileUpload({
       fileInputRef.current.value = ''
       fileInputRef.current.click()
     }
-  }
-
-  /**
-   * Formats file size for display in a human-readable format
-   */
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
   /**
@@ -680,7 +731,9 @@ export function FileUpload({
           <span className='text-[var(--text-primary)]'>
             {formatDisplayText(displayName, { workflowSearchHighlight })}
           </span>
-          <span className='ml-2 text-[var(--text-muted)]'>({formatFileSize(file.size)})</span>
+          <span className='ml-2 text-[var(--text-muted)]'>
+            ({workspaceFileSizeLabel(file.size)})
+          </span>
         </div>
         <Button
           type='button'
@@ -707,7 +760,9 @@ export function FileUpload({
       >
         <div className='flex-1 truncate pr-2 text-sm'>
           <span className='text-[var(--text-primary)]'>{file.name}</span>
-          <span className='ml-2 text-[var(--text-muted)]'>({formatFileSize(file.size)})</span>
+          <span className='ml-2 text-[var(--text-muted)]'>
+            ({workspaceFileSizeLabel(file.size)})
+          </span>
         </div>
         <div className='flex size-5 shrink-0 items-center justify-center'>
           <div className='size-3.5 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
@@ -716,7 +771,6 @@ export function FileUpload({
     )
   }
 
-  const filesArray = Array.isArray(value) ? value : value ? [value] : []
   const hasFiles = filesArray.length > 0
   const isUploading = uploadingFiles.length > 0
 
@@ -760,13 +814,7 @@ export function FileUpload({
     if (!hasFiles || multiple) return ''
     const currentFile = filesArray[0]
     if (!currentFile) return ''
-    // Match by key or path
-    const matchedWorkspaceFile = workspaceFiles.find(
-      (wf) =>
-        wf.key === currentFile.key ||
-        wf.name === currentFile.name ||
-        currentFile.path?.includes(wf.key)
-    )
+    const matchedWorkspaceFile = findSelectedWorkspaceFile(currentFile, workspaceFiles)
     return matchedWorkspaceFile?.id || ''
   }, [filesArray, workspaceFiles, hasFiles, multiple])
 
@@ -890,7 +938,7 @@ export function FileUpload({
             blockId,
             subBlockId,
             valuePath: [],
-            label: `${truncateMiddle(filesArray[0].name, 20, 12)} (${formatFileSize(filesArray[0].size)})`,
+            label: `${truncateMiddle(filesArray[0].name, 20, 12)} (${workspaceFileSizeLabel(filesArray[0].size)})`,
           })}
         />
       )}
