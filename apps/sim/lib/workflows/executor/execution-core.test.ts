@@ -1382,6 +1382,8 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       loggingSession: loggingSession as any,
     })
 
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
     expect(result.status).toBe('cancelled')
     expect(safeCompleteWithCancellationMock).toHaveBeenCalledTimes(1)
     expect(safeCompleteWithCancellationMock).toHaveBeenCalledWith(
@@ -1393,7 +1395,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     )
     expect(safeCompleteMock).not.toHaveBeenCalled()
     expect(safeCompleteWithPauseMock).not.toHaveBeenCalled()
-    expect(updateWorkflowRunCountsMock).not.toHaveBeenCalled()
+    expect(updateWorkflowRunCountsMock).toHaveBeenCalledWith('workflow-1')
     expect(clearExecutionCancellationMock).toHaveBeenCalledWith('execution-1')
   })
 
@@ -1434,12 +1436,12 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
   })
 
   /**
-   * The population `runCount` actually counts. Cancelled and paused runs are
-   * already pinned above; a plain failure is the case a caller is most likely to
-   * assume is included, and the workflow contract's `runCount` description is
-   * written against this.
+   * The population `runCount` actually counts: every settled run. A workflow
+   * whose only runs failed used to list `runCount: 0, lastRunAt: null`, which
+   * reads as "never ran". Cancelled runs are pinned above; paused runs are
+   * pinned below as the one outcome that is not yet settled.
    */
-  it('leaves runCount untouched when the run fails', async () => {
+  it('counts a failed run, awaited from the finalization path', async () => {
     executorExecuteMock.mockResolvedValue({
       success: false,
       status: 'failed',
@@ -1457,7 +1459,27 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
 
     await loggingSession.setPostExecutionPromise.mock.calls[0][0]
 
-    expect(updateWorkflowRunCountsMock).not.toHaveBeenCalled()
+    expect(updateWorkflowRunCountsMock).toHaveBeenCalledWith('workflow-1')
+  })
+
+  it('counts a run whose engine threw, after the error was logged', async () => {
+    executorExecuteMock.mockRejectedValue(new Error('engine failed'))
+
+    await expect(
+      executeWorkflowCore({
+        snapshot: createSnapshot() as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+      })
+    ).rejects.toThrow('engine failed')
+
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
+    expect(safeCompleteWithErrorMock).toHaveBeenCalledTimes(1)
+    expect(updateWorkflowRunCountsMock).toHaveBeenCalledWith('workflow-1')
+    expect(safeCompleteWithErrorMock.mock.invocationCallOrder[0]).toBeLessThan(
+      updateWorkflowRunCountsMock.mock.invocationCallOrder[0]
+    )
   })
 
   it('routes paused executions through safeCompleteWithPause', async () => {

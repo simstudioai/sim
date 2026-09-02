@@ -123,6 +123,7 @@ const EMPTY_LINT = {
   invalidConnectionTargets: [],
   fieldIssues: [],
   unresolvedReferences: [],
+  tableFieldIssues: [],
   notes: [],
 }
 
@@ -183,6 +184,15 @@ const FULL_LINT = {
       value: 'cred-9',
       kind: 'credential',
       reason: 'Not accessible',
+    },
+  ],
+  tableFieldIssues: [
+    {
+      blockId: 'block-3',
+      blockName: 'Query leads',
+      blockType: 'table_v2',
+      field: 'score',
+      tableName: 'Leads',
     },
   ],
   notes: ['lint note'],

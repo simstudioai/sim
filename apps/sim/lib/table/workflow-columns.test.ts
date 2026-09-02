@@ -88,10 +88,12 @@ vi.mock('@/lib/table/service', () => ({
 }))
 
 import {
+  assertWorkflowGroupsDeployable,
   buildEnqueueItems,
   cancelCellRunsByTags,
   cancelWorkflowGroupRuns,
   pickNextEligibleGroupForRow,
+  runWorkflowColumn,
   type WorkflowGroupCellPayload,
 } from '@/lib/table/workflow-columns'
 
@@ -391,5 +393,119 @@ describe('cancelWorkflowGroupRuns deletion races', () => {
     dbChainMockFns.onConflictDoNothing.mockRejectedValueOnce(error)
 
     await expect(cancelWorkflowGroupRuns(table.id, 'row1')).rejects.toBe(error)
+  })
+})
+
+/**
+ * Groups run the deployed version, and a group that never said which mode it
+ * wanted is a deployed-mode group. A dispatch against an undeployed workflow
+ * used to be accepted and then wrote an error into every cell; the dispatcher
+ * now refuses it before anything is enqueued, naming the workflow.
+ */
+describe('assertWorkflowGroupsDeployable', () => {
+  const deployedGroup = makeGroup({ id: 'g-deployed', workflowId: 'wf-1' })
+  const liveGroup = makeGroup({ id: 'g-live', workflowId: 'wf-2', deploymentMode: 'live' })
+  const enrichmentGroup = makeGroup({
+    id: 'g-enrich',
+    workflowId: '',
+    type: 'enrichment',
+    enrichmentId: 'company-domain',
+  })
+
+  it('refuses a manual run of a mode-less group whose workflow has no active deployment', async () => {
+    queueTableRows(schemaMock.workflow, [
+      { workflowId: 'wf-1', workflowName: 'Enrich leads', deploymentId: null },
+    ])
+
+    await expect(
+      assertWorkflowGroupsDeployable([deployedGroup], { isManualRun: true, requestId: 'req-1' })
+    ).rejects.toThrow(
+      'Workflow group "g-deployed" runs the deployed version of workflow "Enrich leads" (wf-1), which has no active deployment'
+    )
+  })
+
+  it('passes a deployed-mode group whose workflow has an active deployment', async () => {
+    queueTableRows(schemaMock.workflow, [
+      { workflowId: 'wf-1', workflowName: 'Enrich leads', deploymentId: 'dep-1' },
+    ])
+
+    await expect(
+      assertWorkflowGroupsDeployable([deployedGroup], { isManualRun: true, requestId: 'req-1' })
+    ).resolves.toEqual([deployedGroup])
+  })
+
+  it('does not check live-mode or enrichment groups', async () => {
+    await expect(
+      assertWorkflowGroupsDeployable([liveGroup, enrichmentGroup], {
+        isManualRun: true,
+        requestId: 'req-1',
+      })
+    ).resolves.toEqual([liveGroup, enrichmentGroup])
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  it('drops an undeployed group from an auto-fire instead of failing the row write', async () => {
+    queueTableRows(schemaMock.workflow, [
+      { workflowId: 'wf-1', workflowName: 'Enrich leads', deploymentId: null },
+    ])
+
+    await expect(
+      assertWorkflowGroupsDeployable([deployedGroup, liveGroup], {
+        isManualRun: false,
+        requestId: 'req-1',
+      })
+    ).resolves.toEqual([liveGroup])
+  })
+})
+
+describe('runWorkflowColumn deployment gate', () => {
+  const table = {
+    id: 'table-1',
+    workspaceId: 'workspace-1',
+    schema: {
+      columns: [],
+      workflowGroups: [makeGroup({ id: 'g-deployed', workflowId: 'wf-1', name: 'Scoring' })],
+    },
+  } as unknown as TableDefinition
+
+  beforeEach(() => {
+    mockGetTableById.mockResolvedValue(table)
+  })
+
+  it('refuses the dispatch when the group workflow was undeployed', async () => {
+    queueTableRows(schemaMock.workflow, [
+      { workflowId: 'wf-1', workflowName: 'Score', deploymentId: null },
+    ])
+
+    await expect(
+      runWorkflowColumn({
+        tableId: 'table-1',
+        workspaceId: 'workspace-1',
+        mode: 'all',
+        groupIds: ['g-deployed'],
+        requestId: 'req-1',
+      })
+    ).rejects.toThrow(
+      'Workflow group "Scoring" runs the deployed version of workflow "Score" (wf-1), which has no active deployment'
+    )
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('skips an auto-fire whose only group is undeployed without enqueueing anything', async () => {
+    queueTableRows(schemaMock.workflow, [
+      { workflowId: 'wf-1', workflowName: 'Score', deploymentId: null },
+    ])
+
+    await expect(
+      runWorkflowColumn({
+        tableId: 'table-1',
+        workspaceId: 'workspace-1',
+        mode: 'new',
+        isManualRun: false,
+        rowIds: ['row-1'],
+        requestId: 'req-1',
+      })
+    ).resolves.toEqual({ dispatchId: null, shouldSignalRowsChanged: false })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })

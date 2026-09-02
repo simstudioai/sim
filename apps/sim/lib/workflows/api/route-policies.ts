@@ -32,9 +32,10 @@ import {
 
 function v2CancelRunErrorResponse(error: unknown) {
   if (error instanceof WorkflowRunAlreadyTerminalError) {
+    // A terminal run is a `200` no-op: nothing was cancelled, so `success` is false.
     return v2Data(
       v2CancelWorkflowRunDataSchema.parse({
-        success: true,
+        success: false,
         runId: error.executionId,
         redisAvailable: error.redisAvailable,
         durablyRecorded: false,

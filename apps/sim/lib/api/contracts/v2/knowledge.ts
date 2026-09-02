@@ -382,8 +382,22 @@ export const v2KnowledgeSearchResultSchema = z
       .meta({ examples: [{ category: 'billing', priority: 2 }] }),
     similarity: z
       .number()
-      .describe('Similarity score for vector search; tag-only matches use 1.')
+      .describe(
+        'Cosine similarity between the query embedding and the chunk (1 - cosine distance), reported the same way in `vector` and `hybrid` mode; tag-only matches use 1. In `hybrid` mode results are not ordered by this value — see `rankScore`.'
+      )
       .meta({ examples: [0.8423] }),
+    rankScore: z
+      .number()
+      .describe(
+        'The score results are ordered by, descending. In `vector` mode it equals `similarity`; in `hybrid` mode it is the reciprocal-rank-fusion score (a sum of 1/(60 + rank) over the lexical and vector legs, so a chunk both legs ranked first scores 2/61); when a reranker ordered the results it is `rerankerScore`.'
+      )
+      .meta({ examples: [0.0328] }),
+    rank: z
+      .number()
+      .int()
+      .positive()
+      .describe('1-based position in the returned order.')
+      .meta({ examples: [1] }),
     rerankerScore: z
       .number()
       .optional()

@@ -342,13 +342,14 @@ export class ConditionBlockHandler implements BlockHandler {
       (conn) => conn.source === baseBlockId
     )
 
-    const { selectedConnection, selectedCondition } = await this.evaluateConditions(
-      conditions,
-      outgoingConnections || [],
-      evalContext,
-      ctx,
-      block.id
-    )
+    const { selectedConnection, selectedCondition, conditionResult } =
+      await this.evaluateConditions(
+        conditions,
+        outgoingConnections || [],
+        evalContext,
+        ctx,
+        block.id
+      )
 
     if (!selectedCondition) {
       return {
@@ -356,6 +357,7 @@ export class ConditionBlockHandler implements BlockHandler {
         conditionResult: false,
         selectedPath: null,
         selectedOption: null,
+        selectedTitle: null,
       }
     }
 
@@ -364,9 +366,10 @@ export class ConditionBlockHandler implements BlockHandler {
       ctx.decisions.condition.set(decisionKey, selectedCondition.id)
       return {
         ...((sourceOutput as any) || {}),
-        conditionResult: true,
+        conditionResult,
         selectedPath: null,
         selectedOption: selectedCondition.id,
+        selectedTitle: selectedCondition.title,
       }
     }
 
@@ -380,13 +383,14 @@ export class ConditionBlockHandler implements BlockHandler {
 
     return {
       ...((sourceOutput as any) || {}),
-      conditionResult: true,
+      conditionResult,
       selectedPath: {
         blockId: targetBlock.id,
         blockType: targetBlock.metadata?.id || DEFAULTS.BLOCK_TYPE,
         blockTitle: targetBlock.metadata?.name || DEFAULTS.BLOCK_TITLE,
       },
       selectedOption: selectedCondition.id,
+      selectedTitle: selectedCondition.title,
     }
   }
 
@@ -446,6 +450,13 @@ export class ConditionBlockHandler implements BlockHandler {
   ): Promise<{
     selectedConnection: { target: string; sourceHandle?: string } | null
     selectedCondition: ConditionEntry | null
+    /**
+     * The chosen branch's own test. Only a matched expression is a truthy test:
+     * the else branch fires precisely because every test was false, so reporting
+     * it as `true` inverted a downstream `<gate.conditionResult>` on the else
+     * path — and persisted the inversion into the trace.
+     */
+    conditionResult: boolean
   }> {
     const elseIndex = conditions.findIndex((condition) => isElseConditionTitle(condition.title))
     const testable = elseIndex === -1 ? conditions : conditions.slice(0, elseIndex)
@@ -455,13 +466,14 @@ export class ConditionBlockHandler implements BlockHandler {
     const selectedCondition = matched ?? elseCondition
 
     if (!selectedCondition) {
-      return { selectedConnection: null, selectedCondition: null }
+      return { selectedConnection: null, selectedCondition: null, conditionResult: false }
     }
 
     return {
       selectedConnection:
         this.findConnectionForCondition(outgoingConnections, selectedCondition.id) ?? null,
       selectedCondition,
+      conditionResult: matched !== null,
     }
   }
 

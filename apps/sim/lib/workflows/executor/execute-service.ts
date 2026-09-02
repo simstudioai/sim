@@ -476,18 +476,25 @@ export async function executeWorkflowService(
       })
     }
 
+    /**
+     * Validated before the run starts, for the sync path as much as the stream:
+     * a selector whose block does not exist is a caller mistake to answer with a
+     * 400 up front, not a run to execute and then answer with a silently emptier
+     * `blockOutputs`.
+     */
+    let resolvedSelectedOutputs: string[] | undefined
+    try {
+      resolvedSelectedOutputs = await resolveOutputIds(selectedOutputs, workflowBlocks)
+    } catch (error) {
+      await releaseExecutionSlot(executionId)
+      return failure({
+        kind: 'input',
+        message: `Invalid selectedOutputs: ${getErrorMessage(error)}`,
+        statusCode: 400,
+      })
+    }
+
     if (mode === 'stream') {
-      let resolvedSelectedOutputs: string[] | undefined
-      try {
-        resolvedSelectedOutputs = await resolveOutputIds(selectedOutputs, workflowBlocks)
-      } catch (error) {
-        await releaseExecutionSlot(executionId)
-        return failure({
-          kind: 'input',
-          message: `Invalid selectedOutputs: ${getErrorMessage(error)}`,
-          statusCode: 400,
-        })
-      }
       const streamWorkflow = {
         id: workflow.id,
         /**

@@ -76,6 +76,19 @@ describe('universal grep', () => {
     expect(result.stderr).toContain('e.g. blocks/table_v2')
   })
 
+  it.each(['knowledge', 'kb', 'KB', 'knowledge/kb-123'])(
+    'redirects --in %s to semantic knowledge search before materializing any world',
+    async (selector) => {
+      /** An empty runtime throws on any request, so a clean refusal proves nothing was fetched. */
+      const result = await runEngine('grep', ['invoice'], runtimeWith({}), { in: selector })
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).toContain(`Unknown --in selector ${JSON.stringify(selector)}`)
+      expect(result.stderr).toContain(
+        'Knowledge bases are searched semantically — use knowledge search --kb <id> --query "…"; grep covers workflows, blocks, tools, tables, files, integrations, skills, custom-tools, secrets, credentials.'
+      )
+    }
+  )
+
   it('refuses an --in selector no resource in the searched worlds answers to', async () => {
     const bare = await runEngine('grep', ['id'], runtimeWith(CATALOG), {
       scope: 'blocks',

@@ -41,6 +41,7 @@ import type {
 } from '@/lib/table/types'
 import { runWorkflowColumn } from '@/lib/table/workflow-columns'
 import { stripGroupDeps } from '@/lib/table/workflow-group-deps'
+import { resolveWorkflowGroupDeploymentMode } from '@/lib/table/workflow-groups/deployment-mode'
 
 const logger = createLogger('TableWorkflowGroupsService')
 /**
@@ -237,7 +238,14 @@ export async function addWorkflowGroup(
       // Rewrite the group's column refs from name → id.
       const idByName = new Map(updatedColumns.map((c) => [c.name, getColumnId(c)]))
       for (const [columnId, ref] of attached) idByName.set(ref, columnId)
-      const group = remapGroupColumnRefs(data.group, idByName)
+      // A workflow-backed group is stored with its effective mode so no later
+      // reader has to guess what an absent value meant at creation time.
+      const group = remapGroupColumnRefs(
+        data.group.workflowId
+          ? { ...data.group, deploymentMode: resolveWorkflowGroupDeploymentMode(data.group) }
+          : data.group,
+        idByName
+      )
 
       const updatedSchema: TableSchema = {
         ...schema,

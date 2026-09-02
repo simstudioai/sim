@@ -20,6 +20,7 @@ const { buildWorkflowLintReport } = vi.hoisted(() => ({
       },
     ],
     unresolvedReferences: [],
+    tableFieldIssues: [],
   }),
 }))
 
@@ -84,6 +85,7 @@ describe('workflows lint', () => {
       invalidConnectionTargets: [],
       fieldIssues: [],
       unresolvedReferences: [],
+      tableFieldIssues: [],
     })
     const result = await runEngine(
       'workflows lint',

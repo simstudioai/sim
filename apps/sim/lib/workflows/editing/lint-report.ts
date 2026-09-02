@@ -1,12 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
+import { getTableById } from '@/lib/table/service'
 import {
   collectDanglingBlockOutputReferences,
+  collectTableBlockFieldIssues,
   collectWorkflowFieldIssues,
+  collectWorkflowTableIds,
   hasWorkflowEntryBlock,
   lintEditedWorkflowState,
   type WorkflowLintReport,
+  type WorkflowLintTableFieldIssue,
+  type WorkflowLintTableSchema,
   type WorkflowLintUnresolvedReference,
 } from '@/lib/workflows/editing/lint'
 import {
@@ -56,6 +61,30 @@ export interface WorkflowLintScope {
 }
 
 /**
+ * The live schema of every table the graph's Table blocks are bound to, keyed
+ * by table id. A table outside the workspace is left out rather than reported
+ * on: the finding names the table, and a block bound to a table this workspace
+ * cannot read is a reference problem, not a field problem.
+ */
+async function loadTableSchemasForLint(
+  blocks: Pick<WorkflowState, 'blocks'>['blocks'],
+  workspaceId: string
+): Promise<Map<string, WorkflowLintTableSchema>> {
+  const tables = new Map<string, WorkflowLintTableSchema>()
+  await Promise.all(
+    collectWorkflowTableIds(blocks).map(async (tableId) => {
+      const table = await getTableById(tableId)
+      if (!table || table.workspaceId !== workspaceId) return
+      tables.set(tableId, {
+        name: table.name,
+        columnNames: table.schema.columns.map((column) => column.name),
+      })
+    })
+  )
+  return tables
+}
+
+/**
  * Builds the advisory report published by both graph writes.
  *
  * Shared so `PUT /state` and `POST /operations` cannot drift: an agent that
@@ -101,6 +130,21 @@ export async function buildWorkflowLintReport(
     }
   }
 
+  // Every caller, like the dangling-reference pass: the table schema is
+  // workspace data, not a human's grant, so a workspace key can read it.
+  let tableFieldIssues: WorkflowLintTableFieldIssue[] = []
+  try {
+    tableFieldIssues = collectTableBlockFieldIssues(
+      graph.blocks,
+      await loadTableSchemasForLint(graph.blocks, scope.workspaceId)
+    )
+  } catch (error) {
+    logger.warn('Table field lint failed', {
+      workflowId: scope.workflowId,
+      error: getErrorMessage(error),
+    })
+  }
+
   const graphLint = lintEditedWorkflowState(graph)
 
   const notes: string[] = []
@@ -113,8 +157,8 @@ export async function buildWorkflowLintReport(
   }
 
   /**
-   * `fieldIssues`, `unresolvedReferences`, and `notes` are assigned after the
-   * graph-lint spread and that is safe: {@link lintEditedWorkflowState} returns
+   * `fieldIssues`, `unresolvedReferences`, `tableFieldIssues`, and `notes` are
+   * assigned after the graph-lint spread and that is safe: {@link lintEditedWorkflowState} returns
    * `WorkflowLintResult`, which declares none of them, so the assignment can
    * never discard a finding the linter made.
    */
@@ -122,6 +166,7 @@ export async function buildWorkflowLintReport(
     ...graphLint,
     fieldIssues: collectWorkflowFieldIssues(graph.blocks),
     unresolvedReferences,
+    tableFieldIssues,
     notes,
   }
 }

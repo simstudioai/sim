@@ -82,6 +82,7 @@ const EMPTY_LINT = {
   invalidConnectionTargets: [],
   fieldIssues: [],
   unresolvedReferences: [],
+  tableFieldIssues: [],
   notes: [],
 }
 

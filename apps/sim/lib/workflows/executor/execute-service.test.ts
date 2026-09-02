@@ -45,11 +45,10 @@ describe('pickRunBlockOutputs', () => {
   it('omits selectors for unknown blocks, unexecuted blocks, and absent paths', async () => {
     const logs = [log(AGENT_ID, { content: 'hi' })]
 
-    // An unknown block is a caller error and throws (the CLI turns it into
-    // `--select-output did not resolve to any block`); known-but-unexecuted blocks
-    // and absent paths are simply omitted.
+    // An unknown block is a caller error and throws, naming the blocks that exist;
+    // known-but-unexecuted blocks and absent paths are simply omitted.
     await expect(pickRunBlockOutputs(['Missing.content'], blocks, logs)).rejects.toThrow(
-      'does not resolve'
+      'Unknown block "Missing" in selector "Missing.content". Available blocks:'
     )
     expect(await pickRunBlockOutputs(['Router.route', 'Agent 1.absent'], blocks, logs)).toEqual({})
   })

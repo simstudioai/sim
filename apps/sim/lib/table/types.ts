@@ -152,9 +152,11 @@ export interface WorkflowGroup {
    */
   inputMappings?: WorkflowGroupInputMapping[]
   /**
-   * Which workflow state per-cell runs execute against. Defaults to `'live'`
-   * (editable draft) when absent. `'deployed'` runs the workflow's latest
-   * active deployment. Only meaningful for `manual` groups.
+   * Which workflow state per-cell runs execute against. Defaults to
+   * `'deployed'` (the workflow's latest active deployment) when absent —
+   * resolve it through `resolveWorkflowGroupDeploymentMode`, never by reading
+   * the raw field. `'live'` runs the editable draft. Only meaningful for
+   * `manual` groups.
    */
   deploymentMode?: WorkflowGroupDeploymentMode
   /**

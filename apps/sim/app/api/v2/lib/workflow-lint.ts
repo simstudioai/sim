@@ -57,6 +57,11 @@ export function presentWorkflowLint(lint: WorkflowLintReport) {
       kind: reference.kind,
       reason: reference.reason,
     })),
+    tableFieldIssues: lint.tableFieldIssues.map((issue) => ({
+      ...blockRef(issue),
+      field: issue.field,
+      tableName: issue.tableName,
+    })),
     notes: lint.notes,
   }
 }

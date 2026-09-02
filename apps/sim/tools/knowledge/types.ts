@@ -41,6 +41,8 @@ interface KnowledgeSearchResult {
   chunkIndex: number
   metadata: Record<string, any>
   similarity: number
+  rankScore: number
+  rank: number
   rerankerScore?: number
 }
 

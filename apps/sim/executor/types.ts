@@ -216,6 +216,7 @@ export interface NormalizedBlockOutput {
     blockTitle?: string
   }
   selectedOption?: string
+  selectedTitle?: string | null
   conditionResult?: boolean
   result?: any
   stdout?: string

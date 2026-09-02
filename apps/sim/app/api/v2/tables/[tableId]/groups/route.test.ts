@@ -97,7 +97,13 @@ describe('/api/v2/tables/[tableId]/groups', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
-      data: [{ ...group, outputs: [{ ...group.outputs[0], columnName: 'Result' }] }],
+      data: [
+        {
+          ...group,
+          outputs: [{ ...group.outputs[0], columnName: 'Result' }],
+          deploymentMode: 'deployed',
+        },
+      ],
       nextCursor: null,
     })
     expect(mocks.list).toHaveBeenCalledWith({
