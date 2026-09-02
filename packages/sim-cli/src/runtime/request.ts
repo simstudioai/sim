@@ -239,8 +239,14 @@ export function readArgumentSource(raw: string, flagName: string): { text: strin
   }
 }
 
-/** Reads a primitive list from argv or a newline-delimited file. */
-function readListValues(raw: unknown, flagName: string): string[] {
+/**
+ * Reads a primitive list from argv or a newline-delimited file.
+ *
+ * Exported for the one augmentation that has to read a list before the
+ * generated path does (`workflows runs get --select-output`), so a `@-` or
+ * `@path` source is read exactly once, by whichever of the two sees it first.
+ */
+export function readListValues(raw: unknown, flagName: string): string[] {
   const arguments_ = Array.isArray(raw) ? raw : [raw]
   const values = arguments_.flatMap((argument) => {
     if (typeof argument !== 'string') {

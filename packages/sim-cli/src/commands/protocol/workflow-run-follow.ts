@@ -341,9 +341,8 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
 
     if (flags.follow !== true) {
       // A queued run has produced nothing to select from, so the server would
-      // answer 400; failing locally names the recovery. The finished-run
-      // resource speaks a different dialect — it matches block ids only, so
-      // repeating the block names typed here would fail a second time.
+      // answer 400; failing locally names the recovery: the finished run is read
+      // with `runs get`, which takes the same block names (`workflow-run-get.ts`).
       if (
         Array.isArray(flags.selectOutput) &&
         flags.selectOutput.length > 0 &&

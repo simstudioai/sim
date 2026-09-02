@@ -689,15 +689,17 @@ describe('help and gates state what is actually true', () => {
     expect(help).toContain('Not available with --async')
   })
 
-  it('promises the dialect a finished run actually matches', () => {
-    // The same flag name on two resources: `workflows run` resolves block
-    // names against the live workflow, `workflows runs get` reads a recorded
-    // run and matches ids only. The help used to promise names on both.
+  it('promises block names on the finished run, the dialect workflows run takes', () => {
+    // The same flag name on two resources: the run resource itself matches ids
+    // only, but `workflow-run-get.ts` resolves names against the workflow's
+    // blocks before asking it, so the help promises what `workflows run`
+    // promises instead of sending the caller off to look up an id.
     const help = flatHelp('workflows', 'runs', 'get')
 
     expect(help).toContain('--select-output <value...>')
-    expect(help).toContain('blockId')
-    expect(help).not.toMatch(/blockName|agent_1\.content/)
+    expect(help).toContain('blockName.path')
+    expect(help).toContain('agent_1.content')
+    expect(help).not.toMatch(/not resolved|ids only/)
   })
 
   it('offers no negation for the retry that must travel alone', () => {
@@ -732,6 +734,28 @@ describe('the import cancel refuses through commander, not just in the contract'
     expect(refusal).toContain('replace')
     expect(refusal).toMatch(/empties the table/)
     expect(refusal).not.toMatch(/not recoverable|cannot be undone/)
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('names the output columns a group delete takes with it, and what it leaves', async () => {
+    // The group is the least of what goes: its output columns and every value
+    // in them are deleted too, while the workflow it dispatched to is a
+    // separate resource. Both halves are what the caller has to weigh.
+    const refusal = await runLeaf([
+      'tables',
+      'groups',
+      'delete',
+      'tbl_1',
+      '--group-id',
+      'grp_1',
+    ]).then(
+      () => '',
+      (error: Error) => error.message
+    )
+
+    expect(refusal).toBe(
+      'This deletes the group AND its output columns with all of their row data; the workflow it pointed at is untouched. Re-run with --yes to confirm.'
+    )
     expect(mockRequest).not.toHaveBeenCalled()
   })
 
