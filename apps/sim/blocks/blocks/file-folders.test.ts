@@ -505,6 +505,52 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       })
     })
 
+    /*
+     * A named target inside a scope refuses a duplicate name and lists the
+     * candidates; with no scope the workspace-wide lookup silently takes the
+     * oldest. So the root must survive for a named target even though it is
+     * dropped for a whole-folder read, where it means the same as no scope.
+     */
+    describe('the root survives as a scope for a named target', () => {
+      it.each([
+        ['file_append', { appendFileInput: 'self.md', appendContent: 'x' }],
+        ['file_edit', { editFileInput: 'self.md', oldString: 'a', newString: 'b' }],
+        ['file_insert', { editFileInput: 'self.md', afterLine: '1', insertContent: 'x' }],
+      ])('keeps a shallow root on %s', (operation, extra) => {
+        const params = paramsFor(operation, {
+          ...extra,
+          folderScopeRef: '/',
+          folderIncludeSubfolders: 'false',
+        })
+
+        expect(params.folderPath).toBe('/')
+        expect(params.includeSubfolders).toBe(false)
+      })
+
+      it('keeps a recursive root too, so a duplicate name is refused not guessed', () => {
+        const params = paramsFor('file_append', {
+          appendFileInput: 'self.md',
+          appendContent: 'x',
+          folderScopeRef: '/',
+          folderIncludeSubfolders: 'true',
+        })
+
+        expect(params.folderPath).toBe('/')
+        expect(params.includeSubfolders).toBeUndefined()
+      })
+
+      /* A picked file is already exact, so no folder rides along with it. */
+      it('still drops the folder when the file was picked by id', () => {
+        const params = paramsFor('file_append', {
+          appendFileInput: { id: 'wf_abc', name: 'self.md' },
+          appendContent: 'x',
+          folderScopeRef: '/',
+        })
+
+        expect(params.folderPath).toBeUndefined()
+      })
+    })
+
     describe('search takes the folder as a filter, not a selection', () => {
       it('searches the workspace when no folder is chosen', () => {
         const params = paramsFor('file_search', { query: 'commitment' })

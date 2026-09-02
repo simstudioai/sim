@@ -242,11 +242,16 @@ function namedFileTarget(
   const scope = readFolderPath(params.folderScopeRef)
   /*
    * `folderScopePath` drops the root, because for a whole-folder read the root
-   * and no folder mean the same thing. For a NAMED target they do not: a
-   * shallow root means "the file sitting at the root", and dropping it resolves
-   * the name across every folder in the workspace instead.
+   * and no folder mean the same thing. For a NAMED target they never do:
+   *
+   * - a shallow root means the file sitting AT the root, and dropping it
+   *   resolves the name across every folder in the workspace;
+   * - a recursive root covers the same files as no scope at all, but resolves
+   *   them differently. Inside a scope a duplicate name is REFUSED with the
+   *   candidates named; with no scope the workspace-wide lookup silently takes
+   *   the oldest match. The refusal is the whole point of naming a folder.
    */
-  const folderPath = scope === ROOT_FOLDER_PATH && !recursive ? ROOT_FOLDER_PATH : folderScopePath(scope)
+  const folderPath = scope === ROOT_FOLDER_PATH ? ROOT_FOLDER_PATH : folderScopePath(scope)
   if (!folderPath) return { fileName }
   return {
     fileName,
