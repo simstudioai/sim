@@ -6,7 +6,14 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { outputMenuState } = vi.hoisted(() => ({
-  outputMenuState: { includeNestedWorkflow: true },
+  outputMenuState: {
+    includeNestedWorkflow: true,
+    workflowBlocks: {} as Record<string, object>,
+    workflowValues: { root: {} } as Record<string, Record<string, Record<string, unknown>>>,
+    capturedRootState: null as {
+      blocks: Record<string, { subBlocks: Record<string, { value?: unknown }> }>
+    } | null,
+  },
 }))
 
 vi.mock('@sim/emcn', () => {
@@ -93,11 +100,12 @@ vi.mock('@/stores/workflow-diff/store', () => ({
 
 vi.mock('@/stores/workflows/subblock/store', () => ({
   useSubBlockStore: (selector: (state: object) => unknown) =>
-    selector({ workflowValues: { root: {} } }),
+    selector({ workflowValues: outputMenuState.workflowValues }),
 }))
 
 vi.mock('@/stores/workflows/workflow/store', () => ({
-  useWorkflowStore: (selector: (state: object) => unknown) => selector({ blocks: {}, edges: [] }),
+  useWorkflowStore: (selector: (state: object) => unknown) =>
+    selector({ blocks: outputMenuState.workflowBlocks, edges: [] }),
 }))
 
 vi.mock('@/lib/workflows/streaming/nested-output-options', () => {
@@ -127,8 +135,14 @@ vi.mock('@/lib/workflows/streaming/nested-output-options', () => {
 
   return {
     collectReferencedWorkflowIds: () => [],
-    buildWorkflowOutputOptions: () =>
-      outputMenuState.includeNestedWorkflow ? [rootOutput, nestedOutput] : [rootOutput],
+    buildWorkflowOutputOptions: (input: {
+      rootState: {
+        blocks: Record<string, { subBlocks: Record<string, { value?: unknown }> }>
+      }
+    }) => {
+      outputMenuState.capturedRootState = input.rootState
+      return outputMenuState.includeNestedWorkflow ? [rootOutput, nestedOutput] : [rootOutput]
+    },
     buildWorkflowOutputMenu: () => {
       const rootNode = {
         blockId: 'summary',
@@ -168,6 +182,9 @@ let container: HTMLDivElement | null = null
 
 beforeEach(() => {
   outputMenuState.includeNestedWorkflow = true
+  outputMenuState.workflowBlocks = {}
+  outputMenuState.workflowValues = { root: {} }
+  outputMenuState.capturedRootState = null
 })
 
 function outputSelect(
@@ -244,6 +261,32 @@ describe('OutputSelect nested workflow menu', () => {
     expect(document.body.textContent).toContain('Writer')
     expect(document.body.textContent).toContain('answer')
     expect(document.body.textContent).not.toContain('Summarizer')
+  })
+
+  it('preserves a persisted workflow target when the editor value map is sparse', () => {
+    outputMenuState.workflowBlocks = {
+      invoke: {
+        id: 'invoke',
+        type: 'workflow_input',
+        name: 'Research',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          workflowId: {
+            id: 'workflowId',
+            type: 'workflow-selector',
+            value: 'child-workflow',
+          },
+        },
+        outputs: {},
+        enabled: true,
+      },
+    }
+
+    renderOutputSelect([])
+
+    expect(outputMenuState.capturedRootState?.blocks.invoke.subBlocks.workflowId.value).toBe(
+      'child-workflow'
+    )
   })
 
   it('keeps workflow-scoped values when toggling nested outputs', () => {

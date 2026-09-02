@@ -9,6 +9,7 @@ import {
   cn,
 } from '@sim/emcn'
 import { ArrowLeft, ChevronRight } from '@sim/emcn/icons'
+import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -153,30 +154,14 @@ function OutputSelectContent({
     if (!workflowId || !workflowBlocks || typeof workflowBlocks !== 'object') {
       return { blocks: {}, edges: [] }
     }
-    const blockArray = Object.values(workflowBlocks) as BlockState[]
-
-    const mergedBlocks = blockArray.map((block): BlockState => {
-      const rawSubBlockValues =
-        shouldUseBaseline && baselineWorkflow
-          ? baselineWorkflow.blocks?.[block.id]?.subBlocks
-          : subBlockValues?.[block.id]
-      const subBlocks: Record<string, unknown> = {}
-      if (rawSubBlockValues && typeof rawSubBlockValues === 'object') {
-        for (const [key, val] of Object.entries(rawSubBlockValues)) {
-          subBlocks[key] =
-            val && typeof val === 'object' && 'value' in (val as object)
-              ? (val as { value: unknown })
-              : { value: val }
-        }
-      }
-      return {
-        ...block,
-        subBlocks,
-      } as BlockState
-    })
+    const blockMap = workflowBlocks as Record<string, BlockState>
+    const mergedBlocks = mergeSubblockStateWithValues(
+      blockMap,
+      shouldUseBaseline ? {} : (subBlockValues ?? {})
+    )
 
     return {
-      blocks: Object.fromEntries(mergedBlocks.map((block) => [block.id, block])),
+      blocks: mergedBlocks,
       edges: workflowEdges,
     }
   }, [
@@ -309,10 +294,10 @@ function OutputSelectMenu({
       </div>
     ),
     items: [
+      ...(node.children.length > 0 ? [folderOption(node)] : []),
       ...node.outputs
         .filter((output) => !selectedValueSet.has(getOutputValue(output, valueMode)))
         .map((output) => outputOption(output)),
-      ...(node.children.length > 0 ? [folderOption(node)] : []),
     ],
   })
 
