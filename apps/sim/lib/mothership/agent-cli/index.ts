@@ -1,5 +1,6 @@
 import { createEmbeddedClient, type EmbeddedCliIdentity } from 'sim/embed'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 import { runEngine } from '@/lib/mothership/agent-cli/engines'
 import { applyPipeline } from '@/lib/mothership/agent-cli/pipeline'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
@@ -51,6 +52,9 @@ export async function executeAgentCliRequest(
     )
   } else {
     result = await runCli(request.invocation.argv, identity, sessionKey)
+    if (result.exitCode === 0 && request.curate === 'block') {
+      result = await curateBlockDetail(result, context)
+    }
   }
   if (result.exitCode === 0 && request.pipeline.length > 0) {
     result = await applyPipeline(result, request.pipeline)
