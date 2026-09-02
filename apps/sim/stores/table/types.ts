@@ -55,7 +55,15 @@ export type TableUndoAction =
       columnPosition: number
       columnUnique: boolean
       columnRequired: boolean
-      columnTypeMetadata: Partial<ColumnDefinition>
+      // A `select` column is invalid without its option set, so the snapshot has
+      // to carry it or the restore is rejected — and the saved cell data, which
+      // holds option ids, would have nothing to attach to.
+      columnOptions?: ColumnDefinition['options']
+      columnMultiple?: boolean
+      // Likewise for a `currency` column: without its code the restore would
+      // silently re-denominate every cell to the default currency.
+      columnCurrencyCode?: string
+      columnReferenceTableId?: string
       cellData: Array<{ rowId: string; value: unknown }>
       previousOrder: string[] | null
       previousWidth: number | null
