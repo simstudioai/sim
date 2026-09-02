@@ -21,7 +21,6 @@ import { useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
-import type { KnowledgeBaseData } from '@/lib/api/contracts/knowledge/base'
 import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
@@ -64,8 +63,9 @@ import {
   searchQueryParam,
 } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
-import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import { fetchKnowledgeBases } from '@/hooks/queries/kb/knowledge'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
+import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
@@ -94,9 +94,6 @@ import type {
 } from './types'
 
 const logger = createLogger('Home')
-
-/** Stable empty list, so a missing base list never rebuilds what reads it. */
-const EMPTY_KNOWLEDGE_BASES: KnowledgeBaseData[] = []
 
 /**
  * The resource preview panel pulls in the file-viewer stack (rich-markdown
@@ -196,10 +193,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   useEffect(() => {
     if (searchQuery.trim() && composerMode === 'build') void setComposerMode('search')
   }, [searchQuery, composerMode, setComposerMode])
-  /** The bases an Ask turn is grounded in; read through a ref so a list refresh never rebuilds the submit handler. */
-  const { data: knowledgeBases = EMPTY_KNOWLEDGE_BASES } = useKnowledgeBasesQuery(workspaceId)
-  const knowledgeBasesRef = useRef(knowledgeBases)
-  knowledgeBasesRef.current = knowledgeBases
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
   const initialViewUserInputRef = useRef<UserInputHandle>(null)
@@ -477,7 +470,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   }, [workspaceId, getCurrentRequestId, stopGeneration])
 
   const handleSubmit = useCallback(
-    (
+    async (
       text: string,
       fileAttachments?: FileAttachmentForApi[],
       contexts?: ChatContext[],
@@ -512,10 +505,22 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       }
 
       prepareResourceViewForAgentTurn()
+      /**
+       * An Assistant turn is grounded in the searched bases, read from the
+       * query cache the Search panel shares: instant once loaded, and awaited
+       * the one time a question is typed before the list has arrived.
+       */
       const turnContexts = answering
         ? withSearchedKnowledgeContexts(
             contexts,
-            searchedKnowledgeBases(knowledgeBasesRef.current, workspaceId)
+            searchedKnowledgeBases(
+              await queryClient.ensureQueryData({
+                queryKey: knowledgeKeys.list(workspaceId, 'active'),
+                queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, 'active', signal),
+                staleTime: KNOWLEDGE_BASE_LIST_STALE_TIME,
+              }),
+              workspaceId
+            )
           )
         : contexts
       sendMessage(
@@ -532,6 +537,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       editingQueuedId,
       cancelQueueEdit,
       prepareResourceViewForAgentTurn,
+      queryClient,
       sendMessage,
       setSearchQuery,
     ]
@@ -566,7 +572,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     setSearchQuery('')
     initialViewUserInputRef.current?.clear()
     chatViewUserInputRef.current?.clear()
-    handleSubmit(prompt, undefined, undefined, 'assistant')
+    void handleSubmit(prompt, undefined, undefined, 'assistant')
   }
   const showSearchResults = composerMode === 'search' && searchQuery.trim().length > 0
   const searchResults = showSearchResults ? (
