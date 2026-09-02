@@ -565,10 +565,15 @@ export const gmailConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const maxThreads = sourceConfig.maxThreads as string | undefined
-
-    if (maxThreads && (Number.isNaN(Number(maxThreads)) || Number(maxThreads) <= 0)) {
-      return { valid: false, error: 'Max threads must be a positive number' }
+    /** The same parser the sync uses, so a value that saves is a value that syncs. */
+    try {
+      parseDefaultedUnlimitedSafeInteger(
+        sourceConfig.maxThreads,
+        DEFAULT_MAX_THREADS,
+        'Max threads must be a non-negative whole number'
+      )
+    } catch (error) {
+      return { valid: false, error: getErrorMessage(error) }
     }
 
     try {

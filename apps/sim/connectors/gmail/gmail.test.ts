@@ -104,3 +104,14 @@ describe('gmail listDocuments with a blank maxThreads', () => {
     expect(mockFetchWithRetry).not.toHaveBeenCalled()
   })
 })
+
+describe('gmail validateConfig maxThreads', () => {
+  it('refuses what the sync parser would refuse, before any request', async () => {
+    for (const maxThreads of ['1.5', 'abc', '-1']) {
+      const result = await gmailConnector.validateConfig('token', { maxThreads })
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Max threads must be a non-negative whole number')
+    }
+    expect(mockFetchWithRetry).not.toHaveBeenCalled()
+  })
+})

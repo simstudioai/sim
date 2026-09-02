@@ -46,6 +46,10 @@ describe('resolveSourceModifiedAt', () => {
     ).toBe('2026-08-01T00:00:00.000Z')
   })
 
+  it('rejects an invalid Date instance', () => {
+    expect(resolveSourceModifiedAt({ modifiedTime: new Date('not a date') })).toBeNull()
+  })
+
   it('rejects placeholders and far-future values', () => {
     expect(resolveSourceModifiedAt({ modifiedTime: 0 }, NOW)).toBeNull()
     expect(resolveSourceModifiedAt({ modifiedTime: '1970-01-01T00:00:00Z' }, NOW)).toBeNull()

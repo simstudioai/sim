@@ -24,7 +24,7 @@ const EARLIEST_PLAUSIBLE_MS = Date.UTC(1990, 0, 1)
 const FUTURE_TOLERANCE_MS = 24 * 60 * 60 * 1000
 
 function toDate(value: unknown): Date | null {
-  if (value instanceof Date) return value
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
   if (typeof value === 'number' && Number.isFinite(value)) {
     /** Seconds-since-epoch values are far too small to be milliseconds after 1990. */
     return new Date(value < 1e11 ? value * 1000 : value)
