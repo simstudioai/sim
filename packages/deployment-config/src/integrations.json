@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-01",
+  "updatedAt": "2026-09-02",
   "integrations": [
     {
       "type": "onepassword",
@@ -21409,7 +21409,7 @@
         },
         {
           "name": "List Channels",
-          "description": "List accessible Slack conversations. Credential-group user tokens also return one-to-one and group direct messages."
+          "description": "List accessible Slack conversations across multiple cursor pages. Credential-group user tokens also return one-to-one and group direct messages."
         },
         {
           "name": "List Channel Members",
