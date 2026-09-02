@@ -65,6 +65,12 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
   claimWorkflowToolExecution,
 }))
 
+/** Table side effects are not exercised here, and the real module loads the table application layer. */
+vi.mock('@/lib/copilot/request/tools/tables', () => ({
+  maybeWriteOutputToTable: vi.fn(async (_toolName, _params, result) => result),
+  maybeWriteReadCsvToTable: vi.fn(async (_toolName, _params, result) => result),
+}))
+
 vi.mock('@/lib/copilot/request/tools/client', () => ({
   waitForClientToolCompletion,
   waitForToolCompletion,

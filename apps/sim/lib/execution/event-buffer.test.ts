@@ -2,8 +2,7 @@
  * @vitest-environment node
  */
 import { redisConfigMockFns, resetEnvMock, resetRedisConfigMock, setEnv } from '@sim/testing'
-import { sleep } from '@sim/utils/helpers'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionEventEntry } from '@/lib/execution/event-buffer'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { LARGE_VALUE_REF_MARKER } from '@/lib/execution/payloads/large-value-ref'
@@ -49,6 +48,10 @@ const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 afterAll(() => {
   resetEnvMock()
   resetRedisConfigMock()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 import {
@@ -654,15 +657,18 @@ describe('execution event buffer', () => {
       })
     })
 
+    vi.useFakeTimers()
     const writer = createExecutionEventWriter('exec-1')
     await writer.write(makeEvent('first'))
+    // The write only arms the flush timer; fire it so the flush is in flight.
+    await vi.runOnlyPendingTimersAsync()
     await firstFlushStarted
 
     const terminalWrite = writer.writeTerminal(makeEvent('terminal'), 'complete')
     // Let writeTerminal's queued body actually enqueue its entry before the
     // in-flight flush resolves — otherwise the scheduled loop finds nothing left
     // to drain and the race under test never forms.
-    await sleep(5)
+    await vi.advanceTimersByTimeAsync(5)
     releaseFirstFlush?.()
     await terminalWrite
 
@@ -776,10 +782,12 @@ describe('execution event buffer', () => {
       return [1, 'ok', 0, 0]
     })
 
+    vi.useFakeTimers()
     const writer = createExecutionEventWriter('exec-1')
     await writer.write(makeEvent('a'))
 
-    await sleep(60)
+    // Fire the scheduled flush (and any backoff it arms) before the caller's own.
+    await vi.runAllTimersAsync()
 
     await expect(writer.flush()).resolves.toBeUndefined()
   })

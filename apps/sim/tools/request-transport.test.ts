@@ -1,12 +1,22 @@
 import { describe, expect, it, vi } from 'vitest'
+import { isInternalToolOperationRegistered } from '@/lib/internal/tool-operations/registry.server'
 import { requestTool } from '@/tools/http/request'
 import { webhookRequestTool } from '@/tools/http/webhook_request'
 import { tools } from '@/tools/registry'
 import { prepareToolRequest } from '@/tools/request-transport'
-import { isInternalToolConfig, type ToolConfig } from '@/tools/types'
+import { type InternalToolConfig, isInternalToolConfig, type ToolConfig } from '@/tools/types'
 
+/**
+ * Sweeps the executable registry, partitioned by transport: every tool either
+ * runs in-process through a registered operation handler or leaves through the
+ * external HTTP transport, and each half is checked against its own invariants.
+ * Both sweeps share this file because the registry import is the whole cost.
+ */
 vi.unmock('@/tools/registry')
 
+const operationTools = Object.entries(tools).filter(
+  (entry): entry is [string, InternalToolConfig] => isInternalToolConfig(entry[1])
+)
 const requestTools = Object.entries(tools).filter(
   (entry): entry is [string, ToolConfig] => !isInternalToolConfig(entry[1])
 )
@@ -126,6 +136,23 @@ describe('external request transport', () => {
     expect(() => prepareToolRequest(tool, params)).toThrow(
       'External tool requests require an absolute HTTP(S) URL'
     )
+  })
+})
+
+describe('in-process operation registry invariant', () => {
+  it('registers every operation-backed tool and keeps it free of HTTP request metadata', () => {
+    expect(operationTools.length).toBeGreaterThan(0)
+    for (const [toolId, tool] of operationTools) {
+      expect(tool.request, `${toolId} must not declare an HTTP request`).toBeUndefined()
+      expect(tool.operation.input, `${toolId} must materialize its operation input`).toBeTypeOf(
+        'function'
+      )
+      if (toolId === 'function_execute' || toolId === 'workflow_executor') continue
+      expect(
+        isInternalToolOperationRegistered(toolId),
+        `${toolId} is missing its in-process operation handler`
+      ).toBe(true)
+    }
   })
 })
 

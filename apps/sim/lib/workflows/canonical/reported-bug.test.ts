@@ -16,9 +16,14 @@ import { describe, expect, it, vi } from 'vitest'
 
 /**
  * The canonical form reads declared defaults, so the globally-mocked registry
- * (every block reduced to `subBlocks: []`) would make this pass vacuously.
+ * (every block reduced to `subBlocks: []`) would make this pass vacuously. Only
+ * the webhook block is read, so only it is registered.
  */
 vi.unmock('@/blocks/registry')
+vi.mock('@/blocks/registry-maps', async () => {
+  const { partialBlockRegistry } = await import('@sim/testing/mocks/block-registry.mock')
+  return partialBlockRegistry(await import('@/blocks/blocks/generic_webhook'))
+})
 
 import { generateWorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'

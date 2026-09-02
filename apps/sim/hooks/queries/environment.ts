@@ -2,11 +2,11 @@ import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
-  type ContractBodyInput,
   removeWorkspaceEnvironmentContract,
   savePersonalEnvironmentContract,
   upsertWorkspaceEnvironmentContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/environment'
+import type { ContractBodyInput } from '@/lib/api/contracts/types'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/environment/api'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'

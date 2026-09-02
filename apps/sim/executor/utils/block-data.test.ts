@@ -8,9 +8,14 @@ import type { SerializedBlock } from '@/serializer/types'
 
 /**
  * These assertions are about what the real block registry publishes, so the global stub — which
- * returns one mock block with no outputs — would make every case here pass vacuously.
+ * returns one mock block with no outputs — would make every case here pass vacuously. Only the
+ * generic webhook block is read, so only it is registered.
  */
 vi.unmock('@/blocks/registry')
+vi.mock('@/blocks/registry-maps', async () => {
+  const { partialBlockRegistry } = await import('@sim/testing/mocks/block-registry.mock')
+  return partialBlockRegistry(await import('@/blocks/blocks/generic_webhook'))
+})
 
 function triggerBlock(type: string, params: Record<string, unknown> = {}): SerializedBlock {
   return {

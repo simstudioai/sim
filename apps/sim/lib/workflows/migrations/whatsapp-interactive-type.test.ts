@@ -4,7 +4,15 @@
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
+/**
+ * The backfill reads the WhatsApp block's declared sub-blocks, which the global
+ * registry stub empties. Only that block is registered.
+ */
 vi.unmock('@/blocks/registry')
+vi.mock('@/blocks/registry-maps', async () => {
+  const { partialBlockRegistry } = await import('@sim/testing/mocks/block-registry.mock')
+  return partialBlockRegistry(await import('@/blocks/blocks/whatsapp'))
+})
 
 import * as blocksBarrel from '@/blocks'
 import { getBlock as getRealBlock } from '@/blocks/registry'

@@ -29,6 +29,19 @@ vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
   sanitizeForCopilot: vi.fn((state) => state),
 }))
 
+/**
+ * The use cases these handlers dispatch are only passed through to the mocked
+ * use-case executor above, so their execution-side leaves — the workflow
+ * executor, the paused-run manager, and deployment orchestration — are stubbed
+ * rather than loaded.
+ */
+vi.mock('@/lib/workflows/executor/execute-workflow', () => ({ executeWorkflow: vi.fn() }))
+vi.mock('@/lib/execution/cancel-workflow-execution', () => ({
+  cancelWorkflowExecution: vi.fn(),
+  WorkflowExecutionNotFoundError: class WorkflowExecutionNotFoundError extends Error {},
+}))
+vi.mock('@/lib/workflows/orchestration', () => ({ performCreateWorkflowTransition: vi.fn() }))
+
 vi.mock('@/executor/utils/errors', () => ({
   hasExecutionResult: mocks.hasExecutionResult,
   readAttemptedExecutionId: mocks.readAttemptedExecutionId,
