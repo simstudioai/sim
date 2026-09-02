@@ -59,7 +59,10 @@ import {
   SyncLockLostException,
   stillHoldsMemberSyncLock,
 } from '@/lib/knowledge/connectors/sync-lock'
-import type { KnowledgeBaseOwner } from '@/lib/knowledge/connectors/sync-persistence'
+import type {
+  KnowledgeBaseOwner,
+  PersistedDocument,
+} from '@/lib/knowledge/connectors/sync-persistence'
 import {
   addSourcePagePayloadBytes,
   ConnectorDeletedException,
@@ -69,7 +72,6 @@ import {
   classifySuspectListing,
   createSyncRunState,
   loadOwnedCorpus,
-  type PersistedDocument,
   processDocOps,
   RETRY_WINDOW_DAYS,
   runChangeFeedPass,

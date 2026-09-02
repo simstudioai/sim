@@ -16,6 +16,7 @@ import { SyncLockLostException, type SyncRunLease } from '@/lib/knowledge/connec
 import {
   addDocument,
   type KnowledgeBaseOwner,
+  type PersistedDocument,
   persistSkippedDocuments,
   persistSkippedRetryHashes,
   type SyncDocumentAccess,
@@ -1497,9 +1498,13 @@ export interface ProcessDocOpsInput {
   hydration: DocOpHydration
   lease: Pick<SyncRunLease, 'beatIfDue' | 'beatLive' | 'stillHeld'>
   /**
-   * Runs after each batch's rows are written, with the documents that landed.
-   * A members-mode run grants access here, batch by batch, so a long first
-   * crawl becomes searchable as it goes rather than all at once at the end.
+   * Runs after each batch is written and dispatched, with every row that
+   * landed: hydrated documents and skipped ones alike. A members-mode run
+   * grants access here, batch by batch, so a long first crawl becomes
+   * searchable as it goes rather than all at once at the end. Best effort: a
+   * failure here is logged and the run continues, because the listing's own
+   * pass at the end of the run writes the same grants authoritatively; only a
+   * lost lease ends the run.
    */
   onBatchPersisted?: (persisted: readonly PersistedDocument[]) => Promise<void>
   /** Who may read the documents this pass writes. */
@@ -1513,12 +1518,6 @@ export interface ProcessDocOpsInput {
  * run so the connector backs off, and a lost lease, which ends it so no
  * further write lands beside the replacement run's.
  */
-/** A document a batch wrote, by the id the source knows it by and the id the row has. */
-export interface PersistedDocument {
-  externalId: string
-  documentId: string
-}
-
 export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
   const {
     connectorId,
@@ -1689,6 +1688,7 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
       }
     }
 
+    const skippedPersisted: PersistedDocument[] = []
     if (skipOps.length > 0) {
       try {
         const recorded = await persistSkippedDocuments(
@@ -1700,7 +1700,8 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
           documentAccess,
           input.lease
         )
-        result.docsSkipped += recorded
+        result.docsSkipped += recorded.length
+        skippedPersisted.push(...recorded)
       } catch (error) {
         if (error instanceof SyncLockLostException) throw error
         /**
@@ -1756,7 +1757,7 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
     if (leaseLost) throw leaseLost.reason
 
     const batchDocs: DocumentData[] = []
-    const persisted: PersistedDocument[] = []
+    const persisted: PersistedDocument[] = [...skippedPersisted]
     for (let j = 0; j < settled.length; j++) {
       const outcome = settled[j]
       if (outcome.status === 'fulfilled') {
@@ -1778,8 +1779,6 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
       }
     }
 
-    if (persisted.length > 0) await input.onBatchPersisted?.(persisted)
-
     if (batchDocs.length > 0) {
       result.processingDispatch.requested += batchDocs.length
       try {
@@ -1799,6 +1798,19 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
         logger.warn('Failed to enqueue batch for processing — will retry on next sync', {
           connectorId,
           count: batchDocs.length,
+          error: toError(error).message,
+        })
+      }
+    }
+
+    if (persisted.length > 0 && input.onBatchPersisted) {
+      try {
+        await input.onBatchPersisted(persisted)
+      } catch (error) {
+        if (error instanceof SyncLockLostException) throw error
+        logger.warn('Failed to grant access for a persisted batch — the run end will retry', {
+          connectorId,
+          count: persisted.length,
           error: toError(error).message,
         })
       }

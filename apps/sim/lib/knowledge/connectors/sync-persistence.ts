@@ -247,6 +247,12 @@ function buildSkippedDocumentRow(
  *
  * Returns the number of rows recorded.
  */
+/** A document a sync wrote, by the id the source knows it by and the id the row has. */
+export interface PersistedDocument {
+  externalId: string
+  documentId: string
+}
+
 export async function persistSkippedDocuments(
   knowledgeBaseId: string,
   connectorId: string,
@@ -259,9 +265,9 @@ export async function persistSkippedDocuments(
   sourceConfig: Record<string, unknown> | undefined,
   access: SyncDocumentAccess,
   lease: SyncWriteLease
-): Promise<number> {
+): Promise<PersistedDocument[]> {
   if (skipOps.length === 0) {
-    return 0
+    return []
   }
   const inserts = skipOps
     .filter((op) => !op.existingId)
@@ -275,6 +281,12 @@ export async function persistSkippedDocuments(
         access
       )
     )
+  const persisted: PersistedDocument[] = [
+    ...inserts.map((row) => ({ externalId: row.externalId, documentId: row.id })),
+    ...skipOps
+      .filter((op): op is typeof op & { existingId: string } => Boolean(op.existingId))
+      .map((op) => ({ externalId: op.extDoc.externalId, documentId: op.existingId })),
+  ]
   const replacements = skipOps.filter((op): op is typeof op & { existingId: string } =>
     Boolean(op.existingId)
   )
@@ -363,7 +375,7 @@ export async function persistSkippedDocuments(
     }
   }
 
-  return skipOps.length
+  return persisted
 }
 
 /**

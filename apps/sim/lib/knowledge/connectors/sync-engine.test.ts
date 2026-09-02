@@ -789,7 +789,7 @@ describe('persistSkippedDocuments', () => {
         'workspace',
         lease
       )
-    ).resolves.toBe(1)
+    ).resolves.toHaveLength(1)
 
     expect(dbChainMockFns.values).toHaveBeenCalledWith([
       expect.objectContaining({
@@ -835,7 +835,7 @@ describe('persistSkippedDocuments', () => {
         'workspace',
         lease
       )
-    ).resolves.toBe(1)
+    ).resolves.toHaveLength(1)
 
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
