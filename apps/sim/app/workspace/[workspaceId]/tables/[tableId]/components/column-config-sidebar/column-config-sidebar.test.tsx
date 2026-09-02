@@ -73,7 +73,7 @@ vi.mock('@/lib/table/column-types', () => ({
     { id: 'select', label: 'Select', icon: () => null },
     { id: 'reference', label: 'Reference', icon: () => null },
   ],
-  columnTypeOf: (type: string) => ({ supportsUnique: type !== 'select' }),
+  columnTypeById: (type: string) => ({ supportsUnique: type !== 'select' }),
 }))
 
 vi.mock('@/hooks/queries/tables', () => ({
