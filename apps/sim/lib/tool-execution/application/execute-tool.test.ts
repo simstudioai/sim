@@ -99,7 +99,10 @@ const TOOL_METADATA: Record<string, Record<string, unknown>> = {
   slack_message: {
     id: 'slack_message',
     name: 'Slack Send Message',
-    params: { text: { type: 'string', required: true, visibility: 'user-or-llm' } },
+    params: {
+      accessToken: { type: 'string', required: true, visibility: 'hidden' },
+      text: { type: 'string', required: true, visibility: 'user-or-llm' },
+    },
     oauth: { required: true, provider: 'slack' },
   },
   firecrawl_scrape: {
@@ -425,6 +428,26 @@ describe('executeToolForCaller', () => {
     ).rejects.toMatchObject({
       code: 'validation',
       message: expect.stringContaining('impersonateUserEmail'),
+    })
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Declared is not accepted. `accessToken` is in the tool's params, but as
+   * `hidden` — the resolved credential fills it. Letting a caller send it either
+   * pre-empts the executor's value or is silently overwritten; either way the
+   * published schema (which omits hidden params) made no such promise.
+   */
+  it('refuses a declared-but-hidden input, saying whose it is', async () => {
+    await expect(
+      run({
+        toolId: 'slack_message',
+        credentialId: 'cred-1',
+        input: { text: 'hi', accessToken: 'xoxb-forged' },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('input.accessToken is supplied by Sim'),
     })
     expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
   })

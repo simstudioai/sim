@@ -77,6 +77,10 @@ function hostedKeyParamFor(
  * parameter list is the actual boundary, and it is what
  * `GET /api/v2/tools/{toolId}` already publishes.
  *
+ * Together with the `hidden` refusal above, the accept-set is exactly the
+ * publish-set: a key is taken if and only if `GET /api/v2/tools/{toolId}`
+ * lists it as something the caller may send.
+ *
  * Also collapses the credential spellings. The executor accepts `credential`,
  * `credentialId` and `oauthCredential` interchangeably, which is fine where one
  * caller writes one of them and wrong on a public contract: three spellings with
@@ -88,7 +92,25 @@ function assertNoUndeclaredInputs(
   toolId: string,
   args: Record<string, unknown>
 ): void {
-  const undeclared = Object.keys(args).filter((key) => !Object.hasOwn(tool.params ?? {}, key))
+  const params = tool.params ?? {}
+
+  /**
+   * Declared is not the same as accepted. A `hidden` parameter is Sim's to fill
+   * — a resolved credential's `accessToken`, a hosted key, a block-composed
+   * shape — and `createUserToolSchema` omits it from what this endpoint and
+   * Copilot publish. Accepting it anyway either lets a caller pre-empt the
+   * executor's value or silently discards theirs when the executor overwrites
+   * it, and both are a contract the published schema does not make.
+   */
+  const hidden = Object.keys(args).filter((key) => params[key]?.visibility === 'hidden')
+  if (hidden.length > 0) {
+    throw new OrchestrationError(
+      'validation',
+      `${hidden.map((key) => `input.${key}`).join(', ')} ${hidden.length === 1 ? 'is' : 'are'} supplied by Sim, not by the caller`
+    )
+  }
+
+  const undeclared = Object.keys(args).filter((key) => !Object.hasOwn(params, key))
   if (undeclared.length === 0) return
 
   const credentialAlias = undeclared.find((key) =>
