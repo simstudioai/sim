@@ -1252,29 +1252,6 @@ export const ToolInput = memo(function ToolInput({
           <UnsupportedToolBadge message={UNSUPPORTED_MCP_TOOL_MESSAGE} />
         ) : undefined,
       })
-      if (supportsAdvancedMcpServer) {
-        actionItems.push({
-          label: 'MCP Server (Advanced)',
-          value: 'action-mcp-server-advanced',
-          icon: Server,
-          onSelect: () => {
-            setStoreValue([
-              ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
-              {
-                type: MCP_SERVER_ADVANCED_TOOL_TYPE,
-                params: { serverId: '' },
-                isExpanded: true,
-                usageControl: 'auto',
-              },
-            ])
-            setOpen(false)
-          },
-          disabled: isPreview || disabled || mcpUnsupported,
-          suffixElement: mcpUnsupported ? (
-            <UnsupportedToolBadge message={UNSUPPORTED_MCP_TOOL_MESSAGE} />
-          ) : undefined,
-        })
-      }
     }
     if (actionItems.length > 0) {
       groups.push({ items: actionItems })
@@ -1409,6 +1386,35 @@ export const ToolInput = memo(function ToolInput({
             disabled: isPreview || disabled || alreadySelected,
           }
         }),
+      })
+    }
+
+    if (!permissionConfig.disableMcpTools && supportsAdvancedMcpServer) {
+      groups.push({
+        section: 'Advanced',
+        items: [
+          {
+            label: 'MCP Server (Advanced)',
+            value: 'action-mcp-server-advanced',
+            icon: Server,
+            onSelect: () => {
+              setStoreValue([
+                ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
+                {
+                  type: MCP_SERVER_ADVANCED_TOOL_TYPE,
+                  params: { serverId: '' },
+                  isExpanded: true,
+                  usageControl: 'auto',
+                },
+              ])
+              setOpen(false)
+            },
+            disabled: isPreview || disabled || mcpUnsupported,
+            suffixElement: mcpUnsupported ? (
+              <UnsupportedToolBadge message={UNSUPPORTED_MCP_TOOL_MESSAGE} />
+            ) : undefined,
+          },
+        ],
       })
     }
 

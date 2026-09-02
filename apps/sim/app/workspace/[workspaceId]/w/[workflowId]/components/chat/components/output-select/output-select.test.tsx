@@ -9,13 +9,8 @@ const { outputMenuState } = vi.hoisted(() => ({
   outputMenuState: { includeNestedWorkflow: true },
 }))
 
-vi.mock('@sim/emcn', () => ({
-  cn: (...values: unknown[]) => values.flat().filter(Boolean).join(' '),
-  Combobox: ({
-    groups,
-    multiSelectValues = [],
-    onMultiSelectChange,
-  }: {
+vi.mock('@sim/emcn', () => {
+  interface MockComboboxProps {
     groups: Array<{
       section?: string
       sectionElement?: ReactNode
@@ -29,7 +24,13 @@ vi.mock('@sim/emcn', () => ({
     }>
     multiSelectValues?: string[]
     onMultiSelectChange?: (values: string[]) => void
-  }) => (
+  }
+
+  const MockCombobox = ({
+    groups,
+    multiSelectValues = [],
+    onMultiSelectChange,
+  }: MockComboboxProps) => (
     <div>
       {groups.map((group, groupIndex) => (
         <div key={group.section ?? groupIndex}>
@@ -59,31 +60,18 @@ vi.mock('@sim/emcn', () => ({
         </div>
       ))}
     </div>
-  ),
-  ChipCombobox: ({
-    groups,
-    multiSelectValues,
-    onMultiSelectChange,
-  }: {
-    groups: Array<{ section?: string; items: Array<{ label: string; value: string }> }>
-    multiSelectValues?: string[]
-    onMultiSelectChange?: (values: string[]) => void
-  }) => (
-    <div data-chip-combobox>
-      {groups.flatMap((group) =>
-        group.items.map((option) => (
-          <button
-            key={option.value}
-            type='button'
-            onClick={() => onMultiSelectChange?.([...(multiSelectValues ?? []), option.value])}
-          >
-            {option.label}
-          </button>
-        ))
-      )}
-    </div>
-  ),
-}))
+  )
+
+  return {
+    cn: (...values: unknown[]) => values.flat().filter(Boolean).join(' '),
+    Combobox: MockCombobox,
+    ChipCombobox: (props: MockComboboxProps) => (
+      <div data-chip-combobox>
+        <MockCombobox {...props} />
+      </div>
+    ),
+  }
+})
 
 vi.mock('zustand/react/shallow', () => ({ useShallow: (selector: unknown) => selector }))
 
@@ -186,7 +174,8 @@ function outputSelect(
   workflowId: string,
   selectedOutputs: string[],
   onOutputSelect: (outputIds: string[]) => void,
-  valueMode: 'id' | 'label' | 'public' = 'id'
+  valueMode: 'id' | 'label' | 'public' = 'id',
+  size: 'sm' | 'md' = 'sm'
 ) {
   return (
     <OutputSelect
@@ -194,6 +183,7 @@ function outputSelect(
       selectedOutputs={selectedOutputs}
       onOutputSelect={onOutputSelect}
       valueMode={valueMode}
+      size={size}
     />
   )
 }
@@ -201,14 +191,15 @@ function outputSelect(
 function renderOutputSelect(
   selectedOutputs: string[],
   onOutputSelect = vi.fn(),
-  valueMode: 'id' | 'label' | 'public' = 'id'
+  valueMode: 'id' | 'label' | 'public' = 'id',
+  size: 'sm' | 'md' = 'sm'
 ) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
   act(() => {
-    root?.render(outputSelect('root', selectedOutputs, onOutputSelect, valueMode))
+    root?.render(outputSelect('root', selectedOutputs, onOutputSelect, valueMode, size))
   })
   return onOutputSelect
 }
@@ -261,6 +252,35 @@ describe('OutputSelect nested workflow menu', () => {
     clickOption('answer')
 
     expect(onOutputSelect).toHaveBeenCalledWith(['child-workflow.agent_answer'])
+  })
+
+  it('keeps every selected output at the top and deselects nested outputs from there', () => {
+    const onOutputSelect = renderOutputSelect(['child-workflow.agent_answer'])
+
+    const sections = [...document.querySelectorAll('[data-section]')]
+    expect(sections[0]?.textContent).toBe('Selected')
+    expect(document.body.textContent).toContain('Research / Writer / answer')
+
+    clickOption('Research / Writer / answer')
+    expect(onOutputSelect).toHaveBeenCalledWith([])
+  })
+
+  it('preserves existing selections when choosing a nested output', () => {
+    const onOutputSelect = renderOutputSelect(['summary_content'])
+
+    clickOption('Outputs')
+    clickOption('answer')
+
+    expect(onOutputSelect).toHaveBeenCalledWith(['summary_content', 'child-workflow.agent_answer'])
+  })
+
+  it('selects outputs from the medium chat deployment picker', () => {
+    const onOutputSelect = renderOutputSelect([], vi.fn(), 'id', 'md')
+
+    expect(document.querySelector('[data-chip-combobox]')).not.toBeNull()
+    clickOption('content')
+
+    expect(onOutputSelect).toHaveBeenCalledWith(['summary_content'])
   })
 
   it('emits public dot selectors for trigger authoring', () => {

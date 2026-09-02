@@ -250,9 +250,17 @@ function OutputSelectMenu({
   const [menuPath, setMenuPath] = useState<string[]>([])
   const activeMenuNode = resolveOutputMenuNode(outputMenu, menuPath)
 
-  const validOutputCount = selectedOutputs.filter((val) =>
-    workflowOutputs.some((output) => output.id === val || output.label === val)
-  ).length
+  const selectedOutputOptions = selectedOutputs
+    .map((selectedValue) =>
+      workflowOutputs.find(
+        (output) =>
+          output.id === selectedValue ||
+          output.label === selectedValue ||
+          getOutputValue(output, valueMode) === selectedValue
+      )
+    )
+    .filter((output): output is WorkflowOutputOption => output !== undefined)
+  const validOutputCount = selectedOutputOptions.length
   let selectedDisplayText = placeholder
   if (validOutputCount === 1) {
     selectedDisplayText = '1 output'
@@ -260,13 +268,26 @@ function OutputSelectMenu({
     selectedDisplayText = `${validOutputCount} outputs`
   }
 
-  const normalizedSelectedValues = selectedOutputs
-    .map((val) => {
-      const output = workflowOutputs.find((item) => item.id === val || item.label === val)
-      if (!output) return null
-      return getOutputValue(output, valueMode)
-    })
-    .filter((value): value is string => value !== null)
+  const normalizedSelectedValues = selectedOutputOptions.map((output) =>
+    getOutputValue(output, valueMode)
+  )
+  const selectedValueSet = new Set(normalizedSelectedValues)
+
+  const outputOption = (output: WorkflowOutputOption, label = output.path): ComboboxOption => {
+    const value = getOutputValue(output, valueMode)
+    return {
+      label,
+      value,
+      onSelect: () => {
+        onOutputSelect(
+          selectedValueSet.has(value)
+            ? normalizedSelectedValues.filter((selectedValue) => selectedValue !== value)
+            : [...normalizedSelectedValues, value]
+        )
+      },
+      keepOpen: true,
+    }
+  }
 
   const folderOption = (node: WorkflowOutputMenuNode): ComboboxOption => ({
     label: 'Outputs',
@@ -288,15 +309,14 @@ function OutputSelectMenu({
       </div>
     ),
     items: [
-      ...node.outputs.map((output) => ({
-        label: output.path,
-        value: getOutputValue(output, valueMode),
-      })),
+      ...node.outputs
+        .filter((output) => !selectedValueSet.has(getOutputValue(output, valueMode)))
+        .map((output) => outputOption(output)),
       ...(node.children.length > 0 ? [folderOption(node)] : []),
     ],
   })
 
-  const comboboxGroups: ComboboxOptionGroup[] = activeMenuNode
+  const menuGroups: ComboboxOptionGroup[] = activeMenuNode
     ? [
         {
           section: activeMenuNode.blockName,
@@ -313,6 +333,18 @@ function OutputSelectMenu({
         ...activeMenuNode.children.map(outputGroup),
       ]
     : outputMenu.map(outputGroup)
+  const selectedGroup: ComboboxOptionGroup[] =
+    selectedOutputOptions.length > 0
+      ? [
+          {
+            section: 'Selected',
+            items: selectedOutputOptions.map((output) =>
+              outputOption(output, `${output.groupLabel} / ${output.path}`)
+            ),
+          },
+        ]
+      : []
+  const comboboxGroups = [...selectedGroup, ...menuGroups]
   const Trigger = size === 'md' ? ChipCombobox : Combobox
 
   return (
