@@ -446,7 +446,13 @@ export async function sweepStaleMemberObservations(now: Date): Promise<StaleMemb
     ${MEMBER_OBSERVATION_STALE_AFTER_HOURS} * INTERVAL '1 hour',
     2 * ${knowledgeConnector.syncIntervalMinutes} * INTERVAL '1 minute'
   )`
-  const cutoff = sql`${sql.param(now, knowledgeConnectorMember.lastStartedAt)} - ${staleWindow}`
+  /**
+   * The bound instant is cast: in `$now - GREATEST(...)` Postgres cannot see a
+   * timestamp on either side and resolves the subtraction as interval
+   * arithmetic, which makes the cutoff an interval and every comparison below
+   * fail with "operator does not exist: timestamp > interval".
+   */
+  const cutoff = sql`${sql.param(now, knowledgeConnectorMember.lastStartedAt)}::timestamp - ${staleWindow}`
   const staleMembers = await db
     .select({
       id: knowledgeConnectorMember.id,

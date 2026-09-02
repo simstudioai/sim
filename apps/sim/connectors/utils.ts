@@ -795,3 +795,50 @@ export function isSkippableMicrosoftGraphFolderError(
 ): boolean {
   return !isRootFolder && isListingScopeUnavailableError(error) && isPerMemberListing(syncContext)
 }
+
+/**
+ * Ceiling for a document a connector assembles from many source records (a
+ * mail thread, a chat transcript) rather than downloads as one file. Formatters
+ * enforce it through `BoundedLines`, and listings advertise it through
+ * `ExternalDocument.estimatedBytes`, so the sync engine plans hydration around
+ * a bound it can rely on: five such documents fit its 64 MiB in-flight budget
+ * and hydrate together instead of one at a time.
+ */
+export const CONNECTOR_TEXT_DOCUMENT_MAX_BYTES = 12 * 1024 * 1024
+
+const TRUNCATION_NOTICE = '[Truncated: the indexed text reached the size limit]'
+
+/**
+ * Accumulates newline-joined text under a byte ceiling. A record is appended
+ * whole or not at all, so a truncated document never ends mid-message, and the
+ * output carries a notice when something was left out.
+ */
+export class BoundedLines {
+  private readonly lines: string[] = []
+  private bytes = 0
+  private truncated = false
+
+  constructor(private readonly maxBytes = CONNECTOR_TEXT_DOCUMENT_MAX_BYTES) {}
+
+  /**
+   * Appends the lines together when they fit; otherwise marks the document
+   * truncated, appends nothing, and returns false so the caller stops.
+   */
+  push(...lines: string[]): boolean {
+    if (this.truncated) return false
+    let size = 0
+    for (const line of lines) size += Buffer.byteLength(line, 'utf8') + 1
+    if (this.bytes + size > this.maxBytes) {
+      this.truncated = true
+      return false
+    }
+    this.lines.push(...lines)
+    this.bytes += size
+    return true
+  }
+
+  /** Joins the accepted lines, ending with the truncation notice when a push was refused. */
+  join(): string {
+    return this.truncated ? [...this.lines, TRUNCATION_NOTICE].join('\n') : this.lines.join('\n')
+  }
+}
