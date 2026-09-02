@@ -6,7 +6,9 @@ import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/
 import {
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
+  ConnectorListingScopeUnavailableError,
   htmlToPlainText,
+  isListingScopeUnavailableError,
   isSkippedDocument,
   markSkipped,
   parseTagDate,
@@ -170,6 +172,8 @@ function fileToStub(entry: DropboxFileMetadata): ExternalDocument {
 export const dropboxConnector: ConnectorConfig = {
   ...dropboxConnectorMeta,
 
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -227,7 +231,13 @@ export const dropboxConnector: ConnectorConfig = {
           status: response.status,
           error: errorText,
         })
-        throw new Error(`Failed to list Dropbox folder: ${response.status}`)
+        /** Dropbox reports a path the caller cannot reach as 409 path/not_found. */
+        throw response.status === 409
+          ? new ConnectorListingScopeUnavailableError(
+              `Failed to list Dropbox folder: ${response.status}`,
+              response.status
+            )
+          : new Error(`Failed to list Dropbox folder: ${response.status}`)
       }
 
       data = await response.json()

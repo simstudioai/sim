@@ -5,6 +5,8 @@ export const CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS = [
   'gmail',
   'google-calendar',
   'google-drive',
+  'google-docs',
+  'google-forms',
   'confluence',
   'jira',
   'airtable',
@@ -59,6 +61,16 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
   'google-drive': {
     serviceId: 'google-drive',
     description: 'Let each person connect one Google Drive account',
+    configuration: 'oauth',
+  },
+  'google-docs': {
+    serviceId: 'google-docs',
+    description: 'Let each person connect one Google Docs account',
+    configuration: 'oauth',
+  },
+  'google-forms': {
+    serviceId: 'google-forms',
+    description: 'Let each person connect one Google Forms account',
     configuration: 'oauth',
   },
   confluence: {

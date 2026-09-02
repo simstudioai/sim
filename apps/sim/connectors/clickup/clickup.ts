@@ -4,7 +4,11 @@ import { isRecordLike } from '@sim/utils/object'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { clickupConnectorMeta } from '@/connectors/clickup/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseTagDate } from '@/connectors/utils'
+import {
+  isListingScopeUnavailableError,
+  listingRequestError,
+  parseTagDate,
+} from '@/connectors/utils'
 import { clickupAuthorizationHeader, extractClickUpErrorMessage } from '@/tools/clickup/shared'
 
 const logger = createLogger('ClickUpConnector')
@@ -159,6 +163,8 @@ function getRequiredWorkspaceId(sourceConfig: Record<string, unknown>): string {
 export const clickupConnector: ConnectorConfig = {
   ...clickupConnectorMeta,
 
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -181,7 +187,7 @@ export const clickupConnector: ConnectorConfig = {
     if (!response.ok) {
       const errorText = await response.text()
       logger.error('Failed to list ClickUp Docs', { status: response.status, error: errorText })
-      throw new Error(`Failed to list ClickUp Docs: ${response.status}`)
+      throw listingRequestError('Failed to list ClickUp Docs', response.status)
     }
 
     const data = (await response.json()) as Record<string, unknown>

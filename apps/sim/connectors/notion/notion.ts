@@ -515,6 +515,9 @@ function pageToStub(page: Record<string, unknown>): ExternalDocument {
 export const notionConnector: ConnectorConfig = {
   ...notionConnectorMeta,
 
+  isListingScopeUnavailableError: (error) =>
+    error instanceof NotionApiError && error.status === 404,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,

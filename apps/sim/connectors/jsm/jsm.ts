@@ -1,9 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { AtlassianSiteNotAccessibleError } from '@/lib/atlassian/discovery'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { jsmConnectorMeta } from '@/connectors/jsm/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import {
+  htmlToPlainText,
+  isListingScopeUnavailableError,
+  listingRequestError,
+  parseTagDate,
+} from '@/connectors/utils'
 import { extractAdfText, getJiraCloudId } from '@/tools/jira/utils'
 import { getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
@@ -421,6 +427,9 @@ async function fetchComments(
 export const jsmConnector: ConnectorConfig = {
   ...jsmConnectorMeta,
 
+  isListingScopeUnavailableError: (error) =>
+    isListingScopeUnavailableError(error) || error instanceof AtlassianSiteNotAccessibleError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -498,7 +507,7 @@ export const jsmConnector: ConnectorConfig = {
     if (!response.ok) {
       const errorText = await response.text()
       logger.error('Failed to list JSM requests', { status: response.status, error: errorText })
-      throw new Error(`Failed to list JSM requests: ${response.status}`)
+      throw listingRequestError('Failed to list JSM requests', response.status)
     }
 
     const data = (await response.json()) as JsmPage<JsmRequest>

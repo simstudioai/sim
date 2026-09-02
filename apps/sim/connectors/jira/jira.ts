@@ -1,10 +1,19 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { normalizeAtlassianSiteUrl } from '@/lib/atlassian/discovery'
+import {
+  AtlassianSiteNotAccessibleError,
+  normalizeAtlassianSiteUrl,
+} from '@/lib/atlassian/discovery'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { jiraConnectorMeta } from '@/connectors/jira/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
+import {
+  isListingScopeUnavailableError,
+  joinTagArray,
+  listingRequestError,
+  parseMultiValue,
+  parseTagDate,
+} from '@/connectors/utils'
 import { extractAdfText, getJiraCloudId } from '@/tools/jira/utils'
 
 const logger = createLogger('JiraConnector')
@@ -131,6 +140,9 @@ function issueToFullDocument(issue: Record<string, unknown>, siteUrl: string): E
 export const jiraConnector: ConnectorConfig = {
   ...jiraConnectorMeta,
 
+  isListingScopeUnavailableError: (error) =>
+    isListingScopeUnavailableError(error) || error instanceof AtlassianSiteNotAccessibleError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -219,7 +231,7 @@ export const jiraConnector: ConnectorConfig = {
         status: response.status,
         error: errorText,
       })
-      throw new Error(`Failed to search Jira issues: ${response.status}`)
+      throw listingRequestError('Failed to search Jira issues', response.status)
     }
 
     const data = await response.json()

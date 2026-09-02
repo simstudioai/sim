@@ -21,6 +21,7 @@ export const salesforceConnectorMeta: ConnectorMeta = {
     requiredScopes: ['api', 'refresh_token', 'openid'],
   },
 
+  permissionScopedListing: { capFieldIds: ['maxRecords'] },
   configFields: [
     {
       id: 'objectType',

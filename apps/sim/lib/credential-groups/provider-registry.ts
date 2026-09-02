@@ -13,6 +13,8 @@ const CREDENTIAL_GROUP_PROVIDER_ADAPTERS: Record<
   gmail: createStandardOAuthCredentialGroupProviderAdapter('gmail'),
   'google-calendar': createStandardOAuthCredentialGroupProviderAdapter('google-calendar'),
   'google-drive': createStandardOAuthCredentialGroupProviderAdapter('google-drive'),
+  'google-docs': createStandardOAuthCredentialGroupProviderAdapter('google-docs'),
+  'google-forms': createStandardOAuthCredentialGroupProviderAdapter('google-forms'),
   confluence: createStandardOAuthCredentialGroupProviderAdapter('confluence'),
   jira: createStandardOAuthCredentialGroupProviderAdapter('jira'),
   airtable: createStandardOAuthCredentialGroupProviderAdapter('airtable'),

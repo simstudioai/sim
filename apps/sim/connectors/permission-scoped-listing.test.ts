@@ -22,7 +22,27 @@ const permissionScoped = Object.values(CONNECTOR_META_REGISTRY).filter(
  */
 describe('permission-scoped connector listings', () => {
   it('covers the connectors that crawl per member', () => {
-    expect(permissionScoped.map((meta) => meta.id).sort()).toEqual(['confluence', 'google_drive'])
+    expect(permissionScoped.map((meta) => meta.id).sort()).toEqual([
+      'asana',
+      'box',
+      'clickup',
+      'confluence',
+      'docusign',
+      'dropbox',
+      'gmail',
+      'google_calendar',
+      'google_docs',
+      'google_drive',
+      'google_forms',
+      'google_slides',
+      'jira',
+      'jsm',
+      'linear',
+      'monday',
+      'notion',
+      'salesforce',
+      'zoom',
+    ])
   })
 
   it.each(permissionScoped.map((meta) => [meta.id, meta] as const))(

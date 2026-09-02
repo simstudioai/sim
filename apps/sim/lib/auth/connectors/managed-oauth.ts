@@ -1043,7 +1043,9 @@ function resolveManagedOAuthPolicy(
   if (
     providerId === 'google-email' ||
     providerId === 'google-calendar' ||
-    providerId === 'google-drive'
+    providerId === 'google-drive' ||
+    providerId === 'google-docs' ||
+    providerId === 'google-forms'
   ) {
     return () => createGoogleManagedOAuthConnector(providerId)
   }

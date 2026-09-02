@@ -695,3 +695,35 @@ export class ConnectorFileTooLargeError extends Error {
     this.name = 'ConnectorFileTooLargeError'
   }
 }
+
+/**
+ * A listing failed because the caller cannot reach the configured scope — the
+ * folder, space, board, or calendar is not shared with them. A members-mode
+ * crawl treats that as a complete listing of nothing for that member, so
+ * their access is withdrawn rather than retried forever.
+ */
+export class ConnectorListingScopeUnavailableError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message)
+    this.name = 'ConnectorListingScopeUnavailableError'
+  }
+}
+
+/**
+ * The error a listing request throws for a failed response: scope-unavailable
+ * when the source says the scope does not exist for this caller (404), a plain
+ * error for anything else, which the sync engines retry with backoff.
+ */
+export function listingRequestError(message: string, status: number): Error {
+  const described = `${message}: ${status}`
+  return status === 404
+    ? new ConnectorListingScopeUnavailableError(described, status)
+    : new Error(described)
+}
+
+export function isListingScopeUnavailableError(error: unknown): boolean {
+  return error instanceof ConnectorListingScopeUnavailableError
+}

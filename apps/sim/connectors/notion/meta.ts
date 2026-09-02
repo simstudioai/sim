@@ -10,6 +10,7 @@ export const notionConnectorMeta: ConnectorMeta = {
 
   auth: { mode: 'oauth', provider: 'notion', requiredScopes: [] },
 
+  permissionScopedListing: { capFieldIds: ['maxPages'] },
   configFields: [
     {
       id: 'scope',

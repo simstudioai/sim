@@ -3,7 +3,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_EVENTS, googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseMultiValue, parseTagDate } from '@/connectors/utils'
+import {
+  isListingScopeUnavailableError,
+  listingRequestError,
+  parseMultiValue,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('GoogleCalendarConnector')
 
@@ -301,6 +306,8 @@ function eventToDocument(
 export const googleCalendarConnector: ConnectorConfig = {
   ...googleCalendarConnectorMeta,
 
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -397,7 +404,7 @@ export const googleCalendarConnector: ConnectorConfig = {
         calendarId,
         error: errorText,
       })
-      throw new Error(`Failed to list Google Calendar events: ${response.status}`)
+      throw listingRequestError('Failed to list Google Calendar events', response.status)
     }
 
     const data = await response.json()
