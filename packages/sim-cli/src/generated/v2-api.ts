@@ -181,7 +181,16 @@ export type AddTableColumnBody = {
   column: {
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+    type:
+      | 'string'
+      | 'number'
+      | 'currency'
+      | 'boolean'
+      | 'date'
+      | 'ttl'
+      | 'json'
+      | 'select'
+      | 'reference'
     required?: boolean
     unique?: boolean
     options?: Array<{
@@ -190,6 +199,7 @@ export type AddTableColumnBody = {
     }>
     multiple?: boolean
     currencyCode?: string
+    referenceTableId?: string
     position?: number
   }
 }
@@ -198,7 +208,16 @@ type AddTableColumnResponseRef0 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+    type:
+      | 'string'
+      | 'number'
+      | 'currency'
+      | 'boolean'
+      | 'date'
+      | 'ttl'
+      | 'json'
+      | 'select'
+      | 'reference'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -208,6 +227,7 @@ type AddTableColumnResponseRef0 = {
     }>
     multiple?: boolean
     currencyCode?: string
+    referenceTableId?: string
   }>
 }
 
@@ -248,7 +268,16 @@ export type AddWorkflowGroupBody = {
   }
   outputColumns: Array<{
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+    type:
+      | 'string'
+      | 'number'
+      | 'currency'
+      | 'boolean'
+      | 'date'
+      | 'ttl'
+      | 'json'
+      | 'select'
+      | 'reference'
     required?: boolean
     unique?: boolean
   }>
@@ -283,7 +312,16 @@ type AddWorkflowGroupResponseRef1 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+    type:
+      | 'string'
+      | 'number'
+      | 'currency'
+      | 'boolean'
+      | 'date'
+      | 'ttl'
+      | 'json'
+      | 'select'
+      | 'reference'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -293,6 +331,7 @@ type AddWorkflowGroupResponseRef1 = {
     }>
     multiple?: boolean
     currencyCode?: string
+    referenceTableId?: string
   }>
 }
 
@@ -2060,7 +2099,16 @@ export type CreateTableBody = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+      type:
+        | 'string'
+        | 'number'
+        | 'currency'
+        | 'boolean'
+        | 'date'
+        | 'ttl'
+        | 'json'
+        | 'select'
+        | 'reference'
       required?: boolean
       unique?: boolean
       options?: Array<{
@@ -2069,6 +2117,7 @@ export type CreateTableBody = {
       }>
       multiple?: boolean
       currencyCode?: string
+      referenceTableId?: string
     }>
   }
   folderPath?: CreateTableBodyRef0
@@ -2092,7 +2141,16 @@ type CreateTableResponseRef1 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+      type:
+        | 'string'
+        | 'number'
+        | 'currency'
+        | 'boolean'
+        | 'date'
+        | 'ttl'
+        | 'json'
+        | 'select'
+        | 'reference'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -2102,6 +2160,7 @@ type CreateTableResponseRef1 = {
       }>
       multiple?: boolean
       currencyCode?: string
+      referenceTableId?: string
     }>
   }
   rowCount: number
@@ -3062,7 +3121,16 @@ type DeleteTableColumnResponseRef0 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+    type:
+      | 'string'
+      | 'number'
+      | 'currency'
+      | 'boolean'
+      | 'date'
+      | 'ttl'
+      | 'json'
+      | 'select'
+      | 'reference'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -3072,6 +3140,7 @@ type DeleteTableColumnResponseRef0 = {
     }>
     multiple?: boolean
     currencyCode?: string
+    referenceTableId?: string
   }>
 }
 
@@ -3323,7 +3392,16 @@ type DeleteWorkflowGroupResponseRef0 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+    type:
+      | 'string'
+      | 'number'
+      | 'currency'
+      | 'boolean'
+      | 'date'
+      | 'ttl'
+      | 'json'
+      | 'select'
+      | 'reference'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -3333,6 +3411,7 @@ type DeleteWorkflowGroupResponseRef0 = {
     }>
     multiple?: boolean
     currencyCode?: string
+    referenceTableId?: string
   }>
 }
 
@@ -4841,7 +4920,16 @@ type GetTableResponseRef1 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+      type:
+        | 'string'
+        | 'number'
+        | 'currency'
+        | 'boolean'
+        | 'date'
+        | 'ttl'
+        | 'json'
+        | 'select'
+        | 'reference'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -4851,6 +4939,7 @@ type GetTableResponseRef1 = {
       }>
       multiple?: boolean
       currencyCode?: string
+      referenceTableId?: string
     }>
   }
   rowCount: number
@@ -7017,7 +7106,16 @@ type ListTablesResponseRef0 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+      type:
+        | 'string'
+        | 'number'
+        | 'currency'
+        | 'boolean'
+        | 'date'
+        | 'ttl'
+        | 'json'
+        | 'select'
+        | 'reference'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -7027,6 +7125,7 @@ type ListTablesResponseRef0 = {
       }>
       multiple?: boolean
       currencyCode?: string
+      referenceTableId?: string
     }>
   }
   rowCount: number
@@ -9010,7 +9109,16 @@ type RestoreTableResponseRef1 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+      type:
+        | 'string'
+        | 'number'
+        | 'currency'
+        | 'boolean'
+        | 'date'
+        | 'ttl'
+        | 'json'
+        | 'select'
+        | 'reference'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -9020,6 +9128,7 @@ type RestoreTableResponseRef1 = {
       }>
       multiple?: boolean
       currencyCode?: string
+      referenceTableId?: string
     }>
   }
   rowCount: number
@@ -10323,7 +10432,16 @@ type UpdateTableResponseRef1 = {
     columns: Array<{
       id?: string
       name: string
-      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+      type:
+        | 'string'
+        | 'number'
+        | 'currency'
+        | 'boolean'
+        | 'date'
+        | 'ttl'
+        | 'json'
+        | 'select'
+        | 'reference'
       required: boolean
       unique: boolean
       workflowGroupId?: string
@@ -10333,6 +10451,7 @@ type UpdateTableResponseRef1 = {
       }>
       multiple?: boolean
       currencyCode?: string
+      referenceTableId?: string
     }>
   }
   rowCount: number
@@ -10365,7 +10484,16 @@ export type UpdateTableColumnBody = {
   columnName: string
   updates: {
     name?: string
-    type?: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+    type?:
+      | 'string'
+      | 'number'
+      | 'currency'
+      | 'boolean'
+      | 'date'
+      | 'ttl'
+      | 'json'
+      | 'select'
+      | 'reference'
     required?: boolean
     unique?: boolean
     options?: Array<{
@@ -10374,6 +10502,7 @@ export type UpdateTableColumnBody = {
     }>
     multiple?: boolean
     currencyCode?: string
+    referenceTableId?: string
   }
 }
 
@@ -10381,7 +10510,16 @@ type UpdateTableColumnResponseRef0 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+    type:
+      | 'string'
+      | 'number'
+      | 'currency'
+      | 'boolean'
+      | 'date'
+      | 'ttl'
+      | 'json'
+      | 'select'
+      | 'reference'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -10391,6 +10529,7 @@ type UpdateTableColumnResponseRef0 = {
     }>
     multiple?: boolean
     currencyCode?: string
+    referenceTableId?: string
   }>
 }
 
@@ -10644,7 +10783,16 @@ export type UpdateWorkflowGroupBody = {
   }>
   newOutputColumns?: Array<{
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+    type:
+      | 'string'
+      | 'number'
+      | 'currency'
+      | 'boolean'
+      | 'date'
+      | 'ttl'
+      | 'json'
+      | 'select'
+      | 'reference'
     required?: boolean
     unique?: boolean
   }>
@@ -10690,7 +10838,16 @@ type UpdateWorkflowGroupResponseRef1 = {
   columns: Array<{
     id?: string
     name: string
-    type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+    type:
+      | 'string'
+      | 'number'
+      | 'currency'
+      | 'boolean'
+      | 'date'
+      | 'ttl'
+      | 'json'
+      | 'select'
+      | 'reference'
     required: boolean
     unique: boolean
     workflowGroupId?: string
@@ -10700,6 +10857,7 @@ type UpdateWorkflowGroupResponseRef1 = {
     }>
     multiple?: boolean
     currencyCode?: string
+    referenceTableId?: string
   }>
 }
 
