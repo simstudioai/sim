@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { classifyBulkItemError } from '@/lib/core/application/bulk-items'
@@ -120,6 +121,7 @@ async function resolveBulkKnowledgeContext(
 async function runKnowledgeItems(
   knowledgeBaseIds: readonly string[],
   workspace: KnowledgeWorkspaceContext,
+  principal: Principal,
   covered: ReadonlySet<string>,
   authorize: (canonical: ActiveKnowledgeBaseContext) => Promise<void>,
   apply: (canonical: ActiveKnowledgeBaseContext) => Promise<string>,
@@ -129,7 +131,11 @@ async function runKnowledgeItems(
   for (const knowledgeBaseId of knowledgeBaseIds) {
     let knowledgeBaseName = knowledgeBaseId
     try {
-      const canonical = await resolveActiveKnowledgeBaseInWorkspace(knowledgeBaseId, workspace)
+      const canonical = await resolveActiveKnowledgeBaseInWorkspace(
+        knowledgeBaseId,
+        workspace,
+        principal
+      )
       knowledgeBaseName = canonical.knowledgeBase.name
       const folderId = canonical.knowledgeBase.folderId
       if (folderId && covered.has(folderId)) {
@@ -169,8 +175,13 @@ async function runKnowledgeItems(
 
 export const bulkMoveKnowledgeItems = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.bulkMoveItems,
-  resolveContext: ({ input }: { input: BulkMoveKnowledgeItemsInput }) =>
-    resolveBulkKnowledgeContext(input, BULK_MOVE_KNOWLEDGE_ITEMS_COST_POLICY.maxItems),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: BulkMoveKnowledgeItemsInput
+  }) => resolveBulkKnowledgeContext(input, BULK_MOVE_KNOWLEDGE_ITEMS_COST_POLICY.maxItems),
   async execute({ principal, input, context }): Promise<BulkMoveKnowledgeItemsExecutionResult> {
     /**
      * The destination check and the folder plan read different rows and share
@@ -219,6 +230,7 @@ export const bulkMoveKnowledgeItems = defineAuthorizedKnowledgeUseCase({
     const terminalError = await runKnowledgeItems(
       context.knowledgeBaseIds,
       context,
+      principal,
       plan.covered,
       (canonical) =>
         authorizeWorkspaceOperation(principal, knowledgeOperations.bulkMoveItems, canonical, {
@@ -305,8 +317,13 @@ export const bulkMoveKnowledgeItems = defineAuthorizedKnowledgeUseCase({
 
 export const bulkDeleteKnowledgeItems = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.bulkDeleteItems,
-  resolveContext: ({ input }: { input: BulkDeleteKnowledgeItemsInput }) =>
-    resolveBulkKnowledgeContext(input, BULK_DELETE_KNOWLEDGE_ITEMS_COST_POLICY.maxItems),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: BulkDeleteKnowledgeItemsInput
+  }) => resolveBulkKnowledgeContext(input, BULK_DELETE_KNOWLEDGE_ITEMS_COST_POLICY.maxItems),
   async execute({ principal, context }): Promise<BulkDeleteKnowledgeItemsExecutionResult> {
     const plan = await planFolderSelection(
       context.workspaceId,
@@ -321,6 +338,7 @@ export const bulkDeleteKnowledgeItems = defineAuthorizedKnowledgeUseCase({
     const terminalError = await runKnowledgeItems(
       context.knowledgeBaseIds,
       context,
+      principal,
       plan.covered,
       (canonical) =>
         authorizeWorkspaceOperation(principal, knowledgeOperations.bulkDeleteItems, canonical, {

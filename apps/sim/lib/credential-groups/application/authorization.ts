@@ -12,10 +12,18 @@ import type {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   credentialGroupWorkflowAccessPolicyCodec,
+  evaluateCredentialGroupActorCredentialAccess,
   evaluateCredentialGroupWorkflowAccess,
 } from '@/lib/credential-groups/application/workflow-access-policy'
-import type { CredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
-import { loadCredentialGroupEnrollmentAccessForSubject } from '@/lib/credential-groups/credentials'
+import type {
+  CredentialGroupCredentialListContext,
+  ManagedCredentialGroupBinding,
+} from '@/lib/credential-groups/credentials'
+import {
+  isManagedCredentialGroupBindingLive,
+  loadCredentialGroupEnrollmentAccessForSubject,
+  loadManagedCredentialGroupBinding,
+} from '@/lib/credential-groups/credentials'
 import type { ResourcePolicyBindingFor } from '@/lib/resource-policies/registry'
 import { requireResourcePolicy } from '@/lib/resource-policies/repository'
 
@@ -83,11 +91,72 @@ export function requireCredentialGroupWorkflowActor(principal: Principal): Princ
   return requireConsistentWorkflowSubject(principal, requireWorkflowExecutionPrincipal(principal))
 }
 
-export async function requireCredentialGroupCredentialAccess(
-  principal: Principal,
+/**
+ * Authorizes a person using their own Credential Group credential from Chat.
+ * The copilot delegation names the signed-in user and no workflow, so only the
+ * actor statement is evaluated: the credential must be the one collected under
+ * that user's own live enrollment. Nothing the model passes can widen this;
+ * the acting user is the delegation's subject, not a tool argument.
+ */
+async function requireCredentialGroupActorCredentialAccess(
+  principal: Extract<Principal, { kind: 'delegated' }>,
   context: CredentialGroupAuthorizationContext & { credentialGroupEnrollmentId: string },
+  binding: ManagedCredentialGroupBinding | null,
   resourcePolicy: ResourcePolicyBindingFor<'credential_group'>
 ): Promise<void> {
+  const subject = resolvePrincipalSubject(principal)
+  if (subject?.kind !== 'sim_user' || !subject.userId) {
+    throw new OrchestrationError('forbidden', 'Credential Group actor access required')
+  }
+  /** Chat mints OAuth credentials only; a credential with no OAuth binding is not its to use. */
+  if (!binding) {
+    throw new OrchestrationError('forbidden', 'Credential Group credential access denied')
+  }
+  const [policy, actorAccess] = await Promise.all([
+    requireResourcePolicy({
+      workspaceId: context.workspaceId,
+      resourceType: 'credential_group',
+      resourceId: context.credentialGroupId,
+      codec: credentialGroupWorkflowAccessPolicyCodec,
+    }),
+    loadCredentialGroupEnrollmentAccessForSubject(context.credentialGroupId, subject),
+  ])
+  if (!actorAccess) {
+    throw new OrchestrationError('forbidden', 'Credential Group credential access denied')
+  }
+  const decision = evaluateCredentialGroupActorCredentialAccess({
+    document: policy.document,
+    credentialGroupId: context.credentialGroupId,
+    selectedEnrollmentId: context.credentialGroupEnrollmentId,
+    actorEnrollmentId: actorAccess.enrollmentId,
+    resourcePolicy,
+  })
+  if (decision.decision !== 'allow') {
+    throw new OrchestrationError('forbidden', 'Credential Group credential access denied')
+  }
+}
+
+export async function requireCredentialGroupCredentialAccess(
+  principal: Principal,
+  context: CredentialGroupAuthorizationContext & {
+    credentialId: string
+    credentialGroupEnrollmentId: string
+  },
+  resourcePolicy: ResourcePolicyBindingFor<'credential_group'>
+): Promise<void> {
+  /**
+   * A managed OAuth credential is usable only while its credential, enrollment,
+   * option, and group are all live, whoever is using it: an admin disabling the
+   * group or option denies the next mint from a workflow and from Chat alike. A
+   * managed MCP credential has no OAuth binding row and keeps its own checks.
+   */
+  const binding = await loadManagedCredentialGroupBinding(context.credentialId)
+  if (binding && !isManagedCredentialGroupBindingLive(binding)) {
+    throw new OrchestrationError('forbidden', 'Credential Group credential access denied')
+  }
+  if (principal.kind === 'delegated' && principal.serviceId === 'copilot') {
+    return requireCredentialGroupActorCredentialAccess(principal, context, binding, resourcePolicy)
+  }
   const executionPrincipal = requireWorkflowExecutionPrincipal(principal)
   const currentWorkflow = requireCurrentWorkflow(principal)
   const subject = requireConsistentWorkflowSubject(principal, executionPrincipal)

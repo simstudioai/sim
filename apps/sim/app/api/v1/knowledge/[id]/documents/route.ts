@@ -26,7 +26,12 @@ import { performUploadKnowledgeDocument } from '@/lib/knowledge/orchestration'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { validateFileType } from '@/lib/uploads/utils/validation'
-import { handleError, resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
+import {
+  handleError,
+  resolveKnowledgeBase,
+  resolveV1KnowledgeAccessScope,
+  serializeDate,
+} from '@/app/api/v1/knowledge/utils'
 import { authenticateRequest, v1ValidationErrorResponse } from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
@@ -73,7 +78,8 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Docume
         sortBy: sortBy as DocumentSortField,
         sortOrder: sortOrder as SortOrder,
       },
-      requestId
+      requestId,
+      await resolveV1KnowledgeAccessScope(userId, rateLimit, workspaceId)
     )
 
     return NextResponse.json({

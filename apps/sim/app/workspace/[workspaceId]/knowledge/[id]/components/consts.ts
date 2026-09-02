@@ -1,3 +1,7 @@
+/** Under the account picker of a per-member connector, whose account only browses. */
+export const BROWSE_WITH_HINT =
+  'Only used to pick folders and spaces below. The connector syncs as each member, not as this account.'
+
 export const SYNC_INTERVALS = [
   { label: 'Live', value: 5, requiresMax: true },
   { label: 'Every hour', value: 60, requiresMax: false },

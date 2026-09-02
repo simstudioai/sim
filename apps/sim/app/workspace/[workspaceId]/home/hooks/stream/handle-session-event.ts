@@ -1,6 +1,7 @@
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
 import { MothershipStreamV1SessionKind } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import { chatUrl } from '@/app/workspace/[workspaceId]/home/hooks/chat-url'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 
@@ -56,11 +57,7 @@ export function handleSessionEvent(ctx: StreamLoopContext, parsed: SessionEvent)
       }
       deps.setPendingMessages([])
       if (!deps.workflowIdRef.current) {
-        window.history.replaceState(
-          null,
-          '',
-          `/workspace/${deps.workspaceId}/chat/${payloadChatId}`
-        )
+        window.history.replaceState(null, '', chatUrl(deps.workspaceId, payloadChatId))
       }
     }
   }

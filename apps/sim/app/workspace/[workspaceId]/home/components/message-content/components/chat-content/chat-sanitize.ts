@@ -2,7 +2,9 @@ const HIDDEN_INLINE_REFERENCE_PATTERN =
   /`[^`\n]*(?:internal\/tool-results\/|internal\/blocktips\/|components\/integrations\/[^`\n]*README)[^`\n]*`/g
 
 /**
- * A complete workspace-resource tag: opener, payload, closer.
+ * A complete inline-chip tag — `<workspace_resource>` or `<source>` — as
+ * opener, payload, closer. Both are JSON-bodied tags the model places inside a
+ * sentence, so both attract the same stray backticks.
  *
  * Two constraints on the payload, both load-bearing:
  *
@@ -19,10 +21,10 @@ const HIDDEN_INLINE_REFERENCE_PATTERN =
  * is rare; the failure it replaces corrupts a whole message and is common.
  */
 const COMPLETE_TAG_SOURCE =
-  '<workspace_resource>(?:(?!<workspace_resource>)[^`])*?<\\/workspace_resource>'
+  '<(?<chipTag>workspace_resource|source)>(?:(?!<\\k<chipTag>>)[^`])*?<\\/\\k<chipTag>>'
 
 /** Non-global so {@link RegExp.test} has no `lastIndex` to carry between calls. */
-const COMPLETE_WORKSPACE_RESOURCE_TAG = new RegExp(COMPLETE_TAG_SOURCE)
+const COMPLETE_INLINE_CHIP_TAG = new RegExp(COMPLETE_TAG_SOURCE)
 
 /**
  * One left-to-right pass over the two things that can own a backtick: an inline
@@ -57,7 +59,7 @@ export function sanitizeChatDisplayContent(content: string): string {
       // lifts the tag out either way, so leaving the delimiters would strand a
       // pair of backticks around a hole. Anything else is someone else's span.
       const inner = match.slice(1, -1)
-      return COMPLETE_WORKSPACE_RESOURCE_TAG.test(inner) ? inner : match
+      return COMPLETE_INLINE_CHIP_TAG.test(inner) ? inner : match
     })
     .replace(HIDDEN_INLINE_REFERENCE_PATTERN, '')
 }

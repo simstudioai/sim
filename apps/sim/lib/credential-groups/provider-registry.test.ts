@@ -37,6 +37,18 @@ describe('Credential Group provider registry', () => {
     expect(getCredentialGroupProviderFromProviderId(service.providerId)).toBe('google-calendar')
   })
 
+  it('maps Google Drive to its existing OAuth provider and the Google managed policy', () => {
+    const service = getCredentialGroupProviderService('google-drive')
+
+    expect(service.name).toBe('Google Drive')
+    expect(service.providerId).toBe('google-drive')
+    expect(getCredentialGroupProviderFromProviderId(service.providerId)).toBe('google-drive')
+    expect(getCredentialGroupProviderAdapter('google-drive').provider).toBe('google-drive')
+    expect(getManagedOAuthConnectorPolicy('google-drive')?.getAuthorizationAppId('client')).toBe(
+      createGoogleManagedOAuthConnector('google-drive').getAuthorizationAppId('client')
+    )
+  })
+
   it.each(['confluence', 'jira'] as const)(
     'maps %s to its existing OAuth provider and adapter',
     (provider) => {

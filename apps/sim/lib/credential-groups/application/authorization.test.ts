@@ -2,18 +2,30 @@
  * @vitest-environment node
  */
 
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type { DelegatedPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 
 const mocks = vi.hoisted(() => ({
   loadEnrollmentAccess: vi.fn(),
+  loadBinding: vi.fn(),
   requirePolicy: vi.fn(),
 }))
 
 vi.mock('@/lib/credential-groups/credentials', () => ({
   loadCredentialGroupEnrollmentAccessForSubject: mocks.loadEnrollmentAccess,
+  loadManagedCredentialGroupBinding: mocks.loadBinding,
+  isManagedCredentialGroupBindingLive: (binding: {
+    managedOauthStatus: string
+    enrollmentStatus: string
+    groupStatus: string
+    optionStatus: string | null
+  }) =>
+    binding.managedOauthStatus === 'active' &&
+    ['in_progress', 'completed'].includes(binding.enrollmentStatus) &&
+    binding.groupStatus === 'active' &&
+    binding.optionStatus === 'active',
 }))
 
 vi.mock('@/lib/resource-policies/repository', () => ({
@@ -29,8 +41,21 @@ const context = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: null,
   allowPersonalApiKeys: true,
+  credentialId: 'credential-1',
   credentialGroupId: 'group-1',
   credentialGroupEnrollmentId: 'enrollment-1',
+}
+
+const liveBinding = {
+  credentialId: 'credential-1',
+  workspaceId: 'workspace-1',
+  providerId: 'google-email',
+  credentialGroupId: 'group-1',
+  credentialGroupOptionId: 'option-1',
+  managedOauthStatus: 'active',
+  enrollmentStatus: 'completed',
+  groupStatus: 'active',
+  optionStatus: 'active',
 }
 
 function storedPolicy(allowedWorkflowIds: string[] = []) {
@@ -82,10 +107,21 @@ function executorPrincipal(): WorkflowExecutionDelegatedPrincipal {
   }
 }
 
-function requireAccess(
-  principal: WorkflowExecutionDelegatedPrincipal,
-  accessContext = context
-): Promise<void> {
+function copilotPrincipal(subjectUserId: string | null = 'user-1'): DelegatedPrincipal {
+  return {
+    kind: 'delegated',
+    serviceId: 'copilot',
+    ...(subjectUserId ? { subjectUserId } : {}),
+    workspaceId: 'workspace-1',
+    delegationId: 'copilot-tool:call-1',
+    audience: 'sim:managed-oauth-credentials',
+    issuedAt: new Date(Date.now() - 1_000),
+    expiresAt: new Date(Date.now() + 60_000),
+    resourceScope: { credentialId: 'credential-1', chatId: 'chat-1' },
+  }
+}
+
+function requireAccess(principal: DelegatedPrincipal, accessContext = context): Promise<void> {
   return requireCredentialGroupCredentialAccess(
     principal,
     accessContext,
@@ -101,6 +137,54 @@ describe('requireCredentialGroupCredentialAccess', () => {
       enrollmentId: 'enrollment-1',
       email: 'person@example.com',
     })
+    mocks.loadBinding.mockResolvedValue(liveBinding)
+  })
+
+  it('denies a Chat turn once the credential group or its option is disabled', async () => {
+    mocks.loadBinding.mockResolvedValue({ ...liveBinding, optionStatus: 'disabled' })
+    await expect(requireAccess(copilotPrincipal())).rejects.toMatchObject({ code: 'forbidden' })
+
+    mocks.loadBinding.mockResolvedValue({ ...liveBinding, groupStatus: 'disabled' })
+    await expect(requireAccess(copilotPrincipal())).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('denies a workflow run the same way once the group or option is disabled', async () => {
+    mocks.loadBinding.mockResolvedValue({ ...liveBinding, optionStatus: 'disabled' })
+    await expect(requireAccess(executorPrincipal())).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.requirePolicy).not.toHaveBeenCalled()
+  })
+
+  it('denies a Chat turn for a credential with no OAuth binding, which a workflow may still hold', async () => {
+    mocks.loadBinding.mockResolvedValue(null)
+    await expect(requireAccess(copilotPrincipal())).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(requireAccess(executorPrincipal())).resolves.toBeUndefined()
+  })
+
+  it("allows a Chat turn to use only the credential under the signed-in user's own enrollment", async () => {
+    await expect(requireAccess(copilotPrincipal())).resolves.toBeUndefined()
+    expect(mocks.loadEnrollmentAccess).toHaveBeenCalledWith('group-1', {
+      kind: 'sim_user',
+      userId: 'user-1',
+    })
+
+    await expect(
+      requireAccess(copilotPrincipal(), { ...context, credentialGroupEnrollmentId: 'enrollment-2' })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('denies a Chat turn whose user holds no live enrollment, even for an allowlisted workflow', async () => {
+    mocks.requirePolicy.mockResolvedValue(storedPolicy(['workflow-1']))
+    mocks.loadEnrollmentAccess.mockResolvedValue(null)
+
+    await expect(requireAccess(copilotPrincipal())).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('denies a Chat turn with no Sim user subject before reading anything', async () => {
+    await expect(requireAccess(copilotPrincipal(null))).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    expect(mocks.requirePolicy).not.toHaveBeenCalled()
+    expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
   })
 
   it('allows an external actor to use only their own enrollment', async () => {

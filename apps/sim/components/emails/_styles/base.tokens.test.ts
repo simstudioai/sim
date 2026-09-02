@@ -101,8 +101,16 @@ describe('email geometry mirrors the platform', () => {
   })
 
   it('the CTA transcribes chipGeometryClass', () => {
-    const geometry = chipChrome.match(/chipGeometryClass = `([^`]+)`/)?.[1]
-    expect(geometry).toBeDefined()
+    // chipGeometryClass composes the unrounded geometry with the default radius,
+    // so the transcription reads both halves rather than one literal.
+    expect(chipChrome).toMatch(
+      /chipGeometryClass = `\$\{chipGeometryUnroundedClass\} \$\{chipRadiusClass\}`/
+    )
+    const unrounded = chipChrome.match(/chipGeometryUnroundedClass = `([^`]+)`/)?.[1]
+    const radius = chipChrome.match(/chipRadiusClass = '([^']+)'/)?.[1]
+    expect(unrounded).toBeDefined()
+    expect(radius).toBeDefined()
+    const geometry = `${unrounded} ${radius}`
     for (const token of ['h-[30px]', 'rounded-lg', 'px-2', 'text-sm']) {
       expect(geometry).toContain(token)
     }

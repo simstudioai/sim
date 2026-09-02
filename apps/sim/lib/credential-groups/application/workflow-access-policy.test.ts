@@ -6,11 +6,17 @@ import { describe, expect, it } from 'vitest'
 import {
   compileCredentialGroupWorkflowAccessPolicy,
   credentialGroupWorkflowAccessPolicyCodec,
+  decodeCredentialGroupKnowledgeConnectorAccess,
   decodeCredentialGroupWorkflowAccessPolicy,
+  evaluateCredentialGroupActorCredentialAccess,
+  evaluateCredentialGroupKnowledgeConnectorAccess,
   evaluateCredentialGroupWorkflowAccess,
   requireDefaultCredentialGroupWorkflowAccessPolicy,
 } from '@/lib/credential-groups/application/workflow-access-policy'
-import { CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT } from '@/lib/credential-groups/limits'
+import {
+  CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT,
+  CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT,
+} from '@/lib/credential-groups/limits'
 import type { ResourcePolicyBindingFor } from '@/lib/resource-policies/registry'
 
 const GROUP_ID = 'group-1'
@@ -23,6 +29,17 @@ function policy(workflowIds: string[]) {
   return compileCredentialGroupWorkflowAccessPolicy({
     credentialGroupId: GROUP_ID,
     allowedWorkflowIds: workflowIds,
+  })
+}
+
+function connectorPolicy(
+  knowledgeConnectorAccess: Array<{ credentialGroupOptionId: string; connectorIds: string[] }>,
+  workflowIds: string[] = []
+) {
+  return compileCredentialGroupWorkflowAccessPolicy({
+    credentialGroupId: GROUP_ID,
+    allowedWorkflowIds: workflowIds,
+    knowledgeConnectorAccess,
   })
 }
 
@@ -194,6 +211,206 @@ describe('Credential Group workflow access policy', () => {
     ).toThrow()
   })
 
+  describe('knowledge connector access', () => {
+    it('compiles one sorted, option-conditioned statement per credential option after the workflow statement', () => {
+      const document = connectorPolicy(
+        [
+          { credentialGroupOptionId: 'option-b', connectorIds: ['connector-2', 'connector-1'] },
+          { credentialGroupOptionId: 'option-a', connectorIds: ['connector-3'] },
+          { credentialGroupOptionId: 'option-empty', connectorIds: [] },
+        ],
+        ['workflow-1']
+      )
+      expect(document.statements.map((statement) => statement.sid)).toEqual([
+        'CredentialGroupActorCredentialAccess',
+        'WorkflowCredentialAccess',
+        'KnowledgeConnectorCredentialAccess:option-a',
+        'KnowledgeConnectorCredentialAccess:option-b',
+      ])
+      expect(document.statements[3]).toEqual({
+        sid: 'KnowledgeConnectorCredentialAccess:option-b',
+        effect: 'allow',
+        actions: ['credential_groups.credentials.use'],
+        principals: [
+          { type: 'knowledge_connector', connectorId: 'connector-1' },
+          { type: 'knowledge_connector', connectorId: 'connector-2' },
+        ],
+        condition: { StringEquals: { 'credential_group:OptionId': 'option-b' } },
+      })
+      expect(decodeCredentialGroupKnowledgeConnectorAccess(document, GROUP_ID)).toEqual([
+        { credentialGroupOptionId: 'option-a', connectorIds: ['connector-3'] },
+        { credentialGroupOptionId: 'option-b', connectorIds: ['connector-1', 'connector-2'] },
+      ])
+      expect(decodeCredentialGroupWorkflowAccessPolicy(document, GROUP_ID)).toEqual(['workflow-1'])
+    })
+
+    it('rejects a connector bound to two options, repeats, and oversized options', () => {
+      expect(() =>
+        connectorPolicy([
+          { credentialGroupOptionId: 'option-a', connectorIds: ['connector-1'] },
+          { credentialGroupOptionId: 'option-b', connectorIds: ['connector-1'] },
+        ])
+      ).toThrow('more than one credential option')
+      expect(() =>
+        connectorPolicy([
+          { credentialGroupOptionId: 'option-a', connectorIds: ['connector-1', 'connector-1'] },
+        ])
+      ).toThrow('repeats knowledge connector connector-1')
+      expect(() =>
+        connectorPolicy([
+          { credentialGroupOptionId: 'option-a', connectorIds: ['connector-1'] },
+          { credentialGroupOptionId: 'option-a', connectorIds: ['connector-2'] },
+        ])
+      ).toThrow('repeats credential option option-a')
+      expect(() =>
+        connectorPolicy([
+          {
+            credentialGroupOptionId: 'option-a',
+            connectorIds: Array.from(
+              { length: CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT + 1 },
+              (_, index) => `connector-${index}`
+            ),
+          },
+        ])
+      ).toThrow(
+        `more than ${CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT} knowledge connectors`
+      )
+    })
+
+    it.each([
+      [
+        'a connector statement before the workflow statement',
+        () => {
+          const document = connectorPolicy(
+            [{ credentialGroupOptionId: 'option-a', connectorIds: ['connector-1'] }],
+            ['workflow-1']
+          )
+          return {
+            statements: [document.statements[0], document.statements[2], document.statements[1]],
+          }
+        },
+      ],
+      [
+        'unsorted option statements',
+        () => {
+          const document = connectorPolicy([
+            { credentialGroupOptionId: 'option-a', connectorIds: ['connector-1'] },
+            { credentialGroupOptionId: 'option-b', connectorIds: ['connector-2'] },
+          ])
+          return {
+            statements: [document.statements[0], document.statements[2], document.statements[1]],
+          }
+        },
+      ],
+      [
+        'a SID naming a different option than its condition',
+        () => {
+          const document = connectorPolicy([
+            { credentialGroupOptionId: 'option-a', connectorIds: ['connector-1'] },
+          ])
+          return {
+            statements: [
+              document.statements[0],
+              { ...document.statements[1], sid: 'KnowledgeConnectorCredentialAccess:option-b' },
+            ],
+          }
+        },
+      ],
+      [
+        'a connector statement without an option condition',
+        () => {
+          const document = connectorPolicy([
+            { credentialGroupOptionId: 'option-a', connectorIds: ['connector-1'] },
+          ])
+          return {
+            statements: [
+              document.statements[0],
+              { ...document.statements[1], condition: undefined },
+            ],
+          }
+        },
+      ],
+      [
+        'a connector statement carrying a workflow principal',
+        () => {
+          const document = connectorPolicy([
+            { credentialGroupOptionId: 'option-a', connectorIds: ['connector-1'] },
+          ])
+          return {
+            statements: [
+              document.statements[0],
+              {
+                ...document.statements[1],
+                principals: [{ type: 'workflow', workflowId: 'workflow-1' }],
+              },
+            ],
+          }
+        },
+      ],
+    ])('rejects %s', (_name, replacement) => {
+      const candidate = { ...policy([]), ...replacement() }
+      expect(() =>
+        credentialGroupWorkflowAccessPolicyCodec.parse(candidate, {
+          type: 'credential_group',
+          id: GROUP_ID,
+        })
+      ).toThrow()
+    })
+
+    it('grants exactly the named connector for exactly the conditioned option', () => {
+      const document = connectorPolicy(
+        [{ credentialGroupOptionId: 'option-a', connectorIds: ['connector-1'] }],
+        ['workflow-1']
+      )
+      const decide = (connectorId: string, credentialGroupOptionId: string) =>
+        evaluateCredentialGroupKnowledgeConnectorAccess({
+          document,
+          credentialGroupId: GROUP_ID,
+          connectorId,
+          credentialGroupOptionId,
+          resourcePolicy: RESOURCE_POLICY,
+        })
+      expect(decide('connector-1', 'option-a')).toEqual({
+        decision: 'allow',
+        statementSid: 'KnowledgeConnectorCredentialAccess:option-a',
+      })
+      expect(decide('connector-1', 'option-b')).toEqual({ decision: 'implicit_deny' })
+      expect(decide('connector-2', 'option-a')).toEqual({ decision: 'implicit_deny' })
+    })
+
+    it('never lets a connector statement satisfy an actor or workflow evaluation', () => {
+      const document = connectorPolicy([
+        { credentialGroupOptionId: 'option-a', connectorIds: ['connector-1'] },
+      ])
+      expect(
+        evaluateCredentialGroupWorkflowAccess({
+          document,
+          credentialGroupId: GROUP_ID,
+          selectedEnrollmentId: 'enrollment-2',
+          actorEnrollmentId: 'enrollment-1',
+          currentWorkflow: {
+            workflowId: 'workflow-1',
+            mode: 'deployment',
+            deploymentVersionId: 'version-1',
+          },
+          resourcePolicy: RESOURCE_POLICY,
+        })
+      ).toEqual({ decision: 'implicit_deny' })
+    })
+
+    it('treats connector grants as a non-default policy', () => {
+      expect(() =>
+        requireDefaultCredentialGroupWorkflowAccessPolicy({
+          revision: 1,
+          document: connectorPolicy([
+            { credentialGroupOptionId: 'option-a', connectorIds: ['connector-1'] },
+          ]),
+          credentialGroupId: GROUP_ID,
+        })
+      ).toThrow('non-default')
+    })
+  })
+
   it('requires the trigger-created policy to be revision one with only actor access', () => {
     expect(() =>
       requireDefaultCredentialGroupWorkflowAccessPolicy({
@@ -216,6 +433,21 @@ describe('Credential Group workflow access policy', () => {
         credentialGroupId: GROUP_ID,
       })
     ).toThrow('non-default')
+  })
+
+  it("evaluates the actor statement alone when there is no workflow, granting only the actor's own credential", () => {
+    const document = policy(['workflow-1'])
+    const evaluate = (selectedEnrollmentId: string) =>
+      evaluateCredentialGroupActorCredentialAccess({
+        document,
+        credentialGroupId: GROUP_ID,
+        selectedEnrollmentId,
+        actorEnrollmentId: 'enrollment-1',
+        resourcePolicy: RESOURCE_POLICY,
+      }).decision
+
+    expect(evaluate('enrollment-1')).toBe('allow')
+    expect(evaluate('enrollment-2')).toBe('implicit_deny')
   })
 
   it('evaluates actor ownership and deployed workflow access through registered statements', () => {

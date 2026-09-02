@@ -15,6 +15,8 @@ import {
   textKey,
 } from '@/lib/api/list-query'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
+import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import type {
   BatchOperationResult,
   ChunkData,
@@ -76,7 +78,8 @@ const CHUNK_SORTS = {
 export async function queryChunks(
   documentId: string,
   filters: ChunkFilters,
-  requestId: string
+  requestId: string,
+  access: KnowledgeAccessScope
 ): Promise<ChunkQueryResult> {
   const {
     search,
@@ -89,7 +92,12 @@ export async function queryChunks(
   } = filters
   const keys = CHUNK_SORTS[sortBy]
 
-  const conditions = [eq(embedding.documentId, documentId)]
+  /**
+   * The document context that reached here was already loaded under the same
+   * scope; the join repeats the check at the row so a revocation between the
+   * two reads still hides the content.
+   */
+  const conditions = [eq(embedding.documentId, documentId), knowledgeAccessCondition(access)]
 
   if (enabled === 'true') {
     conditions.push(eq(embedding.enabled, true))
@@ -130,6 +138,7 @@ export async function queryChunks(
       updatedAt: embedding.updatedAt,
     })
     .from(embedding)
+    .innerJoin(document, eq(embedding.documentId, document.id))
     .where(and(...pageConditions))
     .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
     .limit(limit + 1)
@@ -138,6 +147,7 @@ export async function queryChunks(
   const totalCount = await db
     .select({ count: sql`count(*)` })
     .from(embedding)
+    .innerJoin(document, eq(embedding.documentId, document.id))
     .where(and(...conditions))
 
   const page = keysetPage(keys, rows as ChunkData[], limit)

@@ -512,6 +512,8 @@ export const Panel = memo(function Panel() {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
       if (!detail?.message) return
+      /** A mode-bearing send (Ask) belongs to the home chat, which has the mode; left unclaimed, it is stored for that surface. */
+      if (detail.requestMode) return
       e.preventDefault()
       setActiveTab('copilot')
       copilotSendMessage(detail.message, detail.fileAttachments, detail.contexts, {

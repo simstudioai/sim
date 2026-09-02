@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -103,6 +103,7 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import {
   bulkDeleteKnowledgeDocuments,
   createKnowledgeDocuments,
@@ -113,7 +114,11 @@ import {
   upsertKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
 
+/** Every mocked context carries the workspace read scope the resolvers would attach. */
+const knowledgeAccess = { get: async () => WORKSPACE_ACCESS_SCOPE }
+
 const context = {
+  access: knowledgeAccess,
   workspaceId: 'workspace-1',
   workspaceOrganizationId: null,
   allowPersonalApiKeys: true,
@@ -251,6 +256,69 @@ describe('knowledge document application use cases', () => {
     })
   })
 
+  /**
+   * The document being replaced is looked up and deleted under the caller's
+   * access, so a restricted document is neither confirmed nor replaced, and one
+   * that leaves the caller's reach mid-request keeps the replacement as an
+   * ordinary upload.
+   */
+  it('replaces only a document the caller may read, under the same access', async () => {
+    queueTableRows(schemaMock.document, [{ id: 'existing-1' }])
+
+    const result = await upsertKnowledgeDocument.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        filename: document.filename,
+        fileUrl: document.fileUrl,
+        fileSize: document.fileSize,
+        mimeType: document.mimeType,
+        resolveBillingAttribution: async () => ({
+          actorUserId: 'user-1',
+          workspaceId: 'workspace-1',
+        }),
+        resolveSecretProvenances: () => undefined,
+      },
+    })
+
+    expect(result).toMatchObject({ isUpdate: true, previousDocumentId: 'existing-1' })
+    expect(mocks.deleteDocument).toHaveBeenCalledWith(
+      'knowledge-1',
+      'existing-1',
+      expect.any(String),
+      WORKSPACE_ACCESS_SCOPE
+    )
+    expect(mocks.deleteDocumentById).not.toHaveBeenCalled()
+  })
+
+  it('keeps the replacement when the previous document left the caller’s reach', async () => {
+    queueTableRows(schemaMock.document, [{ id: 'existing-1' }])
+    mocks.deleteDocument.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Document not found')
+    )
+
+    const result = await upsertKnowledgeDocument.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        filename: document.filename,
+        fileUrl: document.fileUrl,
+        fileSize: document.fileSize,
+        mimeType: document.mimeType,
+        resolveBillingAttribution: async () => ({
+          actorUserId: 'user-1',
+          workspaceId: 'workspace-1',
+        }),
+        resolveSecretProvenances: () => undefined,
+      },
+    })
+
+    expect(result).toMatchObject({ isUpdate: false, previousDocumentId: null })
+    expect(mocks.deleteDocumentById).not.toHaveBeenCalled()
+  })
+
   it('authorizes the canonical knowledge base before listing documents', async () => {
     await listKnowledgeDocuments.execute({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
@@ -262,7 +330,8 @@ describe('knowledge document application use cases', () => {
     })
 
     expect(mocks.resolveKnowledgeBase).toHaveBeenCalledWith(
-      expect.objectContaining({ assertedWorkspaceId: 'workspace-1' })
+      expect.objectContaining({ assertedWorkspaceId: 'workspace-1' }),
+      expect.objectContaining({ kind: 'session' })
     )
     expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.getDocuments.mock.invocationCallOrder[0]
@@ -271,6 +340,7 @@ describe('knowledge document application use cases', () => {
 
   it('lets the owner list documents in a legacy personal knowledge base', async () => {
     mocks.resolveKnowledgeBase.mockResolvedValueOnce({
+      access: knowledgeAccess,
       workspaceId: undefined,
       legacyPersonalOwnerUserId: 'user-1',
       knowledgeBaseId: 'legacy-knowledge',
@@ -288,13 +358,15 @@ describe('knowledge document application use cases', () => {
     expect(mocks.getDocuments).toHaveBeenCalledWith(
       'legacy-knowledge',
       expect.any(Object),
-      expect.any(String)
+      expect.any(String),
+      WORKSPACE_ACCESS_SCOPE
     )
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
   it('projects mutation audit entries for an owning legacy personal principal', async () => {
     mocks.resolveDocument.mockResolvedValueOnce({
+      access: knowledgeAccess,
       workspaceId: undefined,
       legacyPersonalOwnerUserId: 'user-1',
       knowledgeBaseId: 'legacy-knowledge',
@@ -326,6 +398,7 @@ describe('knowledge document application use cases', () => {
 
   it('conceals legacy personal documents from a non-owner', async () => {
     mocks.resolveKnowledgeBase.mockResolvedValueOnce({
+      access: knowledgeAccess,
       workspaceId: undefined,
       legacyPersonalOwnerUserId: 'user-1',
       knowledgeBaseId: 'legacy-knowledge',
@@ -511,7 +584,8 @@ describe('knowledge document application use cases', () => {
     expect(mocks.deleteDocument).toHaveBeenCalledWith(
       'knowledge-1',
       'document-1',
-      expect.any(String)
+      expect.any(String),
+      WORKSPACE_ACCESS_SCOPE
     )
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({

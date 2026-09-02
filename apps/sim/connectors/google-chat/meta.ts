@@ -54,6 +54,12 @@ export const googleChatConnectorMeta: ConnectorMeta = {
    */
   rehydrateOnFullSync: true,
 
+  /**
+   * `spaces.list` returns only the spaces the caller is a member of, so one
+   * member's crawl is exactly what they may read. `maxMessages` bounds each
+   * space document's window, not which spaces are listed, so it is not a cap.
+   */
+  permissionScopedListing: { capFieldIds: ['maxSpaces'] },
   configFields: [
     {
       id: 'spaceTypes',

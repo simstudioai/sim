@@ -26,8 +26,15 @@ import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
 import type { AgentGroupItem } from './components'
-import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
-import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
+import {
+  AgentGroup,
+  ChatContent,
+  CircleStop,
+  MessageSources,
+  Options,
+  PendingTagIndicator,
+} from './components'
+import { collectMessageSources, deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 
 const FILE_SUBAGENT_ID = 'file'
 /** Quiet period before the shimmer takes the slot back from streamed output. */
@@ -872,12 +879,28 @@ function MessageContentInner({
   }, [])
   const [isStreamIdle, setIsStreamIdle] = useState(false)
 
-  const segments: MessageSegment[] =
-    parsed.length > 0
-      ? parsed
-      : fallbackContent?.trim()
-        ? [{ type: 'text' as const, id: 'text-fallback', content: fallbackContent }]
-        : []
+  const segments = useMemo<MessageSegment[]>(
+    () =>
+      parsed.length > 0
+        ? parsed
+        : fallbackContent?.trim()
+          ? [{ type: 'text', id: 'text-fallback', content: fallbackContent }]
+          : [],
+    [parsed, fallbackContent]
+  )
+  /**
+   * Collected from the segments that render, not the raw blocks: that is the
+   * same text the inline chips come from, so the footer agrees with them — it
+   * covers the fallback text of a block-less message and leaves out lane text
+   * that `parseBlocks` folds into agent groups.
+   */
+  const sources = useMemo(
+    () =>
+      collectMessageSources(
+        segments.flatMap((segment) => (segment.type === 'text' ? [segment.content] : []))
+      ),
+    [segments]
+  )
   const visibleStreamActivityKey = getVisibleStreamActivityKey(segments)
 
   // Every visible stream update restarts the quiet-period clock. A layout
@@ -934,6 +957,13 @@ function MessageContentInner({
     (segments.length === 0 ||
       trailingPendingTag ||
       (isStreamIdle && !trailingStreamActivity && !hasExecutingTool))
+
+  const actionsRow = (
+    <div className='flex items-center gap-0.5'>
+      {actions}
+      {sources.length > 0 && <MessageSources sources={sources} />}
+    </div>
+  )
 
   return (
     <div>
@@ -1032,10 +1062,10 @@ function MessageContentInner({
             <CircleStop className='size-[16px] shrink-0 text-[var(--text-icon)]' />
             <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
           </div>
-          {actions && <div className='mt-[10px]'>{actions}</div>}
+          {actions && <div className='mt-[10px]'>{actionsRow}</div>}
         </>
       ) : (
-        actions && <div className={TAIL_REGION_CLASSES}>{actions}</div>
+        actions && <div className={TAIL_REGION_CLASSES}>{actionsRow}</div>
       )}
     </div>
   )

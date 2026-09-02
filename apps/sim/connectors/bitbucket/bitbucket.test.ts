@@ -490,6 +490,21 @@ describe('bitbucket maxItems cap', () => {
     expect(syncContext.listingCapped).toBe(true)
   })
 
+  it('reads a zero cap, which members mode writes, as unlimited', async () => {
+    mockApi([[/\/src\//, () => jsonResponse({ values: [fileEntry('a.md'), fileEntry('b.md')] })]])
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await bitbucketConnector.listDocuments(
+      ACCESS_TOKEN,
+      { ...CONFIG, maxItems: 0 },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(2)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
   it('leaves the listing reconcilable when no cap is configured', async () => {
     mockApi([[/\/src\//, () => jsonResponse({ values: [fileEntry('a.md'), fileEntry('b.md')] })]])
 
@@ -530,6 +545,42 @@ describe('bitbucket maxItems cap', () => {
       'file:b.md',
     ])
     expect(result.documents[0].skippedReason).toMatch(/size limit/)
+  })
+})
+
+describe('bitbucket listing scope', () => {
+  it.each([403, 404])(
+    'reports a repository the token cannot reach (%i) as an unavailable listing scope',
+    async (status) => {
+      mockApi([[/\/repositories\/acme\/widgets$/, () => jsonResponse({ type: 'error' }, status)]])
+
+      const error = await bitbucketConnector
+        .listDocuments(ACCESS_TOKEN, CONFIG, undefined, {})
+        .catch((caught: unknown) => caught)
+
+      expect(bitbucketConnector.isListingScopeUnavailableError?.(error)).toBe(true)
+    }
+  )
+
+  it('reports a pull request listing the token cannot reach as an unavailable listing scope', async () => {
+    mockApi([[/\/pullrequests/, () => jsonResponse({ type: 'error' }, 403)]])
+
+    const error = await bitbucketConnector
+      .listDocuments(ACCESS_TOKEN, PR_CONFIG, undefined, {})
+      .catch((caught: unknown) => caught)
+
+    expect(bitbucketConnector.isListingScopeUnavailableError?.(error)).toBe(true)
+  })
+
+  it('keeps any other repository failure retryable', async () => {
+    mockApi([[/\/repositories\/acme\/widgets$/, () => jsonResponse({ type: 'error' }, 500)]])
+
+    const error = await bitbucketConnector
+      .listDocuments(ACCESS_TOKEN, CONFIG, undefined, {})
+      .catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(bitbucketConnector.isListingScopeUnavailableError?.(error)).toBe(false)
   })
 })
 
@@ -844,13 +895,13 @@ describe('bitbucket validateConfig', () => {
     ).toEqual({ valid: true })
   })
 
-  it('rejects a non-positive maxItems before spending a request', async () => {
+  it('rejects a negative maxItems before spending a request', async () => {
     mockApi([])
 
     expect(
       await bitbucketConnector.validateConfig(ACCESS_TOKEN, {
         ...CONFIG,
-        maxItems: '0',
+        maxItems: '-1',
       })
     ).toEqual({ valid: false, error: 'Max items must be a positive integer' })
   })

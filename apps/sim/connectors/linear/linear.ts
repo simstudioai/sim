@@ -6,7 +6,13 @@ import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { linearConnectorMeta } from '@/connectors/linear/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
+import {
+  ConnectorListingScopeUnavailableError,
+  isListingScopeUnavailableError,
+  joinTagArray,
+  parseMultiValue,
+  parseTagDate,
+} from '@/connectors/utils'
 import { linearAuthorizationHeader } from '@/tools/linear/utils'
 
 const logger = createLogger('LinearConnector')
@@ -55,6 +61,15 @@ const MAX_RATE_LIMIT_WAIT_MS = 30_000
 /**
  * Detects Linear's `RATELIMITED` extension code anywhere in a GraphQL error array.
  */
+function isEntityNotFoundError(entry: unknown): boolean {
+  if (!entry || typeof entry !== 'object') return false
+  const error = entry as { message?: unknown; extensions?: { code?: unknown } }
+  return (
+    error.extensions?.code === 'ENTITY_NOT_FOUND' ||
+    (typeof error.message === 'string' && /entity not found/i.test(error.message))
+  )
+}
+
 function isRateLimitedErrors(errors: unknown[] | undefined): boolean {
   if (!Array.isArray(errors)) return false
   return errors.some((entry) => {
@@ -129,7 +144,11 @@ async function linearGraphQL(
      */
     if (Array.isArray(json?.errors) && json.errors.length > 0) {
       logger.error('Linear GraphQL errors', { errors: json.errors })
-      throw new Error(`Linear GraphQL error: ${JSON.stringify(json.errors)}`)
+      const described = `Linear GraphQL error: ${JSON.stringify(json.errors)}`
+      /** A team or project the caller cannot see is reported as an entity that does not exist. */
+      throw json.errors.some(isEntityNotFoundError)
+        ? new ConnectorListingScopeUnavailableError(described, response.status)
+        : new Error(described)
     }
 
     if (!json?.data || typeof json.data !== 'object') {
@@ -296,6 +315,8 @@ function issueToDocument(issue: Record<string, unknown>): ExternalDocument {
 
 export const linearConnector: ConnectorConfig = {
   ...linearConnectorMeta,
+
+  isListingScopeUnavailableError,
 
   listDocuments: async (
     accessToken: string,

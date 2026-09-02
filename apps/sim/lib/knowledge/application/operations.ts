@@ -386,6 +386,50 @@ export const knowledgeOperations = {
     capability: 'knowledge.use',
     ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
+  /**
+   * Which people a connector crawls as is an admin decision: members mode
+   * grants the connector every enrolled member's credential. Session only —
+   * it is a settings action, not something an agent or key performs.
+   */
+  updateConnectorAccess: defineWorkspaceOperation({
+    id: 'knowledge.connectors.access.update',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    capability: 'knowledge.use',
+    principalKinds: ['session'],
+  }),
+  /** Every per-member connector in the workspace, with where the viewer stands on each. */
+  listWorkspaceMemberConnectors: defineWorkspaceOperation({
+    id: 'knowledge.connectors.members.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'knowledge.use',
+    principalKinds: ['session'],
+  }),
+  /**
+   * A workspace member joining a per-member connector: any reader may connect
+   * their own account, which only ever widens what they themselves see.
+   */
+  enrollConnectorMember: defineWorkspaceOperation({
+    id: 'knowledge.connectors.members.enroll',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'knowledge.use',
+    principalKinds: ['session'],
+  }),
+  /**
+   * Connecting a Sim Search source: any reader may connect their own account.
+   * The first connect of a source also creates its knowledge base and
+   * connector, which the use case reserves for an admin and refuses to anyone
+   * else with the way forward (ask an admin to connect the source first).
+   */
+  simSearchConnect: defineWorkspaceOperation({
+    id: 'knowledge.simSearch.connect',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'knowledge.use',
+    principalKinds: ['session'],
+  }),
   deleteConnector: defineWorkspaceOperation({
     id: 'knowledge.connectors.delete',
     minimumRole: 'write',

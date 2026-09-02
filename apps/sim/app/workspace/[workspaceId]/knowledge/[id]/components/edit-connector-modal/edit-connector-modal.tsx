@@ -5,6 +5,7 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
+  ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -12,21 +13,36 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipModalTabs,
+  type ComboboxOption,
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
 import { RefreshCw, SquareArrowUpRight } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
+import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
+import {
+  ConnectorAccessField,
+  type ConnectorAccessSelection,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
-import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
+import {
+  BROWSE_WITH_HINT,
+  SYNC_INTERVALS,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import type {
   ConfigFieldMap,
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
+import {
+  memberCapFieldIds,
+  useConnectorMemberGroupOptions,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-member-group-options'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
@@ -36,7 +52,9 @@ import {
   useExcludeConnectorDocument,
   useRestoreConnectorDocument,
   useUpdateConnector,
+  useUpdateConnectorAccess,
 } from '@/hooks/queries/kb/connectors'
+import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 
 const logger = createLogger('EditConnectorModal')
 
@@ -44,6 +62,27 @@ const logger = createLogger('EditConnectorModal')
 const INTERNAL_CONFIG_KEYS = new Set(['tagSlotMapping', 'disabledTagIds', '_canonicalModes'])
 
 const CANONICAL_MODES_KEY = '_canonicalModes'
+
+/** The access a connector row currently has, as the Access field edits it. */
+function currentAccess(connector: ConnectorData): ConnectorAccessSelection {
+  if (connector.accessMode === 'members') {
+    return {
+      accessMode: 'members',
+      credentialGroupId: connector.credentialGroupId ?? undefined,
+      credentialGroupOptionId: connector.credentialGroupOptionId ?? undefined,
+    }
+  }
+  return { accessMode: 'workspace' }
+}
+
+function accessChanged(current: ConnectorAccessSelection, next: ConnectorAccessSelection): boolean {
+  if (current.accessMode !== next.accessMode) return true
+  if (next.accessMode === 'workspace') return false
+  return (
+    current.credentialGroupId !== next.credentialGroupId ||
+    current.credentialGroupOptionId !== next.credentialGroupOptionId
+  )
+}
 
 function readPersistedCanonicalModes(
   sourceConfig: Record<string, unknown>
@@ -130,6 +169,8 @@ export function EditConnectorModal({
 
   const [activeTab, setActiveTab] = useState('settings')
   const [syncInterval, setSyncInterval] = useState(connector.syncIntervalMinutes)
+  const [access, setAccess] = useState<ConnectorAccessSelection>(() => currentAccess(connector))
+  const [workspaceCredentialId, setWorkspaceCredentialId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   /**
@@ -191,10 +232,40 @@ export function EditConnectorModal({
     initialCanonicalModes,
   })
 
-  const { ownerBilling } = useWorkspaceHostContext()
-  const { mutate: updateConnector, isPending: isSaving } = useUpdateConnector()
+  const { ownerBilling, features } = useWorkspaceHostContext()
+  const { canAdmin } = useUserPermissionsContext()
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { mutate: updateConnector, isPending: isSavingSettings } = useUpdateConnector()
+  const { mutate: updateAccess, isPending: isSwitchingAccess } = useUpdateConnectorAccess()
+  const isSaving = isSavingSettings || isSwitchingAccess
+  /**
+   * The field shows where the flag is on. A connector already syncing per
+   * member keeps it where the flag has since been turned off, so an admin can
+   * still bring it back to workspace mode; per-member cannot be re-chosen.
+   */
+  const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const showAccessField = memberAccessAvailable || connector.accessMode === 'members'
 
   const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
+
+  const accessDirty = accessChanged(currentAccess(connector), access)
+  const groupOptions = useConnectorMemberGroupOptions({
+    workspaceId,
+    connectorConfig,
+    enabled: canAdmin && memberAccessAvailable,
+  })
+  /** Leaving members mode needs the credential the connector syncs as from then on. */
+  const needsWorkspaceCredential =
+    accessDirty && access.accessMode === 'workspace' && connector.accessMode === 'members'
+  const accessComplete =
+    !accessDirty ||
+    (access.accessMode === 'members'
+      ? !groupOptions.needsChoice || Boolean(access.credentialGroupOptionId)
+      : !needsWorkspaceCredential || Boolean(workspaceCredentialId))
+  /** A disabled member sync is re-enabled by applying the current binding again. */
+  const canReenableMemberSync =
+    !accessDirty && connector.accessMode === 'members' && connector.memberSyncStatus === 'disabled'
+  const hiddenCapFieldIds = memberCapFieldIds(connectorConfig, access.accessMode)
 
   const persistedCanonicalModes = useMemo(
     () => readPersistedCanonicalModes(connector.sourceConfig),
@@ -253,11 +324,43 @@ export function EditConnectorModal({
     updateConnector(
       { knowledgeBaseId, connectorId: connector.id, updates },
       {
-        onSuccess: () => {
-          onOpenChange(false)
-        },
+        onSuccess: () => onOpenChange(false),
         onError: (err) => {
           logger.error('Failed to update connector', { error: err.message })
+          setError(err.message)
+        },
+      }
+    )
+  }
+
+  /**
+   * The mode switch is its own admin operation: it rewrites document access
+   * and queues a run of the other engine, so it is applied on its own rather
+   * than folded into a settings save that would race the run it starts.
+   */
+  const handleApplyAccess = () => {
+    setError(null)
+    updateAccess(
+      {
+        knowledgeBaseId,
+        connectorId: connector.id,
+        access:
+          access.accessMode === 'members'
+            ? {
+                accessMode: 'members',
+                credentialGroupId: access.credentialGroupId,
+                credentialGroupOptionId: access.credentialGroupOptionId,
+              }
+            : {
+                accessMode: 'workspace',
+                credentialId: workspaceCredentialId ?? undefined,
+              },
+      },
+      {
+        /** The connector prop is a snapshot; closing hands the refreshed row to the next open. */
+        onSuccess: () => onOpenChange(false),
+        onError: (err) => {
+          logger.error('Failed to switch connector access', { error: err.message })
           setError(err.message)
         },
       }
@@ -293,18 +396,35 @@ export function EditConnectorModal({
         {activeTab === 'settings' ? (
           <SettingsTab
             connectorConfig={connectorConfig}
+            persistedAccessMode={connector.accessMode === 'members' ? 'members' : 'workspace'}
             sourceConfig={sourceConfig}
             credentialId={connector.credentialId}
             canonicalGroups={canonicalGroups}
             canonicalModes={canonicalModes}
             onToggleCanonicalMode={toggleCanonicalMode}
             onFieldChange={handleFieldChange}
-            isFieldVisible={isFieldVisible}
+            isFieldVisible={(field) => isFieldVisible(field) && !hiddenCapFieldIds.has(field.id)}
             syncInterval={syncInterval}
             setSyncInterval={setSyncInterval}
             hasMaxAccess={hasMaxAccess}
             isSaving={isSaving}
             error={error}
+            access={access}
+            onAccessChange={setAccess}
+            canAdmin={canAdmin}
+            showAccessField={showAccessField}
+            allowMembers={memberAccessAvailable}
+            groupOptions={groupOptions}
+            canReenableMemberSync={canReenableMemberSync}
+            accessDirty={accessDirty}
+            accessComplete={accessComplete}
+            isSwitchingAccess={isSwitchingAccess}
+            onApplyAccess={handleApplyAccess}
+            onResetAccess={() => setAccess(currentAccess(connector))}
+            workspaceId={workspaceId}
+            needsWorkspaceCredential={needsWorkspaceCredential}
+            workspaceCredentialId={workspaceCredentialId}
+            onWorkspaceCredentialChange={setWorkspaceCredentialId}
           />
         ) : (
           <DocumentsTab knowledgeBaseId={knowledgeBaseId} connectorId={connector.id} />
@@ -317,7 +437,8 @@ export function EditConnectorModal({
           primaryAction={{
             label: isSaving ? 'Saving…' : 'Save',
             onClick: handleSave,
-            disabled: !hasChanges || isSaving,
+            /** An open access change is applied by its own control, never folded into Save. */
+            disabled: !hasChanges || accessDirty || isSaving,
           }}
         />
       )}
@@ -327,6 +448,8 @@ export function EditConnectorModal({
 
 interface SettingsTabProps {
   connectorConfig: ConnectorMeta | null
+  /** The mode the connector is saved in, which the draft `access` may differ from. */
+  persistedAccessMode: 'workspace' | 'members'
   sourceConfig: ConfigFieldMap
   credentialId: string | null
   canonicalGroups: Map<string, ConnectorConfigField[]>
@@ -339,10 +462,27 @@ interface SettingsTabProps {
   hasMaxAccess: boolean
   isSaving: boolean
   error: string | null
+  access: ConnectorAccessSelection
+  onAccessChange: (access: ConnectorAccessSelection) => void
+  canAdmin: boolean
+  showAccessField: boolean
+  allowMembers: boolean
+  groupOptions: ReturnType<typeof useConnectorMemberGroupOptions>
+  canReenableMemberSync: boolean
+  accessDirty: boolean
+  accessComplete: boolean
+  isSwitchingAccess: boolean
+  onApplyAccess: () => void
+  onResetAccess: () => void
+  workspaceId: string
+  needsWorkspaceCredential: boolean
+  workspaceCredentialId: string | null
+  onWorkspaceCredentialChange: (credentialId: string) => void
 }
 
 function SettingsTab({
   connectorConfig,
+  persistedAccessMode,
   sourceConfig,
   credentialId,
   canonicalGroups,
@@ -355,14 +495,141 @@ function SettingsTab({
   hasMaxAccess,
   isSaving,
   error,
+  access,
+  onAccessChange,
+  canAdmin,
+  showAccessField,
+  allowMembers,
+  groupOptions,
+  canReenableMemberSync,
+  accessDirty,
+  accessComplete,
+  isSwitchingAccess,
+  onApplyAccess,
+  onResetAccess,
+  workspaceId,
+  needsWorkspaceCredential,
+  workspaceCredentialId,
+  onWorkspaceCredentialChange,
 }: SettingsTabProps) {
+  const providerId =
+    connectorConfig?.auth.mode === 'oauth'
+      ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
+      : null
+  const syncsPerMember = access.accessMode === 'members'
+  /** Staying per member but through a different group. */
+  const isRebind = accessDirty && persistedAccessMode === 'members' && syncsPerMember
+  const { data: rawCredentials = [], isLoading: credentialsLoading } = useOAuthCredentials(
+    providerId ?? undefined,
+    { enabled: (needsWorkspaceCredential || syncsPerMember) && Boolean(providerId), workspaceId }
+  )
+  const [browseCredentialId, setBrowseCredentialId] = useState<string | null>(null)
+  /** A per-member connector has no credential of its own; the admin's account browses the source. */
+  const selectorCredentialId = syncsPerMember ? browseCredentialId : credentialId
+  const credentialOptions = useMemo<ComboboxOption[]>(
+    () =>
+      rawCredentials
+        .filter((credential) => credential.type !== 'service_account')
+        .map((credential) => ({
+          label: credential.name || credential.provider,
+          value: credential.id,
+        })),
+    [rawCredentials]
+  )
+
   return (
     <>
+      {connectorConfig && connectorConfig.auth.mode === 'oauth' && showAccessField && (
+        <ConnectorAccessField
+          connectorConfig={connectorConfig}
+          value={access}
+          onChange={onAccessChange}
+          canAdmin={canAdmin}
+          allowMembers={allowMembers}
+          canRebind={persistedAccessMode === 'members'}
+          groupOptions={groupOptions}
+          disabled={isSaving}
+          footer={
+            canReenableMemberSync ? (
+              <div className='flex flex-col gap-2'>
+                <div>
+                  <Button variant='primary' size='sm' onClick={onApplyAccess} disabled={isSaving}>
+                    {isSwitchingAccess ? 'Re-enabling…' : 'Re-enable per-member sync'}
+                  </Button>
+                </div>
+                <p className='text-[var(--text-muted)] text-caption leading-snug'>
+                  Members and their documents are kept; the next sync restores their access.
+                </p>
+              </div>
+            ) : accessDirty ? (
+              <div className='flex flex-col gap-2'>
+                {needsWorkspaceCredential && (
+                  <>
+                    <ChipCombobox
+                      options={credentialOptions}
+                      value={workspaceCredentialId ?? undefined}
+                      onChange={onWorkspaceCredentialChange}
+                      placeholder={`Select the ${connectorConfig.name} account to sync as`}
+                      isLoading={credentialsLoading}
+                      disabled={isSaving}
+                    />
+                    {!credentialsLoading && credentialOptions.length === 0 && (
+                      <p className='text-[var(--text-muted)] text-caption leading-snug'>
+                        Connect a {connectorConfig.name} account in Integrations first.
+                      </p>
+                    )}
+                  </>
+                )}
+                <div className='flex items-center gap-2'>
+                  <Button
+                    variant='primary'
+                    size='sm'
+                    onClick={onApplyAccess}
+                    disabled={!accessComplete || isSaving}
+                  >
+                    {isSwitchingAccess
+                      ? 'Switching…'
+                      : isRebind
+                        ? 'Change credential group'
+                        : access.accessMode === 'members'
+                          ? 'Switch to per-member access'
+                          : 'Switch to workspace access'}
+                  </Button>
+                  <Button variant='default' size='sm' onClick={onResetAccess} disabled={isSaving}>
+                    Cancel
+                  </Button>
+                </div>
+                <p className='text-[var(--text-muted)] text-caption leading-snug'>
+                  {isRebind
+                    ? 'Members of the previous group lose access; members of the new group are invited to connect.'
+                    : access.accessMode === 'members'
+                      ? 'Everyone in the workspace is invited to connect their account. Documents stay hidden until members connect and sync; listing caps are cleared.'
+                      : 'Every workspace member can read every synced document once the next sync completes.'}
+                </p>
+              </div>
+            ) : undefined
+          }
+        />
+      )}
+
+      {connectorConfig && syncsPerMember && (
+        <ChipModalField type='custom' title='Browse with' hint={BROWSE_WITH_HINT}>
+          <ChipCombobox
+            options={credentialOptions}
+            value={browseCredentialId ?? undefined}
+            onChange={setBrowseCredentialId}
+            placeholder={`Select your ${connectorConfig.name} account`}
+            isLoading={credentialsLoading}
+            disabled={isSaving}
+          />
+        </ChipModalField>
+      )}
+
       {connectorConfig && (
         <ConnectorConfigFields
           connectorConfig={connectorConfig}
           sourceConfig={sourceConfig}
-          credentialId={credentialId}
+          credentialId={selectorCredentialId}
           canonicalGroups={canonicalGroups}
           canonicalModes={canonicalModes}
           isFieldVisible={isFieldVisible}

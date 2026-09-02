@@ -1,21 +1,28 @@
 'use client'
 
-import { type ComponentType, type CSSProperties, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ArrowRight, ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
 import { Table } from '@sim/emcn/icons'
-import { randomFloat } from '@sim/utils/random'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { GmailIcon, SlackIcon } from '@/components/icons'
 import {
   INTEGRATIONS,
-  type OAuthServiceMatch,
   resolveOAuthServiceForIntegration,
   resolveOAuthServiceForSlug,
 } from '@/lib/integrations'
 import { captureEvent } from '@/lib/posthog/client'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { SearchSources } from '@/app/workspace/[workspaceId]/home/components/search-sources'
+import type {
+  Action,
+  ActionIcon,
+  OAuthConnectTarget,
+} from '@/app/workspace/[workspaceId]/home/components/suggested-actions/types'
+import { weightedSample } from '@/app/workspace/[workspaceId]/home/components/suggested-actions/weighted-sample'
+import { useMothershipMode } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode'
+import type { MothershipMode } from '@/app/workspace/[workspaceId]/home/search-params'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { getAllBlockMeta } from '@/blocks/registry'
 import type { ModuleTag } from '@/blocks/types'
@@ -23,12 +30,7 @@ import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useOAuthConnections } from '@/hooks/queries/oauth/oauth-connections'
 import { useTablesList } from '@/hooks/queries/tables'
-
-type Icon = ComponentType<{ className?: string; style?: CSSProperties }>
-
-type Action =
-  | { kind: 'prompt'; id: string; label: string; prompt: string; icon: Icon }
-  | { kind: 'integration'; id: string; label: string; icon: Icon; slug: string }
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 /** Lookup integration slug by OAuth service display name (case-insensitive). */
 const SLUG_BY_LOWER_NAME: ReadonlyMap<string, string> = new Map(
@@ -51,7 +53,7 @@ interface Candidate {
   blockType: string
   label: string
   prompt: string
-  icon: Icon
+  icon: ActionIcon
   modules: readonly ModuleTag[]
   featured: boolean
   popular: boolean
@@ -101,7 +103,7 @@ const CANDIDATES: readonly Candidate[] = (() => {
         blockType,
         label: template.title,
         prompt: template.prompt,
-        icon: template.icon as Icon,
+        icon: template.icon as ActionIcon,
         modules: template.modules,
         featured: template.featured ?? false,
         popular: template.category === 'popular',
@@ -147,34 +149,13 @@ function scoreCandidate(c: Candidate, signals: Signals): number {
   return weight
 }
 
-/**
- * Weighted sampling without replacement. Each pick's probability is
- * proportional to its weight, so the set stays varied while staying relevant.
- */
-function weightedSample<T>(pool: readonly T[], n: number, weightOf: (item: T) => number): T[] {
-  const remaining = pool.map((item) => ({ item, weight: Math.max(weightOf(item), 0) }))
-  const out: T[] = []
-  while (out.length < n && remaining.length > 0) {
-    const total = remaining.reduce((sum, entry) => sum + entry.weight, 0)
-    if (total <= 0) break
-    let roll = randomFloat() * total
-    const index = remaining.findIndex((entry) => {
-      roll -= entry.weight
-      return roll <= 0
-    })
-    const [picked] = remaining.splice(index === -1 ? remaining.length - 1 : index, 1)
-    out.push(picked.item)
-  }
-  return out
-}
-
 const EMPTY_CREDENTIALS: NonNullable<ReturnType<typeof useWorkspaceCredentials>['data']> = []
 const EMPTY_SERVICES: NonNullable<ReturnType<typeof useOAuthConnections>['data']> = []
 
 type ServiceInfo = NonNullable<ReturnType<typeof useOAuthConnections>['data']>[number]
 
 function toPromptAction(c: Candidate): Action {
-  return { kind: 'prompt', id: c.id, label: c.label, prompt: c.prompt, icon: c.icon }
+  return { kind: 'prompt', id: c.id, label: c.label, icon: c.icon, prompt: c.prompt }
 }
 
 function toIntegrationAction(service: ServiceInfo, slug: string): Action {
@@ -251,6 +232,13 @@ const INITIAL_ACTIONS: Action[] = [
     .map(toPromptAction),
 ]
 
+/** Section heading per composer mode — Search reads as a connect-your-sources list. */
+const HEADINGS: Record<MothershipMode, string> = {
+  build: 'Suggested actions',
+  search: 'Sources',
+  assistant: 'Sources',
+}
+
 interface SuggestedActionsProps {
   onSelectPrompt: (prompt: string) => void
 }
@@ -258,6 +246,8 @@ interface SuggestedActionsProps {
 export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const posthog = usePostHog()
+  const [mode] = useMothershipMode()
+  const { integrationAvailability } = usePermissionConfig()
 
   const { data: credentials = EMPTY_CREDENTIALS } = useWorkspaceCredentials({
     workspaceId,
@@ -282,7 +272,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
    * to `null` (via `onOpenChange(false)`) closes it. Mirrors the local-state
    * pattern used by the integrations detail page.
    */
-  const [oauthTarget, setOAuthTarget] = useState<OAuthServiceMatch | null>(null)
+  const [oauthTarget, setOAuthTarget] = useState<OAuthConnectTarget | null>(null)
 
   const connectedProviders = useMemo(
     () =>
@@ -305,16 +295,24 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
   )
 
   /**
-   * Personalized suggestions, re-sampled whenever signals resolve. Falls back to
+   * Each mode's list is memoized on its own inputs alone, so switching modes —
+   * or the other mode's signals settling — never re-samples it.
+   *
+   * Search lists connectors to attach, and waits for the viewer's credentials:
+   * sampling against an empty set would list connected providers and then
+   * reshuffle when the query lands. Build lists personalized suggestions,
+   * re-sampled whenever signals resolve, and falls back to
    * {@link INITIAL_ACTIONS} until the credential and service queries have loaded
    * — and stays there for users with no connections — so first paint never
-   * flashes.
+   * flashes. The store's default mode is Build, so the server render never
+   * shows the sampled Search list.
    */
-  const actions = useMemo(() => {
+  const buildActions = useMemo(() => {
     const personalized = services.length > 0 && connectedProviders.size > 0
     if (!personalized) return INITIAL_ACTIONS
     return computeActions(services, signals)
   }, [connectedProviders, services, signals])
+  const actions = buildActions
 
   const handleSelect = (action: Action, position: number) => {
     captureEvent(posthog, 'suggested_action_clicked', {
@@ -329,8 +327,8 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
       onSelectPrompt(action.prompt)
       return
     }
-    const match = resolveOAuthServiceForSlug(action.slug)
-    if (match) setOAuthTarget(match)
+    const target = resolveOAuthServiceForSlug(action.slug)
+    if (target) setOAuthTarget(target)
   }
 
   const handleToggleExpanded = () => {
@@ -351,7 +349,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
         aria-expanded={expanded}
         className='group/toggle flex w-full cursor-pointer items-center gap-2'
       >
-        <span className='text-[var(--text-muted)] text-caption'>Suggested actions</span>
+        <span className='text-[var(--text-muted)] text-caption'>{HEADINGS[mode]}</span>
         {/*
          * Revealed by hovering anywhere in the section — the group sits on the
          * section wrapper rather than this row, so the action rows below arm it just
@@ -376,28 +374,34 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
               `collapsible-up`/`-down` interpolate height alone, so a margin here
               would hold its full value through the close and then vanish on unmount,
               snapping the content below up. */}
-          <div className='flex flex-col pt-1.5'>
-            {actions.map((action, i) => {
-              const Icon = action.icon
-              return (
-                <button
-                  key={action.id}
-                  type='button'
-                  onClick={() => handleSelect(action, i)}
-                  className={cn(
-                    'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
-                    i > 0 && 'border-t'
-                  )}
-                >
-                  <BrandIcon icon={Icon} className='size-[16px] shrink-0' />
-                  <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
-                    {action.label}
-                  </span>
-                  <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
-                </button>
-              )
-            })}
-          </div>
+          {mode !== 'build' && workspaceId ? (
+            <div className='pt-1.5'>
+              <SearchSources workspaceId={workspaceId} />
+            </div>
+          ) : (
+            <div className='flex flex-col pt-1.5'>
+              {actions.map((action, i) => {
+                const Icon = action.icon
+                return (
+                  <button
+                    key={action.id}
+                    type='button'
+                    onClick={() => handleSelect(action, i)}
+                    className={cn(
+                      'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
+                      i > 0 && 'border-t'
+                    )}
+                  >
+                    <BrandIcon icon={Icon} className='size-[16px] shrink-0' />
+                    <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
+                      {action.label}
+                    </span>
+                    <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </ExpandableContent>
       </Expandable>
       {oauthTarget && workspaceId && (

@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
@@ -489,7 +489,17 @@ function fireTitleGeneration(params: {
   })
     .then(async (title) => {
       if (!title) return
-      await db.update(copilotChats).set({ title }).where(eq(copilotChats.id, chatId))
+      // Only stamp the generated title while the chat has none. Title
+      // generation is fired at turn start and resolves asynchronously, so a
+      // user could rename the chat in the meantime; the `isNull` guard makes
+      // the write lose that race instead of clobbering the explicit rename.
+      const stamped = await db
+        .update(copilotChats)
+        .set({ title })
+        .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.title)))
+        .returning({ id: copilotChats.id })
+      // The rename won — do not announce a title the row no longer holds.
+      if (stamped.length === 0) return
       await publisher.publish({
         type: MothershipStreamV1EventType.session,
         payload: { kind: MothershipStreamV1SessionKind.title, title },

@@ -6,7 +6,7 @@ import { faviconUrl } from '@/lib/core/utils/favicon'
 import { useLinkPreview } from '@/hooks/queries/link-preview'
 
 /** Hides a favicon img that failed to load so the link degrades to plain text. */
-function hideBrokenFavicon(e: React.SyntheticEvent<HTMLImageElement>): void {
+export function hideBrokenFavicon(e: React.SyntheticEvent<HTMLImageElement>): void {
   e.currentTarget.style.display = 'none'
 }
 
@@ -44,7 +44,10 @@ interface ExternalLinkProps {
  * which the shell routes to the system browser. In a web browser this is a
  * no-op and the link opens a new tab as usual.
  */
-function handleLinkClick(event: React.MouseEvent<HTMLAnchorElement>, href: string): void {
+export function handleExternalLinkClick(
+  event: React.MouseEvent<HTMLAnchorElement>,
+  href: string
+): void {
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return
   if (!shouldOpenInBrowserPanel(href)) return
   event.preventDefault()
@@ -63,7 +66,7 @@ export function ExternalLink({ href, hostname, children }: ExternalLinkProps) {
           className='not-prose group text-[var(--text-primary)] no-underline'
           target='_blank'
           rel='noopener noreferrer'
-          onClick={(event) => handleLinkClick(event, href)}
+          onClick={(event) => handleExternalLinkClick(event, href)}
         >
           <img
             src={faviconUrl(hostname, 32)}

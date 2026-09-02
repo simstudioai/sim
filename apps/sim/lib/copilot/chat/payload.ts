@@ -412,8 +412,10 @@ export async function buildCopilotRequestPayload(
   const payloadLogger = logger.withMetadata({ messageId: userMessageId })
 
   // "superagent" is a legacy wire value for Direct Action mode; both modes
-  // execute connected-service operations through the main-agent gateway.
-  if (effectiveMode === 'build' || effectiveMode === 'superagent') {
+  // execute connected-service operations through the main-agent gateway. An
+  // Ask turn keeps them too: it answers from knowledge first and reaches a
+  // connected service only when the indexed sources cannot answer.
+  if (effectiveMode === 'build' || effectiveMode === 'superagent' || effectiveMode === 'ask') {
     integrationTools = await buildIntegrationToolSchemas(
       userId,
       userMessageId,

@@ -64,9 +64,12 @@ interface InvitationContext {
   groupName: string
 }
 
+/** What issuing an invitation does to an enrollment an admin revoked. */
+export type RevokedEnrollmentPolicy = 'reactivate' | 'reject'
+
 interface SendInvitationOptions {
   expectedEnrollmentId?: string
-  revokedEnrollment: 'reactivate' | 'reject'
+  revokedEnrollment: RevokedEnrollmentPolicy
 }
 
 interface IssuedInvitation {
@@ -772,11 +775,18 @@ export async function inviteCredentialGroupEnrollment(
   userId: string | undefined,
   /** See {@link sendInvitation}: absent for a workflow-issued invitation. */
   inviterName: string | undefined,
-  email: string
+  email: string,
+  /**
+   * What a revoked enrollment does to the invitation, decided inside the
+   * issuing transaction. An admin's invite reactivates it; an automatic
+   * invitation rejects it, so a revocation that lands after the caller read
+   * the enrollment is never undone by a stale read.
+   */
+  revokedEnrollment: RevokedEnrollmentPolicy = 'reactivate'
 ): Promise<CredentialGroupEnrollmentRecord> {
   const context = await getInvitationContext(workspaceId, groupId)
   return sendInvitation(context, userId, inviterName, normalizeEmail(email), {
-    revokedEnrollment: 'reactivate',
+    revokedEnrollment,
   })
 }
 
@@ -785,11 +795,13 @@ export async function createCredentialGroupInvitationLink(
   groupId: string,
   /** See {@link issueInvitation}: the issuer is attribution, never the authority. */
   userId: string | undefined,
-  email: string
+  email: string,
+  /** See {@link inviteCredentialGroupEnrollment}. */
+  revokedEnrollment: RevokedEnrollmentPolicy = 'reactivate'
 ): Promise<CredentialGroupInvitationLink> {
   const context = await getInvitationContext(workspaceId, groupId)
   const issued = await issueInvitation(context, userId, normalizeEmail(email), {
-    revokedEnrollment: 'reactivate',
+    revokedEnrollment,
   })
   return {
     enrollment: toCredentialGroupEnrollment(issued.enrollment),
