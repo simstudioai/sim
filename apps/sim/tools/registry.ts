@@ -3366,12 +3366,30 @@ import {
 } from '@/tools/onepassword'
 import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
+  oracleFusionFinancialsGetPayablesAppliedPrepaymentTool,
+  oracleFusionFinancialsGetPayablesAvailablePrepaymentTool,
+  oracleFusionFinancialsGetPayablesInvoiceDistributionTool,
+  oracleFusionFinancialsGetPayablesInvoiceHoldTool,
+  oracleFusionFinancialsGetPayablesInvoiceInstallmentTool,
+  oracleFusionFinancialsGetPayablesInvoiceLineTool,
   oracleFusionFinancialsGetPayablesInvoiceTool,
+  oracleFusionFinancialsGetPayablesPaymentRelatedInvoiceTool,
+  oracleFusionFinancialsGetPayablesPaymentTermLineTool,
+  oracleFusionFinancialsGetPayablesPaymentTermTool,
   oracleFusionFinancialsGetPayablesPaymentTool,
+  oracleFusionFinancialsGetPaymentProcessRequestTool,
+  oracleFusionFinancialsListPayablesAppliedPrepaymentsTool,
+  oracleFusionFinancialsListPayablesAvailablePrepaymentsTool,
+  oracleFusionFinancialsListPayablesInvoiceDistributionsTool,
+  oracleFusionFinancialsListPayablesInvoiceHoldsTool,
   oracleFusionFinancialsListPayablesInvoiceInstallmentsTool,
   oracleFusionFinancialsListPayablesInvoiceLinesTool,
   oracleFusionFinancialsListPayablesInvoicesTool,
+  oracleFusionFinancialsListPayablesPaymentRelatedInvoicesTool,
   oracleFusionFinancialsListPayablesPaymentsTool,
+  oracleFusionFinancialsListPayablesPaymentTermLinesTool,
+  oracleFusionFinancialsListPayablesPaymentTermsTool,
+  oracleFusionFinancialsListPaymentProcessRequestsTool,
 } from '@/tools/oracle_fusion_financials'
 import {
   outlookCalendarCreateEventTool,
@@ -7953,14 +7971,50 @@ export const tools: Record<string, ExecutableToolConfig> = {
   new_relic_get_entity: newRelicGetEntityTool,
   new_relic_nrql_query: newRelicNrqlQueryTool,
   new_relic_search_entities: newRelicSearchEntitiesTool,
+  oracle_fusion_financials_get_payables_applied_prepayment:
+    oracleFusionFinancialsGetPayablesAppliedPrepaymentTool,
+  oracle_fusion_financials_get_payables_available_prepayment:
+    oracleFusionFinancialsGetPayablesAvailablePrepaymentTool,
   oracle_fusion_financials_get_payables_invoice: oracleFusionFinancialsGetPayablesInvoiceTool,
+  oracle_fusion_financials_get_payables_invoice_distribution:
+    oracleFusionFinancialsGetPayablesInvoiceDistributionTool,
+  oracle_fusion_financials_get_payables_invoice_hold:
+    oracleFusionFinancialsGetPayablesInvoiceHoldTool,
+  oracle_fusion_financials_get_payables_invoice_installment:
+    oracleFusionFinancialsGetPayablesInvoiceInstallmentTool,
+  oracle_fusion_financials_get_payables_invoice_line:
+    oracleFusionFinancialsGetPayablesInvoiceLineTool,
   oracle_fusion_financials_get_payables_payment: oracleFusionFinancialsGetPayablesPaymentTool,
+  oracle_fusion_financials_get_payables_payment_related_invoice:
+    oracleFusionFinancialsGetPayablesPaymentRelatedInvoiceTool,
+  oracle_fusion_financials_get_payables_payment_term:
+    oracleFusionFinancialsGetPayablesPaymentTermTool,
+  oracle_fusion_financials_get_payables_payment_term_line:
+    oracleFusionFinancialsGetPayablesPaymentTermLineTool,
+  oracle_fusion_financials_get_payment_process_request:
+    oracleFusionFinancialsGetPaymentProcessRequestTool,
+  oracle_fusion_financials_list_payables_applied_prepayments:
+    oracleFusionFinancialsListPayablesAppliedPrepaymentsTool,
+  oracle_fusion_financials_list_payables_available_prepayments:
+    oracleFusionFinancialsListPayablesAvailablePrepaymentsTool,
+  oracle_fusion_financials_list_payables_invoice_distributions:
+    oracleFusionFinancialsListPayablesInvoiceDistributionsTool,
+  oracle_fusion_financials_list_payables_invoice_holds:
+    oracleFusionFinancialsListPayablesInvoiceHoldsTool,
   oracle_fusion_financials_list_payables_invoice_installments:
     oracleFusionFinancialsListPayablesInvoiceInstallmentsTool,
   oracle_fusion_financials_list_payables_invoice_lines:
     oracleFusionFinancialsListPayablesInvoiceLinesTool,
   oracle_fusion_financials_list_payables_invoices: oracleFusionFinancialsListPayablesInvoicesTool,
+  oracle_fusion_financials_list_payables_payment_related_invoices:
+    oracleFusionFinancialsListPayablesPaymentRelatedInvoicesTool,
+  oracle_fusion_financials_list_payables_payment_term_lines:
+    oracleFusionFinancialsListPayablesPaymentTermLinesTool,
+  oracle_fusion_financials_list_payables_payment_terms:
+    oracleFusionFinancialsListPayablesPaymentTermsTool,
   oracle_fusion_financials_list_payables_payments: oracleFusionFinancialsListPayablesPaymentsTool,
+  oracle_fusion_financials_list_payment_process_requests:
+    oracleFusionFinancialsListPaymentProcessRequestsTool,
   github_pr: githubPrTool,
   github_pr_v2: githubPrV2Tool,
   github_comment: githubCommentTool,

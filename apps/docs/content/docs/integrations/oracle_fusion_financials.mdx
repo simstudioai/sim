@@ -1,6 +1,6 @@
 ---
 title: Oracle Fusion Cloud Financials
-description: Read Oracle Fusion Payables invoices, lines, installments, and payments
+description: Read Oracle Fusion Payables invoices, distributions, prepayments, holds, payments, and terms
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -12,7 +12,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## Usage Instructions
 
-Connect a reusable Oracle Fusion Cloud Financials service account with OAuth 2.0 client credentials. Read bounded pages of Payables invoices, invoice lines, payment schedules, and payments without exposing write operations, arbitrary expansions, or opaque credential secrets.
+Connect a reusable Oracle Fusion Cloud Financials service account with OAuth 2.0 client credentials. Read bounded pages and individual Payables invoices, lines, distributions, installments, prepayments, holds, payments, paid invoices, payment process requests, and payment terms without exposing write operations, arbitrary expansions, or opaque credential secrets.
 
 
 
@@ -91,6 +91,24 @@ List one page of lines for an Oracle Fusion Payables invoice.
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
 
+### Oracle Fusion Financials Get Payables Invoice Line
+
+Get one Oracle Fusion Payables invoice line by its Oracle-derived opaque key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `invoiceLineUniqId` | string | Yes | Opaque invoice-line key returned by Oracle Fusion |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoiceLine` | object | The Payables invoice line |
+
 ### Oracle Fusion Financials List Payables Invoice Installments
 
 List one page of payment installments for an Oracle Fusion Payables invoice.
@@ -118,6 +136,164 @@ List one page of payment installments for an Oracle Fusion Payables invoice.
 | `limit` | number | Page size returned by Oracle |
 | `offset` | number | Offset returned by Oracle |
 | `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Invoice Installment
+
+Get one Oracle Fusion Payables invoice installment by its opaque key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `invoiceInstallmentUniqId` | string | Yes | Opaque invoice-installment key returned by Oracle Fusion |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoiceInstallment` | object | The Payables invoice installment |
+
+### Oracle Fusion Financials List Payables Invoice Distributions
+
+List one page of accounting distributions for a Payables invoice line.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `invoiceLineUniqId` | string | Yes | Opaque invoice-line key returned by Oracle Fusion |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Invoice distributions in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Invoice Distribution
+
+Get one accounting distribution for an Oracle Fusion Payables invoice line.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `invoiceLineUniqId` | string | Yes | Opaque invoice-line key returned by Oracle Fusion |
+| `invoiceDistributionId` | string | Yes | Oracle InvoiceDistributionId as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoiceDistribution` | object | The Payables invoice distribution |
+
+### Oracle Fusion Financials List Payables Applied Prepayments
+
+List one page of prepayments already applied to a Payables invoice.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Applied prepayments in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Applied Prepayment
+
+Get one prepayment already applied to a Payables invoice.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `appliedPrepaymentUniqId` | string | Yes | Opaque applied-prepayment key returned by Oracle Fusion |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `appliedPrepayment` | object | The applied prepayment |
+
+### Oracle Fusion Financials List Payables Available Prepayments
+
+List one page of prepayments available to apply to a Payables invoice.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Available prepayments in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Available Prepayment
+
+Get one prepayment available to apply to a Payables invoice.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `invoiceUniqId` | string | Yes | Opaque invoice key returned by an Oracle Fusion invoice list or selector |
+| `availablePrepaymentUniqId` | string | Yes | Opaque available-prepayment key returned by Oracle Fusion |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `availablePrepayment` | object | The available prepayment |
 
 ### Oracle Fusion Financials List Payables Payments
 
@@ -162,5 +338,229 @@ Get one Oracle Fusion Payables payment by its CheckId.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `payment` | object | The Payables payment |
+
+### Oracle Fusion Financials List Payables Payment Related Invoices
+
+List one page of paid invoices related to a Payables payment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `checkId` | string | Yes | Oracle payment CheckId as a decimal string |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Payment-related invoices in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Payment Related Invoice
+
+Get one paid invoice related to an Oracle Fusion Payables payment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `checkId` | string | Yes | Oracle payment CheckId as a decimal string |
+| `invoicePaymentId` | string | Yes | Oracle InvoicePaymentId as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `paymentRelatedInvoice` | object | The payment-related invoice |
+
+### Oracle Fusion Financials List Payment Process Requests
+
+List one page of Oracle Fusion payment process requests and their statuses.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Payment process requests in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payment Process Request
+
+Get one Oracle Fusion payment process request and its current status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `paymentProcessRequestId` | string | Yes | Oracle PaymentProcessRequestId as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `paymentProcessRequest` | object | The payment process request |
+
+### Oracle Fusion Financials List Payables Invoice Holds
+
+List one page of Oracle Fusion Payables invoice holds and release details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Payables invoice holds in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Invoice Hold
+
+Get one Oracle Fusion Payables invoice hold and its release details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `holdId` | string | Yes | Oracle HoldId as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoiceHold` | object | The Payables invoice hold |
+
+### Oracle Fusion Financials List Payables Payment Terms
+
+List one page of Oracle Fusion Payables payment term headers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Payables payment terms in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Payment Term
+
+Get one Oracle Fusion Payables payment term header.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `termsId` | string | Yes | Oracle termsId as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `paymentTerm` | object | The Payables payment term |
+
+### Oracle Fusion Financials List Payables Payment Term Lines
+
+List one page of calculation lines for a Payables payment term.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `termsId` | string | Yes | Oracle termsId as a decimal string |
+| `q` | string | No | Oracle REST Framework q filter expression |
+| `finder` | string | No | Oracle predefined finder expression |
+| `orderBy` | string | No | Comma-separated Oracle attributes with optional :asc or :desc direction |
+| `limit` | number | No | Records in this page \(integer from 1 to 100; default 50\) |
+| `offset` | number | No | Zero-based record offset \(non-negative integer; default 0\) |
+| `totalResults` | boolean | No | Ask Oracle to include its estimated total matching row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Payables payment term lines in this page |
+| `count` | number | Number of records in this page |
+| `hasMore` | boolean | Whether Oracle has another page |
+| `limit` | number | Page size returned by Oracle |
+| `offset` | number | Offset returned by Oracle |
+| `totalResults` | number | Estimated total matching records when requested |
+
+### Oracle Fusion Financials Get Payables Payment Term Line
+
+Get one calculation line for an Oracle Fusion Payables payment term.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Oracle Fusion Cloud Financials service-account credential |
+| `termsId` | string | Yes | Oracle termsId as a decimal string |
+| `paymentTermLineUniqId` | string | Yes | Opaque payment-term-line key returned by Oracle Fusion |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `paymentTermLine` | object | The Payables payment term line |
 
 

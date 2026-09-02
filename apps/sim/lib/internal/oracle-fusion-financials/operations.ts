@@ -5,22 +5,53 @@ import {
 } from '@/lib/internal/oracle-fusion-financials/client'
 import {
   extractInvoiceUniqId,
+  extractOracleFusionOpaqueKey,
+  ORACLE_FUSION_APPLIED_PREPAYMENT_FIELDS,
+  ORACLE_FUSION_AVAILABLE_PREPAYMENT_FIELDS,
   ORACLE_FUSION_FINANCIALS_RESOURCE_PATH,
   ORACLE_FUSION_INSTALLMENT_FIELDS,
+  ORACLE_FUSION_INVOICE_DISTRIBUTION_FIELDS,
   ORACLE_FUSION_INVOICE_FIELDS,
+  ORACLE_FUSION_INVOICE_HOLD_FIELDS,
   ORACLE_FUSION_INVOICE_LINE_FIELDS,
   ORACLE_FUSION_PAYMENT_FIELDS,
+  ORACLE_FUSION_PAYMENT_PROCESS_REQUEST_FIELDS,
+  ORACLE_FUSION_PAYMENT_RELATED_INVOICE_FIELDS,
+  ORACLE_FUSION_PAYMENT_TERM_FIELDS,
+  ORACLE_FUSION_PAYMENT_TERM_LINE_FIELDS,
+  oracleFusionAppliedPrepaymentSchema,
+  oracleFusionAvailablePrepaymentSchema,
+  oracleFusionGetAppliedPrepaymentInputSchema,
+  oracleFusionGetAvailablePrepaymentInputSchema,
+  oracleFusionGetInvoiceDistributionInputSchema,
+  oracleFusionGetInvoiceHoldInputSchema,
   oracleFusionGetInvoiceInputSchema,
+  oracleFusionGetInvoiceInstallmentInputSchema,
+  oracleFusionGetInvoiceLineInputSchema,
   oracleFusionGetPaymentInputSchema,
+  oracleFusionGetPaymentProcessRequestInputSchema,
+  oracleFusionGetPaymentRelatedInvoiceInputSchema,
+  oracleFusionGetPaymentTermInputSchema,
+  oracleFusionGetPaymentTermLineInputSchema,
   oracleFusionInstallmentSchema,
   oracleFusionInvoiceChildListInputSchema,
+  oracleFusionInvoiceDistributionListInputSchema,
+  oracleFusionInvoiceDistributionSchema,
+  oracleFusionInvoiceHoldSchema,
   oracleFusionInvoiceLineSchema,
   oracleFusionInvoiceSchema,
   oracleFusionListEnvelopeSchema,
+  oracleFusionListInputSchema,
   oracleFusionListInvoicesInputSchema,
-  oracleFusionListPaymentsInputSchema,
+  oracleFusionPaymentProcessRequestSchema,
+  oracleFusionPaymentRelatedInvoiceListInputSchema,
+  oracleFusionPaymentRelatedInvoiceSchema,
   oracleFusionPaymentSchema,
+  oracleFusionPaymentTermLineListInputSchema,
+  oracleFusionPaymentTermLineSchema,
+  oracleFusionPaymentTermSchema,
   projectFields,
+  validateOracleFusionSelfLink,
 } from '@/lib/internal/oracle-fusion-financials/schema'
 import type { ToolResponse } from '@/tools/types'
 
@@ -28,9 +59,27 @@ export const ORACLE_FUSION_FINANCIALS_TOOL_IDS = [
   'oracle_fusion_financials_list_payables_invoices',
   'oracle_fusion_financials_get_payables_invoice',
   'oracle_fusion_financials_list_payables_invoice_lines',
+  'oracle_fusion_financials_get_payables_invoice_line',
   'oracle_fusion_financials_list_payables_invoice_installments',
+  'oracle_fusion_financials_get_payables_invoice_installment',
+  'oracle_fusion_financials_list_payables_invoice_distributions',
+  'oracle_fusion_financials_get_payables_invoice_distribution',
+  'oracle_fusion_financials_list_payables_applied_prepayments',
+  'oracle_fusion_financials_get_payables_applied_prepayment',
+  'oracle_fusion_financials_list_payables_available_prepayments',
+  'oracle_fusion_financials_get_payables_available_prepayment',
   'oracle_fusion_financials_list_payables_payments',
   'oracle_fusion_financials_get_payables_payment',
+  'oracle_fusion_financials_list_payables_payment_related_invoices',
+  'oracle_fusion_financials_get_payables_payment_related_invoice',
+  'oracle_fusion_financials_list_payment_process_requests',
+  'oracle_fusion_financials_get_payment_process_request',
+  'oracle_fusion_financials_list_payables_invoice_holds',
+  'oracle_fusion_financials_get_payables_invoice_hold',
+  'oracle_fusion_financials_list_payables_payment_terms',
+  'oracle_fusion_financials_get_payables_payment_term',
+  'oracle_fusion_financials_list_payables_payment_term_lines',
+  'oracle_fusion_financials_get_payables_payment_term_line',
 ] as const
 
 export type OracleFusionFinancialsToolId = (typeof ORACLE_FUSION_FINANCIALS_TOOL_IDS)[number]
@@ -43,15 +92,22 @@ export function isOracleFusionFinancialsToolId(
   return TOOL_ID_SET.has(value)
 }
 
+interface ListInput {
+  q?: string
+  finder?: string
+  orderBy?: string
+  limit: number
+  offset: number
+  totalResults: boolean
+}
+
+interface AuthInput {
+  accessToken: string
+  instanceUrl: string
+}
+
 function listQuery(
-  input: {
-    q?: string
-    finder?: string
-    orderBy?: string
-    limit: number
-    offset: number
-    totalResults: boolean
-  },
+  input: ListInput,
   fields: readonly string[],
   extra?: Record<string, string | undefined>
 ): Record<string, string | number | boolean | undefined> {
@@ -110,6 +166,91 @@ function projectList<T extends z.ZodType<Record<string, unknown>>>(
   })
 }
 
+async function executeList<T extends z.ZodType<Record<string, unknown>>>(
+  input: AuthInput & ListInput,
+  path: string,
+  itemSchema: T,
+  fields: readonly string[],
+  signal?: AbortSignal,
+  transform?: (item: z.output<T>) => Record<string, unknown>,
+  extra?: Record<string, string | undefined>
+): Promise<ToolResponse> {
+  const payload = await requestOracleFusionJson(
+    input,
+    { path, query: listQuery(input, fields, extra) },
+    signal
+  )
+  return projectList(payload, itemSchema, fields, transform)
+}
+
+async function executeDetail<T extends z.ZodType<Record<string, unknown>>>(
+  input: AuthInput,
+  path: string,
+  itemSchema: T,
+  fields: readonly string[],
+  wrapper: string,
+  signal?: AbortSignal,
+  transform?: (item: z.output<T>) => Record<string, unknown>
+): Promise<ToolResponse> {
+  const rawPayload = await requestOracleFusionJson(
+    input,
+    { path, query: detailQuery(fields) },
+    signal
+  )
+  return requireProviderResponse(() => {
+    const payload = itemSchema.parse(rawPayload)
+    validateOracleFusionSelfLink(payload, input.instanceUrl, path)
+    return {
+      success: true,
+      output: {
+        [wrapper]: transform ? transform(payload) : projectFields(payload, fields),
+      },
+    }
+  })
+}
+
+function invoicePath(invoiceUniqId: string): string {
+  return `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/invoices/${encodeURIComponent(invoiceUniqId)}`
+}
+
+function invoiceLineCollectionPath(invoiceUniqId: string): string {
+  return `${invoicePath(invoiceUniqId)}/child/invoiceLines`
+}
+
+function invoiceInstallmentCollectionPath(invoiceUniqId: string): string {
+  return `${invoicePath(invoiceUniqId)}/child/invoiceInstallments`
+}
+
+function invoiceDistributionCollectionPath(
+  invoiceUniqId: string,
+  invoiceLineUniqId: string
+): string {
+  return `${invoiceLineCollectionPath(invoiceUniqId)}/${encodeURIComponent(invoiceLineUniqId)}/child/invoiceDistributions`
+}
+
+function prepaymentCollectionPath(
+  invoiceUniqId: string,
+  collection: 'appliedPrepayments' | 'availablePrepayments'
+): string {
+  return `${invoicePath(invoiceUniqId)}/child/${collection}`
+}
+
+function paymentPath(checkId: string): string {
+  return `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/payablesPayments/${checkId}`
+}
+
+function relatedInvoiceCollectionPath(checkId: string): string {
+  return `${paymentPath(checkId)}/child/relatedInvoices`
+}
+
+function paymentTermPath(termsId: string): string {
+  return `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/payablesPaymentTerms/${termsId}`
+}
+
+function paymentTermLineCollectionPath(termsId: string): string {
+  return `${paymentTermPath(termsId)}/child/payablesPaymentTermsLines`
+}
+
 export async function executeOracleFusionFinancialsOperation(
   toolId: OracleFusionFinancialsToolId,
   rawInput: unknown,
@@ -118,106 +259,353 @@ export async function executeOracleFusionFinancialsOperation(
   switch (toolId) {
     case 'oracle_fusion_financials_list_payables_invoices': {
       const input = oracleFusionListInvoicesInputSchema.parse(rawInput)
-      const payload = await requestOracleFusionJson(
+      return executeList(
         input,
-        {
-          path: `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/invoices`,
-          query: listQuery(input, ORACLE_FUSION_INVOICE_FIELDS, {
-            effectiveDate: input.effectiveDate,
-          }),
-        },
-        signal
-      )
-      return projectList(
-        payload,
+        `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/invoices`,
         oracleFusionInvoiceSchema,
         ORACLE_FUSION_INVOICE_FIELDS,
+        signal,
+        (invoice) => ({
+          invoiceUniqId: extractInvoiceUniqId(invoice, input.instanceUrl),
+          ...projectFields(invoice, ORACLE_FUSION_INVOICE_FIELDS),
+        }),
+        { effectiveDate: input.effectiveDate }
+      )
+    }
+    case 'oracle_fusion_financials_get_payables_invoice': {
+      const input = oracleFusionGetInvoiceInputSchema.parse(rawInput)
+      return executeDetail(
+        input,
+        invoicePath(input.invoiceUniqId),
+        oracleFusionInvoiceSchema,
+        ORACLE_FUSION_INVOICE_FIELDS,
+        'invoice',
+        signal,
         (invoice) => ({
           invoiceUniqId: extractInvoiceUniqId(invoice, input.instanceUrl),
           ...projectFields(invoice, ORACLE_FUSION_INVOICE_FIELDS),
         })
       )
     }
-    case 'oracle_fusion_financials_get_payables_invoice': {
-      const input = oracleFusionGetInvoiceInputSchema.parse(rawInput)
-      const rawPayload = await requestOracleFusionJson(
-        input,
-        {
-          path: `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/invoices/${encodeURIComponent(input.invoiceUniqId)}`,
-          query: detailQuery(ORACLE_FUSION_INVOICE_FIELDS),
-        },
-        signal
-      )
-      return requireProviderResponse(() => {
-        const payload = oracleFusionInvoiceSchema.parse(rawPayload)
-        const returnedKey = extractInvoiceUniqId(payload, input.instanceUrl)
-        if (returnedKey !== input.invoiceUniqId) {
-          throw new Error('Oracle invoice response self link does not match the requested key')
-        }
-        return {
-          success: true,
-          output: {
-            invoice: {
-              invoiceUniqId: returnedKey,
-              ...projectFields(payload, ORACLE_FUSION_INVOICE_FIELDS),
-            },
-          },
-        }
-      })
-    }
     case 'oracle_fusion_financials_list_payables_invoice_lines': {
       const input = oracleFusionInvoiceChildListInputSchema.parse(rawInput)
-      const payload = await requestOracleFusionJson(
+      const collectionPath = invoiceLineCollectionPath(input.invoiceUniqId)
+      return executeList(
         input,
-        {
-          path: `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/invoices/${encodeURIComponent(input.invoiceUniqId)}/child/invoiceLines`,
-          query: listQuery(input, ORACLE_FUSION_INVOICE_LINE_FIELDS),
-        },
-        signal
+        collectionPath,
+        oracleFusionInvoiceLineSchema,
+        ORACLE_FUSION_INVOICE_LINE_FIELDS,
+        signal,
+        (line) => ({
+          invoiceLineUniqId: extractOracleFusionOpaqueKey(line, input.instanceUrl, collectionPath),
+          ...projectFields(line, ORACLE_FUSION_INVOICE_LINE_FIELDS),
+        })
       )
-      return projectList(payload, oracleFusionInvoiceLineSchema, ORACLE_FUSION_INVOICE_LINE_FIELDS)
+    }
+    case 'oracle_fusion_financials_get_payables_invoice_line': {
+      const input = oracleFusionGetInvoiceLineInputSchema.parse(rawInput)
+      const collectionPath = invoiceLineCollectionPath(input.invoiceUniqId)
+      const path = `${collectionPath}/${encodeURIComponent(input.invoiceLineUniqId)}`
+      return executeDetail(
+        input,
+        path,
+        oracleFusionInvoiceLineSchema,
+        ORACLE_FUSION_INVOICE_LINE_FIELDS,
+        'invoiceLine',
+        signal,
+        (line) => ({
+          invoiceLineUniqId: extractOracleFusionOpaqueKey(line, input.instanceUrl, collectionPath),
+          ...projectFields(line, ORACLE_FUSION_INVOICE_LINE_FIELDS),
+        })
+      )
     }
     case 'oracle_fusion_financials_list_payables_invoice_installments': {
       const input = oracleFusionInvoiceChildListInputSchema.parse(rawInput)
-      const payload = await requestOracleFusionJson(
+      const collectionPath = invoiceInstallmentCollectionPath(input.invoiceUniqId)
+      return executeList(
         input,
-        {
-          path: `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/invoices/${encodeURIComponent(input.invoiceUniqId)}/child/invoiceInstallments`,
-          query: listQuery(input, ORACLE_FUSION_INSTALLMENT_FIELDS),
-        },
+        collectionPath,
+        oracleFusionInstallmentSchema,
+        ORACLE_FUSION_INSTALLMENT_FIELDS,
+        signal,
+        (installment) => ({
+          invoiceInstallmentUniqId: extractOracleFusionOpaqueKey(
+            installment,
+            input.instanceUrl,
+            collectionPath
+          ),
+          ...projectFields(installment, ORACLE_FUSION_INSTALLMENT_FIELDS),
+        })
+      )
+    }
+    case 'oracle_fusion_financials_get_payables_invoice_installment': {
+      const input = oracleFusionGetInvoiceInstallmentInputSchema.parse(rawInput)
+      const collectionPath = invoiceInstallmentCollectionPath(input.invoiceUniqId)
+      const path = `${collectionPath}/${encodeURIComponent(input.invoiceInstallmentUniqId)}`
+      return executeDetail(
+        input,
+        path,
+        oracleFusionInstallmentSchema,
+        ORACLE_FUSION_INSTALLMENT_FIELDS,
+        'invoiceInstallment',
+        signal,
+        (installment) => ({
+          invoiceInstallmentUniqId: extractOracleFusionOpaqueKey(
+            installment,
+            input.instanceUrl,
+            collectionPath
+          ),
+          ...projectFields(installment, ORACLE_FUSION_INSTALLMENT_FIELDS),
+        })
+      )
+    }
+    case 'oracle_fusion_financials_list_payables_invoice_distributions': {
+      const input = oracleFusionInvoiceDistributionListInputSchema.parse(rawInput)
+      return executeList(
+        input,
+        invoiceDistributionCollectionPath(input.invoiceUniqId, input.invoiceLineUniqId),
+        oracleFusionInvoiceDistributionSchema,
+        ORACLE_FUSION_INVOICE_DISTRIBUTION_FIELDS,
         signal
       )
-      return projectList(payload, oracleFusionInstallmentSchema, ORACLE_FUSION_INSTALLMENT_FIELDS)
+    }
+    case 'oracle_fusion_financials_get_payables_invoice_distribution': {
+      const input = oracleFusionGetInvoiceDistributionInputSchema.parse(rawInput)
+      const path = `${invoiceDistributionCollectionPath(input.invoiceUniqId, input.invoiceLineUniqId)}/${input.invoiceDistributionId}`
+      return executeDetail(
+        input,
+        path,
+        oracleFusionInvoiceDistributionSchema,
+        ORACLE_FUSION_INVOICE_DISTRIBUTION_FIELDS,
+        'invoiceDistribution',
+        signal
+      )
+    }
+    case 'oracle_fusion_financials_list_payables_applied_prepayments': {
+      const input = oracleFusionInvoiceChildListInputSchema.parse(rawInput)
+      const collectionPath = prepaymentCollectionPath(input.invoiceUniqId, 'appliedPrepayments')
+      return executeList(
+        input,
+        collectionPath,
+        oracleFusionAppliedPrepaymentSchema,
+        ORACLE_FUSION_APPLIED_PREPAYMENT_FIELDS,
+        signal,
+        (prepayment) => ({
+          appliedPrepaymentUniqId: extractOracleFusionOpaqueKey(
+            prepayment,
+            input.instanceUrl,
+            collectionPath
+          ),
+          ...projectFields(prepayment, ORACLE_FUSION_APPLIED_PREPAYMENT_FIELDS),
+        })
+      )
+    }
+    case 'oracle_fusion_financials_get_payables_applied_prepayment': {
+      const input = oracleFusionGetAppliedPrepaymentInputSchema.parse(rawInput)
+      const collectionPath = prepaymentCollectionPath(input.invoiceUniqId, 'appliedPrepayments')
+      const path = `${collectionPath}/${encodeURIComponent(input.appliedPrepaymentUniqId)}`
+      return executeDetail(
+        input,
+        path,
+        oracleFusionAppliedPrepaymentSchema,
+        ORACLE_FUSION_APPLIED_PREPAYMENT_FIELDS,
+        'appliedPrepayment',
+        signal,
+        (prepayment) => ({
+          appliedPrepaymentUniqId: extractOracleFusionOpaqueKey(
+            prepayment,
+            input.instanceUrl,
+            collectionPath
+          ),
+          ...projectFields(prepayment, ORACLE_FUSION_APPLIED_PREPAYMENT_FIELDS),
+        })
+      )
+    }
+    case 'oracle_fusion_financials_list_payables_available_prepayments': {
+      const input = oracleFusionInvoiceChildListInputSchema.parse(rawInput)
+      const collectionPath = prepaymentCollectionPath(input.invoiceUniqId, 'availablePrepayments')
+      return executeList(
+        input,
+        collectionPath,
+        oracleFusionAvailablePrepaymentSchema,
+        ORACLE_FUSION_AVAILABLE_PREPAYMENT_FIELDS,
+        signal,
+        (prepayment) => ({
+          availablePrepaymentUniqId: extractOracleFusionOpaqueKey(
+            prepayment,
+            input.instanceUrl,
+            collectionPath
+          ),
+          ...projectFields(prepayment, ORACLE_FUSION_AVAILABLE_PREPAYMENT_FIELDS),
+        })
+      )
+    }
+    case 'oracle_fusion_financials_get_payables_available_prepayment': {
+      const input = oracleFusionGetAvailablePrepaymentInputSchema.parse(rawInput)
+      const collectionPath = prepaymentCollectionPath(input.invoiceUniqId, 'availablePrepayments')
+      const path = `${collectionPath}/${encodeURIComponent(input.availablePrepaymentUniqId)}`
+      return executeDetail(
+        input,
+        path,
+        oracleFusionAvailablePrepaymentSchema,
+        ORACLE_FUSION_AVAILABLE_PREPAYMENT_FIELDS,
+        'availablePrepayment',
+        signal,
+        (prepayment) => ({
+          availablePrepaymentUniqId: extractOracleFusionOpaqueKey(
+            prepayment,
+            input.instanceUrl,
+            collectionPath
+          ),
+          ...projectFields(prepayment, ORACLE_FUSION_AVAILABLE_PREPAYMENT_FIELDS),
+        })
+      )
     }
     case 'oracle_fusion_financials_list_payables_payments': {
-      const input = oracleFusionListPaymentsInputSchema.parse(rawInput)
-      const payload = await requestOracleFusionJson(
+      const input = oracleFusionListInputSchema.parse(rawInput)
+      return executeList(
         input,
-        {
-          path: `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/payablesPayments`,
-          query: listQuery(input, ORACLE_FUSION_PAYMENT_FIELDS),
-        },
+        `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/payablesPayments`,
+        oracleFusionPaymentSchema,
+        ORACLE_FUSION_PAYMENT_FIELDS,
         signal
       )
-      return projectList(payload, oracleFusionPaymentSchema, ORACLE_FUSION_PAYMENT_FIELDS)
     }
     case 'oracle_fusion_financials_get_payables_payment': {
       const input = oracleFusionGetPaymentInputSchema.parse(rawInput)
-      const rawPayload = await requestOracleFusionJson(
+      return executeDetail(
         input,
-        {
-          path: `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/payablesPayments/${input.checkId}`,
-          query: detailQuery(ORACLE_FUSION_PAYMENT_FIELDS),
-        },
+        paymentPath(input.checkId),
+        oracleFusionPaymentSchema,
+        ORACLE_FUSION_PAYMENT_FIELDS,
+        'payment',
         signal
       )
-      return requireProviderResponse(() => {
-        const payload = oracleFusionPaymentSchema.parse(rawPayload)
-        return {
-          success: true,
-          output: { payment: projectFields(payload, ORACLE_FUSION_PAYMENT_FIELDS) },
-        }
-      })
+    }
+    case 'oracle_fusion_financials_list_payables_payment_related_invoices': {
+      const input = oracleFusionPaymentRelatedInvoiceListInputSchema.parse(rawInput)
+      return executeList(
+        input,
+        relatedInvoiceCollectionPath(input.checkId),
+        oracleFusionPaymentRelatedInvoiceSchema,
+        ORACLE_FUSION_PAYMENT_RELATED_INVOICE_FIELDS,
+        signal
+      )
+    }
+    case 'oracle_fusion_financials_get_payables_payment_related_invoice': {
+      const input = oracleFusionGetPaymentRelatedInvoiceInputSchema.parse(rawInput)
+      const path = `${relatedInvoiceCollectionPath(input.checkId)}/${input.invoicePaymentId}`
+      return executeDetail(
+        input,
+        path,
+        oracleFusionPaymentRelatedInvoiceSchema,
+        ORACLE_FUSION_PAYMENT_RELATED_INVOICE_FIELDS,
+        'paymentRelatedInvoice',
+        signal
+      )
+    }
+    case 'oracle_fusion_financials_list_payment_process_requests': {
+      const input = oracleFusionListInputSchema.parse(rawInput)
+      return executeList(
+        input,
+        `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/paymentProcessRequests`,
+        oracleFusionPaymentProcessRequestSchema,
+        ORACLE_FUSION_PAYMENT_PROCESS_REQUEST_FIELDS,
+        signal
+      )
+    }
+    case 'oracle_fusion_financials_get_payment_process_request': {
+      const input = oracleFusionGetPaymentProcessRequestInputSchema.parse(rawInput)
+      return executeDetail(
+        input,
+        `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/paymentProcessRequests/${input.paymentProcessRequestId}`,
+        oracleFusionPaymentProcessRequestSchema,
+        ORACLE_FUSION_PAYMENT_PROCESS_REQUEST_FIELDS,
+        'paymentProcessRequest',
+        signal
+      )
+    }
+    case 'oracle_fusion_financials_list_payables_invoice_holds': {
+      const input = oracleFusionListInputSchema.parse(rawInput)
+      return executeList(
+        input,
+        `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/invoiceHolds`,
+        oracleFusionInvoiceHoldSchema,
+        ORACLE_FUSION_INVOICE_HOLD_FIELDS,
+        signal
+      )
+    }
+    case 'oracle_fusion_financials_get_payables_invoice_hold': {
+      const input = oracleFusionGetInvoiceHoldInputSchema.parse(rawInput)
+      return executeDetail(
+        input,
+        `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/invoiceHolds/${input.holdId}`,
+        oracleFusionInvoiceHoldSchema,
+        ORACLE_FUSION_INVOICE_HOLD_FIELDS,
+        'invoiceHold',
+        signal
+      )
+    }
+    case 'oracle_fusion_financials_list_payables_payment_terms': {
+      const input = oracleFusionListInputSchema.parse(rawInput)
+      return executeList(
+        input,
+        `${ORACLE_FUSION_FINANCIALS_RESOURCE_PATH}/payablesPaymentTerms`,
+        oracleFusionPaymentTermSchema,
+        ORACLE_FUSION_PAYMENT_TERM_FIELDS,
+        signal
+      )
+    }
+    case 'oracle_fusion_financials_get_payables_payment_term': {
+      const input = oracleFusionGetPaymentTermInputSchema.parse(rawInput)
+      return executeDetail(
+        input,
+        paymentTermPath(input.termsId),
+        oracleFusionPaymentTermSchema,
+        ORACLE_FUSION_PAYMENT_TERM_FIELDS,
+        'paymentTerm',
+        signal
+      )
+    }
+    case 'oracle_fusion_financials_list_payables_payment_term_lines': {
+      const input = oracleFusionPaymentTermLineListInputSchema.parse(rawInput)
+      const collectionPath = paymentTermLineCollectionPath(input.termsId)
+      return executeList(
+        input,
+        collectionPath,
+        oracleFusionPaymentTermLineSchema,
+        ORACLE_FUSION_PAYMENT_TERM_LINE_FIELDS,
+        signal,
+        (line) => ({
+          paymentTermLineUniqId: extractOracleFusionOpaqueKey(
+            line,
+            input.instanceUrl,
+            collectionPath
+          ),
+          ...projectFields(line, ORACLE_FUSION_PAYMENT_TERM_LINE_FIELDS),
+        })
+      )
+    }
+    case 'oracle_fusion_financials_get_payables_payment_term_line': {
+      const input = oracleFusionGetPaymentTermLineInputSchema.parse(rawInput)
+      const collectionPath = paymentTermLineCollectionPath(input.termsId)
+      const path = `${collectionPath}/${encodeURIComponent(input.paymentTermLineUniqId)}`
+      return executeDetail(
+        input,
+        path,
+        oracleFusionPaymentTermLineSchema,
+        ORACLE_FUSION_PAYMENT_TERM_LINE_FIELDS,
+        'paymentTermLine',
+        signal,
+        (line) => ({
+          paymentTermLineUniqId: extractOracleFusionOpaqueKey(
+            line,
+            input.instanceUrl,
+            collectionPath
+          ),
+          ...projectFields(line, ORACLE_FUSION_PAYMENT_TERM_LINE_FIELDS),
+        })
+      )
     }
   }
 }

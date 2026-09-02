@@ -13,9 +13,10 @@ function optionalString(value: unknown, label: string): string | undefined {
 export const OracleFusionFinancialsBlock: BlockConfig = {
   type: 'oracle_fusion_financials',
   name: 'Oracle Fusion Cloud Financials',
-  description: 'Read Oracle Fusion Payables invoices, lines, installments, and payments',
+  description:
+    'Read Oracle Fusion Payables invoices, distributions, prepayments, holds, payments, and terms',
   longDescription:
-    'Connect a reusable Oracle Fusion Cloud Financials service account with OAuth 2.0 client credentials. Read bounded pages of Payables invoices, invoice lines, payment schedules, and payments without exposing write operations, arbitrary expansions, or opaque credential secrets.',
+    'Connect a reusable Oracle Fusion Cloud Financials service account with OAuth 2.0 client credentials. Read bounded pages and individual Payables invoices, lines, distributions, installments, prepayments, holds, payments, paid invoices, payment process requests, and payment terms without exposing write operations, arbitrary expansions, or opaque credential secrets.',
   docsLink: 'https://docs.sim.ai/integrations/oracle_fusion_financials',
   category: 'tools',
   integrationType: IntegrationType.Commerce,
@@ -50,6 +51,18 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
           { text: ', up to', field: 'limit', after: 'lines' },
           { text: ', starting at offset', field: 'offset' },
         ],
+        oracle_fusion_financials_get_payables_invoice_line: [
+          {
+            text: 'Read line',
+            field: 'invoiceLineUniqId',
+            core: true,
+          },
+          {
+            text: 'from Payables invoice',
+            field: ['invoiceSelector', 'invoiceUniqIdManual'],
+            core: true,
+          },
+        ],
         oracle_fusion_financials_list_payables_invoice_installments: [
           {
             text: 'List installments for Payables invoice',
@@ -60,6 +73,84 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
           { text: ', up to', field: 'limit', after: 'installments' },
           { text: ', starting at offset', field: 'offset' },
         ],
+        oracle_fusion_financials_get_payables_invoice_installment: [
+          {
+            text: 'Read installment',
+            field: 'invoiceInstallmentUniqId',
+            core: true,
+          },
+          {
+            text: 'from Payables invoice',
+            field: ['invoiceSelector', 'invoiceUniqIdManual'],
+            core: true,
+          },
+        ],
+        oracle_fusion_financials_list_payables_invoice_distributions: [
+          {
+            text: 'List distributions for line',
+            field: 'invoiceLineUniqId',
+            core: true,
+          },
+          {
+            text: 'of Payables invoice',
+            field: ['invoiceSelector', 'invoiceUniqIdManual'],
+            core: true,
+          },
+          { text: ', matching', field: 'q' },
+        ],
+        oracle_fusion_financials_get_payables_invoice_distribution: [
+          {
+            text: 'Read distribution',
+            field: 'invoiceDistributionId',
+            core: true,
+          },
+          { text: 'for line', field: 'invoiceLineUniqId', core: true },
+          {
+            text: 'of Payables invoice',
+            field: ['invoiceSelector', 'invoiceUniqIdManual'],
+            core: true,
+          },
+        ],
+        oracle_fusion_financials_list_payables_applied_prepayments: [
+          {
+            text: 'List applied prepayments for Payables invoice',
+            field: ['invoiceSelector', 'invoiceUniqIdManual'],
+            core: true,
+          },
+          { text: ', matching', field: 'q' },
+        ],
+        oracle_fusion_financials_get_payables_applied_prepayment: [
+          {
+            text: 'Read applied prepayment',
+            field: 'appliedPrepaymentUniqId',
+            core: true,
+          },
+          {
+            text: 'for Payables invoice',
+            field: ['invoiceSelector', 'invoiceUniqIdManual'],
+            core: true,
+          },
+        ],
+        oracle_fusion_financials_list_payables_available_prepayments: [
+          {
+            text: 'List available prepayments for Payables invoice',
+            field: ['invoiceSelector', 'invoiceUniqIdManual'],
+            core: true,
+          },
+          { text: ', matching', field: 'q' },
+        ],
+        oracle_fusion_financials_get_payables_available_prepayment: [
+          {
+            text: 'Read available prepayment',
+            field: 'availablePrepaymentUniqId',
+            core: true,
+          },
+          {
+            text: 'for Payables invoice',
+            field: ['invoiceSelector', 'invoiceUniqIdManual'],
+            core: true,
+          },
+        ],
         oracle_fusion_financials_list_payables_payments: [
           'List Payables payments',
           { text: ', matching', field: 'q' },
@@ -69,6 +160,54 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
         ],
         oracle_fusion_financials_get_payables_payment: [
           { text: 'Read Payables payment', field: 'checkId', core: true },
+        ],
+        oracle_fusion_financials_list_payables_payment_related_invoices: [
+          { text: 'List invoices paid by payment', field: 'checkId', core: true },
+          { text: ', matching', field: 'q' },
+        ],
+        oracle_fusion_financials_get_payables_payment_related_invoice: [
+          { text: 'Read paid invoice', field: 'invoicePaymentId', core: true },
+          { text: 'for payment', field: 'checkId', core: true },
+        ],
+        oracle_fusion_financials_list_payment_process_requests: [
+          'List payment process requests',
+          { text: ', matching', field: 'q' },
+          { text: ', ordered by', field: 'orderBy' },
+        ],
+        oracle_fusion_financials_get_payment_process_request: [
+          {
+            text: 'Read payment process request',
+            field: 'paymentProcessRequestId',
+            core: true,
+          },
+        ],
+        oracle_fusion_financials_list_payables_invoice_holds: [
+          'List Payables invoice holds',
+          { text: ', matching', field: 'q' },
+          { text: ', ordered by', field: 'orderBy' },
+        ],
+        oracle_fusion_financials_get_payables_invoice_hold: [
+          { text: 'Read Payables invoice hold', field: 'holdId', core: true },
+        ],
+        oracle_fusion_financials_list_payables_payment_terms: [
+          'List Payables payment terms',
+          { text: ', matching', field: 'q' },
+          { text: ', ordered by', field: 'orderBy' },
+        ],
+        oracle_fusion_financials_get_payables_payment_term: [
+          { text: 'Read Payables payment term', field: 'termsId', core: true },
+        ],
+        oracle_fusion_financials_list_payables_payment_term_lines: [
+          { text: 'List calculation lines for payment term', field: 'termsId', core: true },
+          { text: ', matching', field: 'q' },
+        ],
+        oracle_fusion_financials_get_payables_payment_term_line: [
+          {
+            text: 'Read calculation line',
+            field: 'paymentTermLineUniqId',
+            core: true,
+          },
+          { text: 'for payment term', field: 'termsId', core: true },
         ],
       },
     },
@@ -112,8 +251,40 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
           id: 'oracle_fusion_financials_list_payables_invoice_lines',
         },
         {
+          label: 'Get Payables Invoice Line',
+          id: 'oracle_fusion_financials_get_payables_invoice_line',
+        },
+        {
           label: 'List Payables Invoice Installments',
           id: 'oracle_fusion_financials_list_payables_invoice_installments',
+        },
+        {
+          label: 'Get Payables Invoice Installment',
+          id: 'oracle_fusion_financials_get_payables_invoice_installment',
+        },
+        {
+          label: 'List Payables Invoice Distributions',
+          id: 'oracle_fusion_financials_list_payables_invoice_distributions',
+        },
+        {
+          label: 'Get Payables Invoice Distribution',
+          id: 'oracle_fusion_financials_get_payables_invoice_distribution',
+        },
+        {
+          label: 'List Payables Applied Prepayments',
+          id: 'oracle_fusion_financials_list_payables_applied_prepayments',
+        },
+        {
+          label: 'Get Payables Applied Prepayment',
+          id: 'oracle_fusion_financials_get_payables_applied_prepayment',
+        },
+        {
+          label: 'List Payables Available Prepayments',
+          id: 'oracle_fusion_financials_list_payables_available_prepayments',
+        },
+        {
+          label: 'Get Payables Available Prepayment',
+          id: 'oracle_fusion_financials_get_payables_available_prepayment',
         },
         {
           label: 'List Payables Payments',
@@ -122,6 +293,46 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
         {
           label: 'Get Payables Payment',
           id: 'oracle_fusion_financials_get_payables_payment',
+        },
+        {
+          label: 'List Payment-Related Invoices',
+          id: 'oracle_fusion_financials_list_payables_payment_related_invoices',
+        },
+        {
+          label: 'Get Payment-Related Invoice',
+          id: 'oracle_fusion_financials_get_payables_payment_related_invoice',
+        },
+        {
+          label: 'List Payment Process Requests',
+          id: 'oracle_fusion_financials_list_payment_process_requests',
+        },
+        {
+          label: 'Get Payment Process Request',
+          id: 'oracle_fusion_financials_get_payment_process_request',
+        },
+        {
+          label: 'List Payables Invoice Holds',
+          id: 'oracle_fusion_financials_list_payables_invoice_holds',
+        },
+        {
+          label: 'Get Payables Invoice Hold',
+          id: 'oracle_fusion_financials_get_payables_invoice_hold',
+        },
+        {
+          label: 'List Payables Payment Terms',
+          id: 'oracle_fusion_financials_list_payables_payment_terms',
+        },
+        {
+          label: 'Get Payables Payment Term',
+          id: 'oracle_fusion_financials_get_payables_payment_term',
+        },
+        {
+          label: 'List Payables Payment Term Lines',
+          id: 'oracle_fusion_financials_list_payables_payment_term_lines',
+        },
+        {
+          label: 'Get Payables Payment Term Line',
+          id: 'oracle_fusion_financials_get_payables_payment_term_line',
         },
       ],
       value: () => 'oracle_fusion_financials_list_payables_invoices',
@@ -142,7 +353,15 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
         value: [
           'oracle_fusion_financials_get_payables_invoice',
           'oracle_fusion_financials_list_payables_invoice_lines',
+          'oracle_fusion_financials_get_payables_invoice_line',
           'oracle_fusion_financials_list_payables_invoice_installments',
+          'oracle_fusion_financials_get_payables_invoice_installment',
+          'oracle_fusion_financials_list_payables_invoice_distributions',
+          'oracle_fusion_financials_get_payables_invoice_distribution',
+          'oracle_fusion_financials_list_payables_applied_prepayments',
+          'oracle_fusion_financials_get_payables_applied_prepayment',
+          'oracle_fusion_financials_list_payables_available_prepayments',
+          'oracle_fusion_financials_get_payables_available_prepayment',
         ],
       },
       required: {
@@ -150,7 +369,15 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
         value: [
           'oracle_fusion_financials_get_payables_invoice',
           'oracle_fusion_financials_list_payables_invoice_lines',
+          'oracle_fusion_financials_get_payables_invoice_line',
           'oracle_fusion_financials_list_payables_invoice_installments',
+          'oracle_fusion_financials_get_payables_invoice_installment',
+          'oracle_fusion_financials_list_payables_invoice_distributions',
+          'oracle_fusion_financials_get_payables_invoice_distribution',
+          'oracle_fusion_financials_list_payables_applied_prepayments',
+          'oracle_fusion_financials_get_payables_applied_prepayment',
+          'oracle_fusion_financials_list_payables_available_prepayments',
+          'oracle_fusion_financials_get_payables_available_prepayment',
         ],
       },
     },
@@ -166,7 +393,15 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
         value: [
           'oracle_fusion_financials_get_payables_invoice',
           'oracle_fusion_financials_list_payables_invoice_lines',
+          'oracle_fusion_financials_get_payables_invoice_line',
           'oracle_fusion_financials_list_payables_invoice_installments',
+          'oracle_fusion_financials_get_payables_invoice_installment',
+          'oracle_fusion_financials_list_payables_invoice_distributions',
+          'oracle_fusion_financials_get_payables_invoice_distribution',
+          'oracle_fusion_financials_list_payables_applied_prepayments',
+          'oracle_fusion_financials_get_payables_applied_prepayment',
+          'oracle_fusion_financials_list_payables_available_prepayments',
+          'oracle_fusion_financials_get_payables_available_prepayment',
         ],
       },
       required: {
@@ -174,8 +409,94 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
         value: [
           'oracle_fusion_financials_get_payables_invoice',
           'oracle_fusion_financials_list_payables_invoice_lines',
+          'oracle_fusion_financials_get_payables_invoice_line',
           'oracle_fusion_financials_list_payables_invoice_installments',
+          'oracle_fusion_financials_get_payables_invoice_installment',
+          'oracle_fusion_financials_list_payables_invoice_distributions',
+          'oracle_fusion_financials_get_payables_invoice_distribution',
+          'oracle_fusion_financials_list_payables_applied_prepayments',
+          'oracle_fusion_financials_get_payables_applied_prepayment',
+          'oracle_fusion_financials_list_payables_available_prepayments',
+          'oracle_fusion_financials_get_payables_available_prepayment',
         ],
+      },
+    },
+    {
+      id: 'invoiceLineUniqId',
+      title: 'Invoice Line Key',
+      type: 'short-input',
+      placeholder: 'Opaque invoice-line key returned by Oracle',
+      condition: {
+        field: 'operation',
+        value: [
+          'oracle_fusion_financials_get_payables_invoice_line',
+          'oracle_fusion_financials_list_payables_invoice_distributions',
+          'oracle_fusion_financials_get_payables_invoice_distribution',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'oracle_fusion_financials_get_payables_invoice_line',
+          'oracle_fusion_financials_list_payables_invoice_distributions',
+          'oracle_fusion_financials_get_payables_invoice_distribution',
+        ],
+      },
+    },
+    {
+      id: 'invoiceInstallmentUniqId',
+      title: 'Invoice Installment Key',
+      type: 'short-input',
+      placeholder: 'Opaque invoice-installment key returned by Oracle',
+      condition: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payables_invoice_installment',
+      },
+      required: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payables_invoice_installment',
+      },
+    },
+    {
+      id: 'invoiceDistributionId',
+      title: 'Invoice Distribution ID',
+      type: 'short-input',
+      placeholder: 'Oracle InvoiceDistributionId',
+      condition: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payables_invoice_distribution',
+      },
+      required: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payables_invoice_distribution',
+      },
+    },
+    {
+      id: 'appliedPrepaymentUniqId',
+      title: 'Applied Prepayment Key',
+      type: 'short-input',
+      placeholder: 'Opaque applied-prepayment key returned by Oracle',
+      condition: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payables_applied_prepayment',
+      },
+      required: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payables_applied_prepayment',
+      },
+    },
+    {
+      id: 'availablePrepaymentUniqId',
+      title: 'Available Prepayment Key',
+      type: 'short-input',
+      placeholder: 'Opaque available-prepayment key returned by Oracle',
+      condition: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payables_available_prepayment',
+      },
+      required: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payables_available_prepayment',
       },
     },
     {
@@ -185,11 +506,97 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       placeholder: 'Oracle payment CheckId',
       condition: {
         field: 'operation',
-        value: 'oracle_fusion_financials_get_payables_payment',
+        value: [
+          'oracle_fusion_financials_get_payables_payment',
+          'oracle_fusion_financials_list_payables_payment_related_invoices',
+          'oracle_fusion_financials_get_payables_payment_related_invoice',
+        ],
       },
       required: {
         field: 'operation',
-        value: 'oracle_fusion_financials_get_payables_payment',
+        value: [
+          'oracle_fusion_financials_get_payables_payment',
+          'oracle_fusion_financials_list_payables_payment_related_invoices',
+          'oracle_fusion_financials_get_payables_payment_related_invoice',
+        ],
+      },
+    },
+    {
+      id: 'invoicePaymentId',
+      title: 'Invoice Payment ID',
+      type: 'short-input',
+      placeholder: 'Oracle InvoicePaymentId',
+      condition: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payables_payment_related_invoice',
+      },
+      required: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payables_payment_related_invoice',
+      },
+    },
+    {
+      id: 'paymentProcessRequestId',
+      title: 'Payment Process Request ID',
+      type: 'short-input',
+      placeholder: 'Oracle PaymentProcessRequestId',
+      condition: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payment_process_request',
+      },
+      required: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payment_process_request',
+      },
+    },
+    {
+      id: 'holdId',
+      title: 'Invoice Hold ID',
+      type: 'short-input',
+      placeholder: 'Oracle HoldId',
+      condition: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payables_invoice_hold',
+      },
+      required: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payables_invoice_hold',
+      },
+    },
+    {
+      id: 'termsId',
+      title: 'Payment Term ID',
+      type: 'short-input',
+      placeholder: 'Oracle termsId',
+      condition: {
+        field: 'operation',
+        value: [
+          'oracle_fusion_financials_get_payables_payment_term',
+          'oracle_fusion_financials_list_payables_payment_term_lines',
+          'oracle_fusion_financials_get_payables_payment_term_line',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'oracle_fusion_financials_get_payables_payment_term',
+          'oracle_fusion_financials_list_payables_payment_term_lines',
+          'oracle_fusion_financials_get_payables_payment_term_line',
+        ],
+      },
+    },
+    {
+      id: 'paymentTermLineUniqId',
+      title: 'Payment Term Line Key',
+      type: 'short-input',
+      placeholder: 'Opaque payment-term-line key returned by Oracle',
+      condition: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payables_payment_term_line',
+      },
+      required: {
+        field: 'operation',
+        value: 'oracle_fusion_financials_get_payables_payment_term_line',
       },
     },
     {
@@ -218,7 +625,15 @@ Return ONLY the q filter expression - no explanations or extra text.`,
           'oracle_fusion_financials_list_payables_invoices',
           'oracle_fusion_financials_list_payables_invoice_lines',
           'oracle_fusion_financials_list_payables_invoice_installments',
+          'oracle_fusion_financials_list_payables_invoice_distributions',
+          'oracle_fusion_financials_list_payables_applied_prepayments',
+          'oracle_fusion_financials_list_payables_available_prepayments',
           'oracle_fusion_financials_list_payables_payments',
+          'oracle_fusion_financials_list_payables_payment_related_invoices',
+          'oracle_fusion_financials_list_payment_process_requests',
+          'oracle_fusion_financials_list_payables_invoice_holds',
+          'oracle_fusion_financials_list_payables_payment_terms',
+          'oracle_fusion_financials_list_payables_payment_term_lines',
         ],
       },
     },
@@ -236,6 +651,9 @@ Use only these Oracle-documented finders for the selected operation:
 - Invoice lines: PrimaryKey;LineNumber=<integer>
 - Invoice installments: PrimaryKey;InstallmentNumber=<integer>
 - Payments: PaidInvoicesFinder;InvoiceNumber=<string> or PrimaryKey;CheckId=<integer>
+- Payment-related invoices: PrimaryKey;InvoicePaymentId=<integer>
+
+For every other collection, use a finder only when the selected endpoint's Oracle documentation explicitly lists its name and variables.
 
 Use exactly one finder and its documented variable. Do not invent finder names or variables, include a leading finder=, URL-encode the value, or add explanatory text.
 
@@ -249,7 +667,15 @@ Return ONLY the finder expression - no explanations or extra text.`,
           'oracle_fusion_financials_list_payables_invoices',
           'oracle_fusion_financials_list_payables_invoice_lines',
           'oracle_fusion_financials_list_payables_invoice_installments',
+          'oracle_fusion_financials_list_payables_invoice_distributions',
+          'oracle_fusion_financials_list_payables_applied_prepayments',
+          'oracle_fusion_financials_list_payables_available_prepayments',
           'oracle_fusion_financials_list_payables_payments',
+          'oracle_fusion_financials_list_payables_payment_related_invoices',
+          'oracle_fusion_financials_list_payment_process_requests',
+          'oracle_fusion_financials_list_payables_invoice_holds',
+          'oracle_fusion_financials_list_payables_payment_terms',
+          'oracle_fusion_financials_list_payables_payment_term_lines',
         ],
       },
     },
@@ -265,7 +691,15 @@ Return ONLY the finder expression - no explanations or extra text.`,
           'oracle_fusion_financials_list_payables_invoices',
           'oracle_fusion_financials_list_payables_invoice_lines',
           'oracle_fusion_financials_list_payables_invoice_installments',
+          'oracle_fusion_financials_list_payables_invoice_distributions',
+          'oracle_fusion_financials_list_payables_applied_prepayments',
+          'oracle_fusion_financials_list_payables_available_prepayments',
           'oracle_fusion_financials_list_payables_payments',
+          'oracle_fusion_financials_list_payables_payment_related_invoices',
+          'oracle_fusion_financials_list_payment_process_requests',
+          'oracle_fusion_financials_list_payables_invoice_holds',
+          'oracle_fusion_financials_list_payables_payment_terms',
+          'oracle_fusion_financials_list_payables_payment_term_lines',
         ],
       },
     },
@@ -292,7 +726,15 @@ Return ONLY the finder expression - no explanations or extra text.`,
           'oracle_fusion_financials_list_payables_invoices',
           'oracle_fusion_financials_list_payables_invoice_lines',
           'oracle_fusion_financials_list_payables_invoice_installments',
+          'oracle_fusion_financials_list_payables_invoice_distributions',
+          'oracle_fusion_financials_list_payables_applied_prepayments',
+          'oracle_fusion_financials_list_payables_available_prepayments',
           'oracle_fusion_financials_list_payables_payments',
+          'oracle_fusion_financials_list_payables_payment_related_invoices',
+          'oracle_fusion_financials_list_payment_process_requests',
+          'oracle_fusion_financials_list_payables_invoice_holds',
+          'oracle_fusion_financials_list_payables_payment_terms',
+          'oracle_fusion_financials_list_payables_payment_term_lines',
         ],
       },
     },
@@ -308,7 +750,15 @@ Return ONLY the finder expression - no explanations or extra text.`,
           'oracle_fusion_financials_list_payables_invoices',
           'oracle_fusion_financials_list_payables_invoice_lines',
           'oracle_fusion_financials_list_payables_invoice_installments',
+          'oracle_fusion_financials_list_payables_invoice_distributions',
+          'oracle_fusion_financials_list_payables_applied_prepayments',
+          'oracle_fusion_financials_list_payables_available_prepayments',
           'oracle_fusion_financials_list_payables_payments',
+          'oracle_fusion_financials_list_payables_payment_related_invoices',
+          'oracle_fusion_financials_list_payment_process_requests',
+          'oracle_fusion_financials_list_payables_invoice_holds',
+          'oracle_fusion_financials_list_payables_payment_terms',
+          'oracle_fusion_financials_list_payables_payment_term_lines',
         ],
       },
     },
@@ -329,7 +779,15 @@ Return ONLY the finder expression - no explanations or extra text.`,
           'oracle_fusion_financials_list_payables_invoices',
           'oracle_fusion_financials_list_payables_invoice_lines',
           'oracle_fusion_financials_list_payables_invoice_installments',
+          'oracle_fusion_financials_list_payables_invoice_distributions',
+          'oracle_fusion_financials_list_payables_applied_prepayments',
+          'oracle_fusion_financials_list_payables_available_prepayments',
           'oracle_fusion_financials_list_payables_payments',
+          'oracle_fusion_financials_list_payables_payment_related_invoices',
+          'oracle_fusion_financials_list_payment_process_requests',
+          'oracle_fusion_financials_list_payables_invoice_holds',
+          'oracle_fusion_financials_list_payables_payment_terms',
+          'oracle_fusion_financials_list_payables_payment_term_lines',
         ],
       },
     },
@@ -339,9 +797,27 @@ Return ONLY the finder expression - no explanations or extra text.`,
       'oracle_fusion_financials_list_payables_invoices',
       'oracle_fusion_financials_get_payables_invoice',
       'oracle_fusion_financials_list_payables_invoice_lines',
+      'oracle_fusion_financials_get_payables_invoice_line',
       'oracle_fusion_financials_list_payables_invoice_installments',
+      'oracle_fusion_financials_get_payables_invoice_installment',
+      'oracle_fusion_financials_list_payables_invoice_distributions',
+      'oracle_fusion_financials_get_payables_invoice_distribution',
+      'oracle_fusion_financials_list_payables_applied_prepayments',
+      'oracle_fusion_financials_get_payables_applied_prepayment',
+      'oracle_fusion_financials_list_payables_available_prepayments',
+      'oracle_fusion_financials_get_payables_available_prepayment',
       'oracle_fusion_financials_list_payables_payments',
       'oracle_fusion_financials_get_payables_payment',
+      'oracle_fusion_financials_list_payables_payment_related_invoices',
+      'oracle_fusion_financials_get_payables_payment_related_invoice',
+      'oracle_fusion_financials_list_payment_process_requests',
+      'oracle_fusion_financials_get_payment_process_request',
+      'oracle_fusion_financials_list_payables_invoice_holds',
+      'oracle_fusion_financials_get_payables_invoice_hold',
+      'oracle_fusion_financials_list_payables_payment_terms',
+      'oracle_fusion_financials_get_payables_payment_term',
+      'oracle_fusion_financials_list_payables_payment_term_lines',
+      'oracle_fusion_financials_get_payables_payment_term_line',
     ],
     config: {
       tool: (params) => params.operation,
@@ -374,7 +850,41 @@ Return ONLY the finder expression - no explanations or extra text.`,
       type: 'string',
       description: 'Opaque invoice key returned by Oracle Fusion',
     },
+    invoiceLineUniqId: {
+      type: 'string',
+      description: 'Opaque invoice-line key returned by Oracle Fusion',
+    },
+    invoiceInstallmentUniqId: {
+      type: 'string',
+      description: 'Opaque invoice-installment key returned by Oracle Fusion',
+    },
+    invoiceDistributionId: {
+      type: 'string',
+      description: 'Oracle InvoiceDistributionId as a decimal string',
+    },
+    appliedPrepaymentUniqId: {
+      type: 'string',
+      description: 'Opaque applied-prepayment key returned by Oracle Fusion',
+    },
+    availablePrepaymentUniqId: {
+      type: 'string',
+      description: 'Opaque available-prepayment key returned by Oracle Fusion',
+    },
     checkId: { type: 'string', description: 'Oracle payment CheckId as a decimal string' },
+    invoicePaymentId: {
+      type: 'string',
+      description: 'Oracle InvoicePaymentId as a decimal string',
+    },
+    paymentProcessRequestId: {
+      type: 'string',
+      description: 'Oracle PaymentProcessRequestId as a decimal string',
+    },
+    holdId: { type: 'string', description: 'Oracle HoldId as a decimal string' },
+    termsId: { type: 'string', description: 'Oracle termsId as a decimal string' },
+    paymentTermLineUniqId: {
+      type: 'string',
+      description: 'Opaque payment-term-line key returned by Oracle Fusion',
+    },
     q: { type: 'string', description: 'Oracle REST Framework q filter expression' },
     finder: { type: 'string', description: 'Oracle predefined finder expression' },
     orderBy: { type: 'string', description: 'Oracle attribute ordering expression' },
@@ -386,7 +896,7 @@ Return ONLY the finder expression - no explanations or extra text.`,
   outputs: {
     items: {
       type: 'array',
-      description: 'Projected invoices, invoice lines, installments, or payments for this page',
+      description: 'Projected Oracle Fusion Payables resources in this page',
     },
     count: { type: 'number', description: 'Number of records in this page' },
     hasMore: { type: 'boolean', description: 'Whether Oracle has another page' },
@@ -405,6 +915,56 @@ Return ONLY the finder expression - no explanations or extra text.`,
       type: 'json',
       description:
         'Projected Payables payment with nullable number, string, and boolean scalars for check/payment identity, reference, amount and currency, payment/accounting dates, payee and supplier, method/status/type, business unit, legal entity, reconciliation flag, and creation/update dates',
+    },
+    invoiceLine: {
+      type: 'json',
+      description:
+        'Projected invoice line with its Oracle-derived opaque key, amounts, accounting flags, purchase-order and receipt references, item, tax, location, and timestamps',
+    },
+    invoiceInstallment: {
+      type: 'json',
+      description:
+        'Projected invoice installment with its Oracle-derived opaque key, due and unpaid amounts, payment method and priority, hold state, discounts, and timestamps',
+    },
+    invoiceDistribution: {
+      type: 'json',
+      description:
+        'Projected invoice distribution with identity, amounts, account combination, accounting, match and funds status, reversal and cancellation flags, document references, tax, asset state, and timestamps',
+    },
+    appliedPrepayment: {
+      type: 'json',
+      description:
+        'Projected applied prepayment with its Oracle-derived opaque key, invoice and line identity, supplier site, currency, amount, tax, application date, and inclusion flag',
+    },
+    availablePrepayment: {
+      type: 'json',
+      description:
+        'Projected available prepayment with its Oracle-derived opaque key, invoice and line identity, supplier site, currency, available amount, and tax',
+    },
+    paymentRelatedInvoice: {
+      type: 'json',
+      description:
+        'Projected invoice related to a payment with payment, invoice and installment identity, business unit, currencies, amounts, discounts, exchange rate, status, and timestamps',
+    },
+    invoiceHold: {
+      type: 'json',
+      description:
+        'Projected Payables invoice hold with invoice, supplier and business-unit context, hold and release details, workflow state, document references, and timestamps',
+    },
+    paymentProcessRequest: {
+      type: 'json',
+      description:
+        'Projected payment process request with identifier, name, source application, status code, and status meaning',
+    },
+    paymentTerm: {
+      type: 'json',
+      description:
+        'Projected Payables payment term with identity, name, description, enabled and effective state, cutoff, ranking, reference set, and timestamps',
+    },
+    paymentTermLine: {
+      type: 'json',
+      description:
+        'Projected payment-term calculation line with its Oracle-derived opaque key, due-date calculation values, and three discount tiers',
     },
   },
 }
@@ -453,7 +1013,7 @@ export const OracleFusionFinancialsBlockMeta = {
       icon: OracleIcon,
       title: 'Audit Payables invoice lines',
       prompt:
-        'Create a workflow that selects an Oracle Fusion Payables invoice, reads its invoice lines, and reports line amounts, purchase-order and receipt references, tax codes, and approval status.',
+        'Create a workflow that selects an Oracle Fusion Payables invoice, reads its invoice lines and accounting distributions, and reports line amounts, account combinations, match and funds status, purchase-order and receipt references, tax, and reversal state.',
       modules: ['workflows'],
       category: 'operations',
       tags: ['finance', 'audit'],
@@ -462,7 +1022,7 @@ export const OracleFusionFinancialsBlockMeta = {
       icon: OracleIcon,
       title: 'Track upcoming payment installments',
       prompt:
-        'Create a scheduled workflow that reviews Oracle Fusion Payables invoice installments due in the coming week and sends a treasury digest with unpaid amount, due date, payment method, priority, and hold state.',
+        'Create a scheduled workflow that reviews Oracle Fusion Payables invoice installments due in the coming week, reads payment term calculation lines when the termsId is known, and sends a treasury digest with unpaid amount, due date, discounts, payment method, priority, and hold state.',
       modules: ['scheduled', 'workflows'],
       category: 'operations',
       tags: ['finance', 'payments'],
@@ -471,7 +1031,7 @@ export const OracleFusionFinancialsBlockMeta = {
       icon: OracleIcon,
       title: 'Reconcile recent Payables payments',
       prompt:
-        'Build a scheduled workflow that lists one page of recent Oracle Fusion Payables payments, separates reconciled and unreconciled records, and writes a reconciliation report with payment identifiers, dates, amounts, and status.',
+        'Build a scheduled workflow that lists one page of recent Oracle Fusion Payables payments, traces each selected payment to its related invoices, checks a payment process request when its identifier is known, and writes a reconciliation report with identifiers, dates, amounts, and status.',
       modules: ['scheduled', 'tables', 'workflows'],
       category: 'operations',
       tags: ['finance', 'payments'],
@@ -484,6 +1044,42 @@ export const OracleFusionFinancialsBlockMeta = {
       modules: ['tables', 'workflows'],
       category: 'operations',
       tags: ['finance', 'reporting'],
+    },
+    {
+      icon: OracleIcon,
+      title: 'Investigate Payables invoice holds',
+      prompt:
+        'Build a workflow that lists active Oracle Fusion Payables invoice holds, reads selected hold details, and produces an investigation queue with supplier, invoice, hold reason, workflow status, purchase-order or receipt context, and release history.',
+      modules: ['tables', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'audit'],
+    },
+    {
+      icon: OracleIcon,
+      title: 'Analyze invoice prepayment coverage',
+      prompt:
+        'Create a workflow that selects a Payables invoice, compares its applied and available prepayments, and reports currency, applied or available amounts, included tax, supplier site, and application date without applying or unapplying anything.',
+      modules: ['workflows'],
+      category: 'operations',
+      tags: ['finance', 'payments'],
+    },
+    {
+      icon: OracleIcon,
+      title: 'Monitor payment process requests',
+      prompt:
+        'Create a scheduled workflow that lists recent Oracle Fusion payment process requests, highlights incomplete or exceptional status codes, and sends treasury a concise payment-run status report.',
+      modules: ['scheduled', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'monitoring'],
+    },
+    {
+      icon: OracleIcon,
+      title: 'Analyze terms-based payment schedules',
+      prompt:
+        'Build a workflow that reads a Payables payment term and its calculation lines, compares due-date and three-tier discount rules with a selected invoice installment, and reports schedule discrepancies for review.',
+      modules: ['workflows'],
+      category: 'operations',
+      tags: ['finance', 'audit'],
     },
   ],
   skills: [
@@ -500,10 +1096,16 @@ export const OracleFusionFinancialsBlockMeta = {
         '# Inspect Oracle Fusion Invoice Lines\n\n## Steps\n\n1. Select the invoice or use an invoiceUniqId returned by Oracle.\n2. Use List Payables Invoice Lines with a page limit no greater than 100.\n3. Review amounts, accounting flags, purchase-order and receipt references, item fields, tax fields, and locations.\n\n## Output\n\nReport the invoice key, relevant line numbers, findings, and whether another page remains.',
     },
     {
+      name: 'audit-oracle-fusion-invoice-distributions',
+      description: 'Audit accounting distributions and matching state for a Payables invoice line.',
+      content:
+        '# Audit Oracle Fusion Invoice Distributions\n\n## Steps\n\n1. Select an invoice and list its invoice lines to obtain an Oracle-derived invoiceLineUniqId.\n2. Use List Payables Invoice Distributions with a page limit no greater than 100.\n3. Review account combinations, amounts, accounting, match and funds status, reversal and cancellation flags, and purchase-order, receipt, prepayment, tax, and asset references.\n4. Use Get Payables Invoice Distribution with the decimal InvoiceDistributionId for one selected record.\n\n## Output\n\nReport the invoice and line keys, distribution identifiers, accounting exceptions, and whether another page remains.',
+    },
+    {
       name: 'review-oracle-fusion-payment-schedules',
       description: 'Review due dates, unpaid amounts, discounts, and holds for an invoice.',
       content:
-        '# Review Oracle Fusion Payment Schedules\n\n## Steps\n\n1. Select the invoice or provide its Oracle-derived opaque key.\n2. Use List Payables Invoice Installments for one bounded page.\n3. Compare due date, unpaid amount, payment priority, hold state, and available discount dates and amounts.\n\n## Output\n\nSummarize upcoming obligations and holds without guessing missing installment fields.',
+        '# Review Oracle Fusion Payment Schedules\n\n## Steps\n\n1. Select the invoice or provide its Oracle-derived opaque key.\n2. Use List Payables Invoice Installments for one bounded page and Get Payables Invoice Installment when one schedule needs detail.\n3. Read the applicable Payables Payment Term and its term lines when the termsId is known.\n4. Compare due date, unpaid amount, payment priority, hold state, discount dates and amounts, and the documented due and discount calculation values.\n\n## Output\n\nSummarize upcoming obligations and any schedule discrepancy without guessing unavailable term mappings.',
     },
     {
       name: 'trace-oracle-fusion-invoice-payment-status',
@@ -515,7 +1117,19 @@ export const OracleFusionFinancialsBlockMeta = {
       name: 'reconcile-recent-oracle-fusion-payments',
       description: 'Review recent Payables payments and isolate reconciliation exceptions.',
       content:
-        '# Reconcile Recent Oracle Fusion Payments\n\n## Steps\n\n1. Use List Payables Payments ordered by PaymentDate descending with one bounded page.\n2. Review CheckId, payment references, amount, currency, date, status, and ReconciledFlag.\n3. Use Get Payables Payment with the decimal CheckId for a specific projected payment.\n\n## Output\n\nReport reconciled and unreconciled payments separately and state whether another page remains.',
+        '# Reconcile Recent Oracle Fusion Payments\n\n## Steps\n\n1. Use List Payables Payments ordered by PaymentDate descending with one bounded page.\n2. Review CheckId, payment references, amount, currency, date, status, and ReconciledFlag.\n3. For selected payments, list related invoices and inspect the relevant payment process request when its identifier is known.\n4. Use Get Payables Payment or Get Payment-Related Invoice for a specific record.\n\n## Output\n\nReport reconciled and unreconciled payments, related invoice amounts and discounts, payment-run status, and whether another page remains.',
+    },
+    {
+      name: 'investigate-oracle-fusion-invoice-holds',
+      description: 'Investigate Payables invoice holds and their release workflow state.',
+      content:
+        '# Investigate Oracle Fusion Invoice Holds\n\n## Steps\n\n1. Use List Payables Invoice Holds with the narrowest documented q filter and a page limit no greater than 100.\n2. Review invoice, supplier, business unit, line, hold reason, workflow status, purchase-order, and receipt context.\n3. Use Get Payables Invoice Hold with the decimal HoldId to inspect release details and timestamps.\n\n## Output\n\nReturn a prioritized hold queue with evidence from Oracle and state whether another page remains.',
+    },
+    {
+      name: 'trace-oracle-fusion-payment-applications',
+      description: 'Trace a Payables payment to invoices and prepayment activity.',
+      content:
+        '# Trace Oracle Fusion Payment Applications\n\n## Steps\n\n1. Use Get Payables Payment with its decimal CheckId.\n2. Use List Payment-Related Invoices for that payment and inspect selected InvoicePaymentId records.\n3. For a selected invoice, compare applied and available prepayments using only Oracle-derived opaque keys.\n4. Review invoice and payment currencies, paid amounts, discounts, exchange rate, payment status, and application accounting date.\n\n## Output\n\nProvide a read-only trace from payment to invoice applications and clearly identify any pagination boundary or unavailable linkage.',
     },
   ],
 } as const satisfies BlockMeta
