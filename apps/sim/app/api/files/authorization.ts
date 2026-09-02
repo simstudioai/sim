@@ -491,10 +491,13 @@ async function verifyCopilotFileAccess(
  * signal only: it reflects whether the file is still part of a live KB, not who
  * owns it (ownership comes from the binding).
  */
+/** A reader once resolved: a person's or the workspace's tokens, or the system reading its own rows. */
+type ResolvedKnowledgeFileAccess = KnowledgeAccessScope | SystemAccessScope
+
 async function hasActiveKbDocumentForKey(
   cloudKey: string,
   workspaceId: string,
-  access: KnowledgeAccessScope | SystemAccessScope
+  access: ResolvedKnowledgeFileAccess
 ): Promise<boolean> {
   const rows = await db
     .select({ id: document.id })
@@ -525,13 +528,13 @@ async function hasActiveKbDocumentForKey(
  * else — an internal token, a tool running with the workflow owner's id —
  * reads as the workspace, never as the person whose id it happens to carry.
  */
-export type KnowledgeFileAccess = 'user' | KnowledgeAccessScope | SystemAccessScope
+export type KnowledgeFileAccess = 'user' | ResolvedKnowledgeFileAccess
 
 async function resolveKnowledgeFileAccess(
   knowledgeAccess: KnowledgeFileAccess | undefined,
   userId: string,
   workspaceId: string
-): Promise<KnowledgeAccessScope | SystemAccessScope> {
+): Promise<ResolvedKnowledgeFileAccess> {
   if (knowledgeAccess === 'user') return resolveUserKnowledgeAccessScope(userId, workspaceId)
   return knowledgeAccess ?? WORKSPACE_ACCESS_SCOPE
 }

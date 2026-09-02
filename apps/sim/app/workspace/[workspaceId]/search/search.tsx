@@ -1,17 +1,17 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef } from 'react'
 import { Button, ChipInput } from '@sim/emcn'
 import { Search as SearchIcon } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import {
   canConnectPersonally,
-  isSearchConnectorAvailable,
-  personalSetupFields,
+  connectorDisplayName,
   SEARCH_CONNECTORS,
   type SearchConnector,
   SIM_SEARCH_KNOWLEDGE_BASE_NAME,
+  searchConnectorUnavailableReason,
 } from '@/lib/sim-search/connectors'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components'
 import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
@@ -19,10 +19,7 @@ import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/c
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import {
-  MemberConnectorsSection,
-  memberConnectorName,
-} from '@/app/workspace/[workspaceId]/search/components/member-connectors-section/member-connectors-section'
+import { MemberConnectorsSection } from '@/app/workspace/[workspaceId]/search/components/member-connectors-section/member-connectors-section'
 import {
   connectorSearchParam,
   connectorSearchUrlKeys,
@@ -46,9 +43,6 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
 const CONNECTORS_LABEL = 'Sim Search Connectors'
 const NEEDS_KNOWLEDGE_BASE_SETUP = 'Set up by a workspace admin from a knowledge base.'
-const UNAVAILABLE = 'Unavailable in this deployment. Contact your administrator.'
-const MEMBER_ACCESS_UNAVAILABLE =
-  'Per-member access is not available in this workspace. Contact your administrator.'
 
 /** What a source row says once the viewer's own indexing has settled. */
 function connectedDescription(connector: WorkspaceMemberConnector): string {
@@ -179,8 +173,15 @@ export function Search() {
     [memberConnectors]
   )
   const membershipQueryKeys = useMemo(() => [memberConnectorKeys.list(workspaceId)], [workspaceId])
-  const [setupConnector, setSetupConnector] = useState<SearchConnector | null>(null)
-  const { connect, connectSource, isAwaiting, isPending, error } = useMemberEnrollment({
+  const {
+    connectSource,
+    connectSearchSource,
+    setupConnector,
+    closeSetup,
+    isAwaiting,
+    isPending,
+    error,
+  } = useMemberEnrollment({
     membershipQueryKeys,
     connectedConnectorIds,
   })
@@ -195,7 +196,7 @@ export function Search() {
     : SEARCH_CONNECTORS
   const visibleSharedConnectors = normalizedSearch
     ? sharedConnectors.filter((connector) =>
-        [memberConnectorName(connector), connector.knowledgeBaseName].some((text) =>
+        [connectorDisplayName(connector.connectorType), connector.knowledgeBaseName].some((text) =>
           text.toLowerCase().includes(normalizedSearch)
         )
       )
@@ -226,29 +227,19 @@ export function Search() {
               <IntegrationSection label={CONNECTORS_LABEL}>
                 {visibleConnectors.map((connector) => {
                   const connection = connectionByType.get(connector.type)
-                  const unavailableReason = !isSearchConnectorAvailable(
-                    connector,
-                    integrationAvailability
-                  )
-                    ? UNAVAILABLE
-                    : memberAccessAvailable
-                      ? null
-                      : MEMBER_ACCESS_UNAVAILABLE
                   return (
                     <SourceRow
                       key={connector.type}
                       connector={connector}
                       connection={connection}
-                      unavailableReason={unavailableReason}
+                      unavailableReason={searchConnectorUnavailableReason(
+                        connector,
+                        integrationAvailability,
+                        memberAccessAvailable
+                      )}
                       waiting={connection ? isAwaiting(connection.connectorId) : false}
                       isPending={isPending}
-                      onConnect={() =>
-                        connection
-                          ? connect(connection.knowledgeBaseId, connection.connectorId)
-                          : personalSetupFields(connector.meta).length > 0
-                            ? setSetupConnector(connector)
-                            : connectSource(workspaceId, connector.type)
-                      }
+                      onConnect={() => connectSearchSource(workspaceId, connector, connection)}
                     />
                   )
                 })}
@@ -266,10 +257,7 @@ export function Search() {
             {setupConnector && (
               <SourceSetupModal
                 connector={setupConnector}
-                fields={personalSetupFields(setupConnector.meta)}
-                onOpenChange={(open) => {
-                  if (!open) setSetupConnector(null)
-                }}
+                onClose={closeSetup}
                 onConnect={(sourceConfig) =>
                   connectSource(workspaceId, setupConnector.type, sourceConfig)
                 }

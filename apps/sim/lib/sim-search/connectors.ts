@@ -42,6 +42,8 @@ export interface SearchConnector {
    * the first catalog integration on the provider, else the connector type.
    */
   blockType: string
+  /** Required config a person supplies on the source's first connect; empty for one-click sources. */
+  setupFields: readonly ConnectorConfigField[]
 }
 
 /**
@@ -69,6 +71,7 @@ export const SEARCH_CONNECTORS: readonly SearchConnector[] = Object.entries(CONN
         serviceName: service.name,
         serviceIcon: service.icon as ComponentType<{ className?: string }>,
         blockType: getIntegrationsForCredentialProvider(service.providerId)[0]?.type ?? type,
+        setupFields: personalSetupFields(meta),
       },
     ]
   })
@@ -100,12 +103,26 @@ export function personalSetupFields(meta: ConnectorMeta): ConnectorConfigField[]
 /** The setup fields a source config leaves empty. */
 export function missingSetupFields(
   meta: ConnectorMeta,
-  sourceConfig: Record<string, unknown>
+  sourceConfig: Record<string, string>
 ): ConnectorConfigField[] {
-  return personalSetupFields(meta).filter((field) => {
-    const value = sourceConfig[field.id]
-    return typeof value !== 'string' || value.trim() === ''
-  })
+  return personalSetupFields(meta).filter((field) => !sourceConfig[field.id]?.trim())
+}
+
+/** The name a connector shows, from its registry entry. */
+export function connectorDisplayName(connectorType: string): string {
+  return CONNECTOR_META_REGISTRY[connectorType]?.name ?? connectorType
+}
+
+/** Why a source cannot be connected on this surface right now; null when it can. */
+export function searchConnectorUnavailableReason(
+  connector: SearchConnector,
+  integrationAvailability: ReadonlyMap<string, { oauthAvailable: boolean }>,
+  memberAccessAvailable: boolean
+): string | null {
+  if (!isSearchConnectorAvailable(connector, integrationAvailability)) {
+    return `${connector.meta.name} is unavailable in this deployment`
+  }
+  return memberAccessAvailable ? null : 'Per-member access is not available in this workspace'
 }
 
 /**

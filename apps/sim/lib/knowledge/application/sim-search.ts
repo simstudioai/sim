@@ -1,14 +1,14 @@
 import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
-import {
-  permissionSatisfies,
-  resolveEffectiveWorkspacePermission,
-} from '@sim/platform-authz/workspace'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
+import {
+  InsufficientWorkspacePermissionsError,
+  requireCurrentHumanRole,
+} from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
-import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
+import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { startKnowledgeConnectorMemberEnrollment } from '@/lib/knowledge/application/connector-access'
 import { createKnowledgeConnector } from '@/lib/knowledge/application/connectors'
@@ -99,12 +99,10 @@ async function requireSimSearchSetupAdmin(
   context: KnowledgeWorkspaceContext,
   sourceName: string
 ): Promise<void> {
-  const permission = await resolveEffectiveWorkspacePermission(
-    userId,
-    context.workspaceId,
-    context.workspaceOrganizationId
-  )
-  if (!permissionSatisfies(permission, 'admin')) {
+  try {
+    await requireCurrentHumanRole(userId, context, 'admin')
+  } catch (error) {
+    if (!(error instanceof InsufficientWorkspacePermissionsError)) throw error
     throw new OrchestrationError(
       'forbidden',
       `${sourceName} is not connected in this workspace yet. Ask a workspace admin to connect ${sourceName} first; after that everyone connects their own account.`
@@ -141,19 +139,8 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
     const workspaceId = context.workspaceId
     let target = await findSimSearchConnector(db, workspaceId, input.connectorType)
     if (!target) {
-      /**
-       * Judged before anything is created: the connector creation below checks
-       * the same availability, but only after the knowledge base exists.
-       */
-      if (!(await isKnowledgeMemberAccessAvailable({ workspaceId }))) {
-        throw new OrchestrationError(
-          'validation',
-          'Per-member access is not available for this workspace'
-        )
-      }
       const userId = resolvePrincipalSubjectUserId(principal)
       if (!userId) throw new OrchestrationError('forbidden', 'Sign in to connect your account')
-      await requireSimSearchSetupAdmin(userId, context, meta.name)
       const sourceConfig = input.sourceConfig ?? {}
       const missing = missingSetupFields(meta, sourceConfig)
       if (missing.length > 0) {
@@ -162,6 +149,14 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
           `${meta.name} needs ${missing.map((field) => field.title).join(' and ')} to connect`
         )
       }
+      /**
+       * Judged before anything is created: the connector creation below checks
+       * the same availability, but only after the knowledge base exists.
+       */
+      await Promise.all([
+        requireKnowledgeMemberAccessAvailable({ workspaceId }),
+        requireSimSearchSetupAdmin(userId, context, meta.name),
+      ])
       target = await db.transaction(async (tx) => {
         await tx.execute(
           sql`select set_config('lock_timeout', ${`${SIM_SEARCH_SETUP_LOCK_TIMEOUT_MS}ms`}, true)`

@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { type QueryKey, useQueryClient } from '@tanstack/react-query'
 import type { MemberSyncStatus } from '@/lib/knowledge/types'
+import type { SearchConnector } from '@/lib/sim-search/connectors'
 import {
   memberConnectorKeys,
   useConnectSimSearchConnector,
   useStartConnectorMemberEnrollment,
   type ViewerConnectorMembership,
+  type WorkspaceMemberConnector,
 } from '@/hooks/queries/kb/connectors'
 
 const logger = createLogger('MemberEnrollment')
@@ -164,13 +166,8 @@ export function useMemberEnrollment({
     })
   }
 
-  /**
-   * Each path clears the other's failure first: the surface shows one error,
-   * and a stale one from the other path would outlive a success on this one.
-   */
   const connect = (knowledgeBaseId: string, connectorId: string) =>
     openEnrollment(({ onSuccess, onError }) => {
-      sourceConnection.reset()
       enrollment.mutate(
         { knowledgeBaseId, connectorId },
         {
@@ -194,7 +191,6 @@ export function useMemberEnrollment({
     sourceConfig?: Record<string, string>
   ) =>
     openEnrollment(({ onSuccess, onError }) => {
-      enrollment.reset()
       sourceConnection.mutate(
         { workspaceId, connectorType, sourceConfig },
         {
@@ -207,15 +203,43 @@ export function useMemberEnrollment({
       )
     })
 
+  const [setupConnector, setSetupConnector] = useState<SearchConnector | null>(null)
+
+  /**
+   * One click on a Sim Search source: enroll in its connector when someone
+   * already connected it, ask for its setup fields when it needs them, and
+   * otherwise create it and enroll in one step.
+   */
+  const connectSearchSource = (
+    workspaceId: string,
+    connector: SearchConnector,
+    connection: WorkspaceMemberConnector | undefined
+  ) => {
+    if (connection) {
+      connect(connection.knowledgeBaseId, connection.connectorId)
+      return
+    }
+    if (connector.setupFields.length > 0) {
+      setSetupConnector(connector)
+      return
+    }
+    connectSource(workspaceId, connector.type)
+  }
+
   const isAwaiting = (connectorId: string) =>
     awaitingSince.has(connectorId) && !connectedConnectorIds.has(connectorId)
 
-  const error = enrollment.error ?? sourceConnection.error
+  /** The surface reports the latest attempt, whichever path made it. */
+  const latest =
+    enrollment.submittedAt >= sourceConnection.submittedAt ? enrollment : sourceConnection
   return {
     connect,
     connectSource,
+    connectSearchSource,
+    setupConnector,
+    closeSetup: () => setSetupConnector(null),
     isAwaiting,
-    isPending: enrollment.isPending || sourceConnection.isPending,
-    error: popupBlocked ? POPUP_BLOCKED_MESSAGE : (error?.message ?? null),
+    isPending: latest.isPending,
+    error: popupBlocked ? POPUP_BLOCKED_MESSAGE : (latest.error?.message ?? null),
   }
 }

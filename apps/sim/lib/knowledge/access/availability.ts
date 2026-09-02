@@ -3,6 +3,7 @@ import {
   type WorkspaceOwnerSubscriptionAccess,
 } from '@/lib/billing/core/workspace-access'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 
 /**
@@ -38,4 +39,15 @@ export async function isKnowledgeMemberAccessAvailable(
   const ownerBilling =
     context.ownerBilling ?? (await getWorkspaceOwnerSubscriptionAccess(context.workspaceId))
   return isCredentialGroupsAvailable({ workspaceId: context.workspaceId, ownerBilling })
+}
+
+/** Refuses with the one message every members-mode gate uses when the feature is off for the workspace. */
+export async function requireKnowledgeMemberAccessAvailable(
+  context: KnowledgeMemberAccessContext
+): Promise<void> {
+  if (await isKnowledgeMemberAccessAvailable(context)) return
+  throw new OrchestrationError(
+    'validation',
+    'Per-member access is not available for this workspace'
+  )
 }

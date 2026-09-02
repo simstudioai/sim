@@ -102,6 +102,8 @@ interface ChipBaseProps extends Omit<VariantProps<typeof chipVariants>, 'variant
   leftAdornment?: ReactNode
   /** Icon component rendered after the label. */
   rightIcon?: ChipIcon
+  /** Custom content rendered after the label, such as a spinning loader. Takes precedence over `rightIcon`. */
+  rightAdornment?: ReactNode
   children?: ReactNode
 }
 
@@ -115,6 +117,7 @@ function ChipContent({
   leftIcon: LeftIcon,
   leftAdornment,
   rightIcon: RightIcon,
+  rightAdornment,
   children,
 }: ChipBaseProps) {
   const isInverse = variant === 'primary' || variant === 'destructive'
@@ -130,7 +133,7 @@ function ChipContent({
       ) : children != null && children !== false ? (
         <span className={cn(overflowTextClipClass, labelClass)}>{children}</span>
       ) : null}
-      {RightIcon ? <RightIcon className={iconClass} /> : null}
+      {rightAdornment ?? (RightIcon ? <RightIcon className={iconClass} /> : null)}
     </>
   )
 }
@@ -152,6 +155,7 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
     leftIcon,
     leftAdornment,
     rightIcon,
+    rightAdornment,
     children,
     type,
     ...props
@@ -170,6 +174,7 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
         leftIcon={leftIcon}
         leftAdornment={leftAdornment}
         rightIcon={rightIcon}
+        rightAdornment={rightAdornment}
       >
         {children}
       </ChipContent>
@@ -195,6 +200,7 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
     leftIcon,
     leftAdornment,
     rightIcon,
+    rightAdornment,
     children,
     ...props
   },
@@ -211,6 +217,7 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
         leftIcon={leftIcon}
         leftAdornment={leftAdornment}
         rightIcon={rightIcon}
+        rightAdornment={rightAdornment}
       >
         {children}
       </ChipContent>

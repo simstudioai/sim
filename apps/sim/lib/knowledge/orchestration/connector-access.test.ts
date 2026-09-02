@@ -47,9 +47,19 @@ vi.mock('@/lib/knowledge/connectors/member-access', () => ({
 vi.mock('@/lib/credential-groups/credentials', () => ({
   loadCredentialGroupCredentialListContext: mocks.loadGroup,
 }))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: mocks.memberAccessAvailable,
-}))
+vi.mock('@/lib/knowledge/access/availability', async () => {
+  const { OrchestrationError } = await import('@/lib/core/orchestration/types')
+  return {
+    isKnowledgeMemberAccessAvailable: mocks.memberAccessAvailable,
+    requireKnowledgeMemberAccessAvailable: async (context: { workspaceId: string }) => {
+      if (await mocks.memberAccessAvailable(context)) return
+      throw new OrchestrationError(
+        'validation',
+        'Per-member access is not available for this workspace'
+      )
+    },
+  }
+})
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
   provisionKnowledgeConnectorMembersBinding: mocks.provision,
 }))

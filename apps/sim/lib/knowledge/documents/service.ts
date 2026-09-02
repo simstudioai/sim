@@ -90,7 +90,10 @@ import {
   toPermanentDocumentProcessingError,
   UsageLimitDocumentProcessingError,
 } from '@/lib/knowledge/documents/document-processing-error'
-import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import {
+  processDocument,
+  type SourceFileAccess,
+} from '@/lib/knowledge/documents/document-processor'
 import {
   failStaleDocumentProcessingClaim,
   recordUndispatchedDocumentFailure,
@@ -1331,6 +1334,18 @@ function queueGenerationConditions(
  * invocation against the document's retry budget. Direct callers omit it and
  * therefore cannot refund an attempt they never charged.
  */
+/**
+ * Who the processor reads a document's source file as. Always the actor, not
+ * the payer: authorizing as the KB owner would let a writer ingest an internal
+ * file only the owner can read. A connector-owned row was written by the sync
+ * from bytes it fetched, not from a caller-supplied URL, so it is read as the
+ * system: in members mode the row stays hidden until the sync materializes who
+ * observed it, and the actor's own scope would deny the read.
+ */
+function sourceFileAccessFor(connectorId: string | null, actorUserId: string): SourceFileAccess {
+  return { userId: actorUserId, knowledgeAccess: connectorId ? SYSTEM_ACCESS_SCOPE : undefined }
+}
+
 export async function processDocumentAsync(
   knowledgeBaseId: string,
   documentId: string,
@@ -1575,23 +1590,10 @@ export async function processDocumentAsync(
             kbConfig.maxSize,
             kbConfig.overlap,
             kbConfig.minSize,
-            /**
-             * Authorize source-file processing as the actor, not the payer. Using
-             * the KB owner would let a writer ingest an internal file that only the
-             * owner can read.
-             */
-            documentActorUserId,
+            sourceFileAccessFor(ctx.connectorId, documentActorUserId),
             ctx.workspaceId,
             rawConfig?.strategy,
-            rawConfig?.strategyOptions,
-            /**
-             * A connector-owned row was written by the sync from bytes it fetched,
-             * not from a caller-supplied URL, so the processor reads it as the
-             * system: in members mode the row stays hidden until the sync
-             * materializes who observed it, and the actor's own scope would deny
-             * the read. Uploads keep the actor's authorization above.
-             */
-            ctx.connectorId ? SYSTEM_ACCESS_SCOPE : undefined
+            rawConfig?.strategyOptions
           )
 
           assertDocumentChunkCountWithinLimit(processed.chunks.length)

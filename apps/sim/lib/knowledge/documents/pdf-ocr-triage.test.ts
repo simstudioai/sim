@@ -57,7 +57,10 @@ function ocrPages(count: number, markdown = 'Recognised page') {
 function parse() {
   return runWithKnowledgeModelInputProvenance(
     undefined,
-    () => processDocument(PDF_URL, 'Contract.pdf', 'application/pdf', 1024, 200, 1, 'user-1'),
+    () =>
+      processDocument(PDF_URL, 'Contract.pdf', 'application/pdf', 1024, 200, 1, {
+        userId: 'user-1',
+      }),
     { opaqueInputSafe: true }
   )
 }

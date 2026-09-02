@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { Button } from '@sim/emcn'
+import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
   RESOURCE_LIST_STACK,
@@ -18,11 +19,6 @@ import {
 } from '@/hooks/use-member-enrollment'
 
 const SHARED_WITH_YOU_LABEL = 'Shared with you'
-
-/** The name a per-member connector shows, from its registry entry. */
-export function memberConnectorName(connector: WorkspaceMemberConnector): string {
-  return CONNECTOR_META_REGISTRY[connector.connectorType]?.name ?? connector.connectorType
-}
 
 interface MemberConnectorsSectionProps {
   workspaceId: string
@@ -59,7 +55,7 @@ export function MemberConnectorsSection({ workspaceId, connectors }: MemberConne
         <div className={RESOURCE_LIST_STACK}>
           {connectors.map((connector) => {
             const meta = CONNECTOR_META_REGISTRY[connector.connectorType]
-            const name = memberConnectorName(connector)
+            const name = connectorDisplayName(connector.connectorType)
             const waiting = isAwaiting(connector.connectorId)
             const state =
               describeMembership({

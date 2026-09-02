@@ -62,15 +62,28 @@ vi.mock('@/lib/sim-search/connectors', () => {
     serviceName: name,
     serviceIcon: icon,
     blockType: type,
+    setupFields: [],
   })
+  const isSearchConnectorAvailable = (
+    candidate: { blockType: string },
+    availability: ReadonlyMap<string, { oauthAvailable: boolean }>
+  ) => availability.get(candidate.blockType)?.oauthAvailable ?? true
   return {
     SIM_SEARCH_KNOWLEDGE_BASE_NAME: 'Sim Search',
     canConnectPersonally: (meta: { permissionScopedListing?: unknown }) =>
       Boolean(meta.permissionScopedListing),
-    isSearchConnectorAvailable: (
-      candidate: { blockType: string },
-      availability: ReadonlyMap<string, { oauthAvailable: boolean }>
-    ) => availability.get(candidate.blockType)?.oauthAvailable ?? true,
+    connectorDisplayName: (connectorType: string) => connectorType,
+    isSearchConnectorAvailable,
+    searchConnectorUnavailableReason: (
+      candidate: { blockType: string; meta: { name: string } },
+      availability: ReadonlyMap<string, { oauthAvailable: boolean }>,
+      memberAccessAvailable: boolean
+    ) =>
+      !isSearchConnectorAvailable(candidate, availability)
+        ? `${candidate.meta.name} is unavailable in this deployment`
+        : memberAccessAvailable
+          ? null
+          : 'Per-member access is not available in this workspace',
     SEARCH_CONNECTORS: [
       connector('google_drive', 'Google Drive', 'Sync Drive files', true),
       connector('confluence', 'Confluence', 'Sync Confluence pages', false),
@@ -116,6 +129,16 @@ vi.mock('@/hooks/use-member-enrollment', async () => {
     useMemberEnrollment: () => ({
       connect: mockConnect,
       connectSource: mockConnectSource,
+      connectSearchSource: (
+        workspaceId: string,
+        connector: { type: string },
+        connection: { knowledgeBaseId: string; connectorId: string } | undefined
+      ) =>
+        connection
+          ? mockConnect(connection.knowledgeBaseId, connection.connectorId)
+          : mockConnectSource(workspaceId, connector.type),
+      setupConnector: null,
+      closeSetup: () => {},
       isAwaiting: () => false,
       isPending: false,
       error: null,
@@ -167,7 +190,7 @@ describe('Search', () => {
     const text = container?.textContent ?? ''
     expect(text).toContain('Connected · 12 documents')
     expect(text).toContain('Set up by a workspace admin from a knowledge base.')
-    expect(text).toContain('Unavailable in this deployment. Contact your administrator.')
+    expect(text).toContain('Slack is unavailable in this deployment')
     expect(text).toContain('Sales')
   })
 
@@ -189,9 +212,7 @@ describe('Search', () => {
 
     expect(sectionLabels()).toEqual(['Sim Search Connectors'])
     const text = container?.textContent ?? ''
-    expect(text).toContain(
-      'Per-member access is not available in this workspace. Contact your administrator.'
-    )
+    expect(text).toContain('Per-member access is not available in this workspace')
     expect(text).not.toContain('Connected · 12 documents')
     expect(buttons().find((button) => button.textContent === 'Connect')).toBeUndefined()
   })

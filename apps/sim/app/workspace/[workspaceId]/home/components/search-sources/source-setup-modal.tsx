@@ -9,12 +9,10 @@ import {
   ChipModalHeader,
 } from '@sim/emcn'
 import type { SearchConnector } from '@/lib/sim-search/connectors'
-import type { ConnectorConfigField } from '@/connectors/types'
 
 interface SourceSetupModalProps {
   connector: SearchConnector
-  fields: readonly ConnectorConfigField[]
-  onOpenChange: (open: boolean) => void
+  onClose: () => void
   /** Connects the source with the filled-in fields; the caller opens the OAuth tab in this click. */
   onConnect: (sourceConfig: Record<string, string>) => void
 }
@@ -23,26 +21,26 @@ interface SourceSetupModalProps {
  * The few fields a source needs before its first connect, such as a site and
  * a space. Everyone after the first person clicks straight through.
  */
-export function SourceSetupModal({
-  connector,
-  fields,
-  onOpenChange,
-  onConnect,
-}: SourceSetupModalProps) {
+export function SourceSetupModal({ connector, onClose, onConnect }: SourceSetupModalProps) {
+  const fields = connector.setupFields
   const [values, setValues] = useState<Record<string, string>>({})
   const complete = fields.every((field) => values[field.id]?.trim())
 
   const submit = () => {
     if (!complete) return
     onConnect(Object.fromEntries(fields.map((field) => [field.id, values[field.id]?.trim() ?? ''])))
-    onOpenChange(false)
+    onClose()
   }
 
   return (
-    <ChipModal open onOpenChange={onOpenChange} srTitle={`Connect ${connector.meta.name}`}>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>
-        Connect {connector.meta.name}
-      </ChipModalHeader>
+    <ChipModal
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      srTitle={`Connect ${connector.meta.name}`}
+    >
+      <ChipModalHeader onClose={onClose}>Connect {connector.meta.name}</ChipModalHeader>
       <ChipModalBody>
         {fields.map((field) =>
           field.type === 'dropdown' ? (
@@ -76,7 +74,7 @@ export function SourceSetupModal({
         )}
       </ChipModalBody>
       <ChipModalFooter
-        onCancel={() => onOpenChange(false)}
+        onCancel={onClose}
         primaryAction={{ label: 'Connect', onClick: submit, disabled: !complete }}
       />
     </ChipModal>

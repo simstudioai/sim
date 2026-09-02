@@ -8,7 +8,7 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { loadCredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
-import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
+import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { EMPTY_ACL, WORKSPACE_ACL } from '@/lib/knowledge/access/tokens'
 import {
   grantKnowledgeConnectorCredentialAccess,
@@ -84,12 +84,7 @@ export async function resolveKnowledgeConnectorMembersBinding(input: {
    * Judged by the workspace alone, as the member engine is: a person's own
    * flag clause must not open a mode the engine will then refuse to run.
    */
-  if (!(await isKnowledgeMemberAccessAvailable({ workspaceId: input.workspaceId }))) {
-    throw new OrchestrationError(
-      'validation',
-      'Per-member access is not available for this workspace'
-    )
-  }
+  await requireKnowledgeMemberAccessAvailable({ workspaceId: input.workspaceId })
   if (!input.connectorMeta.permissionScopedListing) {
     throw new OrchestrationError(
       'validation',

@@ -1,15 +1,14 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Chip } from '@sim/emcn'
 import { Loader, Plus } from '@sim/emcn/icons'
 import {
   canConnectPersonally,
-  isSearchConnectorAvailable,
-  personalSetupFields,
   SEARCH_CONNECTORS,
   type SearchConnector,
   SIM_SEARCH_KNOWLEDGE_BASE_NAME,
+  searchConnectorUnavailableReason,
 } from '@/lib/sim-search/connectors'
 import { SourceSetupModal } from '@/app/workspace/[workspaceId]/home/components/search-sources/source-setup-modal'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -23,20 +22,14 @@ import { CONNECTABLE_MEMBERSHIPS, useMemberEnrollment } from '@/hooks/use-member
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
-const MEMBER_ACCESS_UNAVAILABLE = 'Per-member access is not available in this workspace'
 
 /** The sources a person can connect themselves, alphabetical. */
 const PERSONAL_SEARCH_CONNECTORS = SEARCH_CONNECTORS.filter((connector) =>
   canConnectPersonally(connector.meta)
 )
 
-/** A chip's trailing icon is a component, so the spinning loader needs a wrapper to carry `animate`. */
-function SpinningLoader({ className }: { className?: string }) {
-  return <Loader className={className} animate />
-}
-
 /** The Sim Search connection per source, keyed by connector type. */
-export function simSearchConnectionsByType(
+function simSearchConnectionsByType(
   connectors: readonly WorkspaceMemberConnector[]
 ): Map<string, WorkspaceMemberConnector> {
   const byType = new Map<string, WorkspaceMemberConnector>()
@@ -108,6 +101,7 @@ function SourceChip({
   const title =
     unavailableReason ??
     (connected ? `${connector.meta.name}: ${state}` : `Connect ${connector.meta.name}`)
+  const busy = waiting || isIndexing(connection)
   return (
     <Chip
       shape='round'
@@ -116,7 +110,10 @@ function SourceChip({
       onClick={actionable ? onConnect : undefined}
       title={title}
       leftAdornment={<BrandIcon icon={connector.meta.icon} className='size-[14px] flex-shrink-0' />}
-      rightIcon={waiting || isIndexing(connection) ? SpinningLoader : actionable ? Plus : undefined}
+      rightIcon={!busy && actionable ? Plus : undefined}
+      rightAdornment={
+        busy ? <Loader className='size-[14px] text-[var(--text-icon)]' animate /> : undefined
+      }
     >
       <span className='flex items-center gap-1.5'>
         <span>{connector.meta.name}</span>
@@ -163,50 +160,42 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
     [memberConnectors]
   )
   const membershipQueryKeys = useMemo(() => [memberConnectorKeys.list(workspaceId)], [workspaceId])
-  const { connect, connectSource, isAwaiting, isPending, error } = useMemberEnrollment({
-    membershipQueryKeys,
-    connectedConnectorIds,
-  })
-  const [setupConnector, setSetupConnector] = useState<SearchConnector | null>(null)
+  const {
+    connectSource,
+    connectSearchSource,
+    setupConnector,
+    closeSetup,
+    isAwaiting,
+    isPending,
+    error,
+  } = useMemberEnrollment({ membershipQueryKeys, connectedConnectorIds })
 
-  const rank = (connector: SearchConnector) =>
-    connectionByType.get(connector.type)?.viewerMembership === 'connected' ? 0 : 1
-  const ordered = [...PERSONAL_SEARCH_CONNECTORS].sort(
-    (a, b) => rank(a) - rank(b) || a.meta.name.localeCompare(b.meta.name)
-  )
-
-  const startConnect = (connector: SearchConnector) => {
-    const connection = connectionByType.get(connector.type)
-    if (connection) {
-      connect(connection.knowledgeBaseId, connection.connectorId)
-      return
-    }
-    if (personalSetupFields(connector.meta).length > 0) {
-      setSetupConnector(connector)
-      return
-    }
-    connectSource(workspaceId, connector.type)
-  }
+  /** Connected sources first; the catalog is already alphabetical, so the partition keeps the order. */
+  const isConnected = (connector: SearchConnector) =>
+    connectionByType.get(connector.type)?.viewerMembership === 'connected'
+  const ordered = [
+    ...PERSONAL_SEARCH_CONNECTORS.filter(isConnected),
+    ...PERSONAL_SEARCH_CONNECTORS.filter((connector) => !isConnected(connector)),
+  ]
 
   return (
     <div className='flex flex-col gap-2'>
       <div className='flex flex-wrap gap-1.5'>
         {ordered.map((connector) => {
           const connection = connectionByType.get(connector.type)
-          const unavailableReason = !isSearchConnectorAvailable(connector, integrationAvailability)
-            ? `${connector.meta.name} is unavailable in this deployment`
-            : memberAccessAvailable
-              ? null
-              : MEMBER_ACCESS_UNAVAILABLE
           return (
             <SourceChip
               key={connector.type}
               connector={connector}
               connection={connection}
-              unavailableReason={unavailableReason}
+              unavailableReason={searchConnectorUnavailableReason(
+                connector,
+                integrationAvailability,
+                memberAccessAvailable
+              )}
               waiting={connection ? isAwaiting(connection.connectorId) : false}
               disabled={isPending}
-              onConnect={() => startConnect(connector)}
+              onConnect={() => connectSearchSource(workspaceId, connector, connection)}
             />
           )
         })}
@@ -215,10 +204,7 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
       {setupConnector && (
         <SourceSetupModal
           connector={setupConnector}
-          fields={personalSetupFields(setupConnector.meta)}
-          onOpenChange={(open) => {
-            if (!open) setSetupConnector(null)
-          }}
+          onClose={closeSetup}
           onConnect={(sourceConfig) =>
             connectSource(workspaceId, setupConnector.type, sourceConfig)
           }

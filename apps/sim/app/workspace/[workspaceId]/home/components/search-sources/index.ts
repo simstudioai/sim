@@ -1,1 +1,1 @@
-export { isIndexing, SearchSources, simSearchConnectionsByType } from './search-sources'
+export { isIndexing, SearchSources } from './search-sources'

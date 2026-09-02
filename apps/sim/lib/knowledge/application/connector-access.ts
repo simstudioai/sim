@@ -3,7 +3,7 @@ import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/princip
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
+import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   resolveKnowledgeAttributedUserId,
@@ -56,12 +56,7 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
     if (connector.accessMode !== 'members' || !connector.credentialGroupId) {
       throw new OrchestrationError('validation', 'This connector does not sync per member')
     }
-    if (!(await isKnowledgeMemberAccessAvailable({ workspaceId }))) {
-      throw new OrchestrationError(
-        'validation',
-        'Per-member access is not available for this workspace'
-      )
-    }
+    await requireKnowledgeMemberAccessAvailable({ workspaceId })
     const url = await createViewerConnectorEnrollmentLink({
       userId,
       workspaceId,

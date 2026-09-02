@@ -3,10 +3,10 @@
 import { useMemo, useState } from 'react'
 import { Button, Chip } from '@sim/emcn'
 import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowledge'
+import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { isIndexing } from '@/app/workspace/[workspaceId]/home/components/search-sources'
-import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useWorkspaceMemberConnectors } from '@/hooks/queries/kb/connectors'
 import { useKnowledgeBasesQuery, useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 
@@ -58,16 +58,12 @@ function toSource(result: WorkspaceKnowledgeSearchResult): SourceTagData | null 
     url: result.sourceUrl,
     title: result.documentName ?? undefined,
     siteName: result.connectorType
-      ? connectorName(result.connectorType)
+      ? connectorDisplayName(result.connectorType)
       : result.knowledgeBaseName || undefined,
     connectorType: result.connectorType ?? undefined,
     snippet: toSnippet(result.content),
     updatedAt: result.sourceModifiedAt ?? undefined,
   }
-}
-
-function connectorName(connectorType: string): string {
-  return CONNECTOR_META_REGISTRY[connectorType]?.name ?? connectorType
 }
 
 /**
@@ -134,7 +130,7 @@ export function KnowledgeSearchResults({
     ...new Set(
       memberConnectors
         .filter(isIndexing)
-        .map((connection) => connectorName(connection.connectorType))
+        .map((connection) => connectorDisplayName(connection.connectorType))
     ),
   ]
   const documents = useMemo(() => groupResultsByDocument(results ?? []), [results])
@@ -203,7 +199,7 @@ export function KnowledgeSearchResults({
               active={sourceFilter === type}
               onClick={() => setSourceFilter(sourceFilter === type ? null : type)}
             >
-              {type === 'upload' ? 'Uploads' : connectorName(type)}
+              {type === 'upload' ? 'Uploads' : connectorDisplayName(type)}
             </Chip>
           ))}
           <span className='mx-1 self-center text-[var(--text-muted)] text-caption'>·</span>

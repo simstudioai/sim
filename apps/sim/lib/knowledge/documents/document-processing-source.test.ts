@@ -219,9 +219,8 @@ describe('knowledge document processing source', () => {
       1024,
       200,
       100,
-      PERSISTED_CONTEXT.uploadedBy,
+      { userId: PERSISTED_CONTEXT.uploadedBy, knowledgeAccess: undefined },
       null,
-      undefined,
       undefined,
       undefined
     )
@@ -250,11 +249,10 @@ describe('knowledge document processing source', () => {
       1024,
       200,
       100,
-      PERSISTED_CONTEXT.uploadedBy,
+      { userId: PERSISTED_CONTEXT.uploadedBy, knowledgeAccess: SYSTEM_ACCESS_SCOPE },
       null,
       undefined,
-      undefined,
-      SYSTEM_ACCESS_SCOPE
+      undefined
     )
   })
 
@@ -276,9 +274,8 @@ describe('knowledge document processing source', () => {
       1024,
       200,
       100,
-      PERSISTED_CONTEXT.uploadedBy,
+      { userId: PERSISTED_CONTEXT.uploadedBy, knowledgeAccess: undefined },
       null,
-      undefined,
       undefined,
       undefined
     )

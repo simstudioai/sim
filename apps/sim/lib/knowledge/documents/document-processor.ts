@@ -201,7 +201,7 @@ async function applyStrategy(
  * Who a source-file read runs as: the actor for authorization and OCR
  * attribution, plus how a knowledge-base file identifies its reader.
  */
-type SourceFileAccess = Pick<DownloadFileFromUrlOptions, 'userId' | 'knowledgeAccess'>
+export type SourceFileAccess = Pick<DownloadFileFromUrlOptions, 'userId' | 'knowledgeAccess'>
 
 export async function processDocument(
   fileUrl: string,
@@ -210,11 +210,10 @@ export async function processDocument(
   chunkSize = 1024,
   chunkOverlap = 200,
   minCharactersPerChunk = 100,
-  userId?: string,
+  access: SourceFileAccess = {},
   workspaceId?: string | null,
   strategy?: ChunkingStrategy,
-  strategyOptions?: StrategyOptions,
-  knowledgeAccess?: DownloadFileFromUrlOptions['knowledgeAccess']
+  strategyOptions?: StrategyOptions
 ): Promise<{
   chunks: Chunk[]
   metadata: {
@@ -229,7 +228,6 @@ export async function processDocument(
   }
 }> {
   logger.info('Processing document', { mimeType })
-  const access: SourceFileAccess = { userId, knowledgeAccess }
 
   try {
     const parseResult = await parseDocument(fileUrl, filename, mimeType, access, workspaceId)

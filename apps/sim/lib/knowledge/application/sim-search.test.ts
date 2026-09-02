@@ -37,9 +37,19 @@ vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
 }))
 
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: mocks.isMemberAccessAvailable,
-}))
+vi.mock('@/lib/knowledge/access/availability', async () => {
+  const { OrchestrationError } = await import('@/lib/core/orchestration/types')
+  return {
+    isKnowledgeMemberAccessAvailable: mocks.isMemberAccessAvailable,
+    requireKnowledgeMemberAccessAvailable: async (context: { workspaceId: string }) => {
+      if (await mocks.isMemberAccessAvailable(context)) return
+      throw new OrchestrationError(
+        'validation',
+        'Per-member access is not available for this workspace'
+      )
+    },
+  }
+})
 
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
   createKnowledgeBase: { execute: mocks.createKnowledgeBase },
