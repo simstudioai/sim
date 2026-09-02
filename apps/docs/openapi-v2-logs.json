@@ -522,6 +522,31 @@
               "minimum": 1,
               "maximum": 500
             }
+          },
+          {
+            "name": "includeEmpty",
+            "in": "query",
+            "required": false,
+            "description": "Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+            "schema": {
+              "default": false,
+              "description": "Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+              "enum": [
+                "true",
+                "1",
+                "yes",
+                "on",
+                "y",
+                "enabled",
+                "false",
+                "0",
+                "no",
+                "off",
+                "n",
+                "disabled"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1756,7 +1781,7 @@
             "items": {
               "$ref": "#/components/schemas/V2LogStatsSegment"
             },
-            "description": "One entry per bucket, in order, including buckets with no runs."
+            "description": "Buckets in time order. Only the buckets with at least one run unless `includeEmpty` was set, in which case every bucket appears, empty ones included."
           },
           "totalExecutions": {
             "type": "number",
@@ -1829,7 +1854,7 @@
             "items": {
               "$ref": "#/components/schemas/V2LogStatsSegment"
             },
-            "description": "Workspace-wide totals per bucket, in the same order as each workflow series."
+            "description": "Workspace-wide totals per bucket, in time order. Subject to the same `includeEmpty` rule as each workflow series: empty buckets are omitted unless asked for."
           },
           "totalRuns": {
             "type": "number",
