@@ -87,6 +87,7 @@ function buildContext(): CredentialGroupOAuthContext {
   return {
     enrollmentId: 'enrollment-1',
     credentialGroupId: 'group-1',
+    credentialGroupName: 'Credential Group',
     workspaceId: 'workspace-1',
     workspaceName: 'Workspace',
     workspaceOwnerId: 'owner-1',
