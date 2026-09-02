@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -69,7 +69,6 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
             accessMode: 'members' as const,
             binding: await resolveKnowledgeConnectorMembersBinding({
               workspaceId,
-              actingUserId: resolvePrincipalSubjectUserId(principal) ?? undefined,
               connectorMeta,
               binding: {
                 credentialGroupId: requireBindingField(

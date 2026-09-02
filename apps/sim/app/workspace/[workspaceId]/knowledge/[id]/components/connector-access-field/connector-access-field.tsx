@@ -62,6 +62,8 @@ interface ConnectorAccessFieldProps {
   /** Only an admin may put a connector into members mode. */
   canAdmin: boolean
   disabled?: boolean
+  /** Whether per-member access may be chosen; false leaves only the way back to workspace access. */
+  allowMembers?: boolean
   /** Rendered under the selection, for a caller that applies the change with its own control. */
   footer?: ReactNode
 }
@@ -81,6 +83,7 @@ export function ConnectorAccessField({
   onChange,
   canAdmin,
   disabled = false,
+  allowMembers = true,
   footer,
 }: ConnectorAccessFieldProps) {
   const { features } = useWorkspaceHostContext()
@@ -139,7 +142,8 @@ export function ConnectorAccessField({
     )
   }
 
-  const noGroupYet = !isLoading && !loadError && options.length === 0
+  /** Only a loaded, empty list means there is no group to pick; a disabled query says nothing. */
+  const noGroupYet = settings !== undefined && options.length === 0
   const settingsHref = `/workspace/${workspaceId}/settings/credential-groups`
 
   const handleCreateGroup = () => {
@@ -190,7 +194,10 @@ export function ConnectorAccessField({
           <ButtonGroupItem value='workspace' disabled={disabled}>
             Workspace
           </ButtonGroupItem>
-          <ButtonGroupItem value='members' disabled={disabled || !credentialGroupsAvailable}>
+          <ButtonGroupItem
+            value='members'
+            disabled={disabled || !allowMembers || !credentialGroupsAvailable}
+          >
             Per member
           </ButtonGroupItem>
         </ButtonGroup>

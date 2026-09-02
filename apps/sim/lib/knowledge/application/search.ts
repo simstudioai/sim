@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
@@ -291,7 +291,8 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     const accessPromise = context.access.get()
     const searchDefaults = await resolveKnowledgeSearchDefaults({
       workspaceId: context.workspaceId,
-      userId,
+      /** The signed-in person, if any; never the billing owner or a key's creator. */
+      userId: resolvePrincipalSubjectUserId(principal) ?? undefined,
       requestedMode: input.searchMode,
     })
     const useReranker = Boolean(input.rerankerEnabled && hasQuery)

@@ -10,9 +10,10 @@ export interface KnowledgeSearchDefaults {
 
 /**
  * The retrieval defaults for one workspace. Where permission-aware knowledge
- * is on, hybrid retrieval and the recency boost are the default; elsewhere
- * search stays semantic-only with no boost, exactly as before. An explicit
- * `searchMode` from the caller always wins over the default mode.
+ * is on, hybrid retrieval is the default and every search gets the recency
+ * boost; elsewhere search stays semantic-only with no boost, exactly as
+ * before. An explicit `searchMode` from the caller always wins over the
+ * default mode; the boost is a workspace policy and applies to either mode.
  */
 export async function resolveKnowledgeSearchDefaults(input: {
   workspaceId: string | undefined

@@ -90,9 +90,10 @@ const FEATURE_FLAGS = {
       'Permission-aware knowledge bases: lets a workspace admin sync a connector once per ' +
       'Credential Group member so each person sees only what their own account can read, and ' +
       'makes hybrid retrieval with a source-recency boost the default for searches in that ' +
-      'workspace. Gated by workspaceId and platform admins via AppConfig; off-AppConfig falls ' +
-      'back to KNOWLEDGE_MEMBER_ACCESS. Requires the credential-groups flag for the connector ' +
-      'side to do anything.',
+      'workspace. Gated by workspaceId via AppConfig for members mode, which is judged by the ' +
+      'workspace alone; the adminEnabled clause additionally opens the retrieval default to a ' +
+      'platform admin anywhere. Off-AppConfig falls back to KNOWLEDGE_MEMBER_ACCESS. Requires ' +
+      'the credential-groups flag for the connector side to do anything.',
     fallback: 'KNOWLEDGE_MEMBER_ACCESS',
   },
 } satisfies Record<string, FeatureFlagDefinition>

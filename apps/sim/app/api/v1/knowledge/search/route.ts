@@ -23,6 +23,7 @@ import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/
 import { handleError, resolveV1KnowledgeAccessScope } from '@/app/api/v1/knowledge/utils'
 import {
   authenticateRequest,
+  capabilityGovernedUserId,
   v1ValidationErrorResponse,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
@@ -199,7 +200,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let queryEmbeddingIsBYOK: boolean | null = null
     const [access, { searchMode, boostRecency }] = await Promise.all([
       resolveV1KnowledgeAccessScope(userId, rateLimit, workspaceId),
-      resolveKnowledgeSearchDefaults({ workspaceId, userId, requestedMode: requestedSearchMode }),
+      resolveKnowledgeSearchDefaults({
+        workspaceId,
+        /** A personal key acts as its user; a workspace key has no person behind it. */
+        userId: capabilityGovernedUserId(rateLimit) ?? undefined,
+        requestedMode: requestedSearchMode,
+      }),
     ])
 
     if (!hasQuery && hasFilters) {

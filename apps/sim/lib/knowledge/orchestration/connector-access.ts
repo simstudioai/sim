@@ -73,18 +73,15 @@ export interface ResolvedMembersBinding extends KnowledgeConnectorMembersBinding
  */
 export async function resolveKnowledgeConnectorMembersBinding(input: {
   workspaceId: string
-  /** The signed-in admin, for the feature gate's platform-admin clause. */
-  actingUserId: string | undefined
   connectorMeta: Pick<ConnectorMeta, 'name' | 'auth' | 'permissionScopedListing' | 'configFields'>
   binding: KnowledgeConnectorMembersBinding
   sourceConfig: Record<string, unknown>
 }): Promise<ResolvedMembersBinding> {
-  if (
-    !(await isKnowledgeMemberAccessAvailable({
-      workspaceId: input.workspaceId,
-      userId: input.actingUserId,
-    }))
-  ) {
+  /**
+   * Judged by the workspace alone, as the member engine is: a person's own
+   * flag clause must not open a mode the engine will then refuse to run.
+   */
+  if (!(await isKnowledgeMemberAccessAvailable({ workspaceId: input.workspaceId }))) {
     throw new OrchestrationError(
       'validation',
       'Per-member access is not available for this workspace'
@@ -223,11 +220,11 @@ export type PerformUpdateKnowledgeConnectorAccessResult = KnowledgeOrchestration
  * request budget is finished by the first member run before it lists
  * (`accessRewritePending`); documents are hidden early, never shown early.
  *
- * Back to workspace mode: rewrite every ACL to the workspace first — the admin
- * asked for exactly that visibility, and a rewrite interrupted here is
- * corrected by the still-members-mode engine — then drop the members and flip
- * in one transaction, then revoke the grant. A rewrite that outgrows the budget
- * is finished by the next content sync (`accessRewritePending`).
+ * Back to workspace mode: drop the members and flip in one transaction with
+ * the rewrite marked pending, rewrite every ACL to the workspace while the
+ * lease is still held, then release and revoke the grant. A rewrite that
+ * outgrows the budget, or is interrupted, is finished by the next content
+ * sync (`accessRewritePending`); documents are hidden until then.
  */
 export async function performUpdateKnowledgeConnectorAccess(
   params: PerformUpdateKnowledgeConnectorAccessParams
@@ -339,27 +336,52 @@ export async function performUpdateKnowledgeConnectorAccess(
         }
         return { success: true, connector, changed: true }
       } catch (error) {
-        /** The grant is the one write a failed switch must not leave behind. */
-        await revokeKnowledgeConnectorCredentialAccess(
-          {
-            workspaceId: kb.workspaceId,
-            credentialGroupId: target.binding.credentialGroupId,
+        /**
+         * The grant is the one write a failed switch must not leave behind. A
+         * grant replaces the connector's option within the group, so a failed
+         * move between options of one group puts the previous option back
+         * rather than leaving the connector on none.
+         */
+        const previousOptionId =
+          existing.credentialGroupId === target.binding.credentialGroupId
+            ? existing.credentialGroupOptionId
+            : null
+        await (previousOptionId
+          ? grantKnowledgeConnectorCredentialAccess(
+              {
+                workspaceId: kb.workspaceId,
+                credentialGroupId: target.binding.credentialGroupId,
+                credentialGroupOptionId: previousOptionId,
+                connectorId,
+              },
+              params.userId
+            )
+          : revokeKnowledgeConnectorCredentialAccess(
+              {
+                workspaceId: kb.workspaceId,
+                credentialGroupId: target.binding.credentialGroupId,
+                connectorId,
+              },
+              params.userId
+            )
+        ).catch((undoError) => {
+          logger.error(`[${requestId}] Failed to undo the grant of an abandoned switch`, {
             connectorId,
-          },
-          params.userId
-        ).catch((revokeError) => {
-          logger.error(`[${requestId}] Failed to revoke the grant of an abandoned switch`, {
-            connectorId,
-            error: getErrorMessage(revokeError),
+            error: getErrorMessage(undoError),
           })
         })
         throw error
       }
     }
 
-    const rewritten = await rewriteConnectorAcls(connectorId, WORKSPACE_ACL, deadlineAt)
-    const now = new Date()
-    const updated = await db.transaction(async (tx) => {
+    /**
+     * The flip lands first, still under the lease and with the rewrite marked
+     * pending, so an interruption anywhere after it leaves a workspace-mode
+     * connector whose next content sync finishes the rewrite; documents are
+     * hidden until then, never shown under the wrong mode.
+     */
+    const flippedAt = new Date()
+    await db.transaction(async (tx) => {
       await tx
         .delete(knowledgeConnectorMember)
         .where(eq(knowledgeConnectorMember.connectorId, connectorId))
@@ -370,23 +392,32 @@ export async function performUpdateKnowledgeConnectorAccess(
           credentialId: target.credentialId,
           credentialGroupId: null,
           credentialGroupOptionId: null,
-          /** The next content sync finishes a rewrite the budget cut short. */
-          accessRewritePending: !rewritten,
+          accessRewritePending: true,
           memberSyncStatus: 'idle',
           memberSyncConsecutiveFailures: 0,
           lastMemberSyncError: null,
           nextMemberSyncAt: null,
-          nextSyncAt: now,
-          status: previousStatus,
-          syncLockToken: null,
-          syncLockLeaseAt: null,
-          updatedAt: now,
+          nextSyncAt: flippedAt,
+          updatedAt: flippedAt,
         })
         .where(switchLeaseHeld(connectorId, switchId))
-        .returning()
+        .returning({ id: knowledgeConnector.id })
       if (!row) throw new SwitchLeaseLostError()
-      return row
     })
+    const rewritten = await rewriteConnectorAcls(connectorId, WORKSPACE_ACL, deadlineAt)
+    const now = new Date()
+    const [updated] = await db
+      .update(knowledgeConnector)
+      .set({
+        accessRewritePending: !rewritten,
+        status: previousStatus,
+        syncLockToken: null,
+        syncLockLeaseAt: null,
+        updatedAt: now,
+      })
+      .where(switchLeaseHeld(connectorId, switchId))
+      .returning()
+    if (!updated) throw new SwitchLeaseLostError()
     if (existing.credentialGroupId) {
       await revokeKnowledgeConnectorCredentialAccess(
         { workspaceId: kb.workspaceId, credentialGroupId: existing.credentialGroupId, connectorId },
@@ -408,6 +439,7 @@ export async function performUpdateKnowledgeConnectorAccess(
     return { success: true, connector, changed: true }
   } catch (error) {
     if (error instanceof SwitchLeaseLostError) {
+      /** The flip may already have landed; a reaped lease means the content engine now owns the rest. */
       return fail('Connector changed during the switch; retry the request', 'conflict')
     }
     await releaseSwitchLease(connectorId, switchId, previousStatus).catch((releaseError) => {

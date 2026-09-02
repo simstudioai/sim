@@ -457,13 +457,6 @@ interface MembershipReconciliation {
   affectedDocumentIds: Set<string>
 }
 
-/**
- * Mirrors the credential-group option onto member rows: inserts new
- * credentials, moves members between active and suspended, rewrites a subject
- * token that changed, drops members whose credential left the option, and
- * purges members suspended past the window. Every change that alters what an
- * observer contributes to an ACL is collected for rematerialisation.
- */
 /** The credential-group option the connector was bound to no longer exists. */
 class MemberBindingGoneError extends Error {
   constructor(message: string) {
@@ -472,6 +465,13 @@ class MemberBindingGoneError extends Error {
   }
 }
 
+/**
+ * Mirrors the credential-group option onto member rows: inserts new
+ * credentials, moves members between active and suspended, rewrites a subject
+ * token that changed, drops members whose credential left the option, and
+ * purges members suspended past the window. Every change that alters what an
+ * observer contributes to an ACL is collected for rematerialisation.
+ */
 async function reconcileMembership(
   run: MemberSyncRun,
   binding: { credentialGroupId: string; credentialGroupOptionId: string }
@@ -538,6 +538,8 @@ async function reconcileMembership(
         subjectToken: snapshot.subjectToken,
         status,
         suspendedAt: snapshot.active ? null : now,
+        /** Due now, so a run that cannot reach everyone re-dispatches until it has. */
+        nextAttemptAt: now,
         createdAt: now,
         updatedAt: now,
       })
@@ -562,9 +564,7 @@ async function reconcileMembership(
         status,
         suspendedAt: snapshot.active ? null : (row.suspendedAt ?? now),
         /** A reactivated member is due immediately; their observations may be stale. */
-        ...(statusChanged && snapshot.active
-          ? { nextAttemptAt: null, consecutiveFailures: 0 }
-          : {}),
+        ...(statusChanged && snapshot.active ? { nextAttemptAt: now, consecutiveFailures: 0 } : {}),
         updatedAt: now,
       })
       .where(eq(knowledgeConnectorMember.id, row.id))
@@ -642,15 +642,12 @@ async function claimNextMember(run: MemberSyncRun): Promise<MemberRow | null> {
 }
 
 /**
- * Members still due once this run ends. Deliberately ignores `lastStartedAt`:
- * a member this run claimed but could not finish is re-armed for now, and the
- * immediate re-dispatch this count triggers is what lets them finish.
- */
-/**
- * Members with a due timestamp, which is what re-dispatch waits for. A NULL
- * `nextAttemptAt` means "with the connector's next run" — a new member, or a
- * completed one on a manual-only connector — and must not keep the connector
- * re-dispatching itself; only an explicit time that has passed does that.
+ * Members still due once this run ends, which is what re-dispatch waits for.
+ * Deliberately ignores `lastStartedAt`: a member this run claimed but could not
+ * finish is re-armed for now, and the immediate re-dispatch this count
+ * triggers is what lets them finish. A NULL `nextAttemptAt` means "with the
+ * connector's next run" — a member that completed on a manual-only connector
+ * — and must not keep the connector re-dispatching itself.
  */
 async function countDueMembers(run: MemberSyncRun): Promise<number> {
   const [row] = await db
@@ -958,6 +955,19 @@ async function completeMemberSync(
       .for('update')
     if (!activeKnowledgeBase) {
       /** Nothing to record against a deleted knowledge base; hand the lease back rather than let it expire as a failure. */
+      await tx
+        .update(knowledgeConnectorMemberSyncLog)
+        .set({
+          status: 'failed',
+          completedAt: now,
+          errorMessage: 'Knowledge base deleted during sync',
+        })
+        .where(
+          and(
+            eq(knowledgeConnectorMemberSyncLog.id, run.runId),
+            eq(knowledgeConnectorMemberSyncLog.status, 'started')
+          )
+        )
       await tx
         .update(knowledgeConnector)
         .set({

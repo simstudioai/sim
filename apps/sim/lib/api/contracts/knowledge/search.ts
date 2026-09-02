@@ -54,7 +54,8 @@ export const knowledgeSearchBodySchema = z
      * `hybrid` runs a full-text leg alongside semantic retrieval and fuses the
      * two by reciprocal rank, which recovers exact tokens (error codes, ticket
      * keys, identifiers) that embeddings rank poorly. `vector` is semantic-only
-     * retrieval. Omitted, the workspace's default applies.
+     * retrieval. Omitted, the workspace's default applies. Where that default
+     * is `hybrid`, results in either mode also get a source-recency boost.
      */
     searchMode: knowledgeSearchModeSchema,
     rerankerEnabled: z.boolean().optional().default(false),

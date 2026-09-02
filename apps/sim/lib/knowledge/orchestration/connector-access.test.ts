@@ -110,16 +110,12 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
     await expect(
       resolveKnowledgeConnectorMembersBinding({
         workspaceId: 'ws-1',
-        actingUserId: 'admin-1',
         connectorMeta: {} as never,
         binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
         sourceConfig: {},
       })
     ).rejects.toMatchObject({ message: 'Per-member access is not available for this workspace' })
-    expect(mocks.memberAccessAvailable).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      userId: 'admin-1',
-    })
+    expect(mocks.memberAccessAvailable).toHaveBeenCalledWith({ workspaceId: 'ws-1' })
     expect(mocks.loadGroup).not.toHaveBeenCalled()
   })
 
@@ -128,7 +124,6 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
     await expect(
       resolveKnowledgeConnectorMembersBinding({
         workspaceId: 'ws-1',
-        actingUserId: 'admin-1',
         connectorMeta: {} as never,
         binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
         sourceConfig: {},
@@ -143,7 +138,6 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
     await expect(
       resolveKnowledgeConnectorMembersBinding({
         workspaceId: 'ws-1',
-        actingUserId: 'admin-1',
         connectorMeta: {} as never,
         binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
         sourceConfig: { maxFiles: '5' },
@@ -230,6 +224,8 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
     queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
     dbChainMockFns.returning
       .mockResolvedValueOnce([{ ...MEMBERS_CONNECTOR, status: 'syncing', syncLockToken: 's-1' }])
+      /** The flip lands under the lease, then the rewrite finds nothing left, then the release. */
+      .mockResolvedValueOnce([{ id: 'c-1' }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ ...WORKSPACE_CONNECTOR, credentialId: 'cred-2' }])
 

@@ -232,11 +232,12 @@ export function EditConnectorModal({
   const { mutate: updateAccess, isPending: isSwitchingAccess } = useUpdateConnectorAccess()
   const isSaving = isSavingSettings || isSwitchingAccess
   /**
-   * The field shows where the flag is on, and stays visible read-only for a
-   * connector already syncing per member where it has since been turned off.
+   * The field shows where the flag is on. A connector already syncing per
+   * member keeps it where the flag has since been turned off, so an admin can
+   * still bring it back to workspace mode; per-member cannot be re-chosen.
    */
-  const showAccessField =
-    features?.knowledgeMemberAccess === true || connector.accessMode === 'members'
+  const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const showAccessField = memberAccessAvailable || connector.accessMode === 'members'
 
   const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
@@ -350,7 +351,8 @@ export function EditConnectorModal({
               },
       },
       {
-        onSuccess: () => setWorkspaceCredentialId(null),
+        /** The connector prop is a snapshot; closing hands the refreshed row to the next open. */
+        onSuccess: () => onOpenChange(false),
         onError: (err) => {
           logger.error('Failed to switch connector access', { error: err.message })
           setError(err.message)
@@ -404,6 +406,7 @@ export function EditConnectorModal({
             onAccessChange={setAccess}
             canAdmin={canAdmin}
             showAccessField={showAccessField}
+            allowMembers={memberAccessAvailable}
             accessDirty={accessDirty}
             accessComplete={accessComplete}
             isSwitchingAccess={isSwitchingAccess}
@@ -451,6 +454,7 @@ interface SettingsTabProps {
   onAccessChange: (access: ConnectorAccessSelection) => void
   canAdmin: boolean
   showAccessField: boolean
+  allowMembers: boolean
   accessDirty: boolean
   accessComplete: boolean
   isSwitchingAccess: boolean
@@ -480,6 +484,7 @@ function SettingsTab({
   onAccessChange,
   canAdmin,
   showAccessField,
+  allowMembers,
   accessDirty,
   accessComplete,
   isSwitchingAccess,
@@ -518,6 +523,7 @@ function SettingsTab({
           value={access}
           onChange={onAccessChange}
           canAdmin={canAdmin}
+          allowMembers={allowMembers}
           disabled={isSaving}
           footer={
             accessDirty ? (

@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { sortAccessTokens, subjectToken } from '@/lib/knowledge/access/tokens'
 import {
   type KnowledgeAccessProvider,
@@ -70,11 +71,11 @@ async function loadUserAccessTokens(
     )
     .where(and(eq(user.id, userId), eq(user.emailVerified, true)))
 
-  const tokens = new Set<string>(WORKSPACE_ACCESS_TOKENS)
+  const subjectTokens = new Set<string>()
   for (const row of rows) {
     if (!row.providerSubjectId) continue
     try {
-      tokens.add(subjectToken(row))
+      subjectTokens.add(subjectToken(row))
     } catch (error) {
       logger.warn('Skipping malformed managed credential subject', {
         userId,
@@ -84,7 +85,16 @@ async function loadUserAccessTokens(
       })
     }
   }
-  return sortAccessTokens(tokens)
+  /**
+   * A member token only counts where permission-aware knowledge is on, so
+   * turning the feature off hides every member-scoped document at once — on
+   * the next read, before any run has suspended anyone — rather than leaving
+   * enrolled members reading them until a run happens to land.
+   */
+  if (subjectTokens.size > 0 && !(await isKnowledgeMemberAccessAvailable({ workspaceId }))) {
+    return [...WORKSPACE_ACCESS_TOKENS]
+  }
+  return sortAccessTokens(new Set([...WORKSPACE_ACCESS_TOKENS, ...subjectTokens]))
 }
 
 /**

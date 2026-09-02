@@ -4,6 +4,15 @@
 import type { Principal } from '@sim/auth/principal'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockMemberAccessAvailable } = vi.hoisted(() => ({
+  mockMemberAccessAvailable: vi.fn(async () => true),
+}))
+
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  isKnowledgeMemberAccessAvailable: mockMemberAccessAvailable,
+}))
+
 import {
   createKnowledgeAccessProvider,
   resolveKnowledgeAccessScope,

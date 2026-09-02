@@ -31,7 +31,7 @@ async function resolveWorkspaceHostContextForViewer(
   ])
   const [credentialGroupsAvailable, knowledgeMemberAccessAvailable] = await Promise.all([
     isCredentialGroupsAvailable({ workspaceId, ownerBilling }),
-    isKnowledgeMemberAccessAvailable({ workspaceId, userId }),
+    isKnowledgeMemberAccessAvailable({ workspaceId }),
   ])
 
   return {

@@ -433,7 +433,6 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       }
       membersBinding = await resolveKnowledgeConnectorMembersBinding({
         workspaceId,
-        actingUserId: subjectUserId,
         connectorMeta,
         binding: {
           credentialGroupId: input.credentialGroupId,
@@ -788,7 +787,8 @@ export const updateKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCas
           inArray(document.id, documentIds),
           eq(document.userExcluded, restoring),
           isNull(document.archivedAt),
-          isNull(document.deletedAt)
+          isNull(document.deletedAt),
+          knowledgeAccessCondition(await context.access.get())
         )
       )
       .returning({ id: document.id })
