@@ -324,7 +324,10 @@ function senderLabel(sender: ChatUser | undefined): string {
  * that belongs in a knowledge base is synced through the Google Drive connector
  * instead, which already handles size caps, OCR, and format parsing.
  */
-function formatSpaceContent(space: Space, messages: ChatMessage[]): string {
+function formatSpaceContent(
+  space: Space,
+  messages: ChatMessage[]
+): { content: string; messageCount: number } {
   const parts = new BoundedLines()
   parts.push(`Space: ${spaceTitle(space)}`)
   const description = space.spaceDetails?.description?.trim()
@@ -332,28 +335,17 @@ function formatSpaceContent(space: Space, messages: ChatMessage[]): string {
   const guidelines = space.spaceDetails?.guidelines?.trim()
   if (guidelines) parts.push(`Guidelines: ${guidelines}`)
 
-  let headed = false
+  let messageCount = 0
   for (const message of messages) {
     const text = message.text?.trim() || message.fallbackText?.trim()
     if (!text) continue
-    if (!headed) {
-      parts.push('', '--- Messages ---')
-      headed = true
-    }
+    if (messageCount === 0) parts.push('', '--- Messages ---')
     const timestamp = message.createTime ?? ''
     if (!parts.push(`[${timestamp}] ${senderLabel(message.sender)}: ${text}`)) break
+    messageCount += 1
   }
 
-  return parts.join()
-}
-
-/** Number of messages that actually contributed text to the transcript. */
-function countIndexedMessages(messages: ChatMessage[]): number {
-  let count = 0
-  for (const message of messages) {
-    if (message.text?.trim() || message.fallbackText?.trim()) count++
-  }
-  return count
+  return { content: parts.join(), messageCount }
 }
 
 export const googleChatConnector: ConnectorConfig = {
@@ -476,12 +468,12 @@ export const googleChatConnector: ConnectorConfig = {
      * leave a previously indexed transcript in place after the space was cleared
      * or `lookbackDays` was tightened past every message.
      */
-    const messageCount = countIndexedMessages(messages)
+    const { content, messageCount } = formatSpaceContent(space, messages)
     const stub = spaceToStub(space, maxMessages, lookbackDays, syncContext)
 
     return {
       ...stub,
-      content: formatSpaceContent(space, messages),
+      content,
       contentDeferred: false,
       metadata: { ...stub.metadata, messageCount },
     }
