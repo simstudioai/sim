@@ -177,7 +177,7 @@ async function readKnowledgeBaseRows(
   where: SQL | undefined,
   orderBy: SQL[],
   limit?: number
-): Promise<Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>>> {
+): Promise<Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasMemberScopedConnector'>>> {
   const query = db
     .select({
       id: knowledgeBase.id,
@@ -219,7 +219,9 @@ async function readKnowledgeBaseRows(
 }
 
 async function attachConnectorTypes(
-  knowledgeBases: Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>>
+  knowledgeBases: Array<
+    Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasMemberScopedConnector'>
+  >
 ): Promise<KnowledgeBaseWithCounts[]> {
   const kbIds = knowledgeBases.map((kb) => kb.id)
   const connectorRows =
@@ -228,6 +230,7 @@ async function attachConnectorTypes(
           .select({
             knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
             connectorType: knowledgeConnector.connectorType,
+            accessMode: knowledgeConnector.accessMode,
           })
           .from(knowledgeConnector)
           .where(
@@ -240,15 +243,18 @@ async function attachConnectorTypes(
       : []
 
   const connectorTypesByKb = new Map<string, string[]>()
+  const memberScopedKbIds = new Set<string>()
   for (const row of connectorRows) {
     const types = connectorTypesByKb.get(row.knowledgeBaseId) ?? []
     if (!types.includes(row.connectorType)) types.push(row.connectorType)
     connectorTypesByKb.set(row.knowledgeBaseId, types)
+    if (row.accessMode === 'members') memberScopedKbIds.add(row.knowledgeBaseId)
   }
 
   return knowledgeBases.map((kb) => ({
     ...kb,
     connectorTypes: connectorTypesByKb.get(kb.id) ?? [],
+    hasMemberScopedConnector: memberScopedKbIds.has(kb.id),
   }))
 }
 
@@ -262,7 +268,7 @@ async function readWorkspaceKnowledgeBaseRows(
   scope: KnowledgeBaseScope,
   options?: GetKnowledgeBasesOptions
 ): Promise<{
-  data: Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>>
+  data: Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasMemberScopedConnector'>>
   nextCursorKeys: CursorKey[] | null
 }> {
   const {
@@ -326,7 +332,7 @@ export async function getWorkspaceKnowledgeBases(
 async function readLegacyPersonalKnowledgeBaseRows(
   userId: string,
   scope: KnowledgeBaseScope
-): Promise<Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>>> {
+): Promise<Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasMemberScopedConnector'>>> {
   const rows = await readKnowledgeBaseRows(
     and(
       knowledgeBaseScopeCondition(scope),
@@ -382,7 +388,7 @@ export async function listWorkspaceAndLegacyKnowledgeBases(
 export async function findActiveKnowledgeBasesByExactName(
   workspaceId: string,
   name: string
-): Promise<Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>>> {
+): Promise<Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasMemberScopedConnector'>>> {
   return readKnowledgeBaseRows(
     and(
       eq(knowledgeBase.workspaceId, workspaceId),
@@ -485,6 +491,7 @@ export async function createAuthorizedKnowledgeBase(
     folderId,
     docCount: 0,
     connectorTypes: [],
+    hasMemberScopedConnector: false,
   }
 }
 
@@ -928,6 +935,7 @@ export async function updateKnowledgeBase(
     chunkingConfig: updatedKb[0].chunkingConfig as ChunkingConfig,
     docCount: Number(updatedKb[0].docCount),
     connectorTypes: [],
+    hasMemberScopedConnector: false,
   }
 }
 
@@ -1004,6 +1012,7 @@ export async function getKnowledgeBaseById(
     chunkingConfig: result[0].chunkingConfig as ChunkingConfig,
     docCount: Number(result[0].docCount),
     connectorTypes: [],
+    hasMemberScopedConnector: false,
   }
 }
 

@@ -30,6 +30,8 @@ export interface KnowledgeBaseWithCounts {
   folderId: string | null
   docCount: number
   connectorTypes: string[]
+  /** True when a live connector syncs per member, so what a run retrieves depends on who triggers it. */
+  hasMemberScopedConnector: boolean
 }
 
 export interface CreateKnowledgeBaseData {
@@ -121,6 +123,7 @@ export interface KnowledgeBaseData {
   folderId: string | null
   docCount?: number
   connectorTypes?: string[]
+  hasMemberScopedConnector?: boolean
 }
 
 export interface DocumentData {
