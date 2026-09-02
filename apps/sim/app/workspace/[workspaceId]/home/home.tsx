@@ -462,9 +462,12 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         is_new_task: !chatId,
       })
 
-      /** Search mode answers with documents, not a turn of the agent. */
-      if (useMothershipModeStore.getState().mode === 'search' && trimmed) {
-        setSearchQuery(trimmed)
+      /**
+       * Search mode answers with documents, not a turn of the agent, and only
+       * a query can be answered: attachments alone have nothing to search for.
+       */
+      if (useMothershipModeStore.getState().mode === 'search') {
+        if (trimmed) setSearchQuery(trimmed)
         return
       }
 
@@ -726,6 +729,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
                     defaultValue={initialPrompt || initialSearchQuery}
                     draftScopeKey={draftScopeKey}
                     onSubmit={handleSubmit}
+                    canSearch
                     clearOnSubmit={composerMode !== 'search'}
                     onCleared={clearSearch}
                     isSending={isSending}
@@ -754,6 +758,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
             isReconnecting={isReconnecting}
             isLoading={showChatSkeleton}
             onSubmit={handleSubmit}
+            canSearch
             clearOnSubmit={composerMode !== 'search'}
             onCleared={clearSearch}
             onStopGeneration={handleStopGeneration}

@@ -166,6 +166,7 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
     setupConnector,
     closeSetup,
     isAwaiting,
+    isAwaitingSource,
     isPending,
     error,
   } = useMemberEnrollment({ membershipQueryKeys, connectedConnectorIds })
@@ -193,7 +194,9 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
                 integrationAvailability,
                 memberAccessAvailable
               )}
-              waiting={connection ? isAwaiting(connection.connectorId) : false}
+              waiting={
+                connection ? isAwaiting(connection.connectorId) : isAwaitingSource(connector.type)
+              }
               disabled={isPending}
               onConnect={() => connectSearchSource(workspaceId, connector, connection)}
             />

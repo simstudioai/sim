@@ -3,6 +3,8 @@
 import { type ReactNode, useState } from 'react'
 import { Button, cn, Tooltip } from '@sim/emcn'
 import { Check, Link as LinkIcon } from '@sim/emcn/icons'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import {
@@ -16,6 +18,8 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { BrandIcon } from '@/blocks/brand-icon'
+
+const logger = createLogger('SourceCard')
 
 /** Query terms shorter than this are too common to bold. */
 const MIN_HIGHLIGHT_TERM_LENGTH = 3
@@ -63,7 +67,11 @@ interface CopyLinkActionProps {
   url: string
 }
 
-/** Copies the document's link; confirms with a check for a moment. */
+/**
+ * Copies the document's link; confirms with a check for a moment. The check
+ * only shows once the clipboard accepted the write: a page denied clipboard
+ * access is left at "Copy link" rather than claiming a copy that never landed.
+ */
 function CopyLinkAction({ url }: CopyLinkActionProps) {
   const [copied, setCopied] = useState(false)
   return (
@@ -74,10 +82,17 @@ function CopyLinkAction({ url }: CopyLinkActionProps) {
           size='sm'
           aria-label='Copy link'
           onClick={() => {
-            void navigator.clipboard.writeText(url).then(() => {
-              setCopied(true)
-              window.setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS)
-            })
+            navigator.clipboard.writeText(url).then(
+              () => {
+                setCopied(true)
+                window.setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS)
+              },
+              (error: unknown) => {
+                logger.warn('Copying the document link failed', {
+                  error: getErrorMessage(error),
+                })
+              }
+            )
           }}
         >
           {copied ? (

@@ -71,6 +71,12 @@ interface UserInputProps {
   isInitialView?: boolean
   onSendQueuedHead?: () => void
   /**
+   * Whether the composer offers Search mode. Only the Home composer answers a
+   * search with documents; the workflow copilot always talks to the agent, so
+   * it must not show a mode it cannot honour.
+   */
+  canSearch?: boolean
+  /**
    * Whether the text is cleared once submitted. A search keeps its query in
    * the box, the way a search bar does, so it can be read and refined against
    * the results; a message to the agent clears, since it now lives in the
@@ -107,6 +113,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     isInitialView = true,
     onSendQueuedHead,
     onEditQueuedTail,
+    canSearch = false,
     clearOnSubmit = true,
     onCleared,
   },
@@ -712,7 +719,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
           </Tooltip.Root>
         </div>
         <div className='flex items-center gap-1.5'>
-          <ModeSwitcher />
+          {canSearch && <ModeSwitcher />}
           {isSttSupported && (
             <MicButton
               audioLevelsRef={audioLevelsRef}

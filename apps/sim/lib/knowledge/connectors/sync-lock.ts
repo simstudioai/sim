@@ -181,6 +181,30 @@ export interface SyncRunLease {
   beatLive: () => Promise<void>
 }
 
+/** The lease a document write proves before it lands, as the run that makes it holds it. */
+export type SyncWriteLease = Pick<SyncRunLease, 'stillHeld'>
+
+/**
+ * Proves, inside the write's own transaction, that the run still owns the
+ * connector. A heartbeat taken before the batch only says the lease was held
+ * then; the hydration and storage work between it and the row write can
+ * outlast the lease. The share lock keeps the scheduler's reclaim from landing
+ * until this write commits, and a row that no longer matches aborts the write
+ * instead of landing stale content over the replacement run's.
+ */
+export async function assertSyncLeaseHeldInTx(
+  tx: Pick<typeof db, 'select'>,
+  connectorId: string,
+  lease: SyncWriteLease
+): Promise<void> {
+  const [held] = await tx
+    .select({ id: knowledgeConnector.id })
+    .from(knowledgeConnector)
+    .where(lease.stillHeld())
+    .for('share')
+  if (!held) throw new SyncLockLostException(connectorId)
+}
+
 /**
  * The lease of the content sync engine, held through `syncLockToken`. The
  * heartbeat clock is seeded at lock acquisition, which opened `syncLockLeaseAt`.
