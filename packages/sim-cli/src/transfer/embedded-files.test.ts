@@ -32,9 +32,7 @@ describe('embedded positional file arguments', () => {
 
   it('refuses a path the host did not pre-read, telling the caller how to provide it', async () => {
     await embedStore.run(embedded(), async () => {
-      await expect(localFile('@missing.csv')).rejects.toThrow(
-        'No file "missing.csv" on your machine'
-      )
+      await expect(localFile('@missing.csv')).rejects.toThrow('use @missing.csv')
     })
   })
 })
