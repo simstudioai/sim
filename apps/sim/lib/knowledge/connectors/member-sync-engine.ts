@@ -465,13 +465,17 @@ async function insertMemberSyncLog(runId: string, connectorId: string, startedAt
 /**
  * Finishes an ACL rewrite a mode switch left behind before this run lists
  * anything: every document of the connector is hidden until an observation
- * makes it visible again.
+ * makes it visible again. Bounded by the run's own budget like every other
+ * step, so a large corpus is hidden across as many runs as it takes rather
+ * than one run that never reaches a member; returns whether it finished.
  */
-async function finishPendingAccessRewrite(run: MemberSyncRun): Promise<void> {
-  await rewriteConnectorAcls(run.connectorId, EMPTY_ACL, {
+async function finishPendingAccessRewrite(run: MemberSyncRun): Promise<boolean> {
+  const finished = await rewriteConnectorAcls(run.connectorId, EMPTY_ACL, {
+    deadlineAt: run.deadlineAt,
     beforeBatch: run.lease.beatIfDue,
     lease: run.lease,
   })
+  if (!finished) return false
   await db
     .update(knowledgeConnector)
     .set({ accessRewritePending: false, updatedAt: new Date() })
@@ -481,6 +485,7 @@ async function finishPendingAccessRewrite(run: MemberSyncRun): Promise<void> {
         stillHoldsMemberSyncLock(run.connectorId, run.runId)
       )
     )
+  return true
 }
 
 interface MembershipReconciliation {
@@ -1376,7 +1381,17 @@ export async function executeMemberSync(
     }
     const sourceConfig = connector.sourceConfig as Record<string, unknown>
 
-    if (connector.accessRewritePending) await finishPendingAccessRewrite(run)
+    if (connector.accessRewritePending && !(await finishPendingAccessRewrite(run))) {
+      /** The rewrite is not done, so nothing is listed yet; the next run picks it up at once. */
+      result.membersRemaining = true
+      const landed = await completeMemberSync(run, connector.syncIntervalMinutes)
+      if (!landed) return skipped(result, 'sync_superseded')
+      logger.info('Member sync spent its budget hiding documents after a mode switch', {
+        connectorId,
+        runId,
+      })
+      return result
+    }
 
     const affectedDocumentIds = new Set<string>()
     /**

@@ -11,12 +11,18 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { startKnowledgeConnectorMemberEnrollment } from '@/lib/knowledge/application/connector-access'
-import { createKnowledgeConnector } from '@/lib/knowledge/application/connectors'
+import {
+  createKnowledgeConnector,
+  deleteKnowledgeConnector,
+} from '@/lib/knowledge/application/connectors'
 import {
   type KnowledgeWorkspaceContext,
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
-import { createKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
+import {
+  createKnowledgeBase,
+  deleteKnowledgeBaseOperation,
+} from '@/lib/knowledge/application/knowledge-bases'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
   canConnectPersonally,
@@ -154,27 +160,36 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
       /**
        * Concurrent first connects in this process share one creation per
        * workspace base and per source, and each re-checks before creating.
-       * Two instances can still race in the same instant; both then converge
-       * on the oldest row, which every lookup here orders by, and the stray
-       * one is inert.
+       * Two instances can still race in the same instant: every lookup here
+       * orders by the oldest row, so after creating, each re-reads and the one
+       * that finds an older row than its own deletes what it just made and
+       * converges on the older one. Nothing stray outlives the request.
        */
-      const knowledgeBaseId = await coalesceLocally(
-        `sim-search:base:${workspaceId}`,
-        async () =>
-          (await findSimSearchKnowledgeBase(workspaceId))?.id ??
-          (
-            await createKnowledgeBase.execute({
-              principal,
-              input: {
-                workspaceId,
-                name: SIM_SEARCH_KNOWLEDGE_BASE_NAME,
-                description: SIM_SEARCH_KNOWLEDGE_BASE_DESCRIPTION,
-                source: 'ui',
-              },
-              request,
-            })
-          ).knowledgeBase.id
-      )
+      const knowledgeBaseId = await coalesceLocally(`sim-search:base:${workspaceId}`, async () => {
+        const existing = await findSimSearchKnowledgeBase(workspaceId)
+        if (existing) return existing.id
+        const created = (
+          await createKnowledgeBase.execute({
+            principal,
+            input: {
+              workspaceId,
+              name: SIM_SEARCH_KNOWLEDGE_BASE_NAME,
+              description: SIM_SEARCH_KNOWLEDGE_BASE_DESCRIPTION,
+              source: 'ui',
+            },
+            request,
+          })
+        ).knowledgeBase.id
+        const oldest = (await findSimSearchKnowledgeBase(workspaceId))?.id ?? created
+        if (oldest !== created) {
+          await deleteKnowledgeBaseOperation.execute({
+            principal,
+            input: { knowledgeBaseId: created, assertedWorkspaceId: workspaceId, source: 'ui' },
+            request,
+          })
+        }
+        return oldest
+      })
       target = await coalesceLocally(
         `sim-search:connect:${workspaceId}:${input.connectorType}`,
         async () => {
@@ -193,6 +208,20 @@ export const connectSimSearchConnector = defineAuthorizedKnowledgeUseCase({
             },
             request,
           })
+          const oldest = await findSimSearchConnector(workspaceId, input.connectorType)
+          if (oldest && oldest.connectorId !== created.connector.id) {
+            await deleteKnowledgeConnector.execute({
+              principal,
+              input: {
+                connectorId: created.connector.id,
+                assertedWorkspaceId: workspaceId,
+                deleteDocuments: true,
+                source: 'ui',
+              },
+              request,
+            })
+            return oldest
+          }
           return { knowledgeBaseId, connectorId: created.connector.id }
         }
       )

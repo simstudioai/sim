@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
   isMemberAccessAvailable: vi.fn(),
   createKnowledgeBase: vi.fn(),
+  deleteKnowledgeBase: vi.fn(),
   createConnector: vi.fn(),
+  deleteConnector: vi.fn(),
   enroll: vi.fn(),
   getUserPermissionConfig: vi.fn(),
   recordAudit: vi.fn(),
@@ -53,10 +55,12 @@ vi.mock('@/lib/knowledge/access/availability', async () => {
 
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
   createKnowledgeBase: { execute: mocks.createKnowledgeBase },
+  deleteKnowledgeBaseOperation: { execute: mocks.deleteKnowledgeBase },
 }))
 
 vi.mock('@/lib/knowledge/application/connectors', () => ({
   createKnowledgeConnector: { execute: mocks.createConnector },
+  deleteKnowledgeConnector: { execute: mocks.deleteConnector },
 }))
 
 vi.mock('@/lib/knowledge/application/connector-access', () => ({
@@ -186,8 +190,12 @@ describe('connectSimSearchConnector', () => {
 
   it('lets an admin create the base and the connector with the setup fields, then enrolls them', async () => {
     mocks.resolvePermission.mockResolvedValue('admin')
-    queueConnectorLookups(null, null)
     queueTableRows(knowledgeBase, [])
+    queueTableRows(knowledgeBase, [{ id: 'kb-new' }])
+    queueConnectorLookups(null, null, {
+      knowledgeBaseId: 'kb-new',
+      connectorId: 'connector-new',
+    } as typeof existingConnector)
 
     const result = await connectSimSearchConnector.execute({
       principal,
@@ -197,6 +205,9 @@ describe('connectSimSearchConnector', () => {
         sourceConfig: { spaceKey: 'ENG' },
       },
     })
+
+    expect(mocks.deleteKnowledgeBase).not.toHaveBeenCalled()
+    expect(mocks.deleteConnector).not.toHaveBeenCalled()
 
     expect(mocks.createKnowledgeBase).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -252,6 +263,30 @@ describe('connectSimSearchConnector', () => {
 
     expect(mocks.createKnowledgeBase).not.toHaveBeenCalled()
     expect(mocks.createConnector).not.toHaveBeenCalled()
+    expect(result).toEqual({ ...existingConnector, url: 'https://sim.test/enroll/token' })
+  })
+
+  it('converges on the row another instance created first and deletes its own', async () => {
+    mocks.resolvePermission.mockResolvedValue('admin')
+    queueTableRows(knowledgeBase, [])
+    queueTableRows(knowledgeBase, [{ id: existingConnector.knowledgeBaseId }])
+    queueConnectorLookups(null, null, existingConnector)
+
+    const result = await connectSimSearchConnector.execute({
+      principal,
+      input: { workspaceId: 'workspace-1', connectorType: 'google_drive' },
+    })
+
+    expect(mocks.deleteKnowledgeBase).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ knowledgeBaseId: 'kb-new' }),
+      })
+    )
+    expect(mocks.deleteConnector).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ connectorId: 'connector-new', deleteDocuments: true }),
+      })
+    )
     expect(result).toEqual({ ...existingConnector, url: 'https://sim.test/enroll/token' })
   })
 })
