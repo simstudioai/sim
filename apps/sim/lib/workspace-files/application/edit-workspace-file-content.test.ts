@@ -89,7 +89,7 @@ const CONTENT_UPDATED_AT = new Date('2025-01-01T00:00:00.000Z')
 const principal: Principal = {
   kind: 'session',
   userId: 'user-1',
-  subject: { kind: 'user', userId: 'user-1' },
+  sessionId: 'session-1',
 }
 
 const NOTE = '# self\n\n- prefers async\n- based in NYC\n'
