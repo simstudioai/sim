@@ -77,7 +77,7 @@ Extract the text content of one or more workspace files from selected file objec
 
 ### File Search
 
-Search the indexed text of active workspace files for lines matching a query, and return each matching line once with its file ID and line number. By default the query is a regular expression; in exact mode it is matched verbatim and metacharacters are literal. Coverage is what the index currently holds: when "complete" is false the index is still catching up, so a term that is not found is unknown rather than absent. Re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one folder tree, which also narrows "indexStatus" to that tree.
+Search the indexed text of active workspace files for lines matching a query, and return each matching line once with its file ID and line number. By default the query is a regular expression; in exact mode it is matched verbatim and metacharacters are literal. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped or partial files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one folder tree, which also narrows "indexStatus" to that tree.
 
 #### Input
 
@@ -195,7 +195,7 @@ Replace one exact piece of text in an existing workspace file, leaving the rest 
 | `results` | array | Matching lines as objects with fileId, lineNumber, and text fields \(search\) |
 | `count` | number | Returned matching line count \(search\) |
 | `truncated` | boolean | Whether results were cut short by a cap: more matches exist \(search\), or more entries exist \(list\) |
-| `complete` | boolean | Whether every file revision in the searched scope is indexed without failures. When false, a term that was not found is unknown rather than absent \(search\) |
+| `complete` | boolean | Whether the searched scope has no file still pending or failed indexing. It does not cover skipped or partial files, so check indexStatus too before treating a missing match as authoritative \(search\) |
 | `indexStatus` | json | Workspace search-index coverage counts: readyFiles, pendingFiles, failedFiles, skippedFiles, and partialFiles |
 | `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
 | `id` | string | File ID \(write and append\) |
@@ -241,7 +241,7 @@ Insert new lines into an existing workspace file at a given line, leaving the re
 | `results` | array | Matching lines as objects with fileId, lineNumber, and text fields \(search\) |
 | `count` | number | Returned matching line count \(search\) |
 | `truncated` | boolean | Whether results were cut short by a cap: more matches exist \(search\), or more entries exist \(list\) |
-| `complete` | boolean | Whether every file revision in the searched scope is indexed without failures. When false, a term that was not found is unknown rather than absent \(search\) |
+| `complete` | boolean | Whether the searched scope has no file still pending or failed indexing. It does not cover skipped or partial files, so check indexStatus too before treating a missing match as authoritative \(search\) |
 | `indexStatus` | json | Workspace search-index coverage counts: readyFiles, pendingFiles, failedFiles, skippedFiles, and partialFiles |
 | `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
 | `id` | string | File ID \(write and append\) |

@@ -1278,7 +1278,7 @@ export const v2FileSearchResultsSchema = z
     complete: z
       .boolean()
       .describe(
-        'True when every file revision in the searched scope is indexed without failures. When false, a term that was not found is unknown rather than absent.'
+        'True when no file in the searched scope is still pending or failed indexing. It does NOT cover `skippedFiles` (never indexed, such as binaries) or `partialFiles` (indexed only in part), so a missing match is authoritative only when all three are clear. Treat any of them as nonzero meaning unknown rather than absent.'
       ),
     indexStatus: z
       .object({

@@ -2247,7 +2247,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     complete: {
       type: 'boolean',
       description:
-        'Whether every file revision in the searched scope is indexed without failures. When false, a term that was not found is unknown rather than absent (search)',
+        'Whether the searched scope has no file still pending or failed indexing. It does not cover skipped or partial files, so check indexStatus too before treating a missing match as authoritative (search)',
     },
     indexStatus: {
       type: 'json',

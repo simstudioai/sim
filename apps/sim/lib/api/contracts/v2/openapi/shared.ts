@@ -150,8 +150,9 @@ export const ERROR_RESPONSES = {
   }),
   Locked: errorResponse(423, 'The resource is locked and cannot be modified.', {
     /**
-     * Also domain-supplied. Workflows and tables are the only documents that carry a `423`,
-     * and tables names its own four lock kinds through {@link withErrorExamples}.
+     * Also domain-supplied. Workflows, tables and workspace files are the documents that carry
+     * a `423`; tables names its own four lock kinds through {@link withErrorExamples}, and files
+     * names the file and its search index.
      */
     message: 'Workflow is locked',
   }),

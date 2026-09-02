@@ -1134,6 +1134,13 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
    */
   errorResponses: withErrorExamples({
     Conflict: { message: 'The request conflicts with the current state of the file' },
+    /*
+     * The shared example names a workflow, which was accurate while workflows
+     * and tables were the only documents carrying a 423. The in-place content
+     * edit and content search both do now, so this names what is actually
+     * locked here without enumerating the reasons it can be.
+     */
+    Locked: { message: 'The file or its search index is temporarily locked; retry the request' },
   }),
   routes,
 })
