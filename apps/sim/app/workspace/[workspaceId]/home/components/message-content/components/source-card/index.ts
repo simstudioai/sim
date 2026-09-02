@@ -1,1 +1,6 @@
-export { highlightTerms, SourceCard } from './source-card'
+export {
+  highlightTerms,
+  SOURCE_ROW_CLASSES,
+  SOURCE_ROW_MARK_CLASSES,
+  SourceCard,
+} from './source-card'

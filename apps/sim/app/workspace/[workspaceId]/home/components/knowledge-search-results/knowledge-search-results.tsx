@@ -1,13 +1,26 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Button, Chip } from '@sim/emcn'
+import { useMemo } from 'react'
+import { Button, Chip, OverflowText } from '@sim/emcn'
+import { FileText } from '@sim/emcn/icons'
+import { formatDate } from '@sim/utils/formatting'
+import { useQueryStates } from 'nuqs'
 import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowledge'
 import { matchSnippet } from '@/lib/knowledge/search/snippet'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
-import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
+import {
+  highlightTerms,
+  SOURCE_ROW_CLASSES,
+  SOURCE_ROW_MARK_CLASSES,
+  SourceCard,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { isIndexing } from '@/app/workspace/[workspaceId]/home/components/search-sources'
+import {
+  resourceUrlKeys,
+  searchFilterParsers,
+  UPDATED_WINDOWS,
+} from '@/app/workspace/[workspaceId]/home/search-params'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   useWorkspaceMemberConnectors,
@@ -22,13 +35,8 @@ const MAX_SEARCHED_KNOWLEDGE_BASES = 20
 /** Filters appear only once a list is long and mixed enough for them to help. */
 const FILTERS_MIN_RESULTS = 10
 const DAY_MS = 24 * 60 * 60 * 1000
-
-const UPDATED_WINDOWS = [
-  { id: 'any', label: 'Any time', days: null },
-  { id: '7d', label: 'Past week', days: 7 },
-  { id: '30d', label: 'Past month', days: 30 },
-] as const
-type UpdatedWindow = (typeof UPDATED_WINDOWS)[number]['id']
+/** Every result without a connector is an upload; the filter names them so. */
+const UPLOAD_SOURCE = 'upload'
 
 /**
  * One card per document, keeping the best-ranked chunk of each: the list is
@@ -102,6 +110,41 @@ function handleResultsKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
   links[next].focus()
 }
 
+interface UnlinkedResultRowProps {
+  result: WorkspaceKnowledgeSearchResult
+  query: string
+}
+
+/**
+ * A document with nowhere to open, such as an upload: the same row as a
+ * linked result, with the file mark in place of a brand mark, so the list's
+ * columns and the matched passage stay aligned whatever the document is.
+ */
+function UnlinkedResultRow({ result, query }: UnlinkedResultRowProps) {
+  const meta = [
+    result.knowledgeBaseName,
+    result.author,
+    result.sourceModifiedAt ? formatDate(new Date(result.sourceModifiedAt)) : null,
+  ].filter((part): part is string => Boolean(part))
+  return (
+    <div className={SOURCE_ROW_CLASSES}>
+      <span className={SOURCE_ROW_MARK_CLASSES}>
+        <FileText className='size-[16px] text-[var(--text-icon)]' />
+      </span>
+      <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+        <OverflowText
+          label={result.documentName ?? 'Untitled document'}
+          className='text-[var(--text-primary)] text-sm'
+        />
+        <OverflowText label={meta.join(' · ')} className='text-[var(--text-muted)] text-caption' />
+        <p className='line-clamp-2 text-[var(--text-body)] text-small leading-snug'>
+          {highlightTerms(matchSnippet(result.content, query), query)}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 interface KnowledgeSearchResultsProps {
   workspaceId: string
   query: string
@@ -117,7 +160,8 @@ interface KnowledgeSearchResultsProps {
  * that open the source. A header says how many and that the search ran as
  * them; while a connected source is still indexing it says so, and the list
  * grows as documents land. Filters by source and recency appear only once the
- * list is long and mixed enough to need them.
+ * list is long and mixed enough to need them, and live in the URL beside the
+ * query so a filtered search is a shareable link.
  */
 export function KnowledgeSearchResults({
   workspaceId,
@@ -152,44 +196,44 @@ export function KnowledgeSearchResults({
    */
   const memberAccessAvailable = features?.knowledgeMemberAccess === true
   const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS } = useWorkspaceMemberConnectors(
-    memberAccessAvailable ? workspaceId : undefined
+    workspaceId,
+    { enabled: memberAccessAvailable }
   )
   const indexing = indexingSourceNames(memberConnectors, knowledgeBaseIds)
   const documents = useMemo(() => groupResultsByDocument(results ?? []), [results])
   const sourceTypes = useMemo(
-    () => [...new Set(documents.map((result) => result.connectorType ?? 'upload'))],
+    () => [...new Set(documents.map((result) => result.connectorType ?? UPLOAD_SOURCE))],
     [documents]
   )
-  const [sourceFilter, setSourceFilter] = useState<string | null>(null)
-  const [updatedFilter, setUpdatedFilter] = useState<UpdatedWindow>('any')
+  const [filters, setFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
   const showFilters = documents.length >= FILTERS_MIN_RESULTS && sourceTypes.length > 1
   const visible = useMemo(() => {
     if (!showFilters) return documents
-    const window = UPDATED_WINDOWS.find((entry) => entry.id === updatedFilter)
+    const window = UPDATED_WINDOWS.find((entry) => entry.id === filters.updated)
     const cutoff = window?.days ? Date.now() - window.days * DAY_MS : null
     return documents.filter((result) => {
-      if (sourceFilter && (result.connectorType ?? 'upload') !== sourceFilter) return false
+      if (filters.source && (result.connectorType ?? UPLOAD_SOURCE) !== filters.source) return false
       if (cutoff !== null) {
         const modified = result.sourceModifiedAt ? Date.parse(result.sourceModifiedAt) : Number.NaN
         if (Number.isNaN(modified) || modified < cutoff) return false
       }
       return true
     })
-  }, [documents, showFilters, sourceFilter, updatedFilter])
+  }, [documents, showFilters, filters.source, filters.updated])
 
   const failure = basesError ?? error
   if (failure) {
-    return <p className='px-2 py-3 text-[var(--text-error)] text-small'>{failure.message}</p>
+    return <p className='px-2 py-2 text-[var(--text-error)] text-caption'>{failure.message}</p>
   }
   if (!basesPending && knowledgeBaseIds.length === 0) {
     return (
-      <p className='px-2 py-3 text-[var(--text-muted)] text-small'>
+      <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>
         Nothing to search yet. Connect a source above to index what you can open.
       </p>
     )
   }
   if (isPending || (isFetching && !results)) {
-    return <p className='px-2 py-3 text-[var(--text-muted)] text-small'>Searching…</p>
+    return <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>Searching…</p>
   }
 
   const indexingNote =
@@ -198,39 +242,45 @@ export function KnowledgeSearchResults({
       : null
 
   return (
-    <div className='flex flex-col gap-1'>
-      <div className='flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1'>
-        <span className='text-[var(--text-muted)] text-caption'>
-          {documents.length === 1 ? '1 document' : `${documents.length} documents`} · searched as
-          you
-          {indexingNote ? ` · ${indexingNote}` : ''}
+    <div className='flex flex-col'>
+      <div className='flex items-center gap-2 px-2 py-2'>
+        <span className='min-w-0 flex-1 text-[var(--text-muted)] text-caption'>
+          <span className='tabular-nums'>
+            {documents.length === 1 ? '1 document' : `${documents.length} documents`}
+          </span>
+          {' · searched as you'}
+          {indexingNote && <span className='block'>{indexingNote}</span>}
         </span>
-        <Button variant='ghost' size='sm' className='ml-auto' onClick={() => onAnswer(query)}>
+        <Button variant='ghost' size='sm' onClick={() => onAnswer(query)}>
           Answer with Sim
         </Button>
       </div>
       {showFilters && (
-        <div className='flex flex-wrap gap-1.5 px-2 pb-1'>
-          <Chip shape='round' active={sourceFilter === null} onClick={() => setSourceFilter(null)}>
+        <div className='flex flex-wrap items-center gap-1.5 px-2 pb-2'>
+          <Chip
+            shape='round'
+            active={filters.source === null}
+            onClick={() => setFilters({ source: null })}
+          >
             All sources
           </Chip>
           {sourceTypes.map((type) => (
             <Chip
               key={type}
               shape='round'
-              active={sourceFilter === type}
-              onClick={() => setSourceFilter(sourceFilter === type ? null : type)}
+              active={filters.source === type}
+              onClick={() => setFilters({ source: filters.source === type ? null : type })}
             >
-              {type === 'upload' ? 'Uploads' : connectorDisplayName(type)}
+              {type === UPLOAD_SOURCE ? 'Uploads' : connectorDisplayName(type)}
             </Chip>
           ))}
-          <span className='mx-1 self-center text-[var(--text-muted)] text-caption'>·</span>
+          <span aria-hidden className='mx-0.5 h-[16px] w-px bg-[var(--border)]' />
           {UPDATED_WINDOWS.map((window) => (
             <Chip
               key={window.id}
               shape='round'
-              active={updatedFilter === window.id}
-              onClick={() => setUpdatedFilter(window.id)}
+              active={filters.updated === window.id}
+              onClick={() => setFilters({ updated: window.id })}
             >
               {window.label}
             </Chip>
@@ -238,13 +288,13 @@ export function KnowledgeSearchResults({
         </div>
       )}
       {visible.length === 0 ? (
-        <p className='px-2 py-3 text-[var(--text-muted)] text-small'>
+        <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>
           {documents.length === 0
             ? `No documents you can read match “${query}”.`
             : 'No documents match these filters.'}
         </p>
       ) : (
-        <div className='flex flex-col gap-0.5' onKeyDown={handleResultsKeyDown}>
+        <div className='flex flex-col' onKeyDown={handleResultsKeyDown}>
           {visible.map((result) => {
             const source = toSource(result, query)
             return source ? (
@@ -257,17 +307,7 @@ export function KnowledgeSearchResults({
                 }
               />
             ) : (
-              <div key={result.documentId} className='flex flex-col gap-0.5 px-2 py-2'>
-                <p className='truncate text-[var(--text-primary)] text-sm'>
-                  {result.documentName ?? 'Untitled document'}
-                </p>
-                <p className='truncate text-[var(--text-muted)] text-caption'>
-                  {result.knowledgeBaseName}
-                </p>
-                <p className='line-clamp-2 text-[var(--text-body)] text-small leading-snug'>
-                  {matchSnippet(result.content, query)}
-                </p>
-              </div>
+              <UnlinkedResultRow key={result.documentId} result={result} query={query} />
             )
           })}
         </div>

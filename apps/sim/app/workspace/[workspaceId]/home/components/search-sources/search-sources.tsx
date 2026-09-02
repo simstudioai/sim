@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip, chipContentGap, cn } from '@sim/emcn'
 import { Loader, Plus } from '@sim/emcn/icons'
 import {
   canConnectPersonally,
@@ -106,8 +106,10 @@ function SourceChip({
     <Chip
       shape='round'
       active={connected}
-      disabled={disabled || unavailable || !actionable}
+      disabled={disabled || unavailable}
+      aria-disabled={!actionable || undefined}
       onClick={actionable ? onConnect : undefined}
+      className={cn(!actionable && !unavailable && 'cursor-default')}
       title={title}
       leftAdornment={<BrandIcon icon={connector.meta.icon} className='size-[14px] flex-shrink-0' />}
       rightIcon={!busy && actionable ? Plus : undefined}
@@ -115,7 +117,7 @@ function SourceChip({
         busy ? <Loader className='size-[14px] text-[var(--text-icon)]' animate /> : undefined
       }
     >
-      <span className='flex items-center gap-1.5'>
+      <span className={cn('flex items-baseline', chipContentGap)}>
         <span>{connector.meta.name}</span>
         {state && <span className='text-[var(--text-muted)] text-caption'>{state}</span>}
       </span>
@@ -144,7 +146,8 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
    */
   const memberAccessAvailable = features?.knowledgeMemberAccess === true
   const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS } = useWorkspaceMemberConnectors(
-    memberAccessAvailable ? workspaceId : undefined
+    workspaceId,
+    { enabled: memberAccessAvailable }
   )
   const connectionByType = useMemo(
     () => simSearchConnectionsByType(memberConnectors),
@@ -203,7 +206,7 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
           )
         })}
       </div>
-      {error && <p className='text-[var(--text-error)] text-caption'>{error}</p>}
+      {error && <p className='px-2 text-[var(--text-error)] text-caption'>{error}</p>}
       {setupConnector && (
         <SourceSetupModal
           connector={setupConnector}

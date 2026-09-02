@@ -385,11 +385,14 @@ async function fetchWorkspaceMemberConnectors(
 }
 
 /** Every per-member connector in the workspace and where the viewer stands with each. */
-export function useWorkspaceMemberConnectors(workspaceId?: string) {
+export function useWorkspaceMemberConnectors(
+  workspaceId?: string,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
     queryKey: memberConnectorKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchWorkspaceMemberConnectors(workspaceId as string, signal),
-    enabled: Boolean(workspaceId),
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: WORKSPACE_MEMBER_CONNECTORS_STALE_TIME,
     placeholderData: keepPreviousData,
   })
@@ -507,7 +510,10 @@ export function useTriggerSync() {
      * takes over through `pending` → `syncing` → `active`.
      */
     onMutate: async ({ knowledgeBaseId, connectorId }) => {
-      await queryClient.cancelQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: connectorKeys.all(knowledgeBaseId) }),
+        queryClient.cancelQueries({ queryKey: memberConnectorKeys.lists() }),
+      ])
       return optimisticallyQueueSync(queryClient, knowledgeBaseId, connectorId)
     },
     /**

@@ -17,7 +17,7 @@ import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { useQueryState } from 'nuqs'
+import { useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
@@ -50,8 +50,10 @@ import {
   resolveResourceSelectionUpdate,
 } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import {
+  CLEARED_SEARCH_FILTERS,
   resourceParam,
   resourceUrlKeys,
+  searchFilterParsers,
   searchQueryParam,
 } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
@@ -165,9 +167,14 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     ...resourceUrlKeys,
   })
   const searchQuery = searchQueryValue ?? ''
+  const [, setSearchFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
+  /** A new or cleared query starts from unfiltered results. */
   const setSearchQuery = useCallback(
-    (query: string) => void setSearchQueryParam(query || null),
-    [setSearchQueryParam]
+    (query: string) => {
+      void setSearchQueryParam(query || null)
+      void setSearchFilters(CLEARED_SEARCH_FILTERS)
+    },
+    [setSearchQueryParam, setSearchFilters]
   )
   /** A link that carries a query opens in Search mode with the query in the box. */
   const [initialSearchQuery] = useState(searchQuery)

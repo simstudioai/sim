@@ -142,7 +142,7 @@ export function Search() {
   const setSearchTerm = useDebouncedSearchSetter(setSearchTermParam)
 
   const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS, isPending: connectionsPending } =
-    useWorkspaceMemberConnectors(memberAccessAvailable ? workspaceId : undefined)
+    useWorkspaceMemberConnectors(workspaceId, { enabled: memberAccessAvailable })
   useScrollRestoration(scrollContainerRef, {
     ready: !memberAccessAvailable || !connectionsPending,
   })

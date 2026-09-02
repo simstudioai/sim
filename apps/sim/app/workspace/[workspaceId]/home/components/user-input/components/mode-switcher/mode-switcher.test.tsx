@@ -5,15 +5,19 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCaptureEvent, mockSetSearchQuery } = vi.hoisted(() => ({
+const { mockCaptureEvent, mockSetSearchQuery, mockSetSearchFilters } = vi.hoisted(() => ({
   mockCaptureEvent: vi.fn(),
   mockSetSearchQuery: vi.fn(),
+  mockSetSearchFilters: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
 }))
-vi.mock('nuqs', () => ({ useQueryState: () => [null, mockSetSearchQuery] }))
+vi.mock('nuqs', () => ({
+  useQueryState: () => [null, mockSetSearchQuery],
+  useQueryStates: () => [{}, mockSetSearchFilters],
+}))
 vi.mock('posthog-js/react', () => ({ usePostHog: () => null }))
 vi.mock('@/lib/posthog/client', () => ({ captureEvent: mockCaptureEvent }))
 
@@ -112,6 +116,10 @@ describe('ModeSwitcher', () => {
 
     expect(useMothershipModeStore.getState().mode).toBe('build')
     expect(mockSetSearchQuery).toHaveBeenCalledWith(null, { history: 'replace', scroll: false })
+    expect(mockSetSearchFilters).toHaveBeenCalledWith(
+      { source: null, updated: null },
+      { history: 'replace', scroll: false }
+    )
   })
 
   it('does not report re-selecting the active mode', () => {

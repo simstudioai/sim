@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { Button, cn, Tooltip } from '@sim/emcn'
+import { Button, chipIconSlotClass, cn, OverflowText, Tooltip } from '@sim/emcn'
 import { Check, Link as LinkIcon } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -26,6 +26,17 @@ const MIN_HIGHLIGHT_TERM_LENGTH = 3
 /** How long the copied state shows on the copy-link action. */
 const COPIED_FEEDBACK_MS = 1_500
 
+/**
+ * The row every source card and its linkless sibling share: the chat surface's
+ * row rhythm, a hairline between adjacent rows, and the surface fill on hover
+ * or focus, so a list of results reads like the lists around the composer.
+ */
+export const SOURCE_ROW_CLASSES =
+  'group/source not-prose flex items-start gap-2 border-[var(--border)] px-2 py-2 transition-colors focus-within:bg-[var(--surface-5)] hover-hover:bg-[var(--surface-5)] [&+&]:border-t'
+
+/** The 16px mark slot, nudged to centre on the title's first line. */
+export const SOURCE_ROW_MARK_CLASSES = cn(chipIconSlotClass, 'mt-[3px]')
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -48,7 +59,7 @@ export function highlightTerms(text: string, query: string | undefined): ReactNo
   const parts = text.split(pattern)
   return parts.map((part, index) =>
     index % 2 === 1 ? (
-      <strong key={index} className='font-semibold text-[var(--text-primary)]'>
+      <strong key={index} className='font-medium text-[var(--text-primary)]'>
         {part}
       </strong>
     ) : (
@@ -79,7 +90,7 @@ function CopyLinkAction({ url }: CopyLinkActionProps) {
       <Tooltip.Trigger asChild>
         <Button
           variant='ghost'
-          size='sm'
+          size='icon'
           aria-label='Copy link'
           onClick={() => {
             navigator.clipboard.writeText(url).then(
@@ -95,14 +106,10 @@ function CopyLinkAction({ url }: CopyLinkActionProps) {
             )
           }}
         >
-          {copied ? (
-            <Check className='size-[14px] text-[var(--text-icon)]' />
-          ) : (
-            <LinkIcon className='size-[14px] text-[var(--text-icon)]' />
-          )}
+          {copied ? <Check className='size-[14px]' /> : <LinkIcon className='size-[14px]' />}
         </Button>
       </Tooltip.Trigger>
-      <Tooltip.Content>{copied ? 'Copied' : 'Copy link'}</Tooltip.Content>
+      <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy link'}</Tooltip.Content>
     </Tooltip.Root>
   )
 }
@@ -117,11 +124,11 @@ interface SourceCardProps {
 
 /**
  * One document a search found, laid out to be scanned: the source's brand
- * mark or favicon, the title as a link back to the document, where it lives
- * and when it last changed, and the passage that matched with the query terms
- * in bold. Actions stay out of the way until the row is hovered or focused.
- * The same row serves the composer's search results and the footer of a reply
- * that cited its sources with a snippet.
+ * mark or favicon, the title as a link back to the document, where it lives,
+ * who it is from, and when it last changed, and the passage that matched with
+ * the query terms in bold. Actions stay out of the way until the row is
+ * hovered or its title focused. The same row serves the composer's search
+ * results and the footer of a reply that cited its sources with a snippet.
  */
 export function SourceCard({ source, query, onSummarize }: SourceCardProps) {
   const hostname = externalLinkHostname(source.url)
@@ -136,8 +143,8 @@ export function SourceCard({ source, query, onSummarize }: SourceCardProps) {
   ].filter((part): part is string => Boolean(part))
 
   return (
-    <div className='group/source not-prose flex items-start gap-3 rounded-md px-2 py-2 transition-colors focus-within:bg-[var(--surface-5)] hover-hover:bg-[var(--surface-5)]'>
-      <span className='mt-[3px] flex size-[16px] flex-shrink-0 items-center justify-center'>
+    <div className={SOURCE_ROW_CLASSES}>
+      <span className={SOURCE_ROW_MARK_CLASSES}>
         {ConnectorIcon ? (
           <BrandIcon icon={ConnectorIcon} className='size-[16px]' />
         ) : hostname ? (
@@ -156,29 +163,24 @@ export function SourceCard({ source, query, onSummarize }: SourceCardProps) {
           rel='noopener noreferrer'
           data-source-link=''
           onClick={(event) => handleExternalLinkClick(event, source.url)}
-          className={cn(
-            'truncate text-[var(--text-primary)] text-sm no-underline hover:underline',
-            'underline-offset-2'
-          )}
+          className='block min-w-0 text-[var(--text-primary)] text-sm no-underline underline-offset-2 hover:underline'
         >
-          {source.title?.trim() || sourceLabel(source)}
+          <OverflowText
+            label={source.title?.trim() || sourceLabel(source)}
+            focusTarget='nearest-interactive'
+          />
         </a>
-        <p className='truncate text-[var(--text-muted)] text-caption'>{meta.join(' · ')}</p>
+        <OverflowText label={meta.join(' · ')} className='text-[var(--text-muted)] text-caption' />
         {source.snippet && (
           <p className='line-clamp-2 text-[var(--text-body)] text-small leading-snug'>
             {highlightTerms(source.snippet, query)}
           </p>
         )}
       </div>
-      <div
-        className={cn(
-          'flex flex-shrink-0 items-center gap-1 opacity-0 transition-opacity',
-          'focus-within:opacity-100 group-hover/source:opacity-100'
-        )}
-      >
+      <div className='flex flex-shrink-0 items-center gap-1 self-start opacity-0 transition-opacity group-focus-within/source:opacity-100 group-hover/source:opacity-100'>
         <CopyLinkAction url={source.url} />
         {onSummarize && (
-          <Button variant='default' size='sm' onClick={() => onSummarize(source)}>
+          <Button variant='ghost' size='sm' onClick={() => onSummarize(source)}>
             Summarize
           </Button>
         )}

@@ -1,4 +1,4 @@
-import { parseAsString } from 'nuqs/server'
+import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
 /**
  * Co-located, typed URL query-param definition for the home/Chat surface.
@@ -37,3 +37,24 @@ export const searchQueryParam = {
   key: 'q',
   parser: parseAsString,
 } as const
+
+/** The recency windows a search can be narrowed to. */
+export const UPDATED_WINDOWS = [
+  { id: 'any', label: 'Any time', days: null },
+  { id: '7d', label: 'Past week', days: 7 },
+  { id: '30d', label: 'Past month', days: 30 },
+] as const
+const UPDATED_WINDOW_IDS = UPDATED_WINDOWS.map((window) => window.id)
+
+/**
+ * The result filters, beside `q`, so a narrowed search is the same shareable
+ * link as the search itself. `source` is a connector type or `upload`, absent
+ * for every source; both are dropped with the query.
+ */
+export const searchFilterParsers = {
+  source: parseAsString,
+  updated: parseAsStringLiteral(UPDATED_WINDOW_IDS).withDefault('any'),
+} as const
+
+/** Every search param at its default: what leaving a search writes. */
+export const CLEARED_SEARCH_FILTERS = { source: null, updated: null } as const
