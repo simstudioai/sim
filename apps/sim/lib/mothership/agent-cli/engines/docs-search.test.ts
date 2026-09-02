@@ -8,6 +8,12 @@ const { execute } = vi.hoisted(() => ({
     .fn()
     .mockResolvedValue({ results: [{ path: 'docs/integrations/slack.mdx' }], query: 'q' }),
 }))
+vi.mock('@/lib/mothership/environment-context', () => ({
+  prepareCopilotEnvironmentContext: vi.fn(async () => ({
+    resolvedSecretTraceRegistry: { registry: 'stub' },
+  })),
+}))
+
 vi.mock('@/lib/mothership/tools/server/docs/search-docs', () => ({
   searchDocsServerTool: { execute },
 }))
@@ -30,7 +36,7 @@ describe('docs search engine', () => {
     expect(result.exitCode).toBe(0)
     expect(execute).toHaveBeenCalledWith(
       { query: 'slack streaming', topK: 3, path: 'docs/integrations' },
-      { userId: 'user-1', workspaceId: 'ws-1' }
+      { userId: 'user-1', workspaceId: 'ws-1', resolvedSecretTraceRegistry: { registry: 'stub' } }
     )
     expect(JSON.parse(result.stdout).results[0].path).toBe('docs/integrations/slack.mdx')
   })

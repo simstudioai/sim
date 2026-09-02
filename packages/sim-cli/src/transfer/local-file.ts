@@ -1,7 +1,28 @@
 import { constants } from 'node:fs'
 import { access, stat } from 'node:fs/promises'
 import { basename } from 'node:path'
+import { type EmbedContext, embedStore } from '../embed-context'
 import { SimApiError } from '../http/client'
+
+/** The pre-read map is keyed by the path as written, without the `@`. */
+export function embeddedFileKey(path: string): string {
+  return path.startsWith('@') ? path.slice(1) : path
+}
+
+/**
+ * An embedded run executes in-process on the hosting server, so a positional path must
+ * never reach the server's filesystem: the host pre-reads `@path` tokens from the
+ * caller's own machine into the embed context, and anything else is refused.
+ */
+export function embeddedFileContent(embedded: EmbedContext, path: string): string {
+  const key = embeddedFileKey(path)
+  const content = embedded.fileArguments?.[key]
+  if (content !== undefined) return content
+  throw new SimApiError(
+    `No file "${key}" on your machine — write it first (run_code or | to-sandbox), then pass it as @${key}`,
+    0
+  )
+}
 
 const CONTENT_TYPES: Record<string, string> = {
   css: 'text/css',
@@ -44,6 +65,13 @@ export interface LocalFile {
 
 /** Validates the size and name shared by every local-file transfer. */
 export async function localFile(path: string, override?: string): Promise<LocalFile> {
+  const embedded = embedStore.getStore()
+  if (embedded) {
+    const content = embeddedFileContent(embedded, path)
+    const size = Buffer.byteLength(content)
+    if (size === 0) throw new SimApiError(`${path} is empty`, 0)
+    return { name: override ?? basename(embeddedFileKey(path)), size }
+  }
   let size: number
   try {
     const stats = await stat(path)

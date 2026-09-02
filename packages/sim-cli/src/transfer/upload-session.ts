@@ -1,5 +1,7 @@
 import { openAsBlob } from 'node:fs'
+import { embedStore } from '../embed-context'
 import { SimApiError, type SimClient } from '../http/client'
+import { embeddedFileContent } from './local-file'
 
 interface UploadPartUrl {
   partNumber: number
@@ -98,7 +100,8 @@ export async function finishUploadSession<T>(
   path: string
 ): Promise<T> {
   try {
-    const blob = await openAsBlob(path)
+    const embedded = embedStore.getStore()
+    const blob = embedded ? new Blob([embeddedFileContent(embedded, path)]) : await openAsBlob(path)
     if (session.transfer.method === 'put') {
       await uploadPut(session.transfer, blob)
     } else {
