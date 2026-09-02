@@ -129,9 +129,11 @@ export function SourceCard({ source, query, onSummarize }: SourceCardProps) {
     ? BRAND_ICON_BY_BASE_TYPE.get(source.connectorType)
     : undefined
   const updatedAt = parseUpdatedAt(source.updatedAt)
-  const meta = [sourceLabel(source), updatedAt ? `Updated ${formatDate(updatedAt)}` : null].filter(
-    (part): part is string => Boolean(part)
-  )
+  const meta = [
+    sourceLabel(source),
+    source.author?.trim() || null,
+    updatedAt ? formatDate(updatedAt) : null,
+  ].filter((part): part is string => Boolean(part))
 
   return (
     <div className='group/source not-prose flex items-start gap-3 rounded-md px-2 py-2 transition-colors focus-within:bg-[var(--surface-5)] hover-hover:bg-[var(--surface-5)]'>

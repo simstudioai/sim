@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Button, Chip } from '@sim/emcn'
 import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowledge'
+import { matchSnippet } from '@/lib/knowledge/search/snippet'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
@@ -18,8 +19,6 @@ const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
 
 /** A search spans at most this many knowledge bases. */
 const MAX_SEARCHED_KNOWLEDGE_BASES = 20
-/** Characters of the matching chunk shown under a result. */
-const SNIPPET_LENGTH = 280
 /** Filters appear only once a list is long and mixed enough for them to help. */
 const FILTERS_MIN_RESULTS = 10
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -30,11 +29,6 @@ const UPDATED_WINDOWS = [
   { id: '30d', label: 'Past month', days: 30 },
 ] as const
 type UpdatedWindow = (typeof UPDATED_WINDOWS)[number]['id']
-
-function toSnippet(content: string): string {
-  const flat = content.replace(/\s+/g, ' ').trim()
-  return flat.length > SNIPPET_LENGTH ? `${flat.slice(0, SNIPPET_LENGTH).trimEnd()}…` : flat
-}
 
 /**
  * One card per document, keeping the best-ranked chunk of each: the list is
@@ -77,7 +71,7 @@ export function indexingSourceNames(
  * source app, or the knowledge base for an upload. A document without a
  * source URL cannot be opened.
  */
-function toSource(result: WorkspaceKnowledgeSearchResult): SourceTagData | null {
+function toSource(result: WorkspaceKnowledgeSearchResult, query: string): SourceTagData | null {
   if (!result.sourceUrl) return null
   return {
     url: result.sourceUrl,
@@ -86,7 +80,8 @@ function toSource(result: WorkspaceKnowledgeSearchResult): SourceTagData | null 
       ? connectorDisplayName(result.connectorType)
       : result.knowledgeBaseName || undefined,
     connectorType: result.connectorType ?? undefined,
-    snippet: toSnippet(result.content),
+    snippet: matchSnippet(result.content, query),
+    author: result.author ?? undefined,
     updatedAt: result.sourceModifiedAt ?? undefined,
   }
 }
@@ -251,7 +246,7 @@ export function KnowledgeSearchResults({
       ) : (
         <div className='flex flex-col gap-0.5' onKeyDown={handleResultsKeyDown}>
           {visible.map((result) => {
-            const source = toSource(result)
+            const source = toSource(result, query)
             return source ? (
               <SourceCard
                 key={result.documentId}
@@ -270,7 +265,7 @@ export function KnowledgeSearchResults({
                   {result.knowledgeBaseName}
                 </p>
                 <p className='line-clamp-2 text-[var(--text-body)] text-small leading-snug'>
-                  {toSnippet(result.content)}
+                  {matchSnippet(result.content, query)}
                 </p>
               </div>
             )

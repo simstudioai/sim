@@ -164,6 +164,8 @@ export const workspaceKnowledgeSearchResultSchema = z.object({
   sourceUrl: z.string().nullable(),
   connectorType: z.string().nullable(),
   sourceModifiedAt: z.string().nullable(),
+  /** The person behind the document, from its author-like tag; null when the source names none. */
+  author: z.string().nullable(),
   content: z.string(),
   chunkIndex: z.number(),
   similarity: z.number(),

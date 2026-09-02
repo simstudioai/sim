@@ -52,6 +52,7 @@ import {
   KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH,
   MAX_KNOWLEDGE_BATCH_ITEMS,
 } from '@/lib/knowledge/constants'
+import { sourceAuthor } from '@/lib/knowledge/search/author'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
@@ -65,7 +66,7 @@ const DEFAULT_QUERY_TOP_K = 10
  * a source URL is quoted by name instead.
  */
 const KNOWLEDGE_CITATION_INSTRUCTION =
-  'Cite each result you use inline, right after the sentence it supports, as <source>{"url":<sourceUrl>,"title":<documentName>,"siteName":<knowledgeBaseName>,"connectorType":<connectorType>,"snippet":<the sentence or two of content you relied on>,"updatedAt":<sourceModifiedAt>}</source>; omit the tag for a result whose sourceUrl is null and name the document instead.'
+  'Cite each result you use inline, right after the sentence it supports, as <source>{"url":<sourceUrl>,"title":<documentName>,"siteName":<knowledgeBaseName>,"connectorType":<connectorType>,"snippet":<the sentence or two of content you relied on>,"updatedAt":<sourceModifiedAt>,"author":<author>}</source>; omit the tag for a result whose sourceUrl is null and name the document instead.'
 
 /**
  * Resolves an environment-variable reference passed as a connector API key.
@@ -468,6 +469,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
                 documentName: result.documentName,
                 sourceUrl: result.sourceUrl,
                 sourceModifiedAt: result.sourceModifiedAt?.toISOString() ?? null,
+                author: sourceAuthor(result.metadata),
                 connectorType: result.connectorType,
                 content: result.content,
                 chunkIndex: result.chunkIndex,

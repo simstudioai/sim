@@ -7,6 +7,7 @@ import {
 import { internalKnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
+import { sourceAuthor } from '@/lib/knowledge/search/author'
 
 export const POST = defineInternalJsonRoute({
   contract: searchWorkspaceKnowledgeContract,
@@ -37,6 +38,7 @@ export const POST = defineInternalJsonRoute({
           sourceUrl: result.sourceUrl,
           connectorType: result.connectorType,
           sourceModifiedAt: result.sourceModifiedAt?.toISOString() ?? null,
+          author: sourceAuthor(result.metadata),
           content: result.content,
           chunkIndex: result.chunkIndex,
           similarity: result.similarity,

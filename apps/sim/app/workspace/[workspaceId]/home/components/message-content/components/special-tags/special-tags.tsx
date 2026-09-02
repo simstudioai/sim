@@ -347,6 +347,8 @@ export interface SourceTagData {
   snippet?: string
   /** When the source last changed the document, as an ISO timestamp. */
   updatedAt?: string
+  /** The person behind the document, as the source names them. */
+  author?: string
 }
 
 export type ContentSegment =
@@ -583,6 +585,7 @@ function isSourceTagData(value: unknown): value is SourceTagData {
   if (value.connectorType !== undefined && typeof value.connectorType !== 'string') return false
   if (value.snippet !== undefined && typeof value.snippet !== 'string') return false
   if (value.updatedAt !== undefined && typeof value.updatedAt !== 'string') return false
+  if (value.author !== undefined && typeof value.author !== 'string') return false
   return true
 }
 
