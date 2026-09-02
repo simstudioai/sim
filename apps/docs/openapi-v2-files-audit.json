@@ -2144,7 +2144,9 @@
             "description": "Regular expression, or exact text when `mode` is `exact`.",
             "schema": {
               "type": "string",
-              "description": "Regular expression, or exact text when `mode` is `exact`."
+              "description": "Regular expression, or exact text when `mode` is `exact`.",
+              "minLength": 3,
+              "maxLength": 512
             }
           },
           {

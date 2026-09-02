@@ -722,11 +722,20 @@ async function resolveScopedFileReference(args: {
     includeSubfolders: args.includeSubfolders,
   })
   /*
-   * Matched on id as well as name rather than inferring which one this is from
-   * its shape. A `wf_` prefix is a legal filename, so reading it as "already an
-   * id" would silently drop the scope for a file someone named `wf_notes.md`.
+   * An exact id inside the scope wins outright. Matching id and name together
+   * let a file NAMED like an id outproduce the file that actually carries it:
+   * `wf_` is a legal filename prefix, so a caller passing a real id could be
+   * answered with a different file that merely happens to be called that.
    */
-  const matches = scoped.filter((file) => file.id === fileName || file.name === fileName)
+  const byId = scoped.find((file) => file.id === fileName)
+  if (byId) return byId.id
+
+  /*
+   * Only then by name — and still not inferring which kind the reference is
+   * from its shape, so a file genuinely named `wf_notes.md` resolves normally
+   * and an id belonging outside the scope is reported as not in it.
+   */
+  const matches = scoped.filter((file) => file.name === fileName)
   if (matches.length === 0) {
     throw new OrchestrationError('not_found', `No file named ${fileName} in ${folderPath}`)
   }

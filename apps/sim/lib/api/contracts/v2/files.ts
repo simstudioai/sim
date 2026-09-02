@@ -1193,7 +1193,17 @@ export const v2SearchFileContentQuerySchema = z
         `query cannot exceed ${FILE_SEARCH_MAX_QUERY_LENGTH} characters`
       )
       .refine((query) => !query.includes('\0'), 'query cannot contain NUL characters')
-      .describe('Regular expression, or exact text when `mode` is `exact`.'),
+      .describe('Regular expression, or exact text when `mode` is `exact`.')
+      /*
+       * Published separately because the bounds above are refinements, which
+       * emit no JSON-schema length keywords — a generated client would
+       * otherwise see an unbounded string and send a query the route rejects.
+       * Counted in code points at runtime; these are the same numbers.
+       */
+      .meta({
+        minLength: FILE_SEARCH_MIN_QUERY_LENGTH,
+        maxLength: FILE_SEARCH_MAX_QUERY_LENGTH,
+      }),
     mode: z.enum(FILE_SEARCH_MODES).default('regex').describe('How `query` is read.'),
     maxResults: z.coerce
       .number()

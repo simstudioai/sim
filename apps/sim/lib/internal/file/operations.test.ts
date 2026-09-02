@@ -405,6 +405,36 @@ describe('file manage folder wiring', () => {
     })
 
     /* The refusal names the candidates so the caller can choose one. */
+    /*
+     * `wf_` is a legal filename prefix, so a file can be NAMED like an id. An
+     * exact id inside the scope has to win, or a caller passing a real id is
+     * answered with a different file that merely happens to be called that.
+     */
+    it('prefers an exact id over a file merely named like one', async () => {
+      mockListAllWorkspaceFiles.mockResolvedValue({
+        files: [
+          { ...workspaceFile('a-self'), name: 'a-people-self', folderId: 'user-a' },
+          { ...workspaceFile('a-people-self'), name: 'self.md', folderId: 'user-a' },
+        ],
+      })
+
+      await POST(
+        createMockRequest('POST', {
+          operation: 'edit',
+          workspaceId: 'workspace-1',
+          fileName: 'a-people-self',
+          folderPath: '/memory/user-a',
+          oldString: 'old',
+          newString: 'new',
+        })
+      )
+
+      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
+        'workspace-1',
+        'a-people-self'
+      )
+    })
+
     it('refuses an ambiguous name instead of editing an arbitrary file', async () => {
       const response = await POST(
         createMockRequest('POST', {
