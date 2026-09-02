@@ -1495,7 +1495,7 @@ export interface ProcessDocOpsInput {
   forceRehydrate: boolean
   state: SyncRunState
   hydration: DocOpHydration
-  lease: Pick<SyncRunLease, 'beatIfDue'>
+  lease: Pick<SyncRunLease, 'beatIfDue' | 'beatLive'>
   /** Who may read the documents this pass writes. */
   documentAccess: SyncDocumentAccess
 }
@@ -1642,6 +1642,14 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
         }
       }
     }
+
+    /**
+     * Hydration above may have outlasted the lease. Nothing from this batch is
+     * written until the run proves it still owns the connector, so a run that
+     * was replaced meanwhile cannot land stale content or queue processing
+     * over the replacement's.
+     */
+    await input.lease.beatLive()
 
     if (skippedRetryHashUpdates.length > 0) {
       try {
