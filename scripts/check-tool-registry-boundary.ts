@@ -85,11 +85,17 @@ const isWorkspaceEntry = (filename: string, fullPath: string) =>
   WORKSPACE_ENTRY_FILENAMES.has(filename) && hasDefaultExport(fullPath)
 const isRouteEntry = (filename: string) => filename === 'route.ts'
 /**
- * Split on both separators: `join`/`relative` emit backslashes on Windows, so a
- * `'/execute/'` substring test silently stops excluding the route there and the
- * audit fails on every run for a Windows contributor.
+ * Whether a route file sits under an `execute` segment *within the app*.
+ *
+ * Two ways to get this wrong, both silent. Testing the absolute path matches a
+ * checkout that merely happens to live under a directory named `execute`, which
+ * would exclude every catalog route and quietly retire the guard. Testing for
+ * the substring `'/execute/'` stops matching on Windows, where `join` emits
+ * backslashes, and re-includes the route so the audit fails on every run. So:
+ * relative to the app first, then split on either separator.
  */
-const isUnderExecute = (fullPath: string) => fullPath.split(/[/\\]/).includes('execute')
+const isUnderExecute = (fullPath: string) =>
+  relative(APP, fullPath).split(/[/\\]/).includes('execute')
 const isSourceModule = (filename: string) =>
   filename.endsWith('.ts') && !filename.endsWith('.test.ts')
 

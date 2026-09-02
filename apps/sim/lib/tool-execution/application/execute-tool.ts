@@ -42,6 +42,29 @@ export interface ExecuteToolResult {
 }
 
 /**
+ * The parameter Sim's hosted key would fill for this call, or `undefined`.
+ *
+ * Mirrors `injectHostedKeyIfNeeded`'s tests, in its order, so the two cannot
+ * disagree about whether a value is coming: the tool declares `hosting`, the
+ * deployment hosts keys, any `enabled` predicate accepts these params, and the
+ * caller has not brought a key of their own — which wins where present.
+ *
+ * Read twice, for the two questions that both turn on it. A required parameter
+ * Sim fills is not missing, and spend is only Sim's to bill when Sim's key paid
+ * for it.
+ */
+function hostedKeyParamFor(
+  tool: ExecutableToolConfig,
+  params: Record<string, unknown>
+): string | undefined {
+  if (!isHosted || !tool.hosting) return undefined
+  if (tool.hosting.enabled && !tool.hosting.enabled(params)) return undefined
+  const supplied = params[tool.hosting.apiKeyParam]
+  if (typeof supplied === 'string' && supplied.trim().length > 0) return undefined
+  return tool.hosting.apiKeyParam
+}
+
+/**
  * Refuses an input key the tool does not declare.
  *
  * Strict rather than a denylist, because the denylist was already wrong twice
@@ -113,17 +136,7 @@ function assertRequiredCallerInputsPresent(
   toolId: string,
   params: Record<string, unknown>
 ): void {
-  /**
-   * Mirrors `injectHostedKeyIfNeeded`'s three tests, in its order, so the two
-   * cannot disagree about whether a value is coming. Rejecting the omission
-   * would make every hosted-key tool uncallable without a key the caller does
-   * not need to hold; accepting it on a deployment that hosts none would
-   * promise a key nothing supplies.
-   */
-  const hostedKeyParam =
-    isHosted && tool.hosting && (!tool.hosting.enabled || tool.hosting.enabled(params))
-      ? tool.hosting.apiKeyParam
-      : undefined
+  const hostedKeyParam = hostedKeyParamFor(tool, params)
 
   const missing = Object.entries(tool.params ?? {})
     .filter(([name, declaration]) => {
@@ -261,14 +274,24 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       },
     })
 
-    await meterHostedKeySpend({
-      callId,
-      toolId,
-      userId,
-      workspaceId: context.workspaceId,
-      billingAttribution,
-      output: result.output,
-    })
+    /**
+     * Only a successful call that spent Sim's key. `output.cost` is not a
+     * hosted-key marker: `knowledge_upload_chunk` and the enrichment runner
+     * report their own cost there, and billing those as `api-tool` spend would
+     * charge a second time for something already metered elsewhere. The registry
+     * writes hosted-key cost under the same two conditions
+     * (`hostedKeyInfo.isUsingHostedKey && finalResult.success`).
+     */
+    if (result.success && hostedKeyParamFor(tool, params)) {
+      await meterHostedKeySpend({
+        callId,
+        toolId,
+        userId,
+        workspaceId: context.workspaceId,
+        billingAttribution,
+        output: result.output,
+      })
+    }
 
     return {
       toolId,

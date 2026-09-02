@@ -505,6 +505,49 @@ describe('executeToolForCaller', () => {
     )
   })
 
+  /**
+   * `output.cost` is not a hosted-key marker. `knowledge_upload_chunk` and the
+   * enrichment runner report their own cost there, and the registry only writes
+   * hosted-key cost when it actually injected a key. Billing on the field alone
+   * charged a second time for spend already metered elsewhere.
+   */
+  it('does not bill a tool that reports its own cost without a hosted key', async () => {
+    mocks.executeRegistryTool.mockResolvedValue({
+      success: true,
+      output: { chunk: 'ok', cost: { total: 0.002 } },
+    })
+
+    await run({
+      toolId: 'zendesk_get_ticket',
+      input: { ticketId: '4', subdomain: 'a', apiToken: 't' },
+    })
+
+    expect(mocks.recordUsage).not.toHaveBeenCalled()
+  })
+
+  it('does not bill when the caller brought their own key', async () => {
+    mocks.executeRegistryTool.mockResolvedValue({
+      success: true,
+      output: { cost: { total: 0.004 } },
+    })
+
+    await run({ input: { url: 'https://a.co', apiKey: 'sk-mine' } })
+
+    expect(mocks.recordUsage).not.toHaveBeenCalled()
+  })
+
+  it('does not bill a failed call', async () => {
+    mocks.executeRegistryTool.mockResolvedValue({
+      success: false,
+      output: { cost: { total: 0.004 } },
+      error: 'upstream refused',
+    })
+
+    await run()
+
+    expect(mocks.recordUsage).not.toHaveBeenCalled()
+  })
+
   it('records nothing when the call incurred no hosted-key spend', async () => {
     await run()
     expect(mocks.recordUsage).not.toHaveBeenCalled()
