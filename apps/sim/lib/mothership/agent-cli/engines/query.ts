@@ -1,10 +1,10 @@
 import {
-  type AgentCliCommand,
+  type AgentCliEngine,
   type AgentCliFlags,
   type AgentCliRuntime,
   agentCliFail,
   agentCliOk,
-} from '@/lib/mothership/tools/handlers/agent-cli/types'
+} from '@/lib/mothership/agent-cli/types'
 import { normalizeName } from '@/executor/constants'
 
 /**
@@ -67,14 +67,11 @@ function clipValue(value: unknown): unknown {
 }
 
 function stringFlag(flags: AgentCliFlags, name: string): string | undefined {
-  const value = flags.get(name)
+  const value = flags[name]
   return typeof value === 'string' ? value : undefined
 }
 
-export const logsQueryCommand: AgentCliCommand = {
-  path: ['logs', 'query'],
-  summary: 'One row per run: a block field across run history (--block, --field, --where)',
-  usage: 'logs query <workflowId> --block <name>',
+export const logsQueryCommand: AgentCliEngine = {
   async execute(rest: string[], runtime: AgentCliRuntime, flags: AgentCliFlags) {
     const workflowId = rest[0]
     const blockName = stringFlag(flags, 'block') ?? ''

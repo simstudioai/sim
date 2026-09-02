@@ -1,10 +1,10 @@
 import type { ExportWorkflowResponse } from 'sim/embed'
 import {
-  type AgentCliCommand,
+  type AgentCliEngine,
   type AgentCliRuntime,
   agentCliFail,
   agentCliOk,
-} from '@/lib/mothership/tools/handlers/agent-cli/types'
+} from '@/lib/mothership/agent-cli/types'
 
 /**
  * Projections over one workflow's exported state: just the blocks, or just the
@@ -62,10 +62,7 @@ function edgeViews(state: Record<string, unknown>): Record<string, unknown>[] {
   })
 }
 
-export const workflowBlocksCommand: AgentCliCommand = {
-  path: ['workflow', 'blocks'],
-  summary: 'List just the blocks of one workflow (id, type, name, enabled)',
-  usage: 'workflow blocks <workflowId>',
+export const workflowBlocksCommand: AgentCliEngine = {
   async execute(rest, runtime) {
     const workflowId = rest[0]
     if (!workflowId) return agentCliFail('Usage: sim workflow blocks <workflowId>')
@@ -74,10 +71,7 @@ export const workflowBlocksCommand: AgentCliCommand = {
   },
 }
 
-export const workflowEdgesCommand: AgentCliCommand = {
-  path: ['workflow', 'edges'],
-  summary: 'List just the connections of one workflow (source, target, handles)',
-  usage: 'workflow edges <workflowId>',
+export const workflowEdgesCommand: AgentCliEngine = {
   async execute(rest, runtime) {
     const workflowId = rest[0]
     if (!workflowId) return agentCliFail('Usage: sim workflow edges <workflowId>')

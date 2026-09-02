@@ -1,9 +1,9 @@
 import {
-  type AgentCliCommand,
+  type AgentCliEngine,
   type AgentCliRuntime,
   agentCliFail,
   agentCliOk,
-} from '@/lib/mothership/tools/handlers/agent-cli/types'
+} from '@/lib/mothership/agent-cli/types'
 
 /**
  * `workflow trace <runId>` — a run's trace rolled up for diagnosis, replacing
@@ -60,10 +60,7 @@ function percentile(sorted: number[], p: number): number {
   return sorted[index] ?? 0
 }
 
-export const workflowTraceCommand: AgentCliCommand = {
-  path: ['workflow', 'trace'],
-  summary: 'Roll up one run trace: per-block timings, per-type stats, real errors, slowest path',
-  usage: 'workflow trace <runId>',
+export const workflowTraceCommand: AgentCliEngine = {
   async execute(rest, runtime: AgentCliRuntime) {
     const runId = rest[0]
     if (!runId) return agentCliFail('Usage: sim workflow trace <runId>')

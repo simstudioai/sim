@@ -112,7 +112,8 @@
     "prepare": "bun husky",
     "type-check": "turbo run type-check",
     "release": "bun run scripts/create-single-release.ts",
-    "test:scripts": "vitest run --config vitest.scripts.config.ts"
+    "test:scripts": "vitest run --config vitest.scripts.config.ts",
+    "check:agent-cli-boundary": "bun run scripts/check-agent-cli-boundary.ts"
   },
   "overrides": {
     "react": "19.2.4",
