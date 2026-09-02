@@ -64,6 +64,14 @@ export interface ExternalDocument {
   /** When true, content is empty and will be fetched via getDocument for new/changed docs only */
   contentDeferred?: boolean
   /**
+   * How large the deferred content is expected to be, in bytes, when the
+   * listing cannot know exactly. Bounds how many deferred documents hydrate
+   * at once: without it a deferred document is assumed to be as large as the
+   * whole in-flight budget and hydrates alone, which turns a mailbox crawl
+   * into one thread at a time.
+   */
+  estimatedBytes?: number
+  /**
    * When set, the document was intentionally not indexed (e.g. it exceeds the
    * connector's size limit). The sync engine records it as a `failed` document
    * carrying this reason so it is visible in the knowledge base UI instead of

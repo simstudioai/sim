@@ -13,6 +13,9 @@ import { parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GoogleChatConnector')
 
+/** A hydrated space retains a bounded window of message text; lets spaces hydrate in batches. */
+const ESTIMATED_SPACE_BYTES = 1024 * 1024
+
 const CHAT_API_BASE = 'https://chat.googleapis.com/v1'
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -218,6 +221,7 @@ function spaceToStub(
     title: spaceTitle(space),
     content: '',
     contentDeferred: true,
+    estimatedBytes: ESTIMATED_SPACE_BYTES,
     mimeType: 'text/plain',
     sourceUrl: space.spaceUri,
     contentHash: buildContentHash(space, maxMessages, lookbackDays, syncContext),

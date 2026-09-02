@@ -13,6 +13,9 @@ import {
 
 const logger = createLogger('OutlookConnector')
 
+/** A hydrated conversation retains message bodies as text, never attachments; lets threads hydrate in batches. */
+const ESTIMATED_CONVERSATION_BYTES = 256 * 1024
+
 const GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0/me'
 const MESSAGES_PER_PAGE = 50
 /**
@@ -805,6 +808,7 @@ export const outlookConnector: ConnectorConfig = {
         title: subject,
         content: '',
         contentDeferred: true,
+        estimatedBytes: ESTIMATED_CONVERSATION_BYTES,
         mimeType: 'text/plain',
         sourceUrl,
         contentHash: `outlook:${convId}:${lastDate}`,

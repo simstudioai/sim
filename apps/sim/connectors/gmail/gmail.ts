@@ -399,6 +399,13 @@ async function resolveLabelNames(
 }
 
 /**
+ * What a hydrated thread retains: message bodies as text, never attachments,
+ * so a generous ceiling for a long thread is still small. Lets a batch of
+ * threads hydrate together instead of one at a time.
+ */
+const ESTIMATED_THREAD_BYTES = 256 * 1024
+
+/**
  * Creates a lightweight document stub from a thread list entry.
  * Uses metadata-based contentHash for change detection without downloading content.
  */
@@ -412,6 +419,7 @@ function threadToStub(thread: {
     title: thread.snippet || 'Untitled Thread',
     content: '',
     contentDeferred: true,
+    estimatedBytes: ESTIMATED_THREAD_BYTES,
     mimeType: 'text/plain',
     sourceUrl: threadUrl(thread.id),
     contentHash: `gmail:${thread.id}:${thread.historyId ?? ''}`,

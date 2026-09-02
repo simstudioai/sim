@@ -503,7 +503,7 @@ function estimateOpSizeBytes(op: DocOp): number {
   if (op.type === 'skip') return 0
   if (op.extDoc.sourceFile?.bytes) return op.extDoc.sourceFile.bytes.byteLength
   if (op.extDoc.content) return Buffer.byteLength(op.extDoc.content)
-  const size = op.extDoc.metadata?.fileSize ?? op.extDoc.metadata?.size
+  const size = op.extDoc.estimatedBytes ?? op.extDoc.metadata?.fileSize ?? op.extDoc.metadata?.size
   return typeof size === 'number' && Number.isFinite(size) && size > 0
     ? size
     : DEFAULT_OP_SIZE_BYTES
