@@ -112,6 +112,7 @@ const EMPTY_LINT_EXAMPLE = {
   invalidConnectionTargets: [],
   fieldIssues: [],
   unresolvedReferences: [],
+  tableFieldIssues: [],
   notes: [],
 } as const
 
@@ -328,7 +329,7 @@ const declaredRoutes = [
     workflowOperation({
       operationId: 'replaceWorkflowState',
       summary: 'Replace Workflow State',
-      description: `Replace a workflow\u2019s editable draft graph wholesale. \`loops\` and \`parallels\` are accepted but ignored — both are recomputed from \`blocks\`. Omitting \`variables\` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state. Ids are the one conflict that is detected: block, edge, and subflow ids are globally unique, so a body carrying an id another workflow already owns is refused with \`409\` rather than written.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that \`needsRedeployment\` becomes true; \`POST /workflows/{workflowId}/deploy\` publishes the draft.\n\n\`lint\` is advisory and never blocks the write. \`lint.fieldIssues\` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and \`lint.unresolvedReferences\` names credential, resource, tool, and skill values that do not resolve. ${WORKSPACE_API_KEY_DENIED}\n\nSet \`?dryRun=true\` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and \`lint\` findings the committed write would, with \`dryRun: true\` — including the warnings the write\u2019s own preparation step raises, and the same \`409\` when an id is already owned by another workflow. Only \`needsRedeployment\` differs: it describes the state before the write.`,
+      description: `Replace a workflow\u2019s editable draft graph wholesale. \`loops\` and \`parallels\` are accepted but ignored — both are recomputed from \`blocks\`. Omitting \`variables\` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state. Ids are the one conflict that is detected: block, edge, and subflow ids are globally unique, so a body carrying an id another workflow already owns is refused with \`409\` rather than written.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that \`needsRedeployment\` becomes true; \`POST /workflows/{workflowId}/deploy\` publishes the draft.\n\n\`lint\` is advisory and never blocks the write. \`lint.fieldIssues\` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and \`lint.unresolvedReferences\` names credential, resource, tool, and skill values that do not resolve. ${WORKSPACE_API_KEY_DENIED}\n\nSet \`?dryRun=true\` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and \`lint\` findings the committed write would, with \`dryRun: true\` — including the warnings the write\u2019s own preparation step raises, and the same \`409\` when an id is already owned by another workflow. Two things differ: \`needsRedeployment\` describes the state before the write, and block ids are previews — \`mintedBlockIds\` is empty and the provisional ids come back under \`previewBlockIds\` with a warning, because the real apply mints new ones.`,
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The draft graph was replaced.'),
     }),
@@ -409,6 +410,7 @@ const declaredRoutes = [
                   },
                 ],
                 unresolvedReferences: [],
+                tableFieldIssues: [],
                 notes: [],
               },
               warnings: [],
@@ -1278,7 +1280,7 @@ const declaredRoutes = [
       operationId: 'cancelRunV2',
       summary: 'Cancel Workflow Run',
       description:
-        'Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state succeeds with no effect. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.',
+        'Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state is a `200` no-op answered with `success: false` and an `already_*` reason. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: jsonSuccess('The cancellation outcome.'),
     }),

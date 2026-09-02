@@ -68,7 +68,7 @@ describe('/api/v2/tables/[tableId]/columns', () => {
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.add.mockResolvedValue({ table })
-    mocks.update.mockResolvedValue({ table, changed: false })
+    mocks.update.mockResolvedValue({ table, changed: false, unmigrated: [] })
     mocks.remove.mockResolvedValue({ table })
   })
 
@@ -121,6 +121,34 @@ describe('/api/v2/tables/[tableId]/columns', () => {
     expect(mocks.update).toHaveBeenCalledWith(
       expect.objectContaining({ input: expect.objectContaining({ updates: { required: false } }) })
     )
+  })
+
+  it('returns the workflow Table blocks a rename left on the old column name', async () => {
+    const unmigrated = [
+      {
+        workflowId: 'wf-1',
+        workflowName: 'Alerts',
+        blockId: 'blk-1',
+        blockName: 'Query',
+        fields: ['filter', 'order'],
+      },
+    ]
+    mocks.update.mockResolvedValue({ table, changed: true, unmigrated })
+
+    const response = await PATCH(
+      request('PATCH', {
+        workspaceId: WORKSPACE_ID,
+        columnName: 'Name',
+        updates: { name: 'FullName' },
+      }),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data).toEqual({
+      columns: [{ id: 'col-1', name: 'Name', type: 'string', required: false, unique: false }],
+      unmigrated,
+    })
   })
 
   it('rejects an unrecognized key on the column delete body', async () => {

@@ -24,6 +24,7 @@ import type {
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { withCellValueFilter } from '@/lib/table/query-builder/cell-filter'
+import { resolveWorkflowGroupDeploymentMode } from '@/lib/table/workflow-groups/deployment-mode'
 import {
   type BreadcrumbItem,
   type ColumnOption,
@@ -916,13 +917,14 @@ export function Table({
       if (mutateArgs.groupIds.length === 0) return
       if (mutateArgs.rowIds && mutateArgs.rowIds.length === 0) return
       runColumnMutate(mutateArgs)
-      // Derive the run's deployment mode from the targeted groups (default 'live' when unset).
+      // Derive the run's deployment mode from the targeted groups (effective mode, so an
+      // unset value resolves to the shared default rather than a third state).
       // 'mixed' when the targeted groups don't all agree.
       const targetGroupIds = new Set(mutateArgs.groupIds)
       const modes = new Set(
         tableWorkflowGroups
           .filter((g) => targetGroupIds.has(g.id))
-          .map((g) => g.deploymentMode ?? 'live')
+          .map((g) => resolveWorkflowGroupDeploymentMode(g))
       )
       const deploymentMode = modes.size === 1 ? [...modes][0] : 'mixed'
       captureEvent(posthogRef.current, 'table_workflow_run', {

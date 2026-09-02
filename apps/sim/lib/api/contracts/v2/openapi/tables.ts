@@ -326,9 +326,12 @@ const declaredRoutes = [
     tableOperation({
       operationId: 'updateTableColumn',
       summary: 'Update Column',
-      description: 'Update a column by name and return the complete resulting table schema.',
+      description:
+        'Update a column by name and return the complete resulting table schema.\n\nA rename follows the column everywhere the table keys by column id — rows, views, workflow-group references. Workflow Table blocks are the exception: their `filter`, `order`, and `data` are authored JSON that names columns by name, and this endpoint never rewrites workflow state. Blocks bound to this table that still name the old column come back in `unmigrated`; edit them (`POST /api/v2/workflows/{workflowId}/operations`) or their next run fails on the old name.',
       errors: TABLE_MUTATION_ERRORS,
-      success: { description: 'The updated table columns.' },
+      success: {
+        description: 'The updated table columns, plus any unmigrated workflow Table blocks.',
+      },
     }),
     {
       query: v2UpdateTableColumnContract.query,
@@ -347,9 +350,34 @@ const declaredRoutes = [
       ),
       response: documentedSchema(
         v2UpdateTableColumnContract.response.schema,
-        'V2TableColumnsResponse',
-        'Table columns response',
-        'The table column list after a schema mutation.'
+        'V2UpdateTableColumnResponse',
+        'Update table column response',
+        'The table column list after the update, plus workflow Table blocks a rename left on the old column name.',
+        [
+          {
+            data: {
+              columns: [
+                { id: 'col_name', name: 'name', type: 'string', required: true, unique: false },
+                {
+                  id: 'col_plan',
+                  name: 'subscriptionPlan',
+                  type: 'string',
+                  required: false,
+                  unique: false,
+                },
+              ],
+              unmigrated: [
+                {
+                  workflowId: WORKFLOW_ID,
+                  workflowName: 'Weekly digest',
+                  blockId: 'blk_9c1d3f5a7e2b4068a0c2e4f6b8d0f193',
+                  blockName: 'Query plans',
+                  fields: ['filter'],
+                },
+              ],
+            },
+          },
+        ]
       ),
     }
   ),

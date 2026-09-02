@@ -85,6 +85,7 @@ import {
   updateTableGroupUseCase,
   updateWorkflowTableGroup,
 } from '@/lib/table/application/groups'
+import { resolveWorkflowGroupDeploymentMode } from '@/lib/table/workflow-groups/deployment-mode'
 
 const group: WorkflowGroup = {
   id: 'group-1',
@@ -386,7 +387,12 @@ describe('workflow and enrichment Table application commands', () => {
       'request-1'
     )
     expect(result.group.workflowId).toBe('')
-    expect(v2WorkflowGroupSchema.safeParse(result.group).success).toBe(true)
+    expect(
+      v2WorkflowGroupSchema.safeParse({
+        ...result.group,
+        deploymentMode: resolveWorkflowGroupDeploymentMode(result.group),
+      }).success
+    ).toBe(true)
   })
 
   /**

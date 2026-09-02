@@ -299,3 +299,71 @@ describe('addWorkflowGroup attaching existing columns', () => {
     ).rejects.toThrow('already exists with type "string"')
   })
 })
+
+/**
+ * Groups run the deployed version. A group stored without a mode used to be
+ * read back as `deploymentMode: null` and, by the old default, as the draft —
+ * while the cell runner had been loading the deployment all along.
+ */
+describe('addWorkflowGroup deployment mode', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAssertTableRowTtlEnabled.mockResolvedValue(undefined)
+  })
+
+  function add(group: WorkflowGroup) {
+    const set = vi.fn(() => ({ where: () => Promise.resolve() }))
+    mockWithLockedTable.mockImplementation(
+      async (_tableId: string, mutate: (t: TableDefinition, trx: unknown) => Promise<unknown>) =>
+        mutate(tableWithGroups(0), { update: () => ({ set }), execute: () => Promise.resolve() })
+    )
+    return async () => {
+      await addWorkflowGroup(
+        {
+          tableId: 'table-1',
+          workspaceId: 'workspace-1',
+          group,
+          outputColumns: [{ name: 'out', type: 'string', workflowGroupId: group.id }],
+          autoRun: false,
+          actorUserId: 'user-1',
+        } as Parameters<typeof addWorkflowGroup>[0],
+        'request-1'
+      )
+      const written = set.mock.calls[0][0] as { schema: TableSchema }
+      return written.schema.workflowGroups?.find((candidate) => candidate.id === group.id)
+    }
+  }
+
+  it('stores a workflow-backed group without a mode as deployed', async () => {
+    const stored = await add({
+      id: 'group-new',
+      workflowId: 'workflow-1',
+      outputs: [{ blockId: 'block-1', path: 'out', columnName: 'out' }],
+    } as WorkflowGroup)()
+
+    expect(stored?.deploymentMode).toBe('deployed')
+  })
+
+  it('keeps an explicit live mode', async () => {
+    const stored = await add({
+      id: 'group-new',
+      workflowId: 'workflow-1',
+      deploymentMode: 'live',
+      outputs: [{ blockId: 'block-1', path: 'out', columnName: 'out' }],
+    } as WorkflowGroup)()
+
+    expect(stored?.deploymentMode).toBe('live')
+  })
+
+  it('leaves an enrichment group, which runs no workflow, without a mode', async () => {
+    const stored = await add({
+      id: 'group-new',
+      workflowId: '',
+      type: 'enrichment',
+      enrichmentId: 'company-domain',
+      outputs: [{ blockId: '', path: '', outputId: 'domain', columnName: 'out' }],
+    } as WorkflowGroup)()
+
+    expect(stored).not.toHaveProperty('deploymentMode')
+  })
+})

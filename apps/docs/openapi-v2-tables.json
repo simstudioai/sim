@@ -577,7 +577,7 @@
       "patch": {
         "operationId": "updateTableColumn",
         "summary": "Update Column",
-        "description": "Update a column by name and return the complete resulting table schema.",
+        "description": "Update a column by name and return the complete resulting table schema.\n\nA rename follows the column everywhere the table keys by column id — rows, views, workflow-group references. Workflow Table blocks are the exception: their `filter`, `order`, and `data` are authored JSON that names columns by name, and this endpoint never rewrites workflow state. Blocks bound to this table that still name the old column come back in `unmigrated`; edit them (`POST /api/v2/workflows/{workflowId}/operations`) or their next run fails on the old name.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -605,7 +605,7 @@
         },
         "responses": {
           "200": {
-            "description": "The updated table columns.",
+            "description": "The updated table columns, plus any unmigrated workflow Table blocks.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -620,7 +620,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2TableColumnsResponse"
+                  "$ref": "#/components/schemas/V2UpdateTableColumnResponse"
                 }
               }
             }
@@ -5640,6 +5640,182 @@
           }
         ]
       },
+      "V2UnmigratedTableBlockReference": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow holding the Table block."
+          },
+          "workflowName": {
+            "type": "string",
+            "description": "Display name of that workflow."
+          },
+          "blockId": {
+            "type": "string",
+            "description": "Table block whose configuration still names the old column."
+          },
+          "blockName": {
+            "type": "string",
+            "description": "Display name of that block."
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["filter", "order", "data"]
+            },
+            "description": "Sub-block fields that still reference the old column name."
+          }
+        },
+        "required": ["workflowId", "workflowName", "blockId", "blockName", "fields"],
+        "additionalProperties": false,
+        "title": "Unmigrated table block reference",
+        "description": "A workflow Table block still configured against a renamed column."
+      },
+      "V2UpdateTableColumnData": {
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "description": "Stable server-assigned column identifier.",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50,
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                  "description": "Column name used as the public row-data key."
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "string",
+                    "number",
+                    "currency",
+                    "boolean",
+                    "date",
+                    "ttl",
+                    "json",
+                    "select"
+                  ],
+                  "description": "Data type of values stored in the column."
+                },
+                "required": {
+                  "default": false,
+                  "description": "Whether inserts require a value for this column.",
+                  "type": "boolean"
+                },
+                "unique": {
+                  "default": false,
+                  "description": "Whether values must be unique across table rows.",
+                  "type": "boolean"
+                },
+                "workflowGroupId": {
+                  "description": "Workflow group whose output populates this column.",
+                  "type": "string"
+                },
+                "options": {
+                  "description": "Options declared for a select column.",
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Stable select-option identifier."
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100,
+                        "description": "Display name of the select option."
+                      }
+                    },
+                    "required": ["id", "name"],
+                    "additionalProperties": false
+                  }
+                },
+                "multiple": {
+                  "description": "Whether a select column accepts multiple options.",
+                  "type": "boolean"
+                },
+                "currencyCode": {
+                  "description": "ISO 4217 code for a currency column, normalized to uppercase.",
+                  "type": "string",
+                  "pattern": "^[A-Za-z]{3}$"
+                }
+              },
+              "required": ["name", "type", "required", "unique"],
+              "additionalProperties": false,
+              "description": "A typed column in a table schema."
+            },
+            "description": "Current table columns."
+          },
+          "unmigrated": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2UnmigratedTableBlockReference"
+            },
+            "description": "Workflow Table blocks bound to this table whose `filter`, `order`, or `data` still name the column by its previous name. Only populated by a rename; empty otherwise. Workflow state is never rewritten by this endpoint — edit those blocks (`POST /api/v2/workflows/{workflowId}/operations`) or their next run fails on the old name."
+          }
+        },
+        "required": ["columns", "unmigrated"],
+        "additionalProperties": false,
+        "title": "Update table column data",
+        "description": "The table column list after the update, plus any workflow Table blocks a rename left pointing at the old column name."
+      },
+      "V2UpdateTableColumnResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2UpdateTableColumnData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update table column response",
+        "description": "The table column list after the update, plus workflow Table blocks a rename left on the old column name.",
+        "examples": [
+          {
+            "data": {
+              "columns": [
+                {
+                  "id": "col_name",
+                  "name": "name",
+                  "type": "string",
+                  "required": true,
+                  "unique": false
+                },
+                {
+                  "id": "col_plan",
+                  "name": "subscriptionPlan",
+                  "type": "string",
+                  "required": false,
+                  "unique": false
+                }
+              ],
+              "unmigrated": [
+                {
+                  "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                  "workflowName": "Weekly digest",
+                  "blockId": "blk_9c1d3f5a7e2b4068a0c2e4f6b8d0f193",
+                  "blockName": "Query plans",
+                  "fields": ["filter"]
+                }
+              ]
+            }
+          }
+        ]
+      },
       "UpdateTableColumnRequest": {
         "type": "object",
         "properties": {
@@ -7222,16 +7398,16 @@
             }
           },
           "deploymentMode": {
-            "description": "Workflow execution mode.",
             "type": "string",
-            "enum": ["live", "deployed"]
+            "enum": ["live", "deployed"],
+            "description": "Which workflow state per-cell runs execute against. `deployed` (the default when a group was created without one) runs the latest active deployment and refuses to run while the workflow is undeployed; `live` runs the editable draft."
           },
           "autoRun": {
             "description": "Whether the group automatically runs for new rows.",
             "type": "boolean"
           }
         },
-        "required": ["id", "workflowId", "outputs"],
+        "required": ["id", "workflowId", "outputs", "deploymentMode"],
         "additionalProperties": false,
         "title": "Table workflow group",
         "description": "A workflow or enrichment producer and the columns it populates."

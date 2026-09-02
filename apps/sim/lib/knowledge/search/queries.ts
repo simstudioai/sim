@@ -85,6 +85,16 @@ export interface SearchResult {
   boolean3: boolean | null
   distance: number
   knowledgeBaseId: string
+  /**
+   * The score this row's position in the returned list comes from: the
+   * reciprocal-rank-fusion score in hybrid mode, the cosine similarity
+   * (`1 - distance`) in vector mode, and 1 for a tag-only search. Stamped by
+   * `executeKnowledgeSearch` on every row it returns; absent on rows straight
+   * from a single retrieval leg.
+   */
+  rankScore?: number
+  /** 1-based position in the returned order, stamped alongside `rankScore`. */
+  rank?: number
 }
 
 export interface SearchParams {
@@ -317,6 +327,18 @@ const FTS_CONFIG = 'english'
  * paper and matches the docs search retriever (`apps/docs/app/api/search/route.ts`).
  */
 export const RRF_K = 60
+
+/**
+ * Stamps each row with the score its position came from and its 1-based rank.
+ *
+ * Hybrid results are ordered by a fused score the caller never saw, while the
+ * `similarity` reported beside them is the vector leg's cosine value — so the
+ * two modes answered with byte-identical `similarity` for orderings that could
+ * differ. Exposing the ordering key makes the order explainable in either mode.
+ */
+function rankResults(rows: SearchResult[], scoreOf: (row: SearchResult) => number): SearchResult[] {
+  return rows.map((row, index) => ({ ...row, rankScore: scoreOf(row), rank: index + 1 }))
+}
 
 /**
  * Row visibility predicates shared by every search leg: a chunk is only
@@ -714,7 +736,7 @@ export function fuseByReciprocalRank(rankedLists: SearchResult[][], topK: number
     groupStart = groupEnd
   }
 
-  return fused
+  return rankResults(fused, (row) => scores.get(row.id) ?? 0)
 }
 
 export async function handleTagAndVectorSearch(params: SearchParams): Promise<SearchResult[]> {
@@ -762,6 +784,8 @@ export interface ExecuteKnowledgeSearchParams {
  * Single retrieval entry point shared by the internal and v1 search routes.
  * Callers remain responsible for auth, embedding generation, billing, and for
  * rejecting requests that carry neither a query nor tag filters.
+ *
+ * Every returned row carries `rankScore` and `rank` (see {@link rankResults}).
  */
 export async function executeKnowledgeSearch(
   params: ExecuteKnowledgeSearchParams
@@ -775,7 +799,10 @@ export async function executeKnowledgeSearch(
     if (!hasFilters) {
       throw new Error('A search query or tag filters are required')
     }
-    return await handleTagOnlySearch({ knowledgeBaseIds, topK, structuredFilters })
+    return rankResults(
+      await handleTagOnlySearch({ knowledgeBaseIds, topK, structuredFilters }),
+      () => 1
+    )
   }
 
   if (!queryVector) {
@@ -795,7 +822,7 @@ export async function executeKnowledgeSearch(
     : handleVectorOnlySearch({ knowledgeBaseIds, topK, queryVector, distanceThreshold })
 
   if (searchMode === 'vector') {
-    return await vectorSearch
+    return rankResults(await vectorSearch, (row) => 1 - row.distance)
   }
 
   /**

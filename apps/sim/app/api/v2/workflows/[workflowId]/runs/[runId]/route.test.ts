@@ -103,6 +103,7 @@ const successfulCancellation = {
   durablyRecorded: true,
   locallyAborted: false,
   pausedCancelled: false,
+  cancelled: true,
   reason: 'recorded',
 }
 

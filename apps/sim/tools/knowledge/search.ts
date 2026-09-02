@@ -196,7 +196,17 @@ export const knowledgeSearchTool: InternalToolConfig<any, KnowledgeSearchRespons
           },
           content: { type: 'string', description: 'Content of the result' },
           chunkIndex: { type: 'number', description: 'Index of the chunk within the document' },
-          similarity: { type: 'number', description: 'Similarity score of the result' },
+          similarity: {
+            type: 'number',
+            description:
+              'Cosine similarity between the query and the chunk (1 - cosine distance) in every search mode; 1 for tag-only matches. Not the ordering key in hybrid mode',
+          },
+          rankScore: {
+            type: 'number',
+            description:
+              'Score the results are ordered by, descending: the reciprocal-rank-fusion score in hybrid mode, the cosine similarity in vector mode, or the reranker score when a reranker ordered the results',
+          },
+          rank: { type: 'number', description: '1-based position in the returned order' },
           metadata: { type: 'object', description: 'Metadata of the result, including tags' },
         },
       },

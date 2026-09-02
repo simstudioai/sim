@@ -1,5 +1,9 @@
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import {
+  collectPredicateFieldNames,
+  collectSortFieldNames,
+} from '@/lib/table/query-builder/field-names'
+import {
   getEffectiveBlockOutputs,
   getResponseFormatOutputs,
 } from '@/lib/workflows/blocks/block-outputs'
@@ -85,12 +89,25 @@ export interface WorkflowLintUnresolvedReference extends WorkflowLintBlockRef {
 }
 
 /**
+ * A Table block `filter`/`order` field that is not a column of the table the
+ * block is bound to. Lint stayed clean on these while the run failed inside
+ * the block's error edge, because the field name is only checked at run time.
+ */
+export interface WorkflowLintTableFieldIssue extends WorkflowLintBlockRef {
+  /** The filter or sort field that names no column. */
+  field: string
+  /** Display name of the table the block is bound to. */
+  tableName: string
+}
+
+/**
  * Aggregate lint report: the graph lint plus the config (Tier 1) and resolution
  * (Tier 2) checks. Returned in the edit_workflow result and written to lint.json.
  */
 export interface WorkflowLintReport extends WorkflowLintResult {
   fieldIssues: WorkflowLintFieldIssue[]
   unresolvedReferences: WorkflowLintUnresolvedReference[]
+  tableFieldIssues: WorkflowLintTableFieldIssue[]
   notes: string[]
 }
 
@@ -297,9 +314,104 @@ export function collectWorkflowFieldIssues(
   return results
 }
 
+/** The block type whose `filter`/`order` name table columns. */
+const TABLE_BLOCK_TYPE = 'table_v2'
+
+/** Sub-blocks that bind a Table block to a table: the manual id wins, then the picker. */
+const TABLE_ID_SUB_BLOCKS = ['manualTableId', 'tableSelector'] as const
+
+/** Fields every table row carries beyond its declared columns. */
+const IMPLICIT_TABLE_ROW_FIELDS = ['id', 'createdAt', 'updatedAt'] as const
+
+/** What the table field check needs to know about one table. */
+export interface WorkflowLintTableSchema {
+  name: string
+  columnNames: readonly string[]
+}
+
+/**
+ * A sub-block string value that is literal at lint time: non-empty and holding
+ * no `<block.output>` reference, which only resolves at run time.
+ */
+function literalSubBlockText(block: BlockState, id: string): string | undefined {
+  const value = block.subBlocks?.[id]?.value
+  if (typeof value !== 'string' || value.trim() === '' || value.includes('<')) return undefined
+  return value.trim()
+}
+
+/** The table id a Table block is statically bound to, or `undefined` when it is a reference or unset. */
+export function tableBlockBoundTableId(block: BlockState): string | undefined {
+  if (block.type !== TABLE_BLOCK_TYPE) return undefined
+  for (const id of TABLE_ID_SUB_BLOCKS) {
+    const value = literalSubBlockText(block, id)
+    if (value) return value
+  }
+  return undefined
+}
+
+/** Every table id the graph's Table blocks are statically bound to. */
+export function collectWorkflowTableIds(
+  blocks: WorkflowState['blocks'] | Record<string, unknown> | undefined
+): string[] {
+  const ids = new Set<string>()
+  for (const block of Object.values(blocks || {})) {
+    const tableId = tableBlockBoundTableId(block as BlockState)
+    if (tableId) ids.add(tableId)
+  }
+  return [...ids]
+}
+
+const TABLE_FIELD_SUB_BLOCKS: ReadonlyArray<[id: string, collect: (root: unknown) => string[]]> = [
+  ['filter', collectPredicateFieldNames],
+  ['order', collectSortFieldNames],
+]
+
+/**
+ * Table-block `filter`/`order` fields that name no column of the bound table.
+ * Resolved against the live schema the caller loaded (`tables`, keyed by table
+ * id); a block whose table is not in the map — unset, a reference, or not
+ * readable in this workspace — is skipped, as is a filter that holds a
+ * reference or is not JSON, since neither can be judged at lint time.
+ */
+export function collectTableBlockFieldIssues(
+  blocks: WorkflowState['blocks'] | Record<string, unknown> | undefined,
+  tables: ReadonlyMap<string, WorkflowLintTableSchema>
+): WorkflowLintTableFieldIssue[] {
+  const issues: WorkflowLintTableFieldIssue[] = []
+  for (const [blockId, raw] of Object.entries(blocks || {})) {
+    const block = raw as BlockState
+    const tableId = tableBlockBoundTableId(block)
+    const table = tableId ? tables.get(tableId) : undefined
+    if (!table) continue
+
+    const known = new Set(
+      [...table.columnNames, ...IMPLICIT_TABLE_ROW_FIELDS].map((name) => name.toLowerCase())
+    )
+    const reported = new Set<string>()
+    for (const [subBlockId, collect] of TABLE_FIELD_SUB_BLOCKS) {
+      const text = literalSubBlockText(block, subBlockId)
+      if (!text) continue
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        continue
+      }
+      for (const field of collect(parsed)) {
+        const key = field.toLowerCase()
+        if (known.has(key) || reported.has(key)) continue
+        reported.add(key)
+        issues.push({ ...blockRef(blockId, block), field, tableName: table.name })
+      }
+    }
+  }
+  return issues
+}
+
 type WorkflowLintIssueView = WorkflowLintResult & {
   fieldIssues?: WorkflowLintFieldIssue[]
   unresolvedReferences?: WorkflowLintUnresolvedReference[]
+  tableFieldIssues?: WorkflowLintTableFieldIssue[]
 }
 
 export function hasWorkflowLintIssues(lint: WorkflowLintIssueView) {
@@ -309,7 +421,8 @@ export function hasWorkflowLintIssues(lint: WorkflowLintIssueView) {
     lint.invalidBranchPorts.length > 0 ||
     lint.invalidConnectionTargets.length > 0 ||
     (lint.fieldIssues?.length ?? 0) > 0 ||
-    (lint.unresolvedReferences?.length ?? 0) > 0
+    (lint.unresolvedReferences?.length ?? 0) > 0 ||
+    (lint.tableFieldIssues?.length ?? 0) > 0
   )
 }
 
@@ -412,6 +525,18 @@ export function formatWorkflowLintMessage(lint: WorkflowLintIssueView) {
             } (${ref.reason})`
         )
         .join('; ')}`
+    )
+  }
+
+  const tableFields = lint.tableFieldIssues ?? []
+  if (tableFields.length > 0) {
+    parts.push(
+      `Table filter/sort fields that are not columns of the referenced table (the run will fail in the block's error edge): ${tableFields
+        .map(
+          (issue) =>
+            `"${issue.blockName || issue.blockId}".${issue.field} (table "${issue.tableName}")`
+        )
+        .join(', ')}`
     )
   }
 

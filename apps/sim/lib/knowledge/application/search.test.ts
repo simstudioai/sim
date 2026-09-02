@@ -312,6 +312,90 @@ describe('knowledge search application use case', () => {
     })
   })
 
+  describe('rankScore and rank name the order results came back in', () => {
+    const row = (overrides: Record<string, unknown>) => ({
+      id: 'embedding-1',
+      documentId: 'document-1',
+      knowledgeBaseId: 'knowledge-1',
+      content: 'answer',
+      chunkIndex: 0,
+      distance: 0.2,
+      tag1: null,
+      tag2: null,
+      tag3: null,
+      tag4: null,
+      tag5: null,
+      tag6: null,
+      tag7: null,
+      number1: null,
+      number2: null,
+      number3: null,
+      number4: null,
+      number5: null,
+      date1: null,
+      date2: null,
+      boolean1: null,
+      boolean2: null,
+      boolean3: null,
+      ...overrides,
+    })
+    const search = (input: Record<string, unknown> = {}) =>
+      searchKnowledge.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: ['knowledge-1'],
+          query: 'answer',
+          topK: 5,
+          ...input,
+        },
+      })
+
+    it('passes the hybrid fused score through as rankScore while similarity stays the cosine value', async () => {
+      mocks.executeSearch.mockResolvedValue([
+        row({ id: 'embedding-1', distance: 0.2, rankScore: 1 / 61 + 1 / 62, rank: 1 }),
+        row({
+          id: 'embedding-2',
+          documentId: 'document-1',
+          distance: 0.05,
+          rankScore: 1 / 62,
+          rank: 2,
+        }),
+      ])
+
+      const result = await search({ searchMode: 'hybrid' })
+
+      expect(result.results.map((item) => item.rank)).toEqual([1, 2])
+      expect(result.results[0]).toMatchObject({ similarity: 0.8, rankScore: 1 / 61 + 1 / 62 })
+      expect(result.results[1]).toMatchObject({ similarity: 0.95, rankScore: 1 / 62 })
+    })
+
+    it('reports the cosine similarity as rankScore in vector mode', async () => {
+      mocks.executeSearch.mockResolvedValue([row({ rankScore: 0.8, rank: 1 })])
+
+      const result = await search({ searchMode: 'vector' })
+
+      expect(result.results[0]).toMatchObject({ similarity: 0.8, rankScore: 0.8, rank: 1 })
+    })
+
+    it('reports the reranker score as rankScore once a reranker has ordered the results', async () => {
+      mocks.executeSearch.mockResolvedValue([row({ rankScore: 0.8, rank: 1 })])
+      mocks.rerank.mockResolvedValueOnce({
+        results: [{ item: { id: 'embedding-1' }, relevanceScore: 0.93 }],
+        isBYOK: false,
+      })
+
+      const result = await search({ rerankerEnabled: true, rerankerModel: 'rerank-v4.0-pro' })
+
+      expect(result.results[0]).toMatchObject({
+        similarity: 0.8,
+        rankScore: 0.93,
+        rerankerScore: 0.93,
+        rank: 1,
+      })
+    })
+  })
+
   describe('reranker outcome reporting', () => {
     const rerankedSearch = (rerankerEnabled?: boolean, query: string | undefined = 'answer') =>
       searchKnowledge.execute({

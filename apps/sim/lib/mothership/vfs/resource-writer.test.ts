@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => {
     admitCreateWorkspaceFile: vi.fn(),
     ensureWorkspaceFileFolderPath: vi.fn(),
     findWorkspaceFileFolderIdByPath: vi.fn(),
+    listWorkspaceFileFolders: vi.fn(),
     normalizeWorkspaceFileItemName: vi.fn((name: string) => name.trim()),
     getWorkspaceFileByName: vi.fn(),
     resolveWorkspaceFileReference: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
   ensureWorkspaceFileFolderPath: mocks.ensureWorkspaceFileFolderPath,
   findWorkspaceFileFolderIdByPath: mocks.findWorkspaceFileFolderIdByPath,
+  listWorkspaceFileFolders: mocks.listWorkspaceFileFolders,
   normalizeWorkspaceFileItemName: mocks.normalizeWorkspaceFileItemName,
 }))
 
@@ -58,6 +60,8 @@ describe('resource writer', () => {
       createdFolderIds: [],
     })
     mocks.admitCreateWorkspaceFile.mockResolvedValue(undefined)
+    mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue(null)
+    mocks.listWorkspaceFileFolders.mockResolvedValue([])
   })
 
   it('refuses to write into a workspace the acting user is not a member of', async () => {
@@ -148,6 +152,94 @@ describe('resource writer', () => {
       id: 'file-report',
       vfsPath: 'files/Reports/2026/summary.csv',
       mode: 'create',
+    })
+  })
+
+  describe('a folder that moved is not recreated at its old path', () => {
+    const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+    const movedFolder = { id: 'folder-xp', name: 'xp-files', path: 'fx-archive/xp-files' }
+    const staleTarget = { path: 'files/xp-files/xp-tiers.png', mode: 'create' as const }
+
+    it('refuses the write and names the current location', async () => {
+      mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue(null)
+      mocks.listWorkspaceFileFolders.mockResolvedValue([movedFolder])
+
+      await expect(
+        writeWorkspaceFileByPath({
+          workspaceId: 'workspace-1',
+          principal,
+          target: staleTarget,
+          buffer: Buffer.from('png'),
+          inferredMimeType: 'image/png',
+        })
+      ).rejects.toThrow(
+        'Folder "xp-files" now lives at /fx-archive/xp-files; write to files/fx-archive/xp-files/xp-tiers.png or create the folder explicitly with files mkdir.'
+      )
+
+      expect(mocks.createWorkspaceFileBufferByPath.execute).not.toHaveBeenCalled()
+      expect(mocks.ensureWorkspaceFileFolderPath).not.toHaveBeenCalled()
+    })
+
+    it('refuses the same target during read-only validation', async () => {
+      mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue(null)
+      mocks.listWorkspaceFileFolders.mockResolvedValue([movedFolder])
+
+      await expect(
+        validateWorkspaceFileWriteTarget({
+          workspaceId: 'workspace-1',
+          principal,
+          target: staleTarget,
+        })
+      ).rejects.toThrow('Folder "xp-files" now lives at /fx-archive/xp-files')
+    })
+
+    it('still creates a genuinely new folder when no namesake exists elsewhere', async () => {
+      mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue(null)
+      mocks.listWorkspaceFileFolders.mockResolvedValue([
+        { id: 'folder-other', name: 'reports', path: 'reports' },
+      ])
+      mocks.createWorkspaceFileBufferByPath.execute.mockResolvedValue({
+        id: 'file-xp',
+        name: 'xp-tiers.png',
+        size: 3,
+        contentType: 'image/png',
+        vfsPath: 'files/xp-files/xp-tiers.png',
+        mode: 'create',
+      })
+
+      const result = await writeWorkspaceFileByPath({
+        workspaceId: 'workspace-1',
+        principal,
+        target: staleTarget,
+        buffer: Buffer.from('png'),
+        inferredMimeType: 'image/png',
+      })
+
+      expect(result).toMatchObject({ id: 'file-xp', vfsPath: 'files/xp-files/xp-tiers.png' })
+      expect(mocks.createWorkspaceFileBufferByPath.execute).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not consult other folders when the target path resolves', async () => {
+      mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue('folder-xp')
+      mocks.createWorkspaceFileBufferByPath.execute.mockResolvedValue({
+        id: 'file-xp',
+        name: 'xp-tiers.png',
+        size: 3,
+        contentType: 'image/png',
+        vfsPath: 'files/fx-archive/xp-files/xp-tiers.png',
+        mode: 'create',
+      })
+
+      await writeWorkspaceFileByPath({
+        workspaceId: 'workspace-1',
+        principal,
+        target: { path: 'files/fx-archive/xp-files/xp-tiers.png', mode: 'create' },
+        buffer: Buffer.from('png'),
+        inferredMimeType: 'image/png',
+      })
+
+      expect(mocks.listWorkspaceFileFolders).not.toHaveBeenCalled()
+      expect(mocks.createWorkspaceFileBufferByPath.execute).toHaveBeenCalledTimes(1)
     })
   })
 

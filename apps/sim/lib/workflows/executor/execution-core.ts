@@ -268,15 +268,31 @@ export function wasExecutionFinalizedByCore(error: unknown, executionId?: string
   )
 }
 
+/**
+ * Counts a settled run — completed, failed, or cancelled alike — on the
+ * workflow and stamps `lastRunAt`. Paused runs are not settled and are counted
+ * when they finish. Awaited from the finalization path rather than fired and
+ * forgotten, so a process reload after the log write cannot drop it.
+ */
+async function recordSettledRun(workflowId: string, requestId: string): Promise<void> {
+  try {
+    await updateWorkflowRunCounts(workflowId)
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to update run counts`, { error })
+  }
+}
+
 async function finalizeExecutionOutcome(params: {
   result: ExecutionResult
   loggingSession: LoggingSession
+  workflowId: string
   executionId: string
   requestId: string
   workflowInput: unknown
   abortSignal?: AbortSignal
 }): Promise<void> {
-  const { result, loggingSession, executionId, requestId, workflowInput, abortSignal } = params
+  const { result, loggingSession, workflowId, executionId, requestId, workflowInput, abortSignal } =
+    params
   const { traceSpans, totalDuration } = buildTraceSpans(result)
   const endedAt = new Date().toISOString()
 
@@ -334,18 +350,23 @@ async function finalizeExecutionOutcome(params: {
       })
     )
   }
+
+  // Every non-paused outcome above is a settled run; the paused branch returned.
+  await recordSettledRun(workflowId, requestId)
 }
 
 async function finalizeExecutionError(params: {
   error: unknown
   loggingSession: LoggingSession
+  workflowId: string
   executionId: string
   requestId: string
 }): Promise<boolean> {
-  const { error, loggingSession, executionId, requestId } = params
+  const { error, loggingSession, workflowId, executionId, requestId } = params
   const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
   const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
 
+  let finalized = false
   try {
     await loggingSession.safeCompleteWithError({
       endedAt: new Date().toISOString(),
@@ -358,18 +379,20 @@ async function finalizeExecutionError(params: {
       executionState: executionResult?.executionState,
     })
 
-    const finalized = loggingSession.hasCompleted()
+    finalized = loggingSession.hasCompleted()
     if (finalized) {
       await clearExecutionCancellationSafely(executionId, requestId)
     }
-    return finalized
   } catch (postExecError) {
     logger.error(
       `[${requestId}] Post-execution error logging failed`,
       loggingSession.projectDiagnosticError(postExecError, { executionId })
     )
-    return false
   }
+
+  // A run that threw after starting is a failed run, and failed runs count.
+  await recordSettledRun(workflowId, requestId)
+  return finalized
 }
 
 /**
@@ -1078,19 +1101,12 @@ async function executeWorkflowCoreImpl(
           await finalizeExecutionOutcome({
             result,
             loggingSession,
+            workflowId,
             executionId,
             requestId,
             workflowInput: processedInput,
             abortSignal,
           })
-
-          if (result.success && result.status !== 'paused') {
-            try {
-              await updateWorkflowRunCounts(workflowId)
-            } catch (runCountError) {
-              logger.error(`[${requestId}] Failed to update run counts`, { error: runCountError })
-            }
-          }
         } catch (postExecError) {
           logger.error(
             `[${requestId}] Post-execution logging failed`,
@@ -1139,6 +1155,7 @@ async function executeWorkflowCoreImpl(
             ? await finalizeExecutionError({
                 error,
                 loggingSession,
+                workflowId,
                 executionId,
                 requestId,
               })

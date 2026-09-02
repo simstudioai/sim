@@ -1,5 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -17,8 +19,15 @@ import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized
 import { resolveActiveTableContext } from '@/lib/table/application/context'
 import { throwTableOperationFailure } from '@/lib/table/application/errors'
 import { tableOperations } from '@/lib/table/application/operations'
+import { columnMatchesRef } from '@/lib/table/column-keys'
+import {
+  findUnmigratedTableBlockReferences,
+  type UnmigratedTableBlockReference,
+} from '@/lib/table/columns/workflow-references'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import { performUpdateTableColumn } from '@/lib/table/orchestration'
+
+const logger = createLogger('TableColumnApplication')
 
 interface TableColumnInput {
   tableId: string
@@ -108,6 +117,7 @@ export const updateTableColumnUseCase = defineAuthorizedTableUseCase({
       changed:
         JSON.stringify(context.table.schema) !== JSON.stringify(outcome.table.schema) ||
         JSON.stringify(context.table.metadata) !== JSON.stringify(outcome.table.metadata),
+      unmigrated: await findUnmigratedReferencesAfterRename(context, input),
     }
   },
   projectAudit({ input, context, result }) {
@@ -125,6 +135,39 @@ export const updateTableColumnUseCase = defineAuthorizedTableUseCase({
     if (result.changed) signalTableSchemaChanged(context.table.id)
   },
 })
+
+/**
+ * Workflow Table blocks the rename left behind. A rename migrates everything
+ * keyed by column id — rows, views, workflow-group refs — but a Table block's
+ * `filter`/`order`/`data` name columns by name and live in workflow state this
+ * operation does not own, so they are reported for the caller to migrate. The
+ * rename has already committed by the time this runs; a failed scan is logged
+ * and reported as empty rather than failing a mutation that succeeded.
+ */
+async function findUnmigratedReferencesAfterRename(
+  context: { table: TableDefinition; workspaceId: string },
+  input: UpdateTableColumnInput
+): Promise<UnmigratedTableBlockReference[]> {
+  const previous = context.table.schema.columns.find((column) =>
+    columnMatchesRef(column, input.columnName)
+  )
+  const newName = input.updates.name
+  if (!previous || newName === undefined || newName === previous.name) return []
+  try {
+    return await findUnmigratedTableBlockReferences({
+      workspaceId: context.workspaceId,
+      tableId: context.table.id,
+      columnName: previous.name,
+    })
+  } catch (error) {
+    logger.warn('Could not scan workflows for references to a renamed column', {
+      tableId: context.table.id,
+      columnName: previous.name,
+      error: getErrorMessage(error),
+    })
+    return []
+  }
+}
 
 export interface DeleteTableColumnInput extends TableColumnInput {
   columnName: string

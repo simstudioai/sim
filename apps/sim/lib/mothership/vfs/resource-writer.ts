@@ -5,7 +5,10 @@ import {
   resolveCopilotFilePrincipal,
 } from '@/lib/mothership/auth/file-delegation'
 import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
-import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import {
+  findWorkspaceFileFolderIdByPath,
+  listWorkspaceFileFolders,
+} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   getWorkspaceFileByName,
   type WorkspaceFileRecord,
@@ -58,6 +61,56 @@ export type WorkspaceFileWriteValidation =
       existingFileId: string
     }
 
+/**
+ * Refuses to recreate a folder that has moved.
+ *
+ * A create into a folder path that no longer exists is normally fine — missing
+ * parents are created at write time — but when a folder of the same name lives
+ * elsewhere the path is almost always stale rather than new: a tool remembering
+ * `files/xp-files/…` after the user moved `xp-files` under `fx-archive`.
+ * Creating a fresh top-level `xp-files` then splits the user's files across two
+ * folders with one name. The error names where the folder went so the caller
+ * can write there, and leaves creating a genuine namesake to an explicit mkdir.
+ *
+ * Only the leaf folder is checked: it is the folder the caller targeted, and
+ * an ancestor with a namesake elsewhere is what a deliberate new tree looks like.
+ */
+async function assertTargetFolderNotMoved(
+  workspaceId: string,
+  parsed: { folderSegments: string[]; fileName: string }
+): Promise<void> {
+  const leafName = parsed.folderSegments.at(-1)
+  if (!leafName) return
+  const requestedFolderPath = parsed.folderSegments.join('/')
+  const relocated = (await listWorkspaceFileFolders(workspaceId)).filter(
+    (folder) => folder.name === leafName && folder.path !== requestedFolderPath
+  )
+  if (relocated.length === 0) return
+  const locations = relocated.map((folder) => `/${folder.path}`).join(' or ')
+  const writeTarget = canonicalWorkspaceFilePath({
+    folderPath: relocated[0].path,
+    name: parsed.fileName,
+  })
+  throw new Error(
+    `Folder "${leafName}" now lives at ${locations}; write to ${writeTarget} or create the folder explicitly with files mkdir.`
+  )
+}
+
+/**
+ * Finds the create target's parent folder, or null when the chain does not exist
+ * yet and may be created at write time — never for a folder that merely moved.
+ */
+async function resolveCreateFolderId(
+  workspaceId: string,
+  parsed: { folderSegments: string[]; fileName: string }
+): Promise<string | null> {
+  if (parsed.folderSegments.length === 0) return null
+  const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, parsed.folderSegments)
+  if (folderId) return folderId
+  await assertTargetFolderNotMoved(workspaceId, parsed)
+  return null
+}
+
 /** Resolves a create-mode target without mutating missing parent folders. */
 async function resolveCreateTarget(
   workspaceId: string,
@@ -66,7 +119,7 @@ async function resolveCreateTarget(
   const parsed = parseWorkspaceFileCreatePath(path)
   let folderId: string | null = null
   if (parsed.folderSegments.length > 0) {
-    folderId = await findWorkspaceFileFolderIdByPath(workspaceId, parsed.folderSegments)
+    folderId = await resolveCreateFolderId(workspaceId, parsed)
     if (!folderId) {
       return {
         fileName: parsed.fileName,
@@ -196,6 +249,7 @@ export async function writeWorkspaceFileByPath(args: {
   }
 
   await assertWorkspaceFileWriteAccess(args)
+  await resolveCreateFolderId(args.workspaceId, parseWorkspaceFileCreatePath(args.target.path))
 
   const created = await createWorkspaceFileBufferByPath.execute({
     principal: args.principal,

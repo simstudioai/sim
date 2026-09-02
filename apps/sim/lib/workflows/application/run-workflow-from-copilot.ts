@@ -136,8 +136,18 @@ async function resolveTriggerExecution(params: {
       'No runnable trigger found. Add a Start/API/Input/Chat trigger or an external (webhook/integration) trigger before running.'
     )
   }
+  /**
+   * Names each trigger as `blockId → type/name` and points at the input shape
+   * where the agent surface actually exposes it. There is no run-options tool
+   * on that surface — the shape is the trigger block's `inputFormat`, read from
+   * `workflows state get`.
+   */
   const listTriggers = () =>
-    options.map((option) => `${option.triggerBlockId} (${option.blockName})`).join(', ')
+    options
+      .map((option) => `${option.triggerBlockId} → ${option.triggerType}/${option.blockName}`)
+      .join(', ')
+  const inputShapeHint =
+    "Each trigger's input shape is its block's inputFormat in workflows state get."
   let option = options[0]
   if (params.input.triggerBlockId) {
     const selected = options.find(
@@ -146,14 +156,14 @@ async function resolveTriggerExecution(params: {
     if (!selected) {
       throw new OrchestrationError(
         'validation',
-        `triggerBlockId "${params.input.triggerBlockId}" is not a runnable trigger in this workflow. Valid triggers: ${listTriggers()}. Call get_workflow_run_options to inspect them.`
+        `triggerBlockId "${params.input.triggerBlockId}" is not a runnable trigger in this workflow. Valid triggers: ${listTriggers()}. ${inputShapeHint}`
       )
     }
     option = selected
   } else if (options.length > 1) {
     throw new OrchestrationError(
       'validation',
-      `This workflow has multiple triggers — pass triggerBlockId to choose one: ${listTriggers()}. Call get_workflow_run_options for each trigger's input shape.`
+      `This workflow has ${options.length} triggers: pass triggerBlockId (${listTriggers()}). ${inputShapeHint}`
     )
   }
 

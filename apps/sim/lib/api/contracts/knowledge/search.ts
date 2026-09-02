@@ -105,7 +105,17 @@ export const internalKnowledgeSearchResultSchema = z.object({
   content: z.string(),
   chunkIndex: z.number(),
   metadata: z.record(z.string(), z.unknown()),
-  similarity: z.number(),
+  similarity: z
+    .number()
+    .describe(
+      'Cosine similarity between the query embedding and the chunk (1 - cosine distance), in every search mode; 1 for tag-only matches. In hybrid mode this is not the ordering key — see rankScore.'
+    ),
+  rankScore: z
+    .number()
+    .describe(
+      'The score results are ordered by, descending: the reciprocal-rank-fusion score in hybrid mode (a sum of 1/(60 + rank) per retrieval leg), the cosine similarity in vector mode, or rerankerScore when a reranker ordered the results.'
+    ),
+  rank: z.number().int().positive().describe('1-based position in the returned order.'),
   rerankerScore: z.number().optional(),
 })
 

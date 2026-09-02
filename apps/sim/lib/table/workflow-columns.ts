@@ -10,6 +10,8 @@ import {
   pausedExecutions,
   tableRowExecutions,
   userTableRows as userTableRowsTable,
+  workflowDeploymentVersion,
+  workflow as workflowTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
@@ -55,6 +57,7 @@ import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from '@/lib/t
 import { resolveTableDispatchConcurrency } from '@/lib/table/dispatch-concurrency'
 import type { DispatchLimit, DispatchMode } from '@/lib/table/dispatcher'
 import { buildFilterClause } from '@/lib/table/sql'
+import { resolveWorkflowGroupDeploymentMode } from '@/lib/table/workflow-groups/deployment-mode'
 
 export {
   getUnmetGroupDeps,
@@ -841,6 +844,69 @@ export async function cancelWorkflowGroupRuns(
  * completed cells; `mode: 'incomplete'` skips them. `groupIds` omitted = every
  * workflow group on the table. `rowIds` omitted = every row.
  */
+/**
+ * A `deployed`-mode group whose workflow has no active deployment has nothing
+ * to run: the cell runner loads the deployment, so every cell would fail with
+ * the same error. Refuse the dispatch up front, naming the workflow, rather than
+ * enqueueing a run that only writes error cells. Groups with no backing workflow
+ * (enrichments) and `live`-mode groups are not checked.
+ *
+ * Returns the groups that are runnable; an auto-fire caller drops the rest
+ * (with a warning, since nobody is there to receive an error) while a manual
+ * run refuses the whole request.
+ */
+export async function assertWorkflowGroupsDeployable(
+  groups: readonly WorkflowGroup[],
+  options: { isManualRun: boolean; requestId: string }
+): Promise<WorkflowGroup[]> {
+  const checked = groups.filter(
+    (group) => group.workflowId && resolveWorkflowGroupDeploymentMode(group) === 'deployed'
+  )
+  if (checked.length === 0) return [...groups]
+
+  const workflowIds = [...new Set(checked.map((group) => group.workflowId))]
+  const rows = await db
+    .select({
+      workflowId: workflowTable.id,
+      workflowName: workflowTable.name,
+      deploymentId: workflowDeploymentVersion.id,
+    })
+    .from(workflowTable)
+    .leftJoin(
+      workflowDeploymentVersion,
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowTable.id),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+    .where(inArray(workflowTable.id, workflowIds))
+
+  const nameById = new Map<string, string>()
+  const deployed = new Set<string>()
+  for (const row of rows) {
+    nameById.set(row.workflowId, row.workflowName)
+    if (row.deploymentId) deployed.add(row.workflowId)
+  }
+
+  const undeployed = checked.filter((group) => !deployed.has(group.workflowId))
+  if (undeployed.length === 0) return [...groups]
+
+  const describe = (group: WorkflowGroup) => {
+    const name = nameById.get(group.workflowId)
+    const workflow = name ? `"${name}" (${group.workflowId})` : group.workflowId
+    return `Workflow group "${group.name ?? group.id}" runs the deployed version of workflow ${workflow}, which has no active deployment. Deploy the workflow, or switch the group to live mode, before running it.`
+  }
+
+  if (options.isManualRun) {
+    throw new OrchestrationError('validation', describe(undeployed[0]))
+  }
+  for (const group of undeployed) {
+    logger.warn(`[${options.requestId}] Skipping auto-run: ${describe(group)}`)
+  }
+  const skipped = new Set(undeployed.map((group) => group.id))
+  return groups.filter((group) => !skipped.has(group.id))
+}
+
 export async function runWorkflowColumn(opts: {
   tableId: string
   workspaceId: string
@@ -894,11 +960,18 @@ export async function runWorkflowColumn(opts: {
     throw new OrchestrationError('validation', 'Invalid workspace ID')
 
   const allGroups = table.schema.workflowGroups ?? []
-  const targetGroups = groupIds ? allGroups.filter((g) => groupIds.includes(g.id)) : allGroups
+  const requestedGroups = groupIds ? allGroups.filter((g) => groupIds.includes(g.id)) : allGroups
   // Tables with no workflow groups are the majority. Auto-fire callers from
   // every row write would otherwise produce error-level log spam on every
   // PATCH/insert. Manual run-column callers always pass `groupIds` so they
   // can't reach here with an empty target.
+  if (requestedGroups.length === 0) {
+    return { dispatchId: null, shouldSignalRowsChanged: false }
+  }
+  const targetGroups = await assertWorkflowGroupsDeployable(requestedGroups, {
+    isManualRun,
+    requestId,
+  })
   if (targetGroups.length === 0) {
     return { dispatchId: null, shouldSignalRowsChanged: false }
   }

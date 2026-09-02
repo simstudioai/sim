@@ -108,14 +108,25 @@ export interface ApplyWorkflowOperationsResult {
   skipped: SkippedItem[]
   deferred: SkippedItem[]
   inputValidationErrors: ValidationError[]
-  /** Requested `block_id` -> the id the block was given, when they differ. */
+  /** Requested `block_id` -> the id the block was given, when they differ. Empty on a dry run. */
   mintedBlockIds: Record<string, string>
+  /**
+   * Dry run only: requested `block_id` -> the provisional id the evaluation
+   * assigned. Reported apart from `mintedBlockIds` because they are not the
+   * ids a committed apply produces — the real apply mints new ones — and a
+   * caller that wired a later request against them would reference nothing.
+   */
+  previewBlockIds?: Record<string, string>
   lint: WorkflowLintReport
   warnings: string[]
   needsRedeployment: boolean
   /** True when nothing was persisted because the caller asked for a dry run. */
   dryRun: boolean
 }
+
+/** Raised on a dry run that assigned provisional block ids. */
+export const DRY_RUN_PREVIEW_BLOCK_IDS_WARNING =
+  'Dry run: block ids are previews — the real apply mints new ones; wire edges by slug within one batch or by the ids the real apply returns.'
 
 /**
  * The engine models a graph as an open record; the layout helpers want the
@@ -405,9 +416,14 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
         skipped: genuineSkippedItems,
         deferred: deferredItems,
         inputValidationErrors: validationErrors,
-        mintedBlockIds,
+        mintedBlockIds: {},
+        previewBlockIds: mintedBlockIds,
         lint,
-        warnings: [...validation.warnings, ...prepared.warnings],
+        warnings: [
+          ...validation.warnings,
+          ...prepared.warnings,
+          ...(Object.keys(mintedBlockIds).length > 0 ? [DRY_RUN_PREVIEW_BLOCK_IDS_WARNING] : []),
+        ],
         needsRedeployment: await checkNeedsRedeployment(context.workflowId),
         dryRun: true,
       }

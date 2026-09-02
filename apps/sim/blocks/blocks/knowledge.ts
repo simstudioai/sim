@@ -558,5 +558,19 @@ export const KnowledgeBlock: BlockConfig = {
     results: { type: 'json', description: 'Search results' },
     query: { type: 'string', description: 'Query used' },
     totalResults: { type: 'number', description: 'Total results count' },
+    cost: {
+      type: 'json',
+      description:
+        'Search cost breakdown: input, output, and total USD for the query embedding, plus rerankerCost, rerankerModel, and rerankerSearchUnits when a reranker ran. Absent when the search was not billed (e.g. tag-only search or BYOK).',
+    },
+    tokens: {
+      type: 'json',
+      description:
+        'Token usage of the query embedding: prompt, completion, and total. Present with cost.',
+    },
+    model: {
+      type: 'string',
+      description: 'Embedding model that scored the query. Present with cost.',
+    },
   },
 }

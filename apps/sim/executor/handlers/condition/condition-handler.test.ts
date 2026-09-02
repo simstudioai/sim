@@ -165,6 +165,7 @@ describe('ConditionBlockHandler', () => {
         blockTitle: 'Target Block 1',
       },
       selectedOption: 'cond1',
+      selectedTitle: 'if',
     }
 
     const result = await handler.execute(mockContext, mockBlock, inputs)
@@ -333,19 +334,91 @@ describe('ConditionBlockHandler', () => {
     const expectedOutput = {
       value: 10,
       text: 'hello',
-      conditionResult: true,
+      conditionResult: false,
       selectedPath: {
         blockId: mockTargetBlock2.id,
         blockType: 'target',
         blockTitle: 'Target Block 2',
       },
       selectedOption: 'else1',
+      selectedTitle: 'else',
     }
 
     const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect(result).toEqual(expectedOutput)
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
+  })
+
+  describe("conditionResult is the chosen branch's own verdict", () => {
+    it('reports false when the else branch fires, so a downstream <gate.conditionResult> is not inverted', async () => {
+      mockExecuteTool.mockResolvedValueOnce(noMatch())
+
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.value < 0' },
+        { id: 'else1', title: 'Else', value: '' },
+      ]
+
+      const result = (await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify(conditions),
+      })) as Record<string, unknown>
+
+      expect(result.conditionResult).toBe(false)
+      expect(result.selectedOption).toBe('else1')
+      expect(result.selectedTitle).toBe('Else')
+      expect(result.selectedPath).toEqual({
+        blockId: mockTargetBlock2.id,
+        blockType: 'target',
+        blockTitle: 'Target Block 2',
+      })
+    })
+
+    it('reports true with the matched branch title for an else-if match', async () => {
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(1))
+
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.value < 0' },
+        { id: 'cond2', title: 'else if', value: 'context.value > 5' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      mockContext.workflow!.connections = [
+        { source: mockSourceBlock.id, target: mockBlock.id },
+        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-cond2' },
+        { source: mockBlock.id, target: mockTargetBlock2.id, sourceHandle: 'condition-else1' },
+      ]
+
+      const result = (await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify(conditions),
+      })) as Record<string, unknown>
+
+      expect(result.conditionResult).toBe(true)
+      expect(result.selectedOption).toBe('cond2')
+      expect(result.selectedTitle).toBe('else if')
+    })
+
+    it('keeps the verdict and title when the chosen branch has no outgoing connection', async () => {
+      mockExecuteTool.mockResolvedValueOnce(noMatch())
+
+      const conditions = [
+        { id: 'cond1', title: 'if', value: 'context.value < 0' },
+        { id: 'else1', title: 'else', value: '' },
+      ]
+      mockContext.workflow!.connections = [
+        { source: mockSourceBlock.id, target: mockBlock.id },
+        { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'condition-cond1' },
+      ]
+
+      const result = (await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify(conditions),
+      })) as Record<string, unknown>
+
+      expect(result).toMatchObject({
+        conditionResult: false,
+        selectedPath: null,
+        selectedOption: 'else1',
+        selectedTitle: 'else',
+      })
+    })
   })
 
   it('recognizes legacy-capitalized else branches without evaluating them', async () => {
@@ -483,6 +556,7 @@ describe('ConditionBlockHandler', () => {
     expect((result as any).conditionResult).toBe(false)
     expect((result as any).selectedPath).toBeNull()
     expect((result as any).selectedOption).toBeNull()
+    expect((result as any).selectedTitle).toBeNull()
     expect(mockContext.decisions.condition.has(mockBlock.id)).toBe(false)
   })
 
@@ -786,7 +860,7 @@ describe('ConditionBlockHandler', () => {
 
       const result = await handler.execute(mockContext, mockBlock, inputs)
 
-      expect((result as any).conditionResult).toBe(true)
+      expect((result as any).conditionResult).toBe(false)
       expect((result as any).selectedOption).toBe('else1')
       expect((result as any).selectedPath).toEqual({
         blockId: mockTargetBlock1.id,
@@ -815,7 +889,7 @@ describe('ConditionBlockHandler', () => {
 
       const result = await handler.execute(mockContext, mockBlock, inputs)
 
-      expect((result as any).conditionResult).toBe(true)
+      expect((result as any).conditionResult).toBe(false)
       expect((result as any).selectedOption).toBe('else1')
       expect((result as any).selectedPath?.blockId).toBe(mockTargetBlock1.id)
     })
@@ -1009,7 +1083,7 @@ describe('ConditionBlockHandler', () => {
 
       const result = await handler.execute(mockContext, mockBlock, inputs)
 
-      expect((result as any).conditionResult).toBe(true)
+      expect((result as any).conditionResult).toBe(false)
       expect((result as any).selectedPath).toBeNull()
       expect((result as any).selectedOption).toBe('else1')
       expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
@@ -1032,7 +1106,7 @@ describe('ConditionBlockHandler', () => {
       const result = await handler.execute(mockContext, mockBlock, inputs)
 
       expect((result as any).selectedOption).toBe('else1')
-      expect((result as any).conditionResult).toBe(true)
+      expect((result as any).conditionResult).toBe(false)
     })
   })
 
@@ -1377,7 +1451,7 @@ describe('ConditionBlockHandler', () => {
 
       const result = await handler.execute(parallelContext, parallelConditionBlock, inputs)
 
-      expect((result as any).conditionResult).toBe(true)
+      expect((result as any).conditionResult).toBe(false)
       expect((result as any).selectedOption).toBe('else1')
       expect((result as any).selectedPath.blockId).toBe('target-false')
     })

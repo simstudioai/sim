@@ -793,6 +793,45 @@ export const v2AddTableColumnContract = defineRouteContract({
   },
 })
 
+/**
+ * A workflow Table block a column rename could not migrate. Rows, views, and
+ * workflow-group references key on the column's stable id and follow a rename;
+ * a Table block's authored `filter`, `order`, and `data` name columns by name
+ * and live in workflow state the rename does not rewrite.
+ */
+export const v2UnmigratedTableBlockReferenceSchema = z
+  .object({
+    workflowId: z.string().describe('Workflow holding the Table block.'),
+    workflowName: z.string().describe('Display name of that workflow.'),
+    blockId: z.string().describe('Table block whose configuration still names the old column.'),
+    blockName: z.string().describe('Display name of that block.'),
+    fields: z
+      .array(z.enum(['filter', 'order', 'data']))
+      .describe('Sub-block fields that still reference the old column name.'),
+  })
+  .meta({
+    id: 'V2UnmigratedTableBlockReference',
+    title: 'Unmigrated table block reference',
+    description: 'A workflow Table block still configured against a renamed column.',
+  })
+export type V2UnmigratedTableBlockReference = z.output<typeof v2UnmigratedTableBlockReferenceSchema>
+
+export const v2UpdateTableColumnDataSchema = v2TableColumnsDataSchema
+  .extend({
+    unmigrated: z
+      .array(v2UnmigratedTableBlockReferenceSchema)
+      .describe(
+        'Workflow Table blocks bound to this table whose `filter`, `order`, or `data` still name the column by its previous name. Only populated by a rename; empty otherwise. Workflow state is never rewritten by this endpoint — edit those blocks (`POST /api/v2/workflows/{workflowId}/operations`) or their next run fails on the old name.'
+      ),
+  })
+  .meta({
+    id: 'V2UpdateTableColumnData',
+    title: 'Update table column data',
+    description:
+      'The table column list after the update, plus any workflow Table blocks a rename left pointing at the old column name.',
+  })
+export type V2UpdateTableColumnData = z.output<typeof v2UpdateTableColumnDataSchema>
+
 export const v2UpdateTableColumnContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/columns',
@@ -801,7 +840,7 @@ export const v2UpdateTableColumnContract = defineRouteContract({
   body: v2UpdateTableColumnBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableColumnsDataSchema),
+    schema: v2DataResponse(v2UpdateTableColumnDataSchema),
   },
 })
 
@@ -1581,7 +1620,11 @@ export const v2WorkflowGroupSchema = z
       )
       .optional()
       .describe('Workflow inputs mapped from table columns.'),
-    deploymentMode: z.enum(['live', 'deployed']).optional().describe('Workflow execution mode.'),
+    deploymentMode: z
+      .enum(['live', 'deployed'])
+      .describe(
+        'Which workflow state per-cell runs execute against. `deployed` (the default when a group was created without one) runs the latest active deployment and refuses to run while the workflow is undeployed; `live` runs the editable draft.'
+      ),
     /** When `false` the group never auto-fires; it runs only on an explicit request. */
     autoRun: z.boolean().optional().describe('Whether the group automatically runs for new rows.'),
   })

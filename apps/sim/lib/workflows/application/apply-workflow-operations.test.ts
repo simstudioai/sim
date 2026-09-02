@@ -105,7 +105,10 @@ vi.mock('@/lib/workflows/autolayout', () => ({
 
 import { ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { applyWorkflowOperations } from '@/lib/workflows/application/apply-workflow-operations'
+import {
+  applyWorkflowOperations,
+  DRY_RUN_PREVIEW_BLOCK_IDS_WARNING,
+} from '@/lib/workflows/application/apply-workflow-operations'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
 
 const BLOCK = {
@@ -179,6 +182,7 @@ describe('applyWorkflowOperations', () => {
       state: graph(),
       validationErrors: [],
       skippedItems: [],
+      mintedBlockIds: {},
     })
     mocks.collectReferences.mockResolvedValue([])
     mocks.collectToolReferences.mockResolvedValue([])
@@ -264,11 +268,54 @@ describe('applyWorkflowOperations', () => {
       orphanBlocks: [orphan],
       fieldIssues: [],
       unresolvedReferences: [],
+      tableFieldIssues: [],
       notes: ['No entry block: nothing can start this workflow.'],
     })
   })
 
   describe('dry run', () => {
+    /**
+     * The engine mints a UUID for every non-UUID `block_id` on each call, so a
+     * dry run's ids are never the ids the committed apply produces. Reporting
+     * them as `mintedBlockIds` made them look authoritative.
+     */
+    it('reports minted ids as previews, with a warning, instead of as minted', async () => {
+      mocks.applyOperations.mockReturnValue({
+        state: graph(),
+        validationErrors: [],
+        skippedItems: [],
+        mintedBlockIds: { triage: 'preview-uuid' },
+      })
+
+      const dry = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, dryRun: true },
+      })
+
+      expect(dry.mintedBlockIds).toEqual({})
+      expect(dry.previewBlockIds).toEqual({ triage: 'preview-uuid' })
+      expect(dry.warnings).toContain(DRY_RUN_PREVIEW_BLOCK_IDS_WARNING)
+
+      const committed = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations },
+      })
+
+      expect(committed.mintedBlockIds).toEqual({ triage: 'preview-uuid' })
+      expect(committed.previewBlockIds).toBeUndefined()
+      expect(committed.warnings).not.toContain(DRY_RUN_PREVIEW_BLOCK_IDS_WARNING)
+    })
+
+    it('raises no preview warning when the dry run minted nothing', async () => {
+      const dry = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, dryRun: true },
+      })
+
+      expect(dry.previewBlockIds).toEqual({})
+      expect(dry.warnings).not.toContain(DRY_RUN_PREVIEW_BLOCK_IDS_WARNING)
+    })
+
     it('runs the whole engine and stops at the write', async () => {
       const result = await applyWorkflowOperations.execute({
         principal: sessionPrincipal,
@@ -337,6 +384,7 @@ describe('applyWorkflowOperations', () => {
         },
         validationErrors: [],
         skippedItems: [],
+        mintedBlockIds: {},
       })
       mocks.validate.mockReturnValue({ valid: true, errors: [], warnings: ['validation note'] })
 

@@ -675,6 +675,33 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     })
   })
 
+  it('rejects a selectedOutputs selector whose block is unknown before running, naming the available blocks', async () => {
+    const agentBlockId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const startBlockId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    mockLoadDeployedWorkflowState.mockResolvedValue({
+      blocks: {
+        [agentBlockId]: { id: agentBlockId, name: 'Agent 1' },
+        [startBlockId]: { id: startBlockId, name: 'Start' },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+      variables: {},
+    })
+
+    const res = await callExecute({
+      input: {},
+      selectedOutputs: ['Agent 1.content', 'Agent 2.content'],
+    })
+
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error.message).toBe(
+      'Invalid selectedOutputs: Unknown block "Agent 2" in selector "Agent 2.content". Available blocks: Agent 1, Start'
+    )
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+  })
+
   it.each(['includeThinking', 'includeToolCalls'])(
     'rejects %s unless stream is true before checking the protocol header',
     async (option) => {

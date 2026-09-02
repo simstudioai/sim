@@ -338,7 +338,7 @@
       "put": {
         "operationId": "replaceWorkflowState",
         "summary": "Replace Workflow State",
-        "description": "Replace a workflow’s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state. Ids are the one conflict that is detected: block, edge, and subflow ids are globally unique, so a body carrying an id another workflow already owns is refused with `409` rather than written.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{workflowId}/deploy` publishes the draft.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. A workspace API key is rejected with `403`; use a personal API key.\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — including the warnings the write’s own preparation step raises, and the same `409` when an id is already owned by another workflow. Only `needsRedeployment` differs: it describes the state before the write.",
+        "description": "Replace a workflow’s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state. Ids are the one conflict that is detected: block, edge, and subflow ids are globally unique, so a body carrying an id another workflow already owns is refused with `409` rather than written.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{workflowId}/deploy` publishes the draft.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. A workspace API key is rejected with `403`; use a personal API key.\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — including the warnings the write’s own preparation step raises, and the same `409` when an id is already owned by another workflow. Two things differ: `needsRedeployment` describes the state before the write, and block ids are previews — `mintedBlockIds` is empty and the provisional ids come back under `previewBlockIds` with a warning, because the real apply mints new ones.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -3115,7 +3115,7 @@
       "post": {
         "operationId": "cancelRunV2",
         "summary": "Cancel Workflow Run",
-        "description": "Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state succeeds with no effect. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.",
+        "description": "Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state is a `200` no-op answered with `success: false` and an `already_*` reason. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.",
         "tags": ["Workflow Runs"],
         "parameters": [
           {
@@ -4005,7 +4005,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{workflowId}/runs`, in either direction."
+            "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the size of `GET /api/v2/workflows/{workflowId}/runs`."
           },
           "lastRunAt": {
             "anyOf": [
@@ -4016,7 +4016,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO 8601 timestamp of the latest run counted by `runCount`, or null when none has been. Stamped by the same successful-run path, so a workflow whose only runs failed reports null here.",
+            "description": "ISO 8601 timestamp of the latest settled run, whatever its outcome, or null when the workflow has never run.",
             "format": "date-time"
           },
           "createdAt": {
@@ -4177,7 +4177,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{workflowId}/runs`, in either direction."
+            "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the size of `GET /api/v2/workflows/{workflowId}/runs`."
           },
           "lastRunAt": {
             "anyOf": [
@@ -4188,7 +4188,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO 8601 timestamp of the latest run counted by `runCount`, or null when none has been. Stamped by the same successful-run path, so a workflow whose only runs failed reports null here.",
+            "description": "ISO 8601 timestamp of the latest settled run, whatever its outcome, or null when the workflow has never run.",
             "format": "date-time"
           },
           "createdAt": {
@@ -5199,6 +5199,51 @@
             },
             "description": "Credential, resource, tool, and skill references that do not resolve. These values are still persisted; they are reported, not dropped."
           },
+          "tableFieldIssues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blockId": {
+                  "type": "string",
+                  "description": "Block the finding is about."
+                },
+                "blockName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display name of the block, when it has one."
+                },
+                "blockType": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Registered type of the block, when it has one."
+                },
+                "field": {
+                  "type": "string",
+                  "description": "The filter or sort field that names no column."
+                },
+                "tableName": {
+                  "type": "string",
+                  "description": "Display name of the table the block is bound to."
+                }
+              },
+              "required": ["blockId", "blockName", "blockType", "field", "tableName"],
+              "additionalProperties": false
+            },
+            "description": "Table block `filter` and `order` fields checked against the bound table's live schema that name no column (nor the implicit `id`, `createdAt`, `updatedAt`). Such a run fails inside the block's error edge. A filter holding a `<block.output>` reference, or one that is not JSON, is not checked."
+          },
           "notes": {
             "type": "array",
             "items": {
@@ -5216,6 +5261,7 @@
           "invalidConnectionTargets",
           "fieldIssues",
           "unresolvedReferences",
+          "tableFieldIssues",
           "notes"
         ],
         "additionalProperties": false,
@@ -5281,6 +5327,7 @@
                 "invalidConnectionTargets": [],
                 "fieldIssues": [],
                 "unresolvedReferences": [],
+                "tableFieldIssues": [],
                 "notes": []
               }
             }
@@ -5887,7 +5934,18 @@
               "type": "string",
               "description": "The id the block was actually given."
             },
-            "description": "The id each newly created block was actually given, keyed by the `block_id` you asked for, and present only for the ones that differ. A `block_id` on an `add` or `insert_into_subflow` that is not already a UUID is replaced with a minted one, so this is how you learn what to reference afterwards. Within a single batch you can keep using your own ids — references between operations are remapped for you — but a later request must use the minted id, so send your own UUIDs when you want an id you chose to survive."
+            "description": "The id each newly created block was actually given, keyed by the `block_id` you asked for, and present only for the ones that differ. A `block_id` on an `add` or `insert_into_subflow` that is not already a UUID is replaced with a minted one, so this is how you learn what to reference afterwards. Within a single batch you can keep using your own ids — references between operations are remapped for you — but a later request must use the minted id, so send your own UUIDs when you want an id you chose to survive. Always empty on a dry run, which reports its provisional ids under `previewBlockIds` instead."
+          },
+          "previewBlockIds": {
+            "description": "Dry run only: the provisional id the evaluation assigned to each block whose `block_id` was not already a UUID, keyed by the `block_id` you asked for. These are not the ids a committed apply produces — the real apply mints new ones — so never wire a later request against them. Wire edges by `block_id` within one batch, or by the `mintedBlockIds` the real apply returns.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "description": "The provisional id the dry run assigned."
+            }
           },
           "lint": {
             "$ref": "#/components/schemas/WorkflowLintReport"
@@ -5953,6 +6011,7 @@
                   }
                 ],
                 "unresolvedReferences": [],
+                "tableFieldIssues": [],
                 "notes": []
               },
               "warnings": [],
@@ -6906,7 +6965,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{workflowId}/runs`, in either direction."
+            "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the size of `GET /api/v2/workflows/{workflowId}/runs`."
           },
           "lastRunAt": {
             "anyOf": [
@@ -6917,7 +6976,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO 8601 timestamp of the latest run counted by `runCount`, or null when none has been. Stamped by the same successful-run path, so a workflow whose only runs failed reports null here.",
+            "description": "ISO 8601 timestamp of the latest settled run, whatever its outcome, or null when the workflow has never run.",
             "format": "date-time"
           },
           "createdAt": {
@@ -9268,7 +9327,7 @@
                 "type": "null"
               }
             ],
-            "description": "Outputs of the blocks named by `selectedOutputs`, keyed by those selector strings, or null when none were requested. Selectors whose block did not run or whose path is absent are omitted; failed runs include the outputs of the blocks that did run."
+            "description": "Outputs of the blocks named by `selectedOutputs`, keyed by those selector strings exactly as sent, or null when none were requested. `output` stays the final workflow output regardless. Selectors whose block did not run or whose path is absent are omitted (an unknown block is a `400` instead); failed runs include the outputs of the blocks that did run."
           },
           "error": {
             "anyOf": [
@@ -9482,7 +9541,7 @@
             "type": "boolean"
           },
           "selectedOutputs": {
-            "description": "Block output references to include in the response. Use `<blockName>.<outputPath>` for the executed workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow; block names are normalized workflow reference names, and selecting a child workflow applies to every invocation of it. On a sync request the named outputs come back in `blockOutputs`, keyed by these selector strings; on a stream they shape the streamed envelope. Selectors that resolve to no block or no value are omitted. Rejected when `async` is true — a queued run has produced nothing to select; narrow the finished run via the run resource instead.",
+            "description": "Block output references to include in the response. Use `<blockName>.<outputPath>` for the executed workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow; block names are normalized workflow reference names, and selecting a child workflow applies to every invocation of it. On a sync request the named outputs come back in `blockOutputs`, keyed by these selector strings exactly as sent; on a stream they shape the streamed envelope. A selector whose block name or id matches no block in the workflow is rejected with `400` naming the available blocks, before the run starts. A selector whose block did not run or whose path is absent is omitted. Rejected when `async` is true — a queued run has produced nothing to select; narrow the finished run via the run resource instead.",
             "maxItems": 100,
             "type": "array",
             "items": {
@@ -10148,7 +10207,7 @@
         "properties": {
           "success": {
             "type": "boolean",
-            "description": "Whether cancellation was accepted."
+            "description": "Whether this request cancelled anything. `false` with an `already_*` reason means the run had already reached that terminal state, so there was nothing to cancel — still `200`, because a no-op is not an error. `false` with any other reason identifies a degraded or incomplete cancellation step."
           },
           "runId": {
             "type": "string",
@@ -10202,7 +10261,7 @@
         ],
         "additionalProperties": false,
         "title": "Cancel workflow run result",
-        "description": "Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state succeeds with no effect, reported as `durablyRecorded: false` with an `already_*` reason naming the state observed."
+        "description": "Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state is a `200` no-op, reported as `success: false` and `durablyRecorded: false` with an `already_*` reason naming the state observed."
       },
       "CancelWorkflowRunResponse": {
         "type": "object",

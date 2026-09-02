@@ -1701,7 +1701,7 @@ export const addWorkflowGroupBodySchema = z.object({
         .array(workflowGroupInputMappingSchema)
         .optional()
         .describe('Workflow inputs mapped from table columns.'),
-      /** Which workflow state per-cell runs execute against. Defaults to `'live'`. */
+      /** Which workflow state per-cell runs execute against. Defaults to `'deployed'`. */
       deploymentMode: workflowGroupDeploymentModeSchema
         .optional()
         .describe('Workflow state used for cell runs.'),

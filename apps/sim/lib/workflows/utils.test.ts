@@ -11,6 +11,7 @@ import {
   authMockFns,
   createSession,
   createWorkflowRecord,
+  dbChainMockFns,
   expectWorkflowAccessDenied,
   expectWorkflowAccessGranted,
   queueTableRows,
@@ -29,6 +30,7 @@ afterAll(() => {
 import {
   createHttpResponseFromBlock,
   deduplicateWorkflowName,
+  updateWorkflowRunCounts,
   validateWorkflowPermissions,
 } from '@/lib/workflows/utils'
 
@@ -282,5 +284,37 @@ describe('createHttpResponseFromBlock', () => {
     } as any)
 
     await expect(response.json()).resolves.toEqual({ issues: [] })
+  })
+})
+
+describe('updateWorkflowRunCounts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  /**
+   * The increment is done in SQL and the new total read back from the updated
+   * row, so two runs of one workflow settling together cannot overwrite each
+   * other's count the way a read-then-write did.
+   */
+  it('increments in place and reports the stored total', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ runCount: 5 }])
+
+    await expect(updateWorkflowRunCounts('wf-1')).resolves.toEqual({
+      success: true,
+      runsAdded: 1,
+      newTotal: 5,
+    })
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.workflow)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ lastRunAt: expect.any(Date) })
+    )
+  })
+
+  it('rejects when no workflow row was updated', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    await expect(updateWorkflowRunCounts('missing')).rejects.toThrow('Workflow missing not found')
   })
 })
