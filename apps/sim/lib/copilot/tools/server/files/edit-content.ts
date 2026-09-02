@@ -17,6 +17,7 @@ import {
   EditContentError,
   type WorkspaceFileContentEdit,
 } from '@/lib/workspace-files/edit-content'
+import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 import {
   collectSimPageDiagnostics,
   HAND_WRITTEN_PAGE_MESSAGE,
@@ -205,7 +206,9 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
             return { success: false, message: `Unknown patch strategy: "${intent.edit.strategy}"` }
           }
           try {
-            finalContent = applyWorkspaceFileContentEdit(existing, edit)
+            finalContent = applyWorkspaceFileContentEdit(existing, edit, {
+              maxOutputBytes: MAX_WORKSPACE_FILE_CONTENT_BYTES,
+            })
           } catch (error) {
             if (error instanceof EditContentError) {
               return {

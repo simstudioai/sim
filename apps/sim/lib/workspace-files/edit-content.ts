@@ -1,9 +1,16 @@
+import { Buffer } from 'node:buffer'
+
 export type EditContentFailure =
   | { reason: 'empty_search' }
   | { reason: 'not_found' }
   | { reason: 'ambiguous'; lineNumbers: number[] }
   | { reason: 'invalid_occurrence' }
   | { reason: 'invalid_anchor_order' }
+  | { reason: 'output_too_large'; maxBytes: number }
+
+export interface EditContentOptions {
+  maxOutputBytes?: number
+}
 
 export class EditContentError extends Error {
   constructor(
@@ -61,6 +68,30 @@ function scanMatches(text: string, search: string): MatchScan {
   return { count, lineNumbers }
 }
 
+function assertReplacementOutputWithinLimit(
+  text: string,
+  search: string,
+  content: string,
+  count: number,
+  maxOutputBytes: number | undefined
+): void {
+  if (maxOutputBytes === undefined) return
+
+  const retainedBytes = Buffer.byteLength(text) - count * Buffer.byteLength(search)
+  const replacementBytes = Buffer.byteLength(content)
+  const availableReplacementBytes = maxOutputBytes - retainedBytes
+  const exceedsLimit =
+    availableReplacementBytes < 0 ||
+    (replacementBytes > 0 && count > Math.floor(availableReplacementBytes / replacementBytes))
+
+  if (exceedsLimit) {
+    throw new EditContentError(`Edit result exceeds the ${maxOutputBytes} byte limit`, {
+      reason: 'output_too_large',
+      maxBytes: maxOutputBytes,
+    })
+  }
+}
+
 /**
  * Replaces the single occurrence of `search`, or refuses.
  *
@@ -72,7 +103,8 @@ export function applyStringReplacement(
   text: string,
   search: string,
   content: string,
-  replaceAll = false
+  replaceAll = false,
+  options?: EditContentOptions
 ): string {
   if (search.length === 0) {
     throw new EditContentError('Search text cannot be empty', { reason: 'empty_search' })
@@ -94,7 +126,15 @@ export function applyStringReplacement(
     )
   }
 
-  if (replaceAll) return text.split(search).join(content)
+  assertReplacementOutputWithinLimit(
+    text,
+    search,
+    content,
+    replaceAll ? count : 1,
+    options?.maxOutputBytes
+  )
+
+  if (replaceAll) return text.replaceAll(search, content)
 
   const index = text.indexOf(search)
   return text.slice(0, index) + content + text.slice(index + search.length)
@@ -188,10 +228,11 @@ function contentLines(content: string): string[] {
  */
 export function applyWorkspaceFileContentEdit(
   text: string,
-  edit: WorkspaceFileContentEdit
+  edit: WorkspaceFileContentEdit,
+  options?: EditContentOptions
 ): string {
   if (edit.mode === 'search_replace') {
-    return applyStringReplacement(text, edit.search, edit.content, edit.replaceAll)
+    return applyStringReplacement(text, edit.search, edit.content, edit.replaceAll, options)
   }
 
   const lines = splitLines(text)

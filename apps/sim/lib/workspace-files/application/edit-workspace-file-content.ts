@@ -131,11 +131,17 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
       const before = buffer.toString('utf-8')
       let after: string
       try {
-        after = applyWorkspaceFileContentEdit(before, input.edit)
+        after = applyWorkspaceFileContentEdit(before, input.edit, {
+          maxOutputBytes: MAX_WORKSPACE_FILE_CONTENT_BYTES,
+        })
       } catch (error) {
         if (error instanceof EditContentError) {
           throw new OrchestrationError(
-            error.failure.reason === 'not_found' ? 'not_found' : 'validation',
+            error.failure.reason === 'not_found'
+              ? 'not_found'
+              : error.failure.reason === 'output_too_large'
+                ? 'payload_too_large'
+                : 'validation',
             error.message
           )
         }

@@ -69,6 +69,12 @@ describe('applyStringReplacement', () => {
   it('replaces every non-overlapping match when explicitly requested', () => {
     expect(applyStringReplacement('a a a', 'a', 'b', true)).toBe('b b b')
   })
+
+  it('rejects an oversized replaceAll result before constructing it', () => {
+    expect(() =>
+      applyStringReplacement('aaaa', 'a', '0123456789', true, { maxOutputBytes: 20 })
+    ).toThrow(/exceeds the 20 byte limit/)
+  })
 })
 
 describe('applyWorkspaceFileContentEdit', () => {

@@ -236,4 +236,13 @@ describe('editWorkspaceFileContent', () => {
     ).rejects.toThrow(/lines 1, 3/)
     expect(mockUpdateStoredContent).not.toHaveBeenCalled()
   })
+
+  it('rejects an oversized replaceAll result before writing it', async () => {
+    mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('a'.repeat(1_100_000), 'utf-8'))
+
+    await expect(
+      edit({ mode: 'search_replace', search: 'a', content: 'x'.repeat(49), replaceAll: true })
+    ).rejects.toMatchObject({ code: 'payload_too_large' })
+    expect(mockUpdateStoredContent).not.toHaveBeenCalled()
+  })
 })
