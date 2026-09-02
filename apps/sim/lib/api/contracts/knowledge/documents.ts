@@ -286,7 +286,12 @@ export const documentDataSchema = z
     connectorType: z.string().nullable().optional(),
     sourceUrl: z.string().nullable().optional(),
   })
-  .passthrough()
+  /**
+   * Strict allow-list. The single-document presenter spreads the whole
+   * `document` row, so an unlisted column — `storageKey`, and now `acl` —
+   * would otherwise reach every client that can read a document.
+   */
+  .strip()
 export type DocumentData = z.output<typeof documentDataSchema>
 
 export const documentsPaginationSchema = paginationSchema
