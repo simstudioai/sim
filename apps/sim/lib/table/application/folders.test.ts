@@ -103,4 +103,116 @@ describe('listTableFoldersUseCase', () => {
     expect(result.folders).toEqual([])
     expect(mocks.listRows).not.toHaveBeenCalled()
   })
+
+  /*
+   * A recursive listing narrows in memory instead of in SQL: depth is a property
+   * of the hierarchy, and the index already holds the whole active tree the
+   * depths must be walked from. So the query drops its `parentId` filter and the
+   * subtree is selected afterwards — a `parentId` left on would return only the
+   * direct children and quietly cap every recursive listing at one level.
+   */
+  describe('recursive listing', () => {
+    const TREE = [
+      { id: 'folder-1', name: 'Reports', parentId: null },
+      { id: 'folder-2', name: 'Q3', parentId: 'folder-1' },
+      { id: 'folder-3', name: 'Drafts', parentId: 'folder-2' },
+      { id: 'folder-4', name: 'Archive', parentId: null },
+    ]
+
+    beforeEach(() => {
+      mocks.loadFolderIndex.mockResolvedValue({
+        idByPath: new Map([
+          ['/Reports', 'folder-1'],
+          ['/Reports/Q3', 'folder-2'],
+          ['/Reports/Q3/Drafts', 'folder-3'],
+          ['/Archive', 'folder-4'],
+        ]),
+        pathById: new Map([
+          ['folder-1', '/Reports'],
+          ['folder-2', '/Reports/Q3'],
+          ['folder-3', '/Reports/Q3/Drafts'],
+          ['folder-4', '/Archive'],
+        ]),
+        rowById: new Map(TREE.map((row) => [row.id, row])),
+      })
+      mocks.listRows.mockResolvedValue(TREE)
+    })
+
+    it('queries the whole workspace and selects the subtree, with depths', async () => {
+      const result = await listTableFoldersUseCase.execute({
+        principal,
+        input: { workspaceId: 'ws-1', parentPath: '/Reports', recursive: true },
+      })
+
+      expect(mocks.listRows).toHaveBeenCalledWith(
+        'ws-1',
+        'table',
+        expect.objectContaining({ parentId: undefined })
+      )
+      expect(result.folders.map((row) => row.id)).toEqual(['folder-2', 'folder-3'])
+      expect(result.depthById?.get('folder-2')).toBe(1)
+      expect(result.depthById?.get('folder-3')).toBe(2)
+    })
+
+    it('stops at the requested depth', async () => {
+      const result = await listTableFoldersUseCase.execute({
+        principal,
+        input: { workspaceId: 'ws-1', parentPath: '/Reports', recursive: true, maxDepth: 1 },
+      })
+
+      expect(result.folders.map((row) => row.id)).toEqual(['folder-2'])
+    })
+
+    it('walks from the workspace root when the parent is the root', async () => {
+      const result = await listTableFoldersUseCase.execute({
+        principal,
+        input: { workspaceId: 'ws-1', parentPath: '/', recursive: true },
+      })
+
+      expect(result.folders.map((row) => row.id)).toEqual([
+        'folder-1',
+        'folder-2',
+        'folder-3',
+        'folder-4',
+      ])
+      expect(result.depthById?.get('folder-1')).toBe(1)
+      expect(result.depthById?.get('folder-3')).toBe(3)
+    })
+
+    it('keeps a non-recursive listing on the SQL parent filter', async () => {
+      const result = await listTableFoldersUseCase.execute({
+        principal,
+        input: { workspaceId: 'ws-1', parentPath: '/Reports' },
+      })
+
+      expect(mocks.listRows).toHaveBeenCalledWith(
+        'ws-1',
+        'table',
+        expect.objectContaining({ parentId: 'folder-1' })
+      )
+      /* The query decided the rows; the walk only supplies their depth. */
+      expect(result.folders).toEqual(TREE)
+    })
+
+    /*
+     * Search filters the RESULT, not the traversal — a folder deep in the tree
+     * whose ancestors do not match is still reported, at its real depth.
+     */
+    it('reports a deep match whose ancestors were filtered out of the query', async () => {
+      mocks.listRows.mockResolvedValue([TREE[2]])
+
+      const result = await listTableFoldersUseCase.execute({
+        principal,
+        input: { workspaceId: 'ws-1', parentPath: '/Reports', recursive: true, search: 'Drafts' },
+      })
+
+      expect(mocks.listRows).toHaveBeenCalledWith(
+        'ws-1',
+        'table',
+        expect.objectContaining({ search: 'Drafts' })
+      )
+      expect(result.folders.map((row) => row.id)).toEqual(['folder-3'])
+      expect(result.depthById?.get('folder-3')).toBe(2)
+    })
+  })
 })

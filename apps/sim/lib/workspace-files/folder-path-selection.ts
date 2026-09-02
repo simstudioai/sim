@@ -1,4 +1,5 @@
 import { parseFolderPath } from '@/lib/folders/paths'
+import { type FolderScopeOptions, isWithinFolderScope } from '@/lib/folders/scope'
 import { collectFolderDepths } from '@/lib/folders/subtree'
 import { folderPathSegments } from '@/lib/workspace-files/folder-display-path'
 
@@ -69,16 +70,11 @@ export function resolveFolderIdsForPaths(
 export function isFileInFolderScope(
   fileFolderPath: string | null | undefined,
   scopeCanonicalPath: string,
-  options?: { includeSubfolders?: boolean }
+  options?: FolderScopeOptions
 ): boolean {
-  const scope = parseFolderPath(scopeCanonicalPath)
-  if (scope.length === 0) return true
-
-  const fileSegments = fileFolderPath ? folderPathSegments(fileFolderPath) : []
-  if (options?.includeSubfolders === false) {
-    if (fileSegments.length !== scope.length) return false
-  } else if (fileSegments.length < scope.length) {
-    return false
-  }
-  return scope.every((segment, index) => fileSegments[index] === segment)
+  return isWithinFolderScope(
+    fileFolderPath ? folderPathSegments(fileFolderPath) : [],
+    parseFolderPath(scopeCanonicalPath),
+    options
+  )
 }

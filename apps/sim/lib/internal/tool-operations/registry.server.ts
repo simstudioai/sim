@@ -591,6 +591,12 @@ const TABLE_TOOL_IDS = [
   'table_delete_row',
   'table_delete_rows_by_filter',
   'table_upsert_row',
+  'table_list_folders',
+  'table_create_folder',
+  'table_update_folder',
+  'table_delete_folder',
+  'table_restore_folder',
+  'table_move',
 ] as const
 
 const WORKDAY_TOOL_IDS = [

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import type { AnyApiRouteContract } from '@/lib/api/contracts'
+import type { AnyApiRouteContract, ApiSchema } from '@/lib/api/contracts'
 import {
   createTableContract,
   deleteTableRowContract,
@@ -15,18 +15,38 @@ import {
   updateTableRowsByFilterContract,
   upsertTableRowContract,
 } from '@/lib/api/contracts/tables'
+import {
+  tableCreateFolderResponseSchema,
+  tableCreateFolderSchemas,
+  tableDeleteFolderResponseSchema,
+  tableDeleteFolderSchemas,
+  tableListFoldersResponseSchema,
+  tableListFoldersSchemas,
+  tableMoveResponseSchema,
+  tableMoveSchemas,
+  tableRestoreFolderResponseSchema,
+  tableRestoreFolderSchemas,
+  tableUpdateFolderResponseSchema,
+  tableUpdateFolderSchemas,
+} from '@/lib/api/contracts/tools/table'
 import { type InternalErrorPolicy, internalOrchestrationErrorPolicy } from '@/lib/api/server/routes'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
 import {
   executeTableCreate,
+  executeTableCreateFolder,
+  executeTableDeleteFolder,
   executeTableDeleteRow,
   executeTableDeleteRows,
   executeTableGetRow,
   executeTableGetSchema,
   executeTableInsertRows,
   executeTableList,
+  executeTableListFolders,
+  executeTableMove,
   executeTableQueryRows,
   executeTableQueryRowsV2,
+  executeTableRestoreFolder,
+  executeTableUpdateFolder,
   executeTableUpdateRow,
   executeTableUpdateRowsByFilter,
   executeTableUpsertRow,
@@ -39,7 +59,10 @@ import {
   internalToolIdentityFaultMessage,
   internalToolIdentityFaultStatus,
 } from '@/lib/internal/tool-operations/identity-faults'
-import { parseInternalContractInput } from '@/lib/internal/tool-operations/parse-contract-input'
+import {
+  parseInternalContractInput,
+  parseInternalOperationInput,
+} from '@/lib/internal/tool-operations/parse-contract-input'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
 import { internalTableErrorPolicies } from '@/lib/table/api/route-policies'
 import {
@@ -50,6 +73,14 @@ import { TABLE_DELEGATION_AUDIENCE } from '@/lib/table/application/authorization
 
 const logger = createLogger('TableInternalOperation')
 
+/**
+ * Tools that address one table through an HTTP-shaped `{tableId, workspaceId}`
+ * input, so their executor delegation can be scoped to it via `getTableContract`.
+ *
+ * The folder tools are absent because they address a folder by path and have no
+ * table to bind a scope to. `table_move` does have one, but is scoped through
+ * its own schema — see {@link resolveScopedTableId}.
+ */
 const TABLE_SCOPED_TOOLS = new Set([
   'table_get_schema',
   'table_get_row',
@@ -91,6 +122,37 @@ const FAILURE_MESSAGES: Record<string, string> = {
   table_delete_row: 'Failed to delete row',
   table_delete_rows_by_filter: 'Failed to delete rows',
   table_upsert_row: 'Failed to upsert row',
+  table_list_folders: 'Failed to list table folders',
+  table_create_folder: 'Failed to create table folder',
+  table_update_folder: 'Failed to move table folder',
+  table_delete_folder: 'Failed to delete table folder',
+  table_restore_folder: 'Failed to restore table folder',
+  table_move: 'Failed to move table',
+}
+
+type ScopeResolution = { success: true; tableId?: string } | { success: false; response: Response }
+
+/**
+ * The table an executor delegation is scoped to, resolved before the operation
+ * runs so authority is narrowed rather than granted workspace-wide.
+ *
+ * The older tools carry an HTTP-shaped `{tableId, workspaceId}` and are read
+ * through `getTableContract`. `table_move` cannot be: that contract's query
+ * REQUIRES a `workspaceId`, and the folder-era tools deliberately send none —
+ * the workspace is the principal's, never a value the caller asserts — so
+ * reading it that way rejected every move as malformed. It reads its table id
+ * from its own schema instead.
+ */
+function resolveScopedTableId(toolId: string, input: unknown): ScopeResolution {
+  if (TABLE_SCOPED_TOOLS.has(toolId)) {
+    const parsed = parseInternalContractInput(getTableContract, input)
+    return parsed.success ? { success: true, tableId: parsed.data.params.tableId } : parsed
+  }
+  if (toolId === 'table_move') {
+    const parsed = parseInternalOperationInput(tableMoveSchemas, input)
+    return parsed.success ? { success: true, tableId: parsed.data.body.tableId } : parsed
+  }
+  return { success: true }
 }
 
 function errorPolicyForTool(toolId: string): InternalErrorPolicy {
@@ -120,14 +182,48 @@ function errorResponse(
   )
 }
 
+/**
+ * The schema a dispatched tool's result is validated against on the way out.
+ *
+ * A response schema rather than a whole contract, because the folder tools have
+ * no HTTP route of their own — they are dispatched only from here — and a
+ * `defineRouteContract` declaring a `method` and `path` nothing serves would be
+ * fiction. The routed tools keep their contracts and hand over
+ * `contract.response.schema`.
+ */
+interface DispatchedTableTool {
+  responseSchema: ApiSchema
+  result: TableToolOperationResult
+}
+
+function jsonResponseSchema(contract: AnyApiRouteContract): ApiSchema {
+  if (contract.response.mode !== 'json') {
+    throw new Error('Table tool contract must return JSON')
+  }
+  return contract.response.schema
+}
+
 async function dispatchTableTool(
   request: Parameters<InternalToolOperationHandler>[0],
   operationContext: TableToolOperationContext
-): Promise<{ contract: AnyApiRouteContract; result: TableToolOperationResult } | Response> {
+): Promise<DispatchedTableTool | Response> {
   const dispatched = async (
     contract: AnyApiRouteContract,
     result: Promise<TableToolOperationResult>
-  ) => ({ contract, result: await result })
+  ) => {
+    /*
+     * Await first: `jsonResponseSchema` throwing before the await would leave an
+     * already-started operation promise unhandled.
+     */
+    const settled = await result
+    return { responseSchema: jsonResponseSchema(contract), result: settled }
+  }
+
+  /** The same, for an operation whose schemas are standalone rather than routed. */
+  const dispatchedSchema = async (
+    responseSchema: ApiSchema,
+    result: Promise<TableToolOperationResult>
+  ) => ({ responseSchema, result: await result })
 
   switch (request.toolId) {
     case 'table_create': {
@@ -254,6 +350,60 @@ async function dispatchTableTool(
           )
         : parsed.response
     }
+    case 'table_list_folders': {
+      const parsed = parseInternalOperationInput(tableListFoldersSchemas, request.input)
+      return parsed.success
+        ? dispatchedSchema(
+            tableListFoldersResponseSchema,
+            executeTableListFolders(parsed.data.body, operationContext)
+          )
+        : parsed.response
+    }
+    case 'table_create_folder': {
+      const parsed = parseInternalOperationInput(tableCreateFolderSchemas, request.input)
+      return parsed.success
+        ? dispatchedSchema(
+            tableCreateFolderResponseSchema,
+            executeTableCreateFolder(parsed.data.body, operationContext)
+          )
+        : parsed.response
+    }
+    case 'table_update_folder': {
+      const parsed = parseInternalOperationInput(tableUpdateFolderSchemas, request.input)
+      return parsed.success
+        ? dispatchedSchema(
+            tableUpdateFolderResponseSchema,
+            executeTableUpdateFolder(parsed.data.body, operationContext)
+          )
+        : parsed.response
+    }
+    case 'table_delete_folder': {
+      const parsed = parseInternalOperationInput(tableDeleteFolderSchemas, request.input)
+      return parsed.success
+        ? dispatchedSchema(
+            tableDeleteFolderResponseSchema,
+            executeTableDeleteFolder(parsed.data.body, operationContext)
+          )
+        : parsed.response
+    }
+    case 'table_restore_folder': {
+      const parsed = parseInternalOperationInput(tableRestoreFolderSchemas, request.input)
+      return parsed.success
+        ? dispatchedSchema(
+            tableRestoreFolderResponseSchema,
+            executeTableRestoreFolder(parsed.data.body, operationContext)
+          )
+        : parsed.response
+    }
+    case 'table_move': {
+      const parsed = parseInternalOperationInput(tableMoveSchemas, request.input)
+      return parsed.success
+        ? dispatchedSchema(
+            tableMoveResponseSchema,
+            executeTableMove(parsed.data.body, operationContext)
+          )
+        : parsed.response
+    }
     default:
       return Response.json({ error: `Unsupported Table tool: ${request.toolId}` }, { status: 500 })
   }
@@ -266,11 +416,9 @@ export const executeTableTool: InternalToolOperationHandler = async (request) =>
     return Response.json({ error: `Unsupported Table tool: ${request.toolId}` }, { status: 500 })
   }
 
-  const scopedInput = TABLE_SCOPED_TOOLS.has(request.toolId)
-    ? parseInternalContractInput(getTableContract, request.input)
-    : undefined
-  if (scopedInput && !scopedInput.success) return scopedInput.response
-  const tableId = scopedInput?.data.params.tableId
+  const scope = resolveScopedTableId(request.toolId, request.input)
+  if (!scope.success) return scope.response
+  const tableId = scope.tableId
   try {
     const principal = await createExecutorPrincipalFromExecutionContext({
       context: request.context,
@@ -286,13 +434,7 @@ export const executeTableTool: InternalToolOperationHandler = async (request) =>
       signal: request.signal,
     })
     if (result instanceof Response) return result
-    if (result.contract.response.mode !== 'json') {
-      throw new Error('Table tool contract must return JSON')
-    }
-    const validatedBody = result.contract.response.schema.parse(result.result.body) as Record<
-      string,
-      unknown
-    >
+    const validatedBody = result.responseSchema.parse(result.result.body) as Record<string, unknown>
     return createTableToolResponse(validatedBody, result.result.provenance)
   } catch (error) {
     request.signal?.throwIfAborted()

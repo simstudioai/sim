@@ -1,5 +1,6 @@
 import { Table } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
+import { encodeFolderPathSegment, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToPredicate, sortRulesToSortSpec } from '@/lib/table/query-builder/converters'
 import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
@@ -11,7 +12,9 @@ import type {
   TablePredicate,
   TablePredicateInput,
 } from '@/lib/table/types'
-import type { BlockConfig } from '@/blocks/types'
+import { readFolderPath } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sim-folder-tree-selector/selection'
+import type { BlockConfig, SubBlockType } from '@/blocks/types'
+import { parseOptionalNumberInput } from '@/blocks/utils'
 import type { TableQueryV2Response } from '@/tools/table/types'
 import { getTrigger } from '@/triggers'
 
@@ -60,6 +63,17 @@ interface TableBlockParams {
   limit?: string
   cursor?: string
   conflictColumn?: string
+  folderRef?: string
+  createParentRef?: string
+  destinationParentRef?: string
+  moveTargetRef?: string
+  folderName?: string
+  restoreFolderPath?: string
+  folderRecursive?: unknown
+  folderDepth?: string
+  folderSearch?: string
+  folderLimit?: string
+  deleteFolderRecursive?: unknown
 }
 
 /**
@@ -123,6 +137,12 @@ interface ParsedParams {
   limit?: number
   cursor?: string
   conflictTarget?: string
+  path?: string
+  destinationPath?: string
+  folderPath?: string
+  recursive?: boolean
+  depth?: number
+  search?: string
 }
 
 /**
@@ -147,7 +167,95 @@ function resolveCursor(raw: string | undefined): string | undefined {
   return raw
 }
 
+/*
+ * An untouched text subblock arrives as '', not undefined, and '' is not a
+ * canonical folder path — so an omitted optional path has to be normalized away
+ * rather than forwarded. A switch arrives as either a boolean or the string
+ * 'true' depending on how it was set.
+ */
+function optionalText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+}
+
+function switchValue(value: unknown, fallback = false): boolean {
+  if (value === undefined || value === null || value === '') return fallback
+  return value === true || value === 'true'
+}
+
+/**
+ * Reads a folder field into a canonical path, or nothing.
+ *
+ * Goes through `readFolderPath` rather than reading the raw value: the manual
+ * half of each pair is a text surface, so a `<block.folderPath>` reference
+ * arrives here already resolved to a string, and an earlier revision of the
+ * picker stored a JSON array.
+ */
+function folderRefPath(value: unknown): string | undefined {
+  return optionalText(readFolderPath(value))
+}
+
+/**
+ * The prefix a child path hangs off. The workspace root contributes nothing, so
+ * a child of the root is `/name` rather than `//name`.
+ */
+function folderPathPrefix(parentPath: string | undefined): string {
+  return parentPath && parentPath !== ROOT_FOLDER_PATH ? parentPath : ''
+}
+
 const paramTransformers: Record<string, (params: TableBlockParams) => ParsedParams> = {
+  list_folders: (params) => ({
+    path: folderRefPath(params.folderRef),
+    recursive: switchValue(params.folderRecursive),
+    depth: parseOptionalNumberInput(params.folderDepth, 'Max Depth', { integer: true, min: 1 }),
+    search: optionalText(params.folderSearch),
+    limit: parseOptionalNumberInput(params.folderLimit, 'Limit', { integer: true, min: 1 }),
+  }),
+
+  /*
+   * A folder is created by naming it inside a parent, not by spelling its whole
+   * path. The parent is pickable and the name is not, so the path is composed
+   * here — percent-encoding the typed name, because the tool takes a canonical
+   * path and a name may legitimately contain a slash.
+   */
+  create_folder: (params) => {
+    const name = optionalText(params.folderName)
+    const parentPrefix = folderPathPrefix(folderRefPath(params.createParentRef))
+    return {
+      path: name ? `${parentPrefix}/${encodeFolderPathSegment(name)}` : undefined,
+    }
+  },
+
+  /*
+   * The tool takes the full path the folder will HAVE, which by definition does
+   * not exist yet and so cannot be picked. It is composed from a destination
+   * parent plus the folder's own name, carried over from the source path's last
+   * segment. An unset parent means the workspace root. Renaming is not a move
+   * and is not offered here.
+   */
+  update_folder: (params) => {
+    const sourcePath = folderRefPath(params.folderRef)
+    const segment = sourcePath?.split('/').pop()
+    const parentPrefix = folderPathPrefix(folderRefPath(params.destinationParentRef))
+    return {
+      path: sourcePath,
+      destinationPath: segment ? `${parentPrefix}/${segment}` : undefined,
+    }
+  },
+
+  delete_folder: (params) => ({
+    path: folderRefPath(params.folderRef),
+    recursive: switchValue(params.deleteFolderRecursive),
+  }),
+
+  restore_folder: (params) => ({
+    path: optionalText(params.restoreFolderPath),
+  }),
+
+  move: (params) => ({
+    tableId: params.tableId,
+    folderPath: folderRefPath(params.moveTargetRef),
+  }),
+
   insert_row: (params) => ({
     tableId: params.tableId,
     data: parseJSON(params.data, 'Row Data'),
@@ -220,6 +328,36 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
 const TABLE_FIELD = ['tableSelector', 'manualTableId'] as const
 const FILTER_FIELD = ['filterBuilder', 'filter'] as const
 const SORT_FIELD = ['sortBuilder', 'order'] as const
+const FOLDER_PATH_FIELD = ['folderPath', 'manualFolderPath'] as const
+const CREATE_PARENT_FIELD = ['createParentPath', 'manualCreateParentPath'] as const
+const DESTINATION_PARENT_FIELD = ['destinationParentPath', 'manualDestinationParentPath'] as const
+const MOVE_TARGET_FIELD = ['moveTargetFolderPath', 'manualMoveTargetFolderPath'] as const
+
+/**
+ * The folder field the table picker beside it is narrowed by.
+ *
+ * Basic-mode only, and deliberately not half of a `canonicalParamId` pair: the
+ * value never leaves the client. A folder cannot stand in for a table the way it
+ * can for a file — every operation here addresses exactly one table — so this
+ * only filters a dropdown a human is clicking. An advanced-mode twin would
+ * resolve a reference and then have it discarded before the request is built.
+ */
+const TABLE_FOLDER_SCOPE = { fieldId: 'folderSelection' } as const
+
+/** Operations that address a table through the picker, so the folder scope narrows them. */
+const TABLE_PICKER_OPERATIONS = [
+  'query_rows',
+  'insert_row',
+  'upsert_row',
+  'batch_insert_rows',
+  'update_rows_by_filter',
+  'delete_rows_by_filter',
+  'update_row',
+  'delete_row',
+  'get_row',
+  'get_schema',
+  'move',
+]
 
 export const TableV2Block: BlockConfig<TableQueryV2Response> = {
   type: 'table_v2',
@@ -300,6 +438,21 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
           { text: 'from', field: TABLE_FIELD, core: true },
         ],
         get_schema: [{ text: 'Read the schema of', field: TABLE_FIELD, core: true }],
+        list_folders: [{ text: 'List table folders in', field: FOLDER_PATH_FIELD, core: true }],
+        create_folder: [
+          { text: 'Create table folder', field: 'folderName', core: true },
+          { text: 'in', field: CREATE_PARENT_FIELD },
+        ],
+        update_folder: [
+          { text: 'Move table folder', field: FOLDER_PATH_FIELD, core: true },
+          { text: 'into', field: DESTINATION_PARENT_FIELD },
+        ],
+        delete_folder: [{ text: 'Delete table folder', field: FOLDER_PATH_FIELD, core: true }],
+        restore_folder: [{ text: 'Restore table folder', field: 'restoreFolderPath', core: true }],
+        move: [
+          { text: 'Move', field: TABLE_FIELD, core: true },
+          { text: 'into', field: MOVE_TARGET_FIELD },
+        ],
       },
     },
   },
@@ -319,8 +472,29 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
         { label: 'Delete Row by ID', id: 'delete_row' },
         { label: 'Get Row by ID', id: 'get_row' },
         { label: 'Get Schema', id: 'get_schema' },
+        { label: 'List Folders', id: 'list_folders' },
+        { label: 'Create Folder', id: 'create_folder' },
+        { label: 'Move Folder', id: 'update_folder' },
+        { label: 'Delete Folder', id: 'delete_folder' },
+        { label: 'Restore Folder', id: 'restore_folder' },
+        { label: 'Move Table', id: 'move' },
       ],
       value: () => 'query_rows',
+    },
+
+    /*
+     * Above the table picker, not below it: a filter placed under the thing it
+     * filters reads as a second choice rather than as a narrowing of the first.
+     */
+    {
+      id: 'folderSelection',
+      title: 'Folder',
+      type: 'sim-folder-tree-selector' as SubBlockType,
+      resourceType: 'table',
+      mode: 'basic',
+      placeholder: 'Anywhere in the workspace',
+      description: 'Narrows the tables offered below. Does not affect the run.',
+      condition: { field: 'operation', value: TABLE_PICKER_OPERATIONS },
     },
 
     {
@@ -330,6 +504,8 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
       canonicalParamId: 'tableId',
       mode: 'basic',
       placeholder: 'Select a table',
+      folderScope: TABLE_FOLDER_SCOPE,
+      condition: { field: 'operation', value: TABLE_PICKER_OPERATIONS },
       required: true,
     },
     {
@@ -339,7 +515,155 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
       canonicalParamId: 'tableId',
       mode: 'advanced',
       placeholder: 'Enter table ID',
+      condition: { field: 'operation', value: TABLE_PICKER_OPERATIONS },
       required: true,
+    },
+
+    {
+      id: 'folderPath',
+      title: 'Folder',
+      type: 'sim-folder-tree-selector' as SubBlockType,
+      resourceType: 'table',
+      canonicalParamId: 'folderRef',
+      mode: 'basic',
+      placeholder: 'Select a folder',
+      condition: {
+        field: 'operation',
+        value: ['list_folders', 'update_folder', 'delete_folder'],
+      },
+      required: { field: 'operation', value: ['update_folder', 'delete_folder'] },
+    },
+    {
+      id: 'manualFolderPath',
+      title: 'Folder Path',
+      type: 'short-input',
+      canonicalParamId: 'folderRef',
+      mode: 'advanced',
+      placeholder: '/Reports/Q3%20Results',
+      condition: {
+        field: 'operation',
+        value: ['list_folders', 'update_folder', 'delete_folder'],
+      },
+      required: { field: 'operation', value: ['update_folder', 'delete_folder'] },
+    },
+
+    {
+      id: 'createParentPath',
+      title: 'Parent Folder',
+      type: 'sim-folder-tree-selector' as SubBlockType,
+      resourceType: 'table',
+      canonicalParamId: 'createParentRef',
+      mode: 'basic',
+      placeholder: 'Workspace root',
+      condition: { field: 'operation', value: 'create_folder' },
+    },
+    {
+      id: 'manualCreateParentPath',
+      title: 'Parent Folder Path',
+      type: 'short-input',
+      canonicalParamId: 'createParentRef',
+      mode: 'advanced',
+      placeholder: '/Reports',
+      condition: { field: 'operation', value: 'create_folder' },
+    },
+    {
+      id: 'folderName',
+      title: 'Name',
+      type: 'short-input',
+      placeholder: 'Q3 Results',
+      condition: { field: 'operation', value: 'create_folder' },
+      required: { field: 'operation', value: 'create_folder' },
+    },
+
+    {
+      id: 'destinationParentPath',
+      title: 'Move Into',
+      type: 'sim-folder-tree-selector' as SubBlockType,
+      resourceType: 'table',
+      canonicalParamId: 'destinationParentRef',
+      mode: 'basic',
+      placeholder: 'Workspace root',
+      condition: { field: 'operation', value: 'update_folder' },
+    },
+    {
+      id: 'manualDestinationParentPath',
+      title: 'Destination Parent Path',
+      type: 'short-input',
+      canonicalParamId: 'destinationParentRef',
+      mode: 'advanced',
+      placeholder: '/Archive',
+      condition: { field: 'operation', value: 'update_folder' },
+    },
+
+    {
+      id: 'folderRecursive',
+      title: 'Recursive',
+      type: 'switch',
+      condition: { field: 'operation', value: 'list_folders' },
+    },
+    {
+      id: 'folderDepth',
+      title: 'Max Depth',
+      type: 'short-input',
+      placeholder: 'Unlimited',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_folders' },
+    },
+    {
+      id: 'folderSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Match folder names',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_folders' },
+    },
+    {
+      id: 'folderLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '200',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_folders' },
+    },
+
+    {
+      id: 'deleteFolderRecursive',
+      title: 'Delete Contents',
+      type: 'switch',
+      condition: { field: 'operation', value: 'delete_folder' },
+    },
+
+    /*
+     * A plain text field, not a tree: the tree offers ACTIVE folders and this
+     * addresses a deleted one, which by definition is not in it.
+     */
+    {
+      id: 'restoreFolderPath',
+      title: 'Deleted Folder Path',
+      type: 'short-input',
+      placeholder: '/Reports/Q3%20Results',
+      condition: { field: 'operation', value: 'restore_folder' },
+      required: { field: 'operation', value: 'restore_folder' },
+    },
+
+    {
+      id: 'moveTargetFolderPath',
+      title: 'Move Into',
+      type: 'sim-folder-tree-selector' as SubBlockType,
+      resourceType: 'table',
+      canonicalParamId: 'moveTargetRef',
+      mode: 'basic',
+      placeholder: 'Workspace root',
+      condition: { field: 'operation', value: 'move' },
+    },
+    {
+      id: 'manualMoveTargetFolderPath',
+      title: 'Destination Folder Path',
+      type: 'short-input',
+      canonicalParamId: 'moveTargetRef',
+      mode: 'advanced',
+      placeholder: '/Reports',
+      condition: { field: 'operation', value: 'move' },
     },
 
     {
@@ -553,6 +877,12 @@ Return ONLY the JSON object:`,
       'table_query_rows_v2',
       'table_get_row',
       'table_get_schema',
+      'table_list_folders',
+      'table_create_folder',
+      'table_update_folder',
+      'table_delete_folder',
+      'table_restore_folder',
+      'table_move',
     ],
     config: {
       tool: (params) => {
@@ -567,6 +897,12 @@ Return ONLY the JSON object:`,
           query_rows: 'table_query_rows_v2',
           get_row: 'table_get_row',
           get_schema: 'table_get_schema',
+          list_folders: 'table_list_folders',
+          create_folder: 'table_create_folder',
+          update_folder: 'table_update_folder',
+          delete_folder: 'table_delete_folder',
+          restore_folder: 'table_restore_folder',
+          move: 'table_move',
         }
         return toolMap[params.operation] || 'table_query_rows_v2'
       },
@@ -587,6 +923,48 @@ Return ONLY the JSON object:`,
     data: { type: 'json', description: 'Row data for insert/update' },
     rows: { type: 'array', description: 'Array of row data for batch insert' },
     rowId: { type: 'string', description: 'Row identifier for ID-based operations' },
+    folderRef: {
+      type: 'string',
+      description:
+        'Canonical folder path, percent-encoded (e.g. /Reports/Q3%20Results). The folder to list, move, or delete.',
+    },
+    createParentRef: {
+      type: 'string',
+      description:
+        'Canonical path of the folder to create the new folder inside; omit for the workspace root',
+    },
+    folderName: { type: 'string', description: 'Name of the folder to create' },
+    destinationParentRef: {
+      type: 'string',
+      description:
+        'Canonical path of the folder to move the folder into; omit for the workspace root',
+    },
+    moveTargetRef: {
+      type: 'string',
+      description:
+        'Canonical path of the folder to move the table into; omit for the workspace root',
+    },
+    restoreFolderPath: {
+      type: 'string',
+      description: 'Canonical path the folder held when it was deleted',
+    },
+    folderRecursive: {
+      type: 'boolean',
+      description: 'List the whole subtree rather than direct children',
+    },
+    folderDepth: {
+      type: 'number',
+      description: 'Deepest level to include when listing recursively',
+    },
+    folderSearch: {
+      type: 'string',
+      description: 'Case-insensitive substring match against a folder name',
+    },
+    folderLimit: { type: 'number', description: 'Most folders to return when listing' },
+    deleteFolderRecursive: {
+      type: 'boolean',
+      description: "Also delete the folder's nested folders and their tables",
+    },
     outputColumns: {
       type: 'array',
       description: 'Table columns to include in each queried row; omit for all columns',
@@ -615,6 +993,32 @@ Return ONLY the JSON object:`,
   },
 
   outputs: {
+    folders: {
+      type: 'array',
+      description:
+        'Folders inside the listed folder, each with its name, canonical path, parent path, timestamps, and depth below the folder listed',
+    },
+    folder: { type: 'json', description: 'The folder a folder operation acted on' },
+    path: {
+      type: 'string',
+      description: 'Canonical path of the folder that was listed or deleted',
+    },
+    previousPath: { type: 'string', description: 'Path a moved folder held beforehand' },
+    requestedPath: { type: 'string', description: 'Path a restored folder was addressed by' },
+    truncated: {
+      type: 'boolean',
+      description: 'True when the folder listing was cut short by the limit',
+    },
+    deleted: { type: 'boolean', description: 'True when a folder delete succeeded' },
+    deletedItems: {
+      type: 'json',
+      description: 'Counts of folders and tables removed by a folder delete',
+    },
+    restoredItems: {
+      type: 'json',
+      description: 'Counts of folders and tables brought back by a folder restore',
+    },
+    folderPath: { type: 'string', description: 'Folder a moved table now lives in' },
     success: { type: 'boolean', description: 'Operation success status' },
     row: {
       type: 'json',

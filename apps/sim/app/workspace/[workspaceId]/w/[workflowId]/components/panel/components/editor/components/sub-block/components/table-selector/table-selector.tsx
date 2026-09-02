@@ -4,6 +4,10 @@ import { useCallback, useMemo } from 'react'
 import { Combobox, type ComboboxOption } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
+  isTableInFolderScope,
+  parseFolderScope,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/table-selector/scope'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
@@ -52,6 +56,23 @@ export function TableSelector({
     'table'
   )
 
+  /*
+   * A sibling folder field narrows what this picker offers, so a user cannot
+   * build a selection from outside the folder they just chose. Purely a
+   * design-time affordance — the folder never travels, because every operation
+   * here addresses exactly one table.
+   *
+   * Falling back to this control's own id keeps the hook call unconditional for
+   * a picker with no folder scope; its own value is a table id, never a folder
+   * path, so the scope reads as absent.
+   */
+  const [folderScopeValue] = useSubBlockValue<unknown>(
+    blockId,
+    subBlock.folderScope?.fieldId ?? subBlock.id
+  )
+  const folderScopePath =
+    subBlock.folderScope && typeof folderScopeValue === 'string' ? folderScopeValue.trim() : ''
+
   const value = isPreview ? previewValue : storeValue
   const tableId = typeof value === 'string' ? value : null
 
@@ -63,8 +84,13 @@ export function TableSelector({
    * disambiguated too. The folder path keeps its authored casing.
    */
   const options = useMemo<ComboboxOption[]>(() => {
-    const duplicateNames = collectDuplicateNames(tables.map((table) => table.name.toLowerCase()))
-    return tables.map((table) => ({
+    /* Decode the scope once for the whole list rather than per row. */
+    const scopeSegments = parseFolderScope(folderScopePath)
+    const scoped = scopeSegments?.length
+      ? tables.filter((table) => isTableInFolderScope(table, tableFolders, scopeSegments))
+      : tables
+    const duplicateNames = collectDuplicateNames(scoped.map((table) => table.name.toLowerCase()))
+    return scoped.map((table) => ({
       label: disambiguateLabelByFolder(
         table.name.toLowerCase(),
         table.folderId,
@@ -73,7 +99,7 @@ export function TableSelector({
       ),
       value: table.id,
     }))
-  }, [tables, tableFolders])
+  }, [tables, tableFolders, folderScopePath])
 
   const handleChange = useCallback(
     (selectedValue: string) => {
