@@ -6,6 +6,7 @@ import {
   getOrganizationUsageBreakdownContract,
   getOrganizationUsageSummaryContract,
   listOrganizationUsageEventsContract,
+  ORGANIZATION_USAGE_BREAKDOWN_DEFAULT_LIMIT,
   type OrganizationUsageBreakdown,
   type OrganizationUsageEventPage,
   type OrganizationUsageSummary,
@@ -96,7 +97,7 @@ export function useOrganizationUsageBreakdown(
   dimension: UsageBreakdownDimension,
   options: UseBreakdownOptions = {}
 ) {
-  const limit = options.limit ?? 10
+  const limit = options.limit ?? ORGANIZATION_USAGE_BREAKDOWN_DEFAULT_LIMIT
   const { workspaceId } = options
   const queryKey = organizationUsageKeys.breakdown(
     organizationId ?? '',
