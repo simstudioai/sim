@@ -3,7 +3,7 @@ import { account, credential, webhook, workflowDeploymentVersion } from '@sim/db
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
@@ -33,6 +33,10 @@ import {
   replaceSlackStreamAuthoringConfig,
 } from '@/lib/webhooks/slack-stream-config'
 import { findConflictingWebhookPathOwner } from '@/lib/webhooks/utils.server'
+import {
+  isDeploymentVersionActive,
+  isDeploymentVersionProtectedByCurrentOperation,
+} from '@/lib/workflows/persistence/deployment-operations'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -1276,39 +1280,15 @@ export async function cleanupWebhooksForWorkflow(
 
   if (!skipExternalCleanup) {
     for (const wh of existingWebhooks) {
-      if (shouldDeleteWebhook && !(await shouldDeleteWebhook())) {
-        logger.info(`[${requestId}] Stopping webhook cleanup because deployment became active`, {
-          workflowId,
-          deploymentVersionId,
-          webhookId: wh.id,
-        })
-        return
-      }
-
-      try {
-        await cleanupExternalWebhook(wh, workflow, requestId, {
-          throwOnError: strictExternalCleanup,
-        })
-      } catch (cleanupError) {
-        logger.warn(`[${requestId}] Failed to cleanup external webhook ${wh.id}`, cleanupError)
-        if (strictExternalCleanup) throw cleanupError
-        // Continue with other webhooks even if one fails
-      }
-
-      const deleted = await deleteWebhookRecordAfterCleanup({
-        workflowId,
+      const deleted = await cleanupWebhookRow({
+        webhook: wh,
+        workflow,
+        requestId,
         deploymentVersionId,
-        webhookId: wh.id,
+        strictExternalCleanup,
         shouldDeleteWebhook,
       })
-      if (!deleted) {
-        logger.info(`[${requestId}] Stopping webhook DB cleanup because deployment became active`, {
-          workflowId,
-          deploymentVersionId,
-          webhookId: wh.id,
-        })
-        return
-      }
+      if (!deleted) return
     }
   } else {
     for (const wh of existingWebhooks) {
@@ -1334,6 +1314,141 @@ export async function cleanupWebhooksForWorkflow(
       ? `[${requestId}] Cleaned up webhooks for workflow ${workflowId} deployment ${deploymentVersionId}`
       : `[${requestId}] Cleaned up all webhooks for workflow ${workflowId}`
   )
+}
+
+type WebhookRow = typeof webhook.$inferSelect
+
+/**
+ * Tears down one webhook's provider subscription and then deletes its row.
+ * Returns false when `shouldDeleteWebhook` reports the deployment became
+ * active again, in which case the caller must stop touching its rows.
+ */
+async function cleanupWebhookRow(params: {
+  webhook: WebhookRow
+  workflow: Record<string, unknown>
+  requestId: string
+  deploymentVersionId?: string | null
+  strictExternalCleanup: boolean
+  shouldDeleteWebhook?: () => Promise<boolean>
+}): Promise<boolean> {
+  const { webhook: wh, workflow, requestId, deploymentVersionId, strictExternalCleanup } = params
+  const workflowId = wh.workflowId
+  if (params.shouldDeleteWebhook && !(await params.shouldDeleteWebhook())) {
+    logger.info(`[${requestId}] Stopping webhook cleanup because deployment became active`, {
+      workflowId,
+      deploymentVersionId,
+      webhookId: wh.id,
+    })
+    return false
+  }
+
+  try {
+    await cleanupExternalWebhook(wh, workflow, requestId, { throwOnError: strictExternalCleanup })
+  } catch (cleanupError) {
+    logger.warn(`[${requestId}] Failed to cleanup external webhook ${wh.id}`, cleanupError)
+    if (strictExternalCleanup) throw cleanupError
+  }
+
+  const deleted = await deleteWebhookRecordAfterCleanup({
+    workflowId,
+    deploymentVersionId,
+    webhookId: wh.id,
+    shouldDeleteWebhook: params.shouldDeleteWebhook,
+  })
+  if (!deleted) {
+    logger.info(`[${requestId}] Stopping webhook DB cleanup because deployment became active`, {
+      workflowId,
+      deploymentVersionId,
+      webhookId: wh.id,
+    })
+  }
+  return deleted
+}
+
+export interface InactiveDeploymentWebhookCleanupResult {
+  /** True when rows remain beyond this batch and the caller should run again. */
+  hasMore: boolean
+}
+
+/**
+ * Tears down webhooks still owned by inactive deployment versions of a
+ * workflow, at most `limit` rows per call. Provider teardown costs one call
+ * per row, so the work is bounded here and `hasMore` asks the caller to come
+ * back; every finished row leaves the remaining set smaller, so repeated calls
+ * converge. `protectedDeploymentVersionId` is the version an in-flight
+ * operation is preparing, inactive until cutover but live preparation state.
+ * Each row is re-checked right before its provider call: the version must
+ * still be inactive and must not have become the current operation's
+ * candidate, since either can change while the batch runs and the fenced row
+ * delete that follows cannot undo provider teardown.
+ */
+export async function cleanupInactiveDeploymentWebhooks(params: {
+  workflowId: string
+  workflow: Record<string, unknown>
+  requestId: string
+  protectedDeploymentVersionId: string | null
+  limit: number
+  shouldContinue?: () => Promise<boolean>
+}): Promise<InactiveDeploymentWebhookCleanupResult> {
+  const { workflowId, workflow, requestId, shouldContinue } = params
+  const inactiveVersionIds = db
+    .select({ id: workflowDeploymentVersion.id })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.isActive, false)
+      )
+    )
+  const staleWebhooks = await db
+    .select()
+    .from(webhook)
+    .where(
+      and(
+        eq(webhook.workflowId, workflowId),
+        isNull(webhook.archivedAt),
+        inArray(webhook.deploymentVersionId, inactiveVersionIds),
+        params.protectedDeploymentVersionId
+          ? ne(webhook.deploymentVersionId, params.protectedDeploymentVersionId)
+          : undefined
+      )
+    )
+    .orderBy(asc(webhook.createdAt))
+    .limit(params.limit + 1)
+
+  const batch = staleWebhooks.slice(0, params.limit)
+  if (batch.length === 0) return { hasMore: false }
+
+  logger.info(
+    `[${requestId}] Cleaning up ${batch.length} webhook(s) owned by inactive deployments`,
+    {
+      workflowId,
+      webhookIds: batch.map((wh) => wh.id),
+    }
+  )
+
+  for (const wh of batch) {
+    const deploymentVersionId = wh.deploymentVersionId
+    const deleted = await cleanupWebhookRow({
+      webhook: wh,
+      workflow,
+      requestId,
+      deploymentVersionId,
+      strictExternalCleanup: true,
+      shouldDeleteWebhook: async () => {
+        if (shouldContinue && !(await shouldContinue())) return false
+        if (!deploymentVersionId) return true
+        if (await isDeploymentVersionActive(workflowId, deploymentVersionId)) return false
+        return !(await isDeploymentVersionProtectedByCurrentOperation(
+          workflowId,
+          deploymentVersionId
+        ))
+      },
+    })
+    if (!deleted) return { hasMore: true }
+  }
+
+  return { hasMore: staleWebhooks.length > params.limit }
 }
 
 /**
