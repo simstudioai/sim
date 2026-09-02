@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { LRUCache } from 'lru-cache'
 import type { ReadFileTextResponse } from 'sim/embed'
 import {
@@ -95,8 +96,17 @@ async function mapConcurrent<T, R>(
   return results
 }
 
+/**
+ * The searchable text leads with the resource's own name and description: a workflow's
+ * state carries neither, so `grep fx-` in an `fx-*` workspace found nothing.
+ */
 function render(scope: Scope, id: string, label: string, value: unknown): Materialized {
-  return { scope, id, label, text: JSON.stringify(value, null, 2) }
+  const description =
+    isRecordLike(value) && typeof (value as Record<string, unknown>).description === 'string'
+      ? (value as Record<string, unknown>).description
+      : ''
+  const header = `name: ${label}${description ? `\ndescription: ${description}` : ''}\n`
+  return { scope, id, label, text: `${header}${JSON.stringify(value, null, 2)}` }
 }
 
 /** One materializer per scope: the list, then each resource as its `get` returns it. */

@@ -133,6 +133,22 @@ describe('universal grep', () => {
     expect(result.stdout).not.toContain('sk-should-never-appear')
   })
 
+  it('matches a resource by its own name, not only its body', async () => {
+    // `grep fx-` in an fx-* workspace found nothing: a workflow's state carries no name.
+    const result = await runEngine(
+      'grep',
+      ['fx-etl'],
+      runtimeWith({
+        '/api/v2/workflows': { data: [{ id: 'wf-1', name: 'fx-etl' }], nextCursor: null },
+        '/api/v2/workflows/wf-1/state': { data: { blocks: {}, edges: [] } },
+      }),
+      { scope: 'workflows' }
+    )
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('workflows/fx-etl (wf-1):')
+    expect(result.stdout).toContain('name: fx-etl')
+  })
+
   it('reports no matches honestly', async () => {
     const result = await runEngine('grep', ['zzz-nope'], runtimeWith(CATALOG), { scope: 'blocks' })
     expect(result.exitCode).toBe(0)
