@@ -37,6 +37,7 @@ vi.mock('@/lib/credentials/queries', () => ({
 vi.mock('@/lib/credentials/access', () => ({
   getCredentialActorContext: mocks.getActor,
   canUseCredential: () => true,
+  requireOrdinaryCredentialType: (type: string) => type,
 }))
 vi.mock('@/lib/credentials/orchestration', () => ({
   updateCredentialRecord: mocks.updateRecord,

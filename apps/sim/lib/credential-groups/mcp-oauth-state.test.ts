@@ -18,6 +18,9 @@ const { mockRedis, values } = vi.hoisted(() => {
         values.delete(key)
         return value
       }),
+      sadd: vi.fn(async () => 1),
+      srem: vi.fn(async () => 1),
+      pexpire: vi.fn(async () => 1),
     },
   }
 })
