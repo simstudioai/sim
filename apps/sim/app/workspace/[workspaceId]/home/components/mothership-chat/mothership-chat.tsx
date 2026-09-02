@@ -204,7 +204,6 @@ interface AssistantMessageRowProps {
   prepareContentForCopy: (content: string) => ClipboardContent
   isStreaming: boolean
   isLast: boolean
-  precedingUserContent?: string
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
   /** Transcript-derived status payload for this message's credential card. */
@@ -221,7 +220,6 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   prepareContentForCopy,
   isStreaming,
   isLast,
-  precedingUserContent,
   questionAnswers,
   credentialSubmission,
   credentialAbandoned,
@@ -297,7 +295,6 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
         credentialSubmission={credentialSubmission}
         credentialAbandoned={credentialAbandoned}
         onOptionSelect={onOptionSelect}
-        userQuery={precedingUserContent}
         onQuestionDismiss={handleQuestionDismiss}
         onPhaseChange={setPhase}
         actions={
@@ -307,7 +304,6 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
               getCopyContent={getCopyContent}
               hasCopyContent={Boolean(getOrchestratorMessageText(blocks, message.content).trim())}
               prepareContentForCopy={prepareContentForCopy}
-              userQuery={precedingUserContent}
               requestId={message.requestId}
               messageId={message.id}
             />
@@ -556,16 +552,6 @@ export function MothershipChat({
     return out
   }, [messages])
 
-  const precedingUserContentByIndex = useMemo(() => {
-    const out: Array<string | undefined> = []
-    let lastUserContent: string | undefined
-    for (const [index, message] of messages.entries()) {
-      out[index] = lastUserContent
-      if (message.role === 'user') lastUserContent = message.content
-    }
-    return out
-  }, [messages])
-
   /**
    * Pairs each assistant question/credential card with the user message that
    * completed it. The paired user message is hidden — the answered card IS the
@@ -810,7 +796,6 @@ export function MothershipChat({
                         prepareContentForCopy={prepareContentForCopy}
                         isStreaming={isStreamActive && isLast}
                         isLast={isLast}
-                        precedingUserContent={precedingUserContentByIndex[index]}
                         questionAnswers={interactionPairing.answersByIndex[index]}
                         credentialSubmission={interactionPairing.credentialSubmissionByIndex[index]}
                         credentialAbandoned={interactionPairing.credentialAbandonedByIndex[index]}

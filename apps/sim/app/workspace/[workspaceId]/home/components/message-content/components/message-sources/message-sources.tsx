@@ -15,36 +15,24 @@ const STRIP_FADE_CLASSES =
 
 interface MessageSourcesProps {
   sources: readonly SourceTagData[]
-  /** The question the reply answers; its terms are bolded in result cards. */
-  query?: string
-  /** Asks the agent about one cited document, when the surface can send a message. */
-  onSummarize?: (prompt: string) => void
 }
 
 /**
  * Footer listing every document a reply cited, once each. Sources that carry
- * a snippet — a search answer — are laid out as result cards; otherwise one
+ * a title — a search answer — are laid out as one dense row per document, the
+ * prose above having already cited each claim inline; otherwise one
  * horizontally scrolling row of {@link SourceChip}s that fades out at the
  * right edge instead of wrapping, so a long list stays a single quiet line
  * under the answer.
  */
-export function MessageSources({ sources, query, onSummarize }: MessageSourcesProps) {
+export function MessageSources({ sources }: MessageSourcesProps) {
   if (sources.length === 0) return null
 
   if (sources.some((source) => source.snippet)) {
     return (
-      <div className='flex flex-col gap-0.5'>
+      <div className='flex flex-col'>
         {sources.map((source) => (
-          <SourceCard
-            key={source.url}
-            source={source}
-            query={query}
-            onSummarize={
-              onSummarize
-                ? (cited) => onSummarize(`Summarize "${cited.title ?? cited.url}" (${cited.url})`)
-                : undefined
-            }
-          />
+          <SourceCard key={source.url} source={source} dense />
         ))}
       </div>
     )

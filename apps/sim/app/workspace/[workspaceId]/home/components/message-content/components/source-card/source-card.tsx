@@ -111,6 +111,11 @@ interface SourceCardProps {
   query?: string
   /** Offers a Summarize action that asks the agent about this document. */
   onSummarize?: (source: SourceTagData) => void
+  /**
+   * One line per document: the mark, the title, and where it lives, with no
+   * snippet. For a list under a reply whose prose already cites each claim.
+   */
+  dense?: boolean
 }
 
 /**
@@ -119,9 +124,9 @@ interface SourceCardProps {
  * who it is from, and when it last changed, and the passage that matched with
  * the query terms in bold. Actions stay out of the way until the row is
  * hovered or its title focused. The same row serves the composer's search
- * results and the footer of a reply that cited its sources with a snippet.
+ * results and, in its dense form, the footer of a reply that cited sources.
  */
-export function SourceCard({ source, query, onSummarize }: SourceCardProps) {
+export function SourceCard({ source, query, onSummarize, dense = false }: SourceCardProps) {
   const hostname = externalLinkHostname(source.url)
   const ConnectorIcon = source.connectorType
     ? BRAND_ICON_BY_BASE_TYPE.get(source.connectorType)
@@ -133,20 +138,48 @@ export function SourceCard({ source, query, onSummarize }: SourceCardProps) {
     updatedAt ? formatDate(updatedAt) : null,
   ].filter((part): part is string => Boolean(part))
 
+  const mark = ConnectorIcon ? (
+    <BrandIcon icon={ConnectorIcon} className='size-[16px]' />
+  ) : hostname ? (
+    <img
+      src={faviconUrl(hostname, 32)}
+      alt=''
+      className='size-[16px] rounded-[3px]'
+      onError={hideBrokenFavicon}
+    />
+  ) : null
+
+  if (dense) {
+    return (
+      <div className={cn(SOURCE_ROW_CLASSES, 'items-center py-1')}>
+        <span className={chipIconSlotClass}>{mark}</span>
+        <a
+          href={source.url}
+          target='_blank'
+          rel='noopener noreferrer'
+          data-source-link=''
+          onClick={(event) => handleExternalLinkClick(event, source.url)}
+          className='min-w-0 flex-1 text-[var(--text-primary)] text-sm no-underline underline-offset-2 hover:underline'
+        >
+          <OverflowText
+            label={source.title?.trim() || sourceLabel(source)}
+            focusTarget='nearest-interactive'
+          />
+        </a>
+        <OverflowText
+          label={meta.join(' · ')}
+          className='max-w-[40%] shrink-0 text-[var(--text-muted)] text-caption'
+        />
+        <div className='flex flex-shrink-0 items-center opacity-0 transition-opacity group-focus-within/source:opacity-100 group-hover/source:opacity-100 [@media(hover:none)]:opacity-100'>
+          <CopyLinkAction url={source.url} />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={SOURCE_ROW_CLASSES}>
-      <span className={SOURCE_ROW_MARK_CLASSES}>
-        {ConnectorIcon ? (
-          <BrandIcon icon={ConnectorIcon} className='size-[16px]' />
-        ) : hostname ? (
-          <img
-            src={faviconUrl(hostname, 32)}
-            alt=''
-            className='size-[16px] rounded-[3px]'
-            onError={hideBrokenFavicon}
-          />
-        ) : null}
-      </span>
+      <span className={SOURCE_ROW_MARK_CLASSES}>{mark}</span>
       <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
         <a
           href={source.url}

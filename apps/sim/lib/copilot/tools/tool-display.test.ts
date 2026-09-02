@@ -378,6 +378,12 @@ describe('getToolDisplayTitle for operation-driven tools', () => {
     expect(getToolDisplayTitle('manage_knowledge_base', { operation: 'query' })).toBe(
       'Searching knowledge base'
     )
+    expect(
+      getToolDisplayTitle('manage_knowledge_base', {
+        operation: 'query',
+        args: { query: 'volvo delivery process' },
+      })
+    ).toBe('Searching knowledge base for volvo delivery process')
     expect(getToolDisplayTitle('manage_knowledge_base', { operation: 'sync_connector' })).toBe(
       'Syncing knowledge base connector'
     )
