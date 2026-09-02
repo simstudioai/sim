@@ -1257,6 +1257,39 @@ export const ToolInput = memo(function ToolInput({
       groups.push({ items: actionItems })
     }
 
+    if (availableWorkflows.length > 0) {
+      groups.push({
+        section: 'Workflows',
+        items: availableWorkflows.map((workflow) => {
+          const alreadySelected = isWorkflowAlreadySelected(selectedTools, workflow.id)
+          return {
+            label: workflow.name,
+            value: `workflow-${workflow.id}`,
+            iconElement: createToolIcon('#6366F1', WorkflowIcon),
+            onSelect: () => {
+              if (alreadySelected) return
+              const newTool: StoredTool = {
+                type: 'workflow_input',
+                title: 'Workflow',
+                toolId: 'workflow_executor',
+                params: {
+                  workflowId: workflow.id,
+                },
+                isExpanded: true,
+                usageControl: 'auto',
+              }
+              setStoreValue([
+                ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
+                newTool,
+              ])
+              setOpen(false)
+            },
+            disabled: isPreview || disabled || alreadySelected,
+          }
+        }),
+      })
+    }
+
     if (!permissionConfig.disableCustomTools && !customUnsupported && customTools.length > 0) {
       groups.push({
         section: 'Custom Tools',
@@ -1350,40 +1383,6 @@ export const ToolInput = memo(function ToolInput({
             iconElement: createToolIcon(block.bgColor, block.icon),
             disabled: isPreview || alreadySelected,
             onSelect: () => handleSelectTool(block),
-          }
-        }),
-      })
-    }
-
-    // Workflows section - shows available workflows that can be executed as tools
-    if (availableWorkflows.length > 0) {
-      groups.push({
-        section: 'Workflows',
-        items: availableWorkflows.map((workflow) => {
-          const alreadySelected = isWorkflowAlreadySelected(selectedTools, workflow.id)
-          return {
-            label: workflow.name,
-            value: `workflow-${workflow.id}`,
-            iconElement: createToolIcon('#6366F1', WorkflowIcon),
-            onSelect: () => {
-              if (alreadySelected) return
-              const newTool: StoredTool = {
-                type: 'workflow_input',
-                title: 'Workflow',
-                toolId: 'workflow_executor',
-                params: {
-                  workflowId: workflow.id,
-                },
-                isExpanded: true,
-                usageControl: 'auto',
-              }
-              setStoreValue([
-                ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
-                newTool,
-              ])
-              setOpen(false)
-            },
-            disabled: isPreview || disabled || alreadySelected,
           }
         }),
       })
