@@ -71,12 +71,22 @@ function isClientDisconnectError(error: any): boolean {
   return error.name === 'AbortError'
 }
 
+/**
+ * Messages browsers put on the TypeError a fetch or body read rejects with when
+ * the connection drops: Chrome's "network error" and "Failed to fetch",
+ * Firefox's "NetworkError when attempting to fetch resource.", and Safari's
+ * "Load failed".
+ */
+const TRANSPORT_FAILURE_MESSAGE_PATTERNS = [
+  /network\s?error/,
+  /failed to fetch/,
+  /load failed/,
+] as const
+
 function isRecoverableStreamError(error: any): boolean {
   if (isClientDisconnectError(error)) return false
   const msg = (error.message ?? '').toLowerCase()
-  return (
-    msg.includes('network error') || msg.includes('failed to fetch') || msg.includes('load failed')
-  )
+  return TRANSPORT_FAILURE_MESSAGE_PATTERNS.some((pattern) => pattern.test(msg))
 }
 
 /**

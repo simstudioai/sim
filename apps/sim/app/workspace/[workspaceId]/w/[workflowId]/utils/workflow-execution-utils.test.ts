@@ -96,29 +96,37 @@ describe('workflow-execution-utils', () => {
       return store
     }
 
-    it('classifies a transport drop after the server acknowledged the run as an interruption', async () => {
-      /*
-       * The Chat run tool only preserves a run for reconnect when it sees
-       * SSEStreamInterruptedError; a raw TypeError from the body reader used to
-       * fall through as a plain failure, reporting an error to Sim and tearing
-       * the run down while the server kept executing it.
-       */
-      const store = stubExecutionStore()
-      stubAcknowledgedStream(new TypeError('network error'))
+    it.each([
+      ['Chrome', 'network error'],
+      ['Chrome before headers', 'Failed to fetch'],
+      ['Firefox', 'NetworkError when attempting to fetch resource.'],
+      ['Safari', 'Load failed'],
+    ])(
+      'classifies a %s transport drop after the server acknowledged the run as an interruption',
+      async (_browser, message) => {
+        /*
+         * The Chat run tool only preserves a run for reconnect when it sees
+         * SSEStreamInterruptedError; a raw TypeError from the body reader used to
+         * fall through as a plain failure, reporting an error to Sim and tearing
+         * the run down while the server kept executing it.
+         */
+        const store = stubExecutionStore()
+        stubAcknowledgedStream(new TypeError(message))
 
-      const promise = executeWorkflowWithFullLogging({
-        workflowId: 'wf-1',
-        executionId: 'exec-1',
-        copilotToolCallId: 'tool-1',
-        preserveExecutionOnTerminal: true,
-      })
+        const promise = executeWorkflowWithFullLogging({
+          workflowId: 'wf-1',
+          executionId: 'exec-1',
+          copilotToolCallId: 'tool-1',
+          preserveExecutionOnTerminal: true,
+        })
 
-      await expect(promise).rejects.toBeInstanceOf(SSEStreamInterruptedError)
-      await expect(promise).rejects.toMatchObject({ executionId: 'exec-server' })
-      expect(store.setCurrentExecutionId).toHaveBeenCalledWith('wf-1', 'exec-server')
-      expect(store.setCurrentExecutionId).not.toHaveBeenCalledWith('wf-1', null)
-      expect(store.setIsExecuting).not.toHaveBeenCalled()
-    })
+        await expect(promise).rejects.toBeInstanceOf(SSEStreamInterruptedError)
+        await expect(promise).rejects.toMatchObject({ executionId: 'exec-server' })
+        expect(store.setCurrentExecutionId).toHaveBeenCalledWith('wf-1', 'exec-server')
+        expect(store.setCurrentExecutionId).not.toHaveBeenCalledWith('wf-1', null)
+        expect(store.setIsExecuting).not.toHaveBeenCalled()
+      }
+    )
 
     it.each([
       ['a client abort', new DOMException('Aborted', 'AbortError')],
