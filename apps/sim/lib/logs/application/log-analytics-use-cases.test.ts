@@ -129,6 +129,24 @@ describe('getLogStats', () => {
     )
   })
 
+  it('publishes only the buckets that hold a run unless the caller asks for empties', async () => {
+    const sparse = await getLogStats.execute({
+      principal: workspacePrincipal,
+      input: { workspaceId: 'workspace-1', filters: {}, segmentCount: 4 },
+    })
+    expect(sparse.stats.aggregateSegments).toHaveLength(1)
+    expect(sparse.stats.workflows[0].segments).toHaveLength(1)
+    expect(sparse.stats.totalRuns).toBe(2)
+
+    const dense = await getLogStats.execute({
+      principal: workspacePrincipal,
+      input: { workspaceId: 'workspace-1', filters: {}, segmentCount: 4, includeEmpty: true },
+    })
+    expect(dense.stats.aggregateSegments).toHaveLength(4)
+    expect(dense.stats.workflows[0].segments).toHaveLength(4)
+    expect(dense.stats.totalRuns).toBe(2)
+  })
+
   /**
    * The wiring, not the arithmetic: `resolveLogStatsWindow` is exercised for
    * real here, so a requested window that never reaches it shows up as both a

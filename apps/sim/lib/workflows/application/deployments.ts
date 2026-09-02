@@ -3,6 +3,7 @@ import { type Principal, resolvePrincipalAttribution, toPrincipalActor } from '@
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { notifyWorkflowReverted } from '@/lib/realtime/notify'
+import { listDeployedWebhookUrls } from '@/lib/webhooks/deployed-urls'
 import { requireWorkflowExecutionUserId } from '@/lib/workflows/application/authorization'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
@@ -225,11 +226,13 @@ export const readWorkflowDeploymentStatus = defineAuthorizedWorkflowUseCase({
       isDeployed && attemptStatus !== 'preparing' && attemptStatus !== 'activating'
         ? await checkNeedsRedeployment(context.workflowId)
         : false
+    const webhooks = isDeployed ? await listDeployedWebhookUrls(context.workflowId) : []
     return {
       workflow: context.workflow,
       workspaceId: context.workspaceId,
       isDeployed,
       needsRedeployment,
+      webhooks,
       ...deploymentSummary,
     }
   },

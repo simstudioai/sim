@@ -6799,6 +6799,275 @@
           }
         ]
       },
+      "UpdateTableRowsRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Unique workspace identifier."
+          },
+          "filter": {
+            "$ref": "#/components/schemas/TablePredicateInput"
+          },
+          "data": {
+            "description": "Row-data patch applied to every matching row.",
+            "$ref": "#/components/schemas/V2TableRowData"
+          },
+          "limit": {
+            "description": "Maximum matching rows to update.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          }
+        },
+        "required": ["workspaceId", "filter", "data"],
+        "additionalProperties": false,
+        "title": "Update table rows request",
+        "description": "Workspace scope, typed predicate, and row-data patch."
+      },
+      "V2DeleteRowsData": {
+        "type": "object",
+        "properties": {
+          "deletedCount": {
+            "type": "number",
+            "description": "Number of deleted rows."
+          },
+          "deletedRowIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of deleted rows."
+          },
+          "requestedCount": {
+            "description": "Number of row identifiers requested.",
+            "type": "number"
+          },
+          "missingRowIds": {
+            "description": "Requested row identifiers not found.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["deletedCount", "deletedRowIds"],
+        "additionalProperties": false,
+        "title": "Delete rows data",
+        "description": "Result of a bulk row deletion."
+      },
+      "V2DeleteTableRowsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2DeleteRowsData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete table rows response",
+        "description": "Deleted row counts, identifiers, and optional missing identifiers."
+      },
+      "DeleteTableRowsRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Unique workspace identifier."
+          },
+          "filter": {
+            "$ref": "#/components/schemas/TablePredicateInput"
+          },
+          "limit": {
+            "description": "Maximum matching rows to delete.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "rowIds": {
+            "description": "Explicit row identifiers to delete.",
+            "minItems": 1,
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Delete table rows request",
+        "description": "Workspace scope and exactly one of a predicate or row identifier list."
+      },
+      "V2TableRowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2ApiTableRow"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Table row response",
+        "description": "A single table row."
+      },
+      "UpdateTableRowRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Unique workspace identifier."
+          },
+          "data": {
+            "description": "Partial row-data patch keyed by column name.",
+            "$ref": "#/components/schemas/V2TableRowData"
+          }
+        },
+        "required": ["workspaceId", "data"],
+        "additionalProperties": false,
+        "title": "Update table row request",
+        "description": "Workspace scope and row-data patch keyed by column name.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "data": {
+              "status": "active"
+            }
+          }
+        ]
+      },
+      "V2DeleteRowData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the deleted row."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Confirms that the row was deleted."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete row data",
+        "description": "Row deletion acknowledgement."
+      },
+      "V2DeleteTableRowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2DeleteRowData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete table row response",
+        "description": "Row deletion acknowledgement."
+      },
+      "V2UpsertRowData": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "description": "The inserted or updated table row.",
+            "$ref": "#/components/schemas/V2ApiTableRow"
+          },
+          "operation": {
+            "type": "string",
+            "enum": ["insert", "update"],
+            "description": "Whether the row was inserted or updated."
+          }
+        },
+        "required": ["row", "operation"],
+        "additionalProperties": false,
+        "title": "Upsert row data",
+        "description": "Row returned by an upsert and the operation performed."
+      },
+      "V2UpsertTableRowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2UpsertRowData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Upsert table row response",
+        "description": "The resulting row and whether it was inserted or updated."
+      },
+      "UpsertTableRowRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Unique workspace identifier."
+          },
+          "data": {
+            "description": "Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike a single-row update, which merges.",
+            "$ref": "#/components/schemas/V2TableRowData"
+          },
+          "conflictTarget": {
+            "description": "Unique column used to detect a conflict.",
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["workspaceId", "data"],
+        "additionalProperties": false,
+        "title": "Upsert table row request",
+        "description": "Workspace scope, row data, and optional unique-column conflict target.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "data": {
+              "email": "jane@example.com",
+              "status": "active"
+            },
+            "conflictTarget": "email"
+          }
+        ]
+      },
+      "V2QueryTableRowsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2ApiTableRow"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Query table rows response",
+        "description": "A cursor-paginated page of matching table rows."
+      },
       "QueryTableRowsRequest": {
         "type": "object",
         "properties": {
@@ -8191,7 +8460,7 @@
             }
           },
           "filter": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           },
           "excludeRowIds": {
             "description": "Rows excluded from a select-all run scope.",
@@ -8224,13 +8493,7 @@
         "required": ["workspaceId", "groupIds"],
         "additionalProperties": false,
         "title": "Create table dispatch request",
-        "description": "Workspace scope, producer groups, execution mode, and optional row scope.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "groupIds": ["grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204"]
-          }
-        ]
+        "description": "Workspace scope, producer groups, execution mode, and optional row scope."
       },
       "V2RunRowEnrichmentResponse": {
         "type": "object",
@@ -8336,7 +8599,7 @@
             "description": "Case-insensitive cell substring to find."
           },
           "predicate": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           },
           "sort": {
             "description": "Ordered table-row sort specification.",
@@ -8365,22 +8628,7 @@
         "required": ["workspaceId", "q"],
         "additionalProperties": false,
         "title": "Search table rows request",
-        "description": "Workspace scope, substring query, and optional predicate and sort.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "q": "acme",
-            "predicate": {
-              "all": [
-                {
-                  "field": "status",
-                  "op": "eq",
-                  "value": "active"
-                }
-              ]
-            }
-          }
-        ]
+        "description": "Workspace scope, substring query, and optional predicate and sort."
       },
       "V2TableUploadImportSource": {
         "type": "object",
@@ -9555,7 +9803,7 @@
             "minLength": 1
           },
           "filter": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           },
           "excludeRowIds": {
             "description": "Rows excluded from an all-scope cancellation.",
@@ -9570,14 +9818,7 @@
         "required": ["workspaceId", "scope"],
         "additionalProperties": false,
         "title": "Cancel table runs request",
-        "description": "Workspace scope, cancellation scope, and optional predicate or producer groups.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "scope": "row",
-            "rowId": "row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93"
-          }
-        ]
+        "description": "Workspace scope, cancellation scope, and optional predicate or producer groups."
       },
       "V2Folder": {
         "type": "object",

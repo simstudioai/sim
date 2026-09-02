@@ -25,6 +25,11 @@ export const revalidate = 0
  * that removed authentication from a deployed workflow had no way to audit
  * that it was still off.
  *
+ * `webhooks` carries the resolved delivery URL of every webhook the live
+ * version registered. The block's `webhookUrlDisplay` is computed in the
+ * editor and reads back as `null`, so this is the only place a caller can
+ * learn the URL its deploy just started serving.
+ *
  * `deployedAt` comes from the active deployment version, which always carries
  * one. The workflow's own `deployed_at` column is deliberately not used as a
  * fallback: it retains the timestamp of a deployment that has since been
@@ -52,6 +57,7 @@ export const GET = defineV2JsonRoute({
       warnings: result.warnings ?? [],
       activeDeployment: result.activeDeployment ?? null,
       latestDeploymentAttempt: result.latestDeploymentAttempt ?? null,
+      webhooks: result.webhooks,
     },
   }),
 })

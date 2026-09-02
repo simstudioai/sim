@@ -761,8 +761,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.read,
       operationId: 'getWorkflowDeployment',
       summary: 'Get Workflow Deployment',
-      description:
-        'Get the live version, latest deployment attempt, readiness, draft changes (`needsRedeployment`), and public API access. With `isPublicApi: true`, anyone with the execution URL can run the workflow and consume billed usage without an API key. Hosted chat is managed separately.',
+      description: `Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, whether the editable draft has since diverged from the live version, and the public delivery URL of every webhook the live version registered. This is the only operation that publishes \`needsRedeployment\`, \`isPublicApi\`, and \`webhooks\`.\n\n\`webhooks\` is where a caller learns the URL a webhook-triggered deploy started serving: the block's own URL field is computed in the editor and reads back empty through the API. Trigger blocks that receive events through a shared endpoint with no per-workflow URL are omitted.\n\n\`isPublicApi\` is the security-relevant one: while it is \`true\` the deployed workflow executes without an API key, so anyone holding the execution URL can run it — and consume the workspace’s billed usage — anonymously. It is set through \`PATCH /workflows/{workflowId}/deployment\`, and this read is the only way to audit whether it is on.\n\n${WORKFLOW_DEPLOYMENT_VS_CHAT}`,
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('The current deployment state.'),
     }),
@@ -800,6 +799,13 @@ const declaredRoutes = [
                 activatedAt: '2026-06-12T10:30:00.000Z',
                 error: null,
               },
+              webhooks: [
+                {
+                  blockId: 'blk_01J8ZK3QW4M6X2R9T7B5C0V3',
+                  provider: 'generic',
+                  url: 'https://www.sim.ai/api/webhooks/trigger/leads',
+                },
+              ],
             },
           },
         ]

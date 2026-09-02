@@ -9690,6 +9690,43 @@
         "properties": {},
         "additionalProperties": false
       },
+      "WorkflowDeploymentWebhook": {
+        "type": "object",
+        "properties": {
+          "blockId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Trigger block the URL delivers to, or null for a legacy row that recorded none."
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Webhook provider the endpoint verifies inbound requests against, e.g. `generic`, `github`, or `slack`."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Absolute URL for the external system to send events to.",
+            "examples": ["https://www.sim.ai/api/webhooks/trigger/leads"]
+          }
+        },
+        "required": ["blockId", "provider", "url"],
+        "additionalProperties": false,
+        "title": "Deployed webhook",
+        "description": "The public delivery URL of one webhook the live deployment registered."
+      },
       "WorkflowDeployment": {
         "type": "object",
         "properties": {
@@ -9761,7 +9798,8 @@
           "activeDeployment",
           "latestDeploymentAttempt",
           "needsRedeployment",
-          "isPublicApi"
+          "isPublicApi",
+          "webhooks"
         ],
         "additionalProperties": false,
         "title": "Workflow deployment",
@@ -9808,7 +9846,14 @@
                 "requestedAt": "2026-06-12T10:29:58.000Z",
                 "activatedAt": "2026-06-12T10:30:00.000Z",
                 "error": null
-              }
+              },
+              "webhooks": [
+                {
+                  "blockId": "blk_01J8ZK3QW4M6X2R9T7B5C0V3",
+                  "provider": "generic",
+                  "url": "https://www.sim.ai/api/webhooks/trigger/leads"
+                }
+              ]
             }
           }
         ]
