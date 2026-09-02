@@ -3,6 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { WorkflowExecutionOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 
 const {
   clearExecutionPointer,
@@ -65,6 +66,12 @@ vi.mock('@sim/utils/retry', () => ({
 vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils', () => ({
   executeWorkflowWithFullLogging,
 }))
+
+/** The abort signal the run tool wires into every client-side execution. */
+function requireAbortSignal(options: WorkflowExecutionOptions): AbortSignal {
+  if (!options.abortSignal) throw new Error('run tool did not pass an abort signal')
+  return options.abortSignal
+}
 
 vi.mock('@/stores/execution/store', () => ({
   useExecutionStore: {
@@ -132,16 +139,18 @@ describe('run tool execution cancellation', () => {
 
   it('passes an abort signal into executeWorkflowWithFullLogging and aborts it', async () => {
     let capturedSignal: AbortSignal | undefined
-    executeWorkflowWithFullLogging.mockImplementationOnce(async (options: any) => {
-      capturedSignal = options.abortSignal
-      await new Promise((_, reject) => {
-        options.abortSignal.addEventListener(
-          'abort',
-          () => reject(new DOMException('Aborted', 'AbortError')),
-          { once: true }
-        )
-      })
-    })
+    executeWorkflowWithFullLogging.mockImplementationOnce(
+      async (options: WorkflowExecutionOptions) => {
+        capturedSignal = requireAbortSignal(options)
+        await new Promise((_, reject) => {
+          capturedSignal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('Aborted', 'AbortError')),
+            { once: true }
+          )
+        })
+      }
+    )
 
     executeRunToolOnClient('tool-1', 'run_workflow', { workflowId: 'wf-1' })
     await Promise.resolve()
@@ -153,15 +162,17 @@ describe('run tool execution cancellation', () => {
   })
 
   it('owns the workflow for exactly as long as the client run is in flight', async () => {
-    executeWorkflowWithFullLogging.mockImplementationOnce(async (options: any) => {
-      await new Promise((_, reject) => {
-        options.abortSignal.addEventListener(
-          'abort',
-          () => reject(new DOMException('Aborted', 'AbortError')),
-          { once: true }
-        )
-      })
-    })
+    executeWorkflowWithFullLogging.mockImplementationOnce(
+      async (options: WorkflowExecutionOptions) => {
+        await new Promise((_, reject) => {
+          requireAbortSignal(options).addEventListener(
+            'abort',
+            () => reject(new DOMException('Aborted', 'AbortError')),
+            { once: true }
+          )
+        })
+      }
+    )
     let ownedWhenPointerSaved: boolean | undefined
     saveExecutionPointer.mockImplementationOnce(() => {
       ownedWhenPointerSaved = isRunToolActiveForWorkflow('wf-1')

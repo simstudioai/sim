@@ -947,7 +947,7 @@ export function handleExecutionCancelledConsole(
   addCancelledConsoleEntry(deps.addConsole, params)
 }
 
-interface WorkflowExecutionOptions {
+export interface WorkflowExecutionOptions {
   workflowId?: string
   workflowInput?: any
   onStream?: (se: StreamingExecution) => Promise<void>
