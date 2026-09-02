@@ -43,10 +43,19 @@ const QUERY_DESCRIPTIONS: Record<FileSearchMode, string> = {
  */
 const DECLARED_QUERY_DESCRIPTION = `${QUERY_DESCRIPTIONS.regex} When the workflow builder sets Match to exact instead, the query is matched verbatim and no metacharacter needs escaping.`
 
+/**
+ * What a consumer sees before the mode is known — the catalog and the generated
+ * docs. Like {@link DECLARED_QUERY_DESCRIPTION} it names both readings rather
+ * than describing only the default, because a reader of the docs has no way to
+ * tell which mode a given block is set to.
+ */
+const DECLARED_TOOL_DESCRIPTION =
+  'Search the indexed text of active workspace files for lines matching a query, and return each matching line once with its file ID and line number. By default the query is a regular expression; in exact mode it is matched verbatim and metacharacters are literal. Coverage is what the index currently holds: when "complete" is false the index is still catching up, so a term that is not found is unknown rather than absent. Re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one folder tree, which also narrows "indexStatus" to that tree.'
+
 export const fileSearchTool: InternalToolConfig<FileSearchParams, FileSearchResponse> = {
   id: 'file_search',
   name: 'File Search',
-  description: TOOL_DESCRIPTIONS.regex,
+  description: DECLARED_TOOL_DESCRIPTION,
   version: '1.1.0',
   params: {
     query: {
