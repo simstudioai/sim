@@ -24,7 +24,18 @@ export interface AgentCliGrepStage {
   linesAfter: number;
 }
 
-export type AgentCliPipeStage = AgentCliGrepStage;
+/** A jq program applied to JSON stdout — the model's slicing tool; real jq semantics. */
+export interface AgentCliJqStage {
+  kind: "jq";
+  expression: string;
+}
+
+/** Keys, types, and counts of JSON stdout to depth 3, no values — the shape, cheaply. */
+export interface AgentCliOutlineStage {
+  kind: "outline";
+}
+
+export type AgentCliPipeStage = AgentCliGrepStage | AgentCliJqStage | AgentCliOutlineStage;
 
 /** Where stdout lands instead of the model window. */
 export interface AgentCliSandboxFileSink {

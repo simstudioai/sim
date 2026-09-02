@@ -224,6 +224,7 @@ export const CLI_TOOL_TITLES: Record<string, string> = {
   cli_workspaces_members: 'Listing workspace members',
   // Agent-only CLI augmentations
   cli_files_grep: 'Searching file contents',
+  cli_grep: 'Searching the workspace',
   cli_logs_query: 'Querying run history',
   cli_workflow_blocks: 'Listing workflow blocks',
   cli_workflow_deps: 'Tracing block inputs',

@@ -1,10 +1,12 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { workflowDepsCommand } from '@/lib/mothership/agent-cli/engines/deps'
+import { docsSearchCommand } from '@/lib/mothership/agent-cli/engines/docs-search'
 import { filesGrepCommand } from '@/lib/mothership/agent-cli/engines/files-grep'
 import { workflowGrepCommand, workflowsGrepCommand } from '@/lib/mothership/agent-cli/engines/grep'
 import { workflowLintCommand } from '@/lib/mothership/agent-cli/engines/lint'
 import { logsQueryCommand } from '@/lib/mothership/agent-cli/engines/query'
 import { workflowTraceCommand } from '@/lib/mothership/agent-cli/engines/trace'
+import { universalGrepCommand } from '@/lib/mothership/agent-cli/engines/universal-grep'
 import {
   workflowBlocksCommand,
   workflowEdgesCommand,
@@ -23,7 +25,9 @@ import {
  * augmentation-drift check reads these keys.
  */
 export const AUGMENTATION_ENGINES: Readonly<Record<string, AgentCliEngine>> = {
+  'docs search': docsSearchCommand,
   'files grep': filesGrepCommand,
+  grep: universalGrepCommand,
   'logs query': logsQueryCommand,
   'workflow blocks': workflowBlocksCommand,
   'workflow deps': workflowDepsCommand,
