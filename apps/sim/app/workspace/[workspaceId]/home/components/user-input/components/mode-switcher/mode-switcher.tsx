@@ -28,11 +28,11 @@ import {
 
 const MODE_LABELS: Record<MothershipMode, string> = {
   build: 'Build',
-  search: 'Search',
+  search: 'Sources',
 }
 
 /**
- * The composer's Build / Search switcher: a label-only `Chip` in its `round`
+ * The composer's Build / Sources switcher: a label-only `Chip` in its `round`
  * shape — chip chrome throughout (`--text-body` label, `--surface-hover` on
  * hover, no text-color shift), fully round to sit in the toolbar's row of
  * round controls — opening a menu that checks the active mode, as
@@ -47,7 +47,7 @@ export const ModeSwitcher = memo(function ModeSwitcher() {
   const [, setSearchQueryParam] = useQueryState(searchQueryParam.key, searchQueryParam.parser)
   const [, setSearchFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
 
-  /** Leaving Search drops the query from the URL, so a clean URL always means no search is showing. */
+  /** Leaving Sources drops the query from the URL, so a clean URL always means no search is showing. */
   const handleSelect = (next: MothershipMode) => {
     if (next === mode) return
     setMode(next)

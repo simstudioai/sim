@@ -620,10 +620,10 @@ export interface PostHogEventMap {
     mode: 'build' | 'search'
   }
 
-  /** Search mode's Answer toggle was flipped. */
-  chat_answer_toggled: {
+  /** Sources mode's Search / Assistant choice changed. */
+  chat_sources_mode_changed: {
     workspace_id: string
-    enabled: boolean
+    mode: 'search' | 'assistant'
   }
 
   /**

@@ -21,7 +21,6 @@ import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   AnimatedPlaceholderEffect,
-  AnswerToggle,
   AttachedFilesList,
   DropOverlay,
   MicButton,
@@ -29,6 +28,7 @@ import {
   ModeSwitcher,
   PromptEditor,
   SendButton,
+  SourcesModeToggle,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
@@ -720,7 +720,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
           </Tooltip.Root>
         </div>
         <div className='flex items-center gap-1.5'>
-          {canSearch && <AnswerToggle />}
+          {canSearch && <SourcesModeToggle />}
           {canSearch && <ModeSwitcher />}
           {isSttSupported && (
             <MicButton

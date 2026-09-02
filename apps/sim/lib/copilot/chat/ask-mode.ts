@@ -18,10 +18,10 @@ export const ASK_MODE_AGENT_CONTEXT: AskModeAgentContext = {
   type: 'skill',
   tag: '@Ask',
   content: [
-    'The person asked Search to answer: they want an answer drawn from their connected sources, not an action.',
+    'The person chose the Assistant: they want an answer in natural language drawn from their connected sources, not an action.',
     '',
     '- Answer from the knowledge bases attached to this message first. Search them with the knowledge tool `query` operation, and search again with other phrasings when the first pass returns little. Do not read a base or its metadata first; search.',
-    "- Reach for a connected integration only when the indexed sources cannot answer: live or very recent data (today's inbox, a calendar), or an action the person asked for outright. Say which service you used. Never build, run, or schedule anything on an answer turn.",
+    "- Reach for a connected integration only when the indexed sources cannot answer: live or very recent data (today's inbox, a calendar), or an action the person asked for outright. Say which service you used. Never build, run, or schedule anything on an Assistant turn.",
     '- Cite every claim with a `<source>` tag exactly as the knowledge tool describes. When nothing relevant is found, say so plainly instead of guessing.',
     '- Keep the answer short: lead with the answer, then the supporting points.',
     '- Suggested follow-ups, when you offer them, are questions the attached sources can answer. Never suggest building, running, or automating anything.',

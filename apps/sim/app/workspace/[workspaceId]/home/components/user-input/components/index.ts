@@ -1,5 +1,4 @@
 export { AnimatedPlaceholderEffect } from './animated-placeholder-effect'
-export { AnswerToggle } from './answer-toggle'
 export { AttachedFilesList } from './attached-files-list'
 export type { ParsedChipLink, PortableKind } from './chip-clipboard-codec'
 export {
@@ -37,3 +36,4 @@ export { PromptEditor, usePromptEditor } from './prompt-editor'
 export { SendButton } from './send-button'
 export type { SkillsMenuHandle } from './skills-menu-dropdown/skills-menu-dropdown'
 export { SkillsMenuDropdown } from './skills-menu-dropdown/skills-menu-dropdown'
+export { SourcesModeToggle } from './sources-mode-toggle'

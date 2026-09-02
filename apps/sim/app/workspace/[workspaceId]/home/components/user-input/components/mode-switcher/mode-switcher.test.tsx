@@ -83,7 +83,7 @@ describe('ModeSwitcher', () => {
     openMenu()
 
     const rows = items()
-    expect(rows.map((row) => row.textContent)).toEqual(['Build', 'Search'])
+    expect(rows.map((row) => row.textContent)).toEqual(['Build', 'Sources'])
     expect(rows[0].querySelector('svg')).not.toBeNull()
     expect(rows[1].querySelector('svg')).toBeNull()
   })
@@ -97,7 +97,7 @@ describe('ModeSwitcher', () => {
     })
 
     expect(useMothershipModeStore.getState().mode).toBe('search')
-    expect(trigger().textContent).toBe('Search')
+    expect(trigger().textContent).toBe('Sources')
     expect(mockCaptureEvent).toHaveBeenCalledWith(null, 'chat_mode_changed', {
       workspace_id: 'workspace-1',
       mode: 'search',
@@ -105,7 +105,7 @@ describe('ModeSwitcher', () => {
     expect(mockSetSearchQuery).not.toHaveBeenCalled()
   })
 
-  it('drops the search query from the URL when leaving Search', () => {
+  it('drops the search query from the URL when leaving Sources', () => {
     useMothershipModeStore.getState().setMode('search')
     mount()
     openMenu()
