@@ -174,6 +174,7 @@ export interface SelectionSnapshot {
 interface TableGridProps {
   workspaceId?: string
   tableId?: string
+  referenceColumnsEnabled: boolean
   embedded?: boolean
   tableRowTtlEnabled: boolean
   /** Remote collaborators' cell selections, rendered as presence overlays. */
@@ -449,6 +450,7 @@ async function chunkBatchUpdates(
 export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
+  referenceColumnsEnabled,
   embedded,
   tableRowTtlEnabled,
   remoteSelections,
@@ -4970,7 +4972,9 @@ export function TableGrid({
                             deleteLockedReason={
                               locks?.deleteLocked ? LOCK_TOOLTIPS.delete : undefined
                             }
-                            onGoToReferenceTable={handleGoToReferenceTable}
+                            onGoToReferenceTable={
+                              referenceColumnsEnabled ? handleGoToReferenceTable : undefined
+                            }
                             onViewWorkflow={handleViewWorkflow}
                             onSortColumn={onSortColumn}
                             onClearSort={onClearSort}
@@ -4990,6 +4994,7 @@ export function TableGrid({
                           tableRowTtlEnabled={tableRowTtlEnabled}
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}
+                          referenceColumnsEnabled={referenceColumnsEnabled}
                           blocked={!canMutateSchema}
                           onPickType={handleAddColumnOfType}
                           onPickWorkflow={handleAddWorkflowColumn}

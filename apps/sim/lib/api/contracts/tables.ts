@@ -56,7 +56,7 @@ export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
  */
 export const columnTypeSchema = z
   .enum(COLUMN_TYPES)
-  .meta({ omitEnumValuesFromOpenApi: ['ttl'] as const })
+  .meta({ omitEnumValuesFromOpenApi: ['ttl', 'reference'] as const })
 
 /** One choice in a `select` column. `id` is the stable cell key. */
 export const selectOptionSchema = z.object({
@@ -249,6 +249,7 @@ export const tableColumnSchema = z
   })
   .superRefine(refineColumnTypeMetadata)
   .describe('A typed column in a table schema.')
+  .meta({ omitPropertiesFromOpenApi: ['referenceTableId'] as const })
 
 export const createTableBodySchema = z.object({
   name: tableNameSchema.describe('Table name.'),
@@ -333,7 +334,8 @@ export const createTableColumnBodySchema = z.object({
         .describe('Target table for a reference column.'),
     })
     .superRefine(refineColumnTypeMetadata)
-    .describe('Typed column definition to add.'),
+    .describe('Typed column definition to add.')
+    .meta({ omitPropertiesFromOpenApi: ['referenceTableId'] as const }),
 })
 
 export const updateTableColumnBodySchema = z.object({
@@ -353,7 +355,8 @@ export const updateTableColumnBodySchema = z.object({
         .describe('New target table for a reference column.'),
     })
     .superRefine(refineColumnTypeMetadata)
-    .describe('Column fields to update.'),
+    .describe('Column fields to update.')
+    .meta({ omitPropertiesFromOpenApi: ['referenceTableId'] as const }),
 })
 
 export const deleteTableColumnBodySchema = z.object({

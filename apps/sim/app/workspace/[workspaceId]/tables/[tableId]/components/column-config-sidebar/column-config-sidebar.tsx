@@ -65,6 +65,7 @@ interface ColumnConfigSidebarProps {
   existingColumn: ColumnDefinition | null
   allColumns: readonly ColumnDefinition[]
   tableRowTtlEnabled: boolean
+  referenceColumnsEnabled: boolean
   workspaceId: string
   tableId: string
   /**
@@ -126,6 +127,7 @@ function ColumnConfigBody({
   existingColumn,
   allColumns,
   tableRowTtlEnabled,
+  referenceColumnsEnabled,
   workspaceId,
   tableId,
   readOnly,
@@ -163,14 +165,20 @@ function ColumnConfigBody({
   const [optionsError, setOptionsError] = useState<string | null>(null)
   const [referenceTableError, setReferenceTableError] = useState<string | null>(null)
 
-  const saveDisabled = updateColumn.isPending || addColumn.isPending
   const trimmedName = nameInput.trim()
   const wantsOptions = isSelectType(typeInput)
   const wantsCurrency = typeInput === 'currency'
   const wantsReference = typeInput === 'reference'
+  const referenceMutationBlocked =
+    !referenceColumnsEnabled &&
+    wantsReference &&
+    (config.mode === 'create' ||
+      existingColumn?.type !== 'reference' ||
+      existingColumn.referenceTableId !== referenceTableInput)
+  const saveDisabled = updateColumn.isPending || addColumn.isPending || referenceMutationBlocked
   const supportsUnique = columnTypeById(typeInput).supportsUnique
   const { data: workspaceTables = [] } = useTablesList(workspaceId, 'active', {
-    enabled: wantsReference,
+    enabled: wantsReference && referenceColumnsEnabled,
   })
   const tableOptions = workspaceTables.map((table) => ({ value: table.id, label: table.name }))
   const trimmedOptions = optionsInput.map((o) => ({ ...o, name: o.name.trim() }))
@@ -331,12 +339,20 @@ function ColumnConfigBody({
                   options={columnTypeOptionsForTable(allColumns, existingColumn, {
                     tableRowTtlEnabled,
                   })
-                    .filter((option) => option.type !== 'workflow')
+                    .filter(
+                      (option) =>
+                        option.type !== 'workflow' &&
+                        (referenceColumnsEnabled ||
+                          option.type !== 'reference' ||
+                          existingColumn?.type === 'reference')
+                    )
                     .map((option) => ({
                       label: option.label,
                       value: option.type,
                       icon: option.icon,
-                      disabled: option.disabledReason !== undefined,
+                      disabled:
+                        option.disabledReason !== undefined ||
+                        (!referenceColumnsEnabled && option.type === 'reference'),
                     }))}
                   value={typeInput}
                   onChange={(v) => setTypeInput(v as ColumnDefinition['type'])}
@@ -399,6 +415,7 @@ function ColumnConfigBody({
                 <ChipCombobox
                   options={tableOptions}
                   value={referenceTableInput}
+                  disabled={!referenceColumnsEnabled}
                   onChange={(value) => {
                     setReferenceTableInput(value)
                     if (referenceTableError) setReferenceTableError(null)

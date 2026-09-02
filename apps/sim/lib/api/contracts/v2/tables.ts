@@ -494,6 +494,7 @@ export const v2TableColumnInputSchema = z
   .object(v2TableColumnInputShape)
   .strict()
   .superRefine(refineColumnTypeMetadata)
+  .meta({ omitPropertiesFromOpenApi: ['referenceTableId'] as const })
 
 /**
  * Initial columns take the same shape as every other v2 column input.
@@ -745,7 +746,8 @@ export const v2CreateTableColumnBodySchema = z
       })
       .strict()
       .superRefine(refineColumnTypeMetadata)
-      .describe('Column definition to add.'),
+      .describe('Column definition to add.')
+      .meta({ omitPropertiesFromOpenApi: ['referenceTableId'] as const }),
   })
   .strict()
 
@@ -780,7 +782,8 @@ export const v2UpdateTableColumnBodySchema = z
       })
       .strict()
       .superRefine(refineColumnTypeMetadata)
-      .describe('Mutable column fields.'),
+      .describe('Mutable column fields.')
+      .meta({ omitPropertiesFromOpenApi: ['referenceTableId'] as const }),
   })
   .strict()
 

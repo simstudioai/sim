@@ -130,6 +130,41 @@ function omitEnumValuesFromOpenApi(
   Reflect.deleteProperty(schema, 'omitEnumValuesFromOpenApi')
 }
 
+function omitPropertiesFromOpenApi(
+  metadata: z.core.GlobalMeta | undefined,
+  schema: JsonObject,
+  label: string
+): void {
+  const omittedProperties = metadata?.omitPropertiesFromOpenApi
+  if (omittedProperties === undefined) return
+
+  invariant(
+    Array.isArray(omittedProperties) && omittedProperties.length > 0,
+    `${label} omitPropertiesFromOpenApi must be a non-empty array`
+  )
+  invariant(
+    schema.properties !== undefined &&
+      typeof schema.properties === 'object' &&
+      !Array.isArray(schema.properties),
+    `${label} omitPropertiesFromOpenApi requires an object schema`
+  )
+
+  const properties = schema.properties as JsonObject
+  for (const property of omittedProperties) {
+    invariant(
+      typeof property === 'string' && Object.hasOwn(properties, property),
+      `${label} omits an object property that does not exist`
+    )
+    Reflect.deleteProperty(properties, property)
+  }
+
+  if (Array.isArray(schema.required)) {
+    schema.required = schema.required.filter((property) => !omittedProperties.includes(property))
+    if (schema.required.length === 0) Reflect.deleteProperty(schema, 'required')
+  }
+  Reflect.deleteProperty(schema, 'omitPropertiesFromOpenApi')
+}
+
 function comparableSchema(schema: ApiSchema, io: SchemaIo): unknown {
   const cached = comparableSchemaCache.get(schema)?.get(io)
   if (cached) return cached
@@ -237,6 +272,7 @@ function generateSchema(
         const schemaLabel = `${label} at ${path.join('.') || '<root>'}`
         validateExamples(current, metadata?.examples, io, schemaLabel)
         omitEnumValuesFromOpenApi(metadata, jsonSchema as JsonObject, schemaLabel)
+        omitPropertiesFromOpenApi(metadata, jsonSchema as JsonObject, schemaLabel)
       },
     }) as JsonObject
     const byIo = generatedSchemaCache.get(schema) ?? new Map<SchemaIo, JsonObject>()
