@@ -728,20 +728,23 @@ async function countDueMembers(
 }
 
 async function recordMemberFailure(
+  run: MemberSyncRun,
   member: MemberRow,
   error: unknown,
   syncIntervalMinutes: number
 ): Promise<void> {
   const failures = member.consecutiveFailures + 1
-  await db
-    .update(knowledgeConnectorMember)
-    .set({
-      consecutiveFailures: failures,
-      nextAttemptAt: new Date(Date.now() + memberFailureBackoffMs(failures, syncIntervalMinutes)),
-      lastError: getErrorMessage(error),
-      updatedAt: new Date(),
-    })
-    .where(eq(knowledgeConnectorMember.id, member.id))
+  await withMemberLease(run, (tx) =>
+    tx
+      .update(knowledgeConnectorMember)
+      .set({
+        consecutiveFailures: failures,
+        nextAttemptAt: new Date(Date.now() + memberFailureBackoffMs(failures, syncIntervalMinutes)),
+        lastError: getErrorMessage(error),
+        updatedAt: new Date(),
+      })
+      .where(eq(knowledgeConnectorMember.id, member.id))
+  )
 }
 
 /**
@@ -904,7 +907,7 @@ async function listForMember(input: {
       memberId: member.id,
       error: getErrorMessage(error),
     })
-    await recordMemberFailure(member, error, input.syncIntervalMinutes)
+    await recordMemberFailure(input.run, member, error, input.syncIntervalMinutes)
     run.result.membersFailed += 1
     return { kind: 'failed' }
   }
