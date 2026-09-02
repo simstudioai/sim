@@ -1,3 +1,5 @@
 export const CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT = 50
 export const CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT = 500
 export const CREDENTIAL_GROUP_WORKFLOW_NAME_MAX_LENGTH = 255
+/** Knowledge connectors one credential option may back at once. */
+export const CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT = 32

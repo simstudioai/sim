@@ -1,0 +1,436 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import type { CredentialGroupOptionConfig } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getManagedOAuthConnectorPolicy } from '@/lib/auth/connectors/managed-oauth'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  type CredentialGroupKnowledgeConnectorAccess,
+  compileCredentialGroupWorkflowAccessPolicy,
+  credentialGroupWorkflowAccessPolicyCodec,
+  decodeCredentialGroupKnowledgeConnectorAccess,
+  decodeCredentialGroupWorkflowAccessPolicy,
+  evaluateCredentialGroupKnowledgeConnectorAccess,
+} from '@/lib/credential-groups/application/workflow-access-policy'
+import {
+  type CredentialGroupCredentialListContext,
+  type CredentialGroupOptionCredentialReference,
+  listCredentialGroupOptionCredentialReferences,
+  loadManagedCredentialGroupBinding,
+} from '@/lib/credential-groups/credentials'
+import {
+  getCredentialGroupProviderId,
+  isCredentialGroupProvider,
+} from '@/lib/credential-groups/providers'
+import { CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT } from '@/lib/credential-groups/workflow-access-limits'
+import {
+  type ResolvedManagedOAuthToken,
+  resolveManagedOAuthToken,
+} from '@/lib/credentials/managed-oauth'
+import {
+  CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
+  type ResourcePolicyBindingFor,
+} from '@/lib/resource-policies/registry'
+import {
+  ResourcePolicyNotFoundError,
+  ResourcePolicyRevisionConflictError,
+  requireResourcePolicy,
+  writeResourcePolicy,
+} from '@/lib/resource-policies/repository'
+import type { ConnectorMeta } from '@/connectors/types'
+
+const logger = createLogger('KnowledgeConnectorMemberAccess')
+
+/** Concurrent editors of one group's policy are rare; a handful of retries absorbs them. */
+const POLICY_WRITE_ATTEMPTS = 5
+
+const CREDENTIAL_USE_BINDING = {
+  resourceType: 'credential_group',
+  action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
+} as const satisfies ResourcePolicyBindingFor<'credential_group'>
+
+/** Raised when the group's policy does not let this connector use the credential. */
+export class KnowledgeConnectorMemberAccessDeniedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'KnowledgeConnectorMemberAccessDeniedError'
+  }
+}
+
+/** The credential-group slot a members-mode connector crawls with. */
+export interface KnowledgeConnectorCredentialBinding {
+  workspaceId: string
+  credentialGroupId: string
+  credentialGroupOptionId: string
+  connectorId: string
+}
+
+function policyTarget(
+  binding: Pick<KnowledgeConnectorCredentialBinding, 'workspaceId' | 'credentialGroupId'>
+) {
+  return {
+    workspaceId: binding.workspaceId,
+    resourceType: 'credential_group' as const,
+    resourceId: binding.credentialGroupId,
+    codec: credentialGroupWorkflowAccessPolicyCodec,
+  }
+}
+
+function withoutConnector(
+  access: readonly CredentialGroupKnowledgeConnectorAccess[],
+  connectorId: string
+): CredentialGroupKnowledgeConnectorAccess[] {
+  return access.map((entry) => ({
+    credentialGroupOptionId: entry.credentialGroupOptionId,
+    connectorIds: entry.connectorIds.filter((id) => id !== connectorId),
+  }))
+}
+
+function withConnector(
+  access: readonly CredentialGroupKnowledgeConnectorAccess[],
+  binding: Pick<KnowledgeConnectorCredentialBinding, 'credentialGroupOptionId' | 'connectorId'>
+): CredentialGroupKnowledgeConnectorAccess[] {
+  const next = withoutConnector(access, binding.connectorId)
+  const option = next.find(
+    (entry) => entry.credentialGroupOptionId === binding.credentialGroupOptionId
+  )
+  if (option) {
+    if (option.connectorIds.length >= CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT) {
+      throw new OrchestrationError(
+        'validation',
+        `A credential option can back at most ${CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT} knowledge connectors`
+      )
+    }
+    option.connectorIds.push(binding.connectorId)
+    return next
+  }
+  return [
+    ...next,
+    {
+      credentialGroupOptionId: binding.credentialGroupOptionId,
+      connectorIds: [binding.connectorId],
+    },
+  ]
+}
+
+function sameAccess(
+  left: readonly CredentialGroupKnowledgeConnectorAccess[],
+  right: readonly CredentialGroupKnowledgeConnectorAccess[]
+): boolean {
+  const normalise = (access: readonly CredentialGroupKnowledgeConnectorAccess[]) =>
+    JSON.stringify(
+      access
+        .filter((entry) => entry.connectorIds.length > 0)
+        .map((entry) => [entry.credentialGroupOptionId, [...entry.connectorIds].sort()])
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    )
+  return normalise(left) === normalise(right)
+}
+
+/**
+ * Rewrites the group's knowledge connector statements through the policy's
+ * revision CAS. A concurrent edit (an admin changing workflow access, another
+ * connector being bound) loses the race, and the rewrite is recomputed from the
+ * fresh document rather than retried blindly, so nobody's statement is lost.
+ */
+async function rewriteKnowledgeConnectorAccess(input: {
+  binding: Pick<KnowledgeConnectorCredentialBinding, 'workspaceId' | 'credentialGroupId'>
+  actorUserId: string
+  change: 'granted' | 'revoked'
+  connectorId: string
+  credentialGroupOptionId?: string
+  mutate: (
+    access: readonly CredentialGroupKnowledgeConnectorAccess[]
+  ) => CredentialGroupKnowledgeConnectorAccess[]
+}): Promise<void> {
+  const target = policyTarget(input.binding)
+  for (let attempt = 1; attempt <= POLICY_WRITE_ATTEMPTS; attempt += 1) {
+    const existing = await requireResourcePolicy(target)
+    const current = decodeCredentialGroupKnowledgeConnectorAccess(
+      existing.document,
+      input.binding.credentialGroupId
+    )
+    const next = input.mutate(current)
+    if (sameAccess(current, next)) return
+
+    const document = compileCredentialGroupWorkflowAccessPolicy({
+      credentialGroupId: input.binding.credentialGroupId,
+      allowedWorkflowIds: decodeCredentialGroupWorkflowAccessPolicy(
+        existing.document,
+        input.binding.credentialGroupId
+      ),
+      knowledgeConnectorAccess: next,
+    })
+    try {
+      const written = await writeResourcePolicy({
+        ...target,
+        expectedRevision: existing.revision,
+        actorUserId: input.actorUserId,
+        document,
+      })
+      recordAudit({
+        workspaceId: input.binding.workspaceId,
+        actorId: input.actorUserId,
+        action: AuditAction.CREDENTIAL_GROUP_UPDATED,
+        resourceType: AuditResourceType.CREDENTIAL_GROUP,
+        resourceId: input.binding.credentialGroupId,
+        description:
+          input.change === 'granted'
+            ? 'Granted a knowledge connector access to Credential Group credentials'
+            : 'Revoked a knowledge connector’s access to Credential Group credentials',
+        metadata: {
+          revision: written.revision,
+          change: input.change,
+          connectorId: input.connectorId,
+          ...(input.credentialGroupOptionId
+            ? { credentialGroupOptionId: input.credentialGroupOptionId }
+            : {}),
+        },
+      })
+      return
+    } catch (error) {
+      if (!(error instanceof ResourcePolicyRevisionConflictError)) throw error
+      logger.info('Credential Group policy changed while binding a knowledge connector; retrying', {
+        credentialGroupId: input.binding.credentialGroupId,
+        connectorId: input.connectorId,
+        attempt,
+      })
+    }
+  }
+  throw new OrchestrationError(
+    'conflict',
+    'Credential Group access is being edited by someone else. Try again.'
+  )
+}
+
+/**
+ * Lets the connector use credentials collected under one option. Moving a
+ * connector between options replaces its previous binding, since a connector
+ * crawls with exactly one credential slot.
+ */
+export async function grantKnowledgeConnectorCredentialAccess(
+  binding: KnowledgeConnectorCredentialBinding,
+  actorUserId: string
+): Promise<void> {
+  await rewriteKnowledgeConnectorAccess({
+    binding,
+    actorUserId,
+    change: 'granted',
+    connectorId: binding.connectorId,
+    credentialGroupOptionId: binding.credentialGroupOptionId,
+    mutate: (access) => withConnector(access, binding),
+  })
+}
+
+/**
+ * Removes the connector from every option it was bound to. A group whose policy
+ * is already gone (the group was deleted, which cascades the policy) has nothing
+ * left to revoke.
+ */
+export async function revokeKnowledgeConnectorCredentialAccess(
+  binding: Pick<
+    KnowledgeConnectorCredentialBinding,
+    'workspaceId' | 'credentialGroupId' | 'connectorId'
+  >,
+  actorUserId: string
+): Promise<void> {
+  try {
+    await rewriteKnowledgeConnectorAccess({
+      binding,
+      actorUserId,
+      change: 'revoked',
+      connectorId: binding.connectorId,
+      mutate: (access) => withoutConnector(access, binding.connectorId),
+    })
+  } catch (error) {
+    if (error instanceof ResourcePolicyNotFoundError) return
+    throw error
+  }
+}
+
+/** Throws unless the group's policy lets this connector use the option's credentials. */
+export async function assertKnowledgeConnectorCredentialAccess(
+  binding: KnowledgeConnectorCredentialBinding
+): Promise<void> {
+  const policy = await requireResourcePolicy(policyTarget(binding)).catch((error: unknown) => {
+    if (error instanceof ResourcePolicyNotFoundError) {
+      throw new KnowledgeConnectorMemberAccessDeniedError(
+        'Credential Group no longer has an access policy'
+      )
+    }
+    throw error
+  })
+  const decision = evaluateCredentialGroupKnowledgeConnectorAccess({
+    document: policy.document,
+    credentialGroupId: binding.credentialGroupId,
+    connectorId: binding.connectorId,
+    credentialGroupOptionId: binding.credentialGroupOptionId,
+    resourcePolicy: CREDENTIAL_USE_BINDING,
+  })
+  if (decision.decision !== 'allow') {
+    throw new KnowledgeConnectorMemberAccessDeniedError(
+      'Credential Group policy does not grant this knowledge connector access to the credential option'
+    )
+  }
+}
+
+export interface MintKnowledgeConnectorMemberTokenInput {
+  connectorId: string
+  workspaceId: string
+  credentialId: string
+  expectedProviderId: string
+  requiredScopes: string[]
+  /** The sync run the access is attributed to in the audit trail. */
+  runId: string
+}
+
+/**
+ * Resolves a member's managed token for a crawl. Not a workspace use case: the
+ * sync job has no principal, so the group's own policy is the whole
+ * authorization — the connector must be named under the credential's option.
+ * Every mint is audited against the credential, attributed to the run.
+ */
+export async function mintKnowledgeConnectorMemberToken(
+  input: MintKnowledgeConnectorMemberTokenInput
+): Promise<ResolvedManagedOAuthToken> {
+  const binding = await loadManagedCredentialGroupBinding(input.credentialId)
+  if (!binding || binding.workspaceId !== input.workspaceId) {
+    throw new KnowledgeConnectorMemberAccessDeniedError(
+      'Managed credential is not enrolled in a Credential Group in this workspace'
+    )
+  }
+  await assertKnowledgeConnectorCredentialAccess({
+    workspaceId: binding.workspaceId,
+    credentialGroupId: binding.credentialGroupId,
+    credentialGroupOptionId: binding.credentialGroupOptionId,
+    connectorId: input.connectorId,
+  })
+  const token = await resolveManagedOAuthToken({
+    credentialId: binding.credentialId,
+    workspaceId: binding.workspaceId,
+    expectedProviderId: input.expectedProviderId,
+    requiredScopes: input.requiredScopes,
+  })
+  recordAudit({
+    workspaceId: binding.workspaceId,
+    actorId: null,
+    actorName: 'Knowledge connector sync',
+    action: AuditAction.CREDENTIAL_ACCESSED,
+    resourceType: AuditResourceType.CREDENTIAL,
+    resourceId: binding.credentialId,
+    description: `Accessed managed OAuth credential for provider ${input.expectedProviderId} on behalf of a knowledge connector`,
+    metadata: {
+      provider: input.expectedProviderId,
+      credentialType: 'managed_oauth',
+      connectorId: input.connectorId,
+      credentialGroupId: binding.credentialGroupId,
+      credentialGroupOptionId: binding.credentialGroupOptionId,
+      runId: input.runId,
+    },
+  })
+  return token
+}
+
+export interface ListKnowledgeConnectorMemberCredentialsInput
+  extends KnowledgeConnectorCredentialBinding {
+  limit: number
+  cursor?: string
+}
+
+/**
+ * Pages every credential collected under the connector's option, in any state,
+ * after proving the connector is granted that option. Membership reconciliation
+ * needs the unusable credentials too — they are what gets suspended.
+ */
+export async function listKnowledgeConnectorMemberCredentials(
+  input: ListKnowledgeConnectorMemberCredentialsInput
+): Promise<{ credentials: CredentialGroupOptionCredentialReference[]; nextCursor: string | null }> {
+  await assertKnowledgeConnectorCredentialAccess(input)
+  return listCredentialGroupOptionCredentialReferences({
+    workspaceId: input.workspaceId,
+    credentialGroupId: input.credentialGroupId,
+    credentialGroupOptionId: input.credentialGroupOptionId,
+    limit: input.limit,
+    cursor: input.cursor,
+  })
+}
+
+export type KnowledgeConnectorMembersBindingValidation =
+  | { ok: true; option: CredentialGroupOptionConfig }
+  | { ok: false; message: string }
+
+function isCapFieldSet(value: unknown): boolean {
+  if (value === undefined || value === null) return false
+  if (typeof value === 'string') return value.trim().length > 0
+  return true
+}
+
+/**
+ * Decides whether a connector may crawl per member with one option's
+ * credentials. Pure apart from the provider's own scope policy, so a route can
+ * refuse a binding before any credential is touched.
+ */
+export function validateKnowledgeConnectorMembersBinding(input: {
+  connectorMeta: Pick<ConnectorMeta, 'name' | 'auth' | 'permissionScopedListing' | 'configFields'>
+  group: Pick<CredentialGroupCredentialListContext, 'status' | 'options'>
+  credentialGroupOptionId: string
+  sourceConfig: Record<string, unknown>
+}): KnowledgeConnectorMembersBindingValidation {
+  const { connectorMeta, group } = input
+  if (!connectorMeta.permissionScopedListing) {
+    return {
+      ok: false,
+      message: `${connectorMeta.name} cannot sync per member: its listing does not reflect who may read each document`,
+    }
+  }
+  if (connectorMeta.auth.mode !== 'oauth') {
+    return { ok: false, message: `${connectorMeta.name} does not authenticate with OAuth` }
+  }
+  if (group.status !== 'active') {
+    return { ok: false, message: 'Credential Group is disabled' }
+  }
+  const option = group.options.find((candidate) => candidate.id === input.credentialGroupOptionId)
+  if (!option) {
+    return { ok: false, message: 'Credential option was not found in this Credential Group' }
+  }
+  if (option.status !== 'active') {
+    return { ok: false, message: 'Credential option is disabled' }
+  }
+  if (
+    !isCredentialGroupProvider(option.provider) ||
+    getCredentialGroupProviderId(option.provider) !== connectorMeta.auth.provider
+  ) {
+    return {
+      ok: false,
+      message: `Credential option collects ${option.provider} accounts, but ${connectorMeta.name} needs ${connectorMeta.auth.provider}`,
+    }
+  }
+  const scopePolicy = getManagedOAuthConnectorPolicy(connectorMeta.auth.provider)
+  if (!scopePolicy) {
+    return {
+      ok: false,
+      message: `${connectorMeta.auth.provider} is not a managed OAuth provider`,
+    }
+  }
+  if (
+    !scopePolicy.hasRequiredScopes(option.requiredScopes, connectorMeta.auth.requiredScopes ?? [])
+  ) {
+    return {
+      ok: false,
+      message: `Credential option does not request every permission ${connectorMeta.name} needs to read the source`,
+    }
+  }
+  const capFields = connectorMeta.permissionScopedListing.capFieldIds.filter((fieldId) =>
+    isCapFieldSet(input.sourceConfig[fieldId])
+  )
+  if (capFields.length > 0) {
+    const titles = capFields.map(
+      (fieldId) =>
+        connectorMeta.configFields.find((field) => field.id === fieldId)?.title ?? fieldId
+    )
+    return {
+      ok: false,
+      message: `${titles.join(', ')} cannot be set when syncing per member: every member's listing must be complete for their access to be tracked`,
+    }
+  }
+  return { ok: true, option }
+}

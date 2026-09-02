@@ -218,6 +218,16 @@ export interface ConnectorMeta {
    * on the KB for enabled slots, and mapTags output is filtered to only include them.
    */
   tagDefinitions?: ConnectorTagDefinition[]
+
+  /**
+   * Set when a listing under one person's own token returns exactly the documents
+   * that person may read, so a knowledge base can crawl the source once per
+   * enrolled member and take each member's listing as that member's access.
+   * Names the config fields that cap the listing: a cap would hide part of a
+   * member's corpus and suppress removals forever, so those fields are refused
+   * whenever the connector crawls per member.
+   */
+  permissionScopedListing?: { capFieldIds: readonly string[] }
 }
 
 /**

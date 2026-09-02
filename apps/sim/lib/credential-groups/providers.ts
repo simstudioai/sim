@@ -4,6 +4,7 @@ import { getServiceConfigByServiceId } from '@/lib/oauth'
 export const CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS = [
   'gmail',
   'google-calendar',
+  'google-drive',
   'confluence',
   'jira',
   'airtable',
@@ -53,6 +54,11 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
   'google-calendar': {
     serviceId: 'google-calendar',
     description: 'Let each person connect one Google Calendar account',
+    configuration: 'oauth',
+  },
+  'google-drive': {
+    serviceId: 'google-drive',
+    description: 'Let each person connect one Google Drive account',
     configuration: 'oauth',
   },
   confluence: {

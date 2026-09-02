@@ -1,4 +1,5 @@
 export { credentialGroupActorResourcePolicyPrincipalSchema } from '@/lib/resource-policies/principals/credential-group-actor'
+export { knowledgeConnectorResourcePolicyPrincipalSchema } from '@/lib/resource-policies/principals/knowledge-connector'
 export {
   getResourcePolicyPrincipalDefinition,
   matchResourcePolicyPrincipal,
@@ -7,6 +8,7 @@ export {
 } from '@/lib/resource-policies/principals/registry'
 export type {
   CredentialGroupActorResourcePolicyPrincipal,
+  KnowledgeConnectorResourcePolicyPrincipal,
   ResourcePolicyPrincipal,
   ResourcePolicyPrincipalDefinition,
   ResourcePolicyPrincipalEvaluationFacts,

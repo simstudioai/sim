@@ -12,6 +12,7 @@ import { credentialGroupOperations } from '@/lib/credential-groups/application/o
 import {
   compileCredentialGroupWorkflowAccessPolicy,
   credentialGroupWorkflowAccessPolicyCodec,
+  decodeCredentialGroupKnowledgeConnectorAccess,
   decodeCredentialGroupWorkflowAccessPolicy,
 } from '@/lib/credential-groups/application/workflow-access-policy'
 import {
@@ -147,9 +148,17 @@ export const updateCredentialGroupAccess = defineAuthorizedWorkspaceUseCase({
       throw new OrchestrationError('conflict', new ResourcePolicyRevisionConflictError().message)
     }
     decodeCredentialGroupWorkflowAccessPolicy(existingPolicy.document, context.credentialGroupId)
+    /**
+     * Knowledge connector grants are owned by each connector's own settings, so
+     * a workflow-access edit carries them forward untouched.
+     */
     const document = compileCredentialGroupWorkflowAccessPolicy({
       credentialGroupId: context.credentialGroupId,
       allowedWorkflowIds: input.allowedWorkflowIds,
+      knowledgeConnectorAccess: decodeCredentialGroupKnowledgeConnectorAccess(
+        existingPolicy.document,
+        context.credentialGroupId
+      ),
     })
     if (input.allowedWorkflowIds.length > 0) {
       const workflows = await loadCredentialGroupWorkflowCatalog(context.workspaceId)

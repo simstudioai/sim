@@ -1031,7 +1031,11 @@ export function getManagedOAuthConnectorPolicy(
 function resolveManagedOAuthPolicy(
   providerId: string
 ): (() => ManagedOAuthConnectorConfig) | undefined {
-  if (providerId === 'google-email' || providerId === 'google-calendar') {
+  if (
+    providerId === 'google-email' ||
+    providerId === 'google-calendar' ||
+    providerId === 'google-drive'
+  ) {
     return () => createGoogleManagedOAuthConnector(providerId)
   }
   if (providerId === 'confluence' || providerId === 'jira') {
