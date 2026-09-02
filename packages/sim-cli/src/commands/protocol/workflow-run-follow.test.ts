@@ -348,6 +348,21 @@ describe('sim workflows run --follow', () => {
     })
   })
 
+  it('lets --trigger and --mock-payload imply --manual', async () => {
+    request.mockResolvedValue({ data: { success: true, output: {} } })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run(WORKFLOW_ID, '--trigger', 'slack-trigger')
+    await run(WORKFLOW_ID, '--mock-payload')
+
+    expect(request.mock.calls[0][1].body).toEqual({
+      run: { source: 'manual', entry: { type: 'trigger', blockId: 'slack-trigger' } },
+    })
+    expect(request.mock.calls[1][1].body).toEqual({
+      run: { source: 'manual', entry: { type: 'trigger', useMockPayload: true } },
+    })
+  })
+
   it('lets --from-block imply manual and requires an exact source run', async () => {
     request.mockResolvedValue({ data: { success: true, output: {} } })
     vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -376,7 +391,9 @@ describe('sim workflows run --follow', () => {
   })
 
   it('fails fast on invalid manual flag combinations', async () => {
-    await expect(run(WORKFLOW_ID, '--trigger', 'trigger-1')).rejects.toThrow(/require --manual/)
+    await expect(run(WORKFLOW_ID, '--trigger', 'trigger-1', '--async')).rejects.toThrow(
+      /does not support --async/
+    )
     await expect(run(WORKFLOW_ID, '--from-block', 'agent-1')).rejects.toThrow(
       /requires --source-run/
     )

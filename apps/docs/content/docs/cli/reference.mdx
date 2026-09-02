@@ -3096,7 +3096,7 @@ sim tables groups create <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--group <json\|@file>` | Yes | Workflow or enrichment producer definition. (JSON, or @path / @- to read a file or stdin). |
-| `--output-columns <json\|@file>` | Yes | Columns created for producer outputs. (JSON, or @path / @- to read a file or stdin). |
+| `--output-columns <json\|@file>` | No | Columns to create for producer outputs. An entry naming a column the table already has attaches that column to the group instead of creating it (its `type` must match), and an output whose column already exists may omit its entry entirely — so `[]` attaches existing columns only. (JSON, or @path / @- to read a file or stdin). |
 | `--auto-run` | No | Whether to schedule existing rows after group creation. |
 | `--no-auto-run` | No | Send --auto-run as false. |
 
@@ -3638,7 +3638,7 @@ sim tables dispatches get <tableId> <dispatchId>
 
 ### sim tables dispatches list
 
-List Active Run Dispatches
+List Run Dispatches
 
 ```bash
 sim tables dispatches list <tableId>
@@ -5157,14 +5157,14 @@ sim workflows run <workflowId> [options]
 | `--input <json\|@file>` | No | Trigger input as JSON (JSON, or @path / @- to read a file or stdin). |
 | `--async` | No | Queue the run and return immediately. |
 | `--execution-timeout-seconds <value>` | No | Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true. |
-| `--select-output <value...>` | No | Return blockName.field values (e.g. agent_1.content), or childWorkflowId.blockName.field for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing fields are omitted. Not available with --async (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--select-output <value...>` | No | Return blockName.path values (e.g. agent_1.content), or childWorkflowId.blockName.path for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing paths are omitted. Not available with --async (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
 | `--run-id <value>` | No | One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run. |
 | `--manual` | No | Run the current saved workflow state instead of the active deployment. |
-| `--trigger <blockId>` | No | Enter a manual run through this runnable trigger (requires --manual). |
-| `--mock-payload` | No | Use the selected trigger's server-derived mock payload (requires --manual). |
+| `--trigger <blockId>` | No | Enter the run through this runnable trigger; runs the current saved workflow state (implies --manual). |
+| `--mock-payload` | No | Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual). |
 | `--from-block <blockId>` | No | Run manually from this saved workflow block. |
 | `--source-run <runId>` | No | Prior run whose persisted state supplies upstream outputs (requires --from-block). |
 | `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |

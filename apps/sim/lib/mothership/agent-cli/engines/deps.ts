@@ -1,3 +1,4 @@
+import { isPlainRecord } from '@sim/utils/object'
 import { fetchWorkflowState } from '@/lib/mothership/agent-cli/engines/workflow-state'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
@@ -31,6 +32,32 @@ const ENV_REF = createEnvVarPattern()
 const CHILD_WORKFLOW_BLOCK_TYPES: ReadonlySet<string> = new Set(['workflow', 'workflow_input'])
 const CHILD_RETURNS_NOTE =
   "A child workflow's result is its Response block's envelope {data, status, headers}; fields live at result.data.<field>, so mock and read them there."
+const MOCK_NOTE = 'variableInputs: fill each null with the value the block would output'
+
+/**
+ * A null-leaved object nested along each dotted path — the shape run_block's
+ * variableInputs expects for that block, ready to paste and fill in. A path read
+ * both whole and drilled into (`result` and `result.tier`) keeps the deeper shape.
+ */
+function skeletonFromPaths(paths: readonly string[]): Record<string, unknown> {
+  const skeleton: Record<string, unknown> = {}
+  for (const path of paths) {
+    const segments = path.split('.').filter(Boolean)
+    let cursor = skeleton
+    for (let index = 0; index < segments.length; index++) {
+      const segment = segments[index]
+      if (index === segments.length - 1) {
+        if (!(segment in cursor)) cursor[segment] = null
+        break
+      }
+      const existing = cursor[segment]
+      const next = isPlainRecord(existing) ? existing : {}
+      cursor[segment] = next
+      cursor = next
+    }
+  }
+  return skeleton
+}
 
 interface DepView {
   token: string
@@ -149,16 +176,19 @@ export const workflowDepsCommand: AgentCliEngine = {
     const blockDeps = deps.filter((d) => d.kind === 'block')
     const predecessors = collectPredecessors(state, blocks, blockId, idToName)
 
-    // Ready-made skeleton for run_block's variableInputs: mock each upstream
+    // Paste-ready skeleton for run_block's variableInputs: mock each upstream
     // block's output at the paths this block actually reads, and every graph
     // parent it never reads at all — run_block refuses to start without them.
-    const mock: Record<string, string[]> = Object.fromEntries(
-      blockDeps.map((d) => [d.blockName ?? d.blockId, d.paths?.length ? d.paths : ['<output>']])
+    const mock: Record<string, Record<string, unknown>> = Object.fromEntries(
+      blockDeps.map((d) => [d.blockName ?? d.blockId, skeletonFromPaths(d.paths ?? [])])
     )
     for (const predecessor of predecessors) {
       const key = predecessor.blockName ?? predecessor.blockId
-      if (!mock[key]) mock[key] = ['<output>']
+      if (!mock[key]) mock[key] = {}
     }
+    const unshapedMocks = Object.entries(mock)
+      .filter(([, shape]) => Object.keys(shape).length === 0)
+      .map(([name]) => name)
 
     const upstreamIds = new Set<string>()
     for (const dep of blockDeps) if (dep.blockId) upstreamIds.add(dep.blockId)
@@ -179,6 +209,12 @@ export const workflowDepsCommand: AgentCliEngine = {
           predecessors,
           env: [...envs].sort(),
           mock,
+          mockNote: MOCK_NOTE,
+          ...(unshapedMocks.length
+            ? {
+                mockEmptyNote: `${unshapedMocks.join(', ')}: mocked as {} because no field of their output is read here — run_block only needs the entry present.`,
+              }
+            : {}),
           ...(childReturns.length ? { childReturns } : {}),
         },
         null,

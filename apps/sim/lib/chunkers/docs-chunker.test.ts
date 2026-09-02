@@ -110,6 +110,23 @@ describe('cleanContent FAQ extraction', () => {
   })
 })
 
+describe('cleanContent keeps code intact', () => {
+  it('leaves reference tokens inside fenced and inline code alone while stripping prose tags', () => {
+    const chunker = new DocsChunker({ chunkSize: 500 })
+    const cleaned = (chunker as unknown as { cleanContent: (c: string) => string }).cleanContent(
+      [
+        'Use <Callout>this</Callout> block. Reference `<start.input>` in code:',
+        '```javascript',
+        'return <start.input>.toLowerCase().includes({{ENV}})',
+        '```',
+      ].join('\n')
+    )
+    expect(cleaned).not.toContain('<Callout>')
+    expect(cleaned).toContain('`<start.input>`')
+    expect(cleaned).toContain('return <start.input>.toLowerCase().includes({{ENV}})')
+  })
+})
+
 describe('cleanContent scaffolding strips', () => {
   it('still strips imports, exports, comments, and code-ish brace expressions', () => {
     const cleaned = cleanContent(

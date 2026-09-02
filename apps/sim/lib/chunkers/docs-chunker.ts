@@ -252,8 +252,14 @@ export class DocsChunker {
     return { chunks: finalChunks, cleanedContent }
   }
 
+  /**
+   * Strips MDX scaffolding from prose while leaving code untouched: a fenced block or an
+   * inline span is where `<start.input>` references and `{{SECRET}}` tokens live, and the
+   * tag and brace strips below would otherwise erase exactly the part of a code sample
+   * that shows how a reference is written.
+   */
   private cleanContent(content: string): string {
-    return content
+    const normalized = content
       .replace(/\r\n/g, '\n')
       .replace(/\r/g, '\n')
       .replace(/^import\s+.*$/gm, '')
@@ -261,9 +267,17 @@ export class DocsChunker {
       .replace(/<FAQ\s+items=\{\[([\s\S]*?)\]\}\s*\/>/g, (_m, items: string) =>
         extractFaqProse(items)
       )
-      .replace(/<\/?[a-zA-Z][^>]*>/g, ' ')
-      .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ')
-      .replace(/\{[^{}]*\}/g, ' ')
+    const segments = normalized.split(/(```[\s\S]*?```|`[^`\n]+`)/g)
+    return segments
+      .map((segment, index) =>
+        index % 2 === 1
+          ? segment
+          : segment
+              .replace(/<\/?[a-zA-Z][^>]*>/g, ' ')
+              .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ')
+              .replace(/\{[^{}]*\}/g, ' ')
+      )
+      .join('')
       .replace(/\n{3,}/g, '\n\n')
       .replace(/[ \t]{2,}/g, ' ')
       .trim()

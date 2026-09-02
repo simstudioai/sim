@@ -200,6 +200,78 @@ describe('workflow mutation Copilot adapters', () => {
     expect(output.logs[1].input).toBe('raw')
   })
 
+  it('lifts the last block output into an empty run output and names its source block', async () => {
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: {},
+      logs: [
+        { blockId: 'start', blockName: 'Start', output: { input: 'x' } },
+        { blockId: 'score', blockName: 'Score', output: { result: { tier: 'gold' } } },
+      ],
+      metadata: { executionId: 'execution-1' },
+    })
+
+    const result = await executeRunBlock({ workflowId: 'workflow-1', blockId: 'score' }, context)
+
+    expect(result.output).toMatchObject({
+      blockId: 'score',
+      output: { result: { tier: 'gold' } },
+      outputFrom: { blockId: 'score', blockName: 'Score' },
+    })
+  })
+
+  it('keeps a non-empty run output and names no source block', async () => {
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: { answer: 42 },
+      logs: [{ blockId: 'score', blockName: 'Score', output: { result: { tier: 'gold' } } }],
+      metadata: { executionId: 'execution-1' },
+    })
+
+    const result = await executeRunWorkflowUntilBlock(
+      { workflowId: 'workflow-1', stopAfterBlockId: 'score' },
+      context
+    )
+
+    const output = result.output as Record<string, unknown>
+    expect(output.output).toEqual({ answer: 42 })
+    expect(output).not.toHaveProperty('outputFrom')
+  })
+
+  it('returns only the selected block outputs and omits the logs when select is given', async () => {
+    mocks.executeWorkflowUseCase.mockResolvedValue({
+      success: true,
+      output: { answer: 42 },
+      logs: [
+        { blockId: 'start', blockName: 'Start', output: { input: 'x' } },
+        {
+          blockId: 'score',
+          blockName: 'Score Lead',
+          output: { result: { tier: 'gold', count: 6 } },
+        },
+      ],
+      metadata: { executionId: 'execution-1' },
+    })
+
+    const result = await executeRunWorkflow(
+      {
+        workflowId: 'workflow-1',
+        select: ['scorelead.result.tier', 'Score Lead.result.count', 'score.result', 'Missing.x'],
+      },
+      context
+    )
+
+    const output = result.output as Record<string, unknown>
+    expect(output.selected).toEqual({
+      'scorelead.result.tier': 'gold',
+      'Score Lead.result.count': 6,
+      'score.result': { tier: 'gold', count: 6 },
+      'Missing.x': { unresolved: 'no executed block named "Missing"' },
+    })
+    expect(output.logsOmitted).toBe(true)
+    expect(output).not.toHaveProperty('logs')
+  })
+
   it('cancels a workflow run through the canonical application use case', async () => {
     mocks.executeWorkflowUseCase.mockResolvedValue({
       success: true,

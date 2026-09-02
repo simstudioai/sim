@@ -355,13 +355,7 @@ export async function maybeWriteOutputToFile(
   const outputObject = isRecordLike(result.output)
     ? (result.output as Record<string, unknown>)
     : undefined
-  const resultObject =
-    outputObject?.result &&
-    typeof outputObject.result === 'object' &&
-    !Array.isArray(outputObject.result)
-      ? (outputObject.result as Record<string, unknown>)
-      : undefined
-  if (Array.isArray(resultObject?.files)) {
+  if (isRecordLike(outputObject?.exported)) {
     logger.warn('Skipping returned-value output write because sandbox export response is active', {
       toolName,
       outputCount: outputFiles.length,

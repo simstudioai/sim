@@ -53,15 +53,13 @@ type WorkflowRunSelection =
 export function resolveWorkflowRunSelection(
   flags: Record<string, unknown>
 ): WorkflowRunSelection | undefined {
-  const manual = flags.manual === true
   const trigger = typeof flags.trigger === 'string' ? flags.trigger : undefined
   const useMockPayload = flags.mockPayload === true
+  /** A trigger entry only exists on the draft, so these flags imply `--manual`. */
+  const manual = flags.manual === true || trigger !== undefined || useMockPayload
   const fromBlock = typeof flags.fromBlock === 'string' ? flags.fromBlock : undefined
   const sourceRun = typeof flags.sourceRun === 'string' ? flags.sourceRun : undefined
 
-  if ((trigger || useMockPayload) && !manual) {
-    throw new SimApiError('--trigger and --mock-payload require --manual', 0)
-  }
   if (fromBlock && (trigger || useMockPayload)) {
     throw new SimApiError('--from-block cannot be combined with --trigger or --mock-payload', 0)
   }
@@ -406,11 +404,11 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     .option('--manual', 'Run the current saved workflow state instead of the active deployment')
     .option(
       '--trigger <blockId>',
-      'Enter a manual run through this runnable trigger (requires --manual)'
+      'Enter the run through this runnable trigger; runs the current saved workflow state (implies --manual)'
     )
     .option(
       '--mock-payload',
-      "Use the selected trigger's server-derived mock payload (requires --manual)"
+      "Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual)"
     )
     .option('--from-block <blockId>', 'Run manually from this saved workflow block')
     .option(
