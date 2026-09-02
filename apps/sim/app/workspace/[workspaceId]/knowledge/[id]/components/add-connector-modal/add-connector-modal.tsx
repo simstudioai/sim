@@ -30,12 +30,17 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import {
+  ConnectorAccessField,
+  type ConnectorAccessSelection,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import { getTileIconColorClass } from '@/blocks/icon-color'
@@ -46,6 +51,8 @@ import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
+
+const WORKSPACE_ACCESS: ConnectorAccessSelection = { accessMode: 'workspace' }
 
 interface AddConnectorModalProps {
   open: boolean
@@ -68,6 +75,7 @@ export function AddConnectorModal({
   const [selectedType, setSelectedType] = useState<string | null>(initialConnectorType ?? null)
   const [syncInterval, setSyncInterval] = useState(1440)
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
+  const [access, setAccess] = useState<ConnectorAccessSelection>(WORKSPACE_ACCESS)
   const [disabledTagIds, setDisabledTagIds] = useState<Set<string>>(() => new Set())
   const [error, setError] = useState<string | null>(null)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
@@ -78,12 +86,22 @@ export function AddConnectorModal({
 
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { ownerBilling } = useWorkspaceHostContext()
+  const { canAdmin } = useUserPermissionsContext()
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
   const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
+  const isMembersMode = access.accessMode === 'members'
+  const membersBindingComplete =
+    isMembersMode && Boolean(access.credentialGroupId && access.credentialGroupOptionId)
+  /** Fields a per-member crawl refuses: a cap would hide part of a member's corpus. */
+  const memberCapFieldIds = useMemo(
+    () =>
+      new Set(isMembersMode ? (connectorConfig?.permissionScopedListing?.capFieldIds ?? []) : []),
+    [isMembersMode, connectorConfig]
+  )
   /** True when the connector declares its key optional (public sources need none). */
   const isApiKeyOptional =
     connectorConfig?.auth.mode === 'apiKey' && connectorConfig.auth.optional === true
@@ -140,6 +158,7 @@ export function AddConnectorModal({
     setSelectedType(type)
     setSourceConfig({})
     setSelectedCredentialId(null)
+    setAccess(WORKSPACE_ACCESS)
     setApiKeyValue('')
     setApiKeyFocused(false)
     setDisabledTagIds(new Set())
@@ -166,6 +185,8 @@ export function AddConnectorModal({
     if (!connectorConfig) return false
     if (isApiKeyMode) {
       if (!isApiKeyOptional && !apiKeyValue.trim()) return false
+    } else if (isMembersMode) {
+      if (!membersBindingComplete) return false
     } else {
       if (!effectiveCredentialId) return false
     }
@@ -173,12 +194,16 @@ export function AddConnectorModal({
     for (const field of connectorConfig.configFields) {
       if (!field.required) continue
       if (!isFieldVisible(field)) continue
+      if (memberCapFieldIds.has(field.id)) continue
       if (!isFieldPopulated(field)) return false
     }
     return true
   }, [
     connectorConfig,
     isApiKeyMode,
+    isMembersMode,
+    membersBindingComplete,
+    memberCapFieldIds,
     isApiKeyOptional,
     apiKeyValue,
     effectiveCredentialId,
@@ -193,6 +218,7 @@ export function AddConnectorModal({
 
     const resolvedConfig: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(resolveSourceConfig())) {
+      if (memberCapFieldIds.has(key)) continue
       if (Array.isArray(value)) {
         if (value.length > 0) resolvedConfig[key] = value
       } else if (typeof value === 'string') {
@@ -217,7 +243,13 @@ export function AddConnectorModal({
           ? apiKeyValue.trim()
             ? { apiKey: apiKeyValue }
             : {}
-          : { credentialId: effectiveCredentialId! }),
+          : isMembersMode
+            ? {
+                accessMode: 'members' as const,
+                credentialGroupId: access.credentialGroupId,
+                credentialGroupOptionId: access.credentialGroupOptionId,
+              }
+            : { credentialId: effectiveCredentialId! }),
         sourceConfig: finalSourceConfig,
         syncIntervalMinutes: syncInterval,
       },
@@ -326,7 +358,7 @@ export function AddConnectorModal({
                     }
                   />
                 </ChipModalField>
-              ) : (
+              ) : isMembersMode ? null : (
                 <ChipModalField type='custom' title='Account'>
                   <ChipCombobox
                     options={[
@@ -358,13 +390,26 @@ export function AddConnectorModal({
                 </ChipModalField>
               )}
 
+              {!isApiKeyMode && (
+                <ConnectorAccessField
+                  workspaceId={workspaceId}
+                  connectorConfig={connectorConfig}
+                  value={access}
+                  onChange={setAccess}
+                  canAdmin={canAdmin}
+                  disabled={isCreating}
+                />
+              )}
+
               <ConnectorConfigFields
                 connectorConfig={connectorConfig}
                 sourceConfig={sourceConfig}
-                credentialId={effectiveCredentialId}
+                credentialId={isMembersMode ? null : effectiveCredentialId}
                 canonicalGroups={canonicalGroups}
                 canonicalModes={canonicalModes}
-                isFieldVisible={isFieldVisible}
+                isFieldVisible={(field) =>
+                  isFieldVisible(field) && !memberCapFieldIds.has(field.id)
+                }
                 onFieldChange={handleFieldChange}
                 onToggleCanonicalMode={toggleCanonicalMode}
                 disabled={isCreating}

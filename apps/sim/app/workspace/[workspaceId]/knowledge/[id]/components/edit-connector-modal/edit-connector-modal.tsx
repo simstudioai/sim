@@ -5,6 +5,7 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
+  ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -12,11 +13,18 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipModalTabs,
+  type ComboboxOption,
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
 import { RefreshCw, SquareArrowUpRight } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
+import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
+import {
+  ConnectorAccessField,
+  type ConnectorAccessSelection,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
@@ -27,6 +35,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
@@ -36,7 +45,9 @@ import {
   useExcludeConnectorDocument,
   useRestoreConnectorDocument,
   useUpdateConnector,
+  useUpdateConnectorAccess,
 } from '@/hooks/queries/kb/connectors'
+import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 
 const logger = createLogger('EditConnectorModal')
 
@@ -44,6 +55,27 @@ const logger = createLogger('EditConnectorModal')
 const INTERNAL_CONFIG_KEYS = new Set(['tagSlotMapping', 'disabledTagIds', '_canonicalModes'])
 
 const CANONICAL_MODES_KEY = '_canonicalModes'
+
+/** The access a connector row currently has, as the Access field edits it. */
+function currentAccess(connector: ConnectorData): ConnectorAccessSelection {
+  if (connector.accessMode === 'members') {
+    return {
+      accessMode: 'members',
+      credentialGroupId: connector.credentialGroupId ?? undefined,
+      credentialGroupOptionId: connector.credentialGroupOptionId ?? undefined,
+    }
+  }
+  return { accessMode: 'workspace' }
+}
+
+function accessChanged(current: ConnectorAccessSelection, next: ConnectorAccessSelection): boolean {
+  if (current.accessMode !== next.accessMode) return true
+  if (next.accessMode === 'workspace') return false
+  return (
+    current.credentialGroupId !== next.credentialGroupId ||
+    current.credentialGroupOptionId !== next.credentialGroupOptionId
+  )
+}
 
 function readPersistedCanonicalModes(
   sourceConfig: Record<string, unknown>
@@ -130,6 +162,8 @@ export function EditConnectorModal({
 
   const [activeTab, setActiveTab] = useState('settings')
   const [syncInterval, setSyncInterval] = useState(connector.syncIntervalMinutes)
+  const [access, setAccess] = useState<ConnectorAccessSelection>(() => currentAccess(connector))
+  const [workspaceCredentialId, setWorkspaceCredentialId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   /**
@@ -192,9 +226,33 @@ export function EditConnectorModal({
   })
 
   const { ownerBilling } = useWorkspaceHostContext()
-  const { mutate: updateConnector, isPending: isSaving } = useUpdateConnector()
+  const { canAdmin } = useUserPermissionsContext()
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { mutate: updateConnector, isPending: isSavingSettings } = useUpdateConnector()
+  const { mutate: updateAccess, isPending: isSavingAccess } = useUpdateConnectorAccess()
+  const isSaving = isSavingSettings || isSavingAccess
 
   const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
+
+  const persistedAccess = useMemo(() => currentAccess(connector), [connector])
+  const accessDirty = accessChanged(persistedAccess, access)
+  /** Leaving members mode needs the credential the connector syncs as from then on. */
+  const needsWorkspaceCredential =
+    accessDirty && access.accessMode === 'workspace' && connector.accessMode === 'members'
+  const accessComplete =
+    !accessDirty ||
+    (access.accessMode === 'members'
+      ? Boolean(access.credentialGroupId && access.credentialGroupOptionId)
+      : !needsWorkspaceCredential || Boolean(workspaceCredentialId))
+  const memberCapFieldIds = useMemo(
+    () =>
+      new Set(
+        access.accessMode === 'members'
+          ? (connectorConfig?.permissionScopedListing?.capFieldIds ?? [])
+          : []
+      ),
+    [access.accessMode, connectorConfig]
+  )
 
   const persistedCanonicalModes = useMemo(
     () => readPersistedCanonicalModes(connector.sourceConfig),
@@ -202,6 +260,7 @@ export function EditConnectorModal({
   )
 
   const hasChanges = useMemo(() => {
+    if (accessDirty) return true
     if (syncInterval !== connector.syncIntervalMinutes) return true
     if (didCanonicalModesChange(canonicalModes, persistedCanonicalModes)) return true
     const resolved = resolveSourceConfig()
@@ -210,6 +269,7 @@ export function EditConnectorModal({
     }
     return false
   }, [
+    accessDirty,
     resolveSourceConfig,
     syncInterval,
     connector.syncIntervalMinutes,
@@ -245,8 +305,42 @@ export function EditConnectorModal({
       updates.sourceConfig = next
     }
 
+    /**
+     * The mode switch is its own admin operation and rewrites document access,
+     * so it runs after the ordinary settings save has landed rather than
+     * alongside it — a refused settings edit must not leave a half-switched
+     * connector behind.
+     */
+    const switchAccess = () => {
+      updateAccess(
+        {
+          knowledgeBaseId,
+          connectorId: connector.id,
+          access:
+            access.accessMode === 'members'
+              ? {
+                  accessMode: 'members',
+                  credentialGroupId: access.credentialGroupId,
+                  credentialGroupOptionId: access.credentialGroupOptionId,
+                }
+              : {
+                  accessMode: 'workspace',
+                  credentialId: workspaceCredentialId ?? undefined,
+                },
+        },
+        {
+          onSuccess: () => onOpenChange(false),
+          onError: (err) => {
+            logger.error('Failed to switch connector access', { error: err.message })
+            setError(err.message)
+          },
+        }
+      )
+    }
+
     if (Object.keys(updates).length === 0) {
-      onOpenChange(false)
+      if (accessDirty) switchAccess()
+      else onOpenChange(false)
       return
     }
 
@@ -254,7 +348,8 @@ export function EditConnectorModal({
       { knowledgeBaseId, connectorId: connector.id, updates },
       {
         onSuccess: () => {
-          onOpenChange(false)
+          if (accessDirty) switchAccess()
+          else onOpenChange(false)
         },
         onError: (err) => {
           logger.error('Failed to update connector', { error: err.message })
@@ -299,12 +394,19 @@ export function EditConnectorModal({
             canonicalModes={canonicalModes}
             onToggleCanonicalMode={toggleCanonicalMode}
             onFieldChange={handleFieldChange}
-            isFieldVisible={isFieldVisible}
+            isFieldVisible={(field) => isFieldVisible(field) && !memberCapFieldIds.has(field.id)}
             syncInterval={syncInterval}
             setSyncInterval={setSyncInterval}
             hasMaxAccess={hasMaxAccess}
             isSaving={isSaving}
             error={error}
+            access={access}
+            onAccessChange={setAccess}
+            canAdmin={canAdmin}
+            workspaceId={workspaceId}
+            needsWorkspaceCredential={needsWorkspaceCredential}
+            workspaceCredentialId={workspaceCredentialId}
+            onWorkspaceCredentialChange={setWorkspaceCredentialId}
           />
         ) : (
           <DocumentsTab knowledgeBaseId={knowledgeBaseId} connectorId={connector.id} />
@@ -317,7 +419,7 @@ export function EditConnectorModal({
           primaryAction={{
             label: isSaving ? 'Saving…' : 'Save',
             onClick: handleSave,
-            disabled: !hasChanges || isSaving,
+            disabled: !hasChanges || !accessComplete || isSaving,
           }}
         />
       )}
@@ -339,6 +441,13 @@ interface SettingsTabProps {
   hasMaxAccess: boolean
   isSaving: boolean
   error: string | null
+  access: ConnectorAccessSelection
+  onAccessChange: (access: ConnectorAccessSelection) => void
+  canAdmin: boolean
+  workspaceId: string
+  needsWorkspaceCredential: boolean
+  workspaceCredentialId: string | null
+  onWorkspaceCredentialChange: (credentialId: string) => void
 }
 
 function SettingsTab({
@@ -355,9 +464,63 @@ function SettingsTab({
   hasMaxAccess,
   isSaving,
   error,
+  access,
+  onAccessChange,
+  canAdmin,
+  workspaceId,
+  needsWorkspaceCredential,
+  workspaceCredentialId,
+  onWorkspaceCredentialChange,
 }: SettingsTabProps) {
+  const providerId =
+    connectorConfig?.auth.mode === 'oauth'
+      ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
+      : null
+  const { data: rawCredentials = [], isLoading: credentialsLoading } = useOAuthCredentials(
+    providerId ?? undefined,
+    { enabled: needsWorkspaceCredential && Boolean(providerId), workspaceId }
+  )
+  const credentialOptions = useMemo<ComboboxOption[]>(
+    () =>
+      rawCredentials
+        .filter((credential) => credential.type !== 'service_account')
+        .map((credential) => ({
+          label: credential.name || credential.provider,
+          value: credential.id,
+        })),
+    [rawCredentials]
+  )
+
   return (
     <>
+      {connectorConfig && connectorConfig.auth.mode === 'oauth' && (
+        <ConnectorAccessField
+          workspaceId={workspaceId}
+          connectorConfig={connectorConfig}
+          value={access}
+          onChange={onAccessChange}
+          canAdmin={canAdmin}
+          disabled={isSaving}
+        />
+      )}
+
+      {needsWorkspaceCredential && connectorConfig && (
+        <ChipModalField
+          type='custom'
+          title='Account'
+          hint={`The account ${connectorConfig.name} syncs as once it stops syncing per member.`}
+        >
+          <ChipCombobox
+            options={credentialOptions}
+            value={workspaceCredentialId ?? undefined}
+            onChange={onWorkspaceCredentialChange}
+            placeholder={`Select ${connectorConfig.name} account`}
+            isLoading={credentialsLoading}
+            disabled={isSaving}
+          />
+        </ChipModalField>
+      )}
+
       {connectorConfig && (
         <ConnectorConfigFields
           connectorConfig={connectorConfig}

@@ -11,20 +11,31 @@ import {
   type ConnectorData,
   type ConnectorDetailData,
   type ConnectorDocumentsData,
+  type ConnectorMemberSummary,
   createKnowledgeConnectorContract,
   deleteKnowledgeConnectorContract,
   getKnowledgeConnectorContract,
   listKnowledgeConnectorDocumentsContract,
   listKnowledgeConnectorsContract,
+  type MemberSyncLogData,
   patchKnowledgeConnectorDocumentsContract,
   type SyncLogData,
   triggerKnowledgeConnectorSyncContract,
+  type UpdateConnectorAccessBody,
+  updateKnowledgeConnectorAccessContract,
   updateKnowledgeConnectorContract,
 } from '@/lib/api/contracts/knowledge'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
-export type { ConnectorData, ConnectorDetailData, SyncLogData }
+export type {
+  ConnectorData,
+  ConnectorDetailData,
+  ConnectorMemberSummary,
+  MemberSyncLogData,
+  SyncLogData,
+  UpdateConnectorAccessBody,
+}
 
 export const CONNECTOR_LIST_STALE_TIME = 30 * 1000
 export const CONNECTOR_DETAIL_STALE_TIME = 30 * 1000
@@ -80,8 +91,14 @@ export const CONNECTOR_SYNC_POLL_INTERVAL_MS = 3000
  */
 export function isConnectorSyncingOrPending(connector: {
   status: ConnectorData['status']
+  memberSyncStatus?: ConnectorData['memberSyncStatus']
 }): boolean {
-  return connector.status === 'pending' || connector.status === 'syncing'
+  return (
+    connector.status === 'pending' ||
+    connector.status === 'syncing' ||
+    connector.memberSyncStatus === 'pending' ||
+    connector.memberSyncStatus === 'running'
+  )
 }
 
 export function useConnectorList(knowledgeBaseId?: string) {
@@ -181,6 +198,9 @@ interface CreateConnectorParams {
   apiKey?: string
   sourceConfig: Record<string, unknown>
   syncIntervalMinutes?: number
+  accessMode?: 'workspace' | 'members'
+  credentialGroupId?: string
+  credentialGroupOptionId?: string
 }
 
 async function createConnector({
@@ -256,6 +276,47 @@ export function useUpdateConnector() {
     },
     onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+    },
+  })
+}
+
+interface UpdateConnectorAccessParams {
+  knowledgeBaseId: string
+  connectorId: string
+  access: UpdateConnectorAccessBody
+}
+
+async function updateConnectorAccess({
+  knowledgeBaseId,
+  connectorId,
+  access,
+}: UpdateConnectorAccessParams): Promise<ConnectorData> {
+  const result = await requestJson(updateKnowledgeConnectorAccessContract, {
+    params: { id: knowledgeBaseId, connectorId },
+    body: access,
+  })
+
+  return result.data
+}
+
+/**
+ * Moves a connector between workspace and members mode. The switch rewrites
+ * document access, so everything under the base is refetched: the connector
+ * list and detail for the new mode and member state, and the document lists
+ * whose rows may have become hidden or visible.
+ */
+export function useUpdateConnectorAccess() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: updateConnectorAccess,
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
+      queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentLists(knowledgeBaseId) })
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        exact: true,
+      })
     },
   })
 }
