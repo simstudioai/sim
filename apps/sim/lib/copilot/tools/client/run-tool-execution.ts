@@ -49,9 +49,19 @@ type RunToolReleaseListener = (workflowId: string) => void
 const runToolReleaseListeners = new Set<RunToolReleaseListener>()
 const PENDING_COMPLETION_STORAGE_PREFIX = 'sim:copilot:run-tool-completion:'
 
+/**
+ * Tab-local record of a completion this tab still owes Sim for a tool call,
+ * written just before the report is sent and cleared once it lands, so a reload
+ * mid-report can re-send it instead of re-running the tool.
+ */
 interface PendingCompletionReport {
   status: AsyncConfirmationStatus
   executionId?: string
+  /**
+   * Written by earlier clients for async launches, which also wrote a terminal
+   * execution pointer for a run that has no reconnectable stream. Honoured so
+   * that pointer is cleaned up once the pending report is delivered.
+   */
   clearExecutionPointerAfterReport?: boolean
 }
 
@@ -167,13 +177,7 @@ async function enqueueAsyncWorkflowRun(
   const pendingCompletion: PendingCompletionReport = {
     status: ASYNC_TOOL_CONFIRMATION_STATUS.background,
     executionId: responseExecutionId,
-    clearExecutionPointerAfterReport: true,
   }
-  await saveExecutionPointer({
-    workflowId,
-    executionId: responseExecutionId,
-    lastEventId: 0,
-  })
   savePendingCompletionReport(toolCallId, pendingCompletion)
 
   try {
@@ -185,7 +189,6 @@ async function enqueueAsyncWorkflowRun(
       pendingCompletion.executionId
     )
     clearPendingCompletionReport(toolCallId)
-    await clearExecutionPointer(workflowId)
   } catch (error) {
     logger.error(
       '[RunTool] Async workflow was queued but background status could not be reported',
@@ -251,6 +254,15 @@ function clearPendingCompletionReport(toolCallId: string): void {
   }
 }
 
+/**
+ * Re-binds a tool call that the server still shows as executing to whatever
+ * this tab already knows about it, instead of running the tool again.
+ *
+ * Two tab-local records can answer: a pending completion report (a report this
+ * tab owed Sim and never delivered) is re-sent as is, and otherwise a terminal
+ * execution pointer (a live run this tab was observing) is reported as
+ * continuing in the background. With neither, the caller runs the tool.
+ */
 export async function bindRunToolToExecution(
   toolCallId: string,
   workflowId: string
@@ -273,6 +285,40 @@ export async function bindRunToolToExecution(
   }
 
   const pointer = await loadExecutionPointer(workflowId).catch(() => null)
+  const pendingCompletion = loadPendingCompletionReport(toolCallId)
+  if (pendingCompletion) {
+    const executionId = pendingCompletion.executionId ?? pointer?.executionId
+    logger.info('[RunTool] Recovery re-sending pending completion report', {
+      workflowId,
+      toolCallId,
+      executionId,
+      status: pendingCompletion.status,
+    })
+    try {
+      await reportCompletion(
+        toolCallId,
+        pendingCompletion.status,
+        getWorkflowToolCompletionMessage(pendingCompletion.status),
+        pendingCompletion.status === MothershipStreamV1ToolOutcome.cancelled
+          ? { reason: 'user_cancelled', cancelledByUser: true }
+          : undefined,
+        executionId
+      )
+      clearPendingCompletionReport(toolCallId)
+      if (pendingCompletion.clearExecutionPointerAfterReport) {
+        await clearExecutionPointer(workflowId)
+      }
+    } catch (error) {
+      logger.warn('[RunTool] Failed to report recovered terminal completion', {
+        workflowId,
+        toolCallId,
+        executionId,
+        error: toError(error).message,
+      })
+    }
+    return true
+  }
+
   if (!pointer?.executionId) {
     logger.info('[RunTool] Recovery skipped: no tab-local execution pointer', {
       workflowId,
@@ -286,32 +332,6 @@ export async function bindRunToolToExecution(
     toolCallId,
     executionId: pointer.executionId,
   })
-  const pendingCompletion = loadPendingCompletionReport(toolCallId)
-  if (pendingCompletion) {
-    try {
-      await reportCompletion(
-        toolCallId,
-        pendingCompletion.status,
-        getWorkflowToolCompletionMessage(pendingCompletion.status),
-        pendingCompletion.status === MothershipStreamV1ToolOutcome.cancelled
-          ? { reason: 'user_cancelled', cancelledByUser: true }
-          : undefined,
-        pendingCompletion.executionId ?? pointer.executionId
-      )
-      clearPendingCompletionReport(toolCallId)
-      if (pendingCompletion.clearExecutionPointerAfterReport) {
-        await clearExecutionPointer(workflowId)
-      }
-    } catch (error) {
-      logger.warn('[RunTool] Failed to report recovered terminal completion', {
-        workflowId,
-        toolCallId,
-        executionId: pointer.executionId,
-        error: toError(error).message,
-      })
-    }
-    return true
-  }
 
   try {
     await reportCompletion(

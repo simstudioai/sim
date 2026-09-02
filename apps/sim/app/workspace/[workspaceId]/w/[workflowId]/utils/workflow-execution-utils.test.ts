@@ -13,7 +13,10 @@ import {
   reconcileFinalBlockLogs,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import type { BlockLog } from '@/executor/types'
-import type { ExecutionStreamHttpError } from '@/hooks/use-execution-stream'
+import {
+  type ExecutionStreamHttpError,
+  SSEStreamInterruptedError,
+} from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution'
 
 describe('workflow-execution-utils', () => {
@@ -59,6 +62,88 @@ describe('workflow-execution-utils', () => {
       code: 'COPILOT_WORKFLOW_EXECUTION_CONFLICT',
     })
     expect(terminalConsoleMockFns.mockAddConsole).not.toHaveBeenCalled()
+  })
+
+  describe('executeWorkflowWithFullLogging stream interruption', () => {
+    /** A response whose server acknowledged the run and whose body then fails with `readError`. */
+    function stubAcknowledgedStream(readError: unknown) {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          headers: { get: (name: string) => (name === 'X-Execution-Id' ? 'exec-server' : null) },
+          body: {
+            getReader: () => ({
+              read: vi.fn().mockRejectedValue(readError),
+              releaseLock: vi.fn(),
+            }),
+          },
+        })
+      )
+    }
+
+    function stubExecutionStore() {
+      const store = {
+        getCurrentExecutionId: vi.fn(() => 'exec-server'),
+        setActiveBlocks: vi.fn(),
+        setBlockRunStatus: vi.fn(),
+        setCurrentExecutionId: vi.fn(),
+        setEdgeRunStatus: vi.fn(),
+        setIsExecuting: vi.fn(),
+      }
+      vi.mocked(useExecutionStore.getState).mockReturnValue(store as any)
+      return store
+    }
+
+    it('classifies a transport drop after the server acknowledged the run as an interruption', async () => {
+      /*
+       * The Chat run tool only preserves a run for reconnect when it sees
+       * SSEStreamInterruptedError; a raw TypeError from the body reader used to
+       * fall through as a plain failure, reporting an error to Sim and tearing
+       * the run down while the server kept executing it.
+       */
+      const store = stubExecutionStore()
+      stubAcknowledgedStream(new TypeError('network error'))
+
+      const promise = executeWorkflowWithFullLogging({
+        workflowId: 'wf-1',
+        executionId: 'exec-1',
+        copilotToolCallId: 'tool-1',
+        preserveExecutionOnTerminal: true,
+      })
+
+      await expect(promise).rejects.toBeInstanceOf(SSEStreamInterruptedError)
+      await expect(promise).rejects.toMatchObject({ executionId: 'exec-server' })
+      expect(store.setCurrentExecutionId).toHaveBeenCalledWith('wf-1', 'exec-server')
+      expect(store.setCurrentExecutionId).not.toHaveBeenCalledWith('wf-1', null)
+      expect(store.setIsExecuting).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['a client abort', new DOMException('Aborted', 'AbortError')],
+      [
+        'the run tool stop reason, which aborts with a plain string',
+        'user_stop:cancelRunToolExecution',
+      ],
+      ['a non-transport failure', new Error('Unexpected token in JSON')],
+    ])('rethrows %s unclassified', async (_label, readError) => {
+      stubExecutionStore()
+      stubAcknowledgedStream(readError)
+
+      const rejection = await executeWorkflowWithFullLogging({
+        workflowId: 'wf-1',
+        executionId: 'exec-1',
+        preserveExecutionOnTerminal: true,
+      }).then(
+        () => {
+          throw new Error('expected the stream failure to reject')
+        },
+        (error: unknown) => error
+      )
+
+      expect(rejection).toBe(readError)
+    })
   })
 
   describe('createBlockEventHandlers', () => {

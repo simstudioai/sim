@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
@@ -19,6 +19,7 @@ import {
   processSSEStream,
   SSEEventHandlerError,
   SSEStreamInterruptedError,
+  toStreamInterruptedError,
 } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution'
 import type { ConsoleEntry, ConsoleUpdate } from '@/stores/terminal'
@@ -1221,6 +1222,20 @@ export async function executeWorkflowWithFullLogging(
       'CopilotExecution'
     )
   } catch (error) {
+    const interrupted = toStreamInterruptedError(
+      error,
+      executionIdRef.current,
+      'Execution stream interrupted before a terminal event was received'
+    )
+    if (interrupted) {
+      logger.warn('Execution stream interrupted; preserving execution for reconnect', {
+        workflowId: wfId,
+        executionId: executionIdRef.current,
+        error: getErrorMessage(error),
+      })
+      preserveExecutionForRecovery = true
+      throw interrupted
+    }
     if (error instanceof SSEEventHandlerError || error instanceof SSEStreamInterruptedError) {
       preserveExecutionForRecovery = true
     }

@@ -185,32 +185,43 @@ describe('run tool execution cancellation', () => {
     expect(isRunToolActiveForWorkflow('wf-1')).toBe(false)
   })
 
-  it('releases an interrupted run to reconnect subscribers only after giving up ownership', async () => {
-    const ownedAtRelease: boolean[] = []
-    const listener = vi.fn((workflowId: string) => {
-      ownedAtRelease.push(isRunToolActiveForWorkflow(workflowId))
-    })
-    const unsubscribe = subscribeToRunToolRelease(listener)
-    executeWorkflowWithFullLogging.mockRejectedValueOnce(
-      new MockSSEEventHandlerError('Block handler failed on event 7', 'exec-1')
-    )
+  it.each([
+    ['handler', new MockSSEEventHandlerError('Block handler failed on event 7', 'exec-1')],
+    ['transport', new MockSSEStreamInterruptedError('Execution stream interrupted', 'exec-1')],
+  ])(
+    'releases a run whose stream was cut by a %s failure only after giving up ownership',
+    async (_kind, interruption) => {
+      const ownedAtRelease: boolean[] = []
+      const listener = vi.fn((workflowId: string) => {
+        ownedAtRelease.push(isRunToolActiveForWorkflow(workflowId))
+      })
+      const unsubscribe = subscribeToRunToolRelease(listener)
+      executeWorkflowWithFullLogging.mockRejectedValueOnce(interruption)
 
-    try {
-      executeRunToolOnClient('tool-1', 'run_workflow', { workflowId: 'wf-1' })
-      await vi.waitFor(() => expect(listener).toHaveBeenCalledWith('wf-1'))
+      try {
+        executeRunToolOnClient('tool-1', 'run_workflow', { workflowId: 'wf-1' })
+        await vi.waitFor(() => expect(listener).toHaveBeenCalledWith('wf-1'))
 
-      expect(listener).toHaveBeenCalledTimes(1)
-      expect(ownedAtRelease).toEqual([false])
-      expect(setIsExecuting).toHaveBeenCalledWith('wf-1', false)
-      expect(setCurrentExecutionId).toHaveBeenCalledWith('wf-1', null)
-      expect(setIsExecuting.mock.invocationCallOrder.at(-1)).toBeLessThan(
-        listener.mock.invocationCallOrder[0]
-      )
-      expect(clearExecutionPointer).not.toHaveBeenCalled()
-    } finally {
-      unsubscribe()
+        expect(listener).toHaveBeenCalledTimes(1)
+        expect(ownedAtRelease).toEqual([false])
+        expect(setIsExecuting).toHaveBeenCalledWith('wf-1', false)
+        expect(setCurrentExecutionId).toHaveBeenCalledWith('wf-1', null)
+        expect(setIsExecuting.mock.invocationCallOrder.at(-1)).toBeLessThan(
+          listener.mock.invocationCallOrder[0]
+        )
+        expect(clearExecutionPointer).not.toHaveBeenCalled()
+        expect(fetch).toHaveBeenCalledWith(
+          '/api/copilot/confirm',
+          expect.objectContaining({
+            body: expect.stringContaining('"status":"background"'),
+          })
+        )
+        expect(vi.mocked(fetch).mock.calls[0][1]?.body).toContain('"executionId":"exec-1"')
+      } finally {
+        unsubscribe()
+      }
     }
-  })
+  )
 
   it('does not release a run it observed to completion, even when the report fails', async () => {
     const listener = vi.fn()
@@ -331,12 +342,11 @@ describe('run tool execution cancellation', () => {
     expect(fetchMock.mock.calls[1][0]).toBe('/api/copilot/confirm')
     expect(fetchMock.mock.calls[1][1]?.body).toContain('"status":"background"')
     expect(fetchMock.mock.calls[1][1]?.body).toContain('"executionId":"exec-async"')
-    expect(saveExecutionPointer).toHaveBeenCalledWith({
-      workflowId: 'wf-1',
-      executionId: 'exec-async',
-      lastEventId: 0,
-    })
-    expect(clearExecutionPointer).toHaveBeenCalledWith('wf-1')
+    // An async run has no reconnectable stream, so it must never leave the
+    // terminal a pointer that a reconnect would 404 against.
+    expect(saveExecutionPointer).not.toHaveBeenCalled()
+    expect(clearExecutionPointer).not.toHaveBeenCalled()
+    expect(window.sessionStorage.getItem('sim:copilot:run-tool-completion:tool-async')).toBeNull()
   })
 
   it('recovers a queued async launch by re-reporting it without enqueueing again', async () => {
@@ -362,11 +372,10 @@ describe('run tool execution cancellation', () => {
 
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(6))
     await vi.waitFor(() => expect(isRunToolActiveForId('tool-recover-async')).toBe(false))
-    loadExecutionPointer.mockResolvedValueOnce({
-      workflowId: 'wf-1',
-      executionId: 'exec-recover-async',
-      lastEventId: 0,
-    })
+    expect(saveExecutionPointer).not.toHaveBeenCalled()
+    expect(
+      window.sessionStorage.getItem('sim:copilot:run-tool-completion:tool-recover-async')
+    ).toContain('"executionId":"exec-recover-async"')
 
     await expect(bindRunToolToExecution('tool-recover-async', 'wf-1')).resolves.toBe(true)
 
@@ -377,6 +386,34 @@ describe('run tool execution cancellation', () => {
     expect(
       fetchMock.mock.calls.filter(([url]) => url === '/api/workflows/wf-1/execute')
     ).toHaveLength(1)
+    expect(clearExecutionPointer).not.toHaveBeenCalled()
+    expect(
+      window.sessionStorage.getItem('sim:copilot:run-tool-completion:tool-recover-async')
+    ).toBeNull()
+  })
+
+  it('cleans up the terminal pointer an earlier client left for an async launch', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    loadExecutionPointer.mockResolvedValueOnce({
+      workflowId: 'wf-1',
+      executionId: 'exec-legacy-async',
+      lastEventId: 0,
+    })
+    window.sessionStorage.setItem(
+      'sim:copilot:run-tool-completion:tool-legacy-async',
+      JSON.stringify({
+        status: 'background',
+        executionId: 'exec-legacy-async',
+        clearExecutionPointerAfterReport: true,
+      })
+    )
+
+    await expect(bindRunToolToExecution('tool-legacy-async', 'wf-1')).resolves.toBe(true)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][1]?.body).toContain('"status":"background"')
+    expect(fetchMock.mock.calls[0][1]?.body).toContain('"executionId":"exec-legacy-async"')
     expect(clearExecutionPointer).toHaveBeenCalledWith('wf-1')
   })
 
