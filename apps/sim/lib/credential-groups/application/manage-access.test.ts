@@ -10,7 +10,7 @@ import {
   credentialGroupWorkflowAccessPolicyCodec,
   decodeCredentialGroupWorkflowAccessPolicy,
 } from '@/lib/credential-groups/application/workflow-access-policy'
-import { CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT } from '@/lib/credential-groups/workflow-access-limits'
+import { CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT } from '@/lib/credential-groups/limits'
 
 const mocks = vi.hoisted(() => ({
   requirePolicy: vi.fn(),

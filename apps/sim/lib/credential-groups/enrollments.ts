@@ -4,6 +4,7 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  mcpServers,
   user,
   workspace,
 } from '@sim/db/schema'
@@ -11,12 +12,14 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail, truncate } from '@sim/utils/string'
-import { and, count, desc, eq, inArray, lt, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { renderCredentialGroupInvitationEmail } from '@/components/emails/credential-groups/render'
 import { getCredentialGroupInvitationSubject } from '@/components/emails/subjects'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
+import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
+import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import {
@@ -27,6 +30,7 @@ import {
 import type {
   CredentialGroupEnrollmentConnection,
   CredentialGroupEnrollmentDetail,
+  CredentialGroupEnrollmentMcpConnection,
   CredentialGroupEnrollmentRecord,
   InviteCredentialGroupEnrollmentsInput,
 } from '@/lib/credential-groups/types'
@@ -88,6 +92,17 @@ export interface PublicCredentialGroupEnrollment {
       }>
     }
   >
+  mcpServers: Array<{
+    id: string
+    name: string
+    description: string | null
+    managedConnectorId: ManagedMcpConnectorId
+    connection: {
+      id: string
+      status: 'connected' | 'needs_reauth' | 'revoked'
+      grantedAt: string
+    } | null
+  }>
   status: CredentialGroupEnrollmentRecord['status']
 }
 
@@ -102,6 +117,19 @@ export interface CredentialGroupOAuthContext {
   enrollmentStatus: EnrollmentRow['status']
   option: CredentialGroupOptionConfig
   options: CredentialGroupOptionConfig[]
+}
+
+export interface CredentialGroupMcpOAuthContext {
+  enrollmentId: string
+  credentialGroupId: string
+  workspaceId: string
+  email: string
+  enrollmentStatus: EnrollmentRow['status']
+  server: {
+    id: string
+    name: string
+    url: string
+  }
 }
 
 export interface PublicCredentialGroupEnrollmentIdentity {
@@ -330,7 +358,25 @@ async function getInvitationContext(
     throw new CredentialGroupEnrollmentError('Credential group is disabled', 409)
   }
   if (!row.options.some((option) => option.status === 'active')) {
-    throw new CredentialGroupEnrollmentError('Add an account type before inviting people', 409)
+    const [linkedMcpServer] = await db
+      .select({ id: mcpServers.id })
+      .from(mcpServers)
+      .where(
+        and(
+          eq(mcpServers.workspaceId, workspaceId),
+          eq(mcpServers.credentialGroupId, groupId),
+          eq(mcpServers.authType, 'oauth'),
+          eq(mcpServers.enabled, true),
+          isNull(mcpServers.deletedAt)
+        )
+      )
+      .limit(1)
+    if (!linkedMcpServer) {
+      throw new CredentialGroupEnrollmentError(
+        'Add an account type or OAuth MCP server before inviting people',
+        409
+      )
+    }
   }
   return row
 }
@@ -526,6 +572,19 @@ export async function listCredentialGroupEnrollments(
   const activeOptionIds = group.options
     .filter((option) => option.status === 'active')
     .map((option) => option.id)
+  const activeMcpServers = await db
+    .select({ id: mcpServers.id, name: mcpServers.name })
+    .from(mcpServers)
+    .where(
+      and(
+        eq(mcpServers.workspaceId, workspaceId),
+        eq(mcpServers.credentialGroupId, groupId),
+        eq(mcpServers.authType, 'oauth'),
+        eq(mcpServers.enabled, true),
+        isNull(mcpServers.deletedAt)
+      )
+    )
+  const activeMcpServerById = new Map(activeMcpServers.map((server) => [server.id, server]))
 
   const cursorPosition = cursor ? decodeCredentialGroupEnrollmentCursor(cursor) : undefined
 
@@ -585,6 +644,31 @@ export async function listCredentialGroupEnrollments(
   if (connectionRows.length > connectionSummaryLimit) {
     throw new Error('Managed credential connection summaries exceed the supported provider states')
   }
+  const mcpConnectionSummaryLimit = enrollmentIds.length * activeMcpServers.length
+  const mcpConnectionRows =
+    enrollmentIds.length === 0 || activeMcpServers.length === 0
+      ? []
+      : await db
+          .select({
+            enrollmentId: credential.credentialGroupEnrollmentId,
+            mcpServerId: credential.mcpServerId,
+            status: credential.managedOauthStatus,
+          })
+          .from(credential)
+          .where(
+            and(
+              eq(credential.type, 'managed_mcp'),
+              inArray(credential.credentialGroupEnrollmentId, enrollmentIds),
+              inArray(
+                credential.mcpServerId,
+                activeMcpServers.map((server) => server.id)
+              )
+            )
+          )
+          .limit(mcpConnectionSummaryLimit + 1)
+  if (mcpConnectionRows.length > mcpConnectionSummaryLimit) {
+    throw new Error('Managed MCP connection summaries exceed the linked server limit')
+  }
   const connectionsByEnrollment = new Map<string, CredentialGroupEnrollmentConnection[]>()
   for (const connection of connectionRows) {
     if (!connection.enrollmentId) {
@@ -599,6 +683,22 @@ export async function listCredentialGroupEnrollments(
     if (current) current.push(summary)
     else connectionsByEnrollment.set(connection.enrollmentId, [summary])
   }
+  const mcpConnectionsByEnrollment = new Map<string, CredentialGroupEnrollmentMcpConnection[]>()
+  for (const connection of mcpConnectionRows) {
+    if (!connection.enrollmentId || !connection.mcpServerId) {
+      throw new Error('Managed MCP credential source is missing')
+    }
+    const server = activeMcpServerById.get(connection.mcpServerId)
+    if (!server) throw new Error('Managed MCP credential references an unlinked server')
+    const summary: CredentialGroupEnrollmentMcpConnection = {
+      mcpServerId: server.id,
+      name: server.name,
+      status: toCredentialGroupConnectionStatus(connection.status),
+    }
+    const current = mcpConnectionsByEnrollment.get(connection.enrollmentId)
+    if (current) current.push(summary)
+    else mcpConnectionsByEnrollment.set(connection.enrollmentId, [summary])
+  }
   const nextCursorEnrollment = hasNextPage ? pageRows.at(-1)?.enrollment : undefined
   if (hasNextPage && !nextCursorEnrollment) {
     throw new Error('Credential group enrollment page is missing its cursor boundary')
@@ -607,6 +707,7 @@ export async function listCredentialGroupEnrollments(
     enrollments: pageRows.map(({ enrollment }) => ({
       ...toCredentialGroupEnrollment(enrollment),
       connections: connectionsByEnrollment.get(enrollment.id) ?? [],
+      mcpConnections: mcpConnectionsByEnrollment.get(enrollment.id) ?? [],
     })),
     nextCursor: nextCursorEnrollment
       ? encodeCredentialGroupEnrollmentCursor(nextCursorEnrollment)
@@ -727,7 +828,10 @@ export async function deleteCredentialGroupEnrollment(
   workspaceId: string,
   groupId: string,
   enrollmentId: string
-): Promise<CredentialGroupEnrollmentRecord> {
+): Promise<{
+  credentialGroupEnrollment: CredentialGroupEnrollmentRecord
+  retiredMcpConnectionIds: string[]
+}> {
   const [existing] = await db
     .select({ email: credentialGroupEnrollment.email })
     .from(credentialGroupEnrollment)
@@ -745,6 +849,15 @@ export async function deleteCredentialGroupEnrollment(
   return db.transaction(async (tx) => {
     await lockCredentialGroupInvitationTarget(tx, groupId, existing.email)
     await lockCredentialGroupEnrollmentLifecycle(tx, enrollmentId)
+    const managedMcpConnections = await tx
+      .select({ id: credential.id })
+      .from(credential)
+      .where(
+        and(
+          eq(credential.type, 'managed_mcp'),
+          eq(credential.credentialGroupEnrollmentId, enrollmentId)
+        )
+      )
     const [deleted] = await tx
       .delete(credentialGroupEnrollment)
       .where(
@@ -755,7 +868,10 @@ export async function deleteCredentialGroupEnrollment(
       )
       .returning()
     if (!deleted) throw new CredentialGroupEnrollmentError('Enrollment not found', 404)
-    return toCredentialGroupEnrollment(deleted)
+    return {
+      credentialGroupEnrollment: toCredentialGroupEnrollment(deleted),
+      retiredMcpConnectionIds: managedMcpConnections.map((row) => row.id),
+    }
   })
 }
 
@@ -780,24 +896,64 @@ export async function getAuthorizedPublicCredentialGroupEnrollment(
 async function buildPublicCredentialGroupEnrollment(
   row: NonNullable<Awaited<ReturnType<typeof resolvePublicEnrollmentRowByIdentity>>>
 ): Promise<PublicCredentialGroupEnrollment> {
-  const connectionRows = await db
-    .select({
-      optionId: credential.credentialGroupOptionId,
-      status: credential.managedOauthStatus,
-      scopeVersion: credential.managedOauthScopeVersion,
-      authorizationAppId: credential.authorizationAppId,
-      grantedScopes: credential.grantedScopes,
-      displayName: credential.displayName,
-      metadata: credential.providerMetadata,
-      grantedAt: credential.grantedAt,
-    })
-    .from(credential)
-    .where(
-      and(
-        eq(credential.type, 'managed_oauth'),
-        eq(credential.credentialGroupEnrollmentId, row.enrollment.id)
+  const [connectionRows, linkedMcpServers, mcpConnectionRows] = await Promise.all([
+    db
+      .select({
+        optionId: credential.credentialGroupOptionId,
+        status: credential.managedOauthStatus,
+        scopeVersion: credential.managedOauthScopeVersion,
+        authorizationAppId: credential.authorizationAppId,
+        grantedScopes: credential.grantedScopes,
+        displayName: credential.displayName,
+        metadata: credential.providerMetadata,
+        grantedAt: credential.grantedAt,
+      })
+      .from(credential)
+      .where(
+        and(
+          eq(credential.type, 'managed_oauth'),
+          eq(credential.credentialGroupEnrollmentId, row.enrollment.id)
+        )
+      ),
+    db
+      .select({
+        id: mcpServers.id,
+        name: mcpServers.name,
+        description: mcpServers.description,
+        managedConnectorId: mcpServers.managedConnectorId,
+      })
+      .from(mcpServers)
+      .where(
+        and(
+          eq(mcpServers.workspaceId, row.workspaceId),
+          eq(mcpServers.credentialGroupId, row.groupId),
+          eq(mcpServers.authType, 'oauth'),
+          eq(mcpServers.enabled, true),
+          isNull(mcpServers.deletedAt)
+        )
       )
-    )
+      .orderBy(asc(mcpServers.name), asc(mcpServers.id)),
+    db
+      .select({
+        id: credential.id,
+        mcpServerId: credential.mcpServerId,
+        status: credential.managedOauthStatus,
+        grantedAt: credential.grantedAt,
+      })
+      .from(credential)
+      .where(
+        and(
+          eq(credential.type, 'managed_mcp'),
+          eq(credential.credentialGroupEnrollmentId, row.enrollment.id)
+        )
+      ),
+  ])
+  const mcpConnectionByServerId = new Map(
+    mcpConnectionRows.map((connection) => {
+      if (!connection.mcpServerId) throw new Error('Managed MCP credential has no server')
+      return [connection.mcpServerId, connection] as const
+    })
+  )
 
   return {
     inviterName: row.inviterName,
@@ -850,6 +1006,28 @@ async function buildPublicCredentialGroupEnrollment(
         }
       })
     ),
+    mcpServers: linkedMcpServers.map((server) => {
+      if (!server.managedConnectorId) {
+        throw new Error(`Credential Group MCP server ${server.id} has no managed connector ID`)
+      }
+      const managedConnectorId = getManagedMcpConnector(server.managedConnectorId).id
+      const connection = mcpConnectionByServerId.get(server.id)
+      if (!connection?.grantedAt) return { ...server, managedConnectorId, connection: null }
+      return {
+        ...server,
+        managedConnectorId,
+        connection: {
+          id: connection.id,
+          status:
+            connection.status === 'active'
+              ? ('connected' as const)
+              : connection.status === 'revoked'
+                ? ('revoked' as const)
+                : ('needs_reauth' as const),
+          grantedAt: connection.grantedAt.toISOString(),
+        },
+      }
+    }),
     status: row.enrollment.status,
   }
 }
@@ -960,6 +1138,46 @@ export async function getAuthorizedCredentialGroupOAuthContext(
   const option = row.options.find((candidate) => candidate.id === optionId)
   if (!option || option.status !== 'active') return null
   return credentialGroupOAuthContextFromRow(row, option)
+}
+
+export async function getAuthorizedCredentialGroupMcpOAuthContext(
+  identity: PublicCredentialGroupEnrollmentIdentity,
+  mcpServerId: string
+): Promise<CredentialGroupMcpOAuthContext | null> {
+  const row = await resolveAuthorizedPublicEnrollmentRow(identity)
+  if (!row) return null
+  const [server] = await db
+    .select({
+      id: mcpServers.id,
+      name: mcpServers.name,
+      url: mcpServers.url,
+      managedConnectorId: mcpServers.managedConnectorId,
+    })
+    .from(mcpServers)
+    .where(
+      and(
+        eq(mcpServers.id, mcpServerId),
+        eq(mcpServers.workspaceId, row.workspaceId),
+        eq(mcpServers.credentialGroupId, row.groupId),
+        eq(mcpServers.authType, 'oauth'),
+        eq(mcpServers.enabled, true),
+        isNull(mcpServers.deletedAt)
+      )
+    )
+    .limit(1)
+  if (!server?.url) return null
+  if (!server.managedConnectorId) {
+    throw new Error(`Credential Group MCP server ${server.id} has no managed connector ID`)
+  }
+  getManagedMcpConnector(server.managedConnectorId)
+  return {
+    enrollmentId: row.enrollment.id,
+    credentialGroupId: row.groupId,
+    workspaceId: row.workspaceId,
+    email: row.enrollment.email,
+    enrollmentStatus: row.enrollment.status,
+    server: { id: server.id, name: server.name, url: server.url },
+  }
 }
 
 function credentialGroupOAuthContextFromRow(

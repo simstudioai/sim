@@ -150,6 +150,7 @@ const EXPECTED_CAPABILITIES: Record<keyof typeof mcpServerOperations, string> = 
   delete: 'mcp_tools.use',
   discoverTools: 'mcp_tools.use',
   executeTool: 'mcp_tools.use',
+  listManagedConnections: 'mcp_tools.use',
   listWorkflowDeployments: 'deploy.mcp',
   readWorkflowDeploymentServer: 'deploy.mcp',
   listWorkflowDeploymentTools: 'deploy.mcp',

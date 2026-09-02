@@ -8,6 +8,7 @@
  */
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import type { FilterRule, SortRule } from '@/lib/table/types'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import { getBlock } from '@/blocks'
@@ -505,6 +506,10 @@ export function resolveStoredToolName(
       if (liveName) return liveName
     }
     return storedTitle
+  }
+
+  if (t.type === MCP_SERVER_ADVANCED_TOOL_TYPE) {
+    return storedTitle || 'MCP Server (Advanced)'
   }
 
   if (typeof t.type === 'string' && t.type) {

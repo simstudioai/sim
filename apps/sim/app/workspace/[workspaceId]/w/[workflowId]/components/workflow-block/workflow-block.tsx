@@ -108,7 +108,7 @@ import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useDeployWorkflow } from '@/hooks/queries/deployments'
 import { useDynamicSubBlockOptionDisplayName } from '@/hooks/queries/dynamic-subblock-options'
-import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
+import { useMcpToolServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth/oauth-credentials'
 import { useSandboxes } from '@/hooks/queries/sandboxes'
 import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedules'
@@ -470,7 +470,7 @@ const SubBlockRow = memo(function SubBlockRow({
     )
   }, [workflowMapForLookup, workflowMapLoaded, workflowMapIsPlaceholder, subBlock, rawValue])
 
-  const { data: mcpServers = [] } = useMcpServers(workspaceId || '')
+  const { data: mcpServers = [] } = useMcpToolServers(workspaceId || '')
   const mcpServerDisplayName = useMemo(() => {
     if (subBlock?.type !== 'mcp-server-selector' || typeof rawValue !== 'string') {
       return null

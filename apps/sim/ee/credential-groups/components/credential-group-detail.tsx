@@ -5,10 +5,12 @@ import { Chip, ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn'
 import { ArrowLeft, Plus, User } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
+import { McpIcon } from '@/components/icons'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type {
   CredentialGroupEnrollment,
   CredentialGroupEnrollmentConnection,
+  CredentialGroupEnrollmentMcpConnection,
 } from '@/lib/api/contracts/credential-groups'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
@@ -62,6 +64,7 @@ const CREDENTIAL_GROUP_TABS = [
 
 interface EnrollmentConnectionsProps {
   connections: CredentialGroupEnrollmentConnection[]
+  mcpConnections: CredentialGroupEnrollmentMcpConnection[]
 }
 
 interface CredentialProviderIconProps {
@@ -73,9 +76,11 @@ function CredentialProviderIcon({ provider }: CredentialProviderIconProps) {
   return <ProviderIcon className='size-[14px]' aria-hidden />
 }
 
-function EnrollmentConnections({ connections }: EnrollmentConnectionsProps) {
+function EnrollmentConnections({ connections, mcpConnections }: EnrollmentConnectionsProps) {
   const connected = connections.filter((connection) => connection.status === 'active')
-  const count = connected.reduce((total, connection) => total + connection.count, 0)
+  const connectedMcp = mcpConnections.filter((connection) => connection.status === 'active')
+  const count =
+    connected.reduce((total, connection) => total + connection.count, 0) + connectedMcp.length
   const providers = [...new Set(connected.map((connection) => connection.provider))]
 
   return (
@@ -83,8 +88,9 @@ function EnrollmentConnections({ connections }: EnrollmentConnectionsProps) {
       {providers.map((provider) => {
         return <CredentialProviderIcon key={provider} provider={provider} />
       })}
+      {connectedMcp.length > 0 ? <McpIcon className='size-[14px]' aria-hidden /> : null}
       <span>
-        {count} connected {count === 1 ? 'account' : 'accounts'}
+        {count} connected {count === 1 ? 'connection' : 'connections'}
       </span>
     </span>
   )
@@ -130,7 +136,13 @@ export function CredentialGroupDetail({
     ? (enrollments.find((enrollment) => enrollment.id === deletingEnrollmentId) ?? null)
     : null
   const configurationReady =
-    Boolean(credentialGroup?.options.length) &&
+    Boolean(
+      credentialGroup &&
+        (credentialGroup.options.length ||
+          credentialGroup.mcpServers.some(
+            (server) => server.enabled && server.authType === 'oauth'
+          ))
+    ) &&
     credentialGroup?.options.every(
       (option) =>
         option.provider !== 'slack' ||
@@ -275,7 +287,7 @@ export function CredentialGroupDetail({
             ? {
                 value: providerSearch,
                 onChange: setProviderSearch,
-                placeholder: 'Search account types...',
+                placeholder: 'Search accounts and MCP servers...',
                 disabled: detail.isPending,
               }
             : undefined
@@ -332,7 +344,10 @@ export function CredentialGroupDetail({
                           iconFilled
                           title={enrollment.email}
                           description={
-                            <EnrollmentConnections connections={enrollment.connections} />
+                            <EnrollmentConnections
+                              connections={enrollment.connections}
+                              mcpConnections={enrollment.mcpConnections}
+                            />
                           }
                           trailing={
                             <RowActionsMenu

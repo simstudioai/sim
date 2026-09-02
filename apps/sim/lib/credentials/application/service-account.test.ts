@@ -39,6 +39,12 @@ vi.mock('@/lib/credentials/queries', () => ({
 }))
 vi.mock('@/lib/credentials/access', () => ({
   getCredentialActorContext: mocks.getActor,
+  requireOrdinaryCredentialType: (type: string) => {
+    if (type === 'managed_oauth' || type === 'managed_mcp') {
+      throw new Error('Managed credential reached an ordinary credential surface')
+    }
+    return type
+  },
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 

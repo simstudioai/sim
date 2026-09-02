@@ -17,6 +17,7 @@ import {
   CredentialGroupEnrollmentError,
   listCredentialGroupEnrollments,
 } from '@/lib/credential-groups/enrollments'
+import { clearCredentialGroupMcpOAuthAttempts } from '@/lib/credential-groups/mcp-oauth-state'
 import { listConfiguredCredentialGroupProviders } from '@/lib/credential-groups/provider-availability'
 import {
   createCredentialGroup,
@@ -29,6 +30,8 @@ import type {
   CreateCredentialGroupInput,
   UpdateCredentialGroupInput,
 } from '@/lib/credential-groups/types'
+import { evictMcpServerConnections } from '@/lib/mcp/connection-pool'
+import { mcpService } from '@/lib/mcp/service'
 
 function throwCredentialGroupConflict(error: unknown): never {
   if (getPostgresErrorCode(error) === '23505') {
@@ -137,15 +140,15 @@ export const updateCredentialGroupSettings = defineAuthorizedWorkspaceUseCase({
   async execute({ input, context }) {
     await requireCredentialGroupSettingsAvailable(context.workspaceId)
     try {
-      const credentialGroup = await updateCredentialGroup(
+      const result = await updateCredentialGroup(
         context.workspaceId,
         context.credentialGroupId,
         validateUpdateCredentialGroupInput(input.update)
       )
-      if (!credentialGroup) {
+      if (!result) {
         throw new OrchestrationError('not_found', 'Credential group not found')
       }
-      return { credentialGroup }
+      return result
     } catch (error) {
       throwCredentialGroupConflict(error)
     }
@@ -157,6 +160,12 @@ export const updateCredentialGroupSettings = defineAuthorizedWorkspaceUseCase({
     resourceName: result.credentialGroup.name,
     description: 'Updated a Credential Group',
   }),
+  afterSuccess: ({ result }) =>
+    Promise.all(
+      result.retiredMcpConnectionIds.map((connectionId) =>
+        evictMcpServerConnections(connectionId, 'credential_group_mcp_unlinked')
+      )
+    ).then(() => undefined),
 })
 
 export const deleteCredentialGroupSettings = defineAuthorizedWorkspaceUseCase({
@@ -166,9 +175,13 @@ export const deleteCredentialGroupSettings = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: {},
   async execute({ context }) {
     await requireCredentialGroupSettingsAvailable(context.workspaceId)
-    const deleted = await deleteCredentialGroup(context.workspaceId, context.credentialGroupId)
-    if (!deleted) throw new OrchestrationError('not_found', 'Credential group not found')
-    return { success: true as const }
+    const result = await deleteCredentialGroup(context.workspaceId, context.credentialGroupId)
+    if (!result.deleted) throw new OrchestrationError('not_found', 'Credential group not found')
+    return {
+      success: true as const,
+      retiredMcpConnectionIds: result.retiredMcpConnectionIds,
+      retiredMcpServerIds: result.retiredMcpServerIds,
+    }
   },
   projectAudit: ({ context }) => ({
     action: AuditAction.CREDENTIAL_GROUP_UPDATED,
@@ -177,4 +190,16 @@ export const deleteCredentialGroupSettings = defineAuthorizedWorkspaceUseCase({
     resourceName: context.name,
     description: 'Deleted a Credential Group',
   }),
+  async afterSuccess({ context, result }) {
+    await mcpService.clearCache(context.workspaceId)
+    await clearCredentialGroupMcpOAuthAttempts(result.retiredMcpServerIds)
+    await Promise.all([
+      ...result.retiredMcpServerIds.map((serverId) =>
+        evictMcpServerConnections(serverId, 'credential_group_deleted')
+      ),
+      ...result.retiredMcpConnectionIds.map((connectionId) =>
+        evictMcpServerConnections(connectionId, 'credential_group_deleted')
+      ),
+    ])
+  },
 })

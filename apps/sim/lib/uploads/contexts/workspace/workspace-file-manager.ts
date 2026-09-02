@@ -1678,7 +1678,7 @@ export async function fetchServableWorkspaceFileBuffer(
  */
 export async function fetchWorkspaceFileBuffer(
   fileRecord: WorkspaceFileRecord,
-  options: { maxBytes: number }
+  options: { maxBytes: number; signal?: AbortSignal }
 ): Promise<Buffer> {
   logger.info(`Downloading workspace file: ${fileRecord.name}`)
 
@@ -1687,12 +1687,16 @@ export async function fetchWorkspaceFileBuffer(
       key: fileRecord.key,
       context: fileRecord.storageContext ?? 'workspace',
       maxBytes: options.maxBytes,
+      signal: options.signal,
     })
     logger.info(
       `Successfully downloaded workspace file: ${fileRecord.name} (${buffer.length} bytes)`
     )
     return buffer
   } catch (error) {
+    // A cancelled read is not a download failure: surface the abort itself so the
+    // caller sees cancellation, not a transport error it might retry or record.
+    options.signal?.throwIfAborted()
     logger.error(`Failed to download workspace file ${fileRecord.name}:`, error)
     // Rethrow a `maxBytes` breach unwrapped: callers distinguish "too large" from a
     // transport failure to answer with their own placeholder, and re-wrapping it in a

@@ -4,7 +4,7 @@ import { isRecordLike, omit } from '@sim/utils/object'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import type { z } from 'zod'
 import type { forkRemapKindSchema } from '@/lib/api/contracts/workspace-fork'
-import { createMcpToolId } from '@/lib/mcp/shared'
+import { createMcpToolId, MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import {
   coerceObjectArray,
   type SubBlockRecord,
@@ -954,7 +954,7 @@ function remapForkToolInputValue(
       return
     }
     if (
-      tool.type === 'mcp' &&
+      (tool.type === 'mcp' || tool.type === MCP_SERVER_ADVANCED_TOOL_TYPE) &&
       isRecordLike(tool.params) &&
       typeof tool.params.serverId === 'string'
     ) {
@@ -981,7 +981,8 @@ function remapForkToolInputValue(
           keep({
             ...tool,
             params: nextParams,
-            toolId: toolName ? createMcpToolId(target, toolName) : tool.toolId,
+            toolId:
+              tool.type === 'mcp' && toolName ? createMcpToolId(target, toolName) : tool.toolId,
           })
           return
         }

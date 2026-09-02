@@ -2224,8 +2224,15 @@
     {
       "idx": 318,
       "version": "7",
-      "when": 1788322807933,
-      "tag": "0318_permission_aware_knowledge",
+      "when": 1788313105264,
+      "tag": "0318_credential_group_managed_mcp",
+      "breakpoints": true
+    },
+    {
+      "idx": 319,
+      "version": "7",
+      "when": 1788328068201,
+      "tag": "0319_permission_aware_knowledge",
       "breakpoints": true
     }
   ]

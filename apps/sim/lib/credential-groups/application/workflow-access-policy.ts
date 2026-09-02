@@ -3,7 +3,7 @@ import { z } from 'zod'
 import {
   CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT,
   CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT,
-} from '@/lib/credential-groups/workflow-access-limits'
+} from '@/lib/credential-groups/limits'
 import {
   CREDENTIAL_GROUP_ACTOR_OWNS_CREDENTIAL_CONDITION_KEY,
   CREDENTIAL_GROUP_OPTION_ID_CONDITION_KEY,

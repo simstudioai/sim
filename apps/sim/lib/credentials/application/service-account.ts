@@ -4,7 +4,7 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
-import { getCredentialActorContext } from '@/lib/credentials/access'
+import { getCredentialActorContext, requireOrdinaryCredentialType } from '@/lib/credentials/access'
 import {
   defineAuthorizedCredentialUseCase,
   requireManageableCredentialType,
@@ -183,7 +183,7 @@ export const deleteCredentialUseCase = defineAuthorizedCredentialUseCase({
       requirePrincipalSubjectUserId(principal),
       'credential_deleted',
       {
-        credential_type: result.credential.type,
+        credential_type: requireOrdinaryCredentialType(result.credential.type),
         provider_id:
           result.credential.providerId ?? result.credential.envKey ?? result.credential.id,
         workspace_id: context.workspaceId,

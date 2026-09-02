@@ -7,6 +7,7 @@ import {
   normalizeBlockRetryWaitMs,
 } from '@sim/workflow-types/workflow'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
+import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { createModelAccessGate } from '@/lib/permission-groups/model-access'
@@ -801,13 +802,16 @@ export function filterDisallowedTools(
       })
       continue
     }
-    if (tool.type === 'mcp' && capabilityDeniedBy('mcp_tools.use', permissionConfig)) {
+    if (
+      (tool.type === 'mcp' || tool.type === MCP_SERVER_ADVANCED_TOOL_TYPE) &&
+      capabilityDeniedBy('mcp_tools.use', permissionConfig)
+    ) {
       logSkippedItem(skippedItems, {
         type: 'tool_not_allowed',
         operationType: 'add',
         blockId,
         reason: `MCP tool "${tool.title || 'unknown'}" is not allowed by permission group - tool not added`,
-        details: { toolType: 'mcp', serverId: tool.params?.serverId },
+        details: { toolType: tool.type, serverId: tool.params?.serverId },
       })
       continue
     }

@@ -11,13 +11,36 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDiscoverServerTools } = vi.hoisted(() => ({
+const {
+  mockAuthenticateEnrollment,
+  mockCompleteManagedMcpOAuth,
+  mockConsumeManagedAttempt,
+  mockDiscoverServerTools,
+  mockEnforceCallbackRateLimit,
+} = vi.hoisted(() => ({
+  mockAuthenticateEnrollment: vi.fn(),
+  mockCompleteManagedMcpOAuth: vi.fn(),
+  mockConsumeManagedAttempt: vi.fn(),
   mockDiscoverServerTools: vi.fn(),
+  mockEnforceCallbackRateLimit: vi.fn(),
 }))
 
 vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
 vi.mock('@/lib/mcp/service', () => ({
   mcpService: { discoverServerTools: mockDiscoverServerTools },
+}))
+vi.mock('@/lib/credential-groups/application/enrollment-auth', () => ({
+  authenticateCredentialGroupEnrollment: mockAuthenticateEnrollment,
+}))
+vi.mock('@/lib/credential-groups/application/public-enrollment', () => ({
+  completePublicCredentialGroupMcpOAuth: { execute: mockCompleteManagedMcpOAuth },
+}))
+vi.mock('@/lib/credential-groups/mcp-oauth-state', () => ({
+  consumeCredentialGroupMcpOAuthAttempt: mockConsumeManagedAttempt,
+  isCredentialGroupMcpOAuthState: (state: string) => state.startsWith('mcp_cg_'),
+}))
+vi.mock('@/lib/credential-groups/rate-limit', () => ({
+  enforcePublicCredentialGroupIpRateLimit: mockEnforceCallbackRateLimit,
 }))
 
 import { GET } from './route'
@@ -43,6 +66,28 @@ describe('MCP OAuth callback route', () => {
     mcpOauthMockFns.mockLoadPreregisteredClient.mockResolvedValue(undefined)
     mcpOauthMockFns.mockMcpAuthGuarded.mockResolvedValue('AUTHORIZED')
     mockDiscoverServerTools.mockResolvedValue(undefined)
+    mockConsumeManagedAttempt.mockResolvedValue({
+      state: 'mcp_cg_state-1',
+      enrollmentId: 'enrollment-1',
+      credentialGroupId: 'group-1',
+      mcpServerId: 'server-1',
+      codeVerifier: 'code-verifier',
+      invitationToken: 'invitation-token',
+      createdAt: Date.now(),
+    })
+    mockAuthenticateEnrollment.mockResolvedValue({
+      kind: 'credential_group_enrollment',
+      workspaceId: 'workspace-1',
+      credentialGroupId: 'group-1',
+      enrollmentId: 'enrollment-1',
+      email: 'invitee@example.com',
+      invitationTokenHash: 'token-hash',
+    })
+    mockCompleteManagedMcpOAuth.mockResolvedValue({
+      connectionId: 'mcp-cg-connection-1',
+      mcpServerId: 'server-1',
+    })
+    mockEnforceCallbackRateLimit.mockResolvedValue(null)
   })
 
   it('performs the token exchange through the SSRF-guarded mcpAuthGuarded wrapper', async () => {
@@ -103,5 +148,43 @@ describe('MCP OAuth callback route', () => {
     expect(body).toContain('ok: false')
     expect(body).toContain('"state-1"')
     expect(body).toContain('serverId: undefined')
+  })
+
+  it('completes a managed grant from one-time invitation state without a Sim session', async () => {
+    const request = new NextRequest(
+      'http://localhost:3000/api/mcp/oauth/callback?state=mcp_cg_state-1&code=auth-code-1'
+    )
+
+    const response = await GET(request)
+
+    expect(mockEnforceCallbackRateLimit).toHaveBeenCalledWith(request, 'oauth-callback')
+    expect(mockConsumeManagedAttempt).toHaveBeenCalledWith('mcp_cg_state-1')
+    expect(mockAuthenticateEnrollment).toHaveBeenCalledWith('invitation-token')
+    expect(mockCompleteManagedMcpOAuth).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          code: 'auth-code-1',
+          attempt: expect.objectContaining({ mcpServerId: 'server-1' }),
+        }),
+      })
+    )
+    expect(authMockFns.mockGetSession).not.toHaveBeenCalled()
+    expect(response.headers.get('location')).toContain(
+      '/credential-groups/enroll/invitation-token?mcp=connected&mcpServerId=server-1'
+    )
+  })
+
+  it('rate limits a managed callback before consuming its one-time state', async () => {
+    const limitedResponse = new Response('rate limited', { status: 429 })
+    mockEnforceCallbackRateLimit.mockResolvedValueOnce(limitedResponse)
+    const request = new NextRequest(
+      'http://localhost:3000/api/mcp/oauth/callback?state=mcp_cg_state-1&code=auth-code-1'
+    )
+
+    const response = await GET(request)
+
+    expect(response.status).toBe(429)
+    expect(mockConsumeManagedAttempt).not.toHaveBeenCalled()
+    expect(mockCompleteManagedMcpOAuth).not.toHaveBeenCalled()
   })
 })

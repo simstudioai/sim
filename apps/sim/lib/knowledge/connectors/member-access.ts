@@ -18,11 +18,11 @@ import {
   listCredentialGroupOptionCredentialReferences,
   loadManagedCredentialGroupBinding,
 } from '@/lib/credential-groups/credentials'
+import { CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT } from '@/lib/credential-groups/limits'
 import {
   getCredentialGroupProviderId,
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'
-import { CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT } from '@/lib/credential-groups/workflow-access-limits'
 import {
   type ResolvedManagedOAuthToken,
   resolveManagedOAuthToken,

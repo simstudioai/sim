@@ -15,7 +15,7 @@ import {
 import {
   CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT,
   CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT,
-} from '@/lib/credential-groups/workflow-access-limits'
+} from '@/lib/credential-groups/limits'
 import type { ResourcePolicyBindingFor } from '@/lib/resource-policies/registry'
 
 const GROUP_ID = 'group-1'

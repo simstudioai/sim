@@ -11,7 +11,7 @@ import {
 import { MAX_MCP_TOOL_NAME_BYTES } from '@/lib/mcp/constants'
 
 describe('v2AgentToolInputSchema', () => {
-  it('accepts catalog integration, custom-tool reference, and MCP tool shapes', () => {
+  it('accepts catalog integration, custom-tool reference, and both MCP tool shapes', () => {
     const tools = [
       {
         type: 'cloudwatch',
@@ -28,6 +28,11 @@ describe('v2AgentToolInputSchema', () => {
         type: 'mcp',
         params: { serverId: 'mcp_123', toolName: 'search_docs', collection: 'incidents' },
         usageControl: 'none',
+      },
+      {
+        type: 'mcp-server-advanced',
+        params: { serverId: 'mcp_456' },
+        usageControl: 'auto',
       },
     ]
 
@@ -56,6 +61,8 @@ describe('v2AgentToolInputSchema', () => {
   it.each([
     [{ type: 'custom-tool', usageControl: 'auto' }],
     [{ type: 'mcp', params: { serverId: 'mcp_123' }, usageControl: 'auto' }],
+    [{ type: 'mcp-server-advanced', params: {}, usageControl: 'auto' }],
+    [{ type: 'mcp-server-advanced', params: { serverId: 'mcp_123', toolName: 'lookup' } }],
     [{ type: 'slack', operation: 'send', usageControl: 'sometimes' }],
   ])('rejects a malformed reserved tool shape', (tools) => {
     expect(v2AgentToolInputSchema.safeParse(tools).success).toBe(false)
@@ -96,6 +103,13 @@ describe('v2AgentToolInputSchema', () => {
           serverId: 'mcp_123',
           toolName: 'a'.repeat(MAX_MCP_TOOL_NAME_BYTES + 1),
         },
+      },
+    ],
+    [
+      'advanced MCP server id',
+      {
+        type: 'mcp-server-advanced',
+        params: { serverId: 'a'.repeat(MAX_ID_LENGTH + 1) },
       },
     ],
     [

@@ -3664,6 +3664,11 @@ export const mcpServers = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
+    credentialGroupId: text('credential_group_id').references(
+      (): AnyPgColumn => credentialGroup.id,
+      { onDelete: 'set null' }
+    ),
+    managedConnectorId: text('managed_connector_id'),
 
     // Track who created the server, but workspace owns it
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
@@ -3708,6 +3713,22 @@ export const mcpServers = pgTable(
     workspaceEnabledIdx: index('mcp_servers_workspace_enabled_idx').on(
       table.workspaceId,
       table.enabled
+    ),
+    credentialGroupIdx: index('mcp_servers_credential_group_idx').on(table.credentialGroupId),
+    credentialGroupManagedConnectorUnique: uniqueIndex(
+      'mcp_servers_credential_group_managed_connector_unique'
+    )
+      .on(table.credentialGroupId, table.managedConnectorId)
+      .where(
+        sql`${table.credentialGroupId} IS NOT NULL AND ${table.managedConnectorId} IS NOT NULL AND ${table.deletedAt} IS NULL`
+      ),
+    credentialGroupManagedConnectorCheck: check(
+      'mcp_servers_credential_group_managed_connector_check',
+      sql`${table.credentialGroupId} IS NULL OR ${table.managedConnectorId} IS NOT NULL`
+    ),
+    managedConnectorOauthCheck: check(
+      'mcp_servers_managed_connector_oauth_check',
+      sql`${table.managedConnectorId} IS NULL OR ${table.authType} = 'oauth'`
     ),
 
     // Soft delete pattern - workspace + not deleted (partial: only deleted rows)
@@ -4166,6 +4187,7 @@ export const usageLog = pgTable(
 export const credentialTypeEnum = pgEnum('credential_type', [
   'oauth',
   'managed_oauth',
+  'managed_mcp',
   'env_workspace',
   'env_personal',
   'service_account',
@@ -4183,6 +4205,12 @@ export interface ManagedOAuthProviderMetadata {
   avatarUrl?: string
   username?: string
   tenantDisplayName?: string
+}
+
+export interface ManagedMcpToolSnapshot {
+  name: string
+  description?: string
+  inputSchema: Record<string, unknown>
 }
 
 export const credential = pgTable(
@@ -4213,6 +4241,9 @@ export const credential = pgTable(
       { onDelete: 'cascade' }
     ),
     credentialGroupOptionId: text('credential_group_option_id'),
+    mcpServerId: text('mcp_server_id').references(() => mcpServers.id, {
+      onDelete: 'cascade',
+    }),
     managedOauthScopeVersion: integer('managed_oauth_scope_version'),
     providerSubjectId: text('provider_subject_id'),
     providerTenantId: text('provider_tenant_id'),
@@ -4220,14 +4251,14 @@ export const credential = pgTable(
     grantedScopes: text('granted_scopes').array(),
     providerMetadata: jsonb('provider_metadata').$type<ManagedOAuthProviderMetadata>(),
     encryptedOauthTokenSet: text('encrypted_oauth_token_set'),
+    mcpTools: jsonb('mcp_tools').$type<ManagedMcpToolSnapshot[]>(),
+    mcpToolsRefreshedAt: timestamp('mcp_tools_refreshed_at'),
     grantedAt: timestamp('granted_at'),
     revokedAt: timestamp('revoked_at'),
     accessTokenExpiresAt: timestamp('access_token_expires_at'),
     refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
     lastRefreshedAt: timestamp('last_refreshed_at'),
-    createdBy: text('created_by')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
@@ -4240,9 +4271,13 @@ export const credential = pgTable(
     credentialGroupEnrollmentIdx: index('credential_group_enrollment_idx').on(
       table.credentialGroupEnrollmentId
     ),
+    mcpServerIdx: index('credential_mcp_server_idx').on(table.mcpServerId),
     credentialGroupOptionUnique: uniqueIndex('credential_group_option_unique')
       .on(table.credentialGroupEnrollmentId, table.credentialGroupOptionId)
       .where(sql`${table.type} = 'managed_oauth'`),
+    managedMcpEnrollmentServerUnique: uniqueIndex('credential_managed_mcp_enrollment_server_unique')
+      .on(table.credentialGroupEnrollmentId, table.mcpServerId)
+      .where(sql`${table.type} = 'managed_mcp'`),
     workspaceAccountUnique: uniqueIndex('credential_workspace_account_unique')
       .on(table.workspaceId, table.accountId)
       .where(sql`account_id IS NOT NULL`),
@@ -4278,6 +4313,38 @@ export const credential = pgTable(
         AND managed_oauth_scope_version IS NOT NULL
         AND managed_oauth_scope_version > 0
       )`
+    ),
+    managedMcpSourceConstraint: check(
+      'credential_managed_mcp_source_check',
+      sql`(type::text <> 'managed_mcp') OR (
+        id LIKE 'mcp-cg-%'
+        AND account_id IS NULL
+        AND provider_id IS NULL
+        AND authorization_app_id IS NULL
+        AND credential_group_enrollment_id IS NOT NULL
+        AND credential_group_option_id IS NULL
+        AND mcp_server_id IS NOT NULL
+        AND managed_oauth_status IS NOT NULL
+        AND (managed_oauth_status <> 'active' OR (
+          encrypted_oauth_token_set IS NOT NULL
+          AND mcp_tools IS NOT NULL
+        ))
+        AND granted_at IS NOT NULL
+        AND managed_oauth_scope_version IS NULL
+        AND provider_subject_id IS NULL
+        AND provider_tenant_id IS NULL
+        AND granted_scopes IS NULL
+        AND provider_metadata IS NULL
+        AND created_by IS NULL
+        AND env_key IS NULL
+        AND env_owner_user_id IS NULL
+        AND encrypted_service_account_key IS NULL
+        AND unredacted = false
+      )`
+    ),
+    creatorSourceConstraint: check(
+      'credential_creator_source_check',
+      sql`(type::text = 'managed_mcp') OR created_by IS NOT NULL`
     ),
     workspaceEnvSourceConstraint: check(
       'credential_workspace_env_source_check',

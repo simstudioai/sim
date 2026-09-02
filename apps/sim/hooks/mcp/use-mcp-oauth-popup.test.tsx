@@ -17,6 +17,7 @@ vi.mock('@/hooks/queries/mcp', () => ({
   useStartMcpOauth: () => ({ mutateAsync: mockStartOauth }),
   mcpKeys: {
     serversList: (workspaceId: string) => ['mcp', 'servers', workspaceId],
+    managedCatalogList: (workspaceId: string) => ['mcp', 'managed-catalog', workspaceId],
     serverToolsList: (workspaceId: string, serverId: string) => [
       'mcp',
       'server-tools',

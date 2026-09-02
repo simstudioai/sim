@@ -60,6 +60,7 @@ const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
   issuedAt: new Date('2026-08-27T00:00:00.000Z'),
   expiresAt: new Date('2099-08-27T00:05:00.000Z'),
   delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
+  resourceScope: { mcpServerId: SERVER.id },
 }
 const ACTORLESS_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
   kind: 'delegated',
@@ -84,6 +85,7 @@ const ACTORLESS_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
       workflowId: 'workflow-1',
     },
   },
+  resourceScope: { mcpServerId: SERVER.id },
 }
 const COMPATIBILITY_ACTOR_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
   ...ACTORLESS_PRINCIPAL,
@@ -175,6 +177,28 @@ describe('executeMcpToolUseCase', () => {
     ).rejects.toMatchObject({ code: 'not_found', message: 'MCP server not found' })
 
     expect(mocks.assertPermissionsAllowed).not.toHaveBeenCalled()
+    expect(mocks.executeTool).not.toHaveBeenCalled()
+  })
+
+  it('does not infer a managed credential from the execution actor', async () => {
+    mocks.getServer.mockResolvedValueOnce({ ...SERVER, credentialGroupId: 'group-1' })
+
+    await expect(
+      executeMcpToolUseCase.execute({
+        principal: PRINCIPAL,
+        input: {
+          workspaceId: WORKSPACE.workspaceId,
+          serverId: SERVER.id,
+          toolName: 'lookup',
+        },
+      })
+    ).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'Credential Group MCP servers require an explicit managed connection ID',
+    })
+
+    expect(mocks.assertPermissionsAllowed).not.toHaveBeenCalled()
+    expect(mocks.discoverServerTools).not.toHaveBeenCalled()
     expect(mocks.executeTool).not.toHaveBeenCalled()
   })
 

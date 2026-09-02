@@ -47,6 +47,7 @@ export const PATCH = defineInternalJsonRoute({
     update: body,
   }),
   useCase: updateCredentialGroupSettings,
+  present: ({ credentialGroup }) => ({ credentialGroup }),
 })
 
 export const DELETE = defineInternalJsonRoute({
@@ -60,4 +61,5 @@ export const DELETE = defineInternalJsonRoute({
     credentialGroupId: params.groupId,
   }),
   useCase: deleteCredentialGroupSettings,
+  present: () => ({ success: true as const }),
 })

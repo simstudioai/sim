@@ -51,6 +51,7 @@ export interface AgentInputs {
  * - Standard block types (e.g., 'api', 'search', 'function')
  * - 'custom-tool': User-defined tools with custom code
  * - 'mcp': Individual MCP tool from a connected server
+ * - 'mcp-server-advanced': All tools available to the executing subject from one MCP server
  */
 export interface ToolInput {
   /** Tool type identifier */

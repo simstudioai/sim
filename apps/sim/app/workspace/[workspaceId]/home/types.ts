@@ -1,3 +1,4 @@
+import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { ChatContext } from '@/stores/panel'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
@@ -152,6 +153,7 @@ export interface ChatMessageContext {
   blockType?: string
   skillId?: string
   serverId?: string
+  managedConnectorId?: ManagedMcpConnectorId
   /** Selected passage for a `file_selection` context. */
   text?: string
   /** Source file name for a `file_selection` context. */

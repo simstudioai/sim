@@ -4,7 +4,7 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import {
-  mcpServerDelegationPolicy,
+  mcpServerExecutionDelegationPolicy,
   requireMcpCredentialUserId,
 } from '@/lib/mcp/application/authorization'
 import { resolveMcpServerContext } from '@/lib/mcp/application/context'
@@ -42,7 +42,7 @@ function hasType(value: unknown): value is SchemaProperty {
   return typeof value === 'object' && value !== null && 'type' in value
 }
 
-function coerceToolArguments(
+export function coerceToolArguments(
   tool: McpTool,
   input: Record<string, unknown>
 ): Record<string, unknown> {
@@ -88,7 +88,7 @@ function coerceToolArguments(
   return result
 }
 
-function validateToolArguments(tool: McpTool, args: Record<string, unknown>): void {
+export function validateToolArguments(tool: McpTool, args: Record<string, unknown>): void {
   const schema = tool.inputSchema
   if (!schema) return
 
@@ -115,7 +115,7 @@ function validateToolArguments(tool: McpTool, args: Record<string, unknown>): vo
   }
 }
 
-function transformToolResult(result: McpToolResult): ExecuteMcpToolResult {
+export function transformToolResult(result: McpToolResult): ExecuteMcpToolResult {
   if (!result.isError) return { success: true, output: result }
   const firstContent = Array.isArray(result.content) ? result.content[0] : undefined
   const errorText =
@@ -131,9 +131,15 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.executeTool,
   resolveContext: ({ input }: { input: ExecuteMcpToolInput }) =>
     resolveMcpServerContext(input.workspaceId, input.serverId),
-  authorizationOptions: { delegation: mcpServerDelegationPolicy },
+  authorizationOptions: { delegation: mcpServerExecutionDelegationPolicy },
   async execute({ principal, input, context }): Promise<ExecuteMcpToolResult> {
     input.signal?.throwIfAborted()
+    if (context.server.credentialGroupId) {
+      throw new OrchestrationError(
+        'conflict',
+        'Credential Group MCP servers require an explicit managed connection ID'
+      )
+    }
     const userId = requireMcpCredentialUserId(principal)
     await assertPermissionsAllowed({
       userId,

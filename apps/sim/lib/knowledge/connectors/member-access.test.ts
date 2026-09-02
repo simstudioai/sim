@@ -52,7 +52,7 @@ vi.mock('@/lib/credentials/managed-oauth', () => ({
 }))
 
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
-import { CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT } from '@/lib/credential-groups/workflow-access-limits'
+import { CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT } from '@/lib/credential-groups/limits'
 import {
   findListingCapViolation,
   grantKnowledgeConnectorCredentialAccess,
