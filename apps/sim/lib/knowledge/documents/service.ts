@@ -3701,6 +3701,25 @@ export interface ConnectorSyncDeletionGuard {
   connectorId: string
   knowledgeBaseId: string
   syncLockToken: string
+  /**
+   * Which engine's lease the token belongs to. The content engine locks
+   * `sync_lock_token`; the members-mode engine locks `member_sync_lock_token`,
+   * and the two never coexist on one connector.
+   */
+  lease?: 'content' | 'member'
+}
+
+/** The lease predicate a deletion guard re-verifies under `FOR UPDATE`. */
+function connectorSyncGuardHeld(guard: ConnectorSyncDeletionGuard) {
+  return guard.lease === 'member'
+    ? and(
+        eq(knowledgeConnector.memberSyncStatus, 'running'),
+        eq(knowledgeConnector.memberSyncLockToken, guard.syncLockToken)
+      )
+    : and(
+        eq(knowledgeConnector.status, 'syncing'),
+        eq(knowledgeConnector.syncLockToken, guard.syncLockToken)
+      )
 }
 
 export async function hardDeleteDocuments(
@@ -3862,8 +3881,7 @@ async function hardDeleteDocumentBatch(
           and(
             eq(knowledgeConnector.id, connectorSyncGuard.connectorId),
             eq(knowledgeConnector.knowledgeBaseId, connectorSyncGuard.knowledgeBaseId),
-            eq(knowledgeConnector.status, 'syncing'),
-            eq(knowledgeConnector.syncLockToken, connectorSyncGuard.syncLockToken),
+            connectorSyncGuardHeld(connectorSyncGuard),
             isNull(knowledgeConnector.archivedAt),
             isNull(knowledgeConnector.deletedAt)
           )

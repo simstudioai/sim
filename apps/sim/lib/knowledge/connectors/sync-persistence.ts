@@ -5,6 +5,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { EMPTY_ACL, WORKSPACE_ACL } from '@/lib/knowledge/access/tokens'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { StorageService } from '@/lib/uploads'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
@@ -15,6 +16,48 @@ import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { DocumentTags, ExternalDocument } from '@/connectors/types'
 
 const logger = createLogger('ConnectorSyncPersistence')
+
+/**
+ * Who may read a document the sync writes. A workspace-mode connector's
+ * documents are visible to the whole workspace on insert and on every update.
+ * A members-mode connector's documents are born hidden and only the member
+ * engine's ACL materialisation, which knows who observed them, makes them
+ * visible; an update never touches the ACL.
+ */
+export type SyncDocumentAccess = 'workspace' | 'members'
+
+function insertedDocumentAcl(access: SyncDocumentAccess): string[] {
+  return [...(access === 'members' ? EMPTY_ACL : WORKSPACE_ACL)]
+}
+
+function updatedDocumentAcl(access: SyncDocumentAccess): { acl?: string[] } {
+  return access === 'members' ? {} : { acl: [...WORKSPACE_ACL] }
+}
+
+/**
+ * The workspace-mode invariant, applied after every successful content sync:
+ * a document a workspace-mode connector owns is readable by the workspace,
+ * whatever a mode switch or an interrupted rewrite left behind. Idempotent and
+ * a no-op on a healthy connector.
+ */
+export async function restoreWorkspaceDocumentAcls(connectorId: string): Promise<number> {
+  /**
+   * The comparison array is assembled from scalar binds: the shared pool runs
+   * with `fetch_types: false`, under which a JS array bound as one parameter
+   * fails at execution (see packages/db/db.ts). The write itself goes through
+   * the typed column, which encodes the array literal itself.
+   */
+  const workspaceAcl = sql`ARRAY[${sql.join(
+    WORKSPACE_ACL.map((token) => sql`${token}`),
+    sql`, `
+  )}]::text[]`
+  const restored = await db
+    .update(document)
+    .set({ acl: [...WORKSPACE_ACL] })
+    .where(and(eq(document.connectorId, connectorId), sql`${document.acl} <> ${workspaceAcl}`))
+    .returning({ id: document.id })
+  return restored.length
+}
 
 const MAX_SAFE_TITLE_LENGTH = 200
 
@@ -143,7 +186,8 @@ function buildSkippedDocumentRow(
   connectorId: string,
   connectorType: string,
   extDoc: ExternalDocument,
-  sourceConfig?: Record<string, unknown>
+  sourceConfig: Record<string, unknown> | undefined,
+  access: SyncDocumentAccess
 ) {
   const reason = extDoc.skippedReason ?? 'Document was skipped during sync'
   const tagValues = extDoc.metadata
@@ -170,6 +214,7 @@ function buildSkippedDocumentRow(
     externalId: extDoc.externalId,
     contentHash: extDoc.contentHash,
     sourceUrl: extDoc.sourceUrl ?? null,
+    acl: insertedDocumentAcl(access),
     ...tagValues,
     uploadedAt: new Date(),
   }
@@ -196,7 +241,8 @@ export async function persistSkippedDocuments(
     existingId?: string
     extDoc: ExternalDocument
   }>,
-  sourceConfig?: Record<string, unknown>
+  sourceConfig?: Record<string, unknown>,
+  access: SyncDocumentAccess = 'workspace'
 ): Promise<number> {
   if (skipOps.length === 0) {
     return 0
@@ -204,7 +250,14 @@ export async function persistSkippedDocuments(
   const inserts = skipOps
     .filter((op) => !op.existingId)
     .map((op) =>
-      buildSkippedDocumentRow(knowledgeBaseId, connectorId, connectorType, op.extDoc, sourceConfig)
+      buildSkippedDocumentRow(
+        knowledgeBaseId,
+        connectorId,
+        connectorType,
+        op.extDoc,
+        sourceConfig,
+        access
+      )
     )
   const replacements = skipOps.filter((op): op is typeof op & { existingId: string } =>
     Boolean(op.existingId)
@@ -227,7 +280,8 @@ export async function persistSkippedDocuments(
         connectorId,
         connectorType,
         replacement.extDoc,
-        sourceConfig
+        sourceConfig,
+        access
       )
       const [current] = await tx
         .select({ fileUrl: document.fileUrl })
@@ -263,6 +317,7 @@ export async function persistSkippedDocuments(
           sourceUrl: skipped.sourceUrl,
           uploadedAt: skipped.uploadedAt,
           deletedAt: null,
+          ...updatedDocumentAcl(access),
           ...tagValues,
         })
         .where(connectorDocumentSyncTarget(replacement.existingId, knowledgeBaseId, connectorId))
@@ -338,7 +393,8 @@ export async function addDocument(
   connectorType: string,
   extDoc: ExternalDocument,
   kbOwner: KnowledgeBaseOwner,
-  sourceConfig?: Record<string, unknown>
+  sourceConfig?: Record<string, unknown>,
+  access: SyncDocumentAccess = 'workspace'
 ): Promise<DocumentData> {
   const documentId = generateId()
   const artifact = connectorStoredArtifact(extDoc)
@@ -384,6 +440,7 @@ export async function addDocument(
         externalId: extDoc.externalId,
         contentHash: extDoc.contentHash,
         sourceUrl: extDoc.sourceUrl ?? null,
+        acl: insertedDocumentAcl(access),
         ...tagValues,
         uploadedAt: new Date(),
       })
@@ -432,7 +489,8 @@ export async function updateDocument(
   connectorType: string,
   extDoc: ExternalDocument,
   kbOwner: KnowledgeBaseOwner,
-  sourceConfig?: Record<string, unknown>
+  sourceConfig?: Record<string, unknown>,
+  access: SyncDocumentAccess = 'workspace'
 ): Promise<DocumentData> {
   const existingRows = await db
     .select({ fileUrl: document.fileUrl })
@@ -499,6 +557,7 @@ export async function updateDocument(
           // separate resurrect step would clear deletedAt while this update, gated
           // on deletedAt IS NULL, rejects the row and leaves stale content active.
           deletedAt: null,
+          ...updatedDocumentAcl(access),
         })
         .where(connectorDocumentSyncTarget(existingDocId, knowledgeBaseId, connectorId))
         .returning({ id: document.id })

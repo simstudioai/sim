@@ -612,4 +612,11 @@ export const googleDriveConnector: ConnectorConfig = {
 
     return result
   },
+
+  /**
+   * Drive answers `notFound` for a `parents` query on a folder the caller
+   * cannot open, so a member who was never given the folder lists nothing.
+   */
+  isListingScopeUnavailableError: (error) =>
+    error instanceof GoogleDriveApiError && error.kind === 'not_found',
 }

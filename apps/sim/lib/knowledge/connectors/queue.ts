@@ -292,6 +292,7 @@ export async function dispatchSync(
     .select({
       knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
       connectorStatus: knowledgeConnector.status,
+      connectorAccessMode: knowledgeConnector.accessMode,
       connectorArchivedAt: knowledgeConnector.archivedAt,
       connectorDeletedAt: knowledgeConnector.deletedAt,
       connectorNextSyncAt: knowledgeConnector.nextSyncAt,
@@ -344,6 +345,13 @@ export async function dispatchSync(
       requestId,
     })
     return { queued: false, reason: 'Connector has been archived or deleted' }
+  }
+  if (row.connectorAccessMode !== undefined && row.connectorAccessMode !== 'workspace') {
+    logger.info('Skipping sync dispatch: connector syncs per member', { connectorId, requestId })
+    return {
+      queued: false,
+      reason: 'Connector syncs per member and is not synced as the workspace',
+    }
   }
   if (payload.requireRunnable && !isConnectorRunnableStatus(row.connectorStatus)) {
     logger.info('Skipping automatic sync dispatch: connector is not runnable', {

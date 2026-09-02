@@ -204,3 +204,59 @@ export function createContentSyncLease(connectorId: string, syncLogId: string): 
     },
   }
 }
+
+/**
+ * Ownership only, for the members-mode lease: this run still holds the
+ * member-sync lock, whether or not the connector is still live. The member
+ * engine keeps its own lease columns so neither engine can ever misread the
+ * other's; `kc_sync_lock_exclusive_check` guarantees they never coexist.
+ */
+export function holdsMemberSyncLockToken(connectorId: string, memberSyncLockToken: string) {
+  return and(
+    eq(knowledgeConnector.id, connectorId),
+    eq(knowledgeConnector.memberSyncStatus, 'running'),
+    eq(knowledgeConnector.memberSyncLockToken, memberSyncLockToken)
+  )
+}
+
+/** Matches the connector row only while this members-mode run owns a live connector. */
+export function stillHoldsMemberSyncLock(connectorId: string, memberSyncLockToken: string) {
+  return and(holdsMemberSyncLockToken(connectorId, memberSyncLockToken), connectorIsLive())
+}
+
+async function writeMemberSyncHeartbeat(
+  condition: ReturnType<typeof holdsMemberSyncLockToken>
+): Promise<boolean> {
+  const beat = await db
+    .update(knowledgeConnector)
+    .set({ memberSyncLockLeaseAt: new Date() })
+    .where(condition)
+    .returning({ id: knowledgeConnector.id })
+
+  return beat.length > 0
+}
+
+/**
+ * The lease of the members-mode engine, held through `memberSyncLockToken`.
+ * Same shape and same guarantees as {@link createContentSyncLease}, over the
+ * member columns.
+ */
+export function createMemberSyncLease(connectorId: string, runId: string): SyncRunLease {
+  let lastHeartbeatAtMs = Date.now()
+  return {
+    stillHeld: () => stillHoldsMemberSyncLock(connectorId, runId),
+    beatIfDue: async () => {
+      if (!shouldHeartbeatSyncLock(Date.now(), lastHeartbeatAtMs)) return
+      if (!(await writeMemberSyncHeartbeat(holdsMemberSyncLockToken(connectorId, runId)))) {
+        throw new SyncLockLostException(connectorId)
+      }
+      lastHeartbeatAtMs = Date.now()
+    },
+    beatLive: async () => {
+      if (!(await writeMemberSyncHeartbeat(stillHoldsMemberSyncLock(connectorId, runId)))) {
+        throw new SyncLockLostException(connectorId)
+      }
+      lastHeartbeatAtMs = Date.now()
+    },
+  }
+}

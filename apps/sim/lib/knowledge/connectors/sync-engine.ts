@@ -30,7 +30,10 @@ import {
   SyncLockLostException,
   stillHoldsSyncLock,
 } from '@/lib/knowledge/connectors/sync-lock'
-import type { KnowledgeBaseOwner } from '@/lib/knowledge/connectors/sync-persistence'
+import {
+  type KnowledgeBaseOwner,
+  restoreWorkspaceDocumentAcls,
+} from '@/lib/knowledge/connectors/sync-persistence'
 import {
   ConnectorDeletedException,
   ConnectorSyncCapacityError,
@@ -578,6 +581,19 @@ export async function executeSync(
 
   const connectorBeforeLock = connectorRows[0]
 
+  /**
+   * A connector that crawls per member is driven by the member engine, whose
+   * lease is mutually exclusive with this one. Refused before any write so a
+   * stale queue entry can never run a workspace-wide crawl over it.
+   */
+  if (connectorBeforeLock.accessMode !== 'workspace') {
+    logger.info('Skipping sync: connector does not sync as the workspace', {
+      connectorId,
+      accessMode: connectorBeforeLock.accessMode,
+    })
+    return { ...result, skipReason: 'connector_not_syncable' }
+  }
+
   const connectorConfig = CONNECTOR_REGISTRY[connectorBeforeLock.connectorType]
   if (!connectorConfig) {
     throw new Error(`Unknown connector type: ${connectorBeforeLock.connectorType}`)
@@ -884,6 +900,7 @@ export async function executeSync(
           connectorConfig.getDocument(accessToken, sourceConfig, externalId, syncContext),
       },
       lease,
+      documentAccess: 'workspace',
     })
 
     const reconciliationHoldNotice = await reconcileDeletions({
@@ -916,6 +933,19 @@ export async function executeSync(
       result,
       lease,
     })
+
+    /**
+     * Self-healing invariant of workspace mode: a mode switch back from
+     * members that was interrupted, or any other drift, leaves no document of
+     * this connector hidden from the workspace once a sync completes.
+     */
+    const restoredAcls = await restoreWorkspaceDocumentAcls(connectorId)
+    if (restoredAcls > 0) {
+      logger.warn('Restored workspace access on connector documents that had drifted', {
+        connectorId,
+        restoredAcls,
+      })
+    }
 
     const completionLanded = await completeSuccessfulSync(
       connectorId,

@@ -1457,6 +1457,15 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    connectorMemberSync:
+      enabled: true
+      name: connector-member-sync
+      schedule: "*/5 * * * *"
+      path: "/api/knowledge/connectors/member-sync"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     runDataDrains:
       enabled: true
       name: run-data-drains

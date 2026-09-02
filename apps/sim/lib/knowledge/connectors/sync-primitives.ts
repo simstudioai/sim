@@ -18,6 +18,7 @@ import {
   type KnowledgeBaseOwner,
   persistSkippedDocuments,
   persistSkippedRetryHashes,
+  type SyncDocumentAccess,
   updateDocument,
 } from '@/lib/knowledge/connectors/sync-persistence'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
@@ -1410,6 +1411,8 @@ export interface ProcessDocOpsInput {
   state: SyncRunState
   hydration: DocOpHydration
   lease: Pick<SyncRunLease, 'beatIfDue'>
+  /** Who may read the documents this pass writes. */
+  documentAccess: SyncDocumentAccess
 }
 
 /**
@@ -1419,8 +1422,15 @@ export interface ProcessDocOpsInput {
  * run so the connector backs off.
  */
 export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
-  const { connectorId, connector, sourceConfig, kbOwner, billingAttribution, forceRehydrate } =
-    input
+  const {
+    connectorId,
+    connector,
+    sourceConfig,
+    kbOwner,
+    billingAttribution,
+    forceRehydrate,
+    documentAccess,
+  } = input
   const { priorByExternalId } = input.corpus
   const { result, failedExternalIds } = input.state
 
@@ -1579,7 +1589,8 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
           connectorId,
           connector.connectorType,
           skipOps,
-          sourceConfig
+          sourceConfig,
+          documentAccess
         )
         result.docsSkipped += recorded
       } catch (error) {
@@ -1610,7 +1621,8 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
             connector.connectorType,
             op.extDoc,
             kbOwner,
-            sourceConfig
+            sourceConfig,
+            documentAccess
           )
         }
         return updateDocument(
@@ -1620,7 +1632,8 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
           connector.connectorType,
           op.extDoc,
           kbOwner,
-          sourceConfig
+          sourceConfig,
+          documentAccess
         )
       })
     )

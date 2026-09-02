@@ -276,6 +276,15 @@ export interface ConnectorConfig extends ConnectorMeta {
     sourceConfig: Record<string, unknown>
   ) => Promise<{ valid: boolean; error?: string }>
 
+  /**
+   * Whether a listing failure means the caller simply cannot reach the
+   * configured scope — the folder or space is not shared with them. A
+   * members-mode crawl treats that as a complete listing of nothing for that
+   * member rather than an error, so their access is withdrawn instead of
+   * retried forever. Only meaningful alongside {@link ConnectorMeta.permissionScopedListing}.
+   */
+  isListingScopeUnavailableError?: (error: unknown) => boolean
+
   /** Map source metadata to semantic tag keys (translated to slots by the sync engine) */
   mapTags?: (metadata: Record<string, unknown>) => Record<string, unknown>
 }

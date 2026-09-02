@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import * as cheerio from 'cheerio'
+import { AtlassianSiteNotAccessibleError } from '@/lib/atlassian/discovery'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -8,6 +9,18 @@ import { htmlToPlainText, joinTagArray, parseMultiValue, parseTagDate } from '@/
 import { getConfluenceCloudId, normalizeConfluenceDomainHost } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceConnector')
+
+/**
+ * The configured space does not exist for the caller. Confluence answers a
+ * space lookup with an empty result rather than a 403 when the caller cannot
+ * see the space, so this is also what a member without access observes.
+ */
+export class ConfluenceSpaceNotFoundError extends Error {
+  constructor(readonly spaceKey: string) {
+    super(`Space "${spaceKey}" not found`)
+    this.name = 'ConfluenceSpaceNotFoundError'
+  }
+}
 
 /** Label prefixes for Confluence's built-in Info/Note/Warning/Tip macros, by their rendered CSS suffix. */
 const CALLOUT_LABELS: Record<string, string> = {
@@ -489,6 +502,14 @@ export const confluenceConnector: ConnectorConfig = {
 
     return result
   },
+
+  /**
+   * A member who is not on the Atlassian site, or cannot see the configured
+   * space, lists nothing: a complete listing of nothing, not an error.
+   */
+  isListingScopeUnavailableError: (error) =>
+    error instanceof ConfluenceSpaceNotFoundError ||
+    error instanceof AtlassianSiteNotAccessibleError,
 }
 
 /**
@@ -815,7 +836,7 @@ async function resolveSpaceId(
   const results = data.results || []
 
   if (results.length === 0) {
-    throw new Error(`Space "${spaceKey}" not found`)
+    throw new ConfluenceSpaceNotFoundError(spaceKey)
   }
 
   return String(results[0].id)
