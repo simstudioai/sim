@@ -19,12 +19,15 @@ const {
   mockFetch,
   mockHandleExecutionCancelledConsole,
   mockHandleExecutionErrorConsole,
+  mockIsExecutionStreamHttpError,
+  mockIsRunToolActiveForWorkflow,
   mockLoadExecutionPointer,
   mockReconnect,
   mockRequestJson,
   mockResolveStartCandidates,
   mockSelectBestTrigger,
   mockUploadInternalFileSession,
+  runToolReleaseListeners,
   terminalStoreState,
   workflowBlocks,
   workflowStoreState,
@@ -101,12 +104,15 @@ const {
     mockFetch: vi.fn(),
     mockHandleExecutionCancelledConsole: vi.fn(),
     mockHandleExecutionErrorConsole: vi.fn(),
+    mockIsExecutionStreamHttpError: vi.fn(() => false),
+    mockIsRunToolActiveForWorkflow: vi.fn(() => false),
     mockLoadExecutionPointer: vi.fn(),
     mockReconnect: vi.fn(),
     mockRequestJson: vi.fn(),
     mockResolveStartCandidates: vi.fn(),
     mockSelectBestTrigger: vi.fn(),
     mockUploadInternalFileSession: vi.fn(),
+    runToolReleaseListeners: new Set<(workflowId: string) => void>(),
     terminalStoreState,
     workflowBlocks,
     workflowStoreState,
@@ -123,6 +129,16 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/lib/api/client/request', () => ({
   requestJson: mockRequestJson,
+}))
+
+vi.mock('@/lib/copilot/tools/client/run-tool-execution', () => ({
+  isRunToolActiveForWorkflow: mockIsRunToolActiveForWorkflow,
+  subscribeToRunToolRelease: (listener: (workflowId: string) => void) => {
+    runToolReleaseListeners.add(listener)
+    return () => {
+      runToolReleaseListeners.delete(listener)
+    }
+  },
 }))
 
 vi.mock('@/lib/api/contracts/workflows', () => ({
@@ -214,7 +230,7 @@ vi.mock('@/hooks/use-execution-stream', () => {
   class SSEStreamInterruptedError extends Error {}
 
   return {
-    isExecutionStreamHttpError: () => false,
+    isExecutionStreamHttpError: mockIsExecutionStreamHttpError,
     SSEEventHandlerError,
     SSEStreamInterruptedError,
     useExecutionStream: () => ({
@@ -419,6 +435,8 @@ function resetWorkflowExecutionTestState() {
   mockBeginScopedExecution.mockReset().mockReturnValue({})
   mockAdoptScopedExecution.mockReset().mockReturnValue(undefined)
   mockEndScopedExecution.mockReset().mockReturnValue(true)
+  mockIsExecutionStreamHttpError.mockReset().mockReturnValue(false)
+  mockIsRunToolActiveForWorkflow.mockReset().mockReturnValue(false)
   mockLoadExecutionPointer.mockReset().mockResolvedValue(null)
   mockReconnect.mockReset().mockResolvedValue(undefined)
   mockResolveStartCandidates.mockReset().mockReturnValue([])
@@ -430,6 +448,36 @@ function resetWorkflowExecutionTestState() {
   executionStoreState.getWorkflowExecution.mockReturnValue(idleExecution)
   executionStoreState.getCurrentExecutionId.mockReturnValue(null)
   workflowStoreState.edges.length = 0
+  runToolReleaseListeners.clear()
+}
+
+/**
+ * The store and pointer state a Sim run tool leaves behind the moment it starts
+ * a run, before the server has acknowledged it: this is what the reconnect
+ * flow reads as an orphaned run.
+ */
+function primeRunToolOwnedExecution() {
+  terminalStoreState._hasHydrated = true
+  executionStoreState.getWorkflowExecution.mockReturnValue({
+    ...executionStoreState.getWorkflowExecution(),
+    status: 'running',
+    isExecuting: true,
+    currentExecutionId: 'execution-1',
+  })
+  executionStoreState.getCurrentExecutionId.mockReturnValue('execution-1')
+  mockLoadExecutionPointer.mockResolvedValue({
+    workflowId: 'workflow-1',
+    executionId: 'execution-1',
+    lastEventId: 0,
+  })
+}
+
+/** The reconnect endpoint's answer while the run's buffer does not exist yet. */
+function rejectReconnectWithMissingRunBuffer() {
+  mockIsExecutionStreamHttpError.mockReturnValue(true)
+  mockReconnect.mockRejectedValue(
+    Object.assign(new Error('Reconnect failed (404)'), { httpStatus: 404 })
+  )
 }
 
 describe('useWorkflowExecution lifecycle ownership', () => {
@@ -592,6 +640,118 @@ describe('useWorkflowExecution lifecycle ownership', () => {
     expect(mockClearExecutionPointer).not.toHaveBeenCalled()
 
     unmount()
+  })
+
+  it('logs a Run Error when a reconnect for an unowned pointer finds no run buffer', async () => {
+    primeRunToolOwnedExecution()
+    rejectReconnectWithMissingRunBuffer()
+
+    const { unmount } = renderWorkflowExecutionHook()
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mockReconnect).toHaveBeenCalledTimes(1)
+    expect(mockHandleExecutionErrorConsole.mock.calls[0]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          executionId: 'execution-1',
+          error: 'Execution state is no longer available after reconnect',
+        }),
+      ])
+    )
+    expect(executionStoreState.setCurrentExecutionId).toHaveBeenCalledWith('workflow-1', null)
+    expect(executionStoreState.setIsExecuting).toHaveBeenCalledWith('workflow-1', false)
+    expect(mockClearExecutionPointer).toHaveBeenCalledWith('workflow-1')
+
+    unmount()
+  })
+
+  it('leaves a run owned by a client run tool to its live stream instead of reconnecting', async () => {
+    /*
+     * Same state as above, but a Sim run tool in this tab still owns the run.
+     * Its live stream is the source of truth, so reconnecting here would race
+     * the run's own start (the 404 above, logged as a Run Error mid-run), tear
+     * down the live run's store state, and clear the pointer the tool keeps
+     * for reload recovery.
+     */
+    primeRunToolOwnedExecution()
+    rejectReconnectWithMissingRunBuffer()
+    mockIsRunToolActiveForWorkflow.mockReturnValue(true)
+
+    const { unmount } = renderWorkflowExecutionHook()
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mockIsRunToolActiveForWorkflow).toHaveBeenCalledWith('workflow-1')
+    expect(mockReconnect).not.toHaveBeenCalled()
+    expect(mockHandleExecutionErrorConsole).not.toHaveBeenCalled()
+    expect(mockClearExecutionPointer).not.toHaveBeenCalled()
+    expect(executionStoreState.setCurrentExecutionId).not.toHaveBeenCalled()
+    expect(executionStoreState.setIsExecuting).not.toHaveBeenCalled()
+    expect(executionStoreState.setActiveBlocks).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('reconnects once the client run tool releases a run whose stream dropped', async () => {
+    primeRunToolOwnedExecution()
+    mockIsRunToolActiveForWorkflow.mockReturnValue(true)
+
+    const { unmount } = renderWorkflowExecutionHook()
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mockReconnect).not.toHaveBeenCalled()
+    expect(runToolReleaseListeners.size).toBeGreaterThan(0)
+
+    /*
+     * What the run tool leaves behind when it gives the run up: no current
+     * execution, not executing, ownership released, and the pointer still
+     * carrying the last event it persisted.
+     */
+    executionStoreState.getWorkflowExecution.mockReturnValue({
+      ...executionStoreState.getWorkflowExecution(),
+      status: 'idle',
+      isExecuting: false,
+      currentExecutionId: null,
+    })
+    executionStoreState.getCurrentExecutionId.mockReturnValue(null)
+    mockLoadExecutionPointer.mockResolvedValue({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      lastEventId: 5,
+    })
+    mockIsRunToolActiveForWorkflow.mockReturnValue(false)
+    await act(async () => {
+      for (const listener of runToolReleaseListeners) listener('workflow-2')
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mockReconnect).not.toHaveBeenCalled()
+
+    await act(async () => {
+      for (const listener of runToolReleaseListeners) listener('workflow-1')
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mockReconnect).toHaveBeenCalledTimes(1)
+    expect(mockReconnect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        fromEventId: 5,
+      })
+    )
+    expect(mockClearExecutionPointer).not.toHaveBeenCalled()
+
+    unmount()
+    expect(runToolReleaseListeners.size).toBe(0)
   })
 
   it('does not let delayed debug completion reset a replacement execution', async () => {

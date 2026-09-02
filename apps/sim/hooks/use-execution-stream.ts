@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import type { WorkflowStateContractInput } from '@/lib/api/contracts/workflows'
 import { readSSEEvents } from '@/lib/core/utils/sse'
 import type {
@@ -67,16 +68,56 @@ export class SSEStreamInterruptedError extends Error {
  * Detects errors caused by the browser killing a fetch (page refresh, navigation, tab close).
  * These should be treated as clean disconnects, not execution errors.
  */
-function isClientDisconnectError(error: any): boolean {
-  return error.name === 'AbortError'
+function isClientDisconnectError(error: unknown): boolean {
+  return isRecordLike(error) && error.name === 'AbortError'
 }
 
-function isRecoverableStreamError(error: any): boolean {
-  if (isClientDisconnectError(error)) return false
-  const msg = (error.message ?? '').toLowerCase()
+/**
+ * Messages browsers put on the TypeError a fetch or body read rejects with when
+ * the connection drops: Chrome's "network error" and "Failed to fetch",
+ * Firefox's "NetworkError when attempting to fetch resource.", and Safari's
+ * "Load failed".
+ */
+const TRANSPORT_FAILURE_MESSAGE_PATTERNS = [
+  /network\s?error/,
+  /failed to fetch/,
+  /load failed/,
+] as const
+
+/**
+ * Errors the stream layer raises itself carry their own meaning (an HTTP
+ * rejection, a handler failure, an already classified drop), so their message
+ * text must never be mistaken for a transport failure.
+ */
+function isStreamLayerError(error: unknown): boolean {
   return (
-    msg.includes('network error') || msg.includes('failed to fetch') || msg.includes('load failed')
+    error instanceof ExecutionStreamHttpError ||
+    error instanceof SSEEventHandlerError ||
+    error instanceof SSEStreamInterruptedError
   )
+}
+
+function isRecoverableStreamError(error: unknown): boolean {
+  if (!isRecordLike(error) || isClientDisconnectError(error) || isStreamLayerError(error)) {
+    return false
+  }
+  const msg = typeof error.message === 'string' ? error.message.toLowerCase() : ''
+  return TRANSPORT_FAILURE_MESSAGE_PATTERNS.some((pattern) => pattern.test(msg))
+}
+
+/**
+ * Wraps a transport failure that cut a live execution stream before its
+ * terminal event, so every consumer of a live stream classifies interruptions
+ * the same way and recovery code can rely on one error type. Returns null for
+ * client aborts and for anything that is not a transport failure.
+ */
+export function toStreamInterruptedError(
+  error: unknown,
+  executionId: string | undefined,
+  message: string
+): SSEStreamInterruptedError | null {
+  if (!isRecoverableStreamError(error)) return null
+  return new SSEStreamInterruptedError(message, executionId, error)
 }
 
 /**
@@ -318,16 +359,17 @@ export function useExecutionStream() {
         logger.info('Execution stream disconnected (page unload or abort)')
         return
       }
-      if (isRecoverableStreamError(error)) {
+      const interrupted = toStreamInterruptedError(
+        error,
+        serverExecutionId,
+        'Execution stream interrupted before a terminal event was received'
+      )
+      if (interrupted) {
         logger.warn('Execution stream interrupted; preserving execution for reconnect', {
           executionId: serverExecutionId,
           error: error.message,
         })
-        throw new SSEStreamInterruptedError(
-          'Execution stream interrupted before a terminal event was received',
-          serverExecutionId,
-          error
-        )
+        throw interrupted
       }
       logger.error('Execution stream error:', error)
       if (!(error instanceof SSEEventHandlerError)) {
@@ -423,16 +465,17 @@ export function useExecutionStream() {
         logger.info('Run-from-block stream disconnected (page unload or abort)')
         return
       }
-      if (isRecoverableStreamError(error)) {
+      const interrupted = toStreamInterruptedError(
+        error,
+        serverExecutionId,
+        'Run-from-block stream interrupted before a terminal event was received'
+      )
+      if (interrupted) {
         logger.warn('Run-from-block stream interrupted; preserving execution for reconnect', {
           executionId: serverExecutionId,
           error: error.message,
         })
-        throw new SSEStreamInterruptedError(
-          'Run-from-block stream interrupted before a terminal event was received',
-          serverExecutionId,
-          error
-        )
+        throw interrupted
       }
       logger.error('Run-from-block execution error:', error)
       if (!(error instanceof SSEEventHandlerError)) {
