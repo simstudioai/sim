@@ -70,6 +70,9 @@ describe('sandbox pricing', () => {
 
       setEnv({ COST_MULTIPLIER: '-2' })
       expect(createSandboxPricing('e2b').multiplier).toBe(1)
+
+      setEnv({ COST_MULTIPLIER: '   ' })
+      expect(createSandboxPricing('e2b').multiplier).toBe(1)
     })
   })
 })
