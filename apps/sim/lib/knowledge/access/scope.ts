@@ -1,0 +1,131 @@
+import { type Principal, resolvePrincipalSubject } from '@sim/auth/principal'
+import { db } from '@sim/db'
+import { credential, credentialGroupEnrollment, user } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { sortAccessTokens, subjectToken } from '@/lib/knowledge/access/tokens'
+import {
+  type KnowledgeAccessProvider,
+  type KnowledgeAccessScope,
+  WORKSPACE_ACCESS_TOKENS,
+  type WorkspaceAccessScope,
+} from '@/lib/knowledge/access/types'
+
+const logger = createLogger('KnowledgeAccessScope')
+
+export const WORKSPACE_ACCESS_SCOPE: WorkspaceAccessScope = Object.freeze({
+  kind: 'workspace',
+  tokens: WORKSPACE_ACCESS_TOKENS,
+})
+
+/** Enrollment states under which a credential-group membership counts as live. */
+const LIVE_ENROLLMENT_STATUSES = ['in_progress', 'completed'] as const
+
+export interface KnowledgeAccessScopeContext {
+  /** Undefined only for a legacy personal knowledge base, which cannot own connectors. */
+  workspaceId?: string
+}
+
+/**
+ * The tokens a person holds in a workspace: the workspace pair plus one `s:`
+ * token per active managed credential bound to them through a credential-group
+ * enrollment. The person must be email-verified — the enrollment binding is by
+ * email, and an unverified address must not inherit grants made to whoever
+ * really owns it. Nothing here is cached: revoking or suspending a credential
+ * is visible on the next read.
+ */
+async function loadUserAccessTokens(
+  userId: string,
+  workspaceId: string | undefined
+): Promise<string[]> {
+  if (!workspaceId) return [...WORKSPACE_ACCESS_TOKENS]
+
+  const rows = await db
+    .select({
+      providerId: credential.providerId,
+      providerTenantId: credential.providerTenantId,
+      providerSubjectId: credential.providerSubjectId,
+    })
+    .from(user)
+    .leftJoin(
+      credentialGroupEnrollment,
+      and(
+        eq(
+          credentialGroupEnrollment.email,
+          sql`COALESCE(${user.normalizedEmail}, lower(btrim(${user.email})))`
+        ),
+        inArray(credentialGroupEnrollment.status, [...LIVE_ENROLLMENT_STATUSES])
+      )
+    )
+    .leftJoin(
+      credential,
+      and(
+        eq(credential.credentialGroupEnrollmentId, credentialGroupEnrollment.id),
+        eq(credential.workspaceId, workspaceId),
+        eq(credential.type, 'managed_oauth'),
+        eq(credential.managedOauthStatus, 'active')
+      )
+    )
+    .where(and(eq(user.id, userId), eq(user.emailVerified, true)))
+
+  const tokens = new Set<string>(WORKSPACE_ACCESS_TOKENS)
+  for (const row of rows) {
+    if (!row.providerSubjectId) continue
+    try {
+      tokens.add(subjectToken(row))
+    } catch (error) {
+      logger.warn('Skipping malformed managed credential subject', {
+        userId,
+        workspaceId,
+        providerId: row.providerId,
+        error: getErrorMessage(error),
+      })
+    }
+  }
+  return sortAccessTokens(tokens)
+}
+
+/**
+ * Resolves what a principal may read. A principal with a person behind it gets
+ * that person's tokens; everything actorless — workspace API keys, scheduled,
+ * webhook, chat, and MCP runs — gets the workspace pair, by policy. Never
+ * consults a compatibility actor: a scheduled run must not inherit its
+ * deployer's private documents.
+ */
+export async function resolveKnowledgeAccessScope(
+  principal: Principal,
+  context: KnowledgeAccessScopeContext
+): Promise<KnowledgeAccessScope> {
+  if (principal.kind === 'credential_group_enrollment') {
+    throw new OrchestrationError(
+      'forbidden',
+      'Credential Group enrollments cannot read knowledge documents'
+    )
+  }
+  const subject = resolvePrincipalSubject(principal)
+  if (subject?.kind !== 'sim_user') return WORKSPACE_ACCESS_SCOPE
+  return {
+    kind: 'user',
+    userId: subject.userId,
+    tokens: await loadUserAccessTokens(subject.userId, context.workspaceId),
+  }
+}
+
+/** Memoises {@link resolveKnowledgeAccessScope} for one operation; a failed lookup is retried on the next call. */
+export function createKnowledgeAccessProvider(
+  principal: Principal,
+  context: KnowledgeAccessScopeContext
+): KnowledgeAccessProvider {
+  let pending: Promise<KnowledgeAccessScope> | undefined
+  return {
+    get() {
+      pending ??= resolveKnowledgeAccessScope(principal, context).catch((error: unknown) => {
+        pending = undefined
+        throw error
+      })
+      return pending
+    },
+  }
+}
