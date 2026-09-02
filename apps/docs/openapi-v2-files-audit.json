@@ -2021,6 +2021,9 @@
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2175,24 +2178,34 @@
             "name": "folderPaths",
             "in": "query",
             "required": false,
-            "description": "Folders the search is confined to. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.",
+            "description": "Folders the search is confined to, comma-separated. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.",
             "schema": {
-              "description": "Folders the search is confined to. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.",
-              "maxItems": 64,
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/FolderPathInput"
-              }
+              "description": "Folders the search is confined to, comma-separated. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.",
+              "type": "string"
             }
           },
           {
             "name": "includeSubfolders",
             "in": "query",
             "required": false,
-            "description": "Whether the scope descends into nested folders. Absent means yes.",
+            "description": "Whether the scope descends into nested folders. Absent means yes. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
             "schema": {
-              "description": "Whether the scope descends into nested folders. Absent means yes.",
-              "type": "boolean"
+              "description": "Whether the scope descends into nested folders. Absent means yes. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+              "enum": [
+                "true",
+                "1",
+                "yes",
+                "on",
+                "y",
+                "enabled",
+                "false",
+                "0",
+                "no",
+                "off",
+                "n",
+                "disabled"
+              ],
+              "type": "string"
             }
           }
         ],
@@ -2943,6 +2956,22 @@
               "error": {
                 "code": "UNSUPPORTED_MEDIA_TYPE",
                 "message": "Request body must be sent as application/json"
+              }
+            }
+          }
+        }
+      },
+      "Locked": {
+        "description": "The resource is locked and cannot be modified.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "LOCKED",
+                "message": "Workflow is locked"
               }
             }
           }

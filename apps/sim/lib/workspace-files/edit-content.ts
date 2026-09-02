@@ -22,25 +22,50 @@ export class EditContentError extends Error {
   }
 }
 
-/** 1-based line number of a character offset. */
-function lineNumberAt(text: string, index: number): number {
-  let line = 1
-  for (let i = 0; i < index; i++) {
-    if (text.charCodeAt(i) === 10) line++
-  }
-  return line
+/**
+ * How many matches an ambiguity error names before it stops counting.
+ *
+ * A short search string in a large file can match thousands of times. Listing
+ * every line builds an error message far larger than the file itself, and the
+ * caller only needs enough examples to see the match is not unique.
+ */
+const MAX_REPORTED_MATCHES = 10
+
+interface MatchScan {
+  count: number
+  /** Line numbers of the first {@link MAX_REPORTED_MATCHES} matches, 1-based. */
+  lineNumbers: number[]
 }
 
-function findOccurrences(text: string, search: string): number[] {
-  const indices: number[] = []
+/**
+ * Locates every occurrence and its line number in one pass over the text.
+ *
+ * One pass rather than a scan per match: counting newlines from the start for
+ * each hit is quadratic, so a short search string in a large file turned an
+ * ambiguity report into a stall.
+ */
+function scanMatches(text: string, search: string): MatchScan {
+  const lineNumbers: number[] = []
+  let count = 0
+  let line = 1
+  let cursor = 0
   let from = 0
+
   for (;;) {
     const index = text.indexOf(search, from)
-    if (index === -1) return indices
-    indices.push(index)
+    if (index === -1) break
+    count++
+    if (lineNumbers.length < MAX_REPORTED_MATCHES) {
+      for (; cursor < index; cursor++) {
+        if (text.charCodeAt(cursor) === 10) line++
+      }
+      lineNumbers.push(line)
+    }
     /* Advance past the match so overlapping text is never counted twice. */
     from = index + search.length
   }
+
+  return { count, lineNumbers }
 }
 
 /**
@@ -56,24 +81,28 @@ export function applyStringReplacement(text: string, oldString: string, newStrin
     throw new EditContentError('Search text cannot be empty', { reason: 'empty_search' })
   }
 
-  const occurrences = findOccurrences(text, oldString)
-  if (occurrences.length === 0) {
+  const { count, lineNumbers } = scanMatches(text, oldString)
+  if (count === 0) {
     throw new EditContentError('Search text does not appear in this file', { reason: 'not_found' })
   }
-  if (occurrences.length > 1) {
-    const lineNumbers = occurrences.map((index) => lineNumberAt(text, index))
+  if (count > 1) {
+    const shown = lineNumbers.join(', ')
+    const where =
+      count > lineNumbers.length
+        ? `first on lines ${shown}, and ${count - lineNumbers.length} more`
+        : `on lines ${shown}`
     throw new EditContentError(
-      `Search text appears ${occurrences.length} times, on lines ${lineNumbers.join(', ')}. Include more surrounding text so it matches exactly once.`,
+      `Search text appears ${count} times, ${where}. Include more surrounding text so it matches exactly once.`,
       { reason: 'ambiguous', lineNumbers }
     )
   }
 
-  const index = occurrences[0]
+  const index = text.indexOf(oldString)
   return text.slice(0, index) + newString + text.slice(index + oldString.length)
 }
 
-/** The line ending the file already uses, so an insert does not leave a mixed one behind. */
-function detectLineEnding(text: string): '\r\n' | '\n' {
+/** The line ending the file already uses, so an edit does not leave a mixed one behind. */
+export function detectLineEnding(text: string): '\r\n' | '\n' {
   return text.includes('\r\n') ? '\r\n' : '\n'
 }
 

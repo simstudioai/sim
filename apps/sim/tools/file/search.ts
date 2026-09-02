@@ -77,6 +77,22 @@ export const fileSearchTool: InternalToolConfig<FileSearchParams, FileSearchResp
       visibility: 'user-only',
       description: 'Hard result cap configured by the workflow builder (1-200, default 50).',
     },
+    folderPaths: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      maxItems: 64,
+      items: { type: 'string' },
+      description:
+        'Folders the search is confined to, as canonical percent-encoded paths, e.g. ["/memory/user-a"]. Absent searches the whole workspace. Scoping also narrows the reported index coverage, so "complete" describes the folders searched.',
+    },
+    includeSubfolders: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether the scope descends into nested folders. Defaults to true; set false to search only the folders’ direct files.',
+    },
   },
   /**
    * `mode` is withheld from the model, so the tool speaks for it: the active

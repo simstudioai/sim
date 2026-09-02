@@ -423,6 +423,72 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       }
     )
 
+    /*
+     * Every one of these was declared in a contract and then not sent. A field
+     * the block never emits is indistinguishable from a feature that does not
+     * exist, which is the failure mode this group exists to catch.
+     */
+    describe('the fields the contracts declare actually travel', () => {
+      it('sends the recursion flag with an edit, so a nested same-named file stays out of scope', () => {
+        const params = paramsFor('file_edit', {
+          editFileInput: 'self.md',
+          folderScopeRef: '/memory/user-a',
+          folderIncludeSubfolders: 'false',
+          oldString: 'a',
+          newString: 'b',
+        })
+
+        expect(params.folderPath).toBe('/memory/user-a')
+        expect(params.includeSubfolders).toBe(false)
+      })
+
+      it('sends the recursion flag with an insert', () => {
+        const params = paramsFor('file_insert', {
+          editFileInput: 'self.md',
+          folderScopeRef: '/memory/user-a',
+          folderIncludeSubfolders: 'false',
+          afterLine: '2',
+          insertContent: 'x',
+        })
+
+        expect(params.includeSubfolders).toBe(false)
+      })
+
+      it('sends a requested line range on get content', () => {
+        const params = paramsFor('file_get_content', {
+          getContentInput: 'wf_abc',
+          contentOffset: '10',
+          contentLimit: '5',
+        })
+
+        expect(params.offset).toBe(10)
+        expect(params.limit).toBe(5)
+      })
+
+      it('omits the range when neither bound is set', () => {
+        const params = paramsFor('file_get_content', { getContentInput: 'wf_abc' })
+
+        expect(params.offset).toBeUndefined()
+        expect(params.limit).toBeUndefined()
+      })
+
+      it('refuses a line number that is not a whole number above zero', () => {
+        expect(() =>
+          paramsFor('file_get_content', { getContentInput: 'wf_abc', contentOffset: '0' })
+        ).toThrow(/whole number/)
+      })
+
+      it('coerces the insert line, which arrives from the input as text', () => {
+        const params = paramsFor('file_insert', {
+          editFileInput: 'wf_abc',
+          afterLine: '0',
+          insertContent: 'x',
+        })
+
+        expect(params.afterLine).toBe(0)
+      })
+    })
+
     describe('search takes the folder as a filter, not a selection', () => {
       it('searches the workspace when no folder is chosen', () => {
         const params = paramsFor('file_search', { query: 'commitment' })

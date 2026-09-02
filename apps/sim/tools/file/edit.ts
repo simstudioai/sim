@@ -5,6 +5,7 @@ const FOLDER_PATH_DESCRIPTION = `Folder the file lives in. Naming it targets exa
 interface FileEditParams {
   fileName: string
   folderPath?: string
+  includeSubfolders?: boolean
   oldString: string
   newString: string
   workspaceId?: string
@@ -13,6 +14,7 @@ interface FileEditParams {
 interface FileInsertParams {
   fileName: string
   folderPath?: string
+  includeSubfolders?: boolean
   afterLine: number
   content: string
   workspaceId?: string
@@ -45,6 +47,13 @@ export const fileEditTool: InternalToolConfig<FileEditParams, ToolResponse> = {
       visibility: 'user-or-llm',
       description: FOLDER_PATH_DESCRIPTION,
     },
+    includeSubfolders: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether the folder is searched for the file recursively. Defaults to true; set false to match only its direct contents, which is how a name shared with a file in a nested folder is disambiguated.',
+    },
     oldString: {
       type: 'string',
       required: true,
@@ -65,6 +74,7 @@ export const fileEditTool: InternalToolConfig<FileEditParams, ToolResponse> = {
       operation: 'edit',
       fileName: params.fileName,
       folderPath: params.folderPath?.trim() || undefined,
+      ...(params.includeSubfolders === false ? { includeSubfolders: false } : {}),
       oldString: params.oldString,
       newString: params.newString,
       workspaceId: params.workspaceId,
@@ -105,6 +115,13 @@ export const fileInsertTool: InternalToolConfig<FileInsertParams, ToolResponse> 
       visibility: 'user-or-llm',
       description: FOLDER_PATH_DESCRIPTION,
     },
+    includeSubfolders: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether the folder is searched for the file recursively. Defaults to true; set false to match only its direct contents, which is how a name shared with a file in a nested folder is disambiguated.',
+    },
     afterLine: {
       type: 'number',
       required: true,
@@ -126,6 +143,7 @@ export const fileInsertTool: InternalToolConfig<FileInsertParams, ToolResponse> 
       operation: 'insert',
       fileName: params.fileName,
       folderPath: params.folderPath?.trim() || undefined,
+      ...(params.includeSubfolders === false ? { includeSubfolders: false } : {}),
       afterLine: params.afterLine,
       content: params.content,
       workspaceId: params.workspaceId,

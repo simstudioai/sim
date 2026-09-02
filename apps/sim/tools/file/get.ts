@@ -131,6 +131,8 @@ interface FileGetContentParams {
   fileInput?: unknown
   folderPaths?: string[]
   includeSubfolders?: boolean
+  offset?: number
+  limit?: number
   workspaceId?: string
 }
 
@@ -168,6 +170,20 @@ export const fileGetContentTool: InternalToolConfig<FileGetContentParams, ToolRe
       description:
         'Whether nested folders are read too. Defaults to true; set false to take only the folders\u2019 direct files.',
     },
+    offset: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'First line to return, 1-based. Applied to each selected file separately, so a multi-file selection returns the same window of each. Absent starts at the first line.',
+    },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'How many lines to return from the offset. Absent reads to the end. Use this to read part of a long file instead of all of it; the response reports the total line count alongside the window.',
+    },
   },
 
   operation: {
@@ -177,6 +193,8 @@ export const fileGetContentTool: InternalToolConfig<FileGetContentParams, ToolRe
       fileInput: params.fileInput,
       folderPaths: params.folderPaths,
       includeSubfolders: params.includeSubfolders,
+      offset: params.offset,
+      limit: params.limit,
       workspaceId: params.workspaceId,
     }),
   },
@@ -193,6 +211,11 @@ export const fileGetContentTool: InternalToolConfig<FileGetContentParams, ToolRe
     contents: {
       type: 'array',
       description: 'Array of file text contents, one entry per file in input order',
+    },
+    lineRanges: {
+      type: 'array',
+      description:
+        'Present when a line range was requested: one entry per file, in the same order, with offset, lineCount, and totalLines',
     },
   },
 }

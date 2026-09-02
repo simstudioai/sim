@@ -1102,9 +1102,8 @@ sim files search [options]
 | `--query <value>` | Yes | Regular expression, or exact text when `mode` is `exact`. |
 | `--mode <value>` | No | How `query` is read. Accepted values: `exact`, `regex`. |
 | `--max-results <value>` | No | Maximum matching lines to return. |
-| `--folder-paths <json\|@file>` | No | Folders the search is confined to. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace. (JSON, or @path / @- to read a file or stdin). |
-| `--include-subfolders` | No | Whether the scope descends into nested folders. Absent means yes. |
-| `--no-include-subfolders` | No | Send --include-subfolders as false. |
+| `--folder-paths <value>` | No | Folders the search is confined to, comma-separated. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace. |
+| `--include-subfolders <value>` | No | Whether the scope descends into nested folders. Absent means yes. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected. Accepted values: `true`, `1`, `yes`, `on`, `y`, `enabled`, `false`, `0`, `no`, `off`, `n`, `disabled`. |
 
 </CommandTable>
 

@@ -794,7 +794,7 @@ const declaredRoutes = [
       operationId: 'editFileContent',
       summary: 'Edit File Content',
       description: `Change part of a text file in place, leaving the rest untouched. \`PUT\` on this path replaces the whole file; this is the partial counterpart, so one line can be corrected without regenerating everything around it. \`replace_string\` requires \`oldString\` to match **exactly once** — several matches answer \`400\` naming the lines they sit on, because replacing an arbitrary one of them would be a silent write to a line the caller never chose. \`insert_lines\` inserts after a 1-based line, with \`0\` meaning the top; a line past the end of the file answers \`400\` rather than appending. Line numbers are the ones \`GET /api/v2/files/{fileId}/text\` and file search report. Only files whose stored bytes are UTF-8 text can be edited: editing works on the bytes, never on parsed text, so a PDF or DOCX answers \`400\`. A concurrent write answers \`409\`, and retrying means re-reading first.`,
-      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'Locked'],
       success: { description: 'The edited file and its new line count.' },
     }),
     {

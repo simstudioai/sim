@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   ContentVersionConflictError,
   fetchWorkspaceFileBuffer,
@@ -87,9 +88,26 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
         )
       }
 
-      const buffer = await fetchWorkspaceFileBuffer(file, {
-        maxBytes: MAX_WORKSPACE_FILE_CONTENT_BYTES,
-      })
+      /*
+       * A file already larger than the edit ceiling throws from storage before
+       * anything is read, and an unclassified throw becomes a 500 on a request
+       * that is merely too big. The post-edit check below covers the other
+       * direction, where an edit grows a file past the same ceiling.
+       */
+      let buffer: Buffer
+      try {
+        buffer = await fetchWorkspaceFileBuffer(file, {
+          maxBytes: MAX_WORKSPACE_FILE_CONTENT_BYTES,
+        })
+      } catch (error) {
+        if (error instanceof PayloadSizeLimitError) {
+          throw new OrchestrationError(
+            'payload_too_large',
+            `${file.name} is larger than the ${MAX_WORKSPACE_FILE_CONTENT_BYTES / 1024 / 1024}MB in-place edit limit`
+          )
+        }
+        throw error
+      }
       /*
        * Editing works on the stored bytes, never on parser-extracted text:
        * extraction is one-way, so writing it back would replace a PDF or a

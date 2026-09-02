@@ -1159,17 +1159,47 @@ export const v2SearchFileContentQuerySchema = z
       .max(FILE_SEARCH_MAX_RESULTS)
       .default(FILE_SEARCH_DEFAULT_MAX_RESULTS)
       .describe('Maximum matching lines to return.'),
+    /*
+     * Comma-separated, and parsed here rather than declared as an array:
+     * this is a GET, so every value arrives as a string, and v2 rejects a
+     * query parameter sent more than once — so a repeated-parameter array
+     * would be refused before it ever reached a schema. Matches the sibling
+     * selection lists on bulk download.
+     */
     folderPaths: z
-      .array(v2FolderPathInputSchema)
-      .max(64, 'Too many folders')
+      .string()
+      .optional()
+      .transform((value) =>
+        value === undefined
+          ? undefined
+          : value
+              .split(',')
+              .map((entry) => entry.trim())
+              .filter(Boolean)
+      )
+      .pipe(
+        z
+          .array(v2FolderPathInputSchema)
+          .min(1, 'folderPaths cannot be empty')
+          .max(64, 'folderPaths cannot contain more than 64 entries')
+          .optional()
+      )
+      .describe(
+        'Folders the search is confined to, comma-separated. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.'
+      ),
+    /*
+     * `z.stringbool` rather than `z.boolean()`, which rejects every query
+     * string, and rather than `z.coerce.boolean()`, which is `Boolean(input)`
+     * and reads `includeSubfolders=false` as `true`. Matches the sibling
+     * `recursive` on the file listing.
+     */
+    includeSubfolders: z
+      .stringbool({ case: 'sensitive' })
       .optional()
       .describe(
-        'Folders the search is confined to. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.'
-      ),
-    includeSubfolders: z
-      .boolean()
-      .optional()
-      .describe('Whether the scope descends into nested folders. Absent means yes.'),
+        'Whether the scope descends into nested folders. Absent means yes. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.'
+      )
+      .meta({ enum: [...V2_TRUE_VALUES, ...V2_FALSE_VALUES] }),
   })
   .strict()
 export type V2SearchFileContentQuery = z.output<typeof v2SearchFileContentQuerySchema>

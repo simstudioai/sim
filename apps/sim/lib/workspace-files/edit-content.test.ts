@@ -151,3 +151,33 @@ describe('countLines', () => {
     expect(() => applyLineInsertion(text, countLines(text) + 1, 'x')).toThrow()
   })
 })
+
+/*
+ * A short search string in a large file can match thousands of times. Naming
+ * every line built an error larger than the file, and computing each line by
+ * rescanning from the start was quadratic.
+ */
+describe('a heavily ambiguous match', () => {
+  const many = Array.from({ length: 5000 }, (_, i) => `- item ${i}`).join('\n')
+
+  it('caps the lines it names and says how many more there are', () => {
+    try {
+      applyStringReplacement(many, '- item', 'x')
+      throw new Error('expected a refusal')
+    } catch (error) {
+      const message = (error as EditContentError).message
+      expect(message).toContain('appears 5000 times')
+      expect(message).toContain('and 4990 more')
+      expect((error as EditContentError).failure).toMatchObject({ reason: 'ambiguous' })
+      expect(
+        ((error as EditContentError).failure as { lineNumbers: number[] }).lineNumbers
+      ).toHaveLength(10)
+    }
+  })
+
+  it('stays linear rather than rescanning per match', () => {
+    const started = performance.now()
+    expect(() => applyStringReplacement(many, '- item', 'x')).toThrow()
+    expect(performance.now() - started).toBeLessThan(1000)
+  })
+})

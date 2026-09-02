@@ -82,7 +82,7 @@ import {
   updateWorkspaceFileFolderOperation,
 } from '@/lib/workspace-files/application/workspace-file-folders'
 import { selectDirectoryEntries } from '@/lib/workspace-files/directory-listing'
-import { countLines } from '@/lib/workspace-files/edit-content'
+import { countLines, detectLineEnding } from '@/lib/workspace-files/edit-content'
 import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 import { resolveFolderIdsForPaths } from '@/lib/workspace-files/folder-path-selection'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
@@ -316,7 +316,8 @@ function sliceTextLines(
   const window = effective.slice(start, limit === undefined ? undefined : start + limit)
 
   return {
-    text: window.join('\n'),
+    /* Rejoined with the text's own ending, so the window stays usable verbatim as an edit's search text. */
+    text: window.join(detectLineEnding(text)),
     range: { offset: start + 1, lineCount: window.length, totalLines: effective.length },
   }
 }
@@ -1429,12 +1430,47 @@ export async function executeFileManageOperation(
           reference,
         })
 
+        /*
+         * The new text is caller-supplied and lands inside a file that already
+         * carries its own lineage, so the two are merged exactly as append
+         * merges them. Without this the edit would store secret-derived text
+         * with no provenance row, which is the state the platform reads as
+         * "safe".
+         */
+        const selectionKey = body.operation === 'edit' ? 'newString' : 'content'
+        const editResolution = resolveFileMutationSecretProvenance({
+          headers,
+          payload: body,
+          userId,
+          workspaceId,
+          selectionKeys: [selectionKey],
+        })
+        if (!editResolution.success) {
+          return Response.json({ success: false, error: editResolution.error }, { status: 400 })
+        }
+        const editedProvenance = editResolution.provenanceBySelection?.get(selectionKey)
+        let secretProvenance: WorkspaceFileSecretProvenance | undefined
+        if (editedProvenance) {
+          const { provenance: existingProvenance } =
+            await readWorkspaceFileSecretProvenance.execute({
+              principal,
+              input: { fileId: target.id, assertedWorkspaceId: workspaceId },
+            })
+          secretProvenance =
+            editedProvenance.status === 'exact' &&
+            editedProvenance.entries.length > 0 &&
+            target.uploadedBy !== userId
+              ? { status: 'unknown' as const }
+              : mergeWorkspaceFileSecretProvenance(existingProvenance, editedProvenance)
+        }
+
         signal?.throwIfAborted()
         const { file, lineCount } = await editWorkspaceFileContent.execute({
           principal,
           input: {
             fileId: target.id,
             assertedWorkspaceId: workspaceId,
+            ...(secretProvenance ? { secretProvenance } : {}),
             edit:
               body.operation === 'edit'
                 ? {

@@ -244,6 +244,21 @@ function namedFileTarget(
   }
 }
 
+/**
+ * A whole number above zero, or nothing.
+ *
+ * Coerced here in `params` rather than in `tools.config.tool`, which runs
+ * before variable resolution and would destroy a `<Block.output>` reference.
+ */
+function optionalPositiveInt(value: unknown, label: string): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`${label} must be a whole number, 1 or greater`)
+  }
+  return parsed
+}
+
 function folderScopePath(value: unknown): string | undefined {
   const path = readFolderPath(value)
   return path === ROOT_FOLDER_PATH ? undefined : path || undefined
@@ -1424,6 +1439,25 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       required: { field: 'operation', value: 'file_append' },
     },
     {
+      id: 'contentOffset',
+      title: 'Start Line',
+      type: 'short-input' as SubBlockType,
+      mode: 'advanced',
+      placeholder: '1',
+      description:
+        'First line to return, 1-based. Applied to each selected file separately. Leave empty to start at the beginning.',
+      condition: { field: 'operation', value: 'file_get_content' },
+    },
+    {
+      id: 'contentLimit',
+      title: 'Line Count',
+      type: 'short-input' as SubBlockType,
+      mode: 'advanced',
+      placeholder: 'All',
+      description: 'How many lines to return from the start line. Leave empty to read to the end.',
+      condition: { field: 'operation', value: 'file_get_content' },
+    },
+    {
       id: 'editFile',
       title: 'File',
       type: 'file-upload' as SubBlockType,
@@ -2025,7 +2059,13 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         }
 
         if (operation === 'file_get_content') {
-          return fileFamilyInput(params, 'get content', params.getContentInput)
+          const range = optionalPositiveInt(params.contentOffset, 'Start Line')
+          const count = optionalPositiveInt(params.contentLimit, 'Line Count')
+          return {
+            ...fileFamilyInput(params, 'get content', params.getContentInput),
+            ...(range === undefined ? {} : { offset: range }),
+            ...(count === undefined ? {} : { limit: count }),
+          }
         }
 
         return fileFamilyInput(params, 'read', params.readFileInput)
@@ -2067,6 +2107,8 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     },
     appendFileInput: { type: 'json', description: 'File to append to' },
     appendContent: { type: 'string', description: 'Content to append to file' },
+    contentOffset: { type: 'number', description: 'First line to return (get content)' },
+    contentLimit: { type: 'number', description: 'Lines to return from the offset (get content)' },
     editFileInput: { type: 'json', description: 'File to edit in place' },
     oldString: { type: 'string', description: 'Exact text to replace, matched once (edit)' },
     newString: { type: 'string', description: 'Replacement text; empty deletes (edit)' },

@@ -77,15 +77,19 @@ vi.mock('@sim/audit', () => ({
   recordAudit: vi.fn(),
 }))
 
+import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { editWorkspaceFileContent } from '@/lib/workspace-files/application/edit-workspace-file-content'
+import {
+  type EditWorkspaceFileContentEdit,
+  editWorkspaceFileContent,
+} from '@/lib/workspace-files/application/edit-workspace-file-content'
 
 const CONTENT_UPDATED_AT = new Date('2025-01-01T00:00:00.000Z')
 
-const principal = {
-  kind: 'session' as const,
+const principal: Principal = {
+  kind: 'session',
   userId: 'user-1',
-  subject: { kind: 'user' as const, userId: 'user-1' },
+  subject: { kind: 'user', userId: 'user-1' },
 }
 
 const NOTE = '# self\n\n- prefers async\n- based in NYC\n'
@@ -104,12 +108,15 @@ function storedFile(overrides: Record<string, unknown> = {}) {
   }
 }
 
-async function edit(edit: Record<string, unknown>) {
+/*
+ * Typed against the use case's own input rather than a loose record, so a
+ * change to the edit contract fails here at compile time instead of letting
+ * these tests keep passing against a shape the operation no longer accepts.
+ */
+async function edit(edit: EditWorkspaceFileContentEdit) {
   return editWorkspaceFileContent.execute({
-    // biome-ignore lint/suspicious/noExplicitAny: narrow principal fixture
-    principal: principal as any,
-    // biome-ignore lint/suspicious/noExplicitAny: narrow input fixture
-    input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1', edit } as any,
+    principal,
+    input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1', edit },
   })
 }
 

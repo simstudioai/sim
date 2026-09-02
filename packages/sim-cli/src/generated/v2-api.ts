@@ -7586,15 +7586,25 @@ export type RunRowEnrichmentResponse = {
 }
 
 /** `GET /api/v2/files/search` */
-type SearchFileContentQueryRef0 = string
-
 export type SearchFileContentQuery = {
   workspaceId: string
   query: string
   mode?: 'exact' | 'regex'
   maxResults?: number
-  folderPaths?: Array<SearchFileContentQueryRef0>
-  includeSubfolders?: boolean
+  folderPaths?: string
+  includeSubfolders?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
 }
 
 type SearchFileContentResponseRef0 = {
@@ -13545,13 +13555,28 @@ export const V2_OPERATIONS = {
       },
       maxResults: { kind: 'integer', default: 50, describe: 'Maximum matching lines to return.' },
       folderPaths: {
-        kind: 'array',
+        kind: 'string',
         describe:
-          'Folders the search is confined to. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.',
+          'Folders the search is confined to, comma-separated. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.',
       },
       includeSubfolders: {
-        kind: 'boolean',
-        describe: 'Whether the scope descends into nested folders. Absent means yes.',
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        describe:
+          'Whether the scope descends into nested folders. Absent means yes. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.',
       },
     },
   },

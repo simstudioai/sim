@@ -44,14 +44,20 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
      * holding one subtree per user makes this scope the isolation boundary,
      * not a convenience filter.
      */
-    const folderScope = input.folderPaths?.length
-      ? await resolveWorkspaceFolderScope({
-          principal,
-          workspaceId: context.workspaceId,
-          folderPaths: input.folderPaths,
-          includeSubfolders: input.includeSubfolders,
-        })
-      : undefined
+    /*
+     * `!== undefined`, not a length check: an explicitly empty list is a scope
+     * that names no folder, which must match nothing. Treating it as "absent"
+     * would answer a request for nothing with the whole workspace.
+     */
+    const folderScope =
+      input.folderPaths !== undefined
+        ? await resolveWorkspaceFolderScope({
+            principal,
+            workspaceId: context.workspaceId,
+            folderPaths: input.folderPaths,
+            includeSubfolders: input.includeSubfolders,
+          })
+        : undefined
     input.signal?.throwIfAborted()
 
     try {

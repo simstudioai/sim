@@ -65,12 +65,15 @@ Extract the text content of one or more workspace files from selected file objec
 | `fileInput` | file | No | Selected workspace file object, or an array of file objects. |
 | `folderPaths` | array | No | Folders whose files are included, as canonical percent-encoded paths, e.g. \["/Reports/Q3%20Results"\]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up. |
 | `includeSubfolders` | boolean | No | Whether nested folders are read too. Defaults to true; set false to take only the folders’ direct files. |
+| `offset` | number | No | First line to return, 1-based. Applied to each selected file separately, so a multi-file selection returns the same window of each. Absent starts at the first line. |
+| `limit` | number | No | How many lines to return from the offset. Absent reads to the end. Use this to read part of a long file instead of all of it; the response reports the total line count alongside the window. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contents` | array | Array of file text contents, one entry per file in input order |
+| `lineRanges` | array | Present when a line range was requested: one entry per file, in the same order, with offset, lineCount, and totalLines |
 
 ### File Search
 
@@ -83,6 +86,8 @@ Search the indexed text of active workspace files for lines matching a query, an
 | `query` | string | Yes | A regular expression matched against each line, 3-512 characters. Supports "." "*" "+" "?" "\{n,m\}" and their lazy forms, character classes such as "\[a-z\]" and "\[^0-9\]", the classes \d \w \s and \D \W \S, alternation "\|", groups "\(...\)" and "\(?:...\)", the anchors "^" and "$", and the word boundary \b. Lookahead, lookbehind, backreferences, named groups, inline flags such as "\(?i\)", \p\{...\} and POSIX "\[\[:alpha:\]\]" classes are not supported, and a pattern cannot span a line break. The pattern must contain at least 3 consecutive literal characters that every match will include — write "error \d+" rather than "\w+ \d+". Escape any metacharacter you mean literally. Matching is case-insensitive until the pattern contains an uppercase letter you are searching for; uppercase inside an escape or a character class, such as \D or \[A-Z\], does not make it case-sensitive. When the workflow builder sets Match to exact instead, the query is matched verbatim and no metacharacter needs escaping. |
 | `mode` | string | No | How the query is read, chosen by the workflow builder: "regex" \(default\) as a regular expression, or "exact" as verbatim text. |
 | `maxResults` | number | No | Hard result cap configured by the workflow builder \(1-200, default 50\). |
+| `folderPaths` | array | No | Folders the search is confined to, as canonical percent-encoded paths, e.g. \["/memory/user-a"\]. Absent searches the whole workspace. Scoping also narrows the reported index coverage, so "complete" describes the folders searched. |
+| `includeSubfolders` | boolean | No | Whether the scope descends into nested folders. Defaults to true; set false to search only the folders’ direct files. |
 
 #### Output
 
@@ -175,6 +180,7 @@ Replace one exact piece of text in an existing workspace file, leaving the rest 
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | Yes | Name or ID of the workspace file to edit. |
 | `folderPath` | string | No | Folder the file lives in. Naming it targets exactly one file when the same name exists in several folders. Canonical folder path, percent-encoded, e.g. "/memory/user-a/people". The workspace root is "/". |
+| `includeSubfolders` | boolean | No | Whether the folder is searched for the file recursively. Defaults to true; set false to match only its direct contents, which is how a name shared with a file in a nested folder is disambiguated. |
 | `oldString` | string | Yes | The exact text to replace, matched verbatim including whitespace and line breaks. It must appear exactly once in the file. |
 | `newString` | string | Yes | The text to put in its place. Pass an empty string to delete the old text. |
 
@@ -220,6 +226,7 @@ Insert new lines into an existing workspace file at a given line, leaving the re
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | Yes | Name or ID of the workspace file to insert into. |
 | `folderPath` | string | No | Folder the file lives in. Naming it targets exactly one file when the same name exists in several folders. Canonical folder path, percent-encoded, e.g. "/memory/user-a/people". The workspace root is "/". |
+| `includeSubfolders` | boolean | No | Whether the folder is searched for the file recursively. Defaults to true; set false to match only its direct contents, which is how a name shared with a file in a nested folder is disambiguated. |
 | `afterLine` | number | Yes | The 1-based line to insert after. Use 0 to insert at the top of the file. A line past the end of the file is refused rather than appended, so read or search first if you are not sure how long the file is. |
 | `content` | string | Yes | The text to insert. Multiple lines are inserted as multiple lines; no trailing newline is needed. |
 
