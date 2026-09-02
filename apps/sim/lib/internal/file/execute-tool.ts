@@ -31,6 +31,7 @@ import {
   FILE_SEARCH_MAX_RESULTS,
   FILE_SEARCH_MIN_QUERY_LENGTH,
 } from '@/lib/workspace-files/search/constants'
+import { FILE_SEARCH_MODES } from '@/lib/workspace-files/search/pattern'
 
 const logger = createLogger('FileToolExecution')
 
@@ -57,6 +58,7 @@ const fileSearchInputSchema = z
       .min(FILE_SEARCH_MIN_QUERY_LENGTH)
       .max(FILE_SEARCH_MAX_QUERY_LENGTH)
       .refine((query) => !query.includes('\0'), 'Search query cannot contain NUL characters'),
+    mode: z.enum(FILE_SEARCH_MODES).default('regex'),
     maxResults: z
       .number()
       .int()
@@ -110,6 +112,7 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
         input: {
           workspaceId,
           query: searchInput.data.query,
+          mode: searchInput.data.mode,
           maxResults: searchInput.data.maxResults,
           signal: request.signal,
         },

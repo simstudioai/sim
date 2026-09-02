@@ -16,7 +16,7 @@ The File block is a built-in Sim block for working with files stored in the work
 With the File block, you can:
 
 - **Read and extract content**: Load workspace file objects and extract their text content
-- **Search workspace content**: Find literal text across indexed active workspace files with bounded line-level results
+- **Search workspace content**: Match a regular expression, or an exact piece of text, against the indexed lines of active workspace files with bounded line-level results
 - **Fetch from URLs**: Retrieve and parse files from external URLs with custom headers
 - **Write and append**: Create new workspace files or append content to existing ones
 - **Compress and decompress**: Bundle files into a .zip archive or extract an archive into the workspace
@@ -70,13 +70,14 @@ Extract the text content of one or more workspace files from selected file objec
 
 ### File Search
 
-Search indexed text across active workspace files using literal smart-case substring matching.
+Search the indexed text of active workspace files for lines matching a regular expression, and return each matching line once with its file ID and line number. Coverage is what the index currently holds, so check "complete" and "indexStatus" before concluding that something is absent.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | Literal text to find \(3-512 characters\). Uppercase Unicode letters make matching case-sensitive. |
+| `query` | string | Yes | A regular expression matched against each line, 3-512 characters. Supports "." "*" "+" "?" "\{n,m\}" and their lazy forms, character classes such as "\[a-z\]" and "\[^0-9\]", the classes \d \w \s and \D \W \S, alternation "\|", groups "\(...\)" and "\(?:...\)", the anchors "^" and "$", and the word boundary \b. Lookahead, lookbehind, backreferences, named groups, inline flags such as "\(?i\)", \p\{...\} and POSIX "\[\[:alpha:\]\]" classes are not supported, and a pattern cannot span a line break. The pattern must contain at least 3 consecutive literal characters that every match will include — write "error \d+" rather than "\w+ \d+". Escape any metacharacter you mean literally. Matching is case-insensitive until the pattern contains an uppercase letter you are searching for; uppercase inside an escape or a character class, such as \D or \[A-Z\], does not make it case-sensitive. When the workflow builder sets Match to exact instead, the query is matched verbatim and no metacharacter needs escaping. |
+| `mode` | string | No | How the query is read, chosen by the workflow builder: "regex" \(default\) as a regular expression, or "exact" as verbatim text. |
 | `maxResults` | number | No | Hard result cap configured by the workflow builder \(1-200, default 50\). |
 
 #### Output

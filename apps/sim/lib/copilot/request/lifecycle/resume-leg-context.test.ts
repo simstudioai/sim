@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { MothershipStreamV1CompletionStatus } from '@/lib/copilot/generated/mothership-stream-v1'
 import { createStreamingContext } from '@/lib/copilot/request/context/request-context'
+
+/** Table side effects are not exercised here, and the real module loads the table application layer. */
+vi.mock('@/lib/copilot/request/tools/tables', () => ({
+  maybeWriteOutputToTable: vi.fn(async (_toolName, _params, result) => result),
+  maybeWriteReadCsvToTable: vi.fn(async (_toolName, _params, result) => result),
+}))
+
 import { makeResumeLegContext, mergeResumeLegOutputs } from '@/lib/copilot/request/lifecycle/run'
 
 // Guards the makeResumeLegContext / mergeResumeLegOutputs contract: the two MUST

@@ -182,9 +182,9 @@ jobs:
       # without `--coverage`. See the Codecov note below.
       #
       # apps/sim runs only its first shard here; `test-shard` below runs the
-      # other. That suite is bound by the single Vite server thread that feeds
+      # others. That suite is bound by the single Vite server thread that feeds
       # every worker — wall time is flat from 4 to 13 workers — so a bigger
-      # runner buys nothing and a second runner halves it.
+      # runner buys nothing and each extra runner takes a proportional slice.
       - name: Run tests
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
@@ -192,7 +192,7 @@ jobs:
           DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
           ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
-          SIM_TEST_SHARD: 1/2
+          SIM_TEST_SHARD: 1/3
         run: bun run test
 
       - name: Check schema and migrations are in sync
@@ -208,15 +208,20 @@ jobs:
           fi
           echo "✅ Schema and migrations are in sync"
 
-  # The second half of apps/sim's Vitest suite. Everything else — lint, the
-  # audits, type-check, the other workspaces' suites — lives in `test-build`
-  # with shard 1; this job exists only because that suite cannot go faster on
-  # one machine (see the "Run tests" note there). The Turbo cache disk gets
-  # its own key so the two shards' entries do not evict each other.
+  # The remaining shards of apps/sim's Vitest suite. Everything else — lint,
+  # the audits, type-check, the other workspaces' suites — lives in
+  # `test-build` with shard 1; these jobs exist only because that suite cannot
+  # go faster on one machine (see the "Run tests" note there). Three shards
+  # put each runner at roughly the fixed cost of checkout + install. The Turbo
+  # cache disk gets its own key so the shards' entries do not evict each other.
   test-shard:
-    name: Test (shard 2)
+    name: Test (shard ${{ matrix.shard }})
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [2, 3]
 
     steps:
       - name: Checkout code
@@ -250,7 +255,7 @@ jobs:
         uses: ./.github/actions/cache-mount
         with:
           provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-turbo-cache-shard-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+          key: ${{ github.repository }}-turbo-cache-shard-${{ matrix.shard }}-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./.turbo
 
       - name: Install dependencies
@@ -259,14 +264,14 @@ jobs:
       - name: Install ripgrep
         run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
 
-      - name: Run tests (apps/sim shard 2/2)
+      - name: Run tests (apps/sim shard ${{ matrix.shard }}/3)
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
           NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
           DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
           ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
-          SIM_TEST_SHARD: 2/2
+          SIM_TEST_SHARD: ${{ matrix.shard }}/3
         run: bunx turbo run test --filter=@sim/app
 
   # Next.js production build, in parallel with lint + tests. Sticky disks are

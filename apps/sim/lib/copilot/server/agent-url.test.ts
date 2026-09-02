@@ -16,7 +16,7 @@ const { envMock } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/api/contracts', () => ({
+vi.mock('@/lib/api/contracts/user', () => ({
   mothershipEnvironmentSchema: {
     safeParse: (value: unknown) =>
       ['default', 'dev', 'staging', 'prod'].includes(String(value))

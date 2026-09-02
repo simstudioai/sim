@@ -1,5 +1,5 @@
 import { resolvePrincipalAttribution, resolvePrincipalSubject } from '@sim/auth/principal'
-import { type FunctionExecuteBody, functionExecuteBodySchema } from '@/lib/api/contracts'
+import { type FunctionExecuteBody, functionExecuteBodySchema } from '@/lib/api/contracts/hotspots'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { functionExecutionDelegationPolicy } from '@/lib/function-execution/application/authorization'

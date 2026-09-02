@@ -148,7 +148,13 @@ describe('executeFileTool', () => {
     })
     expect(mocks.searchContent).toHaveBeenCalledWith({
       principal: expect.objectContaining({ serviceId: 'executor' }),
-      input: { workspaceId: 'workspace-1', query: 'needle', maxResults: 25, signal: undefined },
+      input: {
+        workspaceId: 'workspace-1',
+        query: 'needle',
+        mode: 'regex',
+        maxResults: 25,
+        signal: undefined,
+      },
     })
     expect(mocks.executeManage).not.toHaveBeenCalled()
   })
@@ -168,7 +174,7 @@ describe('executeFileTool', () => {
 
     expect(mocks.searchContent).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: { workspaceId: 'workspace-1', query: 'needle', maxResults: 50 },
+        input: { workspaceId: 'workspace-1', query: 'needle', mode: 'regex', maxResults: 50 },
       })
     )
     expect(mocks.getProvenance).toHaveBeenCalledWith(
@@ -191,12 +197,23 @@ describe('executeFileTool', () => {
     [{ query: 'abc\0def', maxResults: 50 }, 400],
     [{ query: 'needle', maxResults: 201 }, 400],
     [{ query: 'needle', maxResults: 0 }, 400],
+    [{ query: 'needle', mode: 'glob' }, 400],
   ])('rejects invalid search input before authorization', async (input, status) => {
     const response = await executeFileTool(request('file_search', input))
 
     expect(response.status).toBe(status)
     expect(mocks.createPrincipal).not.toHaveBeenCalled()
     expect(mocks.searchContent).not.toHaveBeenCalled()
+  })
+
+  it('forwards an explicitly configured exact-match mode', async () => {
+    await executeFileTool(request('file_search', { query: 'needle', mode: 'exact' }))
+
+    expect(mocks.searchContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ query: 'needle', mode: 'exact' }),
+      })
+    )
   })
 
   it('does not expose unexpected search infrastructure errors', async () => {

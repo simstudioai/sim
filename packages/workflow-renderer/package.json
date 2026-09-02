@@ -17,9 +17,17 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./dimensions": {
+      "types": "./src/dimensions.ts",
+      "default": "./src/dimensions.ts"
+    },
     "./note-colors": {
       "types": "./src/note/note-colors.ts",
       "default": "./src/note/note-colors.ts"
+    },
+    "./note-content": {
+      "types": "./src/note/note-content.ts",
+      "default": "./src/note/note-content.ts"
     }
   },
   "scripts": {

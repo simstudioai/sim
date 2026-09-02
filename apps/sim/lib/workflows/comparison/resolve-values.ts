@@ -29,6 +29,11 @@ interface ResolvedValue {
   resolved: boolean
 }
 
+interface ResolvedSelectorValue {
+  label: string | null
+  incomplete: boolean
+}
+
 /**
  * Context needed to resolve values for display
  */
@@ -87,7 +92,7 @@ async function resolveSelectorValue(
   selectorKey: SelectorKey,
   selectorContext: SelectorContext,
   scope: SelectorScope
-): Promise<string | null> {
+): Promise<ResolvedSelectorValue> {
   try {
     const manifest = getSelectorManifestEntry(selectorKey)
 
@@ -99,20 +104,26 @@ async function resolveSelectorValue(
         request: { kind: 'detail', id: value },
       })
       if (result.kind === 'detail' && result.item?.label) {
-        return result.item.label
+        return { label: result.item.label, incomplete: false }
       }
     }
 
-    const options = await loadAllSelectorOptions({
+    const catalog = await loadAllSelectorOptions({
       selectorKey,
       scope,
       context: selectorContext,
     })
-    const match = options.find((opt) => opt.id === value)
-    return match?.label ?? null
+    const match = catalog.items.find((option) => option.id === value)
+    const incomplete = !match && catalog.truncated
+    if (incomplete) {
+      logger.warn('Selector catalog was truncated before display label could be resolved', {
+        selectorKey,
+      })
+    }
+    return { label: match?.label ?? null, incomplete }
   } catch {
     logger.warn('Failed to resolve selector display label', { selectorKey })
-    return null
+    return { label: null, incomplete: false }
   }
 }
 
@@ -267,9 +278,12 @@ export async function resolveValueForDisplay(
       const selectorContext = context.blockId
         ? extractSelectorContext(context.blockId, context.currentState, selectorKey, subBlockConfig)
         : projectSelectorContext(selectorKey, { mimeType: subBlockConfig.mimeType })
-      const label = await resolveSelectorValue(value, selectorKey, selectorContext, scope)
-      if (label) {
-        return { original: value, displayLabel: label, resolved: true }
+      const selectorValue = await resolveSelectorValue(value, selectorKey, selectorContext, scope)
+      if (selectorValue.label) {
+        return { original: value, displayLabel: selectorValue.label, resolved: true }
+      }
+      if (selectorValue.incomplete) {
+        return { original: value, displayLabel: formatValueForDisplay(value), resolved: false }
       }
     }
     return { original: value, displayLabel: semanticFallback, resolved: true }

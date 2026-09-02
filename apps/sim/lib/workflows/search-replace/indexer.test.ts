@@ -21,17 +21,6 @@ import { NoteBlock } from '@/blocks/blocks/note'
 vi.unmock('@/tools/metadata')
 vi.unmock('@/tools/metadata-outputs')
 
-/**
- * Uses the real tool registry. Nothing here imports it directly — the dependency
- * is transitive: the search-replace planner resolves tool input params through
- * real subblock configs, so the global `@/tools/registry` mock in
- * vitest.setup.ts empties the data these assertions read.
- *
- * Not a no-op, despite the lack of a direct import. Dropping this opt-out fails
- * 8 tests across this file and its sibling suite.
- */
-vi.unmock('@/tools/registry')
-
 describe('indexWorkflowSearchMatches', () => {
   it('marks generic tool-param fallbacks as non-authoritative', () => {
     expect(

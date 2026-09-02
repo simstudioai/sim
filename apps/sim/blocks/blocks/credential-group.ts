@@ -1,4 +1,5 @@
 import { GridOffset } from '@sim/emcn/icons'
+import { CREDENTIAL_GROUP_EVENT_TRIGGER_ID } from '@/lib/credential-groups/trigger-constants'
 import {
   type CanonicalGroup,
   resolveActiveCanonicalValue,
@@ -13,6 +14,7 @@ import {
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { getTrigger } from '@/triggers'
 
 const CREDENTIAL_GROUP_CANONICAL_GROUP = {
   canonicalId: 'credentialGroupId',
@@ -295,6 +297,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
       placeholder: 'nextCursor from a previous page',
       condition: { field: 'operation', value: [...LIST_OPERATIONS] },
     },
+    ...getTrigger(CREDENTIAL_GROUP_EVENT_TRIGGER_ID).subBlocks,
   ],
   tools: { access: [] },
   inputs: {
@@ -393,5 +396,9 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
       description: 'Cursor for the next page, or null on the last page',
       condition: { field: 'operation', value: [...LIST_OPERATIONS] },
     },
+  },
+  triggers: {
+    enabled: true,
+    available: [CREDENTIAL_GROUP_EVENT_TRIGGER_ID],
   },
 }

@@ -1,5 +1,5 @@
 /**
- * @vitest-environment jsdom
+ * @vitest-environment node
  *
  * Dragging an image to reposition it inside a document must MOVE it, not import it again.
  *

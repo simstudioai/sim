@@ -109,6 +109,7 @@ export interface PublicCredentialGroupEnrollment {
 export interface CredentialGroupOAuthContext {
   enrollmentId: string
   credentialGroupId: string
+  credentialGroupName: string
   workspaceId: string
   workspaceName: string
   workspaceOwnerId: string
@@ -137,6 +138,11 @@ export interface PublicCredentialGroupEnrollmentIdentity {
   workspaceId: string
   email: string
   invitationTokenHash: string
+}
+
+export interface CredentialGroupEnrollmentCompletion {
+  completed: true
+  transitioned: boolean
 }
 
 /** Serializes OAuth grant persistence and administrative revocation for one enrollment. */
@@ -1032,12 +1038,16 @@ export async function completeCredentialGroupEnrollment(token: string): Promise<
     invitationTokenHash: hashInvitationToken(token),
   })
   if (!row) return null
-  return completeResolvedCredentialGroupEnrollment(row, identityForPublicEnrollmentRow(row))
+  const result = await completeResolvedCredentialGroupEnrollment(
+    row,
+    identityForPublicEnrollmentRow(row)
+  )
+  return result?.completed ?? null
 }
 
 export async function completeAuthorizedCredentialGroupEnrollment(
   identity: PublicCredentialGroupEnrollmentIdentity
-): Promise<true | null> {
+): Promise<CredentialGroupEnrollmentCompletion | null> {
   const row = await resolveAuthorizedPublicEnrollmentRow(identity)
   if (!row) return null
   return completeResolvedCredentialGroupEnrollment(row, identity)
@@ -1046,7 +1056,7 @@ export async function completeAuthorizedCredentialGroupEnrollment(
 async function completeResolvedCredentialGroupEnrollment(
   row: NonNullable<Awaited<ReturnType<typeof resolvePublicEnrollmentRowByIdentity>>>,
   identity: PublicCredentialGroupEnrollmentIdentity
-): Promise<true | null> {
+): Promise<CredentialGroupEnrollmentCompletion | null> {
   return db.transaction(async (tx) => {
     await lockCredentialGroupEnrollmentLifecycle(tx, row.enrollment.id)
     const now = new Date()
@@ -1084,9 +1094,15 @@ async function completeResolvedCredentialGroupEnrollment(
       .for('update')
     if (!group || group.status !== 'active') return null
 
+    const transitioned = current.status !== 'completed'
+
     const [completed] = await tx
       .update(credentialGroupEnrollment)
-      .set({ status: 'completed', completedAt: now, updatedAt: now })
+      .set({
+        status: 'completed',
+        ...(transitioned ? { completedAt: now } : {}),
+        updatedAt: now,
+      })
       .where(
         and(
           eq(credentialGroupEnrollment.id, row.enrollment.id),
@@ -1095,7 +1111,7 @@ async function completeResolvedCredentialGroupEnrollment(
       )
       .returning({ id: credentialGroupEnrollment.id })
     if (!completed) throw new Error('Credential group enrollment completion returned no row')
-    return true
+    return { completed: true, transitioned }
   })
 }
 
@@ -1171,6 +1187,7 @@ function credentialGroupOAuthContextFromRow(
   return {
     enrollmentId: row.enrollment.id,
     credentialGroupId: row.groupId,
+    credentialGroupName: row.groupName,
     workspaceId: row.workspaceId,
     workspaceName: row.workspaceName,
     workspaceOwnerId: row.workspaceOwnerId,

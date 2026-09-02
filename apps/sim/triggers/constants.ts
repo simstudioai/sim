@@ -85,7 +85,7 @@ export function isPollingWebhookProvider(provider: string | null): boolean {
  * register a path, so the public trigger route must reject deliveries to
  * them — otherwise anyone with the block ID could forge events.
  */
-export const INTERNAL_TRIGGER_PROVIDERS = new Set(['sim', 'table'])
+export const INTERNAL_TRIGGER_PROVIDERS = new Set(['credential-group', 'sim', 'table'])
 
 export function isInternalTriggerProvider(provider: string | null): boolean {
   return provider !== null && INTERNAL_TRIGGER_PROVIDERS.has(provider)
