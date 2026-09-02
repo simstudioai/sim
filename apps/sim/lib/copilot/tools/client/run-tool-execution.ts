@@ -45,6 +45,8 @@ const logger = createLogger('CopilotRunToolExecution')
 const activeRunToolByWorkflowId = new Map<string, string>()
 const activeRunAbortByWorkflowId = new Map<string, AbortController>()
 const manuallyStoppedToolCallIds = new Set<string>()
+type RunToolReleaseListener = (workflowId: string) => void
+const runToolReleaseListeners = new Set<RunToolReleaseListener>()
 const PENDING_COMPLETION_STORAGE_PREFIX = 'sim:copilot:run-tool-completion:'
 
 interface PendingCompletionReport {
@@ -375,6 +377,38 @@ export function isRunToolActiveForId(toolCallId: string): boolean {
   return false
 }
 
+/**
+ * Whether a client run tool in this tab currently owns the workflow's run.
+ *
+ * While it does, its live execute stream is the source of truth for the run and
+ * for the completion it reports to Sim, so the terminal's reconnect flow must
+ * not claim the execution pointer the tool writes before the server has
+ * acknowledged the run.
+ */
+export function isRunToolActiveForWorkflow(workflowId: string): boolean {
+  return activeRunToolByWorkflowId.has(workflowId)
+}
+
+/**
+ * Subscribes to a client run tool releasing a workflow run whose stream dropped
+ * before the run finished. The run keeps executing server-side and its
+ * execution pointer is retained, so a subscriber that can re-attach to the
+ * execution stream should do so once this fires. It does not fire for runs the
+ * tool observed to completion, even when reporting that completion failed.
+ */
+export function subscribeToRunToolRelease(listener: RunToolReleaseListener): () => void {
+  runToolReleaseListeners.add(listener)
+  return () => {
+    runToolReleaseListeners.delete(listener)
+  }
+}
+
+function notifyRunToolReleased(workflowId: string): void {
+  for (const listener of runToolReleaseListeners) {
+    listener(workflowId)
+  }
+}
+
 export function cancelRunToolExecution(workflowId: string): void {
   const controller = activeRunAbortByWorkflowId.get(workflowId)
   if (!controller) return
@@ -566,6 +600,7 @@ async function doExecuteRunTool(
   })
 
   let leaveExecutionRecoverable = false
+  let streamInterrupted = false
 
   try {
     const result = await executeWorkflowWithFullLogging({
@@ -649,6 +684,7 @@ async function doExecuteRunTool(
       const msg = toError(err).message
       if (err instanceof SSEEventHandlerError || err instanceof SSEStreamInterruptedError) {
         leaveExecutionRecoverable = true
+        streamInterrupted = true
         logger.warn(
           '[RunTool] Execution stream interrupted; leaving workflow execution in background',
           {
@@ -718,6 +754,9 @@ async function doExecuteRunTool(
       consolePersistence.executionEnded(persistenceExecution)
       setIsExecuting(targetWorkflowId, false)
       setActiveBlocks(targetWorkflowId, new Set())
+    }
+    if (streamInterrupted && activeToolCallId === toolCallId) {
+      notifyRunToolReleased(targetWorkflowId)
     }
   }
 }

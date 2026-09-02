@@ -115,7 +115,9 @@ import {
   cancelRunToolExecution,
   executeRunToolOnClient,
   isRunToolActiveForId,
+  isRunToolActiveForWorkflow,
   reportManualRunToolStop,
+  subscribeToRunToolRelease,
 } from './run-tool-execution'
 
 describe('run tool execution cancellation', () => {
@@ -148,6 +150,83 @@ describe('run tool execution cancellation', () => {
     await Promise.resolve()
 
     expect(capturedSignal?.aborted).toBe(true)
+  })
+
+  it('owns the workflow for exactly as long as the client run is in flight', async () => {
+    executeWorkflowWithFullLogging.mockImplementationOnce(async (options: any) => {
+      await new Promise((_, reject) => {
+        options.abortSignal.addEventListener(
+          'abort',
+          () => reject(new DOMException('Aborted', 'AbortError')),
+          { once: true }
+        )
+      })
+    })
+    let ownedWhenPointerSaved: boolean | undefined
+    saveExecutionPointer.mockImplementationOnce(() => {
+      ownedWhenPointerSaved = isRunToolActiveForWorkflow('wf-1')
+    })
+    expect(isRunToolActiveForWorkflow('wf-1')).toBe(false)
+
+    executeRunToolOnClient('tool-1', 'run_workflow', { workflowId: 'wf-1' })
+    await Promise.resolve()
+    const ownedWhileInFlight = isRunToolActiveForWorkflow('wf-1')
+    const otherWorkflowOwnedWhileInFlight = isRunToolActiveForWorkflow('wf-2')
+
+    cancelRunToolExecution('wf-1')
+    await vi.waitFor(() => expect(clearExecutionPointer).toHaveBeenCalledWith('wf-1'))
+
+    expect(ownedWhenPointerSaved).toBe(true)
+    expect(ownedWhileInFlight).toBe(true)
+    expect(otherWorkflowOwnedWhileInFlight).toBe(false)
+    expect(saveExecutionPointer).toHaveBeenCalledWith(
+      expect.objectContaining({ workflowId: 'wf-1', lastEventId: 0 })
+    )
+    expect(isRunToolActiveForWorkflow('wf-1')).toBe(false)
+  })
+
+  it('releases an interrupted run to reconnect subscribers only after giving up ownership', async () => {
+    const ownedAtRelease: boolean[] = []
+    const listener = vi.fn((workflowId: string) => {
+      ownedAtRelease.push(isRunToolActiveForWorkflow(workflowId))
+    })
+    const unsubscribe = subscribeToRunToolRelease(listener)
+    executeWorkflowWithFullLogging.mockRejectedValueOnce(
+      new MockSSEEventHandlerError('Block handler failed on event 7', 'exec-1')
+    )
+
+    try {
+      executeRunToolOnClient('tool-1', 'run_workflow', { workflowId: 'wf-1' })
+      await vi.waitFor(() => expect(listener).toHaveBeenCalledWith('wf-1'))
+
+      expect(listener).toHaveBeenCalledTimes(1)
+      expect(ownedAtRelease).toEqual([false])
+      expect(setIsExecuting).toHaveBeenCalledWith('wf-1', false)
+      expect(setCurrentExecutionId).toHaveBeenCalledWith('wf-1', null)
+      expect(setIsExecuting.mock.invocationCallOrder.at(-1)).toBeLessThan(
+        listener.mock.invocationCallOrder[0]
+      )
+      expect(clearExecutionPointer).not.toHaveBeenCalled()
+    } finally {
+      unsubscribe()
+    }
+  })
+
+  it('does not release a run it observed to completion, even when the report fails', async () => {
+    const listener = vi.fn()
+    const unsubscribe = subscribeToRunToolRelease(listener)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
+    executeWorkflowWithFullLogging.mockResolvedValueOnce({ success: true })
+
+    try {
+      executeRunToolOnClient('tool-1', 'run_workflow', { workflowId: 'wf-1' })
+      await vi.waitFor(() => expect(isRunToolActiveForWorkflow('wf-1')).toBe(false))
+
+      expect(listener).not.toHaveBeenCalled()
+      expect(clearExecutionPointer).not.toHaveBeenCalled()
+    } finally {
+      unsubscribe()
+    }
   })
 
   it('can report a manual stop using the explicit toolCallId override', async () => {
