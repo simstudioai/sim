@@ -271,7 +271,7 @@ export const universalGrepCommand: AgentCliEngine = {
     const pattern = positionals[0]
     if (!pattern) {
       return agentCliFail(
-        'Usage: sim grep <pattern> [--scope workflows,blocks,...] [--in <id|name>] [-i] [-C n] [--count] [--limit n]'
+        'Usage: sim grep <pattern> [--scope workflows,blocks,...] [--in <world|id|name|world/id>] [-i] [-C n] [--count] [--limit n]'
       )
     }
     const scopes = parseScopes(flags)
@@ -282,12 +282,15 @@ export const universalGrepCommand: AgentCliEngine = {
     if (typeof context === 'string') return agentCliFail(context)
     const ignoreCase = flags.i === true
     const countOnly = flags.count === true
-    const within = typeof flags.in === 'string' ? flags.in.toLowerCase() : undefined
     // `--in tables` reads as "search the tables world", so a world name narrows the scope;
-    // anything else is a resource id or name inside the searched worlds.
-    const withinScope = SCOPES.find((scope) => scope === within)
+    // `--in blocks/table_v2` is the path a match line prints (world, then resource); a bare
+    // value is a resource id or name inside the searched worlds.
+    const within = typeof flags.in === 'string' ? flags.in.toLowerCase() : undefined
+    const [withinHead, ...withinRest] = within ? within.split('/') : []
+    const withinScope = SCOPES.find((scope) => scope === withinHead)
+    const withinResource = withinScope ? withinRest.join('/') : within
     const searched: Scope[] = withinScope ? [withinScope] : scopes
-    const nameFilter = withinScope ? undefined : within
+    const nameFilter = withinResource || undefined
     const matches = compilePattern(pattern, ignoreCase)
 
     const materialized = (
