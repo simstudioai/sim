@@ -1678,7 +1678,7 @@ export async function fetchServableWorkspaceFileBuffer(
  */
 export async function fetchWorkspaceFileBuffer(
   fileRecord: WorkspaceFileRecord,
-  options: { maxBytes: number }
+  options: { maxBytes: number; signal?: AbortSignal }
 ): Promise<Buffer> {
   logger.info(`Downloading workspace file: ${fileRecord.name}`)
 
@@ -1687,6 +1687,7 @@ export async function fetchWorkspaceFileBuffer(
       key: fileRecord.key,
       context: fileRecord.storageContext ?? 'workspace',
       maxBytes: options.maxBytes,
+      signal: options.signal,
     })
     logger.info(
       `Successfully downloaded workspace file: ${fileRecord.name} (${buffer.length} bytes)`

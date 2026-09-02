@@ -1,4 +1,4 @@
-import { Buffer, isUtf8 } from 'node:buffer'
+import { Buffer } from 'node:buffer'
 import { db } from '@sim/db'
 import {
   workspaceFileSearchIndex,
@@ -9,23 +9,14 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, isNull, ne, or } from 'drizzle-orm'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
-import {
-  fetchServableWorkspaceFileBuffer,
-  getWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace'
-import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import {
   FILE_SEARCH_INSERT_BATCH_BYTES,
   FILE_SEARCH_INSERT_BATCH_ROWS,
-  FILE_SEARCH_MAX_EXTRACTED_BYTES,
   FILE_SEARCH_MAX_SOURCE_BYTES,
 } from '@/lib/workspace-files/search/constants'
-import {
-  iterateLogicalLines,
-  segmentLogicalLine,
-  truncateUtf8ToBytes,
-} from '@/lib/workspace-files/search/text'
+import { extractIndexText, loadIndexableBytes } from '@/lib/workspace-files/search/extract'
+import { iterateLogicalLines, segmentLogicalLine } from '@/lib/workspace-files/search/text'
 
 const logger = createLogger('WorkspaceFileSearchIndexer')
 
@@ -37,37 +28,8 @@ export interface WorkspaceFileSearchIndexPayload {
 
 type SearchIndexStatus = 'ready' | 'skipped' | 'failed'
 
-interface ExtractedIndexText {
-  text: string
-  partial: boolean
-}
-
 function sameRevision(left: Date | null | undefined, right: Date): boolean {
   return Boolean(left && left.getTime() === right.getTime())
-}
-
-async function extractIndexText(
-  buffer: Buffer,
-  fileName: string
-): Promise<ExtractedIndexText | null> {
-  if (buffer.length === 0) return { text: '', partial: false }
-  const extension = getFileExtension(fileName)
-  if (extension && isSupportedFileType(extension)) {
-    const parsed = await parseBuffer(buffer, extension)
-    if (parsed.metadata?.degraded) return null
-    const content = parsed.content ?? ''
-    const bounded = truncateUtf8ToBytes(content, FILE_SEARCH_MAX_EXTRACTED_BYTES)
-    return {
-      text: bounded,
-      partial: parsed.metadata?.truncated === true || bounded.length < content.length,
-    }
-  }
-  if (!isUtf8(buffer) || buffer.includes(0)) return null
-  const content = buffer.toString('utf8')
-  return {
-    text: truncateUtf8ToBytes(content, FILE_SEARCH_MAX_EXTRACTED_BYTES),
-    partial: buffer.length > FILE_SEARCH_MAX_EXTRACTED_BYTES,
-  }
 }
 
 async function clearRevision(
@@ -324,12 +286,9 @@ export async function indexWorkspaceFileForSearch(
   }
 
   try {
-    const { buffer } = await fetchServableWorkspaceFileBuffer(file, {
-      maxBytes: FILE_SEARCH_MAX_SOURCE_BYTES,
-      signal,
-    })
+    const bytes = await loadIndexableBytes(file, signal)
     signal.throwIfAborted()
-    const extracted = await extractIndexText(buffer, file.name)
+    const extracted = await extractIndexText(bytes, file.name, signal)
     if (!extracted) {
       await markTerminal({
         ...payload,
