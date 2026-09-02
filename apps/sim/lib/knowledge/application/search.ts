@@ -117,6 +117,10 @@ export interface KnowledgeSearchItem {
   documentId: string
   documentName: string | null
   sourceUrl: string | null
+  /** When the source last changed the document; null for uploads and sources that do not say. */
+  sourceModifiedAt: Date | null
+  /** The connector the document was synced through; null for an upload. */
+  connectorType: string | null
   content: string
   chunkIndex: number
   metadata: Record<string, unknown>
@@ -509,6 +513,10 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
         documentId: row.documentId,
         documentName: document?.filename ?? null,
         sourceUrl: document?.sourceUrl ?? null,
+        sourceModifiedAt:
+          document && 'sourceModifiedAt' in document ? (document.sourceModifiedAt ?? null) : null,
+        connectorType:
+          document && 'connectorType' in document ? (document.connectorType ?? null) : null,
         content: row.content,
         chunkIndex: row.chunkIndex,
         metadata,

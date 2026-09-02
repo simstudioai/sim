@@ -1,6 +1,7 @@
 'use client'
 
 import { cn } from '@sim/emcn'
+import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
 import { SourceChip } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
@@ -14,16 +15,40 @@ const STRIP_FADE_CLASSES =
 
 interface MessageSourcesProps {
   sources: readonly SourceTagData[]
+  /** The question the reply answers; its terms are bolded in result cards. */
+  query?: string
+  /** Asks the agent about one cited document, when the surface can send a message. */
+  onSummarize?: (prompt: string) => void
 }
 
 /**
- * Footer strip listing every document a reply cited, once each: one
- * horizontally scrolling row of {@link SourceChip}s that fades out at the right
- * edge instead of wrapping, so a long list stays a single quiet line under the
- * answer.
+ * Footer listing every document a reply cited, once each. Sources that carry
+ * a snippet — a search answer — are laid out as result cards; otherwise one
+ * horizontally scrolling row of {@link SourceChip}s that fades out at the
+ * right edge instead of wrapping, so a long list stays a single quiet line
+ * under the answer.
  */
-export function MessageSources({ sources }: MessageSourcesProps) {
+export function MessageSources({ sources, query, onSummarize }: MessageSourcesProps) {
   if (sources.length === 0) return null
+
+  if (sources.some((source) => source.snippet)) {
+    return (
+      <div className='flex flex-col gap-0.5'>
+        {sources.map((source) => (
+          <SourceCard
+            key={source.url}
+            source={source}
+            query={query}
+            onSummarize={
+              onSummarize
+                ? (cited) => onSummarize(`Summarize "${cited.title ?? cited.url}" (${cited.url})`)
+                : undefined
+            }
+          />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div

@@ -19,7 +19,7 @@ import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
  * which would drag seventy connector modules into every surface that renders
  * chat. Versioned catalog types (`gmail_v2`) collapse onto their base name.
  */
-const BRAND_ICON_BY_BASE_TYPE: ReadonlyMap<string, StyleableIcon> = new Map(
+export const BRAND_ICON_BY_BASE_TYPE: ReadonlyMap<string, StyleableIcon> = new Map(
   Object.entries(blockTypeToIconMap).map(([type, icon]) => [stripVersionSuffix(type), icon])
 )
 

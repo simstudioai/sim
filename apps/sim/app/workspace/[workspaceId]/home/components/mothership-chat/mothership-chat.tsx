@@ -2,6 +2,7 @@
 
 import {
   memo,
+  type ReactNode,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -60,6 +61,8 @@ interface MothershipChatProps {
   workspaceId: string
   messages: ChatMessage[]
   isSending: boolean
+  /** The composer's Search-mode results, shown above the input. */
+  searchResults?: ReactNode
   isReconnecting?: boolean
   isLoading?: boolean
   onSubmit: (
@@ -288,6 +291,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
         credentialSubmission={credentialSubmission}
         credentialAbandoned={credentialAbandoned}
         onOptionSelect={onOptionSelect}
+        userQuery={precedingUserContent}
         onQuestionDismiss={handleQuestionDismiss}
         onPhaseChange={setPhase}
         actions={
@@ -312,6 +316,7 @@ export function MothershipChat({
   workspaceId,
   messages: messagesProp,
   isSending,
+  searchResults,
   isReconnecting = false,
   isLoading = false,
   onSubmit,
@@ -817,6 +822,9 @@ export function MothershipChat({
           onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
         >
           <div className={styles.footerInner}>
+            {searchResults && (
+              <div className='max-h-[40vh] overflow-y-auto pb-2'>{searchResults}</div>
+            )}
             <QueuedMessages
               messageQueue={messageQueue}
               editingQueuedId={editingQueuedId}

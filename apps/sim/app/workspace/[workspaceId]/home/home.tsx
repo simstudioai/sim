@@ -34,7 +34,6 @@ import {
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
-import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 /**
  * Imported from its own folder, not the components barrel: the workflow copilot
  * panel imports that barrel for the chat pieces, and a barrel edge to this
@@ -42,6 +41,8 @@ import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/comp
  * meta — into the workflow editor's graph. See sim-imports.md, "Code-splitting
  * through barrels".
  */
+import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results'
+import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import {
@@ -54,6 +55,7 @@ import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
+import { useMothershipModeStore } from '@/stores/mothership-mode/store'
 import type { ChatContext } from '@/stores/panel'
 import {
   ChatSurfaceProvider,
@@ -153,6 +155,8 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
   const [initialPrompt, setInitialPrompt] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const composerMode = useMothershipModeStore((state) => state.mode)
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
   const initialViewUserInputRef = useRef<UserInputHandle>(null)
@@ -440,6 +444,12 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         is_new_task: !chatId,
       })
 
+      /** Search mode answers with documents, not a turn of the agent. */
+      if (useMothershipModeStore.getState().mode === 'search' && trimmed) {
+        setSearchQuery(trimmed)
+        return
+      }
+
       if (initialViewInputRef.current) {
         setIsInputEntering(true)
       }
@@ -449,6 +459,24 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     },
     [workspaceId, chatId, prepareResourceViewForAgentTurn, sendMessage]
   )
+
+  /** Summarize on a result: hand the document to the agent in Build mode. */
+  const handleSummarize = useCallback(
+    (prompt: string) => {
+      useMothershipModeStore.getState().setMode('build')
+      setSearchQuery('')
+      handleSubmit(prompt)
+    },
+    [handleSubmit]
+  )
+  const showSearchResults = composerMode === 'search' && searchQuery.length > 0
+  const searchResults = showSearchResults ? (
+    <KnowledgeSearchResults
+      workspaceId={workspaceId}
+      query={searchQuery}
+      onSummarize={handleSummarize}
+    />
+  ) : null
 
   /**
    * Handles cross-surface send requests (terminal/console "Fix in Chat", the
@@ -674,11 +702,13 @@ export function Home({ chatId, userName, userId }: HomeProps) {
                 </ChatSurfaceProvider>
                 {/* Anchored out of flow so expanding/collapsing never shifts the centered input */}
                 <div className='absolute inset-x-0 top-full'>
-                  <SuggestedActions
-                    onSelectPrompt={(prompt) =>
-                      initialViewUserInputRef.current?.populatePrompt(prompt)
-                    }
-                  />
+                  {searchResults ?? (
+                    <SuggestedActions
+                      onSelectPrompt={(prompt) =>
+                        initialViewUserInputRef.current?.populatePrompt(prompt)
+                      }
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -688,6 +718,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
             workspaceId={workspaceId}
             messages={messages}
             isSending={isSending}
+            searchResults={searchResults}
             isReconnecting={isReconnecting}
             isLoading={showChatSkeleton}
             onSubmit={handleSubmit}

@@ -1,5 +1,8 @@
 import { z } from 'zod'
-import { resolvedSecretTraceProvenanceSchema } from '@/lib/api/contracts/primitives'
+import {
+  resolvedSecretTraceProvenanceSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { DEFAULT_RERANKER_MODEL, rerankerModelSchema } from '@/lib/knowledge/reranker-models'
@@ -147,6 +150,53 @@ export const internalKnowledgeSearchContract = defineRouteContract({
             rerankerSearchUnits: z.number().optional(),
           })
           .optional(),
+      }),
+    }),
+  },
+})
+
+/** One document a workspace search matched, with the best chunk of it. */
+export const workspaceKnowledgeSearchResultSchema = z.object({
+  documentId: z.string(),
+  knowledgeBaseId: z.string(),
+  knowledgeBaseName: z.string(),
+  documentName: z.string().nullable(),
+  sourceUrl: z.string().nullable(),
+  connectorType: z.string().nullable(),
+  sourceModifiedAt: z.string().nullable(),
+  content: z.string(),
+  chunkIndex: z.number(),
+  similarity: z.number(),
+})
+export type WorkspaceKnowledgeSearchResult = z.output<typeof workspaceKnowledgeSearchResultSchema>
+
+export const workspaceKnowledgeSearchBodySchema = z.object({
+  workspaceId: workspaceIdSchema,
+  knowledgeBaseIds: z
+    .array(z.string().min(1, 'knowledgeBaseId cannot be empty'))
+    .min(1, 'At least one knowledge base is required')
+    .max(20, 'A search spans at most 20 knowledge bases'),
+  query: z.string().trim().min(1, 'A search query is required').max(2000, 'Query is too long'),
+  topK: z.number().int().min(1).max(50).optional().default(20),
+})
+export type WorkspaceKnowledgeSearchBody = z.input<typeof workspaceKnowledgeSearchBodySchema>
+
+/**
+ * The search a signed-in person runs from the composer: what their own
+ * account may read across the workspace's knowledge bases, presented as
+ * documents to open rather than chunks to feed a model.
+ */
+export const searchWorkspaceKnowledgeContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/knowledge/search',
+  body: workspaceKnowledgeSearchBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      data: z.object({
+        query: z.string(),
+        results: z.array(workspaceKnowledgeSearchResultSchema),
       }),
     }),
   },

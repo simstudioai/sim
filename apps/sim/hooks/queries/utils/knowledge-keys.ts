@@ -30,6 +30,14 @@ export const knowledgeKeys = {
   details: () => [...knowledgeKeys.all, 'detail'] as const,
   detail: (knowledgeBaseId?: string) =>
     [...knowledgeKeys.details(), knowledgeBaseId ?? ''] as const,
+  searches: () => [...knowledgeKeys.all, 'search'] as const,
+  search: (workspaceId: string | undefined, knowledgeBaseIds: readonly string[], query: string) =>
+    [
+      ...knowledgeKeys.searches(),
+      workspaceId ?? '',
+      [...knowledgeBaseIds].sort().join(','),
+      query,
+    ] as const,
   tagDefinitions: (knowledgeBaseId: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'tagDefinitions'] as const,
   tagUsage: (knowledgeBaseId: string) =>

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { document, embedding } from '@sim/db/schema'
+import { document, embedding, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
@@ -19,6 +19,8 @@ const logger = createLogger('KnowledgeSearchQueries')
 const UNDEFINED_OBJECT_SQLSTATE = '42704'
 /** Tuples a relaxed-order scan may visit before giving up on filling the limit. */
 const HNSW_MAX_SCAN_TUPLES = '20000'
+/** pgvector's default `hnsw.ef_search`: the candidates a plain scan yields before predicates. */
+const HNSW_DEFAULT_EF_SEARCH = 40
 
 /** How long to stop trying the iterative-scan settings after the server rejected them. */
 const HNSW_SETTINGS_UNSUPPORTED_RETRY_MS = 10 * 60 * 1000
@@ -39,14 +41,17 @@ type SearchExecutor = Pick<typeof db, 'select'>
  */
 async function withVectorScanSettings<T>(
   access: KnowledgeAccessScope,
+  limit: number,
   run: (executor: SearchExecutor) => Promise<T>
 ): Promise<T> {
   /**
-   * The workspace pair matches every row, so a plain index scan already fills
-   * the limit; only a personal token set is selective enough to need the
-   * iterative scan, and existing workspaces keep the query they had.
+   * A plain index scan yields `hnsw.ef_search` candidates (40 by default)
+   * before the predicates apply. That fills a small limit for the workspace
+   * pair, which matches every row; a personal token set, or a limit past the
+   * pool, needs the iterative scan to keep going until the limit is met.
    */
-  if (!hasSubjectTokens(access) || Date.now() < hnswSettingsUnsupportedUntil) return run(db)
+  const needsIterativeScan = hasSubjectTokens(access) || limit > HNSW_DEFAULT_EF_SEARCH
+  if (!needsIterativeScan || Date.now() < hnswSettingsUnsupportedUntil) return run(db)
   try {
     return await db.transaction(async (tx) => {
       await tx.execute(
@@ -72,6 +77,10 @@ function hasSubjectTokens(access: KnowledgeAccessScope): boolean {
 export interface DocumentMetadata {
   filename: string
   sourceUrl: string | null
+  /** When the source last changed the document; null for uploads and sources that do not say. */
+  sourceModifiedAt: Date | null
+  /** The connector the document was synced through; null for an upload. */
+  connectorType: string | null
 }
 
 /**
@@ -95,8 +104,11 @@ export async function getDocumentMetadataByIds(
       id: document.id,
       filename: document.filename,
       sourceUrl: document.sourceUrl,
+      sourceModifiedAt: document.sourceModifiedAt,
+      connectorType: knowledgeConnector.connectorType,
     })
     .from(document)
+    .leftJoin(knowledgeConnector, eq(knowledgeConnector.id, document.connectorId))
     .where(
       and(
         inArray(document.id, uniqueIds),
@@ -109,7 +121,12 @@ export async function getDocumentMetadataByIds(
 
   const map: Record<string, DocumentMetadata> = {}
   documents.forEach((doc) => {
-    map[doc.id] = { filename: doc.filename, sourceUrl: doc.sourceUrl ?? null }
+    map[doc.id] = {
+      filename: doc.filename,
+      sourceUrl: doc.sourceUrl ?? null,
+      sourceModifiedAt: doc.sourceModifiedAt ?? null,
+      connectorType: doc.connectorType ?? null,
+    }
   })
 
   return map
@@ -392,6 +409,13 @@ function getVisibilityConditions(access: KnowledgeAccessScope) {
   ]
 }
 
+/** Candidates each hybrid leg retrieves before the fused list is trimmed to `topK`. */
+const HYBRID_CANDIDATE_MIN = 50
+const HYBRID_CANDIDATE_MAX = 200
+export function hybridCandidateCount(topK: number): number {
+  return Math.min(Math.max(topK * 3, HYBRID_CANDIDATE_MIN), HYBRID_CANDIDATE_MAX)
+}
+
 export function getQueryStrategy(kbCount: number, topK: number) {
   const useParallel = kbCount > 4 || (kbCount > 2 && topK > 50)
   const distanceThreshold = kbCount > 3 ? 0.8 : 1.0
@@ -434,7 +458,7 @@ async function executeVectorSearchOnIds(
     return []
   }
 
-  const rows = await withVectorScanSettings(access, (executor) =>
+  const rows = await withVectorScanSettings(access, topK, (executor) =>
     executor
       .select(
         getSearchResultFields(
@@ -533,7 +557,7 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
    */
   if (strategy.useParallel) {
     const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
-    const allResults = await withVectorScanSettings(access, async (executor) => {
+    const allResults = await withVectorScanSettings(access, parallelLimit, async (executor) => {
       const parallelResults = await Promise.all(
         knowledgeBaseIds.map((kbId) =>
           vectorLeg(executor, eq(embedding.knowledgeBaseId, kbId), parallelLimit)
@@ -543,7 +567,7 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
     })
     return allResults.sort((a, b) => a.distance - b.distance).slice(0, topK)
   }
-  const rows = await withVectorScanSettings(access, (executor) =>
+  const rows = await withVectorScanSettings(access, topK, (executor) =>
     vectorLeg(executor, inArray(embedding.knowledgeBaseId, knowledgeBaseIds), topK)
   )
   return rows.sort((a, b) => a.distance - b.distance)
@@ -810,17 +834,29 @@ export async function executeKnowledgeSearch(
   }
 
   const { distanceThreshold } = getQueryStrategy(knowledgeBaseIds.length, topK)
+  /**
+   * Hybrid fuses two rankings, so each leg retrieves more than the caller
+   * asked for: a chunk that both legs rank just below `topK` is a strong
+   * signal the fused list must be able to surface.
+   */
+  const legTopK = searchMode === 'hybrid' ? hybridCandidateCount(topK) : topK
 
   const vectorSearch = hasFilters
     ? handleTagAndVectorSearch({
         knowledgeBaseIds,
-        topK,
+        topK: legTopK,
         structuredFilters,
         queryVector,
         distanceThreshold,
         access,
       })
-    : handleVectorOnlySearch({ knowledgeBaseIds, topK, queryVector, distanceThreshold, access })
+    : handleVectorOnlySearch({
+        knowledgeBaseIds,
+        topK: legTopK,
+        queryVector,
+        distanceThreshold,
+        access,
+      })
 
   if (searchMode === 'vector') {
     const results = await vectorSearch
@@ -833,7 +869,7 @@ export async function executeKnowledgeSearch(
    */
   const keywordSearch = executeKeywordSearch({
     knowledgeBaseIds,
-    topK,
+    topK: legTopK,
     query: query!,
     queryVector,
     structuredFilters,

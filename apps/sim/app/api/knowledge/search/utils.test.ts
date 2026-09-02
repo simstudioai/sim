@@ -510,12 +510,13 @@ describe('Knowledge Search Utils', () => {
 
     it('runs both legs and fuses them in hybrid mode', async () => {
       /**
-       * Chains dequeue in creation order. A workspace-scoped vector leg selects
-       * directly (the iterative scan is reserved for a personal token set), so
-       * its select is built first, then the keyword ranking pass, then hydration.
+       * Chains dequeue in creation order. Hybrid legs over-fetch past the
+       * plain scan's candidate pool, so the vector leg opens its transaction
+       * and applies the scan settings before selecting: the keyword ranking
+       * pass is built first, then the vector select, then hydration.
        */
-      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
       queueTableRows(schemaMock.embedding, [{ id: 'keyword-hit', keywordRank: 0.9 }])
+      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
       queueTableRows(schemaMock.embedding, [makeResult('keyword-hit')])
 
       const results = await executeKnowledgeSearch({
@@ -532,9 +533,9 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('falls back to vector results when the keyword leg fails', async () => {
-      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
-      /** The failing ranking chain is still built and takes the second queued set. */
+      /** The failing ranking chain is still built first and takes the first queued set. */
       queueTableRows(schemaMock.embedding, [{ id: 'never-ranked', keywordRank: 0 }])
+      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
 
       /**
        * Both legs share one `orderBy` spy, so target the keyword leg by its

@@ -9,7 +9,7 @@ export const RRF_K = 60
 /** Age at which a document's recency boost has decayed to half. */
 export const RECENCY_HALF_LIFE_DAYS = 90
 /** The most a fully fresh document's rank score is raised, as a fraction. */
-export const RECENCY_WEIGHT = 0.15
+export const RECENCY_WEIGHT = 0.05
 
 const DAY_MS = 24 * 60 * 60 * 1000
 

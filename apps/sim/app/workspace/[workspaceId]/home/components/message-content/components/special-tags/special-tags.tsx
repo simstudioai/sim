@@ -343,6 +343,10 @@ export interface SourceTagData {
    * without it the chip shows the site favicon.
    */
   connectorType?: string
+  /** The passage the reply relied on; a reply whose sources carry one is listed as result cards. */
+  snippet?: string
+  /** When the source last changed the document, as an ISO timestamp. */
+  updatedAt?: string
 }
 
 export type ContentSegment =
@@ -577,6 +581,8 @@ function isSourceTagData(value: unknown): value is SourceTagData {
   if (value.title !== undefined && typeof value.title !== 'string') return false
   if (value.siteName !== undefined && typeof value.siteName !== 'string') return false
   if (value.connectorType !== undefined && typeof value.connectorType !== 'string') return false
+  if (value.snippet !== undefined && typeof value.snippet !== 'string') return false
+  if (value.updatedAt !== undefined && typeof value.updatedAt !== 'string') return false
   return true
 }
 

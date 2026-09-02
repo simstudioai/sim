@@ -834,6 +834,8 @@ interface MessageContentProps {
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
   onPhaseChange?: (phase: MessagePhase) => void
+  /** The user message this reply answers, for the result cards' highlighting. */
+  userQuery?: string
   /**
    * The message's actions row (copy/thumbs). Rendered here, in the thinking
    * slot's position, so at settle the shimmer and the actions trade places in
@@ -854,6 +856,7 @@ function MessageContentInner({
   credentialSubmission,
   credentialAbandoned,
   onOptionSelect,
+  userQuery,
   onQuestionDismiss,
   onPhaseChange,
   actions,
@@ -1029,7 +1032,7 @@ function MessageContentInner({
         })}
         {sources.length > 0 && (
           <div className={isStreaming ? 'animate-stream-fade-in' : undefined}>
-            <MessageSources sources={sources} />
+            <MessageSources sources={sources} query={userQuery} onSummarize={onOptionSelect} />
           </div>
         )}
       </div>

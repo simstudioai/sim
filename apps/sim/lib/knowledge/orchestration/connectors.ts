@@ -6,6 +6,7 @@ import {
   knowledgeBase,
   knowledgeBaseTagDefinitions,
   knowledgeConnector,
+  knowledgeConnectorMember,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -1052,6 +1053,22 @@ export async function performSyncKnowledgeConnector(
    * outcome and both records describe what actually happened.
    */
   try {
+    /**
+     * A manual run is meant to list everyone now, so every active member is
+     * made due; otherwise each waits out its own interval and the run claims
+     * nobody.
+     */
+    if (connector.accessMode === 'members') {
+      await db
+        .update(knowledgeConnectorMember)
+        .set({ nextAttemptAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(knowledgeConnectorMember.connectorId, connectorId),
+            eq(knowledgeConnectorMember.status, 'active')
+          )
+        )
+    }
     const dispatch =
       connector.accessMode === 'members'
         ? await (await loadDispatchMemberSync())(connectorId, { billingAttribution, requestId })

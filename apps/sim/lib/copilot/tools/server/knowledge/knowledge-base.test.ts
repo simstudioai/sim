@@ -401,7 +401,7 @@ describe('manage_knowledge_base trusted application delegation', () => {
       workspaceId: 'workspace-paid',
       knowledgeBaseIds: [KNOWLEDGE_BASE.id],
       query: '{{KB_QUERY}}',
-      topK: 5,
+      topK: 10,
       resultSecretRegistry: registry,
     })
     expect(mockReadKnowledgeBase).not.toHaveBeenCalled()
