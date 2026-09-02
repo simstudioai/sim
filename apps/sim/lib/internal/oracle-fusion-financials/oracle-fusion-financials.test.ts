@@ -366,6 +366,20 @@ const BOOLEAN_FIELDS = new Set([
   'ReversedFlag',
   'TrackAsAssetFlag',
 ])
+const DECIMAL_STRING_FIELDS = new Set([
+  'InvoiceId',
+  'InvoiceDistributionId',
+  'CheckId',
+  'PaymentId',
+  'PaymentReference',
+  'PaymentNumber',
+  'InvoicePaymentId',
+  'HoldId',
+  'PaymentProcessRequestId',
+  'SourceApplicationIdentifier',
+  'termsId',
+  'setId',
+])
 const NUMBER_FIELDS = new Set([
   'AmountPaid',
   'AmountPaidInvoiceCurrency',
@@ -374,7 +388,6 @@ const NUMBER_FIELDS = new Set([
   'AppliedAmount',
   'AvailableAmount',
   'BaseAmount',
-  'CheckId',
   'CrossCurrencyRate',
   'cutoffDay',
   'dayOfMonth',
@@ -390,26 +403,18 @@ const NUMBER_FIELDS = new Set([
   'firstDiscountPercent',
   'FirstDiscountAmount',
   'GrossAmount',
-  'HoldId',
   'IncludedTax',
   'InstallmentNumber',
   'InvoiceAmount',
   'InvoiceBaseAmount',
-  'InvoiceDistributionId',
-  'InvoiceId',
   'InvoicePaymentAmount',
-  'InvoicePaymentId',
   'LineAmount',
   'LineHeld',
   'LineNumber',
   'monthsAhead',
   'PaymentAmount',
   'PaymentBaseAmount',
-  'PaymentId',
-  'PaymentNumber',
   'PaymentPriority',
-  'PaymentProcessRequestId',
-  'PaymentReference',
   'PurchaseOrderDistributionLineNumber',
   'PurchaseOrderLineNumber',
   'PurchaseOrderScheduleLineNumber',
@@ -422,9 +427,6 @@ const NUMBER_FIELDS = new Set([
   'secondDiscountPercent',
   'SecondDiscountAmount',
   'sequenceNumber',
-  'setId',
-  'SourceApplicationIdentifier',
-  'termsId',
   'thirdDiscountDayOfMonth',
   'thirdDiscountDays',
   'thirdDiscountMonthsForward',
@@ -548,7 +550,13 @@ function documentedFixture(fields: readonly string[]): Record<string, unknown> {
   return Object.fromEntries(
     fields.map((field) => [
       field,
-      BOOLEAN_FIELDS.has(field) ? true : NUMBER_FIELDS.has(field) ? 1 : 'value',
+      BOOLEAN_FIELDS.has(field)
+        ? true
+        : DECIMAL_STRING_FIELDS.has(field)
+          ? '1'
+          : NUMBER_FIELDS.has(field)
+            ? 1
+            : 'value',
     ])
   )
 }
@@ -771,7 +779,7 @@ describe('Oracle Fusion Financials provider', () => {
   )
 
   it.each(RESOURCE_SCHEMA_CASES)(
-    'accepts documented scalar types and nullable values for the %s projection',
+    'accepts projected scalar types and documented nullable values for the %s projection',
     (_name, schema, fields, nonNullableFields) => {
       expect(schema.parse(documentedFixture(fields))).toMatchObject(documentedFixture(fields))
       const nullableFixture = Object.fromEntries(
@@ -800,6 +808,16 @@ describe('Oracle Fusion Financials provider', () => {
       }
     }
   )
+
+  it('publishes lossless Oracle identity and reference fields as decimal strings', () => {
+    for (const [fields, properties] of RESOURCE_OUTPUT_CASES) {
+      for (const field of fields) {
+        if (DECIMAL_STRING_FIELDS.has(field)) {
+          expect(properties[field], field).toMatchObject({ type: 'string' })
+        }
+      }
+    }
+  })
 
   it.each(RESOURCE_SCHEMA_CASES)(
     'rejects the wrong scalar type for every %s projection field',
@@ -989,11 +1007,45 @@ describe('Oracle Fusion Financials provider', () => {
   })
 
   it.each(['PaymentReference', 'PaymentNumber'])(
-    'rejects a fractional %s even though other payment amounts accept decimals',
+    'rejects a non-decimal %s even though other payment amounts accept decimals',
     (field) => {
-      expect(oracleFusionPaymentSchema.safeParse({ [field]: 1.5 }).success).toBe(false)
+      expect(oracleFusionPaymentSchema.safeParse({ [field]: '1.5' }).success).toBe(false)
+      expect(oracleFusionPaymentSchema.safeParse({ [field]: 1 }).success).toBe(false)
     }
   )
+
+  it('preserves Oracle int64 identity tokens exactly as decimal strings', async () => {
+    mockSecureFetch.mockResolvedValueOnce(
+      response(
+        200,
+        `{"items":[{"InvoiceId":9007199254740993,"InvoiceNumber":"INV-1","links":[{"rel":"self","href":"${ORIGIN}${INVOICE_PATH}"}]}],"count":1,"hasMore":false,"limit":50,"offset":0}`
+      )
+    )
+
+    const result = await executeOracleFusionFinancialsOperation(
+      'oracle_fusion_financials_list_payables_invoices',
+      AUTH
+    )
+
+    expect((result.output.items as Array<Record<string, unknown>>)[0]?.InvoiceId).toBe(
+      '9007199254740993'
+    )
+  })
+
+  it('normalizes every projected Oracle identity token before schema validation', async () => {
+    const rawFields = [...DECIMAL_STRING_FIELDS]
+      .map((field) => `"${field}":9007199254740993`)
+      .join(',')
+    mockSecureFetch.mockResolvedValueOnce(response(200, `{${rawFields}}`))
+
+    const result = (await requestOracleFusionJson(AUTH, {
+      path: `${RESOURCE_PATH}/invoices`,
+    })) as Record<string, unknown>
+
+    expect(result).toEqual(
+      Object.fromEntries([...DECIMAL_STRING_FIELDS].map((field) => [field, '9007199254740993']))
+    )
+  })
 
   it('maps an oversized or otherwise unreadable response body to a sanitized 502', async () => {
     mockSecureFetch.mockResolvedValueOnce({

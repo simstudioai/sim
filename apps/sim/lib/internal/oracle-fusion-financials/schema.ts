@@ -249,6 +249,8 @@ const oracleNonNullableText = z.string().optional()
 const oracleNonNullableNumber = z.number().finite().optional()
 const oracleNonNullableInteger = z.number().int().finite().optional()
 const oracleNonNullableBoolean = z.boolean().optional()
+const oracleDecimalString = z.string().regex(/^\d+$/).nullable().optional()
+const oracleNonNullableDecimalString = z.string().regex(/^\d+$/).optional()
 const linkSchema = z
   .object({ rel: z.string().optional(), href: z.string().optional() })
   .passthrough()
@@ -256,7 +258,7 @@ const linksShape = { links: z.array(linkSchema).optional() }
 
 export const oracleFusionInvoiceSchema = z
   .object({
-    InvoiceId: oracleNonNullableInteger,
+    InvoiceId: oracleNonNullableDecimalString,
     InvoiceNumber: oracleNonNullableText,
     Supplier: oracleText,
     SupplierNumber: oracleNonNullableText,
@@ -334,7 +336,7 @@ export const oracleFusionInstallmentSchema = z
 
 export const oracleFusionInvoiceDistributionSchema = z
   .object({
-    InvoiceDistributionId: oracleNonNullableInteger,
+    InvoiceDistributionId: oracleNonNullableDecimalString,
     DistributionLineNumber: oracleNonNullableInteger,
     DistributionLineType: oracleText,
     DistributionAmount: oracleNonNullableNumber,
@@ -397,10 +399,10 @@ export const oracleFusionAvailablePrepaymentSchema = z
 
 export const oracleFusionPaymentSchema = z
   .object({
-    CheckId: oracleNonNullableInteger,
-    PaymentId: oracleInteger,
-    PaymentReference: oracleInteger,
-    PaymentNumber: oracleNonNullableInteger,
+    CheckId: oracleNonNullableDecimalString,
+    PaymentId: oracleDecimalString,
+    PaymentReference: oracleDecimalString,
+    PaymentNumber: oracleNonNullableDecimalString,
     PaymentAmount: oracleNonNullableNumber,
     PaymentCurrency: oracleNonNullableText,
     PaymentDate: oracleNonNullableText,
@@ -422,9 +424,9 @@ export const oracleFusionPaymentSchema = z
 
 export const oracleFusionPaymentRelatedInvoiceSchema = z
   .object({
-    InvoicePaymentId: oracleNonNullableInteger,
-    CheckId: oracleNonNullableInteger,
-    InvoiceId: oracleNonNullableInteger,
+    InvoicePaymentId: oracleNonNullableDecimalString,
+    CheckId: oracleNonNullableDecimalString,
+    InvoiceId: oracleNonNullableDecimalString,
     InvoiceBusinessUnit: oracleText,
     InvoiceNumber: oracleNonNullableText,
     InstallmentNumber: oracleNonNullableInteger,
@@ -447,7 +449,7 @@ export const oracleFusionPaymentRelatedInvoiceSchema = z
 
 export const oracleFusionInvoiceHoldSchema = z
   .object({
-    HoldId: oracleNonNullableInteger,
+    HoldId: oracleNonNullableDecimalString,
     InvoiceNumber: oracleText,
     BusinessUnit: oracleText,
     Supplier: oracleText,
@@ -475,9 +477,9 @@ export const oracleFusionInvoiceHoldSchema = z
 
 export const oracleFusionPaymentProcessRequestSchema = z
   .object({
-    PaymentProcessRequestId: oracleNonNullableInteger,
+    PaymentProcessRequestId: oracleNonNullableDecimalString,
     PaymentProcessRequestName: oracleNonNullableText,
-    SourceApplicationIdentifier: oracleNonNullableInteger,
+    SourceApplicationIdentifier: oracleNonNullableDecimalString,
     PaymentProcessRequestStatusCode: oracleNonNullableText,
     PaymentProcessRequestStatusMeaning: oracleText,
     ...linksShape,
@@ -486,7 +488,7 @@ export const oracleFusionPaymentProcessRequestSchema = z
 
 export const oracleFusionPaymentTermSchema = z
   .object({
-    termsId: oracleNonNullableInteger,
+    termsId: oracleNonNullableDecimalString,
     name: oracleNonNullableText,
     description: oracleText,
     enabledFlag: oracleNonNullableBoolean,
@@ -494,7 +496,7 @@ export const oracleFusionPaymentTermSchema = z
     toDate: oracleText,
     cutoffDay: oracleInteger,
     rank: oracleInteger,
-    setId: oracleNonNullableInteger,
+    setId: oracleNonNullableDecimalString,
     creationDate: oracleNonNullableText,
     lastUpdateDate: oracleNonNullableText,
     ...linksShape,
@@ -503,7 +505,7 @@ export const oracleFusionPaymentTermSchema = z
 
 export const oracleFusionPaymentTermLineSchema = z
   .object({
-    termsId: oracleNonNullableInteger,
+    termsId: oracleNonNullableDecimalString,
     sequenceNumber: oracleNonNullableInteger,
     amountDue: oracleNumber,
     calendar: oracleText,

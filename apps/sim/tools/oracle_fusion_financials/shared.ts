@@ -147,7 +147,7 @@ const nonNullableScalar = (
 
 export const oracleFusionInvoiceOutputProperties = {
   invoiceUniqId: { type: 'string', description: 'Opaque Oracle invoice resource key' },
-  InvoiceId: nonNullableScalar('Oracle invoice identifier', 'number'),
+  InvoiceId: nonNullableScalar('Oracle invoice identifier as a decimal string'),
   InvoiceNumber: nonNullableScalar('Supplier invoice number'),
   Supplier: scalar('Supplier name'),
   SupplierNumber: nonNullableScalar('Supplier number'),
@@ -221,10 +221,10 @@ export const oracleFusionInstallmentOutputProperties = {
 } satisfies Record<string, OutputProperty>
 
 export const oracleFusionPaymentOutputProperties = {
-  CheckId: nonNullableScalar('Unique Oracle payment identifier', 'number'),
-  PaymentId: scalar('Payments application identifier', 'number'),
-  PaymentReference: scalar('User- and bank-facing payment reference', 'number'),
-  PaymentNumber: nonNullableScalar('Payment or printed check number', 'number'),
+  CheckId: nonNullableScalar('Unique Oracle payment identifier as a decimal string'),
+  PaymentId: scalar('Payments application identifier as a decimal string'),
+  PaymentReference: scalar('User- and bank-facing payment reference as a decimal string'),
+  PaymentNumber: nonNullableScalar('Payment or printed check number as a decimal string'),
   PaymentAmount: nonNullableScalar('Payment amount', 'number'),
   PaymentCurrency: nonNullableScalar('Payment currency code'),
   PaymentDate: nonNullableScalar('Payment date'),
@@ -243,7 +243,9 @@ export const oracleFusionPaymentOutputProperties = {
 } satisfies Record<string, OutputProperty>
 
 export const oracleFusionInvoiceDistributionOutputProperties = {
-  InvoiceDistributionId: nonNullableScalar('Oracle invoice distribution identifier', 'number'),
+  InvoiceDistributionId: nonNullableScalar(
+    'Oracle invoice distribution identifier as a decimal string'
+  ),
   DistributionLineNumber: nonNullableScalar('Invoice distribution line number', 'number'),
   DistributionLineType: scalar('Invoice distribution line type'),
   DistributionAmount: nonNullableScalar('Invoice distribution amount', 'number'),
@@ -311,9 +313,9 @@ export const oracleFusionAvailablePrepaymentOutputProperties = {
 } satisfies Record<string, OutputProperty>
 
 export const oracleFusionPaymentRelatedInvoiceOutputProperties = {
-  InvoicePaymentId: nonNullableScalar('Oracle invoice payment identifier', 'number'),
-  CheckId: nonNullableScalar('Oracle payment identifier', 'number'),
-  InvoiceId: nonNullableScalar('Oracle invoice identifier', 'number'),
+  InvoicePaymentId: nonNullableScalar('Oracle invoice payment identifier as a decimal string'),
+  CheckId: nonNullableScalar('Oracle payment identifier as a decimal string'),
+  InvoiceId: nonNullableScalar('Oracle invoice identifier as a decimal string'),
   InvoiceBusinessUnit: scalar('Invoice business unit'),
   InvoiceNumber: nonNullableScalar('Supplier invoice number'),
   InstallmentNumber: nonNullableScalar('Invoice installment number', 'number'),
@@ -333,7 +335,7 @@ export const oracleFusionPaymentRelatedInvoiceOutputProperties = {
 } satisfies Record<string, OutputProperty>
 
 export const oracleFusionInvoiceHoldOutputProperties = {
-  HoldId: nonNullableScalar('Oracle invoice hold identifier', 'number'),
+  HoldId: nonNullableScalar('Oracle invoice hold identifier as a decimal string'),
   InvoiceNumber: scalar('Supplier invoice number'),
   BusinessUnit: scalar('Invoice business unit'),
   Supplier: scalar('Supplier name'),
@@ -361,15 +363,19 @@ export const oracleFusionInvoiceHoldOutputProperties = {
 } satisfies Record<string, OutputProperty>
 
 export const oracleFusionPaymentProcessRequestOutputProperties = {
-  PaymentProcessRequestId: nonNullableScalar('Payment process request identifier', 'number'),
+  PaymentProcessRequestId: nonNullableScalar(
+    'Payment process request identifier as a decimal string'
+  ),
   PaymentProcessRequestName: nonNullableScalar('Payment process request name'),
-  SourceApplicationIdentifier: nonNullableScalar('Source application identifier', 'number'),
+  SourceApplicationIdentifier: nonNullableScalar(
+    'Source application identifier as a decimal string'
+  ),
   PaymentProcessRequestStatusCode: nonNullableScalar('Payment process request status code'),
   PaymentProcessRequestStatusMeaning: scalar('Payment process request status meaning'),
 } satisfies Record<string, OutputProperty>
 
 export const oracleFusionPaymentTermOutputProperties = {
-  termsId: nonNullableScalar('Payment term identifier', 'number'),
+  termsId: nonNullableScalar('Payment term identifier as a decimal string'),
   name: nonNullableScalar('Payment term name'),
   description: scalar('Payment term description'),
   enabledFlag: nonNullableScalar('Whether the payment term is enabled', 'boolean'),
@@ -377,7 +383,7 @@ export const oracleFusionPaymentTermOutputProperties = {
   toDate: scalar('Date the payment term becomes invalid'),
   cutoffDay: scalar('Monthly cutoff day', 'number'),
   rank: scalar('Payment term ranking', 'number'),
-  setId: nonNullableScalar('Reference data set identifier', 'number'),
+  setId: nonNullableScalar('Reference data set identifier as a decimal string'),
   creationDate: nonNullableScalar('Record creation timestamp'),
   lastUpdateDate: nonNullableScalar('Record last-update timestamp'),
 } satisfies Record<string, OutputProperty>
@@ -387,7 +393,7 @@ export const oracleFusionPaymentTermLineOutputProperties = {
     type: 'string',
     description: 'Opaque Oracle payment-term-line resource key',
   },
-  termsId: nonNullableScalar('Payment term identifier', 'number'),
+  termsId: nonNullableScalar('Payment term identifier as a decimal string'),
   sequenceNumber: nonNullableScalar('Payment term line sequence number', 'number'),
   amountDue: scalar('Maximum amount due by the calculated date', 'number'),
   calendar: scalar('Special calendar name'),

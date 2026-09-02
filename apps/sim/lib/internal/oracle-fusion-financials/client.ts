@@ -15,6 +15,32 @@ const REQUEST_TIMEOUT_MS = 30_000
 const RESPONSE_MAX_BYTES = 5 * 1024 * 1024
 const MAX_RETRIES = 2
 const TRANSIENT_STATUSES = new Set([429, 503, 504])
+const LOSSLESS_DECIMAL_FIELDS = new Set([
+  'InvoiceId',
+  'InvoiceDistributionId',
+  'CheckId',
+  'PaymentId',
+  'PaymentReference',
+  'PaymentNumber',
+  'InvoicePaymentId',
+  'HoldId',
+  'PaymentProcessRequestId',
+  'SourceApplicationIdentifier',
+  'termsId',
+  'setId',
+])
+const DECIMAL_INTEGER_TOKEN = /^\d+$/
+
+interface JsonParseContext {
+  source?: string
+}
+
+type JsonParseWithSource = (
+  text: string,
+  reviver: (this: unknown, key: string, value: unknown, context?: JsonParseContext) => unknown
+) => unknown
+
+const jsonParseWithSource = JSON.parse as JsonParseWithSource
 
 export class OracleFusionFinancialsProviderError extends Error {
   constructor(
@@ -58,6 +84,15 @@ function sanitizeOracleError(body: string, accessToken: string, status: number):
   const unique = [...new Set(messages)]
   const safe = truncate(redactExactSensitiveValues(unique.join(' — '), [accessToken]), 1_000)
   return safe || `Oracle Fusion Financials request failed with HTTP ${status}`
+}
+
+/** Keeps Oracle int64 identifiers exact while leaving monetary and counter fields numeric. */
+function parseOracleFusionJson(body: string): unknown {
+  return jsonParseWithSource(body, (key, value, context) => {
+    if (!LOSSLESS_DECIMAL_FIELDS.has(key) || typeof value !== 'number') return value
+    const source = context?.source
+    return source && DECIMAL_INTEGER_TOKEN.test(source) ? source : value
+  })
 }
 
 export interface OracleFusionRequest {
@@ -153,7 +188,7 @@ export async function requestOracleFusionJson(
       )
     }
     try {
-      return JSON.parse(body) as unknown
+      return parseOracleFusionJson(body)
     } catch {
       throw new OracleFusionFinancialsProviderError(
         'Oracle Fusion Financials returned a malformed JSON response',
