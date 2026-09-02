@@ -16,6 +16,7 @@ vi.mock('@/lib/api/server/routes', () => ({
   v2OrchestrationErrorPolicy: { kind: 'orchestration-errors' },
 }))
 
+import { v2ImportWorkflowContract } from '@/lib/api/contracts/v2/workflows'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import {
   type ImportWorkflowResult,
@@ -28,6 +29,18 @@ import { POST } from '@/app/api/v2/workflows/import/route'
 /** With `defineV2JsonRoute` mocked to return its definition, `POST` is that definition. */
 const definition = POST as unknown as {
   present: (result: ImportWorkflowResult) => { data: Record<string, unknown> }
+}
+
+const importedWorkflow = {
+  id: 'workflow-1',
+  name: 'Imported',
+  description: null,
+  workspaceId: 'ws-1',
+  folderId: null,
+  sortOrder: 0,
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
+  blocks: [],
 }
 
 describe('/api/v2/workflows/import route definition', () => {
@@ -65,8 +78,28 @@ describe('/api/v2/workflows/import route definition', () => {
         blocks,
       },
       folderPath: '/',
+      warnings: [],
     })
 
     expect(data).toMatchObject({ id: 'workflow-1', name: 'Imported', folderPath: '/', blocks })
+  })
+
+  /**
+   * Export clears workspace bindings, so a round-tripped workflow used to land
+   * silently unable to run. The warnings are the response's way of saying which
+   * fields to set, and the contract requires the array even when it is empty.
+   */
+  it('presents the stripped-binding warnings and the contract requires them', () => {
+    const warnings = ['Lookup: tableId was stripped by export; set it before running']
+
+    const body = definition.present({ workflow: importedWorkflow, folderPath: '/', warnings })
+
+    expect(body.data.warnings).toEqual(warnings)
+    expect(v2ImportWorkflowContract.response.schema.parse(body)).toEqual(body)
+    expect(
+      v2ImportWorkflowContract.response.schema.safeParse({
+        data: { ...body.data, warnings: undefined },
+      }).success
+    ).toBe(false)
   })
 })

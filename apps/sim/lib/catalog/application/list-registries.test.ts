@@ -43,36 +43,77 @@ describe('connector-type catalog', () => {
     mocks.resolvePermission.mockResolvedValue('read')
   })
 
+  const fullPage = { detail: 'full' as const, limit: 100, offset: 0 }
+
   it('returns the whole connector-type registry and records no audit', async () => {
-    const { connectorTypes } = await listCatalogConnectorTypes.execute({
+    const { entries, hasMore } = await listCatalogConnectorTypes.execute({
       principal: session,
-      input: { workspaceId: WORKSPACE_ID },
+      input: { workspaceId: WORKSPACE_ID, ...fullPage },
     })
 
-    expect(connectorTypes.length).toBeGreaterThan(10)
-    expect(connectorTypes.every((entry) => typeof entry.connectorType === 'string')).toBe(true)
+    expect(entries.length).toBeGreaterThan(10)
+    expect(hasMore).toBe(false)
+    expect(entries.every((entry) => typeof entry.connectorType === 'string')).toBe(true)
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
   it('publishes the multi and canonical-pair config properties a caller cannot infer', async () => {
-    const { connectorTypes } = await listCatalogConnectorTypes.execute({
+    const { entries } = await listCatalogConnectorTypes.execute({
       principal: session,
-      input: { workspaceId: WORKSPACE_ID },
+      input: { workspaceId: WORKSPACE_ID, ...fullPage },
     })
 
-    const fields = connectorTypes.flatMap((entry) => entry.configFields)
+    const fields = entries.flatMap((entry) => ('configFields' in entry ? entry.configFields : []))
+    expect(fields.length).toBeGreaterThan(0)
     expect(fields.some((field) => field.multi === true)).toBe(true)
     expect(fields.some((field) => typeof field.canonicalParamId === 'string')).toBe(true)
     expect(fields.every((field) => !Object.hasOwn(field, 'icon'))).toBe(true)
   })
 
-  it('searches connector names case-insensitively', async () => {
-    const { connectorTypes } = await listCatalogConnectorTypes.execute({
+  /**
+   * Sixty-odd types with their whole config schema is well over 100 KB for a
+   * caller that only needs to pick one. The default projection is what that
+   * decision takes; `detail=full` is where the schema lives.
+   */
+  it('projects a summary without the config schema unless detail=full is asked for', async () => {
+    const { entries } = await listCatalogConnectorTypes.execute({
       principal: session,
-      input: { workspaceId: WORKSPACE_ID, search: 'noTIon' },
+      input: {
+        workspaceId: WORKSPACE_ID,
+        search: 'notion',
+        detail: 'summary',
+        limit: 25,
+        offset: 0,
+      },
     })
 
-    expect(connectorTypes.map((entry) => entry.connectorType)).toEqual(['notion'])
+    expect(entries).toHaveLength(1)
+    expect(Object.keys(entries[0]).sort()).toEqual(['auth', 'connectorType', 'description', 'name'])
+    expect(entries[0]).toMatchObject({ connectorType: 'notion', auth: { mode: 'oauth' } })
+  })
+
+  it('pages the registry from an offset', async () => {
+    const first = await listCatalogConnectorTypes.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID, detail: 'summary', limit: 1, offset: 0 },
+    })
+    const second = await listCatalogConnectorTypes.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID, detail: 'summary', limit: 1, offset: 1 },
+    })
+
+    expect(first).toMatchObject({ offset: 0, limit: 1, hasMore: true })
+    expect(second.entries).toHaveLength(1)
+    expect(second.entries[0].connectorType).not.toBe(first.entries[0].connectorType)
+  })
+
+  it('searches connector names case-insensitively', async () => {
+    const { entries } = await listCatalogConnectorTypes.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID, search: 'noTIon', ...fullPage },
+    })
+
+    expect(entries.map((entry) => entry.connectorType)).toEqual(['notion'])
   })
 
   it('answers not found for a workspace the caller cannot reach', async () => {
@@ -81,7 +122,7 @@ describe('connector-type catalog', () => {
     await expect(
       listCatalogConnectorTypes.execute({
         principal: session,
-        input: { workspaceId: WORKSPACE_ID },
+        input: { workspaceId: WORKSPACE_ID, ...fullPage },
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Workspace not found' })
   })
@@ -90,7 +131,7 @@ describe('connector-type catalog', () => {
     await expect(
       listCatalogConnectorTypes.execute({
         principal: session,
-        input: { workspaceId: WORKSPACE_ID, search: ' ' },
+        input: { workspaceId: WORKSPACE_ID, search: ' ', ...fullPage },
       })
     ).rejects.toMatchObject({ code: 'validation', message: 'search cannot be empty' })
   })

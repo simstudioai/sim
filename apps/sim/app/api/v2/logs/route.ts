@@ -15,6 +15,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2LogErrorPolicies } from '@/lib/logs/api/route-policies'
 import { listPublicLogs } from '@/lib/logs/application/list-public-logs'
 import { logOperations } from '@/lib/logs/application/operations'
+import { withSpanDurationMs } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { jobCostTotal } from '@/lib/logs/fetch-log-detail'
 import { LOG_FOLDER_SCOPE_VERSION } from '@/lib/logs/folder-scope'
 import { projectLogFiles } from '@/lib/logs/log-files'
@@ -188,7 +189,9 @@ export const GET = defineV2JsonRoute({
           item.finalOutput = executionData.finalOutput
         }
         if (includeTraceSpans) {
-          item.traceSpans = traceSpansSchema.parse(executionData.traceSpans ?? [])
+          item.traceSpans = withSpanDurationMs(
+            traceSpansSchema.parse(executionData.traceSpans ?? [])
+          )
         }
       }
       return item
