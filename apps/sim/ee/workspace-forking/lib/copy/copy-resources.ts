@@ -35,6 +35,7 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
+import { MAX_FORK_RESOURCE_IDS_PER_TYPE } from '@/lib/api/contracts/workspace-fork'
 import {
   decrementStorageUsageForBillingContextInTx,
   incrementStorageUsageForBillingContextInTx,
@@ -56,6 +57,8 @@ import {
   rebindKnowledgeDocumentSecretProvenance,
   replaceKnowledgeDocumentSecretProvenanceInTx,
 } from '@/lib/knowledge/secret-provenance'
+import { getColumnId } from '@/lib/table/column-keys'
+import { collectColumnReferencedTableIds } from '@/lib/table/column-types/registry.server'
 import { DEFAULT_TABLE_VIEW_NAME } from '@/lib/table/constants'
 import { generateTableId } from '@/lib/table/ids'
 import { keyBetween } from '@/lib/table/order-key'
@@ -99,7 +102,10 @@ import {
   rewriteForkContentRefs,
   rewriteForkResourceUrls,
 } from '@/ee/workspace-forking/lib/remap/remap-content-refs'
-import { remapForkTableWorkflowGroups } from '@/ee/workspace-forking/lib/remap/remap-table-groups'
+import {
+  remapForkTableReferences,
+  remapForkTableWorkflowGroups,
+} from '@/ee/workspace-forking/lib/remap/remap-table-groups'
 
 const logger = createLogger('WorkspaceForkCopyResources')
 
@@ -226,6 +232,11 @@ export interface CopyResourcesParams {
    */
   resolveEnvName?: (key: string) => string | null | undefined
   /**
+   * Detect whether a referenced source table already maps to a target during promote. Row-level
+   * mappings do not exist yet, so the copy fails instead of inventing target row identities.
+   */
+  resolveMappedTableReference?: (sourceTableId: string) => string | null | undefined
+  /**
    * Resolve a source block id to its target block id for copied tables' workflow-group
    * `outputs[].blockId`. Promote passes the SAME persisted-pair resolver its workflow writes
    * use (on push the parent keeps its ORIGINAL block ids, never the derive); fork-create
@@ -244,6 +255,13 @@ export interface ForkDocumentMappingContext {
 export interface ForkContentPlanEntry {
   sourceId: string
   childId: string
+}
+
+export interface ForkContentTableEntry extends ForkContentPlanEntry {
+  /** Copied tables this table's reference columns require to remain available. */
+  dependsOnChildIds?: string[]
+  /** Stable column id to copied target-table id, used to derive copied referenced-row ids. */
+  referenceColumnTargetTableIds?: Record<string, string>
 }
 
 /**
@@ -297,7 +315,7 @@ export interface ForkContentPlan {
   childWorkspaceId: string
   /** Initiating user, recorded as the owner of copied KB-document blob bindings in the child. */
   userId: string
-  tables: ForkContentPlanEntry[]
+  tables: ForkContentTableEntry[]
   knowledgeBases: ForkContentKbEntry[]
   skills: ForkContentSkillEntry[]
   /** Documents copied into an already-existing target KB (sync-only; empty at fork create). */
@@ -367,6 +385,95 @@ function setId(idMap: Map<ForkResourceType, Map<string, string>>, type: ForkReso
  * see the skeleton skill copy in {@link copyForkResourceContainers}.
  */
 type SkillSkeletonInsert = Omit<typeof skill.$inferInsert, 'content'> & { content: SQL }
+
+/** Rewrites reference cells through the same deterministic identity used by copied target rows. */
+function remapCopiedReferenceCells(
+  data: unknown,
+  referenceColumnTargetTableEntries: ReadonlyArray<readonly [string, string]> | undefined
+): unknown {
+  if (!referenceColumnTargetTableEntries || !isRecordLike(data)) return data
+  let remapped: Record<string, unknown> | undefined
+  for (const [columnId, childTableId] of referenceColumnTargetTableEntries) {
+    const sourceRowId = data[columnId]
+    if (typeof sourceRowId !== 'string' || sourceRowId.length === 0) continue
+    remapped ??= { ...data }
+    remapped[columnId] = deriveCopyIdentity('table_row', childTableId, sourceRowId)
+  }
+  return remapped ?? data
+}
+
+/**
+ * Loads the selected tables plus the transitive closure of tables named by their reference
+ * columns. Each layer is workspace-scoped and active-only; an unavailable dependency fails the
+ * copy instead of persisting a source-workspace table id into the child schema.
+ */
+async function loadTableDefinitionsWithDependencies(
+  tx: DbOrTx,
+  sourceWorkspaceId: string,
+  selectedTableIds: readonly string[],
+  resolveMappedTableReference?: (sourceTableId: string) => string | null | undefined
+): Promise<Array<typeof userTableDefinitions.$inferSelect>> {
+  const orderedIds = [...new Set(selectedTableIds)]
+  if (orderedIds.length > MAX_FORK_RESOURCE_IDS_PER_TYPE) {
+    throw new Error(
+      `Cannot copy more than ${MAX_FORK_RESOURCE_IDS_PER_TYPE} tables including referenced dependencies`
+    )
+  }
+  const scheduledIds = new Set(orderedIds)
+  const dependencyIds = new Set<string>()
+  const definitionsById = new Map<string, typeof userTableDefinitions.$inferSelect>()
+  let pendingIds = [...orderedIds]
+
+  while (pendingIds.length > 0) {
+    const batchIds = pendingIds
+    pendingIds = []
+    const rows = await tx
+      .select()
+      .from(userTableDefinitions)
+      .where(
+        and(
+          inArray(userTableDefinitions.id, batchIds),
+          eq(userTableDefinitions.workspaceId, sourceWorkspaceId),
+          isNull(userTableDefinitions.archivedAt)
+        )
+      )
+
+    for (const row of rows) {
+      definitionsById.set(row.id, row)
+      const referencedIds = collectColumnReferencedTableIds((row.schema as TableSchema).columns)
+      for (const referencedId of referencedIds) {
+        dependencyIds.add(referencedId)
+        if (scheduledIds.has(referencedId)) continue
+        const mappedTableId = resolveMappedTableReference?.(referencedId)
+        if (mappedTableId) {
+          throw new Error(
+            `Referenced table ${referencedId} is mapped to ${mappedTableId}, but referenced row mappings are unavailable`
+          )
+        }
+        if (scheduledIds.size >= MAX_FORK_RESOURCE_IDS_PER_TYPE) {
+          throw new Error(
+            `Cannot copy more than ${MAX_FORK_RESOURCE_IDS_PER_TYPE} tables including referenced dependencies`
+          )
+        }
+        scheduledIds.add(referencedId)
+        orderedIds.push(referencedId)
+        pendingIds.push(referencedId)
+      }
+    }
+
+    const missingDependencyId = batchIds.find(
+      (id) => dependencyIds.has(id) && !definitionsById.has(id)
+    )
+    if (missingDependencyId) {
+      throw new Error(`Referenced table ${missingDependencyId} is unavailable for copy`)
+    }
+  }
+
+  return orderedIds.flatMap((id) => {
+    const definition = definitionsById.get(id)
+    return definition ? [definition] : []
+  })
+}
 
 /**
  * Copy the selected resources' **container rows** into the child workspace inside
@@ -636,16 +743,12 @@ export async function copyForkResourceContainers(
   }
 
   if (selection.tables.length > 0) {
-    const definitions = await tx
-      .select()
-      .from(userTableDefinitions)
-      .where(
-        and(
-          inArray(userTableDefinitions.id, selection.tables),
-          eq(userTableDefinitions.workspaceId, sourceWorkspaceId),
-          isNull(userTableDefinitions.archivedAt)
-        )
-      )
+    const definitions = await loadTableDefinitionsWithDependencies(
+      tx,
+      sourceWorkspaceId,
+      selection.tables,
+      params.resolveMappedTableReference
+    )
     const sourceViews =
       definitions.length > 0
         ? await tx
@@ -680,12 +783,22 @@ export async function copyForkResourceContainers(
 
     const inserts: (typeof userTableDefinitions.$inferInsert)[] = []
     const viewInserts: (typeof tableViews.$inferInsert)[] = []
+    const tableIdMap = new Map(
+      definitions.map((definition) => [definition.id, generateTableId()] as const)
+    )
+    for (const [sourceTableId, childTableId] of tableIdMap) {
+      record('table', sourceTableId, childTableId)
+    }
     for (const definition of definitions) {
-      const childTableId = generateTableId()
-      const remappedSchema = remapForkTableWorkflowGroups(
-        definition.schema as TableSchema,
-        workflowIdMap,
-        params.resolveBlockId
+      const childTableId = tableIdMap.get(definition.id)
+      if (!childTableId) throw new Error(`Missing copied table identity for ${definition.id}`)
+      const remappedSchema = remapForkTableReferences(
+        remapForkTableWorkflowGroups(
+          definition.schema as TableSchema,
+          workflowIdMap,
+          params.resolveBlockId
+        ),
+        tableIdMap
       )
       inserts.push({
         ...definition,
@@ -742,8 +855,27 @@ export async function copyForkResourceContainers(
           updatedAt: now,
         })
       }
-      record('table', definition.id, childTableId)
-      contentPlan.tables.push({ sourceId: definition.id, childId: childTableId })
+      const dependsOnChildIds = collectColumnReferencedTableIds(
+        (definition.schema as TableSchema).columns
+      ).flatMap((sourceId) => {
+        const dependencyId = tableIdMap.get(sourceId)
+        return dependencyId && dependencyId !== childTableId ? [dependencyId] : []
+      })
+      const referenceColumnTargetTableIds = Object.fromEntries(
+        (definition.schema as TableSchema).columns.flatMap((column) => {
+          const [sourceTargetId] = collectColumnReferencedTableIds([column])
+          const childTargetId = sourceTargetId ? tableIdMap.get(sourceTargetId) : undefined
+          return childTargetId ? [[getColumnId(column), childTargetId]] : []
+        })
+      )
+      contentPlan.tables.push({
+        sourceId: definition.id,
+        childId: childTableId,
+        ...(dependsOnChildIds.length > 0 ? { dependsOnChildIds } : {}),
+        ...(Object.keys(referenceColumnTargetTableIds).length > 0
+          ? { referenceColumnTargetTableIds }
+          : {}),
+      })
       names.tables.push(definition.name)
     }
     if (inserts.length > 0) await tx.insert(userTableDefinitions).values(inserts)
@@ -1216,6 +1348,9 @@ export async function copyForkResourceContent(params: {
       const saved = control?.progress?.tables[table.childId]
       let copied = saved?.copied ?? 0
       let afterId: string | null = saved?.afterId ?? null
+      const referenceColumnTargetTableEntries = table.referenceColumnTargetTableIds
+        ? Object.entries(table.referenceColumnTargetTableIds)
+        : undefined
       // `order_key` is nullable, and spreading `...row` would inherit NULLs into a
       // brand-new tableId that the one-shot backfill script-migration never revisits
       // (it snapshots the pending set up front) — leaving rows the keyset pager has to
@@ -1273,7 +1408,10 @@ export async function copyForkResourceContent(params: {
               secretProvenanceVersion:
                 classification.mode === 'legacy' ? null : TABLE_ROW_SECRET_PROVENANCE_VERSION,
               // Repoint resource-chip URLs in cell data at the child copies (no-op when no maps).
-              data: contentRefMaps ? remapTableRowResourceUrls(row.data, contentRefMaps) : row.data,
+              data: remapCopiedReferenceCells(
+                contentRefMaps ? remapTableRowResourceUrls(row.data, contentRefMaps) : row.data,
+                referenceColumnTargetTableEntries
+              ),
             },
             provenance: classification.mode === 'tracked' ? classification : undefined,
           }
@@ -1325,6 +1463,29 @@ export async function copyForkResourceContent(params: {
       logger.warn(`[${requestId}] Failed to copy table rows during fork`, {
         sourceTableId: table.sourceId,
         error: getErrorMessage(error),
+      })
+    }
+  }
+
+  const failedTableIds = new Set(
+    failures.flatMap((failure) => (failure.kind === 'table' ? [failure.childId] : []))
+  )
+  let foundFailedDependent = true
+  while (foundFailedDependent) {
+    foundFailedDependent = false
+    for (const table of contentPlan.tables) {
+      if (failedTableIds.has(table.childId)) continue
+      if (!table.dependsOnChildIds?.some((dependencyId) => failedTableIds.has(dependencyId))) {
+        continue
+      }
+      failedTableIds.add(table.childId)
+      failures.push({ kind: 'table', childId: table.childId })
+      copiedResources -= 1
+      failedResources += 1
+      foundFailedDependent = true
+      logger.warn(`[${requestId}] Failed copied table because a referenced table copy failed`, {
+        sourceTableId: table.sourceId,
+        childTableId: table.childId,
       })
     }
   }

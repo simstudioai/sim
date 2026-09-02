@@ -82,6 +82,11 @@ export interface TimestampValidation {
   readonly maxFractionDigits: number
 }
 
+export interface ColumnReferencePreviewDefinition {
+  getTableId(column: ColumnDefinition): string | undefined
+  getRowId(value: unknown): string | null
+}
+
 export interface ColumnTypeDefinition {
   readonly id: ColumnType
 
@@ -150,6 +155,8 @@ export interface ColumnTypeDefinition {
    * bounded, structured value.
    */
   readonly expandable: boolean
+  /** Optional inline referenced-row presentation owned by this column type. */
+  readonly referencePreview?: ColumnReferencePreviewDefinition
   /** `inputMode` for the text editor, when the type wants a specific keypad. */
   readonly inputMode?: 'decimal'
   /**

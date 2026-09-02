@@ -46,6 +46,7 @@ describe('planFolderSelection', () => {
     expect(result.selected).toEqual([{ id: 'a', name: 'A' }])
     expect(result.contained).toEqual([])
     expect([...result.covered].sort()).toEqual(['a', 'a1', 'a1x'])
+    expect([...(result.coveredBySelected.get('a') ?? [])].sort()).toEqual(['a', 'a1', 'a1x'])
   })
 
   it('reports an explicitly selected descendant as contained, not as a second selection', async () => {

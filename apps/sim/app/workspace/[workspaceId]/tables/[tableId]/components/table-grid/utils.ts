@@ -12,11 +12,15 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { areGroupDepsSatisfied, areOutputsFilled } from '@/lib/table/deps'
+import type {
+  DisplayColumn,
+  ReferencePreviewTarget,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/types'
 import type { ChatContext } from '@/stores/panel'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
-import type { DisplayColumn } from './types'
 
 /**
  * `all` means "every row matching the active filter" — including rows not yet loaded by the
@@ -30,6 +34,18 @@ export type RowSelection =
 
 export const ROW_SELECTION_NONE: RowSelection = { kind: 'none' }
 export const ROW_SELECTION_ALL: RowSelection = { kind: 'all' }
+
+export function isSameReferencePreviewTarget(
+  left: ReferencePreviewTarget | null,
+  right: ReferencePreviewTarget
+): boolean {
+  return (
+    left?.sourceRowId === right.sourceRowId &&
+    left.sourceColumnKey === right.sourceColumnKey &&
+    left.referenceTableId === right.referenceTableId &&
+    left.referenceRowId === right.referenceRowId
+  )
+}
 
 interface HorizontalEdgeScrollVelocityInput {
   pointerX: number
@@ -157,6 +173,14 @@ export type HeaderGroup =
       workflowId: string
     }
 
+function resolveReferenceTableName(
+  column: ColumnDefinition,
+  referenceTableNames: ReadonlyMap<string, string> | undefined
+): string | undefined {
+  const tableId = columnTypeOf(column).referencePreview?.getTableId(column)
+  return tableId ? referenceTableNames?.get(tableId) : undefined
+}
+
 /**
  * Flat schema → one DisplayColumn per ColumnDefinition. Pre-pass computes
  * `groupSize` and `groupStartColIndex` for every consecutive run of columns
@@ -165,7 +189,8 @@ export type HeaderGroup =
  */
 export function expandToDisplayColumns(
   columns: ColumnDefinition[],
-  workflowGroups: WorkflowGroup[]
+  workflowGroups: WorkflowGroup[],
+  referenceTableNames?: ReadonlyMap<string, string>
 ): DisplayColumn[] {
   const out: DisplayColumn[] = []
   const groupById = new Map(workflowGroups.map((g) => [g.id, g]))
@@ -194,6 +219,7 @@ export function expandToDisplayColumns(
         out.push({
           ...child,
           key: getColumnId(child),
+          referenceTableName: resolveReferenceTableName(child, referenceTableNames),
           outputBlockId: output?.blockId,
           outputPath: output?.path,
           groupSize: size,
@@ -207,6 +233,7 @@ export function expandToDisplayColumns(
       out.push({
         ...column,
         key: getColumnId(column),
+        referenceTableName: resolveReferenceTableName(column, referenceTableNames),
         groupSize: 1,
         groupStartColIndex: out.length,
         headerLabel: column.name,

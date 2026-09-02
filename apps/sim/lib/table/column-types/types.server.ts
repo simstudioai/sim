@@ -38,6 +38,14 @@ export interface ColumnTypeServerDefinition {
    */
   readonly referencedTableIds?: (column: ColumnDefinition) => readonly string[]
   /**
+   * Rewrites this column's table references through a source-to-target identity map.
+   * Omitted by types that do not reference tables.
+   */
+  readonly remapReferencedTableIds?: (
+    column: ColumnDefinition,
+    tableIdMap: ReadonlyMap<string, string>
+  ) => ColumnDefinition
+  /**
    * Rewrites cells into this type's canonical storage shape when a column is
    * converted **to** it. Omitted when the stored bytes are already correct.
    */

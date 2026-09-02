@@ -1,10 +1,14 @@
 'use client'
 
 import type { RowExecutionMetadata } from '@/lib/table'
+import {
+  CellRender,
+  type ReferenceCellAction,
+  resolveCellRender,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/cells/cell-render'
 import type { TimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'
 import type { DisplayColumn } from '../types'
-import { CellRender, resolveCellRender } from './cell-render'
 import { InlineEditor } from './inline-editors'
 
 interface CellContentProps {
@@ -15,6 +19,7 @@ interface CellContentProps {
    *  URL render as a tagged-resource chip instead of a plain external link. */
   workspaceId: string
   timezoneStatus: TimezoneState['status']
+  referenceColumnsEnabled: boolean
   isEditing: boolean
   initialCharacter?: string | null
   /** Opens the inline editor read-only; text stays selectable and copyable. */
@@ -29,6 +34,7 @@ interface CellContentProps {
   waitingOnLabels?: string[]
   /** Column is an enrichment output — a completed-but-empty cell renders "Not found". */
   isEnrichmentOutput?: boolean
+  referenceAction?: ReferenceCellAction
 }
 
 /**
@@ -43,6 +49,7 @@ export function CellContent({
   column,
   workspaceId,
   timezoneStatus,
+  referenceColumnsEnabled,
   isEditing,
   initialCharacter,
   readOnly,
@@ -50,6 +57,7 @@ export function CellContent({
   onCancel,
   waitingOnLabels,
   isEnrichmentOutput,
+  referenceAction,
 }: CellContentProps) {
   const kind = resolveCellRender({
     value,
@@ -59,6 +67,7 @@ export function CellContent({
     isEnrichmentOutput,
     currentWorkspaceId: workspaceId,
     timezoneStatus,
+    referenceColumnsEnabled,
   })
 
   return (
@@ -75,7 +84,7 @@ export function CellContent({
           />
         </div>
       )}
-      <CellRender kind={kind} isEditing={isEditing} />
+      <CellRender kind={kind} isEditing={isEditing} referenceAction={referenceAction} />
     </>
   )
 }

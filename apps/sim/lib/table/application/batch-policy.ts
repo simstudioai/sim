@@ -7,11 +7,11 @@ import {
 import { MAX_TABLE_BATCH_ITEMS } from '@/lib/table/constants'
 
 /**
- * Bulk table operations run one authorized single-table mutation per item and
- * report a per-item outcome, matching the knowledge domain's
- * `sequential_best_effort` bulk policy. There is no single-statement archive or
- * re-parent primitive that could make the batch atomic: archiving a table
- * cascades, and each item is authorized against its own canonical row.
+ * Bulk table operations authorize each item and report a per-item outcome,
+ * matching the knowledge domain's `sequential_best_effort` bulk policy. Moves
+ * remain individual mutations. Deletes validate the explicit selection as a
+ * group, then use per-table savepoints so recoverable statement failures retain
+ * a dependency-safe prefix. An outer transaction failure rolls that phase back.
  */
 export const BULK_MOVE_TABLES_COST_POLICY = {
   maxItems: MAX_TABLE_BATCH_ITEMS,
