@@ -104,6 +104,25 @@ describe('applyWorkspaceFileContentEdit', () => {
     ).toBe('heading\r\n  anchor  \r\none\r\ntwo\r\ntail\r\n')
   })
 
+  it('does not add a blank line when anchored content ends with a newline', () => {
+    expect(
+      applyWorkspaceFileContentEdit('before\nold\nafter\n', {
+        mode: 'replace_between',
+        beforeAnchor: 'before',
+        afterAnchor: 'after',
+        content: 'new\n',
+      })
+    ).toBe('before\nnew\nafter\n')
+
+    expect(
+      applyWorkspaceFileContentEdit('anchor\ntail\n', {
+        mode: 'insert_after',
+        anchor: 'anchor',
+        content: 'new\n',
+      })
+    ).toBe('anchor\nnew\ntail\n')
+  })
+
   it('deletes the start anchor and interior while preserving the end anchor', () => {
     expect(
       applyWorkspaceFileContentEdit('before\nstart\nremove\nend\nafter', {

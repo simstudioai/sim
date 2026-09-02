@@ -535,7 +535,7 @@ describe('file manage folder wiring', () => {
         })
       )
 
-      expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalledWith('workspace-1', 'b-self')
+      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-1', 'a-self')
     })
 
     it('passes the replacement through as a string edit', async () => {
@@ -956,6 +956,58 @@ describe('file manage folder wiring', () => {
             includeRootItems: true,
           },
           limit: 200,
+        }),
+      })
+    )
+  })
+
+  it('fills a recursive page from shallower files before deeper files', async () => {
+    mockListWorkspaceFileFolders.mockResolvedValue({ folders: [FOLDER_ROW] })
+    mockQueryWorkspaceFilePage.mockImplementation(
+      async ({ input }: { input: { folderScope: { includeRootItems: boolean } } }) =>
+        input.folderScope.includeRootItems
+          ? {
+              files: [{ ...workspaceFile('root-z'), name: 'z.txt', folderId: null }],
+              nextKeys: null,
+            }
+          : {
+              files: [{ ...workspaceFile('nested-a'), name: 'a.txt', folderId: 'folder-reports' }],
+              nextKeys: null,
+            }
+    )
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'list',
+        workspaceId: 'workspace-1',
+        recursive: true,
+        limit: 2,
+      })
+    )
+    const body = await response.json()
+
+    expect(body.data.entries.map((entry: { name: string }) => entry.name)).toEqual([
+      'Reports',
+      'z.txt',
+    ])
+    expect(body.data.truncated).toBe(true)
+    expect(mockQueryWorkspaceFilePage).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        input: expect.objectContaining({
+          folderScope: { folderIds: new Set<string>(), includeRootItems: true },
+        }),
+      })
+    )
+    expect(mockQueryWorkspaceFilePage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        input: expect.objectContaining({
+          folderScope: {
+            folderIds: new Set<string>(['folder-reports']),
+            includeRootItems: false,
+          },
+          limit: 1,
         }),
       })
     )

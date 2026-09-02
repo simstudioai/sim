@@ -129,10 +129,16 @@ export async function readWorkspaceFileReference({
   principal,
   workspaceId,
   reference,
+  folderId,
   maxBytes,
 }: ReadWorkspaceFileReferenceInput): Promise<{ file: WorkspaceFileRecord; content: Buffer }> {
   return readWorkspaceFileReferenceUseCase.execute({
     principal,
-    input: { workspaceId, reference, maxBytes },
+    input: {
+      workspaceId,
+      reference,
+      maxBytes,
+      ...(folderId === undefined ? {} : { folderId }),
+    },
   })
 }

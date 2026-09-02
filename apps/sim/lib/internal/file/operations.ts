@@ -28,6 +28,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
 import { buildFolderPath, parseFolderPath, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
+import type { FolderIdScope } from '@/lib/folders/scope'
 import { collectFolderDepths } from '@/lib/folders/subtree'
 import { ShareValidationError } from '@/lib/public-shares/share-manager'
 import {
@@ -123,6 +124,29 @@ export interface FileManageOperationContext {
   headers: Headers
   requestId: string
   signal?: AbortSignal
+}
+
+function directoryFileScopeForDepthRange(
+  rootId: string | null,
+  folderDepths: ReadonlyMap<string, number>,
+  minDepth: number,
+  maxDepth: number
+): FolderIdScope {
+  const folderIds = new Set<string>()
+
+  if (minDepth <= 0 && maxDepth >= 0 && rootId !== null) folderIds.add(rootId)
+  for (const [folderId, depth] of folderDepths) {
+    if (depth >= minDepth && depth <= maxDepth) folderIds.add(folderId)
+  }
+
+  return {
+    folderIds,
+    includeRootItems: rootId === null && minDepth <= 0 && maxDepth >= 0,
+  }
+}
+
+function hasDirectoryFileScope(scope: FolderIdScope): boolean {
+  return scope.includeRootItems || scope.folderIds.size > 0
 }
 
 async function assertOperationFileAccess(
@@ -1986,27 +2010,105 @@ export async function executeFileManageOperation(
         }
 
         const maxDepth = body.recursive ? (body.depth ?? Number.POSITIVE_INFINITY) : 1
-        const fileParentDepths = collectFolderDepths(projected, rootId, {
-          maxDepth: Math.max(0, maxDepth - 1),
-        })
-        const folderIds = new Set(fileParentDepths.keys())
-        if (rootId) folderIds.add(rootId)
         const limit = body.limit ?? DEFAULT_FILE_LIST_LIMIT
-        const filePage = await queryWorkspaceFilePage.execute({
-          principal,
-          input: {
-            workspaceId,
-            folderScope: { folderIds, includeRootItems: rootId === null },
-            search: body.search,
-            sortBy: 'name',
-            sortOrder: 'asc',
-            limit,
-          },
+        const folderDepths = collectFolderDepths(projected, rootId, { maxDepth })
+        let maxParentDepth = 0
+        for (const depth of folderDepths.values()) {
+          if (depth < maxDepth) maxParentDepth = Math.max(maxParentDepth, depth)
+        }
+
+        const folderListing = selectDirectoryEntries(projected, [], {
+          rootId,
+          rootPath,
+          maxDepth,
+          search: body.search,
+          limit: projected.length,
         })
+        const matchingFolderCountByDepth = new Map<number, number>()
+        for (const entry of folderListing.entries) {
+          matchingFolderCountByDepth.set(
+            entry.depth,
+            (matchingFolderCountByDepth.get(entry.depth) ?? 0) + 1
+          )
+        }
+
+        const files: WorkspaceFileRecord[] = []
+        let processedMatchingFolders = 0
+        let fileListingTruncated = false
+
+        const queryFileScope = (folderScope: FolderIdScope, pageLimit: number) =>
+          queryWorkspaceFilePage.execute({
+            principal,
+            input: {
+              workspaceId,
+              folderScope,
+              search: body.search,
+              sortBy: 'name',
+              sortOrder: 'asc',
+              limit: pageLimit,
+            },
+          })
+
+        for (let fileDepth = 1; fileDepth <= maxParentDepth + 1; fileDepth++) {
+          processedMatchingFolders += matchingFolderCountByDepth.get(fileDepth) ?? 0
+          const parentDepth = fileDepth - 1
+          const knownEntryCount = processedMatchingFolders + files.length
+
+          if (knownEntryCount >= limit) {
+            fileListingTruncated =
+              knownEntryCount > limit || folderListing.entries.length > processedMatchingFolders
+            if (!fileListingTruncated) {
+              const remainingScope = directoryFileScopeForDepthRange(
+                rootId,
+                folderDepths,
+                parentDepth,
+                maxParentDepth
+              )
+              if (hasDirectoryFileScope(remainingScope)) {
+                const remainingPage = await queryFileScope(remainingScope, 1)
+                fileListingTruncated = remainingPage.files.length > 0
+              }
+            }
+            break
+          }
+
+          const depthScope = directoryFileScopeForDepthRange(
+            rootId,
+            folderDepths,
+            parentDepth,
+            parentDepth
+          )
+          if (!hasDirectoryFileScope(depthScope)) continue
+
+          const filePage = await queryFileScope(depthScope, limit)
+          files.push(...filePage.files)
+
+          const populatedEntryCount = processedMatchingFolders + files.length
+          if (filePage.nextKeys !== null || populatedEntryCount > limit) {
+            fileListingTruncated = true
+            break
+          }
+          if (populatedEntryCount === limit) {
+            fileListingTruncated = folderListing.entries.length > processedMatchingFolders
+            if (!fileListingTruncated && parentDepth < maxParentDepth) {
+              const remainingScope = directoryFileScopeForDepthRange(
+                rootId,
+                folderDepths,
+                parentDepth + 1,
+                maxParentDepth
+              )
+              if (hasDirectoryFileScope(remainingScope)) {
+                const remainingPage = await queryFileScope(remainingScope, 1)
+                fileListingTruncated = remainingPage.files.length > 0
+              }
+            }
+            break
+          }
+        }
 
         const listing = selectDirectoryEntries(
           projected,
-          filePage.files.map((file) => ({
+          files.map((file) => ({
             id: file.id,
             name: file.name,
             folderId: file.folderId ?? null,
@@ -2028,7 +2130,7 @@ export async function executeFileManageOperation(
           data: {
             path: rootPath,
             entries: listing.entries,
-            truncated: listing.truncated || filePage.nextKeys !== null,
+            truncated: listing.truncated || fileListingTruncated,
           },
         })
       }

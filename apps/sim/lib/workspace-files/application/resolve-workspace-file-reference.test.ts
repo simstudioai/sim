@@ -106,6 +106,24 @@ describe('workspace file reference application service', () => {
     expect(mocks.resolvePermission).toHaveBeenCalledTimes(1)
   })
 
+  it('reads an exact name directly inside a canonical folder id', async () => {
+    await expect(
+      readWorkspaceFileReference({
+        principal,
+        workspaceId: 'workspace-1',
+        reference: 'source.txt',
+        folderId: 'folder-1',
+        maxBytes: 512,
+      })
+    ).resolves.toEqual({ file, content: Buffer.from('source') })
+
+    expect(mocks.getByName).toHaveBeenCalledWith('workspace-1', 'source.txt', {
+      folderId: 'folder-1',
+    })
+    expect(mocks.resolveStoredReference).not.toHaveBeenCalled()
+    expect(mocks.fetchBuffer).toHaveBeenCalledWith(file, { maxBytes: 512 })
+  })
+
   it('fails before canonical loading for an unregistered operation object', async () => {
     const duplicateOperation = defineWorkspaceOperation({
       id: fileOperations.rename.id,

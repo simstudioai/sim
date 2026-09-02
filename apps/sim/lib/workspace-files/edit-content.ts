@@ -171,7 +171,9 @@ function anchorLineIndex(lines: string[], anchor: string, occurrence: number): n
 }
 
 function contentLines(content: string): string[] {
-  return content.length === 0 ? [] : splitLines(content)
+  if (content.length === 0) return []
+  const lines = splitLines(content)
+  return lines.at(-1) === '' ? lines.slice(0, -1) : lines
 }
 
 /**
