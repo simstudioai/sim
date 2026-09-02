@@ -14,17 +14,17 @@ import {
 } from '@sim/testing'
 import { generateShortId } from '@sim/utils/id'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
 import {
   classifySuspectListing,
   evaluateListingSafety,
-  isConnectorRunnableStatus,
   isStuckDocumentSweepEligible,
   mergeHydratedDocument,
   mergeHydratedSkippedDocument,
   type PreviousListingObservation,
   selectStuckDocumentSweepCandidates,
   stuckDocumentSweepAgeAnchor,
-} from '@/lib/knowledge/connectors/sync-engine'
+} from '@/lib/knowledge/connectors/sync-primitives'
 import type { ExternalDocument, SyncResult } from '@/connectors/types'
 
 vi.mock('drizzle-orm', () => drizzleOrmMock)
@@ -90,14 +90,14 @@ describe('isConnectorRunnableStatus', () => {
 
 describe('shouldReconcileDeletions', () => {
   it('runs on a clean full listing', async () => {
-    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(shouldReconcileDeletions(false, {}, undefined)).toBe(true)
     expect(shouldReconcileDeletions(false, undefined, undefined)).toBe(true)
   })
 
   it('never runs on incremental syncs', async () => {
-    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(shouldReconcileDeletions(true, {}, undefined)).toBe(false)
     expect(shouldReconcileDeletions(true, {}, true)).toBe(false)
@@ -105,20 +105,20 @@ describe('shouldReconcileDeletions', () => {
   })
 
   it('skips when a connector capped the listing', async () => {
-    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(shouldReconcileDeletions(false, { listingCapped: true }, undefined)).toBe(false)
     expect(shouldReconcileDeletions(false, { listingCapped: true }, false)).toBe(false)
   })
 
   it('lets a forced fullSync override a connector cap', async () => {
-    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(shouldReconcileDeletions(false, { listingCapped: true }, true)).toBe(true)
   })
 
   it('never runs when the engine truncated pagination, even on a forced fullSync', async () => {
-    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(shouldReconcileDeletions(false, { listingTruncated: true }, undefined)).toBe(false)
     expect(shouldReconcileDeletions(false, { listingTruncated: true }, true)).toBe(false)
@@ -128,7 +128,7 @@ describe('shouldReconcileDeletions', () => {
   })
 
   it('never runs when provider pagination is non-authoritative', async () => {
-    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(shouldReconcileDeletions(false, { reconciliationUnsafe: true }, undefined)).toBe(false)
     expect(shouldReconcileDeletions(false, { reconciliationUnsafe: true }, true)).toBe(false)
@@ -139,7 +139,7 @@ describe('shouldRunIncrementalSync', () => {
   const lastSyncAt = '2026-07-01T00:00:00.000Z'
 
   it('runs incrementally when everything is eligible', async () => {
-    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(
       shouldRunIncrementalSync(true, 'incremental', undefined, undefined, false, lastSyncAt)
@@ -147,7 +147,7 @@ describe('shouldRunIncrementalSync', () => {
   })
 
   it('never runs incrementally when the connector does not support it', async () => {
-    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(
       shouldRunIncrementalSync(false, 'incremental', undefined, undefined, false, lastSyncAt)
@@ -155,7 +155,7 @@ describe('shouldRunIncrementalSync', () => {
   })
 
   it('never runs incrementally when the connector is configured for full syncs', async () => {
-    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(shouldRunIncrementalSync(true, 'full', undefined, undefined, false, lastSyncAt)).toBe(
       false
@@ -163,7 +163,7 @@ describe('shouldRunIncrementalSync', () => {
   })
 
   it('never runs incrementally on a forced fullSync or rehydrate', async () => {
-    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(shouldRunIncrementalSync(true, 'incremental', true, undefined, false, lastSyncAt)).toBe(
       false
@@ -174,7 +174,7 @@ describe('shouldRunIncrementalSync', () => {
   })
 
   it('never runs incrementally before the first sync', async () => {
-    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(shouldRunIncrementalSync(true, 'incremental', undefined, undefined, false, null)).toBe(
       false
@@ -182,7 +182,7 @@ describe('shouldRunIncrementalSync', () => {
   })
 
   it('forces a full listing whenever pending-removal documents exist, so they get a resurrect-or-confirm decision', async () => {
-    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldRunIncrementalSync } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(
       shouldRunIncrementalSync(true, 'incremental', undefined, undefined, true, lastSyncAt)
@@ -195,7 +195,9 @@ describe('partitionSyncReconciliation', () => {
   const noFailures = new Set<string>()
 
   it('marks a live document missing from the listing as pending removal, not hard-deleted', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = partitionSyncReconciliation([live('a')], [], new Set(), noFailures, undefined)
 
@@ -203,7 +205,9 @@ describe('partitionSyncReconciliation', () => {
   })
 
   it('hard-deletes a document already pending removal that is still absent', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = partitionSyncReconciliation([], [live('a')], new Set(), noFailures, undefined)
 
@@ -211,7 +215,9 @@ describe('partitionSyncReconciliation', () => {
   })
 
   it('resurrects a pending-removal document that reappears in the listing', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = partitionSyncReconciliation(
       [],
@@ -225,7 +231,9 @@ describe('partitionSyncReconciliation', () => {
   })
 
   it('leaves a document untouched when it is still present in the listing', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = partitionSyncReconciliation(
       [live('a')],
@@ -239,7 +247,9 @@ describe('partitionSyncReconciliation', () => {
   })
 
   it('resurrects even on a forced fullSync', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = partitionSyncReconciliation([], [live('a')], new Set(['a']), noFailures, true)
 
@@ -247,7 +257,9 @@ describe('partitionSyncReconciliation', () => {
   })
 
   it('hard-deletes both live and pending-removal documents immediately on a forced fullSync', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = partitionSyncReconciliation(
       [live('a')],
@@ -262,7 +274,9 @@ describe('partitionSyncReconciliation', () => {
   })
 
   it('handles a mixed batch of every outcome in one pass', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = partitionSyncReconciliation(
       [live('kept'), live('newly-missing')],
@@ -280,7 +294,9 @@ describe('partitionSyncReconciliation', () => {
   })
 
   it('ignores documents with a null externalId', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = partitionSyncReconciliation(
       [live('a', null)],
@@ -294,7 +310,9 @@ describe('partitionSyncReconciliation', () => {
   })
 
   it('does not resurrect a reappearing document whose content refresh failed', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = partitionSyncReconciliation(
       [],
@@ -308,7 +326,9 @@ describe('partitionSyncReconciliation', () => {
   })
 
   it('still refuses to resurrect a failed refresh even on a forced fullSync', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = partitionSyncReconciliation(
       [],
@@ -322,7 +342,9 @@ describe('partitionSyncReconciliation', () => {
   })
 
   it('resurrects the ones that succeeded while excluding the one that failed', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = partitionSyncReconciliation(
       [],
@@ -339,7 +361,7 @@ describe('partitionSyncReconciliation', () => {
 describe('filterStillOwnedReconciliationIds', () => {
   it('keeps ids present in the ownership snapshot', async () => {
     const { filterStillOwnedReconciliationIds } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+      '@/lib/knowledge/connectors/sync-primitives'
     )
 
     const result = filterStillOwnedReconciliationIds(['a'], ['b'], ['c'], new Set(['a', 'b', 'c']))
@@ -349,7 +371,7 @@ describe('filterStillOwnedReconciliationIds', () => {
 
   it('drops ids a concurrent connector-delete already detached', async () => {
     const { filterStillOwnedReconciliationIds } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+      '@/lib/knowledge/connectors/sync-primitives'
     )
 
     const result = filterStillOwnedReconciliationIds(['a'], ['b'], ['c'], new Set(['a']))
@@ -359,7 +381,7 @@ describe('filterStillOwnedReconciliationIds', () => {
 
   it('returns all-empty lists when nothing is still owned', async () => {
     const { filterStillOwnedReconciliationIds } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+      '@/lib/knowledge/connectors/sync-primitives'
     )
 
     const result = filterStillOwnedReconciliationIds(['a'], ['b'], ['c'], new Set())
@@ -380,7 +402,7 @@ describe('resolveTagMapping', () => {
       priority: 'High',
     })
 
-    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-persistence')
 
     const result = resolveTagMapping(
       'jira',
@@ -402,7 +424,7 @@ describe('resolveTagMapping', () => {
   })
 
   it('returns undefined when connector has no mapTags', async () => {
-    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-persistence')
 
     const result = resolveTagMapping(
       'no-tags',
@@ -416,7 +438,7 @@ describe('resolveTagMapping', () => {
   })
 
   it('returns undefined when connector type is unknown', async () => {
-    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-persistence')
 
     const result = resolveTagMapping('unknown', { key: 'value' }, {})
 
@@ -426,7 +448,7 @@ describe('resolveTagMapping', () => {
   it('returns undefined when no tagSlotMapping in sourceConfig', async () => {
     mockMapTags.mockReturnValue({ issueType: 'Bug' })
 
-    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-persistence')
 
     const result = resolveTagMapping('jira', { issueType: 'Bug' }, {})
 
@@ -439,7 +461,7 @@ describe('resolveTagMapping', () => {
       status: undefined,
     })
 
-    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-persistence')
 
     const result = resolveTagMapping(
       'jira',
@@ -463,7 +485,7 @@ describe('resolveTagMapping', () => {
   it('returns undefined when sourceConfig is undefined', async () => {
     mockMapTags.mockReturnValue({ issueType: 'Bug' })
 
-    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { resolveTagMapping } = await import('@/lib/knowledge/connectors/sync-persistence')
 
     const result = resolveTagMapping('jira', { issueType: 'Bug' }, undefined)
 
@@ -475,14 +497,14 @@ describe('classifyExternalDoc', () => {
   const base = { content: 'hello', contentDeferred: false, contentHash: 'h1' }
 
   it('records a new skipped file as a failed row', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
     expect(
       classifyExternalDoc({ ...base, content: '', skippedReason: 'too big' }, undefined)
     ).toEqual({ type: 'skip' })
   })
 
   it('keeps an already-indexed file as-is when it becomes skipped (last-known-good)', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
     expect(
       classifyExternalDoc(
         { ...base, content: '', skippedReason: 'too big' },
@@ -496,7 +518,7 @@ describe('classifyExternalDoc', () => {
   })
 
   it('refreshes an existing skipped placeholder without turning it into a source failure', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(
       classifyExternalDoc(
@@ -507,7 +529,7 @@ describe('classifyExternalDoc', () => {
   })
 
   it('rehydrates a content-less placeholder even when its listing hash is unchanged', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(
       classifyExternalDoc(
@@ -519,7 +541,7 @@ describe('classifyExternalDoc', () => {
 
   it('uses the same skip replacement rule after deferred hydration', async () => {
     const { shouldReplaceExistingWithSkippedDocument } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+      '@/lib/knowledge/connectors/sync-primitives'
     )
 
     expect(shouldReplaceExistingWithSkippedDocument({ storageKey: null }, {})).toBe(true)
@@ -535,7 +557,7 @@ describe('classifyExternalDoc', () => {
   })
 
   it('replaces stale indexed content for an authoritative skip', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(
       classifyExternalDoc(
@@ -551,12 +573,12 @@ describe('classifyExternalDoc', () => {
   })
 
   it('drops empty non-deferred content', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
     expect(classifyExternalDoc({ ...base, content: '   ' }, undefined)).toEqual({ type: 'drop' })
   })
 
   it('adds new content and deferred stubs', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
     expect(classifyExternalDoc(base, undefined)).toEqual({ type: 'add' })
     expect(classifyExternalDoc({ ...base, content: '', contentDeferred: true }, undefined)).toEqual(
       { type: 'add' }
@@ -564,7 +586,7 @@ describe('classifyExternalDoc', () => {
   })
 
   it('updates when the content hash changed and is unchanged otherwise', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
     expect(classifyExternalDoc(base, { id: 'doc-1', contentHash: 'old' })).toEqual({
       type: 'update',
       existingId: 'doc-1',
@@ -575,7 +597,7 @@ describe('classifyExternalDoc', () => {
   })
 
   it('forces re-hydration of an unchanged deferred doc when forceRehydrate is set', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
     const deferred = { ...base, content: '', contentDeferred: true }
     // Same hash → normally unchanged, but forceRehydrate promotes it to update.
     expect(classifyExternalDoc(deferred, { id: 'doc-1', contentHash: 'h1' }, true)).toEqual({
@@ -585,7 +607,7 @@ describe('classifyExternalDoc', () => {
   })
 
   it('does not force re-hydration of a non-deferred doc (content already final)', async () => {
-    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
     // Ready (non-deferred) content with an unchanged hash stays unchanged even under forceRehydrate.
     expect(classifyExternalDoc(base, { id: 'doc-1', contentHash: 'h1' }, true)).toEqual({
       type: 'unchanged',
@@ -697,7 +719,7 @@ describe('persistSkippedDocuments', () => {
   })
 
   it('persists a new skipped document without dispatching processing', async () => {
-    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-persistence')
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
 
     await expect(
@@ -730,7 +752,7 @@ describe('persistSkippedDocuments', () => {
   })
 
   it('atomically replaces stale indexed content for an authoritative skip', async () => {
-    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-persistence')
     const oldFileUrl = '/api/files/serve/kb/old-document.txt?context=knowledge-base'
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
     queueTableRows(schemaMock.document, [{ fileUrl: oldFileUrl }])
@@ -778,7 +800,7 @@ describe('persistSkippedDocuments', () => {
   })
 
   it('does not delete old storage when the authoritative replacement fails', async () => {
-    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-persistence')
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
     queueTableRows(schemaMock.document, [])
 
@@ -812,8 +834,9 @@ describe('persistSkippedRetryHashes', () => {
   })
 
   it('updates only the retry hash for a last-known-good connector document', async () => {
-    const { classifyExternalDoc, persistSkippedRetryHashes } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+    const { classifyExternalDoc } = await import('@/lib/knowledge/connectors/sync-primitives')
+    const { persistSkippedRetryHashes } = await import(
+      '@/lib/knowledge/connectors/sync-persistence'
     )
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
@@ -846,7 +869,9 @@ describe('persistSkippedRetryHashes', () => {
   })
 
   it('commits live retry hashes when another document is no longer a connector target', async () => {
-    const { persistSkippedRetryHashes } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { persistSkippedRetryHashes } = await import(
+      '@/lib/knowledge/connectors/sync-persistence'
+    )
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'live-doc' }]).mockResolvedValueOnce([])
 
@@ -899,7 +924,7 @@ describe('chunkOpsByByteBudget', () => {
   })
 
   it('batches small ops up to the count cap', async () => {
-    const { chunkOpsByByteBudget } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { chunkOpsByByteBudget } = await import('@/lib/knowledge/connectors/sync-primitives')
     const chunks = chunkOpsByByteBudget(
       Array.from({ length: 7 }, () => addOp(1024)),
       64 * MB,
@@ -909,20 +934,20 @@ describe('chunkOpsByByteBudget', () => {
   })
 
   it('isolates a file larger than the budget into its own chunk', async () => {
-    const { chunkOpsByByteBudget } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { chunkOpsByByteBudget } = await import('@/lib/knowledge/connectors/sync-primitives')
     const chunks = chunkOpsByByteBudget([addOp(100 * MB), addOp(1024)], 64 * MB, 5)
     expect(chunks.map((c) => c.length)).toEqual([1, 1])
   })
 
   it('caps summed bytes per chunk for medium files', async () => {
-    const { chunkOpsByByteBudget } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { chunkOpsByByteBudget } = await import('@/lib/knowledge/connectors/sync-primitives')
     // 40 + 40 = 80 MB exceeds the 64 MB budget, so they split.
     const chunks = chunkOpsByByteBudget([addOp(40 * MB), addOp(40 * MB)], 64 * MB, 5)
     expect(chunks.map((c) => c.length)).toEqual([1, 1])
   })
 
   it('treats skip ops as zero bytes so they do not consume the budget', async () => {
-    const { chunkOpsByByteBudget } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { chunkOpsByByteBudget } = await import('@/lib/knowledge/connectors/sync-primitives')
     const chunks = chunkOpsByByteBudget(
       [skipOp(100 * MB), skipOp(100 * MB), addOp(1024)],
       64 * MB,
@@ -938,7 +963,7 @@ describe('connector sync working-set bounds', () => {
       CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS,
       sourcePageFitsSyncWorkingSet,
       syncWorkingSetQueryLimit,
-    } = await import('@/lib/knowledge/connectors/sync-engine')
+    } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(syncWorkingSetQueryLimit(0)).toBe(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS + 1)
     expect(syncWorkingSetQueryLimit(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS - 25)).toBe(26)
@@ -949,7 +974,7 @@ describe('connector sync working-set bounds', () => {
 
   it('counts retained source payload in UTF-8 bytes', async () => {
     const { addSourcePagePayloadBytes, CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+      '@/lib/knowledge/connectors/sync-primitives'
     )
     const document = {
       externalId: '',
@@ -1074,9 +1099,10 @@ describe('executeSync working-set overflow admission', () => {
   }
 
   it('rejects overflow on a later source page before classification or document work', async () => {
-    const { CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS, executeSync } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+    const { CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
     )
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
     const retained = trackedSourceDocument('retained')
     const overflow = trackedSourceDocument('overflow')
     mockListDocuments
@@ -1145,9 +1171,10 @@ describe('executeSync working-set overflow admission', () => {
   ])(
     'rejects overflow in the sequential $population population before classification or document work',
     async ({ expectedDocumentReads, populations }) => {
-      const { CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS, executeSync } = await import(
-        '@/lib/knowledge/connectors/sync-engine'
+      const { CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS } = await import(
+        '@/lib/knowledge/connectors/sync-primitives'
       )
+      const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
       const listed = trackedSourceDocument('new-source-document')
       mockListDocuments.mockResolvedValue({ documents: [listed.document], hasMore: false })
       for (const population of populations(CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS)) {
@@ -1481,7 +1508,9 @@ describe('mergeHydratedSkippedDocument', () => {
 
 describe('requireHydratedListedDocument', () => {
   it('turns ambiguous null hydration into a sync failure instead of a silent drop', async () => {
-    const { requireHydratedListedDocument } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { requireHydratedListedDocument } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     expect(() => requireHydratedListedDocument(null, 'listed-1')).toThrow(
       'Connector returned no content for listed document listed-1'
@@ -1489,7 +1518,9 @@ describe('requireHydratedListedDocument', () => {
   })
 
   it('passes through a hydrated document', async () => {
-    const { requireHydratedListedDocument } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { requireHydratedListedDocument } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
     const hydrated: ExternalDocument = {
       externalId: 'listed-1',
       title: 'Listed',
@@ -1504,7 +1535,7 @@ describe('requireHydratedListedDocument', () => {
 describe('recordUnverifiedExistingRefresh', () => {
   it('keeps last-known-good content while holding the incremental watermark', async () => {
     const { recordUnverifiedExistingRefresh } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+      '@/lib/knowledge/connectors/sync-primitives'
     )
     const result = { docsFailed: 0 }
     const failedExternalIds = new Set<string>()
@@ -1517,7 +1548,7 @@ describe('recordUnverifiedExistingRefresh', () => {
 
   it('counts one document once if multiple unusable signals converge', async () => {
     const { recordUnverifiedExistingRefresh } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+      '@/lib/knowledge/connectors/sync-primitives'
     )
     const result = { docsFailed: 0 }
     const failedExternalIds = new Set<string>()
@@ -1858,7 +1889,7 @@ describe('selectStuckDocumentSweepCandidates', () => {
 describe('resolveReconciliationDeleteCap', () => {
   it('scales with the owned corpus above the absolute floor', async () => {
     const { resolveReconciliationDeleteCap } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+      '@/lib/knowledge/connectors/sync-primitives'
     )
 
     expect(resolveReconciliationDeleteCap(1000)).toBe(250)
@@ -1868,7 +1899,7 @@ describe('resolveReconciliationDeleteCap', () => {
 
   it('never drops below the absolute floor on a small corpus', async () => {
     const { resolveReconciliationDeleteCap } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+      '@/lib/knowledge/connectors/sync-primitives'
     )
 
     expect(resolveReconciliationDeleteCap(0)).toBe(25)
@@ -1879,7 +1910,7 @@ describe('resolveReconciliationDeleteCap', () => {
 
   it('honours an override that raises or lowers the cap', async () => {
     const { resolveReconciliationDeleteCap } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+      '@/lib/knowledge/connectors/sync-primitives'
     )
 
     expect(resolveReconciliationDeleteCap(1000, { maxRatio: 0.9 })).toBe(900)
@@ -1893,7 +1924,9 @@ describe('capReconciliationDeletions', () => {
     Array.from({ length: count }, (_, i) => `${prefix}-${i}`)
 
   it('passes a request exactly at the cap through untouched', async () => {
-    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { capReconciliationDeletions } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const soft = ids('soft', 250)
     const result = capReconciliationDeletions(soft, [], 1000, false)
@@ -1905,7 +1938,9 @@ describe('capReconciliationDeletions', () => {
   })
 
   it('holds a request one document over the cap', async () => {
-    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { capReconciliationDeletions } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = capReconciliationDeletions(ids('soft', 251), [], 1000, false)
 
@@ -1915,7 +1950,9 @@ describe('capReconciliationDeletions', () => {
   })
 
   it('returns empty arrays — not the inputs — when held', async () => {
-    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { capReconciliationDeletions } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = capReconciliationDeletions(ids('soft', 300), ids('hard', 300), 1000, false)
 
@@ -1925,7 +1962,9 @@ describe('capReconciliationDeletions', () => {
   })
 
   it('caps each generation separately rather than summing them', async () => {
-    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { capReconciliationDeletions } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     /**
      * Hard deletes are the previous generation's soft deletes, already gated by
@@ -1940,7 +1979,9 @@ describe('capReconciliationDeletions', () => {
   })
 
   it('holds only the generation that breached the cap', async () => {
-    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { capReconciliationDeletions } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const hard = ids('hard', 100)
     const result = capReconciliationDeletions(ids('soft', 400), hard, 1000, false)
@@ -1953,7 +1994,9 @@ describe('capReconciliationDeletions', () => {
   })
 
   it('is bypassed by a forced fullSync, in both generations', async () => {
-    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { capReconciliationDeletions } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const hard = ids('hard', 1000)
     const hardOnly = capReconciliationDeletions([], hard, 1000, true)
@@ -1974,14 +2017,18 @@ describe('capReconciliationDeletions', () => {
   })
 
   it('applies the small-corpus floor rather than the ratio', async () => {
-    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { capReconciliationDeletions } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     expect(capReconciliationDeletions(ids('soft', 25), [], 8, false).held).toBe(false)
     expect(capReconciliationDeletions(ids('soft', 26), [], 8, false).held).toBe(true)
   })
 
   it('honours an override that raises or lowers the cap', async () => {
-    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { capReconciliationDeletions } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     expect(capReconciliationDeletions(ids('s', 400), [], 1000, false, { maxRatio: 0.5 }).held).toBe(
       false
@@ -1996,7 +2043,9 @@ describe('capReconciliationDeletions', () => {
 
   describe('steady churn', () => {
     it('reaches a stable state instead of ratcheting shut', async () => {
-      const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+      const { capReconciliationDeletions } = await import(
+        '@/lib/knowledge/connectors/sync-primitives'
+      )
 
       /**
        * 1,000 documents at 15% churn against a cap of 250. Under one summed cap:
@@ -2018,7 +2067,9 @@ describe('capReconciliationDeletions', () => {
 
   describe('confirmed data-loss shapes', () => {
     it('holds a partial outage that returns half a 1000-document corpus', async () => {
-      const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+      const { capReconciliationDeletions } = await import(
+        '@/lib/knowledge/connectors/sync-primitives'
+      )
 
       const result = capReconciliationDeletions(ids('missing', 500), [], 1000, false)
 
@@ -2028,7 +2079,9 @@ describe('capReconciliationDeletions', () => {
     })
 
     it('holds an externalId derivation change that orphans the whole corpus', async () => {
-      const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+      const { capReconciliationDeletions } = await import(
+        '@/lib/knowledge/connectors/sync-primitives'
+      )
 
       const result = capReconciliationDeletions(ids('old-key', 1000), [], 1000, false)
 
@@ -2041,7 +2094,7 @@ describe('capReconciliationDeletions', () => {
 
 describe('resolvePreviousOwnedCount', () => {
   it('falls back to the current owned count when the recorded count collapsed', async () => {
-    const { resolvePreviousOwnedCount } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { resolvePreviousOwnedCount } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     // lastSyncDocCount excludes tombstones, so a soft-delete pass drives it to 0.
     expect(resolvePreviousOwnedCount(0, 500)).toBe(500)
@@ -2050,7 +2103,7 @@ describe('resolvePreviousOwnedCount', () => {
   })
 
   it('keeps the recorded count when it is the larger observation', async () => {
-    const { resolvePreviousOwnedCount } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { resolvePreviousOwnedCount } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(resolvePreviousOwnedCount(800, 500)).toBe(800)
     expect(resolvePreviousOwnedCount(500, 500)).toBe(500)
@@ -2063,7 +2116,9 @@ describe('partitionSyncReconciliation — user-excluded documents', () => {
   const noFailures = new Set<string>()
 
   it('never hard-deletes an excluded document that is already pending removal', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = partitionSyncReconciliation(
       [],
@@ -2078,7 +2133,9 @@ describe('partitionSyncReconciliation — user-excluded documents', () => {
   })
 
   it('still resurrects an excluded pending-removal document that reappears', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     /**
      * The assertion that rejects the select-level filter. Dropping excluded rows
@@ -2099,7 +2156,9 @@ describe('partitionSyncReconciliation — user-excluded documents', () => {
   })
 
   it('never soft-deletes an excluded live document absent from the listing', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = partitionSyncReconciliation(
       [excluded('kept'), doc('gone')],
@@ -2113,7 +2172,9 @@ describe('partitionSyncReconciliation — user-excluded documents', () => {
   })
 
   it('exempts excluded documents from a forced fullSync purge too', async () => {
-    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { partitionSyncReconciliation } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const result = partitionSyncReconciliation(
       [excluded('kept-live'), doc('gone-live')],
@@ -2129,7 +2190,9 @@ describe('partitionSyncReconciliation — user-excluded documents', () => {
 
 describe('connectorDocumentSyncTarget', () => {
   it('cannot refresh a detached, moved, excluded, or archived document', async () => {
-    const { connectorDocumentSyncTarget } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { connectorDocumentSyncTarget } = await import(
+      '@/lib/knowledge/connectors/sync-persistence'
+    )
 
     const condition = connectorDocumentSyncTarget('doc-1', 'kb-1', 'connector-1')
     for (const [column, value] of [
@@ -2158,14 +2221,14 @@ describe('connectorDocumentSyncTarget', () => {
 
 describe('countNonExcludedListed', () => {
   it('subtracts the excluded documents that appeared in the listing', async () => {
-    const { countNonExcludedListed } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { countNonExcludedListed } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(countNonExcludedListed(new Set(['a', 'b', 'c']), new Set(['b']))).toBe(2)
     expect(countNonExcludedListed(new Set(['a', 'b']), new Set(['a', 'b']))).toBe(0)
   })
 
   it('ignores excluded documents that were not listed', async () => {
-    const { countNonExcludedListed } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { countNonExcludedListed } = await import('@/lib/knowledge/connectors/sync-primitives')
 
     expect(countNonExcludedListed(new Set(['a']), new Set(['x', 'y', 'z']))).toBe(1)
     expect(countNonExcludedListed(new Set(), new Set(['x']))).toBe(0)
@@ -2173,7 +2236,7 @@ describe('countNonExcludedListed', () => {
 
   it('keeps the suspect-listing ratio on one population', async () => {
     const { classifySuspectListing, countNonExcludedListed } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+      '@/lib/knowledge/connectors/sync-primitives'
     )
 
     /**
@@ -2201,21 +2264,25 @@ describe('countDeletionEligibleOwned', () => {
   const excluded = (id: string) => ({ id, externalId: id, userExcluded: true })
 
   it('does not let excluded tombstones inflate the denominator', async () => {
-    const { countDeletionEligibleOwned } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { countDeletionEligibleOwned } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     expect(countDeletionEligibleOwned([doc('a')], [excluded('t1'), excluded('t2')])).toBe(1)
     expect(countDeletionEligibleOwned([doc('a')], [doc('t1'), excluded('t2')])).toBe(2)
   })
 
   it('excludes user-excluded rows from the live side too', async () => {
-    const { countDeletionEligibleOwned } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { countDeletionEligibleOwned } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     expect(countDeletionEligibleOwned([doc('a'), excluded('b')], [])).toBe(1)
   })
 
   it('agrees with the numerator on which population it counts', async () => {
     const { classifySuspectListing, countDeletionEligibleOwned, countNonExcludedListed } =
-      await import('@/lib/knowledge/connectors/sync-engine')
+      await import('@/lib/knowledge/connectors/sync-primitives')
 
     /**
      * 100 live + 100 excluded tombstones. Counting the excluded tombstones would
@@ -2238,7 +2305,9 @@ describe('countDeletionEligibleOwned', () => {
 
 describe('buildReconciliationHoldNotice', () => {
   it('places each count in its own role', async () => {
-    const { buildReconciliationHoldNotice } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { buildReconciliationHoldNotice } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     /**
      * Asserted whole rather than by three independent `toContain` checks on
@@ -2254,7 +2323,9 @@ describe('buildReconciliationHoldNotice', () => {
   })
 
   it('does not claim withheld documents are indexed when only the purge was held', async () => {
-    const { buildReconciliationHoldNotice } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { buildReconciliationHoldNotice } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     /**
      * A hard-only hold withholds documents a previous sync already tombstoned,
@@ -2268,7 +2339,9 @@ describe('buildReconciliationHoldNotice', () => {
   })
 
   it('names both consequences when both generations were held', async () => {
-    const { buildReconciliationHoldNotice } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { buildReconciliationHoldNotice } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     const notice = buildReconciliationHoldNotice(900, 250, 1000, true, true)
 
@@ -2277,7 +2350,9 @@ describe('buildReconciliationHoldNotice', () => {
   })
 
   it('describes the cap as per generation, since a sync may spend it twice', async () => {
-    const { buildReconciliationHoldNotice } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { buildReconciliationHoldNotice } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     // Saying "allowed in one sync" understated the real ceiling by 2x.
     expect(buildReconciliationHoldNotice(500, 250, 1000, true, false)).toContain(
@@ -2286,7 +2361,9 @@ describe('buildReconciliationHoldNotice', () => {
   })
 
   it('cannot be satisfied by swapping the withheld and cap counts', async () => {
-    const { buildReconciliationHoldNotice } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { buildReconciliationHoldNotice } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     expect(buildReconciliationHoldNotice(500, 250, 1000, true, false)).not.toBe(
       buildReconciliationHoldNotice(250, 500, 1000, true, false)
@@ -2459,7 +2536,7 @@ describe('sync lock lease', () => {
   })
 
   it('opens the lease in the same statement that takes the lock', async () => {
-    const { buildSyncLockAcquisition } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { buildSyncLockAcquisition } = await import('@/lib/knowledge/connectors/sync-lock')
 
     const values = buildSyncLockAcquisition('log-1', now)
 
@@ -2661,7 +2738,7 @@ describe('completeSuccessfulSync', () => {
 
 describe('stillHoldsSyncLock', () => {
   it('requires the connector to still be syncing', async () => {
-    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
 
     /**
      * Without this a run reclaimed by the stale sweep still writes its terminal
@@ -2680,7 +2757,7 @@ describe('stillHoldsSyncLock', () => {
   })
 
   it('still scopes to the connector and skips archived or deleted rows', async () => {
-    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
 
     const condition = stillHoldsSyncLock('c-1', 'run-a')
 
@@ -2839,7 +2916,7 @@ describe('sync lock ownership across a reclaim and reacquire', () => {
   }
 
   it('rejects the reclaimed run A and admits the live run B', async () => {
-    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
 
     /**
      * A outlived the TTL, the reaper reclaimed its lock, and replacement B took
@@ -2852,7 +2929,7 @@ describe('sync lock ownership across a reclaim and reacquire', () => {
   })
 
   it('rejects a run whose lock was reclaimed with no replacement yet', async () => {
-    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
 
     const reclaimed = {
       ...rowHeldByB,
@@ -2864,7 +2941,7 @@ describe('sync lock ownership across a reclaim and reacquire', () => {
   })
 
   it('admits the run that still holds its own lock', async () => {
-    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
 
     const heldByA = { ...rowHeldByB, [schemaMock.knowledgeConnector.syncLockToken]: RUN_A }
 
@@ -2872,7 +2949,7 @@ describe('sync lock ownership across a reclaim and reacquire', () => {
   })
 
   it('rejects a run whose connector was paused mid-sync', async () => {
-    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { stillHoldsSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
 
     const paused = {
       ...rowHeldByB,
@@ -2893,7 +2970,7 @@ describe('sync lock ownership across a reclaim and reacquire', () => {
 
 describe('buildSyncLockAcquisition', () => {
   it('claims the lock and stamps ownership in one payload', async () => {
-    const { buildSyncLockAcquisition } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { buildSyncLockAcquisition } = await import('@/lib/knowledge/connectors/sync-lock')
 
     const now = new Date('2026-08-20T00:00:00.000Z')
     const acquisition = buildSyncLockAcquisition('run-a', now)
@@ -2910,7 +2987,7 @@ describe('buildSyncLockAcquisition', () => {
 
 describe('LOCKABLE_CONNECTOR_STATUSES', () => {
   it('refuses to start a run on a connector someone paused or disabled', async () => {
-    const { LOCKABLE_CONNECTOR_STATUSES } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { LOCKABLE_CONNECTOR_STATUSES } = await import('@/lib/knowledge/connectors/sync-lock')
 
     /**
      * The queue outlives the decision to sync. A connector paused *after* its
@@ -2935,21 +3012,21 @@ describe('LOCKABLE_CONNECTOR_STATUSES', () => {
 
 describe('shouldHeartbeatSyncLock', () => {
   it('beats once the interval has elapsed', async () => {
-    const { shouldHeartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldHeartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
 
     expect(shouldHeartbeatSyncLock(1_000, 0, 1_000)).toBe(true)
     expect(shouldHeartbeatSyncLock(1_001, 0, 1_000)).toBe(true)
   })
 
   it('does not beat before the interval has elapsed', async () => {
-    const { shouldHeartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldHeartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
 
     expect(shouldHeartbeatSyncLock(999, 0, 1_000)).toBe(false)
     expect(shouldHeartbeatSyncLock(0, 0, 1_000)).toBe(false)
   })
 
   it('defaults to an interval far below the reclaim TTL', async () => {
-    const { shouldHeartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { shouldHeartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
     const { CONNECTOR_SYNC_STALE_LOCK_TTL_MS, SYNC_LOCK_HEARTBEAT_INTERVAL_MS } = await import(
       '@/lib/knowledge/connectors/sync-limits'
     )
@@ -2972,7 +3049,7 @@ describe('heartbeatSyncLock', () => {
   })
 
   it('extends the lock lease alone, under the run own lock guard', async () => {
-    const { heartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { heartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
 
     await heartbeatSyncLock('c-1', 'run-a')
 
@@ -3000,7 +3077,7 @@ describe('heartbeatSyncLock', () => {
   })
 
   it('reports a lost lock so the run can stop instead of racing its replacement', async () => {
-    const { heartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { heartbeatSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
 
     dbChainMockFns.returning.mockResolvedValueOnce([])
     expect(await heartbeatSyncLock('c-1', 'run-a')).toBe(false)
@@ -3010,7 +3087,7 @@ describe('heartbeatSyncLock', () => {
   })
 
   it('can require the connector to remain live before destructive follow-up work', async () => {
-    const { heartbeatLiveSyncLock } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { heartbeatLiveSyncLock } = await import('@/lib/knowledge/connectors/sync-lock')
 
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
     expect(await heartbeatLiveSyncLock('c-1', 'run-a')).toBe(true)
@@ -3149,7 +3226,9 @@ describe('resolveStaleProcessingMinutes', () => {
 
 describe('SWEEPABLE_PROCESSING_STATUSES', () => {
   it('never includes a completed document', async () => {
-    const { SWEEPABLE_PROCESSING_STATUSES } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { SWEEPABLE_PROCESSING_STATUSES } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
 
     /**
      * The sweep reclaims by deleting embeddings and re-dispatching, so a
@@ -3161,7 +3240,9 @@ describe('SWEEPABLE_PROCESSING_STATUSES', () => {
   })
 
   it('covers every non-terminal state so nothing is stranded', async () => {
-    const { SWEEPABLE_PROCESSING_STATUSES } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { SWEEPABLE_PROCESSING_STATUSES } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
+    )
     const { DOCUMENT_PROCESSING_STATUSES } = await import('@/lib/knowledge/documents/types')
 
     const unreclaimable = DOCUMENT_PROCESSING_STATUSES.filter(
@@ -3313,8 +3394,9 @@ describe('executeSync hard-delete reconciliation', () => {
   })
 
   it('bounds and orders the stuck-document sweep instead of draining a backlog at once', async () => {
-    const { executeSync, STUCK_RETRY_MAX_CANDIDATES_PER_SYNC } = await import(
-      '@/lib/knowledge/connectors/sync-engine'
+    const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    const { STUCK_RETRY_MAX_CANDIDATES_PER_SYNC } = await import(
+      '@/lib/knowledge/connectors/sync-primitives'
     )
     const { hardDeleteDocuments } = await import('@/lib/knowledge/documents/service')
 

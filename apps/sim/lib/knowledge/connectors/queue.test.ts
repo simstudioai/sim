@@ -39,6 +39,9 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
   executeSync: mockExecuteSync,
   isConnectorRunnableStatus: (status: string) => status === 'active' || status === 'error',
+}))
+
+vi.mock('@/lib/knowledge/connectors/sync-lock', () => ({
   connectorIsLive: () => ({ type: 'connectorIsLive' }),
   LOCKABLE_CONNECTOR_STATUSES: ['active', 'error', 'pending'],
 }))

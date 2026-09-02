@@ -11,12 +11,8 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
-import {
-  connectorIsLive,
-  executeSync,
-  isConnectorRunnableStatus,
-  LOCKABLE_CONNECTOR_STATUSES,
-} from '@/lib/knowledge/connectors/sync-engine'
+import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
+import { connectorIsLive, LOCKABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('ConnectorSyncQueue')
