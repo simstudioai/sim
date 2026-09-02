@@ -3,6 +3,8 @@ import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 interface FileCompressParams {
   fileId?: string | string[]
   fileInput?: unknown
+  folderPaths?: string[]
+  includeSubfolders?: boolean
   archiveName?: string
   workspaceId?: string
 }
@@ -27,6 +29,20 @@ export const fileCompressTool: InternalToolConfig<FileCompressParams, ToolRespon
       visibility: 'user-only',
       description: 'Selected workspace file object, or an array of file objects.',
     },
+    folderPaths: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Folders whose files are included, as canonical percent-encoded paths, e.g. ["/Reports/Q3%20Results"]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up.',
+    },
+    includeSubfolders: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether nested folders are read too. Defaults to true; set false to take only the folders\u2019 direct files.',
+    },
     archiveName: {
       type: 'string',
       required: false,
@@ -41,6 +57,8 @@ export const fileCompressTool: InternalToolConfig<FileCompressParams, ToolRespon
       operation: 'compress',
       fileId: params.fileId,
       fileInput: params.fileInput,
+      folderPaths: params.folderPaths,
+      includeSubfolders: params.includeSubfolders,
       archiveName: params.archiveName,
       workspaceId: params.workspaceId,
     }),

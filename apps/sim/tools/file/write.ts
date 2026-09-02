@@ -2,6 +2,7 @@ import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface FileWriteParams {
   fileName?: string
+  folderPath?: string
   content?: string
   fileInput?: unknown
   contentType?: string
@@ -23,6 +24,12 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
       visibility: 'user-or-llm',
       description:
         'File name (e.g., "data.csv"). Required when writing text; optional when storing a file, which keeps its own name unless this overrides it. If the name already exists, a numeric suffix is added automatically unless overwrite is enabled.',
+    },
+    folderPath: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: `Folder to create the file in. Omit for the workspace root. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/".`,
     },
     content: {
       type: 'string',
@@ -58,6 +65,7 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
     input: (params) => ({
       operation: 'write',
       fileName: params.fileName,
+      folderPath: params.folderPath?.trim() || undefined,
       content: params.content,
       fileInput: params.fileInput,
       contentType: params.contentType,

@@ -3,7 +3,12 @@ import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primiti
 import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
 import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import {
+  v2FolderPathInputSchema,
+  v2NonRootFolderPathInputSchema,
+} from '@/lib/api/contracts/v2/shared'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
+import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 
 export const fileManageQuerySchema = z.object({
   userId: z.string().min(1).nullable().optional(),
@@ -15,6 +20,7 @@ export const fileManageWriteBodySchema = z
     operation: z.literal('write'),
     workspaceId: z.string().min(1).optional(),
     fileName: z.string().min(1).optional(),
+    folderPath: v2FolderPathInputSchema.optional(),
     content: z.string().optional(),
     /**
      * An existing file object to store as-is, for content that is not text —
@@ -51,6 +57,13 @@ export const fileManageAppendBodySchema = z.object({
   operation: z.literal('append'),
   workspaceId: z.string().min(1).optional(),
   fileName: z.string({ error: 'fileName is required for append operation' }).min(1),
+  /**
+   * Folder the name is resolved inside. A name is only unique within a folder,
+   * so without this a duplicate name resolves to the oldest match anywhere.
+   * Ignored when `fileName` is already a canonical id.
+   */
+  folderPath: v2FolderPathInputSchema.optional(),
+  includeSubfolders: z.boolean().optional(),
   content: z.string({ error: 'content is required for append operation' }),
   [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
@@ -70,6 +83,16 @@ export const fileManageMoveBodySchema = z.object({
   operation: z.literal('move'),
   workspaceId: z.string().min(1).optional(),
   fileId: z.string().min(1, 'fileId is required for move operation'),
+  /**
+   * Canonical percent-encoded destination folder, and the form every other
+   * folder field uses. Takes precedence over {@link targetFolder}.
+   */
+  folderPath: v2FolderPathInputSchema.optional(),
+  /**
+   * Destination as decoded segments joined by `/`. Retained for callers that
+   * predate `folderPath`, but it cannot express a folder whose own name
+   * contains a slash, so new callers send `folderPath`.
+   */
   targetFolder: z.string().optional().default(''),
 })
 
@@ -95,36 +118,84 @@ export type FileManageSharingBody = z.input<typeof fileManageSharingBodySchema>
 export const fileManageReadBodySchema = z
   .object({
     operation: z.literal('read'),
+    /**
+     * Folders whose files are included, expanded to the files they contain when
+     * the workflow runs rather than when it is configured — so a folder means
+     * whatever is inside it at run time.
+     */
+    folderPaths: z.array(v2FolderPathInputSchema).max(64, 'Too many folders').optional(),
+    /**
+     * Whether folder expansion descends into nested folders. Absent means yes —
+     * a folder normally stands for everything under it, and this narrows that
+     * to its direct files.
+     */
+    includeSubfolders: z.boolean().optional(),
     workspaceId: z.string().min(1).optional(),
     fileId: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
     fileInput: z.unknown().optional(),
   })
-  .refine((data) => data.fileId !== undefined || data.fileInput !== undefined, {
-    message: 'Either fileId or fileInput is required for read operation',
-  })
+  .refine(
+    (data) =>
+      data.fileId !== undefined ||
+      data.fileInput !== undefined ||
+      (data.folderPaths?.length ?? 0) > 0,
+    { message: 'read requires fileId, fileInput, or folderPaths' }
+  )
 
 export const fileManageContentBodySchema = z
   .object({
     operation: z.literal('content'),
+    /**
+     * Folders whose files are included, expanded to the files they contain when
+     * the workflow runs rather than when it is configured — so a folder means
+     * whatever is inside it at run time.
+     */
+    folderPaths: z.array(v2FolderPathInputSchema).max(64, 'Too many folders').optional(),
+    /**
+     * Whether folder expansion descends into nested folders. Absent means yes —
+     * a folder normally stands for everything under it, and this narrows that
+     * to its direct files.
+     */
+    includeSubfolders: z.boolean().optional(),
     workspaceId: z.string().min(1).optional(),
     fileId: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
     fileInput: z.unknown().optional(),
   })
-  .refine((data) => data.fileId !== undefined || data.fileInput !== undefined, {
-    message: 'Either fileId or fileInput is required for content operation',
-  })
+  .refine(
+    (data) =>
+      data.fileId !== undefined ||
+      data.fileInput !== undefined ||
+      (data.folderPaths?.length ?? 0) > 0,
+    { message: 'content requires fileId, fileInput, or folderPaths' }
+  )
 
 export const fileManageCompressBodySchema = z
   .object({
     operation: z.literal('compress'),
+    /**
+     * Folders whose files are included, expanded to the files they contain when
+     * the workflow runs rather than when it is configured — so a folder means
+     * whatever is inside it at run time.
+     */
+    folderPaths: z.array(v2FolderPathInputSchema).max(64, 'Too many folders').optional(),
+    /**
+     * Whether folder expansion descends into nested folders. Absent means yes —
+     * a folder normally stands for everything under it, and this narrows that
+     * to its direct files.
+     */
+    includeSubfolders: z.boolean().optional(),
     workspaceId: z.string().min(1).optional(),
     fileId: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
     fileInput: z.unknown().optional(),
     archiveName: z.string().min(1).max(255).optional(),
   })
-  .refine((data) => data.fileId !== undefined || data.fileInput !== undefined, {
-    message: 'Either fileId or fileInput is required for compress operation',
-  })
+  .refine(
+    (data) =>
+      data.fileId !== undefined ||
+      data.fileInput !== undefined ||
+      (data.folderPaths?.length ?? 0) > 0,
+    { message: 'compress requires fileId, fileInput, or folderPaths' }
+  )
 
 export const fileManageDecompressBodySchema = z
   .object({
@@ -137,6 +208,61 @@ export const fileManageDecompressBodySchema = z
     message: 'Either fileId or fileInput is required for decompress operation',
   })
 
+const fileFolderDepthSchema = z
+  .number()
+  .int()
+  .min(1, 'depth must be at least 1')
+  .max(MAX_FOLDER_PATH_SEGMENTS, `depth cannot exceed ${MAX_FOLDER_PATH_SEGMENTS}`)
+
+/**
+ * The listing is capped rather than unbounded: it now includes files, and a
+ * workspace can hold far more of those than folders. A cut listing reports
+ * `truncated` instead of quietly looking complete.
+ */
+export const DEFAULT_FILE_LIST_LIMIT = 200
+export const MAX_FILE_LIST_LIMIT = 1000
+
+export const fileManageListBodySchema = z.object({
+  operation: z.literal('list'),
+  workspaceId: z.string().min(1).optional(),
+  path: v2FolderPathInputSchema.optional(),
+  recursive: z.boolean().optional(),
+  depth: fileFolderDepthSchema.optional(),
+  search: z.string().min(1).max(200).optional(),
+  limit: z
+    .number()
+    .int()
+    .min(1, 'limit must be at least 1')
+    .max(MAX_FILE_LIST_LIMIT, `limit cannot exceed ${MAX_FILE_LIST_LIMIT}`)
+    .optional(),
+})
+
+export const fileManageCreateFolderBodySchema = z.object({
+  operation: z.literal('create_folder'),
+  workspaceId: z.string().min(1).optional(),
+  path: v2NonRootFolderPathInputSchema,
+})
+
+export const fileManageUpdateFolderBodySchema = z.object({
+  operation: z.literal('update_folder'),
+  workspaceId: z.string().min(1).optional(),
+  path: v2NonRootFolderPathInputSchema,
+  destinationPath: v2NonRootFolderPathInputSchema,
+})
+
+export const fileManageDeleteFolderBodySchema = z.object({
+  operation: z.literal('delete_folder'),
+  workspaceId: z.string().min(1).optional(),
+  path: v2NonRootFolderPathInputSchema,
+  recursive: z.boolean().optional(),
+})
+
+export const fileManageRestoreFolderBodySchema = z.object({
+  operation: z.literal('restore_folder'),
+  workspaceId: z.string().min(1).optional(),
+  folderId: z.string().min(1, 'folderId is required for restore_folder operation'),
+})
+
 export const fileManageBodySchema = z.union([
   fileManageWriteBodySchema,
   fileManageAppendBodySchema,
@@ -147,6 +273,11 @@ export const fileManageBodySchema = z.union([
   fileManageContentBodySchema,
   fileManageCompressBodySchema,
   fileManageDecompressBodySchema,
+  fileManageListBodySchema,
+  fileManageCreateFolderBodySchema,
+  fileManageUpdateFolderBodySchema,
+  fileManageDeleteFolderBodySchema,
+  fileManageRestoreFolderBodySchema,
 ])
 
 export const fileManageContract = defineRouteContract({

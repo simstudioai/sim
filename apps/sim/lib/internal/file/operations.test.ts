@@ -11,6 +11,12 @@ const {
   mockDownloadFileFromStorage,
   mockDecompressArchiveBufferToWorkspaceFiles,
   mockEnsureWorkspaceFileFolderPath,
+  mockListWorkspaceFileFolders,
+  mockCreateWorkspaceFileFolder,
+  mockUpdateWorkspaceFileFolder,
+  mockDeleteWorkspaceFileFolder,
+  mockRestoreWorkspaceFileFolder,
+  mockListAllWorkspaceFiles,
   mockFetchWorkspaceFileBuffer,
   mockGetBoundWorkspaceFileSecretProvenance,
   mockLoadActiveWorkspaceContext,
@@ -29,6 +35,12 @@ const {
   mockDownloadFileFromStorage: vi.fn(),
   mockDecompressArchiveBufferToWorkspaceFiles: vi.fn(),
   mockEnsureWorkspaceFileFolderPath: vi.fn(),
+  mockListWorkspaceFileFolders: vi.fn(),
+  mockCreateWorkspaceFileFolder: vi.fn(),
+  mockUpdateWorkspaceFileFolder: vi.fn(),
+  mockDeleteWorkspaceFileFolder: vi.fn(),
+  mockRestoreWorkspaceFileFolder: vi.fn(),
+  mockListAllWorkspaceFiles: vi.fn(),
   mockFetchWorkspaceFileBuffer: vi.fn(),
   mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
   mockLoadActiveWorkspaceContext: vi.fn(),
@@ -107,6 +119,25 @@ vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   ensureWorkspaceFileFolderPathOperation: {
     execute: (...args: unknown[]) => mockEnsureWorkspaceFileFolderPath(...args),
   },
+  listWorkspaceFileFoldersOperation: {
+    execute: (...args: unknown[]) => mockListWorkspaceFileFolders(...args),
+  },
+  createWorkspaceFileFolderOperation: {
+    execute: (...args: unknown[]) => mockCreateWorkspaceFileFolder(...args),
+  },
+  updateWorkspaceFileFolderOperation: {
+    execute: (...args: unknown[]) => mockUpdateWorkspaceFileFolder(...args),
+  },
+  deleteWorkspaceFileFolderOperation: {
+    execute: (...args: unknown[]) => mockDeleteWorkspaceFileFolder(...args),
+  },
+  restoreWorkspaceFileFolderOperation: {
+    execute: (...args: unknown[]) => mockRestoreWorkspaceFileFolder(...args),
+  },
+}))
+
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
+  listAllWorkspaceFiles: { execute: (...args: unknown[]) => mockListAllWorkspaceFiles(...args) },
 }))
 
 vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
@@ -244,6 +275,341 @@ function actorlessDeploymentPrincipal(workspaceId = 'workspace-1') {
     },
   }
 }
+
+/*
+ * The folder path exists in three places — the block's params, the contract, and
+ * the operation — and only the two ends were tested. A rebase dropped folder
+ * expansion out of the middle, and every unit test stayed green while a
+ * folder-only read failed with "File is required". These cover the middle.
+ */
+describe('file manage folder wiring', () => {
+  const FOLDER_ROW = {
+    id: 'folder-reports',
+    parentId: null,
+    name: 'Reports',
+    path: 'Reports',
+    createdAt: CONTENT_UPDATED_AT,
+    updatedAt: CONTENT_UPDATED_AT,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      authType: 'internal_jwt',
+    })
+    mockAssertActiveWorkspaceAccess.mockResolvedValue(undefined)
+    mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
+    mockLoadActiveWorkspaceContext.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'user-1',
+    })
+    mockVerifyFileAccess.mockResolvedValue(true)
+    mockGetWorkspaceFile.mockImplementation(async (_ws: string, fileId: string) =>
+      workspaceFile(fileId)
+    )
+    mockLoadActiveWorkspaceFileContext.mockImplementation(async (fileId: string) => ({
+      fileId,
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'user-1',
+    }))
+    mockListWorkspaceFileFolders.mockResolvedValue({ folders: [FOLDER_ROW] })
+    mockListAllWorkspaceFiles.mockResolvedValue({
+      files: [
+        { ...workspaceFile('file-in-folder'), folderId: 'folder-reports' },
+        { ...workspaceFile('file-at-root'), folderId: null },
+      ],
+    })
+    mockEnsureWorkspaceFileFolderPath.mockImplementation(
+      async ({ input }: { input: { pathSegments: string[] } }) => ({
+        folderId: input.pathSegments.length === 0 ? null : 'folder-reports',
+        createdFolderIds: [],
+      })
+    )
+    mockUploadWorkspaceFile.mockResolvedValue({
+      id: 'new-file',
+      name: 'new.txt',
+      key: 'workspace/workspace-1/new.txt',
+      url: '/api/files/serve/new-file',
+    })
+    mockResolveWorkspaceFileReference.mockImplementation(
+      async ({ reference }: { reference: string }) => workspaceFile(reference)
+    )
+    mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('before'))
+    mockUpdateWorkspaceFileContent.mockResolvedValue({ file: workspaceFile('file-1') })
+  })
+
+  it('expands a folder-only read instead of rejecting it', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'read',
+        workspaceId: 'workspace-1',
+        folderPaths: ['/Reports'],
+      })
+    )
+
+    // A folder alone is a complete selection, expanded when the workflow runs.
+    expect(response.status).not.toBe(400)
+    expect(mockListWorkspaceFileFolders).toHaveBeenCalled()
+    expect(mockListAllWorkspaceFiles).toHaveBeenCalled()
+  })
+
+  it('refuses a folder that does not exist rather than reading nothing', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'read',
+        workspaceId: 'workspace-1',
+        folderPaths: ['/Nope'],
+      })
+    )
+    const body = await response.json()
+
+    expect(body.success).toBe(false)
+    expect(String(body.error)).toContain('Folder not found')
+  })
+
+  it('writes into the folder it was given, not the workspace root', async () => {
+    await POST(
+      createMockRequest('POST', {
+        operation: 'write',
+        workspaceId: 'workspace-1',
+        fileName: 'notes.md',
+        folderPath: '/Reports',
+        content: 'hello',
+      })
+    )
+
+    expect(mockEnsureWorkspaceFileFolderPath).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ pathSegments: ['Reports'] }) })
+    )
+  })
+
+  it('still writes to the root when no folder is given', async () => {
+    await POST(
+      createMockRequest('POST', {
+        operation: 'write',
+        workspaceId: 'workspace-1',
+        fileName: 'notes.md',
+        content: 'hello',
+      })
+    )
+
+    expect(mockEnsureWorkspaceFileFolderPath).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ pathSegments: [] }) })
+    )
+  })
+
+  /*
+   * The case that motivated this: two files share a name in different folders,
+   * and a typed name alone resolves to the oldest match anywhere. The folder is
+   * the only thing telling them apart.
+   */
+  it('appends to the file in the chosen folder, not a same-named file elsewhere', async () => {
+    mockListAllWorkspaceFiles.mockResolvedValue({
+      files: [
+        { ...workspaceFile('notes-elsewhere'), name: 'notes.md', folderId: null },
+        { ...workspaceFile('notes-in-reports'), name: 'notes.md', folderId: 'folder-reports' },
+      ],
+    })
+    mockGetWorkspaceFile.mockImplementation(async (_ws: string, fileId: string) => ({
+      ...workspaceFile(fileId),
+      name: 'notes.md',
+    }))
+
+    await POST(
+      createMockRequest('POST', {
+        operation: 'append',
+        workspaceId: 'workspace-1',
+        fileName: 'notes.md',
+        folderPath: '/Reports',
+        content: 'more',
+      })
+    )
+
+    // Resolved by the id found inside the folder, never by the bare name.
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
+      'workspace-1',
+      'notes-in-reports'
+    )
+  })
+
+  /*
+   * The first version of this fix narrowed "oldest match in the workspace" to
+   * "first match in the folder" and called it done. With Include Subfolders on
+   * — the default — a subtree can hold the same name many times, so it still
+   * wrote to an arbitrary file, just a nearer one.
+   */
+  it('refuses an ambiguous name in a recursive scope instead of picking one', async () => {
+    mockListWorkspaceFileFolders.mockResolvedValue({
+      folders: [
+        FOLDER_ROW,
+        {
+          ...FOLDER_ROW,
+          id: 'folder-q3',
+          parentId: 'folder-reports',
+          name: 'Q3',
+          path: 'Reports/Q3',
+        },
+      ],
+    })
+    mockListAllWorkspaceFiles.mockResolvedValue({
+      files: [
+        { ...workspaceFile('notes-top'), name: 'notes.md', folderId: 'folder-reports' },
+        { ...workspaceFile('notes-deep'), name: 'notes.md', folderId: 'folder-q3' },
+      ],
+    })
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'append',
+        workspaceId: 'workspace-1',
+        fileName: 'notes.md',
+        folderPath: '/Reports',
+        content: 'more',
+      })
+    )
+    const body = await response.json()
+
+    expect(body.success).toBe(false)
+    expect(String(body.error)).toContain('2 files named notes.md')
+    // Names the candidates, so the caller can pick one rather than guess.
+    expect(String(body.error)).toContain('notes-top')
+    expect(String(body.error)).toContain('notes-deep')
+  })
+
+  /*
+   * `wf_` is a legal filename prefix. Treating it as "already an id" silently
+   * dropped the folder scope for anyone who named a file that way.
+   */
+  it('scopes a file whose name begins with the id prefix', async () => {
+    mockListAllWorkspaceFiles.mockResolvedValue({
+      files: [
+        { ...workspaceFile('real-id'), name: 'wf_notes.md', folderId: 'folder-reports' },
+        { ...workspaceFile('decoy'), name: 'wf_notes.md', folderId: null },
+      ],
+    })
+
+    await POST(
+      createMockRequest('POST', {
+        operation: 'append',
+        workspaceId: 'workspace-1',
+        fileName: 'wf_notes.md',
+        folderPath: '/Reports',
+        content: 'more',
+      })
+    )
+
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-1', 'real-id')
+  })
+
+  it('accepts a canonical id inside a scope as well as a name', async () => {
+    mockListAllWorkspaceFiles.mockResolvedValue({
+      files: [
+        { ...workspaceFile('notes-in-reports'), name: 'notes.md', folderId: 'folder-reports' },
+      ],
+    })
+
+    await POST(
+      createMockRequest('POST', {
+        operation: 'append',
+        workspaceId: 'workspace-1',
+        fileName: 'notes-in-reports',
+        folderPath: '/Reports',
+        content: 'more',
+      })
+    )
+
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
+      'workspace-1',
+      'notes-in-reports'
+    )
+  })
+
+  it('refuses rather than appending to a same-named file outside the folder', async () => {
+    mockListAllWorkspaceFiles.mockResolvedValue({
+      files: [{ ...workspaceFile('notes-elsewhere'), name: 'notes.md', folderId: null }],
+    })
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'append',
+        workspaceId: 'workspace-1',
+        fileName: 'notes.md',
+        folderPath: '/Reports',
+        content: 'more',
+      })
+    )
+    const body = await response.json()
+
+    expect(body.success).toBe(false)
+    expect(String(body.error)).toContain('No file named notes.md in /Reports')
+  })
+
+  /*
+   * A folder genuinely named `Q3/Q4` is one level, but the joined reference the
+   * overwrite lookup used re-read it as two — so the existing file was never
+   * found and the write landed as a duplicate beside it.
+   */
+  it('overwrites inside a folder whose name contains a slash', async () => {
+    mockListWorkspaceFileFolders.mockResolvedValue({
+      folders: [
+        {
+          id: 'folder-slashy',
+          parentId: null,
+          name: 'Q3/Q4',
+          path: 'Q3\\/Q4',
+          createdAt: CONTENT_UPDATED_AT,
+          updatedAt: CONTENT_UPDATED_AT,
+        },
+      ],
+    })
+    mockListAllWorkspaceFiles.mockResolvedValue({
+      files: [
+        { ...workspaceFile('existing-in-slashy'), name: 'notes.md', folderId: 'folder-slashy' },
+      ],
+    })
+    mockEnsureWorkspaceFileFolderPath.mockResolvedValue({
+      folderId: 'folder-slashy',
+      createdFolderIds: [],
+    })
+
+    await POST(
+      createMockRequest('POST', {
+        operation: 'write',
+        workspaceId: 'workspace-1',
+        fileName: 'notes.md',
+        folderPath: '/Q3%2FQ4',
+        content: 'hello',
+        overwrite: true,
+      })
+    )
+
+    // Found by id, not by a reference that would split the folder name in two.
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
+      'workspace-1',
+      'existing-in-slashy'
+    )
+  })
+
+  it('lists what a folder holds, folders and files together', async () => {
+    const response = await POST(
+      createMockRequest('POST', { operation: 'list', workspaceId: 'workspace-1' })
+    )
+    const body = await response.json()
+
+    expect(body.success).toBe(true)
+    expect(body.data.entries.map((entry: { name: string }) => entry.name)).toEqual([
+      'Reports',
+      'file-at-root.txt',
+    ])
+    expect(body.data.truncated).toBe(false)
+  })
+})
 
 describe('file manage operations', () => {
   beforeEach(() => {

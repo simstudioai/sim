@@ -40,6 +40,10 @@ export interface ListWorkspaceFileFoldersInput {
    */
   sortBy?: Exclude<FolderSortBy, 'position'>
   sortOrder?: ListSortOrder
+  /** Descend the whole subtree instead of listing direct children only. */
+  recursive?: boolean
+  /** Deepest level below `parentPath` to include. Only meaningful with `recursive`. */
+  depth?: number
 }
 
 export interface ListWorkspaceFileFoldersResult {
@@ -96,6 +100,8 @@ export interface DeleteWorkspaceFileFolderInput {
 
 export interface DeleteWorkspaceFileFolderResult {
   deletedItems: WorkspaceFileArchiveResult
+  /** The folder actually deleted, so a path-addressed delete can still be audited by id. */
+  folderId?: string
   path?: string
 }
 
@@ -133,9 +139,22 @@ async function executeListWorkspaceFileFolders(args: {
   })
   if (args.input.parentPath !== undefined) {
     const parentSegments = parseFolderPath(args.input.parentPath)
+    /*
+     * Descendants are matched against the stored materialized path rather than
+     * walked by `parentId`, because a scoped list need not contain the parent
+     * row at all — an `archived` listing under an active parent is the case
+     * that breaks a walk. Comparison stays positional over decoded segments, so
+     * `Reportsx` is never read as a child of `Reports`.
+     */
+    const maxSegments = args.input.recursive
+      ? args.input.depth === undefined
+        ? Number.POSITIVE_INFINITY
+        : parentSegments.length + args.input.depth
+      : parentSegments.length + 1
     folders = folders.filter((folder) => {
       const folderSegments = parseWorkspaceFileFolderDisplayPath(folder.path)
-      if (folderSegments.length !== parentSegments.length + 1) return false
+      if (folderSegments.length <= parentSegments.length) return false
+      if (folderSegments.length > maxSegments) return false
       return parentSegments.every((segment, index) => folderSegments[index] === segment)
     })
   }
@@ -154,6 +173,28 @@ async function executeCreateWorkspaceFileFolder(args: {
   const attribution = resolvePrincipalAttribution(args.principal, {
     workspaceBillingOwnerUserId: args.context.billedAccountUserId,
   })
+  if (args.input.path !== undefined) {
+    /*
+     * Materialize the ancestors before creating the leaf, so creating
+     * `/A/B/C` works when `/A/B` does not exist yet — which is what the tool
+     * description promises and what the write path already does for its own
+     * destination.
+     *
+     * Only the ancestors go through the materializer. The leaf keeps its
+     * existing call so it still emits FOLDER_CREATED with a full record, and
+     * still conflicts when something is already there — the materializer is
+     * silent on both counts, so routing the whole path through it would make
+     * "create" stop meaning create.
+     */
+    const segments = parseFolderPath(args.input.path)
+    if (segments.length > 1) {
+      await ensureWorkspaceFileFolderPath({
+        workspaceId: args.context.workspaceId,
+        userId: attribution.attributedUserId,
+        pathSegments: segments.slice(0, -1),
+      })
+    }
+  }
   const result =
     args.input.path !== undefined
       ? await createWorkspaceFileFolderAtPath({
@@ -225,12 +266,15 @@ async function executeDeleteWorkspaceFileFolder(args: {
   context: FolderOperationContext
 }): Promise<DeleteWorkspaceFileFolderResult> {
   let deletedItems: WorkspaceFileArchiveResult
+  let deletedFolderId: string | undefined
   if (args.input.path !== undefined) {
-    deletedItems = await deleteWorkspaceFileFolderByPath({
+    const { folderId, ...archived } = await deleteWorkspaceFileFolderByPath({
       workspaceId: args.context.workspaceId,
       path: args.input.path,
       recursive: args.input.recursive ?? false,
     })
+    deletedItems = archived
+    deletedFolderId = folderId
   } else {
     if (!args.input.folderId) throw new OrchestrationError('validation', 'Folder ID is required')
     await assertWorkspaceFileItemsBelongToWorkspace({
@@ -242,11 +286,12 @@ async function executeDeleteWorkspaceFileFolder(args: {
       folderIds: [args.input.folderId],
     })
     deletedItems = { files: archived.fileIds.length, folders: archived.folderIds.length }
+    deletedFolderId = args.input.folderId
   }
   if (deletedItems.files === 0 && deletedItems.folders === 0) {
     throw new OrchestrationError('not_found', 'Folder not found')
   }
-  return { deletedItems, path: args.input.path }
+  return { deletedItems, folderId: deletedFolderId, path: args.input.path }
 }
 
 /**
@@ -356,7 +401,12 @@ export const deleteWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileU
     return {
       action: AuditAction.FOLDER_DELETED,
       resourceType: AuditResourceType.FOLDER,
-      resourceId: input.folderId,
+      /*
+       * A path-addressed delete has no `input.folderId`, so the audit carried no
+       * resource at all and the folder survived only as free text in metadata.
+       * The execution resolves the path to an id either way; this is that id.
+       */
+      resourceId: result.folderId ?? input.folderId,
       description: 'Deleted file folder',
       metadata: {
         path: input.path,

@@ -23,6 +23,7 @@ import {
   getDisplayValue,
   hasDisplayableRowValue,
   resolveDropdownLabel,
+  resolveFolderPathLabel,
   resolveSkillsLabel,
   resolveToolsLabel,
   resolveVariablesLabel,
@@ -165,7 +166,14 @@ function resolvePreviewDisplayValue(
     toolsDisplay ||
     skillsDisplay ||
     workflowName ||
-    workflowMultiSelectionNames
+    workflowMultiSelectionNames ||
+    /*
+     * A type in SELECTOR_TYPES_HYDRATION_REQUIRED with no resolver here falls to
+     * the placeholder below, so a picked folder read as "you picked nothing".
+     * Same decode the canvas card and the workflow diff use, and it needs no
+     * hook or fetch, which is what lets it sit in this hook-free resolver.
+     */
+    resolveFolderPathLabel(subBlock, rawValue)
 
   return maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 }

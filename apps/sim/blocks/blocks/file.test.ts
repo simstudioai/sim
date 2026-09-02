@@ -169,9 +169,9 @@ describe('FileV5Block', () => {
     })
   })
 
-  it('throws when no file is provided for get content', () => {
+  it('throws when neither a file nor a folder is provided for get content', () => {
     expect(() => buildParams({ operation: 'file_get_content' })).toThrow(
-      'File is required for get content'
+      'File or folder is required for get content'
     )
   })
 

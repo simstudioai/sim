@@ -37,6 +37,7 @@ import {
   SelectorInput,
   type SelectorOverrides,
   ShortInput,
+  SimFolderTreeSelector,
   SkillInput,
   SliderInput,
   SortBuilder,
@@ -908,6 +909,7 @@ function SubBlockComponent({
             multiple={config.multiple === true}
             maxSize={config.maxSize}
             requiresCloudStorage={config.requiresCloudStorage === true}
+            folderScope={config.folderScope}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
@@ -941,6 +943,17 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue}
             previewContextValues={contextValues}
+          />
+        )
+
+      case 'sim-folder-tree-selector':
+        return (
+          <SimFolderTreeSelector
+            blockId={blockId}
+            subBlock={config}
+            disabled={isDisabled}
+            isPreview={isPreview}
+            previewValue={previewValue}
           />
         )
 
