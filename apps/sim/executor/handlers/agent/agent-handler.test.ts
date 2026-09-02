@@ -126,9 +126,19 @@ vi.mock('@/executor/utils/http', () => ({
 
 /** Connected MCP servers every workspace-server lookup in this suite resolves. */
 const MCP_SERVER_ROWS = [
-  { id: 'mcp-search-server', connectionStatus: 'connected' },
-  { id: 'same-server', connectionStatus: 'connected' },
-  { id: 'mcp-legacy-server', connectionStatus: 'connected' },
+  {
+    id: 'mcp-search-server',
+    connectionStatus: 'connected',
+    credentialGroupId: null,
+    enabled: true,
+  },
+  { id: 'same-server', connectionStatus: 'connected', credentialGroupId: null, enabled: true },
+  {
+    id: 'mcp-legacy-server',
+    connectionStatus: 'connected',
+    credentialGroupId: null,
+    enabled: true,
+  },
 ]
 
 const mockReadAvailableCustomToolByIdOrTitleAsExecutor = vi.fn()
