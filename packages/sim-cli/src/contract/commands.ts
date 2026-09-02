@@ -504,7 +504,8 @@ export const CLI_CONTRACT: CliContract = {
   },
   applyWorkflowOperations: {
     command: 'workflows operations apply',
-    confirm: 'This edits the draft graph, and a delete operation removes blocks and their edges.',
+    confirm:
+      'This edits the draft graph: the batch adds, edits, or deletes blocks and their edges as written.',
     flags: {
       operations: { json: true, describe: WORKFLOW_OPERATIONS_HELP },
       setBlockEnabled: { json: true, describe: WORKFLOW_SET_BLOCK_ENABLED_HELP },
