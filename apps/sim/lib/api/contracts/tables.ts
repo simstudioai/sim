@@ -53,7 +53,9 @@ export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
  * Column types are a fixed enum derived from `COLUMN_TYPES` so callers cannot
  * send arbitrary strings the server would reject downstream.
  */
-export const columnTypeSchema = z.enum(COLUMN_TYPES)
+export const columnTypeSchema = z
+  .enum(COLUMN_TYPES)
+  .meta({ omitEnumValuesFromOpenApi: ['ttl'] as const })
 
 /** One choice in a `select` column. `id` is the stable cell key. */
 export const selectOptionSchema = z.object({
