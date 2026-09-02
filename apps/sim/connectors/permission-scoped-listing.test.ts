@@ -23,7 +23,9 @@ const permissionScoped = Object.values(CONNECTOR_META_REGISTRY).filter(
 describe('permission-scoped connector listings', () => {
   it('covers the connectors that crawl per member', () => {
     expect(permissionScoped.map((meta) => meta.id).sort()).toEqual([
+      'airtable',
       'asana',
+      'bitbucket',
       'box',
       'clickup',
       'confluence',
@@ -31,9 +33,12 @@ describe('permission-scoped connector listings', () => {
       'dropbox',
       'gmail',
       'google_calendar',
+      'google_chat',
       'google_docs',
       'google_drive',
       'google_forms',
+      'google_meet',
+      'google_sheets',
       'google_slides',
       'jira',
       'jsm',

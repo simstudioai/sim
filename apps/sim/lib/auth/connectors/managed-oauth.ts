@@ -559,6 +559,92 @@ function createAttioManagedOAuthConnector(): ManagedOAuthConnectorConfig {
   }
 }
 
+const BITBUCKET_API_BASE = 'https://api.bitbucket.org/2.0'
+const BITBUCKET_EMAIL_SCOPE = 'email'
+
+/**
+ * Bitbucket's current-user endpoint carries no address, and its emails endpoint needs the
+ * `email` scope the consumer would not otherwise request; so this policy adds that scope and
+ * reads the two resources in turn. The subject is the immutable `account_id`; there is no
+ * tenant because one Bitbucket account belongs to any number of workspaces.
+ */
+function createBitbucketManagedOAuthConnector(): ManagedOAuthConnectorConfig {
+  return {
+    additionalScopes: [BITBUCKET_EMAIL_SCOPE],
+    requiresRefreshToken: true,
+    pkce: false,
+    nonceVerification: 'state_only',
+    includeLoginHint: false,
+    getAuthorizationAppId(clientId) {
+      return `bitbucket:${createHash('sha256').update(clientId).digest('hex')}`
+    },
+    async verifyIdentity({ tokens }) {
+      if (!tokens.accessToken) {
+        throw new Error('Bitbucket returned an incomplete authorization')
+      }
+      const headers = {
+        Accept: 'application/json',
+        Authorization: `Bearer ${tokens.accessToken}`,
+      }
+      const userResponse = await fetch(`${BITBUCKET_API_BASE}/user`, {
+        headers,
+        signal: AbortSignal.timeout(USER_INFO_TIMEOUT_MS),
+      })
+      const userBody = await readResponseJsonWithLimit<unknown>(userResponse, {
+        maxBytes: USER_INFO_MAX_BYTES,
+        label: 'Bitbucket identity response',
+      })
+      if (!userResponse.ok) {
+        throw new Error(`Bitbucket identity request failed with HTTP ${userResponse.status}`)
+      }
+      const user = asProfileRecord(userBody, 'Bitbucket')
+      const accountId = requireIdentityField(user.account_id, 'Bitbucket account id')
+      const emailsResponse = await fetch(`${BITBUCKET_API_BASE}/user/emails`, {
+        headers,
+        signal: AbortSignal.timeout(USER_INFO_TIMEOUT_MS),
+      })
+      const emailsBody = await readResponseJsonWithLimit<unknown>(emailsResponse, {
+        maxBytes: USER_INFO_MAX_BYTES,
+        label: 'Bitbucket emails response',
+      })
+      if (!emailsResponse.ok) {
+        throw new Error(`Bitbucket emails request failed with HTTP ${emailsResponse.status}`)
+      }
+      const emails = asProfileRecord(emailsBody, 'Bitbucket').values
+      const primary = Array.isArray(emails)
+        ? emails.find(
+            (entry): entry is Record<string, unknown> =>
+              isRecordLike(entry) && entry.is_primary === true && entry.is_confirmed === true
+          )
+        : undefined
+      const avatar =
+        isRecordLike(user.links) && isRecordLike(user.links.avatar)
+          ? user.links.avatar.href
+          : undefined
+      const base = withOptionalIdentityFields(
+        {
+          providerSubjectId: accountId,
+          email: requireIdentityField(primary?.email, 'Bitbucket confirmed primary email'),
+          /** Only a confirmed primary address is accepted above. */
+          emailVerified: true,
+        },
+        { displayName: user.display_name, avatarUrl: avatar }
+      )
+      return {
+        ...base,
+        providerTenantId: null,
+        /** Bitbucket reports the consumer's granted scopes on the token response. */
+        grantedScopes: [...new Set(tokens.scopes ?? [])],
+      }
+    },
+    hasRequiredScopes(grantedScopes, requiredScopes) {
+      const granted = new Set(grantedScopes)
+      return requiredScopes.every((scope) => granted.has(scope))
+    },
+    isTerminalRefreshError,
+  }
+}
+
 /**
  * Managed enrollment policies for the providers whose identity endpoint reports an email the
  * provider itself vouches for. Keyed by connector provider id.
@@ -719,6 +805,7 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
       }),
   ],
   ['attio', createAttioManagedOAuthConnector],
+  ['bitbucket', createBitbucketManagedOAuthConnector],
   [
     'hubspot',
     () =>
@@ -1036,7 +1123,10 @@ function resolveManagedOAuthPolicy(
     providerId === 'google-calendar' ||
     providerId === 'google-drive' ||
     providerId === 'google-docs' ||
-    providerId === 'google-forms'
+    providerId === 'google-forms' ||
+    providerId === 'google-chat' ||
+    providerId === 'google-meet' ||
+    providerId === 'google-sheets'
   ) {
     return () => createGoogleManagedOAuthConnector(providerId)
   }

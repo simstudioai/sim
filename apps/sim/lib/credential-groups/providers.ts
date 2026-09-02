@@ -7,11 +7,15 @@ export const CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS = [
   'google-drive',
   'google-docs',
   'google-forms',
+  'google-chat',
+  'google-meet',
+  'google-sheets',
   'confluence',
   'jira',
   'airtable',
   'asana',
   'attio',
+  'bitbucket',
   'box',
   'calcom',
   'clickup',
@@ -73,6 +77,21 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
     description: 'Let each person connect one Google Forms account',
     configuration: 'oauth',
   },
+  'google-chat': {
+    serviceId: 'google-chat',
+    description: 'Let each person connect one Google Chat account',
+    configuration: 'oauth',
+  },
+  'google-meet': {
+    serviceId: 'google-meet',
+    description: 'Let each person connect one Google Meet account',
+    configuration: 'oauth',
+  },
+  'google-sheets': {
+    serviceId: 'google-sheets',
+    description: 'Let each person connect one Google Sheets account',
+    configuration: 'oauth',
+  },
   confluence: {
     serviceId: 'confluence',
     description: 'Let each person connect one Confluence account',
@@ -96,6 +115,11 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
   attio: {
     serviceId: 'attio',
     description: 'Let each person connect one Attio account',
+    configuration: 'oauth',
+  },
+  bitbucket: {
+    serviceId: 'bitbucket',
+    description: 'Let each person connect one Bitbucket account',
     configuration: 'oauth',
   },
   box: {
