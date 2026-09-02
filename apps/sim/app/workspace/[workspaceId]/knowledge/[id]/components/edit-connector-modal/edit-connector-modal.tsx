@@ -242,8 +242,7 @@ export function EditConnectorModal({
 
   const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
-  const persistedAccess = useMemo(() => currentAccess(connector), [connector])
-  const accessDirty = accessChanged(persistedAccess, access)
+  const accessDirty = accessChanged(currentAccess(connector), access)
   const groupOptions = useConnectorMemberGroupOptions({
     workspaceId,
     connectorConfig,
@@ -260,14 +259,10 @@ export function EditConnectorModal({
   /** A disabled member sync is re-enabled by applying the current binding again. */
   const canReenableMemberSync =
     !accessDirty && connector.accessMode === 'members' && connector.memberSyncStatus === 'disabled'
-  const memberCapFieldIds = useMemo(
-    () =>
-      new Set(
-        access.accessMode === 'members'
-          ? (connectorConfig?.permissionScopedListing?.capFieldIds ?? [])
-          : []
-      ),
-    [access.accessMode, connectorConfig]
+  const memberCapFieldIds = new Set(
+    access.accessMode === 'members'
+      ? (connectorConfig?.permissionScopedListing?.capFieldIds ?? [])
+      : []
   )
 
   const persistedCanonicalModes = useMemo(
@@ -590,7 +585,7 @@ function SettingsTab({
                         ? 'Switch to per-member access'
                         : 'Switch to workspace access'}
                   </Button>
-                  <Button variant='ghost' size='sm' onClick={onResetAccess} disabled={isSaving}>
+                  <Button variant='default' size='sm' onClick={onResetAccess} disabled={isSaving}>
                     Cancel
                   </Button>
                 </div>

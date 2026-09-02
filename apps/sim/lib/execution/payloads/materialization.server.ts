@@ -319,9 +319,10 @@ export async function assertUserFileContentAccess(
    * is one; `options.userId` alone may be the workflow owner standing in for an
    * actorless run and must not widen what the run can read.
    */
-  const knowledgeAccess = options.principal
-    ? await resolveKnowledgeAccessScope(options.principal, { workspaceId: options.workspaceId })
-    : undefined
+  const knowledgeAccess =
+    context === 'knowledge-base' && options.principal
+      ? await resolveKnowledgeAccessScope(options.principal, { workspaceId: options.workspaceId })
+      : undefined
   const hasAccess = await verifyFileAccess(file.key, options.userId, undefined, context, false, {
     knowledgeAccess,
   })

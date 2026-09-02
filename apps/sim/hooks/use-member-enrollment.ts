@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { type QueryKey, useQueryClient } from '@tanstack/react-query'
 import { useStartConnectorMemberEnrollment } from '@/hooks/queries/kb/connectors'
@@ -34,9 +34,8 @@ export function useMemberEnrollment({
   connectedConnectorIds,
 }: UseMemberEnrollmentProps) {
   const queryClient = useQueryClient()
-  const { mutate: startEnrollment, isPending } = useStartConnectorMemberEnrollment()
+  const { mutate: startEnrollment, isPending, error } = useStartConnectorMemberEnrollment()
   const [awaitingSince, setAwaitingSince] = useState<ReadonlyMap<string, number>>(() => new Map())
-  const [error, setError] = useState<string | null>(null)
 
   const awaiting = [...awaitingSince.keys()].some((id) => !connectedConnectorIds.has(id))
   useEffect(() => {
@@ -59,39 +58,31 @@ export function useMemberEnrollment({
     return () => clearInterval(timer)
   }, [awaiting, connectedConnectorIds, membershipQueryKeys, queryClient])
 
-  const connect = useCallback(
-    (knowledgeBaseId: string, connectorId: string) => {
-      setError(null)
-      const tab = window.open('about:blank', '_blank')
-      if (tab) tab.opener = null
-      startEnrollment(
-        { knowledgeBaseId, connectorId },
-        {
-          onSuccess: ({ url }) => {
-            if (tab && !tab.closed) {
-              tab.location.href = url
-            } else {
-              window.location.assign(url)
-              return
-            }
-            setAwaitingSince((current) => new Map(current).set(connectorId, Date.now()))
-          },
-          onError: (err) => {
-            tab?.close()
-            logger.error('Failed to start member enrollment', { error: err.message })
-            setError(err.message)
-          },
-        }
-      )
-    },
-    [startEnrollment]
-  )
+  const connect = (knowledgeBaseId: string, connectorId: string) => {
+    const tab = window.open('about:blank', '_blank')
+    if (tab) tab.opener = null
+    startEnrollment(
+      { knowledgeBaseId, connectorId },
+      {
+        onSuccess: ({ url }) => {
+          if (tab && !tab.closed) {
+            tab.location.href = url
+          } else {
+            window.location.assign(url)
+            return
+          }
+          setAwaitingSince((current) => new Map(current).set(connectorId, Date.now()))
+        },
+        onError: (err) => {
+          tab?.close()
+          logger.error('Failed to start member enrollment', { error: err.message })
+        },
+      }
+    )
+  }
 
-  const isAwaiting = useCallback(
-    (connectorId: string) =>
-      awaitingSince.has(connectorId) && !connectedConnectorIds.has(connectorId),
-    [awaitingSince, connectedConnectorIds]
-  )
+  const isAwaiting = (connectorId: string) =>
+    awaitingSince.has(connectorId) && !connectedConnectorIds.has(connectorId)
 
-  return { connect, isAwaiting, isPending, error }
+  return { connect, isAwaiting, isPending, error: error?.message ?? null }
 }

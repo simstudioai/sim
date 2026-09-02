@@ -793,9 +793,12 @@ export const Sidebar = memo(function Sidebar({
           label: 'Integrations',
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
-          /* Skills is a tab of this surface, not its own nav item — keep the entry
-             lit while the user is on it. */
-          additionalActivePaths: [`/workspace/${workspaceId}/skills`],
+          /* Skills and Search are tabs of this surface, not their own nav items —
+             keep the entry lit while the user is on either. */
+          additionalActivePaths: [
+            `/workspace/${workspaceId}/skills`,
+            `/workspace/${workspaceId}/search`,
+          ],
           hidden: permissionConfig.hideIntegrationsTab,
         },
       ].filter((item) => !item.hidden),

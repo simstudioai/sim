@@ -15,6 +15,7 @@ import {
 import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 
 const SHARED_WITH_YOU_LABEL = 'Shared with you'
+const EMPTY_CONNECTORS: WorkspaceMemberConnector[] = []
 
 /** Memberships the viewer can act on themselves. */
 const CONNECTABLE: ReadonlySet<ViewerConnectorMembership> = new Set([
@@ -54,7 +55,7 @@ interface MemberConnectorsSectionProps {
  * page offers, so a person can do it from whichever surface they are on.
  */
 export function MemberConnectorsSection({ workspaceId, search }: MemberConnectorsSectionProps) {
-  const { data: connectors = [] } = useWorkspaceMemberConnectors(workspaceId)
+  const { data: connectors = EMPTY_CONNECTORS } = useWorkspaceMemberConnectors(workspaceId)
   const connectedConnectorIds = useMemo(
     () =>
       new Set(

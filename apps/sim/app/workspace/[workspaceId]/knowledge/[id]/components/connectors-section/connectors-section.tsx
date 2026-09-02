@@ -444,7 +444,7 @@ function ConnectorCard({
               {syncsPerMember && (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Badge variant='gray' size='sm' className='flex-shrink-0 gap-1'>
+                    <Badge variant='gray' size='sm' className='flex-shrink-0'>
                       <Users className='size-3' />
                       Per member
                     </Badge>
