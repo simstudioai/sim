@@ -108,6 +108,7 @@ const MOVE_TARGET_FIELD = ['moveTargetFolderPath', 'manualMoveTargetFolderPath']
  */
 const FOLDER_SCOPE = {
   fieldId: 'folderSelection',
+  manualFieldId: 'manualFolderSelection',
   recursiveFieldId: 'folderIncludeSubfolders',
 } as const
 

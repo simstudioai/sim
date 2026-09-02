@@ -374,6 +374,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
 
         expect(picker?.folderScope).toEqual({
           fieldId: 'folderSelection',
+          manualFieldId: 'manualFolderSelection',
           recursiveFieldId: 'folderIncludeSubfolders',
         })
       }
@@ -391,6 +392,21 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
         expect(ids.indexOf('folderSelection')).toBeLessThan(ids.indexOf(pickerId))
       }
     )
+
+    /*
+     * Sub-block values are stored per sub-block id, so a picker that reads only
+     * the basic half is unscoped whenever the scope was typed into the advanced
+     * one - configured-looking and silently wrong.
+     */
+    it('names both halves of the folder pair so either can scope a picker', () => {
+      const picker = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'readFile')
+
+      expect(picker?.folderScope).toEqual({
+        fieldId: 'folderSelection',
+        manualFieldId: 'manualFolderSelection',
+        recursiveFieldId: 'folderIncludeSubfolders',
+      })
+    })
 
     it('offers the folder on every operation whose picker it narrows', () => {
       const folder = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'folderSelection')

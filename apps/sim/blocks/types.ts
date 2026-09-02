@@ -299,7 +299,15 @@ export interface SubBlockConfig {
    * whether the scope descends, so the picker and the run agree on how deep the
    * folder reaches.
    */
-  folderScope?: { fieldId: string; recursiveFieldId?: string }
+  /**
+   * Narrows this control's options to a folder chosen elsewhere on the block.
+   *
+   * `manualFieldId` is the advanced half of the same canonical pair. Sub-block
+   * values are stored per sub-block id, not per canonical id, so reading only
+   * `fieldId` leaves a scope typed into the advanced field invisible here and
+   * the picker silently unscoped.
+   */
+  folderScope?: { fieldId: string; manualFieldId?: string; recursiveFieldId?: string }
   /** Controls parameter visibility in agent/tool-input context */
   paramVisibility?: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'
   /**
