@@ -956,7 +956,7 @@ Rename the Slack agent session associated with a thread.
 
 ### Slack List Channels
 
-List accessible Slack conversations. Credential-group user tokens also return one-to-one and group direct messages.
+List accessible Slack conversations across multiple cursor pages. Credential-group user tokens also return one-to-one and group direct messages.
 
 #### Input
 
@@ -966,8 +966,9 @@ List accessible Slack conversations. Credential-group user tokens also return on
 | `botToken` | string | No | Bot token for Custom Bot |
 | `includePrivate` | boolean | No | Include private channels the bot is a member of \(default: true\) |
 | `excludeArchived` | boolean | No | Exclude archived channels \(default: true\) |
-| `limit` | number | No | Maximum number of channels to return \(default: 100, max: 200\) |
-| `cursor` | string | No | Pagination cursor from a previous response.next_cursor |
+| `limit` | number | No | Conversations to request per Slack page \(default: 100, max: 200\) |
+| `cursor` | string | No | Pagination cursor from a previous response.nextCursor to resume from |
+| `maxPages` | number | No | Maximum number of Slack pages to fetch \(default: 10, max: 10\) |
 
 #### Output
 
@@ -999,8 +1000,10 @@ List accessible Slack conversations. Credential-group user tokens also return on
 |   ↳ `priority` | number | Slack sidebar sort priority |
 | `ids` | array | Conversation IDs for every returned channel or DM |
 | `names` | array | Names of returned channels and group DMs; one-to-one DMs have no name |
-| `count` | number | Total number of conversations returned |
-| `nextCursor` | string | Cursor for the next page; null if no more pages |
+| `count` | number | Total number of conversations returned across all fetched pages |
+| `hasMore` | boolean | Whether more Slack conversation pages remain beyond the fetched window |
+| `nextCursor` | string | Cursor to fetch the next page; null when there are no more pages |
+| `pages` | number | Number of Slack conversation pages fetched in this invocation |
 
 ### Slack List Channel Members
 
