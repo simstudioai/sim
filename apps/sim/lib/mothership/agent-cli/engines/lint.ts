@@ -1,5 +1,5 @@
 import type { WorkflowState } from '@sim/workflow-types/workflow'
-import { fetchWorkflowState } from '@/lib/mothership/agent-cli/engines/workflow-views'
+import { fetchWorkflowState } from '@/lib/mothership/agent-cli/engines/workflow-state'
 import {
   type AgentCliEngine,
   type AgentCliRuntime,
