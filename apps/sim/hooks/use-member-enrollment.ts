@@ -6,6 +6,7 @@ import { type QueryKey, useQueryClient } from '@tanstack/react-query'
 import type { MemberSyncStatus } from '@/lib/knowledge/types'
 import {
   memberConnectorKeys,
+  useConnectSimSearchConnector,
   useStartConnectorMemberEnrollment,
   type ViewerConnectorMembership,
 } from '@/hooks/queries/kb/connectors'
@@ -80,11 +81,11 @@ interface UseMemberEnrollmentProps {
 }
 
 /**
- * Lets the viewer connect their own account to a per-member connector.
- * Enrollment opens in a new tab, and the membership queries are polled
- * meanwhile so the surface that started it updates on its own once the
- * account is connected; the workspace-wide membership list is refreshed too,
- * so the other surface catches up as well.
+ * Lets the viewer connect their own account to a per-member connector, by
+ * connector or by Sim Search source. Enrollment opens in a new tab, and the
+ * membership queries are polled meanwhile so the surface that started it
+ * updates on its own once the account is connected; the workspace-wide
+ * membership list is refreshed too, so the other surface catches up as well.
  *
  * The tab is opened in the click itself, before the enrollment link is
  * minted, because a tab opened after a network round trip is outside the
@@ -96,7 +97,8 @@ export function useMemberEnrollment({
 }: UseMemberEnrollmentProps) {
   const connectedRef = useRef(connectedConnectorIds)
   const queryClient = useQueryClient()
-  const { mutate: startEnrollment, isPending, error } = useStartConnectorMemberEnrollment()
+  const enrollment = useStartConnectorMemberEnrollment()
+  const sourceConnection = useConnectSimSearchConnector()
   const [awaitingSince, setAwaitingSince] = useState<ReadonlyMap<string, number>>(() => new Map())
   const [popupBlocked, setPopupBlocked] = useState(false)
 
@@ -126,7 +128,13 @@ export function useMemberEnrollment({
     return () => clearInterval(timer)
   }, [awaiting, membershipQueryKeys, queryClient])
 
-  const connect = (knowledgeBaseId: string, connectorId: string) => {
+  /** Opens the tab inside the click, then sends it wherever `start` mints. */
+  const openEnrollment = (
+    start: (handlers: {
+      onSuccess: (url: string, connectorId: string) => void
+      onError: () => void
+    }) => void
+  ) => {
     const tab = window.open('about:blank', '_blank')
     if (!tab) {
       setPopupBlocked(true)
@@ -134,28 +142,53 @@ export function useMemberEnrollment({
     }
     tab.opener = null
     setPopupBlocked(false)
-    startEnrollment(
-      { knowledgeBaseId, connectorId },
-      {
-        onSuccess: ({ url }) => {
-          tab.location.href = url
-          setAwaitingSince((current) => new Map(current).set(connectorId, Date.now()))
-        },
-        onError: (err) => {
-          tab.close()
-          logger.error('Failed to start member enrollment', { error: err.message })
-        },
-      }
-    )
+    start({
+      onSuccess: (url, connectorId) => {
+        tab.location.href = url
+        setAwaitingSince((current) => new Map(current).set(connectorId, Date.now()))
+      },
+      onError: () => tab.close(),
+    })
   }
+
+  const connect = (knowledgeBaseId: string, connectorId: string) =>
+    openEnrollment(({ onSuccess, onError }) =>
+      enrollment.mutate(
+        { knowledgeBaseId, connectorId },
+        {
+          onSuccess: ({ url }) => onSuccess(url, connectorId),
+          onError: (err) => {
+            onError()
+            logger.error('Failed to start member enrollment', { error: err.message })
+          },
+        }
+      )
+    )
+
+  /** Connects a Sim Search source: its per-member connector exists afterwards, and the viewer enrolls. */
+  const connectSource = (workspaceId: string, connectorType: string) =>
+    openEnrollment(({ onSuccess, onError }) =>
+      sourceConnection.mutate(
+        { workspaceId, connectorType },
+        {
+          onSuccess: ({ url, connectorId }) => onSuccess(url, connectorId),
+          onError: (err) => {
+            onError()
+            logger.error('Failed to connect a Sim Search source', { error: err.message })
+          },
+        }
+      )
+    )
 
   const isAwaiting = (connectorId: string) =>
     awaitingSince.has(connectorId) && !connectedConnectorIds.has(connectorId)
 
+  const error = enrollment.error ?? sourceConnection.error
   return {
     connect,
+    connectSource,
     isAwaiting,
-    isPending,
+    isPending: enrollment.isPending || sourceConnection.isPending,
     error: popupBlocked ? POPUP_BLOCKED_MESSAGE : (error?.message ?? null),
   }
 }

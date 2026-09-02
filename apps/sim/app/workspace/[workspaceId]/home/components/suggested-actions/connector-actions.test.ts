@@ -22,10 +22,6 @@ vi.mock('@/lib/sim-search/connectors', () => {
     blockType: type,
   })
   return {
-    isSearchConnectorConnected: (
-      candidate: { providerIds: string[] },
-      connected: ReadonlySet<string>
-    ) => candidate.providerIds.some((providerId) => connected.has(providerId)),
     SEARCH_CONNECTORS: [
       connector('airtable', 'Airtable', 'airtable'),
       connector('confluence', 'Confluence', 'confluence'),
@@ -63,11 +59,12 @@ describe('computeConnectorActions', () => {
     })
   })
 
-  it('drops every connector on a connected provider and refills from the rotation', () => {
+  it('drops every connected source and refills from the rotation', () => {
     const actions = computeConnectorActions(new Set(['jira', 'airtable']), ALL_AVAILABLE)
 
     expect(actions.map((action) => action.id)).toEqual([
       'connect-confluence',
+      'connect-jsm',
       'connect-notion',
       'connect-slack',
     ])

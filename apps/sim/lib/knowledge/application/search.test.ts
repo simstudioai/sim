@@ -40,6 +40,11 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   checkAttributedUsageLimits: mocks.checkUsage,
 }))
 
+/** Retrieval defaults are the flag's concern; here the flag is off so the search stays as configured. */
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  isKnowledgeMemberAccessAvailable: async () => false,
+}))
+
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
   checkActorUsageLimits: mocks.checkActorUsage,
 }))

@@ -417,6 +417,18 @@ export const knowledgeOperations = {
     capability: 'knowledge.use',
     principalKinds: ['session'],
   }),
+  /**
+   * Connecting a Sim Search source: any reader may connect their own account;
+   * the first connect of a source also creates its knowledge base and
+   * connector, which those operations reserve for an admin.
+   */
+  simSearchConnect: defineWorkspaceOperation({
+    id: 'knowledge.simSearch.connect',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'knowledge.use',
+    principalKinds: ['session'],
+  }),
   deleteConnector: defineWorkspaceOperation({
     id: 'knowledge.connectors.delete',
     minimumRole: 'write',

@@ -12,6 +12,8 @@ import {
   type ConnectorDetailData,
   type ConnectorDocumentsData,
   type ConnectorMemberSummary,
+  type ConnectSimSearchConnectorBody,
+  connectSimSearchConnectorContract,
   createKnowledgeConnectorContract,
   deleteKnowledgeConnectorContract,
   getKnowledgeConnectorContract,
@@ -655,5 +657,26 @@ export function useRestoreConnectorDocument() {
     mutationFn: restoreConnectorDocuments,
     onSettled: (_data, _error, variables) =>
       invalidateConnectorDocumentChange(queryClient, variables),
+  })
+}
+
+async function connectSimSearchConnector(body: ConnectSimSearchConnectorBody) {
+  const result = await requestJson(connectSimSearchConnectorContract, { body })
+  return result.data
+}
+
+/**
+ * One click on a Sim Search source: the source's per-member connector exists
+ * afterwards and the viewer has their enrollment link. The member list and the
+ * base list both gain a row on a first connect.
+ */
+export function useConnectSimSearchConnector() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: connectSimSearchConnector,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+    },
   })
 }

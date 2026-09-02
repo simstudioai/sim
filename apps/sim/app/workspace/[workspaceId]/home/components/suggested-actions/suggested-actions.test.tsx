@@ -5,10 +5,13 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCaptureEvent, mockUseSearchCredentials } = vi.hoisted(() => ({
-  mockCaptureEvent: vi.fn(),
-  mockUseSearchCredentials: vi.fn(),
-}))
+const { mockCaptureEvent, mockUseWorkspaceMemberConnectors, mockConnectSource } = vi.hoisted(
+  () => ({
+    mockCaptureEvent: vi.fn(),
+    mockUseWorkspaceMemberConnectors: vi.fn(),
+    mockConnectSource: vi.fn(),
+  })
+)
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
@@ -29,8 +32,12 @@ vi.mock('@/hooks/queries/tables', () => ({
 vi.mock('@/hooks/queries/kb/knowledge', () => ({
   useKnowledgeBasesQuery: () => ({ data: [] }),
 }))
-vi.mock('@/app/workspace/[workspaceId]/search/hooks/use-search-credentials', () => ({
-  useSearchCredentials: mockUseSearchCredentials,
+vi.mock('@/hooks/queries/kb/connectors', () => ({
+  memberConnectorKeys: { list: (workspaceId?: string) => ['member-connectors', workspaceId] },
+  useWorkspaceMemberConnectors: mockUseWorkspaceMemberConnectors,
+}))
+vi.mock('@/hooks/use-member-enrollment', () => ({
+  useMemberEnrollment: () => ({ connectSource: mockConnectSource }),
 }))
 vi.mock('@/hooks/use-permission-config', () => ({
   usePermissionConfig: () => ({
@@ -54,10 +61,6 @@ vi.mock('@/lib/sim-search/connectors', () => {
     blockType: type,
   })
   return {
-    isSearchConnectorConnected: (
-      candidate: { providerIds: string[] },
-      connected: ReadonlySet<string>
-    ) => candidate.providerIds.some((providerId) => connected.has(providerId)),
     isSearchConnectorAvailable: (
       candidate: { blockType: string },
       availability: ReadonlyMap<string, { oauthAvailable: boolean }>
@@ -110,9 +113,19 @@ function connectModal(): string | null {
 beforeEach(() => {
   onSelectPrompt.mockClear()
   mockCaptureEvent.mockClear()
-  mockUseSearchCredentials.mockReturnValue({
-    credentials: [{ id: 'cred-jira', providerId: 'jira' }],
+  mockUseWorkspaceMemberConnectors.mockReturnValue({
     isPending: false,
+    data: [
+      {
+        knowledgeBaseId: 'kb-search',
+        knowledgeBaseName: 'Sim Search',
+        connectorId: 'conn-jira',
+        connectorType: 'jira',
+        memberSyncStatus: 'idle',
+        viewerMembership: 'connected',
+        viewerDocumentCount: 3,
+      },
+    ],
   })
   useMothershipModeStore.getState().reset()
 })
@@ -140,12 +153,13 @@ describe('SuggestedActions', () => {
     expect(heading()).toBe('Connect Sim Search')
     expect(rows().map((row) => row.textContent)).toEqual([
       'Connect Confluence',
+      'Connect Jira Service Management',
       'Connect Airtable',
       'Connect Slack',
     ])
   })
 
-  it('opens the OAuth connect modal for a connector row instead of populating the input', () => {
+  it('connects a source through its per-member connector instead of populating the input', () => {
     mount()
     act(() => useMothershipModeStore.getState().setMode('search'))
     expect(connectModal()).toBeNull()
@@ -154,7 +168,8 @@ describe('SuggestedActions', () => {
       rows()[0].dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
     })
 
-    expect(connectModal()).toBe('confluence')
+    expect(connectModal()).toBeNull()
+    expect(mockConnectSource).toHaveBeenCalledWith('workspace-1', 'confluence')
     expect(onSelectPrompt).not.toHaveBeenCalled()
     expect(mockCaptureEvent).toHaveBeenCalledWith(
       null,

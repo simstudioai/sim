@@ -357,8 +357,38 @@ export const workspaceMemberConnectorSchema = z.object({
   connectorType: z.string(),
   memberSyncStatus: z.enum(MEMBER_SYNC_STATUSES),
   viewerMembership: viewerConnectorMembershipSchema,
+  /** Documents of this connector the viewer may read right now. */
+  viewerDocumentCount: z.number().int().nonnegative(),
 })
 export type WorkspaceMemberConnector = z.output<typeof workspaceMemberConnectorSchema>
+
+export const connectSimSearchConnectorBodySchema = z.object({
+  workspaceId: workspaceIdSchema,
+  connectorType: z.string().min(1, 'connectorType cannot be empty').max(100),
+})
+export type ConnectSimSearchConnectorBody = z.input<typeof connectSimSearchConnectorBodySchema>
+
+/**
+ * One click on a Sim Search source: the workspace's Sim Search knowledge base
+ * and per-member connector exist afterwards, and the caller gets the link that
+ * connects their own account.
+ */
+export const connectSimSearchConnectorContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/knowledge/sim-search/connect',
+  body: connectSimSearchConnectorBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      data: z.object({
+        knowledgeBaseId: z.string(),
+        connectorId: z.string(),
+        url: z.string().url(),
+      }),
+    }),
+  },
+})
 
 export const listWorkspaceMemberConnectorsContract = defineRouteContract({
   method: 'GET',

@@ -8,6 +8,9 @@ import {
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
 
+/** The workspace knowledge base Sim Search indexes into, one per workspace, created on first connect. */
+export const SIM_SEARCH_KNOWLEDGE_BASE_NAME = 'Sim Search'
+
 /**
  * A knowledge-base connector offered on the Sim Search surface: the connector's
  * client-safe meta paired with the OAuth service a user connects it through.
@@ -72,25 +75,15 @@ export const SEARCH_CONNECTORS: readonly SearchConnector[] = Object.entries(CONN
   .sort((a, b) => a.meta.name.localeCompare(b.meta.name))
 
 /**
- * Provider ids some Sim Search connector connects through. Several connectors
- * share one (Jira and Jira Service Management both use `jira`), so a credential
- * is matched to the surface by provider rather than to a single connector.
+ * Whether a source connects with one click on Sim Search: it crawls per
+ * member, and nothing in its config is required beyond the listing caps
+ * members mode clears. A source that needs a site or space (Confluence,
+ * Jira) is set up from a knowledge base, where an admin can name it.
  */
-const SEARCH_PROVIDER_IDS: ReadonlySet<string> = new Set(
-  SEARCH_CONNECTORS.flatMap((connector) => connector.providerIds)
-)
-
-/** Whether a stored credential's provider powers a Sim Search connector. */
-export function isSearchConnectorProvider(providerId: string | null): boolean {
-  return providerId !== null && SEARCH_PROVIDER_IDS.has(providerId)
-}
-
-/** Whether the viewer has connected this connector's service under any of its provider ids. */
-export function isSearchConnectorConnected(
-  connector: SearchConnector,
-  connectedProviderIds: ReadonlySet<string>
-): boolean {
-  return connector.providerIds.some((providerId) => connectedProviderIds.has(providerId))
+export function canConnectPersonally(meta: ConnectorMeta): boolean {
+  if (meta.auth.mode !== 'oauth' || !meta.permissionScopedListing) return false
+  const capFieldIds = new Set(meta.permissionScopedListing.capFieldIds)
+  return meta.configFields.every((field) => !field.required || capFieldIds.has(field.id))
 }
 
 /**

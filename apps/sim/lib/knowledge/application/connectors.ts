@@ -22,6 +22,8 @@ import {
   resolveCredentialTokenIdentity,
 } from '@/lib/credentials/access'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
+import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   resolveKnowledgeAttributedUserId,
@@ -360,6 +362,28 @@ export interface ListWorkspaceMemberConnectorsInput {
  * them to connect. Only connectors the viewer could actually read documents
  * from are listed: the knowledge base must be live and in the workspace.
  */
+/** Live documents per connector that the viewer's tokens match, for the Search tab's counts. */
+async function countViewerDocuments(
+  connectorIds: readonly string[],
+  access: KnowledgeAccessScope
+): Promise<Map<string, number>> {
+  if (connectorIds.length === 0) return new Map()
+  const rows = await db
+    .select({ connectorId: document.connectorId, count: sql<number>`count(*)::int` })
+    .from(document)
+    .where(
+      and(
+        inArray(document.connectorId, [...connectorIds]),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt),
+        knowledgeAccessCondition(access)
+      )
+    )
+    .groupBy(document.connectorId)
+  return new Map(rows.flatMap((row) => (row.connectorId ? [[row.connectorId, row.count]] : [])))
+}
+
 export const listWorkspaceMemberConnectors = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listWorkspaceMemberConnectors,
   resolveContext: ({ input }: { input: ListWorkspaceMemberConnectorsInput }) =>
@@ -390,11 +414,17 @@ export const listWorkspaceMemberConnectors = defineAuthorizedKnowledgeUseCase({
         )
       )
       .orderBy(asc(knowledgeBase.name), asc(knowledgeConnector.createdAt))
-    const memberships = await resolveViewerConnectorMemberships({
-      userId: viewerUserId,
-      workspaceId: context.workspaceId,
-      connectors: rows,
-    })
+    const [memberships, documentCounts] = await Promise.all([
+      resolveViewerConnectorMemberships({
+        userId: viewerUserId,
+        workspaceId: context.workspaceId,
+        connectors: rows,
+      }),
+      countViewerDocuments(
+        rows.map((row) => row.id),
+        await createKnowledgeAccessProvider(principal, { workspaceId: context.workspaceId }).get()
+      ),
+    ])
     return {
       connectors: rows.flatMap((row) => {
         const viewerMembership = memberships.get(row.id)
@@ -413,6 +443,7 @@ export const listWorkspaceMemberConnectors = defineAuthorizedKnowledgeUseCase({
                 connectorType: row.connectorType,
                 memberSyncStatus: row.memberSyncStatus,
                 viewerMembership,
+                viewerDocumentCount: documentCounts.get(row.id) ?? 0,
               },
             ]
           : []

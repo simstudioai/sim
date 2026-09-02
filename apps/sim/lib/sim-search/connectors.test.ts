@@ -14,11 +14,20 @@ vi.mock('@/connectors/registry', () => {
         auth: { mode: 'oauth', provider: 'jira' },
         icon,
       },
-      jira: { id: 'jira', name: 'Jira', auth: { mode: 'oauth', provider: 'jira' }, icon },
+      jira: {
+        id: 'jira',
+        name: 'Jira',
+        auth: { mode: 'oauth', provider: 'jira' },
+        permissionScopedListing: { capFieldIds: ['maxIssues'] },
+        configFields: [{ id: 'domain', required: true }],
+        icon,
+      },
       google_drive: {
         id: 'google_drive',
         name: 'Google Drive',
         auth: { mode: 'oauth', provider: 'google-drive' },
+        permissionScopedListing: { capFieldIds: ['maxFiles'] },
+        configFields: [{ id: 'maxFiles', required: false }],
         icon,
       },
       gmail: {
@@ -70,9 +79,8 @@ vi.mock('@/lib/integrations/credential-display', () => ({
 }))
 
 import {
+  canConnectPersonally,
   isSearchConnectorAvailable,
-  isSearchConnectorConnected,
-  isSearchConnectorProvider,
   SEARCH_CONNECTORS,
 } from '@/lib/sim-search/connectors'
 
@@ -103,21 +111,12 @@ describe('SEARCH_CONNECTORS', () => {
   })
 })
 
-describe('isSearchConnectorProvider', () => {
-  it('matches credentials by provider, including shared and additional providers', () => {
-    expect(isSearchConnectorProvider('jira')).toBe(true)
-    expect(isSearchConnectorProvider('google-drive')).toBe(true)
-    expect(isSearchConnectorProvider('salesforce-sandbox')).toBe(true)
-    expect(isSearchConnectorProvider('slack')).toBe(false)
-    expect(isSearchConnectorProvider(null)).toBe(false)
-  })
-})
-
-describe('isSearchConnectorConnected', () => {
-  it('counts a credential under any of the service’s provider ids', () => {
-    const salesforce = SEARCH_CONNECTORS.find((connector) => connector.type === 'salesforce')!
-    expect(isSearchConnectorConnected(salesforce, new Set(['salesforce-sandbox']))).toBe(true)
-    expect(isSearchConnectorConnected(salesforce, new Set(['jira']))).toBe(false)
+describe('canConnectPersonally', () => {
+  it('offers one-click connection only to per-member sources with no required setup', () => {
+    const drive = SEARCH_CONNECTORS.find((connector) => connector.type === 'google_drive')!
+    const jira = SEARCH_CONNECTORS.find((connector) => connector.type === 'jira')!
+    expect(canConnectPersonally(drive.meta)).toBe(true)
+    expect(canConnectPersonally(jira.meta)).toBe(false)
   })
 })
 

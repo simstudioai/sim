@@ -5,6 +5,11 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+const { mockConnect, mockConnectSource } = vi.hoisted(() => ({
+  mockConnect: vi.fn(),
+  mockConnectSource: vi.fn(),
+}))
+
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
 }))
@@ -14,41 +19,39 @@ vi.mock('nuqs', () => ({
 vi.mock('@/hooks/use-debounced-search-setter', () => ({
   useDebouncedSearchSetter: (write: (value: string) => void) => write,
 }))
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { id: 'user-1' } }, isPending: false }),
-}))
 vi.mock('@/hooks/use-permission-config', () => ({
   usePermissionConfig: () => ({
     integrationAvailability: new Map([
-      ['confluence', { state: 'ready', oauthAvailable: true }],
-      /* A service-account-only deployment: the block is usable, the OAuth path is not. */
       ['slack', { state: 'limited', oauthAvailable: false }],
+      ['jira', { state: 'available', oauthAvailable: true }],
     ]),
   }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration', () => ({
-  useScrollRestoration: () => {},
-}))
-vi.mock('@/hooks/use-oauth-return', () => ({
-  useOAuthReturnRouter: () => {},
+  useScrollRestoration: () => undefined,
 }))
 vi.mock('@/app/workspace/[workspaceId]/components', () => ({
   IntegrationTabsHeader: () => null,
 }))
-vi.mock('@/app/workspace/[workspaceId]/components/connect-oauth-modal', () => ({
-  ConnectOAuthModal: ({ open, providerId }: { open: boolean; providerId: string }) =>
-    open ? <div data-testid='connect-modal'>{providerId}</div> : null,
-}))
 vi.mock('@/blocks', () => ({ getBlock: () => undefined }))
 vi.mock('@/lib/integrations', () => ({
+  blockTypeToIconMap: {},
   resolveCredentialDisplay: () => ({ icon: () => null, blockType: 'confluence', subtitle: 'Sub' }),
 }))
 
 vi.mock('@/lib/sim-search/connectors', () => {
   const icon = () => null
-  const connector = (type: string, name: string, description: string) => ({
+  const connector = (type: string, name: string, description: string, personal: boolean) => ({
     type,
-    meta: { id: type, name, description, icon },
+    meta: {
+      id: type,
+      name,
+      description,
+      icon,
+      auth: { mode: 'oauth', provider: type },
+      permissionScopedListing: personal ? { capFieldIds: [] } : undefined,
+      configFields: personal ? [] : [{ id: 'domain', required: true }],
+    },
     providerId: type,
     providerIds: [type],
     requiredScopes: [],
@@ -56,68 +59,67 @@ vi.mock('@/lib/sim-search/connectors', () => {
     serviceIcon: icon,
     blockType: type,
   })
-  const providers = new Set(['confluence', 'jira', 'slack'])
   return {
+    SIM_SEARCH_KNOWLEDGE_BASE_NAME: 'Sim Search',
+    canConnectPersonally: (meta: { permissionScopedListing?: unknown }) =>
+      Boolean(meta.permissionScopedListing),
     isSearchConnectorAvailable: (
       candidate: { blockType: string },
       availability: ReadonlyMap<string, { oauthAvailable: boolean }>
     ) => availability.get(candidate.blockType)?.oauthAvailable ?? true,
     SEARCH_CONNECTORS: [
-      connector('confluence', 'Confluence', 'Sync Confluence pages'),
-      connector('jira', 'Jira', 'Sync Jira issues'),
-      connector('slack', 'Slack', 'Sync Slack messages'),
+      connector('google_drive', 'Google Drive', 'Sync Drive files', true),
+      connector('confluence', 'Confluence', 'Sync Confluence pages', false),
+      connector('slack', 'Slack', 'Sync Slack messages', true),
     ],
-    isSearchConnectorProvider: (providerId: string | null) =>
-      providerId !== null && providers.has(providerId),
   }
 })
 
-const credential = (overrides: Record<string, unknown>) => ({
-  id: 'cred',
-  workspaceId: 'workspace-1',
-  type: 'oauth',
-  displayName: 'Credential',
-  description: null,
-  unredacted: false,
-  providerId: 'confluence',
-  accountId: null,
-  envKey: null,
-  envOwnerUserId: null,
-  createdBy: 'user-1',
-  createdAt: '',
-  updatedAt: '',
-  role: 'admin',
-  ...overrides,
-})
-
-vi.mock('@/hooks/queries/credentials', () => ({
-  useWorkspaceCredentials: () => ({
+vi.mock('@/hooks/queries/kb/connectors', () => ({
+  memberConnectorKeys: { list: (workspaceId?: string) => ['member-connectors', workspaceId] },
+  useWorkspaceMemberConnectors: () => ({
     isPending: false,
     data: [
-      credential({ id: 'cred-mine', displayName: 'My Confluence' }),
-      credential({
-        id: 'cred-theirs',
-        displayName: 'Teammate Jira',
-        providerId: 'jira',
-        createdBy: 'user-2',
-      }),
-      credential({ id: 'cred-sa', displayName: 'Service Account', type: 'service_account' }),
-      credential({ id: 'cred-github', displayName: 'My GitHub', providerId: 'github' }),
+      {
+        knowledgeBaseId: 'kb-search',
+        knowledgeBaseName: 'Sim Search',
+        connectorId: 'conn-drive',
+        connectorType: 'google_drive',
+        memberSyncStatus: 'idle',
+        viewerMembership: 'connected',
+        viewerDocumentCount: 12,
+      },
+      {
+        knowledgeBaseId: 'kb-sales',
+        knowledgeBaseName: 'Sales',
+        connectorId: 'conn-sales-drive',
+        connectorType: 'google_drive',
+        memberSyncStatus: 'idle',
+        viewerMembership: 'invited',
+        viewerDocumentCount: 0,
+      },
     ],
   }),
 }))
-
-vi.mock('@/hooks/queries/kb/connectors', () => ({
-  memberConnectorKeys: { list: (workspaceId?: string) => ['member-connectors', workspaceId] },
-  useWorkspaceMemberConnectors: () => ({ data: [] }),
-}))
-vi.mock('@/hooks/use-member-enrollment', () => ({
-  useMemberEnrollment: () => ({
-    connect: vi.fn(),
-    isAwaiting: () => false,
-    isPending: false,
-    error: null,
-  }),
+vi.mock('@/hooks/use-member-enrollment', async () => {
+  const actual = await vi.importActual<typeof import('@/hooks/use-member-enrollment')>(
+    '@/hooks/use-member-enrollment'
+  )
+  return {
+    CONNECTABLE_MEMBERSHIPS: actual.CONNECTABLE_MEMBERSHIPS,
+    describeMembership: actual.describeMembership,
+    enrollmentActionLabel: actual.enrollmentActionLabel,
+    useMemberEnrollment: () => ({
+      connect: mockConnect,
+      connectSource: mockConnectSource,
+      isAwaiting: () => false,
+      isPending: false,
+      error: null,
+    }),
+  }
+})
+vi.mock('@/connectors/registry', () => ({
+  CONNECTOR_META_REGISTRY: { google_drive: { name: 'Google Drive', icon: () => null } },
 }))
 
 import { Search } from '@/app/workspace/[workspaceId]/search/search'
@@ -139,12 +141,8 @@ function sectionLabels(): string[] {
   )
 }
 
-function hrefs(): Array<string | null> {
-  return Array.from(container?.querySelectorAll('a') ?? []).map((a) => a.getAttribute('href'))
-}
-
-function connectButton(name: string): HTMLButtonElement | null {
-  return container?.querySelector<HTMLButtonElement>(`button[aria-label="Connect ${name}"]`) ?? null
+function buttons(): HTMLButtonElement[] {
+  return Array.from(container?.querySelectorAll('button') ?? [])
 }
 
 afterEach(() => {
@@ -152,43 +150,32 @@ afterEach(() => {
   container?.remove()
   root = null
   container = null
+  mockConnect.mockReset()
+  mockConnectSource.mockReset()
 })
 
 describe('Search', () => {
-  it('lists the viewer’s own search-connector credentials under Connected', () => {
+  it('shows each source with the viewer’s own connection state', () => {
     mount()
 
-    expect(sectionLabels()).toEqual(['Connected', 'Sim Search Connectors'])
+    expect(sectionLabels()).toEqual(['Sim Search Connectors', 'Shared with you'])
     const text = container?.textContent ?? ''
-    expect(text).toContain('My Confluence')
-    expect(text).not.toContain('Teammate Jira')
-    expect(text).not.toContain('Service Account')
-    expect(text).not.toContain('My GitHub')
-    expect(hrefs()).toContain('/workspace/workspace-1/search/connected/cred-mine')
+    expect(text).toContain('Connected · 12 documents')
+    expect(text).toContain('Needs a site or space; set it up from a knowledge base.')
+    expect(text).toContain('Unavailable in this deployment. Contact your administrator.')
+    expect(text).toContain('Sales')
   })
 
-  it('opens the connect modal for a connector instead of navigating', () => {
+  it('connects a source nobody has connected yet through its per-member connector', () => {
     mount()
 
-    const connect = connectButton('Confluence')
-    expect(connect).not.toBeNull()
-    expect(hrefs()).not.toContain('/workspace/workspace-1/search/confluence')
-    expect(document.querySelector('[data-testid="connect-modal"]')).toBeNull()
-
+    const connect = buttons().find((button) => button.textContent === 'Connect')
+    expect(connect).toBeDefined()
     act(() => {
       connect?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
     })
 
-    expect(document.querySelector('[data-testid="connect-modal"]')?.textContent).toBe('confluence')
-  })
-
-  it('disables a connector whose OAuth path is unavailable, even when the block is usable', () => {
-    mount()
-
-    expect(connectButton('Jira')).not.toBeNull()
-    expect(connectButton('Slack')).toBeNull()
-    expect(container?.textContent).toContain(
-      'Unavailable in this deployment. Contact your administrator.'
-    )
+    expect(mockConnect).toHaveBeenCalledWith('kb-sales', 'conn-sales-drive')
+    expect(mockConnectSource).not.toHaveBeenCalled()
   })
 })

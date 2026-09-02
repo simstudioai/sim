@@ -1,136 +1,174 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { ChipInput } from '@sim/emcn'
+import { useMemo, useRef } from 'react'
+import { Button, ChipInput } from '@sim/emcn'
 import { Search as SearchIcon } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { resolveCredentialDisplay } from '@/lib/integrations'
 import {
+  canConnectPersonally,
   isSearchConnectorAvailable,
   SEARCH_CONNECTORS,
   type SearchConnector,
+  SIM_SEARCH_KNOWLEDGE_BASE_NAME,
 } from '@/lib/sim-search/connectors'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components'
-import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
-import { CONNECTED_LABEL } from '@/app/workspace/[workspaceId]/integrations/search-params'
 import {
   MemberConnectorsSection,
   memberConnectorName,
 } from '@/app/workspace/[workspaceId]/search/components/member-connectors-section/member-connectors-section'
-import { useSearchCredentials } from '@/app/workspace/[workspaceId]/search/hooks/use-search-credentials'
 import {
   connectorSearchParam,
   connectorSearchUrlKeys,
 } from '@/app/workspace/[workspaceId]/search/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import type { WorkspaceCredential } from '@/hooks/queries/credentials'
 import {
+  memberConnectorKeys,
   useWorkspaceMemberConnectors,
   type WorkspaceMemberConnector,
 } from '@/hooks/queries/kb/connectors'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
-import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
+import {
+  CONNECTABLE_MEMBERSHIPS,
+  describeMembership,
+  enrollmentActionLabel,
+  useMemberEnrollment,
+} from '@/hooks/use-member-enrollment'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
 const CONNECTORS_LABEL = 'Sim Search Connectors'
+const NEEDS_KNOWLEDGE_BASE_SETUP = 'Needs a site or space; set it up from a knowledge base.'
+const UNAVAILABLE = 'Unavailable in this deployment. Contact your administrator.'
 
-interface ConnectorItemProps {
+/** What a source row says once the viewer's own indexing has settled. */
+function connectedDescription(connector: WorkspaceMemberConnector): string {
+  const count = connector.viewerDocumentCount
+  return count === 1 ? 'Connected · 1 document' : `Connected · ${count} documents`
+}
+
+interface SourceRowProps {
   connector: SearchConnector
+  /** The Sim Search per-member connector for this source, once anyone has connected it. */
+  connection: WorkspaceMemberConnector | undefined
   unavailable: boolean
-  onConnect: (connector: SearchConnector) => void
+  waiting: boolean
+  isPending: boolean
+  onConnect: () => void
 }
 
 /**
- * A connector row acts in place — it opens the connect modal — so it carries no
- * navigation chevron; only a connected credential leads to a page of its own.
+ * One Sim Search source: what the viewer's connection is doing (indexing,
+ * how many documents they can read, what to do next) and the one action open
+ * to them. A source nobody has connected yet offers Connect, which creates its
+ * connector and enrolls the viewer in one step.
  */
-function ConnectorItem({ connector, unavailable, onConnect }: ConnectorItemProps) {
+function SourceRow({
+  connector,
+  connection,
+  unavailable,
+  waiting,
+  isPending,
+  onConnect,
+}: SourceRowProps) {
+  const personal = canConnectPersonally(connector.meta)
+  const membership = connection?.viewerMembership
+  const state = connection
+    ? (describeMembership({
+        membership: connection.viewerMembership,
+        memberSyncStatus: connection.memberSyncStatus,
+        waiting,
+        name: connector.meta.name,
+      }) ?? connectedDescription(connection))
+    : waiting
+      ? `Finish connecting your ${connector.meta.name} account in the other tab.`
+      : connector.meta.description
+  const description = unavailable ? UNAVAILABLE : personal ? state : NEEDS_KNOWLEDGE_BASE_SETUP
+  const connectable =
+    !unavailable && personal && (!membership || CONNECTABLE_MEMBERSHIPS.has(membership))
   return (
     <SettingsResourceRow
       iconVariant='custom'
       icon={<IntegrationTile blockType={connector.blockType} icon={connector.meta.icon} />}
       title={connector.meta.name}
-      description={
-        unavailable
-          ? 'Unavailable in this deployment. Contact your administrator.'
-          : connector.meta.description
+      description={description}
+      disabled={unavailable || !personal}
+      trailing={
+        connectable ? (
+          <Button variant='primary' size='sm' onClick={onConnect} disabled={isPending}>
+            {enrollmentActionLabel(membership ?? 'not_enrolled', waiting)}
+          </Button>
+        ) : undefined
       }
-      onClick={unavailable ? undefined : () => onConnect(connector)}
-      clickLabel={`Connect ${connector.meta.name}`}
-      disabled={unavailable}
-    />
-  )
-}
-
-interface ConnectedItemProps {
-  credential: WorkspaceCredential
-  workspaceId: string
-}
-
-function ConnectedItem({ credential, workspaceId }: ConnectedItemProps) {
-  const display = resolveCredentialDisplay(credential)
-  if (!display.icon) return null
-  return (
-    <SettingsResourceRow
-      iconVariant='custom'
-      icon={<IntegrationTile blockType={display.blockType} icon={display.icon} />}
-      title={credential.displayName}
-      description={credential.description || display.subtitle}
-      href={`/workspace/${workspaceId}/search/connected/${credential.id}`}
-      clickLabel={`Open ${credential.displayName}`}
-      navigable
     />
   )
 }
 
 /**
- * The Sim Search connector catalog: the viewer's own connections first, then
- * every connector a personal OAuth connection can power. Same shell and rows
- * as the Integrations page, minus its showcase and category filter — the
- * connector set is small enough that the search box alone narrows it. A
- * connector row opens the OAuth connect modal right here; the OAuth redirect
- * lands back on this page, where the return router reports the outcome.
+ * The Sim Search catalog: every source a person can connect with one click,
+ * each row showing where the viewer's own connection stands. Connecting opens
+ * the enrollment for the workspace's Sim Search knowledge base, and indexing
+ * starts on its own once the account is linked; documents count up here as
+ * they land. Per-member connectors in other knowledge bases are listed below
+ * under Shared with you, with the same actions.
  */
 export function Search() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  useOAuthReturnRouter()
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
   const { integrationAvailability } = usePermissionConfig()
-  const [connectTarget, setConnectTarget] = useState<SearchConnector | null>(null)
 
   const [searchTerm, setSearchTermParam] = useQueryState(connectorSearchParam.key, {
     ...connectorSearchParam.parser,
     ...connectorSearchUrlKeys,
   })
   /**
-   * The input is controlled directly by the instant nuqs value; only the URL
-   * write is debounced. Filtering below is cheap in-memory over a static list,
-   * so it reads the instant value too.
+   * The input binds to the instant nuqs value; only the URL write is debounced.
+   * Filtering reads the same instant value: it is a cheap in-memory pass over a
+   * small static list, which is exactly the case the url-state rule permits.
    */
   const setSearchTerm = useDebouncedSearchSetter(setSearchTermParam)
 
-  const { credentials, isPending: credentialsLoading } = useSearchCredentials(workspaceId)
+  const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS, isPending: connectionsPending } =
+    useWorkspaceMemberConnectors(workspaceId)
+  useScrollRestoration(scrollContainerRef, { ready: !connectionsPending })
 
-  useScrollRestoration(scrollContainerRef, { ready: !credentialsLoading })
+  /** The Sim Search connection per source; other knowledge bases' connectors keep their own section. */
+  const { connectionByType, sharedConnectors } = useMemo(() => {
+    const connectionByType = new Map<string, WorkspaceMemberConnector>()
+    const sharedConnectors: WorkspaceMemberConnector[] = []
+    for (const connector of memberConnectors) {
+      if (
+        connector.knowledgeBaseName === SIM_SEARCH_KNOWLEDGE_BASE_NAME &&
+        !connectionByType.has(connector.connectorType)
+      ) {
+        connectionByType.set(connector.connectorType, connector)
+      } else {
+        sharedConnectors.push(connector)
+      }
+    }
+    return { connectionByType, sharedConnectors }
+  }, [memberConnectors])
+  const connectedConnectorIds = useMemo(
+    () =>
+      new Set(
+        memberConnectors
+          .filter((connector) => connector.viewerMembership === 'connected')
+          .map((connector) => connector.connectorId)
+      ),
+    [memberConnectors]
+  )
+  const membershipQueryKeys = useMemo(() => [memberConnectorKeys.list(workspaceId)], [workspaceId])
+  const { connect, connectSource, isAwaiting, isPending, error } = useMemberEnrollment({
+    membershipQueryKeys,
+    connectedConnectorIds,
+  })
 
   const normalizedSearch = searchTerm.trim().toLowerCase()
-
-  const visibleCredentials = normalizedSearch
-    ? credentials.filter((credential) => {
-        const display = resolveCredentialDisplay(credential)
-        return [credential.displayName, credential.description ?? '', display.subtitle].some(
-          (text) => text.toLowerCase().includes(normalizedSearch)
-        )
-      })
-    : credentials
-
   const visibleConnectors = normalizedSearch
     ? SEARCH_CONNECTORS.filter(
         (connector) =>
@@ -138,22 +176,18 @@ export function Search() {
           connector.meta.description.toLowerCase().includes(normalizedSearch)
       )
     : SEARCH_CONNECTORS
-
-  const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS } =
-    useWorkspaceMemberConnectors(workspaceId)
-  const visibleMemberConnectors = normalizedSearch
-    ? memberConnectors.filter((connector) =>
+  const visibleSharedConnectors = normalizedSearch
+    ? sharedConnectors.filter((connector) =>
         [memberConnectorName(connector), connector.knowledgeBaseName].some((text) =>
           text.toLowerCase().includes(normalizedSearch)
         )
       )
-    : memberConnectors
+    : sharedConnectors
 
   const showNoResults =
     Boolean(normalizedSearch) &&
-    visibleCredentials.length === 0 &&
     visibleConnectors.length === 0 &&
-    visibleMemberConnectors.length === 0
+    visibleSharedConnectors.length === 0
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
@@ -168,39 +202,38 @@ export function Search() {
             placeholder='Search connectors...'
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            disabled={credentialsLoading}
           />
 
           <div className='flex flex-col gap-7'>
-            <MemberConnectorsSection
-              workspaceId={workspaceId}
-              connectors={visibleMemberConnectors}
-            />
-
-            {visibleCredentials.length > 0 && (
-              <IntegrationSection label={CONNECTED_LABEL}>
-                {visibleCredentials.map((credential) => (
-                  <ConnectedItem
-                    key={credential.id}
-                    credential={credential}
-                    workspaceId={workspaceId}
-                  />
-                ))}
-              </IntegrationSection>
-            )}
-
             {visibleConnectors.length > 0 && (
               <IntegrationSection label={CONNECTORS_LABEL}>
-                {visibleConnectors.map((connector) => (
-                  <ConnectorItem
-                    key={connector.type}
-                    connector={connector}
-                    unavailable={!isSearchConnectorAvailable(connector, integrationAvailability)}
-                    onConnect={setConnectTarget}
-                  />
-                ))}
+                {visibleConnectors.map((connector) => {
+                  const connection = connectionByType.get(connector.type)
+                  return (
+                    <SourceRow
+                      key={connector.type}
+                      connector={connector}
+                      connection={connection}
+                      unavailable={!isSearchConnectorAvailable(connector, integrationAvailability)}
+                      waiting={connection ? isAwaiting(connection.connectorId) : false}
+                      isPending={isPending}
+                      onConnect={() =>
+                        connection
+                          ? connect(connection.knowledgeBaseId, connection.connectorId)
+                          : connectSource(workspaceId, connector.type)
+                      }
+                    />
+                  )
+                })}
               </IntegrationSection>
             )}
+
+            <MemberConnectorsSection
+              workspaceId={workspaceId}
+              connectors={visibleSharedConnectors}
+            />
+
+            {error && <p className='text-[var(--text-error)] text-caption'>{error}</p>}
 
             {showNoResults && (
               <SettingsEmptyState variant='inline'>
@@ -210,21 +243,6 @@ export function Search() {
           </div>
         </div>
       </div>
-      {connectTarget && workspaceId && (
-        <ConnectOAuthModal
-          mode='connect'
-          origin='integrations'
-          open
-          onOpenChange={(open) => {
-            if (!open) setConnectTarget(null)
-          }}
-          workspaceId={workspaceId}
-          providerId={connectTarget.providerId}
-          requiredScopes={connectTarget.requiredScopes}
-          serviceName={connectTarget.serviceName}
-          serviceIcon={connectTarget.serviceIcon}
-        />
-      )}
     </div>
   )
 }

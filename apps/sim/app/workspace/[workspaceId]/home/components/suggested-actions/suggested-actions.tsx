@@ -22,14 +22,19 @@ import type {
   OAuthConnectTarget,
 } from '@/app/workspace/[workspaceId]/home/components/suggested-actions/types'
 import { weightedSample } from '@/app/workspace/[workspaceId]/home/components/suggested-actions/weighted-sample'
-import { useSearchCredentials } from '@/app/workspace/[workspaceId]/search/hooks/use-search-credentials'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { getAllBlockMeta } from '@/blocks/registry'
 import type { ModuleTag } from '@/blocks/types'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
+import {
+  memberConnectorKeys,
+  useWorkspaceMemberConnectors,
+  type WorkspaceMemberConnector,
+} from '@/hooks/queries/kb/connectors'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useOAuthConnections } from '@/hooks/queries/oauth/oauth-connections'
 import { useTablesList } from '@/hooks/queries/tables'
+import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { type MothershipMode, useMothershipModeStore } from '@/stores/mothership-mode/store'
 
@@ -151,6 +156,7 @@ function scoreCandidate(c: Candidate, signals: Signals): number {
 }
 
 const EMPTY_CREDENTIALS: NonNullable<ReturnType<typeof useWorkspaceCredentials>['data']> = []
+const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
 const EMPTY_SERVICES: NonNullable<ReturnType<typeof useOAuthConnections>['data']> = []
 
 type ServiceInfo = NonNullable<ReturnType<typeof useOAuthConnections>['data']>[number]
@@ -258,8 +264,8 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
   const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId, {
     enabled: Boolean(workspaceId),
   })
-  const { credentials: searchCredentials, isPending: searchCredentialsPending } =
-    useSearchCredentials(workspaceId)
+  const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS, isPending: connectionsPending } =
+    useWorkspaceMemberConnectors(workspaceId)
 
   const [expanded, setExpanded] = useState(true)
   /**
@@ -296,15 +302,27 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
     [connectedProviders, tables.length, knowledgeBases.length]
   )
 
-  const connectedSearchProviders = useMemo(
+  /** Sources the viewer has already connected, by connector type. */
+  const connectedSearchTypes = useMemo(
     () =>
       new Set(
-        searchCredentials
-          .map((credential) => credential.providerId)
-          .filter((providerId): providerId is string => Boolean(providerId))
+        memberConnectors
+          .filter((connector) => connector.viewerMembership === 'connected')
+          .map((connector) => connector.connectorType)
       ),
-    [searchCredentials]
+    [memberConnectors]
   )
+  const connectedConnectorIds = useMemo(
+    () =>
+      new Set(
+        memberConnectors
+          .filter((connector) => connector.viewerMembership === 'connected')
+          .map((connector) => connector.connectorId)
+      ),
+    [memberConnectors]
+  )
+  const membershipQueryKeys = useMemo(() => [memberConnectorKeys.list(workspaceId)], [workspaceId])
+  const { connectSource } = useMemberEnrollment({ membershipQueryKeys, connectedConnectorIds })
 
   /**
    * Each mode's list is memoized on its own inputs alone, so switching modes —
@@ -321,12 +339,12 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
    */
   const searchActions = useMemo(
     () =>
-      searchCredentialsPending
+      connectionsPending
         ? []
-        : computeConnectorActions(connectedSearchProviders, (connector) =>
+        : computeConnectorActions(connectedSearchTypes, (connector) =>
             isSearchConnectorAvailable(connector, integrationAvailability)
           ),
-    [searchCredentialsPending, connectedSearchProviders, integrationAvailability]
+    [connectionsPending, connectedSearchTypes, integrationAvailability]
   )
   const buildActions = useMemo(() => {
     const personalized = services.length > 0 && connectedProviders.size > 0
@@ -343,14 +361,18 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
       label: action.label,
       position,
       connected_provider_count:
-        action.kind === 'connector' ? connectedSearchProviders.size : connectedProviders.size,
+        action.kind === 'connector' ? connectedSearchTypes.size : connectedProviders.size,
     })
     if (action.kind === 'prompt') {
       onSelectPrompt(action.prompt)
       return
     }
-    const target =
-      action.kind === 'connector' ? action.target : resolveOAuthServiceForSlug(action.slug)
+    /** A Sim Search source connects through its per-member connector, not a bare credential. */
+    if (action.kind === 'connector') {
+      if (workspaceId) connectSource(workspaceId, action.target.type)
+      return
+    }
+    const target = resolveOAuthServiceForSlug(action.slug)
     if (target) setOAuthTarget(target)
   }
 
