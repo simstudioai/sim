@@ -38,14 +38,11 @@ If none of those apply — if the function is only called inline, or passed to a
 4. **useCallback wrapping functions that return new objects/arrays**: Stable function identity, unstable return value — memoization is at the wrong level. Use `useMemo` on the return value instead, or restructure.
 5. **useCallback with empty deps when deps are needed**: Stale closure — reads initial values forever. This is a correctness bug, not just a performance issue.
 6. **Pairing useCallback + React.memo on trivially cheap renders**: If the child renders in < 1ms and re-renders rarely, the memo infrastructure costs more than it saves.
-7. **useCallback in custom hooks that don't need stable references**: Not every hook return needs to be memoized. Only stabilize callbacks when consumers depend on referential equality.
+7. **Internal helpers inside custom hooks wrapped for no observer**: functions a hook only calls internally need no `useCallback`. Functions a hook *returns* are wrapped by convention (`.claude/rules/sim-hooks.md` Rule 4, matching react.dev) — do not flag those for lacking an observer, but still check their dependency arrays (patterns 2-5 apply to them as much as to any other `useCallback`).
 
 ## Patterns that ARE correct — do not flag
 
-- `useCallback` whose result is in a `useEffect` dep array — prevents the effect from re-running on every render
-- `useCallback` whose result is in a `useMemo` dep array — prevents the memo from recomputing on every render
-- `useCallback` whose result is a dep of another `useCallback` — stabilises a callback chain
-- `useCallback` passed to a `React.memo`-wrapped child — the whole point of the pattern
+- Any `useCallback` with an observer from the list above
 - This codebase's ref pattern: `useRef` + callback with empty deps that reads the ref inside — correct, do not flag:
 
 ```tsx

@@ -116,6 +116,8 @@ Some icons have uneven visual weight. The best fix is adjusting the SVG directly
 
 ## Shadows Instead of Borders
 
+> In this repo, use the `shadow-subtle`/`shadow-medium`/`shadow-overlay`/`shadow-card` tokens for elevation and keep neutral edges as `--border` borders (`.claude/rules/sim-styling.md`, Line weight); do not replace them with `0 0 0 1px` shadow rings. The pattern below is for projects without that token system.
+
 For **buttons, cards, and containers** that use a border for depth or elevation, prefer replacing it with a subtle `box-shadow`. Shadows adapt to any background since they use transparency; solid borders don't. This also helps when using images or multiple colors as backgrounds — solid border colors don't work well on backgrounds other than the ones they were designed for.
 
 **Do not apply this to dividers** (`border-b`, `border-t`, side borders) or any border whose purpose is layout separation rather than element depth. Those should stay as borders.
@@ -179,12 +181,11 @@ Apply the variable and add `transition-[box-shadow]` for a smooth hover:
 
 Add a subtle `1px` outline with low opacity to images. This creates consistent depth, especially in design systems where other elements use borders or shadows.
 
-### Color rules (non-negotiable)
+### Color
 
-- **Light mode**: pure black — `rgba(0, 0, 0, 0.1)`. Exact values: R=0, G=0, B=0.
-- **Dark mode**: pure white — `rgba(255, 255, 255, 0.1)`. Exact values: R=255, G=255, B=255.
-- Never use a near-black or near-white from the project palette (e.g. slate-900, zinc-900, `#0a0a0a`, `#111827`, `#f5f5f7`). Tinted outlines pick up the surrounding surface color and read as dirt on the image edge.
-- Never match the outline to the project's accent or ink color. The outline is a neutral separator, not a themed element.
+- **Light mode**: pure black — `rgba(0, 0, 0, 0.1)`.
+- **Dark mode**: pure white — `rgba(255, 255, 255, 0.1)`.
+- Tinted neutrals (slate-900, zinc-900, `#0a0a0a`, `#f5f5f7`) and accent/ink colors pick up the surrounding surface color and read as dirt on the image edge; the outline is a neutral separator, not a themed element.
 
 ### Light Mode
 

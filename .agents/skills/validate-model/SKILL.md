@@ -43,27 +43,7 @@ If a fetch fails (404, timeout, paywall), record the URL attempted and mark depe
 
 ## Step 3: Build the consumption map for this provider
 
-Re-grep before trusting the snapshot below:
-
-```bash
-rg "reasoningEffort|reasoning_effort" apps/sim/providers/<provider>/
-rg "verbosity" apps/sim/providers/<provider>/
-rg "request\.thinking|thinking:" apps/sim/providers/<provider>/
-rg "supportsNativeStructuredOutputs|nativeStructuredOutputs" apps/sim/providers/<provider>/
-```
-
-Snapshot (verify before relying):
-
-| Capability | Consumed by |
-|---|---|
-| `reasoningEffort` | `openai/core.ts`, `azure-openai`, `anthropic/core.ts` (mapped via thinking), `gemini/core.ts` |
-| `verbosity` | `openai/core.ts`, `azure-openai/index.ts` |
-| `thinking` | `anthropic/core.ts`, `gemini/core.ts` |
-| `nativeStructuredOutputs` | `anthropic/core.ts`, `fireworks/index.ts`, `openrouter/index.ts` |
-| `computerUse` | `anthropic/core.ts` |
-| `temperature` | All providers (passthrough) |
-
-A flag set in `models.ts` but not in the consumption list for this provider = **warning: dead flag**.
+Use the Consumption Matrix in `.agents/skills/add-model/SKILL.md` Step 2 and run its re-grep commands for the target provider before relying on it. A flag set in `models.ts` that the provider's code does not read = **warning: dead flag**.
 
 ## Step 4: Run the checklist
 
@@ -90,7 +70,7 @@ For each model, evaluate every row. Statuses: ✓ matches docs, ✗ disagrees, �
 - [ ] `verbosity.values` — only on OpenAI gpt-5.x family; values match docs
 - [ ] `thinking.levels` + `thinking.default` — only on Anthropic/Gemini; values match docs
 - [ ] `thinking.streamed` — REQUIRED on Anthropic-family thinking models (`'full'` for generations returning full thinking deltas, `'summary'` for omitted-display generations like Opus 4.7+/Sonnet 5/Fable 5 where Sim requests `display: 'summarized'`); verify against the provider's thinking-display docs. After any change, run `bun run agent-stream-docs:generate` so the Agent block docs table stays in sync (CI diffs it)
-- [ ] `nativeStructuredOutputs` — only on anthropic/fireworks/openrouter; provider must document Structured Outputs / JSON-mode for this model
+- [ ] `nativeStructuredOutputs` — only on providers whose code consumes it (see the Consumption Matrix); provider must document Structured Outputs / JSON-mode for this model
 - [ ] `toolUsageControl` — provider supports `tool_choice` semantics
 - [ ] `computerUse` — provider implements computer-use loop AND model is a computer-use SKU
 - [ ] `deepResearch` — only on actual deep-research SKUs
@@ -101,7 +81,7 @@ For each model, evaluate every row. Statuses: ✓ matches docs, ✗ disagrees, �
 - [ ] `speedOptimized: true` — only on smallest/fastest tier (nano / flash-lite / haiku class)
 
 ### Hosting / billing
-- [ ] If the model is under `openai`/`anthropic`/`google`, it is automatically in `getHostedModels()` → served with Sim's rotating key and billed via `shouldBillModelUsage()`. Confirm that is the intent (a BYOK-only model parked under one of these providers is a billing bug — warning).
+- [ ] If `getHostedModels()` includes the model ID (`providers/models.ts` expands whole providers — more than openai/anthropic/google — plus the static Fireworks catalog), the model is served with Sim's rotating key and billed via `shouldBillModelUsage()`. Confirm that is the intent (a BYOK-only model parked under a hosted provider is a billing bug — warning).
 - [ ] If the model is hosted, the deployment is expected to have its `{PREFIX}_COUNT` / `{PREFIX}_1..N` env vars set (ops concern; note if it looks unset for a model claiming hosted support).
 
 ## Step 5: Report (mandatory format)
@@ -148,17 +128,9 @@ After reporting, ask: *"Want me to fix the critical and warning items? I'll prin
 - 🔵 **suggestion** — style/consistency. Examples: field order, missing `speedOptimized` on a clearly smallest-tier model.
 - ❓ **unverified** — could not fetch an authoritative source for this field. Surface it; never silently confirm.
 
-## Common bugs this skill catches
+## Common drift
 
-- Pricing drift after a provider price cut (very common — providers cut quarterly)
-- `reasoningEffort` set on always-reasoning models that reject the parameter (grok-4.3, o3-pro pattern)
-- `nativeStructuredOutputs` set on providers that don't consume the flag (dead)
-- `thinking` set on non-Anthropic/non-Gemini providers
-- `verbosity` set on non-gpt-5.x models
-- Wrong context window (e.g., 128k claimed vs 200k actual)
-- Stale `pricing.updatedAt`
-- Multiple `recommended: true` per provider after a flagship swap
-- Missing `deprecated: true` on retired models (e.g., the xAI batch retiring May 15, 2026)
+Pricing changes after provider price cuts; `reasoningEffort`/`thinking`/`verbosity` set on a model whose provider code or API does not accept them; stale `pricing.updatedAt`; wrong context window; more than one `recommended` after a flagship swap; missing `deprecated: true` after a provider retirement announcement.
 
 ## What "I cannot verify this" looks like
 

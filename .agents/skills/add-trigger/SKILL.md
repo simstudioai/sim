@@ -218,7 +218,7 @@ If none apply, you don't need a handler. The default handler provides bearer tok
 ```typescript
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@/lib/core/security/encryption'
+import { safeCompare } from '@sim/security/compare'
 import type { EventMatchContext, FormatInputContext, FormatInputResult, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
@@ -252,7 +252,7 @@ export const {service}Handler: WebhookProviderHandler = {
     return {
       input: {
         eventType: b.type,
-        resourceId: (b.data as Record<string, unknown>)?.id || '',
+        resourceId: (b.data as Record<string, unknown>)?.id ?? null,
         resource: b.data,
       },
     }
@@ -460,10 +460,16 @@ Add to `helm/sim/values.yaml` under the existing polling cron jobs:
 
 ```yaml
 {service}WebhookPoll:
+  enabled: true
+  name: {service}-webhook-poll
   schedule: "*/1 * * * *"
+  path: "/api/webhooks/poll/{service}"
   concurrencyPolicy: Forbid
-  url: "http://sim:3000/api/webhooks/poll/{service}"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
 ```
+
+Mirror the existing `rssWebhookPoll` entry.
 
 ### Reference Implementations
 
@@ -490,8 +496,10 @@ through `selectors.execute`; never add a client provider module or selector-only
 `canonicalParamId: 'oauthCredential'` on the credential sub-block is the line people forget. The
 shared context builder uses trigger mode and projects only active `dependsOn` values under their
 canonical ids. Exact `{{KEY}}` environment references remain unresolved until the authorized server
-executor. A credential field is also recognized by its `oauth-input` type as a compatibility
-fallback.
+executor. The builder does not infer a credential from `type: 'oauth-input'`; only the legacy ids
+`credential` / `botCredential` / `customBotCredential` / `manualBotCredential` are aliased. Give the
+field `canonicalParamId: 'oauthCredential'`, or declare a manifest `sourceFields` alias when a
+legacy source id must be retained.
 
 **`options` — everything else.** A static array, or a pure function of the block's own values for a list that narrows to a sibling's selection. No I/O.
 
@@ -516,7 +524,8 @@ Webhook and polling routes are legitimate external ingress boundaries. They must
 Sim app's own API routes to reuse provider or business logic. Extract the shared provider operation
 or authorized application use case and call it directly from the trigger handler and any other
 server adapter. HTTP is reserved for an actual cross-process/capability boundary. Tool work uses a
-registered `InternalToolConfig.operation`; the retired `directExecution` property must not return.
+registered `InternalToolConfig.operation`; a `directExecution` property fails
+`bun run check:tool-request-boundary`.
 
 ### Trigger Definition
 - [ ] Created `utils.ts` with options, instructions, extra fields, and output builders
