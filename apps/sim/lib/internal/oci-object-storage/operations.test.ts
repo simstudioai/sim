@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   assertToolFileAccess: vi.fn(),
   processSingleFile: vi.fn(),
   downloadServableFile: vi.fn(),
+  attempts: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/shared/types', () => ({ MAX_BUFFERED_TRANSFER_BYTES: 5 }))
@@ -28,9 +29,12 @@ vi.mock('@/lib/credentials/oci-object-storage-service-account', () => ({
 vi.mock('@/lib/internal/oci-object-storage/client', () => ({
   withOciObjectStorageClient: async (
     _secret: unknown,
-    _attempts: number,
+    attempts: number,
     execute: (client: { send: typeof mocks.send }) => Promise<unknown>
-  ) => execute({ send: mocks.send }),
+  ) => {
+    mocks.attempts(attempts)
+    return execute({ send: mocks.send })
+  },
   sendOciListBuckets: (client: { send: typeof mocks.send }, signal?: AbortSignal) =>
     client.send(new ListBucketsCommand({}), { abortSignal: signal }),
 }))
@@ -140,6 +144,7 @@ describe('OCI Object Storage operations', () => {
       isTruncated: true,
       nextContinuationToken: 'opaque-next+/=',
     })
+    expect(mocks.attempts).toHaveBeenCalledWith(3)
   })
 
   it('rejects parseable but semantically malformed object listings', async () => {
@@ -202,6 +207,22 @@ describe('OCI Object Storage operations', () => {
       ContentType: 'application/custom',
     })
     expect(result.output).toMatchObject({ size: 5, etag: '"etag"' })
+    expect(mocks.attempts).toHaveBeenCalledWith(1)
+  })
+
+  it('rejects a file-backed upload without an actor before resolving or reading the file', async () => {
+    const file = { name: 'report.txt', key: 'workspace/file-1', size: 5, type: 'text/plain' }
+
+    await expect(
+      executeOciObjectStorageUploadObject(
+        { ...object, file: file as never },
+        { requestId: 'request-1' }
+      )
+    ).rejects.toMatchObject({ status: 401, message: 'Authentication required' })
+    expect(mocks.processSingleFile).not.toHaveBeenCalled()
+    expect(mocks.assertToolFileAccess).not.toHaveBeenCalled()
+    expect(mocks.downloadServableFile).not.toHaveBeenCalled()
+    expect(mocks.send).not.toHaveBeenCalled()
   })
 
   it('does not send an upload when the authorized file exceeds the limit while reading', async () => {
@@ -328,5 +349,6 @@ describe('OCI Object Storage operations', () => {
     })
     expect(mocks.send.mock.calls[0]?.[0]).toBeInstanceOf(DeleteObjectCommand)
     expect(mocks.send.mock.calls[0]?.[1]).toEqual({ abortSignal: controller.signal })
+    expect(mocks.attempts).toHaveBeenCalledWith(1)
   })
 })

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { S3Client } from '@aws-sdk/client-s3'
+import { ListBucketsCommand, S3Client } from '@aws-sdk/client-s3'
 import { credential } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -64,6 +64,7 @@ describe('OCI Object Storage service-account credential', () => {
       ownerDisplayName: 'Storage Automation',
     })
     expect(send).toHaveBeenCalledOnce()
+    expect(send.mock.calls[0]?.[0]).toBeInstanceOf(ListBucketsCommand)
   })
 
   it('returns a bounded validation error without echoing rejected secret material', async () => {

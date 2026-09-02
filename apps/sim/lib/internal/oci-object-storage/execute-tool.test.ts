@@ -11,7 +11,13 @@ const mocks = vi.hoisted(() => ({
   downloadObject: vi.fn(),
   headObject: vi.fn(),
   deleteObject: vi.fn(),
+  logger: {
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
 }))
+
+vi.mock('@sim/logger', () => ({ createLogger: () => mocks.logger }))
 
 vi.mock('@/lib/internal/oci-object-storage/operations', () => ({
   executeOciObjectStorageListBuckets: mocks.listBuckets,
@@ -60,6 +66,36 @@ describe('OCI Object Storage tool execution boundary', () => {
       expect(response.status).toBe(status)
       expect(body.error).toContain(text)
       expect(JSON.stringify(body)).not.toContain('secret-key-canary')
+      if (status >= 500) {
+        expect(mocks.logger.error).toHaveBeenCalledOnce()
+        expect(mocks.logger.warn).not.toHaveBeenCalled()
+      } else {
+        expect(mocks.logger.warn).toHaveBeenCalledOnce()
+        expect(mocks.logger.error).not.toHaveBeenCalled()
+      }
+    }
+  )
+
+  it.each([null, undefined])(
+    'sanitizes an upstream %s rejection without throwing from the error boundary',
+    async (providerError) => {
+      mocks.headObject.mockRejectedValueOnce(providerError)
+
+      const response = await executeOciObjectStorageTool(
+        request('oci_object_storage_head_object', {
+          credentialId: 'credential-1',
+          bucketName: 'documents',
+          objectKey: 'missing.txt',
+        })
+      )
+
+      expect(response.status).toBe(500)
+      await expect(response.json()).resolves.toEqual({
+        success: false,
+        error: 'Oracle Object Storage request failed',
+      })
+      expect(mocks.logger.error).toHaveBeenCalledOnce()
+      expect(mocks.logger.warn).not.toHaveBeenCalled()
     }
   )
 
@@ -126,7 +162,28 @@ describe('OCI Object Storage tool execution boundary', () => {
     expect(mocks.headObject).toHaveBeenCalledOnce()
   })
 
-  it('requires an authenticated user before resolving an upload file', async () => {
+  it.each([null, '', '   '])(
+    'applies the maxKeys default to a blank value (%s)',
+    async (maxKeys) => {
+      mocks.listObjects.mockResolvedValue({ success: true, output: {} })
+      const response = await executeOciObjectStorageTool(
+        request('oci_object_storage_list_objects', {
+          credentialId: 'credential-1',
+          bucketName: 'documents',
+          maxKeys,
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(mocks.listObjects).toHaveBeenCalledWith(
+        expect.objectContaining({ maxKeys: 100 }),
+        undefined
+      )
+    }
+  )
+
+  it('allows an inline upload without a user actor', async () => {
+    mocks.uploadObject.mockResolvedValue({ success: true, output: { size: 5 } })
     const response = await executeOciObjectStorageTool({
       ...request('oci_object_storage_upload_object', {
         credentialId: 'credential-1',
@@ -137,7 +194,40 @@ describe('OCI Object Storage tool execution boundary', () => {
       context: {},
     })
 
-    expect(response.status).toBe(401)
-    expect(mocks.uploadObject).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(mocks.uploadObject).toHaveBeenCalledWith(
+      expect.objectContaining({ content: 'hello' }),
+      expect.objectContaining({ userId: undefined, requestId: 'request-1' })
+    )
+  })
+
+  it('uses the trusted delegated subject for file-backed uploads', async () => {
+    mocks.uploadObject.mockResolvedValue({ success: true, output: { size: 5 } })
+    const response = await executeOciObjectStorageTool({
+      ...request('oci_object_storage_upload_object', {
+        credentialId: 'credential-1',
+        bucketName: 'documents',
+        objectKey: 'report.txt',
+        file: {
+          name: 'report.txt',
+          key: 'workspace/file-1',
+          size: 5,
+          type: 'text/plain',
+        },
+      }),
+      context: {
+        executorDelegationOrigin: {
+          subjectUserId: 'user-origin',
+          workflowId: 'workflow-origin',
+          executionId: 'execution-origin',
+        },
+      },
+    })
+
+    expect(response.status).toBe(200)
+    expect(mocks.uploadObject).toHaveBeenCalledWith(
+      expect.objectContaining({ file: expect.objectContaining({ key: 'workspace/file-1' }) }),
+      expect.objectContaining({ userId: 'user-origin', requestId: 'request-1' })
+    )
   })
 })

@@ -33,7 +33,7 @@ import { assertToolFileAccess } from '@/app/api/files/authorization'
 const logger = createLogger('OciObjectStorageOperations')
 
 export interface OciObjectStorageOperationContext {
-  userId: string
+  userId?: string
   requestId: string
   signal?: AbortSignal
 }
@@ -134,6 +134,9 @@ async function resolveUploadBody(
   context: OciObjectStorageOperationContext
 ): Promise<{ body: Buffer; contentType: string }> {
   if (input.file) {
+    if (!context.userId) {
+      throw new OciObjectStorageOperationError('Authentication required', 401)
+    }
     let userFile
     try {
       userFile = processSingleFileToUserFile(input.file, context.requestId, logger)

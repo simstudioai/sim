@@ -659,6 +659,7 @@ function OciObjectStorageServiceAccountModal({
     if (isDisabled) return
     try {
       const trimmedDisplayName = displayName.trim()
+      const trimmedDescription = description.trim()
       const submittedDisplayName =
         credentialId && trimmedDisplayName === (initialDisplayName ?? '').trim()
           ? undefined
@@ -669,17 +670,21 @@ function OciObjectStorageServiceAccountModal({
         namespace: normalizedNamespace,
         region: normalizedRegion,
         displayName: submittedDisplayName,
-        description: description.trim() || undefined,
       }
       let connectedCredentialId = credentialId
       if (credentialId) {
-        await updateCredential.mutateAsync({ credentialId, ...secretFields })
+        await updateCredential.mutateAsync({
+          credentialId,
+          ...secretFields,
+          description: trimmedDescription || null,
+        })
       } else {
         const created = await createCredential.mutateAsync({
           workspaceId,
           type: 'service_account',
           providerId: OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_PROVIDER_ID,
           ...secretFields,
+          description: trimmedDescription || undefined,
         })
         connectedCredentialId = created.credential.id
       }

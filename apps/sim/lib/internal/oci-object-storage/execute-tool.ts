@@ -48,12 +48,8 @@ async function dispatch(request: InternalToolOperationCall): Promise<unknown> {
     case 'oci_object_storage_upload_object': {
       const parsed = ociObjectStorageUploadObjectInputSchema.safeParse(request.input)
       if (!parsed.success) return invalidInput(parsed.error)
-      const userId = request.context.userId
-      if (!userId) {
-        return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })
-      }
       const context: OciObjectStorageOperationContext = {
-        userId,
+        userId: request.context.executorDelegationOrigin?.subjectUserId ?? request.context.userId,
         requestId: request.requestId,
         signal: request.signal,
       }
@@ -92,11 +88,16 @@ export const executeOciObjectStorageTool: InternalToolOperationHandler = async (
   } catch (error) {
     request.signal?.throwIfAborted()
     const normalized = normalizeOciObjectStorageError(error)
-    logger.warn('OCI Object Storage operation failed', {
+    const logContext = {
       requestId: request.requestId,
       toolId: request.toolId,
       status: normalized.status,
-    })
+    }
+    if (normalized.status >= 500) {
+      logger.error('OCI Object Storage operation failed', logContext)
+    } else {
+      logger.warn('OCI Object Storage operation failed', logContext)
+    }
     return Response.json(
       { success: false, error: normalized.message },
       { status: normalized.status }

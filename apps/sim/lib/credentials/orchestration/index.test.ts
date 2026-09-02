@@ -294,7 +294,7 @@ describe('performUpdateCredential — service-account secret rotation', () => {
       auditMetadata: { ociNamespace: 'namespace2', ociRegion: 'us-phoenix-1' },
     })
 
-    await performUpdateCredential({
+    const result = await performUpdateCredential({
       credentialId: 'cred-1',
       userId: 'user-1',
       accessKeyId: 'new-access',
@@ -303,7 +303,10 @@ describe('performUpdateCredential — service-account secret rotation', () => {
       region: 'us-phoenix-1',
     })
 
+    expect(result.success).toBe(true)
+    expect(updatePayload().encryptedServiceAccountKey).toBe('new-oci-cipher')
     expect(updatePayload()).not.toHaveProperty('displayName')
+    expect(result.updatedFields).not.toContain('displayName')
   })
 
   it('re-labels a Slack custom bot that still carries its previous team name', async () => {

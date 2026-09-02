@@ -9,6 +9,9 @@ export const OCI_CONTINUATION_TOKEN_MAX_LENGTH = 1_024
 const OCI_BUCKET_NAME_PATTERN = /^[A-Za-z0-9._-]+$/
 const OCI_UNSAFE_OBJECT_TEXT_PATTERN = /[\u0000\r\n]/
 
+const optionalNumberInput = (value: unknown) =>
+  value === null || (typeof value === 'string' && value.trim() === '') ? undefined : value
+
 export function isValidOciBucketName(value: string): boolean {
   return (
     value.length >= 1 &&
@@ -58,7 +61,10 @@ export const ociObjectStorageListObjectsInputSchema = z
     bucketName,
     prefix: optionalObjectPrefix,
     delimiter: z.literal('/').optional(),
-    maxKeys: z.coerce.number().int().min(1).max(1_000).default(100),
+    maxKeys: z.preprocess(
+      optionalNumberInput,
+      z.coerce.number().int().min(1).max(1_000).default(100)
+    ),
     startAfter: objectKey.optional(),
     continuationToken: z.string().min(1).max(OCI_CONTINUATION_TOKEN_MAX_LENGTH).optional(),
   })

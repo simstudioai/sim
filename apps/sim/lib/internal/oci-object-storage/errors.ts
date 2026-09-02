@@ -11,8 +11,8 @@ export class OciObjectStorageOperationError extends Error {
 }
 
 function providerStatus(error: unknown): number | undefined {
-  const metadata = error as { $metadata?: { httpStatusCode?: number } }
-  return metadata.$metadata?.httpStatusCode
+  const metadata = error as { $metadata?: { httpStatusCode?: number } } | null | undefined
+  return metadata?.$metadata?.httpStatusCode
 }
 
 export function normalizeOciObjectStorageError(error: unknown): OciObjectStorageOperationError {
