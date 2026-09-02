@@ -318,6 +318,43 @@ describe('knowledge search application use case', () => {
     })
   })
 
+  /**
+   * The provenance snapshot vouches for the name, URL, and tags; the source
+   * card's modified time and connector type only come from the access-filtered
+   * metadata read, which a provenance-bearing search must therefore still make.
+   */
+  it('keeps the source card metadata when a provenance registry is present', async () => {
+    const registry = { markIncomplete: vi.fn() }
+    const sourceModifiedAt = new Date('2026-08-20T12:00:00Z')
+    mocks.getDocumentMetadata.mockResolvedValueOnce({
+      'document-1': {
+        filename: 'guide.pdf',
+        sourceUrl: 'https://example.com/guide',
+        sourceModifiedAt,
+        connectorType: 'google_drive',
+      },
+    })
+
+    const result = await searchKnowledge.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        workspaceId: 'workspace-1',
+        knowledgeBaseIds: ['knowledge-1'],
+        query: 'answer',
+        topK: 5,
+        resultSecretRegistry: registry as never,
+      },
+    })
+
+    expect(mocks.getDocumentMetadata).toHaveBeenCalledWith(['document-1'], expect.anything())
+    expect(result.results[0]).toMatchObject({
+      documentName: 'guide.pdf',
+      sourceUrl: 'https://example.com/guide',
+      sourceModifiedAt,
+      connectorType: 'google_drive',
+    })
+  })
+
   describe('reranker outcome reporting', () => {
     const rerankedSearch = (rerankerEnabled?: boolean, query: string | undefined = 'answer') =>
       searchKnowledge.execute({

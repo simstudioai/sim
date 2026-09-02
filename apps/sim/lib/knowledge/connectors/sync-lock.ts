@@ -206,6 +206,16 @@ export function createContentSyncLease(connectorId: string, syncLogId: string): 
 }
 
 /**
+ * The connector statuses a members-mode run may be queued from or take its
+ * lease in. The same reasoning as {@link LOCKABLE_CONNECTOR_STATUSES}: the
+ * queue outlives the decision to sync, so a connector paused after its member
+ * run was dispatched still had a task in flight, and a lease CAS that ignored
+ * `status` let that task crawl a paused connector. `pending` is absent because
+ * the member lease never coexists with the content queue's entry.
+ */
+export const MEMBER_LOCKABLE_CONNECTOR_STATUSES = ['active', 'error'] as const
+
+/**
  * Ownership only, for the members-mode lease: this run still holds the
  * member-sync lock, whether or not the connector is still live. The member
  * engine keeps its own lease columns so neither engine can ever misread the

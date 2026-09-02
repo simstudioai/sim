@@ -113,10 +113,17 @@ export const MEMBER_SYNC_SOFT_BUDGET_SECONDS = 2700
 export const MEMBER_SYNC_STALE_LOCK_TTL_MS = MEMBER_SYNC_MAX_DURATION_SECONDS * 2 * 1000
 
 /**
- * Pages one member's listing may consume in one run. A member whose corpus
- * exceeds it is recorded as incomplete — additions are kept, removals are
- * withheld — and retried without back-off, so a single huge member can never
- * monopolise a run or silently lose access.
+ * Pages one member's change-feed pass may consume in one run. The feed's
+ * cursor is stored past every page read, so a pass the cap stops is recorded
+ * as incomplete — additions are kept, removals are withheld — and the next
+ * run continues from where it left off; a single huge feed can never
+ * monopolise a run or lose a change.
+ *
+ * Deliberately not applied to a listing pass, which has no cursor to resume
+ * from: capping it would relist the same first pages every run and never
+ * grant access to the documents behind them. A listing is bounded by the run
+ * deadline instead, and a member no run can finish alone backs off through
+ * `exhaustedRunAlone`.
  */
 export const MEMBER_SYNC_MAX_PAGES_PER_MEMBER = 200
 

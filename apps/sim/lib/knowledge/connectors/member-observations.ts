@@ -26,7 +26,11 @@ import {
   MEMBER_PURGE_MAX_PER_RUN,
   MEMBER_TOMBSTONE_PURGE_DAYS,
 } from '@/lib/knowledge/connectors/sync-limits'
-import type { SyncRunLease } from '@/lib/knowledge/connectors/sync-lock'
+import {
+  connectorIsLive,
+  MEMBER_LOCKABLE_CONNECTOR_STATUSES,
+  type SyncRunLease,
+} from '@/lib/knowledge/connectors/sync-lock'
 import {
   type ConnectorSyncDeletionGuard,
   hardDeleteDocuments,
@@ -364,6 +368,30 @@ export interface StaleMemberSweepResult {
   docsTombstoned: number
 }
 
+/** How long a member's crawls may be silent before the sweep treats them as gone: `max(24 h, 2 × interval)`. */
+export function staleMemberWindowMs(syncIntervalMinutes: number): number {
+  return Math.max(
+    MEMBER_OBSERVATION_STALE_AFTER_HOURS * 60 * 60 * 1000,
+    2 * syncIntervalMinutes * 60 * 1000
+  )
+}
+
+/** The staleness a member is re-checked against once its row is locked; the same clock as the selection. */
+function memberStillStale(memberId: string, cutoff: Date) {
+  return and(
+    eq(knowledgeConnectorMember.id, memberId),
+    eq(knowledgeConnectorMember.status, 'active'),
+    or(
+      isNull(knowledgeConnectorMember.lastStartedAt),
+      lt(knowledgeConnectorMember.lastStartedAt, cutoff)
+    ),
+    or(
+      isNull(knowledgeConnectorMember.lastCompleteListingAt),
+      lt(knowledgeConnectorMember.lastCompleteListingAt, cutoff)
+    )
+  )
+}
+
 /**
  * Removes the observations of members whose crawls have stopped, so the
  * documents only they observed go dark instead of staying readable forever.
@@ -379,6 +407,14 @@ export interface StaleMemberSweepResult {
  * `MEMBER_SUSPENDED_PURGE_DAYS`. The member row survives; the next run that
  * lists for them rebuilds their observations. Purging is left to a run holding
  * the lease.
+ *
+ * Each member is swept in one transaction that first shares the connector row
+ * — which a member run holds `FOR UPDATE` while it writes and a mode switch
+ * updates when it flips — and then locks the member row, which `claimNextMember`
+ * skips while locked. Both are re-checked under those locks, so a run that
+ * claimed the member after the selection, or a switch that left members mode,
+ * makes the sweep skip rather than delete observations a run just wrote or
+ * rewrite ACLs the switch just set.
  */
 export async function sweepStaleMemberObservations(now: Date): Promise<StaleMemberSweepResult> {
   const staleWindow = sql`GREATEST(
@@ -390,6 +426,7 @@ export async function sweepStaleMemberObservations(now: Date): Promise<StaleMemb
     .select({
       id: knowledgeConnectorMember.id,
       connectorId: knowledgeConnectorMember.connectorId,
+      syncIntervalMinutes: knowledgeConnector.syncIntervalMinutes,
     })
     .from(knowledgeConnectorMember)
     .innerJoin(knowledgeConnector, eq(knowledgeConnector.id, knowledgeConnectorMember.connectorId))
@@ -397,10 +434,9 @@ export async function sweepStaleMemberObservations(now: Date): Promise<StaleMemb
       and(
         eq(knowledgeConnector.accessMode, 'members'),
         /** Only a connector that is meant to be crawling can have stopped crawling. */
-        inArray(knowledgeConnector.status, ['active', 'error']),
+        inArray(knowledgeConnector.status, MEMBER_LOCKABLE_CONNECTOR_STATUSES),
         gt(knowledgeConnector.syncIntervalMinutes, 0),
-        isNull(knowledgeConnector.archivedAt),
-        isNull(knowledgeConnector.deletedAt),
+        connectorIsLive(),
         /**
          * Only a connector that is still completing runs can have left a member
          * behind; one that is deferred, disabled, or backing off keeps every
@@ -429,36 +465,69 @@ export async function sweepStaleMemberObservations(now: Date): Promise<StaleMemb
     .limit(STALE_MEMBER_SWEEP_LIMIT)
 
   const result: StaleMemberSweepResult = {
-    members: staleMembers.length,
+    members: 0,
     observationsRemoved: 0,
     documentsRematerialized: 0,
     docsTombstoned: 0,
   }
   for (const member of staleMembers) {
-    const removed = await db
-      .delete(knowledgeDocumentObservation)
-      .where(eq(knowledgeDocumentObservation.memberId, member.id))
-      .returning({ documentId: knowledgeDocumentObservation.documentId })
-    const documentIds = removed.map((row) => row.documentId)
-    result.observationsRemoved += documentIds.length
-    result.documentsRematerialized += await materializeDocumentAcls(member.connectorId, documentIds)
-    if (documentIds.length > 0) {
-      const tombstoned = await db
-        .update(document)
-        .set({ deletedAt: now })
+    const memberCutoff = new Date(now.getTime() - staleMemberWindowMs(member.syncIntervalMinutes))
+    const swept = await db.transaction(async (tx) => {
+      const [connector] = await tx
+        .select({ id: knowledgeConnector.id })
+        .from(knowledgeConnector)
         .where(
           and(
-            inArray(document.id, documentIds),
-            eq(document.connectorId, member.connectorId),
-            eq(document.userExcluded, false),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt),
-            hasNoObservation()
+            eq(knowledgeConnector.id, member.connectorId),
+            eq(knowledgeConnector.accessMode, 'members'),
+            inArray(knowledgeConnector.status, MEMBER_LOCKABLE_CONNECTOR_STATUSES),
+            ne(knowledgeConnector.memberSyncStatus, 'disabled'),
+            connectorIsLive()
           )
         )
-        .returning({ id: document.id })
-      result.docsTombstoned += tombstoned.length
-    }
+        .for('share')
+      if (!connector) return null
+      const [stale] = await tx
+        .select({ id: knowledgeConnectorMember.id })
+        .from(knowledgeConnectorMember)
+        .where(memberStillStale(member.id, memberCutoff))
+        .for('update')
+      if (!stale) return null
+
+      const removed = await tx
+        .delete(knowledgeDocumentObservation)
+        .where(eq(knowledgeDocumentObservation.memberId, member.id))
+        .returning({ documentId: knowledgeDocumentObservation.documentId })
+      const documentIds = removed.map((row) => row.documentId)
+      const rematerialized = await materializeDocumentAcls(member.connectorId, documentIds, tx)
+      const tombstoned =
+        documentIds.length === 0
+          ? []
+          : await tx
+              .update(document)
+              .set({ deletedAt: now })
+              .where(
+                and(
+                  inArray(document.id, documentIds),
+                  eq(document.connectorId, member.connectorId),
+                  eq(document.userExcluded, false),
+                  isNull(document.archivedAt),
+                  isNull(document.deletedAt),
+                  hasNoObservation()
+                )
+              )
+              .returning({ id: document.id })
+      return {
+        observationsRemoved: documentIds.length,
+        documentsRematerialized: rematerialized,
+        docsTombstoned: tombstoned.length,
+      }
+    })
+    if (!swept) continue
+    result.members += 1
+    result.observationsRemoved += swept.observationsRemoved
+    result.documentsRematerialized += swept.documentsRematerialized
+    result.docsTombstoned += swept.docsTombstoned
   }
   return result
 }

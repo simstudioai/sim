@@ -4,14 +4,24 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteMemberSync, mockIsTriggerAvailable, mockTrigger, mockResolveRegion } =
-  vi.hoisted(() => ({
-    mockExecuteMemberSync: vi.fn(),
-    mockIsTriggerAvailable: vi.fn(),
-    mockTrigger: vi.fn(),
-    mockResolveRegion: vi.fn(),
-  }))
+const {
+  mockExecuteMemberSync,
+  mockIsTriggerAvailable,
+  mockTrigger,
+  mockResolveRegion,
+  mockResolveSystemBilling,
+} = vi.hoisted(() => ({
+  mockExecuteMemberSync: vi.fn(),
+  mockIsTriggerAvailable: vi.fn(),
+  mockTrigger: vi.fn(),
+  mockResolveRegion: vi.fn(),
+  mockResolveSystemBilling: vi.fn(),
+}))
 
+vi.mock('@/lib/billing/core/billing-attribution', () => ({
+  assertBillingAttributionSnapshot: (value: unknown) => value,
+  resolveSystemBillingAttribution: mockResolveSystemBilling,
+}))
 vi.mock('@/lib/knowledge/connectors/member-sync-engine', () => ({
   executeMemberSync: mockExecuteMemberSync,
 }))
@@ -24,9 +34,11 @@ vi.mock('@trigger.dev/sdk', () => ({
 }))
 vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: mockResolveRegion }))
 
+import { eq, inArray } from 'drizzle-orm'
 import {
   assertMemberSyncPayload,
   dispatchMemberSync,
+  dispatchMemberSyncsForCredentialOption,
   MEMBER_SYNC_TASK_ID,
 } from '@/lib/knowledge/connectors/member-queue'
 
@@ -186,6 +198,7 @@ describe('member sync queue', () => {
       queueTableRows(schemaMock.knowledgeConnector, [
         {
           accessMode: 'members',
+          status: 'active',
           memberSyncStatus: 'idle',
           syncLockToken: 'content-run',
           archivedAt: null,
@@ -208,6 +221,99 @@ describe('member sync queue', () => {
       await expect(
         dispatchMemberSync('c-1', { billingAttribution: BILLING, requestId: 'r-1' })
       ).rejects.toThrow('does not match connector workspace ws-2')
+    })
+
+    /**
+     * The guards above the CAS read the row once; a pause or a schedule change
+     * that lands after that read is only visible to the CAS itself.
+     */
+    it('decides the connector status and the schedule inside the queue CAS', async () => {
+      const expected = new Date('2026-09-01T06:00:00Z')
+      queueTableRows(schemaMock.knowledgeConnector, [
+        { ...CONNECTOR_ROW, nextMemberSyncAt: expected },
+      ])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+
+      await expect(
+        dispatchMemberSync('c-1', {
+          billingAttribution: BILLING,
+          requestId: 'r-1',
+          requireRunnable: true,
+          expectedNextMemberSyncAt: expected,
+        })
+      ).resolves.toEqual({ queued: true })
+
+      expect(vi.mocked(inArray)).toHaveBeenCalledWith(schemaMock.knowledgeConnector.status, [
+        'active',
+        'error',
+      ])
+      expect(vi.mocked(eq)).toHaveBeenCalledWith(
+        schemaMock.knowledgeConnector.nextMemberSyncAt,
+        expected
+      )
+    })
+
+    it.each([
+      [
+        'a connector paused after the read',
+        { status: 'paused', nextMemberSyncAt: new Date('2026-09-01T06:00:00Z') },
+        'Connector is paused and is not synced',
+      ],
+      [
+        'a schedule that moved after the read',
+        { status: 'active', nextMemberSyncAt: new Date('2026-09-01T07:00:00Z') },
+        'The member sync schedule changed after this run was scheduled',
+      ],
+    ])('explains a queue entry refused for %s', async (_name, current, reason) => {
+      const expected = new Date('2026-09-01T06:00:00Z')
+      queueTableRows(schemaMock.knowledgeConnector, [
+        { ...CONNECTOR_ROW, nextMemberSyncAt: expected },
+      ])
+      dbChainMockFns.returning.mockResolvedValueOnce([])
+      queueTableRows(schemaMock.knowledgeConnector, [
+        {
+          accessMode: 'members',
+          memberSyncStatus: 'idle',
+          syncLockToken: null,
+          archivedAt: null,
+          deletedAt: null,
+          ...current,
+        },
+      ])
+
+      await expect(
+        dispatchMemberSync('c-1', {
+          billingAttribution: BILLING,
+          requestId: 'r-1',
+          requireRunnable: true,
+          expectedNextMemberSyncAt: expected,
+        })
+      ).resolves.toEqual({ queued: false, reason })
+      expect(mockTrigger).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('dispatchMemberSyncsForCredentialOption', () => {
+    it('keeps dispatching the remaining connectors when one hand-off throws', async () => {
+      mockResolveSystemBilling.mockResolvedValue(BILLING)
+      queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }, { id: 'c-2' }])
+      queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, workspaceId: 'ws-2' }])
+      queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-2' }])
+
+      await expect(
+        dispatchMemberSyncsForCredentialOption({
+          workspaceId: 'ws-1',
+          credentialGroupOptionId: 'opt-1',
+        })
+      ).resolves.toBeUndefined()
+
+      expect(mockTrigger).toHaveBeenCalledOnce()
+      expect(mockTrigger).toHaveBeenCalledWith(
+        MEMBER_SYNC_TASK_ID,
+        expect.objectContaining({ connectorId: 'c-2' }),
+        expect.any(Object)
+      )
     })
   })
 })

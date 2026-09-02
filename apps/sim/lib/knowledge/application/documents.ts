@@ -11,6 +11,7 @@ import {
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
@@ -660,6 +661,11 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       userId,
       workspaceId: context.workspaceId,
     })
+    /**
+     * Only a document the caller may read counts as the one being replaced:
+     * a restricted document is neither confirmed to exist nor replaced.
+     */
+    const access = await context.access.get()
     let existingDocumentId: string | null = null
     if (input.documentId) {
       const [existing] = await db
@@ -669,7 +675,8 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
           and(
             eq(documentTable.id, input.documentId),
             eq(documentTable.knowledgeBaseId, context.knowledgeBaseId),
-            isNull(documentTable.deletedAt)
+            isNull(documentTable.deletedAt),
+            knowledgeAccessCondition(access)
           )
         )
         .limit(1)
@@ -682,7 +689,8 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
           and(
             eq(documentTable.filename, input.filename),
             eq(documentTable.knowledgeBaseId, context.knowledgeBaseId),
-            isNull(documentTable.deletedAt)
+            isNull(documentTable.deletedAt),
+            knowledgeAccessCondition(access)
           )
         )
         .limit(1)
@@ -708,18 +716,36 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     if (!createdDocument) throw new Error('Knowledge document upsert created no document record')
     if (existingDocumentId) {
       try {
-        await deleteDocument(existingDocumentId, requestId)
+        await deleteKnowledgeDocumentInKnowledgeBase(
+          context.knowledgeBaseId,
+          existingDocumentId,
+          requestId,
+          access
+        )
       } catch (error) {
-        try {
-          await deleteDocument(createdDocument.documentId, requestId)
-        } catch (rollbackError) {
-          logger.error('Failed to remove replacement after document upsert failure', {
+        /**
+         * The previous document went away — or out of the caller's reach —
+         * between the lookup and the delete. The replacement is an ordinary
+         * upload the caller may make, so it stays.
+         */
+        if (error instanceof OrchestrationError && error.code === 'not_found') {
+          logger.warn('Document being replaced was no longer visible; keeping the replacement', {
             knowledgeBaseId: context.knowledgeBaseId,
-            documentId: createdDocument.documentId,
-            rollbackError,
+            previousDocumentId: existingDocumentId,
           })
+          existingDocumentId = null
+        } else {
+          try {
+            await deleteDocument(createdDocument.documentId, requestId)
+          } catch (rollbackError) {
+            logger.error('Failed to remove replacement after document upsert failure', {
+              knowledgeBaseId: context.knowledgeBaseId,
+              documentId: createdDocument.documentId,
+              rollbackError,
+            })
+          }
+          throw new Error('Failed to replace existing document', { cause: error })
         }
-        throw new Error('Failed to replace existing document', { cause: error })
       }
     }
     void dispatchDocumentProcessing({

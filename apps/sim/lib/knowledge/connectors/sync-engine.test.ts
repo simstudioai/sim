@@ -713,31 +713,82 @@ describe('connector content replacement processing state', () => {
   })
 })
 
+/** The run's lease as the persistence writes see it; the condition itself is opaque to the chain mock. */
+const lease = { stillHeld: () => ({ type: 'lease' }) as never }
+
 describe('persistSkippedDocuments', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
   })
 
+  /**
+   * The heartbeat before a batch only proves the lease was held then; the
+   * write itself re-proves it inside its transaction, so a run reclaimed in
+   * between lands nothing over its replacement's.
+   */
+  it('refuses to write once the run no longer holds its lease', async () => {
+    const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-persistence')
+    const { SyncLockLostException } = await import('@/lib/knowledge/connectors/sync-lock')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [])
+
+    await expect(
+      persistSkippedDocuments(
+        'kb-1',
+        'connector-1',
+        'no-tags',
+        [
+          {
+            type: 'skip',
+            extDoc: {
+              externalId: 'external-1',
+              title: 'Empty document',
+              content: '',
+              mimeType: 'text/plain',
+              contentHash: 'empty-hash',
+              skippedReason: 'Document contains no extractable text',
+            },
+          },
+        ],
+        undefined,
+        'workspace',
+        lease
+      )
+    ).rejects.toBeInstanceOf(SyncLockLostException)
+
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('share')
+    expect(dbChainMockFns.values).not.toHaveBeenCalled()
+  })
+
   it('persists a new skipped document without dispatching processing', async () => {
     const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-persistence')
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
 
     await expect(
-      persistSkippedDocuments('kb-1', 'connector-1', 'no-tags', [
-        {
-          type: 'skip',
-          extDoc: {
-            externalId: 'external-1',
-            title: 'Empty document',
-            content: '',
-            mimeType: 'text/plain',
-            contentHash: 'empty-hash',
-            skippedReason: 'Document contains no extractable text',
-            skippedExistingDisposition: 'replace',
+      persistSkippedDocuments(
+        'kb-1',
+        'connector-1',
+        'no-tags',
+        [
+          {
+            type: 'skip',
+            extDoc: {
+              externalId: 'external-1',
+              title: 'Empty document',
+              content: '',
+              mimeType: 'text/plain',
+              contentHash: 'empty-hash',
+              skippedReason: 'Document contains no extractable text',
+              skippedExistingDisposition: 'replace',
+            },
           },
-        },
-      ])
+        ],
+        undefined,
+        'workspace',
+        lease
+      )
     ).resolves.toBe(1)
 
     expect(dbChainMockFns.values).toHaveBeenCalledWith([
@@ -756,25 +807,34 @@ describe('persistSkippedDocuments', () => {
     const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-persistence')
     const oldFileUrl = '/api/files/serve/kb/old-document.txt?context=knowledge-base'
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
     queueTableRows(schemaMock.document, [{ fileUrl: oldFileUrl }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
 
     await expect(
-      persistSkippedDocuments('kb-1', 'connector-1', 'no-tags', [
-        {
-          type: 'skip',
-          existingId: 'doc-1',
-          extDoc: {
-            externalId: 'external-1',
-            title: 'Empty document',
-            content: '',
-            mimeType: 'text/plain',
-            contentHash: 'new-empty-hash',
-            skippedReason: 'Document contains no extractable text',
-            skippedExistingDisposition: 'replace',
+      persistSkippedDocuments(
+        'kb-1',
+        'connector-1',
+        'no-tags',
+        [
+          {
+            type: 'skip',
+            existingId: 'doc-1',
+            extDoc: {
+              externalId: 'external-1',
+              title: 'Empty document',
+              content: '',
+              mimeType: 'text/plain',
+              contentHash: 'new-empty-hash',
+              skippedReason: 'Document contains no extractable text',
+              skippedExistingDisposition: 'replace',
+            },
           },
-        },
-      ])
+        ],
+        undefined,
+        'workspace',
+        lease
+      )
     ).resolves.toBe(1)
 
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
@@ -803,24 +863,33 @@ describe('persistSkippedDocuments', () => {
   it('does not delete old storage when the authoritative replacement fails', async () => {
     const { persistSkippedDocuments } = await import('@/lib/knowledge/connectors/sync-persistence')
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
     queueTableRows(schemaMock.document, [])
 
     await expect(
-      persistSkippedDocuments('kb-1', 'connector-1', 'no-tags', [
-        {
-          type: 'skip',
-          existingId: 'missing-doc',
-          extDoc: {
-            externalId: 'external-1',
-            title: 'Empty document',
-            content: '',
-            mimeType: 'text/plain',
-            contentHash: 'new-empty-hash',
-            skippedReason: 'Document contains no extractable text',
-            skippedExistingDisposition: 'replace',
+      persistSkippedDocuments(
+        'kb-1',
+        'connector-1',
+        'no-tags',
+        [
+          {
+            type: 'skip',
+            existingId: 'missing-doc',
+            extDoc: {
+              externalId: 'external-1',
+              title: 'Empty document',
+              content: '',
+              mimeType: 'text/plain',
+              contentHash: 'new-empty-hash',
+              skippedReason: 'Document contains no extractable text',
+              skippedExistingDisposition: 'replace',
+            },
           },
-        },
-      ])
+        ],
+        undefined,
+        'workspace',
+        lease
+      )
     ).rejects.toThrow('Document missing-doc is no longer active')
 
     expect(mockDeleteFile).not.toHaveBeenCalled()
@@ -840,16 +909,22 @@ describe('persistSkippedRetryHashes', () => {
       '@/lib/knowledge/connectors/sync-persistence'
     )
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
 
     await expect(
-      persistSkippedRetryHashes('kb-1', 'connector-1', [
-        {
-          existingId: 'doc-1',
-          externalId: 'page-1',
-          contentHash: 'notion:retry:v1:page-1',
-        },
-      ])
+      persistSkippedRetryHashes(
+        'kb-1',
+        'connector-1',
+        [
+          {
+            existingId: 'doc-1',
+            externalId: 'page-1',
+            contentHash: 'notion:retry:v1:page-1',
+          },
+        ],
+        lease
+      )
     ).resolves.toEqual([])
 
     expect(dbChainMockFns.set).toHaveBeenCalledOnce()
@@ -874,21 +949,27 @@ describe('persistSkippedRetryHashes', () => {
       '@/lib/knowledge/connectors/sync-persistence'
     )
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'live-doc' }]).mockResolvedValueOnce([])
 
     await expect(
-      persistSkippedRetryHashes('kb-1', 'connector-1', [
-        {
-          existingId: 'live-doc',
-          externalId: 'live-page',
-          contentHash: 'notion:retry:v1:live-page',
-        },
-        {
-          existingId: 'detached-doc',
-          externalId: 'detached-page',
-          contentHash: 'notion:retry:v1:detached-page',
-        },
-      ])
+      persistSkippedRetryHashes(
+        'kb-1',
+        'connector-1',
+        [
+          {
+            existingId: 'live-doc',
+            externalId: 'live-page',
+            contentHash: 'notion:retry:v1:live-page',
+          },
+          {
+            existingId: 'detached-doc',
+            externalId: 'detached-page',
+            contentHash: 'notion:retry:v1:detached-page',
+          },
+        ],
+        lease
+      )
     ).resolves.toEqual(['detached-page'])
 
     expect(dbChainMockFns.set).toHaveBeenCalledWith({

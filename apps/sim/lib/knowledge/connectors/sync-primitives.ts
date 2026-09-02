@@ -1495,7 +1495,7 @@ export interface ProcessDocOpsInput {
   forceRehydrate: boolean
   state: SyncRunState
   hydration: DocOpHydration
-  lease: Pick<SyncRunLease, 'beatIfDue' | 'beatLive'>
+  lease: Pick<SyncRunLease, 'beatIfDue' | 'beatLive' | 'stillHeld'>
   /** Who may read the documents this pass writes. */
   documentAccess: SyncDocumentAccess
 }
@@ -1504,7 +1504,8 @@ export interface ProcessDocOpsInput {
  * Hydrates, stores, and dispatches the pending operations in batches bounded
  * by both count and in-flight content bytes. Every failure is counted on the
  * run state rather than thrown, except a provider rate limit, which ends the
- * run so the connector backs off.
+ * run so the connector backs off, and a lost lease, which ends it so no
+ * further write lands beside the replacement run's.
  */
 export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
   const {
@@ -1645,7 +1646,8 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
 
     /**
      * Hydration above may have outlasted the lease. Nothing from this batch is
-     * written until the run proves it still owns the connector, so a run that
+     * written until the run proves it still owns the connector, and every
+     * write below proves it again inside its own transaction, so a run that
      * was replaced meanwhile cannot land stale content or queue processing
      * over the replacement's.
      */
@@ -1656,7 +1658,8 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
         const missedExternalIds = await persistSkippedRetryHashes(
           connector.knowledgeBaseId,
           connectorId,
-          skippedRetryHashUpdates
+          skippedRetryHashUpdates,
+          input.lease
         )
         if (missedExternalIds.length > 0) {
           logger.warn('Skipped retry hashes were not persisted for detached documents', {
@@ -1682,10 +1685,12 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
           connector.connectorType,
           skipOps,
           sourceConfig,
-          documentAccess
+          documentAccess,
+          input.lease
         )
         result.docsSkipped += recorded
       } catch (error) {
+        if (error instanceof SyncLockLostException) throw error
         /**
          * The source items were intentionally skipped, but failing to persist their visible
          * failed rows is an actual sync failure.
@@ -1714,7 +1719,8 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
             op.extDoc,
             kbOwner,
             sourceConfig,
-            documentAccess
+            documentAccess,
+            input.lease
           )
         }
         return updateDocument(
@@ -1725,10 +1731,17 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
           op.extDoc,
           kbOwner,
           sourceConfig,
-          documentAccess
+          documentAccess,
+          input.lease
         )
       })
     )
+
+    const leaseLost = settled.find(
+      (outcome): outcome is PromiseRejectedResult =>
+        outcome.status === 'rejected' && outcome.reason instanceof SyncLockLostException
+    )
+    if (leaseLost) throw leaseLost.reason
 
     const batchDocs: DocumentData[] = []
     for (let j = 0; j < settled.length; j++) {
