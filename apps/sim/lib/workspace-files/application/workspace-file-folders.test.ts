@@ -116,11 +116,8 @@ describe('workspace file folder operations', () => {
       createdFolderIds: ['folder-a', 'folder-b'],
     })
     mockCreate.mockResolvedValue({
-      id: 'folder-c',
-      name: 'C',
+      folder: { id: 'folder-c', name: 'C', path: 'A/B/C', createdAt: new Date(), updatedAt: new Date() },
       path: 'A/B/C',
-      createdAt: new Date(),
-      updatedAt: new Date(),
     })
 
     await createWorkspaceFileFolderOperation.execute({
