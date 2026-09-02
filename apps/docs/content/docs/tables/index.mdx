@@ -26,9 +26,8 @@ Every column has a type, which decides how its values are stored and validated.
 | **Date** | A date | `2026-03-16` |
 | **JSON** | An object or array | `{ "tier": "pro" }` |
 | **Select** | One of a fixed set of options, or several | `Pro` |
-| **Reference** | A row ID from another table in your workspace | `row_123` |
 
-Types are enforced as you enter values, so a Number column only takes numbers. A Reference column is intentionally different for now: it stores the row ID as plain text without checking that the row exists in the selected table.
+Types are enforced as you enter values, so a Number column only takes numbers.
 
 A Currency column stores a plain number and renders it in the currency you choose for that column, so filters, sorts, and exports all see the amount itself. Changing a column's currency relabels it — it does not convert the amounts.
 
