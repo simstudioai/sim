@@ -391,6 +391,15 @@ const MSSQL_TOOL_IDS = [
   'mssql_introspect',
 ] as const
 
+const ORACLEDB_TOOL_IDS = [
+  'oracledb_query',
+  'oracledb_execute',
+  'oracledb_insert',
+  'oracledb_update',
+  'oracledb_delete',
+  'oracledb_introspect',
+] as const
+
 const KNOWLEDGE_TOOL_IDS = [
   'knowledge_create_document',
   'knowledge_delete_chunk',
@@ -1351,6 +1360,9 @@ registerFamily(handlerLoaders, JUPYTER_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, MSSQL_TOOL_IDS, async () => {
   return (await import('@/lib/internal/mssql/execute-tool')).executeMssqlTool
+})
+registerFamily(handlerLoaders, ORACLEDB_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracledb/execute-tool')).executeOracledbTool
 })
 registerFamily(handlerLoaders, KNOWLEDGE_TOOL_IDS, async () => {
   return (await import('@/lib/internal/knowledge/execute-tool')).executeKnowledgeTool

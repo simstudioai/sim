@@ -24,6 +24,9 @@ const FIELDS_REQUIRING_MASKING: ReadonlyArray<{ block: string; subBlock: string 
   { block: 'sts', subBlock: 'webIdentityToken' },
   { block: 'sts', subBlock: 'samlAssertion' },
   { block: 'browser_use', subBlock: 'variables' },
+  { block: 'oracledb', subBlock: 'password' },
+  { block: 'oracledb', subBlock: 'walletContent' },
+  { block: 'oracledb', subBlock: 'walletPassword' },
 ]
 
 const maskedTypes = new Set<string>(PASSWORD_MASKED_SUBBLOCK_TYPES)

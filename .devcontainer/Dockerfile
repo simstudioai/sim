@@ -1,4 +1,8 @@
+FROM node:24-alpine AS node-runtime
+
 FROM oven/bun:1.3.14-alpine
+
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
 
 # Install necessary packages for development
 RUN apk add --no-cache \
@@ -15,6 +19,7 @@ RUN apk add --no-cache \
     zsh \
     zsh-vcs \
     ca-certificates \
+    libstdc++ \
     shadow
 
 # Create a non-root user with matching UID/GID
