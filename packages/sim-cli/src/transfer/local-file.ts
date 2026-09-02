@@ -19,7 +19,7 @@ export function embeddedFileContent(embedded: EmbedContext, path: string): strin
   const content = embedded.fileArguments?.[key]
   if (content !== undefined) return content
   throw new SimApiError(
-    `No file "${key}" on your machine — write it first (run_code or | to-sandbox), then pass it as @${key}`,
+    `Files on your machine are passed as @path: use @${key}. (If it does not exist yet, write it with run_code or | to-sandbox first.)`,
     0
   )
 }
