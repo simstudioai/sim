@@ -211,6 +211,22 @@ async function resolveFolderScopeKnowledgeBases(
 async function resolveKnowledgeSearchContext(
   input: SearchKnowledgeInput
 ): Promise<KnowledgeSearchContext> {
+  /*
+   * Bounds the request itself, so it runs before either target branch can
+   * return. A folder scope is a different way of choosing WHAT to search, not a
+   * reason to skip checking HOW MUCH is asked for.
+   */
+  if (
+    !Number.isInteger(input.topK) ||
+    input.topK < 1 ||
+    input.topK > KNOWLEDGE_SEARCH_COST_POLICY.maxTopK
+  ) {
+    throw new OrchestrationError(
+      'validation',
+      `topK must be an integer between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxTopK}`
+    )
+  }
+
   /**
    * A folder scope resolves NOTHING here. Expanding it would read the caller's
    * asserted workspace before the wrapper authorizes it, and the fan-out error
@@ -240,16 +256,6 @@ async function resolveKnowledgeSearchContext(
     throw new OrchestrationError(
       'validation',
       `Knowledge search requires between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases} knowledge bases`
-    )
-  }
-  if (
-    !Number.isInteger(input.topK) ||
-    input.topK < 1 ||
-    input.topK > KNOWLEDGE_SEARCH_COST_POLICY.maxTopK
-  ) {
-    throw new OrchestrationError(
-      'validation',
-      `topK must be an integer between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxTopK}`
     )
   }
   const knowledgeBases = await Promise.all(knowledgeBaseIds.map(getKnowledgeBaseById))

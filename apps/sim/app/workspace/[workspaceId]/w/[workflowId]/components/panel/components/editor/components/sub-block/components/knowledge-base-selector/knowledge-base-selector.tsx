@@ -118,22 +118,48 @@ export function KnowledgeBaseSelector({
    * covers nothing, which reads as an empty picker rather than an unfiltered
    * one.
    */
-  const scopedFolderIds = useMemo(() => {
-    if (!folderScopePath || folderScopePath === ROOT_FOLDER_PATH) return null
+  const folderScopeState = useMemo(():
+    | { kind: 'none' }
+    | { kind: 'pending' }
+    | { kind: 'unresolved' }
+    | { kind: 'resolved'; ids: Set<string> } => {
+    if (!folderScopePath || folderScopePath === ROOT_FOLDER_PATH) return { kind: 'none' }
+    /*
+     * Loading is not the same as empty. The knowledge-base query can resolve
+     * while the folder query is still in flight, and treating that window as an
+     * empty scope makes every selection look out of scope — which the cleanup
+     * below would act on and erase.
+     */
+    if (resourceFolders.isLoading) return { kind: 'pending' }
     const root = resourceFolders.byPath.get(folderScopePath)
-    if (!root) return new Set<string>()
+    if (!root) return { kind: 'unresolved' }
     const ids = new Set<string>([root.id])
     if (folderScopeIncludesSubfolders) {
       for (const id of collectFolderDepths(resourceFolders.folders, root.id).keys()) ids.add(id)
     }
-    return ids
+    return { kind: 'resolved', ids }
   }, [folderScopePath, folderScopeIncludesSubfolders, resourceFolders])
 
+  /**
+   * Whether a knowledge base survives the folder scope.
+   *
+   * `pending` offers everything rather than flashing an empty picker while the
+   * folder query lands; `unresolved` offers nothing, because a path that names
+   * no folder selects no knowledge bases.
+   */
   const isInFolderScope = useCallback(
-    (knowledgeBase: { folderId: string | null }) =>
-      !scopedFolderIds ||
-      (knowledgeBase.folderId !== null && scopedFolderIds.has(knowledgeBase.folderId)),
-    [scopedFolderIds]
+    (knowledgeBase: { folderId: string | null }) => {
+      switch (folderScopeState.kind) {
+        case 'none':
+        case 'pending':
+          return true
+        case 'unresolved':
+          return false
+        case 'resolved':
+          return knowledgeBase.folderId !== null && folderScopeState.ids.has(knowledgeBase.folderId)
+      }
+    },
+    [folderScopeState]
   )
 
   const combinedKnowledgeBases = useMemo<KnowledgeBaseData[]>(() => {
@@ -165,7 +191,12 @@ export function KnowledgeBaseSelector({
    * absence of data is not evidence of being out of scope.
    */
   useEffect(() => {
-    if (isPreview || !scopedFolderIds || selectedIds.length === 0) return
+    /*
+     * Only a RESOLVED scope may erase a selection. While the folder query is in
+     * flight there is no scope to judge against, and a path that resolves to no
+     * folder is more likely a typo than a reason to discard the user's pick.
+     */
+    if (isPreview || folderScopeState.kind !== 'resolved' || selectedIds.length === 0) return
     const loaded = new Map(knowledgeBases.map((kb) => [kb.id, kb]))
     const surviving = selectedIds.filter((id) => {
       const knowledgeBase = loaded.get(id)
@@ -173,7 +204,7 @@ export function KnowledgeBaseSelector({
     })
     if (surviving.length === selectedIds.length) return
     setStoreValue(surviving.length > 0 ? surviving.join(',') : null)
-  }, [isPreview, scopedFolderIds, selectedIds, knowledgeBases, isInFolderScope, setStoreValue])
+  }, [isPreview, folderScopeState, selectedIds, knowledgeBases, isInFolderScope, setStoreValue])
 
   /**
    * Display names, with the folder path appended when two knowledge bases share

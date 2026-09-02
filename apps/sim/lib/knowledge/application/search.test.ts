@@ -673,6 +673,27 @@ describe('knowledge search application use case', () => {
       expect(mocks.loadActiveFolderPathIndex).not.toHaveBeenCalled()
     })
 
+    /*
+     * topK bounds the request, not the way its target was chosen. The folder
+     * branch returns early, so without hoisting the check a fractional limit
+     * would reach execution on a folder scope while failing on an equivalent
+     * knowledge-base scope.
+     */
+    it('applies the topK bound to a folder scope too', async () => {
+      await expect(
+        searchKnowledge.execute({
+          principal: SESSION,
+          input: {
+            workspaceId: 'workspace-1',
+            knowledgeBaseIds: [],
+            folderPath: '/Support',
+            query: 'answer',
+            topK: 5.5,
+          },
+        })
+      ).rejects.toThrow('topK must be an integer')
+    })
+
     it('refuses a folder scope with no workspace to resolve it against', async () => {
       await expect(
         searchKnowledge.execute({
