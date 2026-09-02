@@ -34,7 +34,7 @@ export const zendeskDeleteUserTool: ToolConfig<ZendeskDeleteUserParams, ZendeskD
       apiToken: {
         type: 'string',
         required: true,
-        visibility: 'hidden',
+        visibility: 'user-only',
         description: 'Zendesk API token',
       },
       subdomain: {

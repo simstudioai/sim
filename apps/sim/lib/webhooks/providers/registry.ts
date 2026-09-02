@@ -11,6 +11,7 @@ import { circlebackHandler } from '@/lib/webhooks/providers/circleback'
 import { clerkHandler } from '@/lib/webhooks/providers/clerk'
 import { clickupHandler } from '@/lib/webhooks/providers/clickup'
 import { confluenceHandler } from '@/lib/webhooks/providers/confluence'
+import { credentialGroupProviderHandler } from '@/lib/webhooks/providers/credential-group'
 import { emailBisonHandler } from '@/lib/webhooks/providers/emailbison'
 import { fathomHandler } from '@/lib/webhooks/providers/fathom'
 import { firefliesHandler } from '@/lib/webhooks/providers/fireflies'
@@ -78,6 +79,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   clerk: clerkHandler,
   clickup: clickupHandler,
   confluence: confluenceHandler,
+  'credential-group': credentialGroupProviderHandler,
   emailbison: emailBisonHandler,
   fireflies: firefliesHandler,
   generic: genericHandler,

@@ -2213,6 +2213,13 @@
       "when": 1788229583797,
       "tag": "0316_table_row_execution_capability_subject",
       "breakpoints": true
+    },
+    {
+      "idx": 317,
+      "version": "7",
+      "when": 1788304042423,
+      "tag": "0317_giant_kitty_pryde",
+      "breakpoints": true
     }
   ]
 }

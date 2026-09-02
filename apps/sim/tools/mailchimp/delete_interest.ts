@@ -25,7 +25,7 @@ export const mailchimpDeleteInterestTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Mailchimp API key with server prefix',
     },
     listId: {

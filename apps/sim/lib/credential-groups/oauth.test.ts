@@ -46,6 +46,7 @@ const POLICY = {
 const CONTEXT = {
   enrollmentId: 'enrollment-1',
   credentialGroupId: 'group-1',
+  credentialGroupName: 'Credential Group',
   workspaceId: 'workspace-1',
   workspaceName: 'Workspace',
   workspaceOwnerId: 'owner-1',
@@ -122,6 +123,46 @@ describe('credential group OAuth persistence', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
+  it('returns a created event result after inserting a first credential', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'invited' }])
+    queueTableRows(schemaMock.credentialGroup, [GROUP])
+    queueTableRows(schemaMock.credential, [])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'credential-1' }])
+      .mockResolvedValueOnce([{ id: CONTEXT.enrollmentId }])
+
+    const result = await completeCredentialGroupOAuth(
+      CONTEXT,
+      {
+        state: 'state-1',
+        provider: 'gmail',
+        nonceHash: 'nonce-hash',
+        enrollmentId: CONTEXT.enrollmentId,
+        credentialGroupId: CONTEXT.credentialGroupId,
+        optionId: CONTEXT.option.id,
+        authorizationAppId: POLICY.authorizationAppId,
+        scopeVersion: POLICY.scopeVersion,
+        requiredScopes: POLICY.requiredScopes,
+        redirectUri: 'https://sim.ai/api/auth/oauth2/callback/google-email',
+        codeVerifier: 'verifier',
+        invitationToken: 'invitation-token',
+        createdAt: Date.now(),
+      },
+      'authorization-code'
+    )
+
+    expect(result).toEqual({
+      created: true,
+      credentialId: 'credential-1',
+      credentialGroupOptionId: 'option-1',
+      provider: 'gmail',
+      providerId: 'google-email',
+      displayName: 'person@example.com',
+      enrollmentStatus: 'in_progress',
+    })
+    expect(dbChainMockFns.insert).toHaveBeenCalledWith(schemaMock.credential)
+  })
+
   it('preserves completed enrollment state when an account reconnects', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'completed' }])
     queueTableRows(schemaMock.credentialGroup, [GROUP])
@@ -137,7 +178,7 @@ describe('credential group OAuth persistence', () => {
       .mockResolvedValueOnce([{ id: 'credential-1' }])
       .mockResolvedValueOnce([{ id: CONTEXT.enrollmentId }])
 
-    await completeCredentialGroupOAuth(
+    const result = await completeCredentialGroupOAuth(
       { ...CONTEXT, enrollmentStatus: 'completed' },
       {
         state: 'state-1',
@@ -162,6 +203,15 @@ describe('credential group OAuth persistence', () => {
       expect.objectContaining({ status: 'completed', updatedAt: expect.any(Date) })
     )
     expect(enrollmentUpdate).not.toHaveProperty('completedAt')
+    expect(result).toEqual({
+      created: false,
+      credentialId: 'credential-1',
+      credentialGroupOptionId: 'option-1',
+      provider: 'gmail',
+      providerId: 'google-email',
+      displayName: 'person@example.com',
+      enrollmentStatus: 'completed',
+    })
   })
 
   it('rejects an exchanged grant when the group policy changed before persistence', async () => {

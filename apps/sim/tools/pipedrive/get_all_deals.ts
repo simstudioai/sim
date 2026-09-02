@@ -21,6 +21,11 @@ export const pipedriveGetAllDealsTool: ToolConfig<
   description: 'Retrieve all deals from Pipedrive with optional filters',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'pipedrive',
+  },
+
   params: {
     accessToken: {
       type: 'string',

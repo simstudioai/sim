@@ -46,6 +46,7 @@
     "generate:block-successors": "bun run scripts/generate-block-successors.ts",
     "check:block-successors": "bun run scripts/generate-block-successors.ts --check",
     "check:tool-registry-boundary": "bun run scripts/check-tool-registry-boundary.ts --check",
+    "check:tool-param-reachability": "bun run scripts/check-tool-param-reachability.ts",
     "check:trigger-block-cycle": "bun run scripts/check-trigger-block-cycle.ts",
     "check:import-specifiers": "bun run scripts/check-import-specifiers.ts",
     "check:sql-date-binding": "bun run scripts/check-sql-date-binding.ts",

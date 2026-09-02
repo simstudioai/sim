@@ -9,6 +9,7 @@ export const INTERNAL_USAGE_LOG_SOURCES = [
   'voice-input',
   'enrichment',
   'voice-output',
+  'api-tool',
 ] as const
 
 export type InternalUsageLogSource = (typeof INTERNAL_USAGE_LOG_SOURCES)[number]
@@ -30,6 +31,7 @@ export const BILLING_USAGE_LOG_SOURCES = [
   'voice-input',
   'enrichment',
   'voice-output',
+  'api-tool',
 ] as const
 
 export type BillingUsageLogSource = (typeof BILLING_USAGE_LOG_SOURCES)[number]
@@ -45,6 +47,7 @@ const INTERNAL_TO_BILLING_SOURCE = {
   'voice-input': 'voice-input',
   enrichment: 'enrichment',
   'voice-output': 'voice-output',
+  'api-tool': 'api-tool',
 } as const satisfies Record<InternalUsageLogSource, BillingUsageLogSource>
 
 const INTERNAL_USAGE_LOG_SOURCE_SET = new Set<string>(INTERNAL_USAGE_LOG_SOURCES)
@@ -59,6 +62,7 @@ const BILLING_TO_INTERNAL_SOURCES = {
   'voice-input': ['voice-input'],
   enrichment: ['enrichment'],
   'voice-output': ['voice-output'],
+  'api-tool': ['api-tool'],
 } as const satisfies Record<BillingUsageLogSource, readonly InternalUsageLogSource[]>
 
 /**
@@ -80,6 +84,7 @@ export const BILLING_USAGE_LOG_SOURCE_LABELS = {
   'voice-input': 'Voice input',
   enrichment: 'Enrichment',
   'voice-output': 'Voice output',
+  'api-tool': 'API tool call',
 } as const satisfies Record<BillingUsageLogSource, string>
 
 export function toBillingUsageLogSource(source: InternalUsageLogSource): BillingUsageLogSource {
