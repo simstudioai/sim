@@ -2633,7 +2633,8 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     },
     hasMore: {
       type: 'boolean',
-      description: 'Whether more provider pages remain beyond the fetched window',
+      description:
+        'Whether more thread messages or provider pages remain beyond the fetched window',
     },
 
     // slack_get_channel_history / slack_get_thread_replies pagination outputs
