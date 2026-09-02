@@ -85,6 +85,29 @@ editing the file by hand:
 sim --output table configure --set-output json
 ```
 
+## A command is missing that the documentation describes
+
+The docs track the current release, so a command that exists here and not in
+`sim --help` usually means the installed CLI is older than the feature. Compare
+`sim --version` against the published version and upgrade:
+
+```bash
+sim --version
+npm install -g sim@latest
+```
+
+The CLI normally tells you this itself, once a day, on stderr. It stays quiet
+when stderr is redirected, in CI, and under `npx`.
+
+## An update notice appears in output I am parsing
+
+It should not: the notice is written to stderr, never stdout, so `--output json`
+piped to `jq` is unaffected. If something merges the two streams, silence it:
+
+```bash
+export SIM_NO_UPDATE_CHECK=1
+```
+
 ## Anything else
 
 An unexpected error prints a stack trace. That is a bug in the CLI — please

@@ -1,8 +1,11 @@
 /**
  * @vitest-environment node
  */
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { Command } from 'commander'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { buildProgram } from './program'
 import { CLI_VERSION } from './version'
 
@@ -157,5 +160,37 @@ describe('help typed after a command that does not exist', () => {
     const implicit = await parse(['profiles', 'help', 'add'])
     expect(implicit.code).toBe('commander.help')
     expect(implicit.out).toContain('Usage: sim profiles add')
+  })
+})
+
+describe('the update check', () => {
+  /**
+   * The notice must cost `--version` and `--help` nothing. Commander answers
+   * both during parsing, before any action hook runs, so the guarantee is
+   * structural — this holds it in place if the check is ever moved.
+   */
+  it('never runs for the two commands commander answers during parsing', async () => {
+    const stderr = process.stderr
+    const wasTty = stderr.isTTY
+    const dir = mkdtempSync(join(tmpdir(), 'sim-cli-program-'))
+    const requests: string[] = []
+    Object.defineProperty(stderr, 'isTTY', { configurable: true, value: true })
+    process.env.SIM_CONFIG_DIR = dir
+    vi.stubGlobal('fetch', (input: URL) => {
+      requests.push(String(input))
+      return Promise.resolve(Response.json({ latest: '99.0.0' }))
+    })
+
+    try {
+      await parse(['--version'])
+      await parse(['--help'])
+      expect(requests).toEqual([])
+      expect(readdirSync(dir)).toEqual([])
+    } finally {
+      vi.unstubAllGlobals()
+      process.env.SIM_CONFIG_DIR = undefined
+      Object.defineProperty(stderr, 'isTTY', { configurable: true, value: wasTty })
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

@@ -119,6 +119,24 @@ shared profile cannot also set its own endpoint or API key.
 | `SIM_CREDENTIALS_FILE` | Relocate only the credentials file |
 | `SIM_TIMEOUT_SECONDS` | Per-request timeout; `0` waits indefinitely. Defaults to `3600`, above every timeout the server itself applies |
 | `SIM_DEBUG` | Trace each request's method, URL, status and duration to stderr |
+| `SIM_NO_UPDATE_CHECK` | Turn off the once-a-day update notice |
+
+## Update notices
+
+At most once a day, and only when stderr is a terminal, the CLI asks
+`registry.npmjs.org` which version is published under the dist-tag it was
+installed from. When a newer one exists it prints a single line on stderr naming
+both versions and the command that upgrades:
+
+```
+Update available: sim 2.1.2 → 2.1.5. Run: npm install -g sim@latest
+```
+
+The request carries the CLI version and nothing else — no API key, no workspace,
+no command. It is skipped entirely when stderr is redirected, in CI, under
+`npx`, and for prerelease installs, so scripted output is never affected. Set
+`SIM_NO_UPDATE_CHECK=1` to turn it off, and `npm_config_registry` to ask a
+mirror instead.
 
 Node ignores `HTTPS_PROXY` unless you also set `NODE_USE_ENV_PROXY=1`, and only
 from Node 22.21 and 24.5. The CLI warns when a proxy is configured but will not

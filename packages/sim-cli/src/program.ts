@@ -10,6 +10,7 @@ import {
   buildGeneratedCommands,
   refuseHelpAfterUnknownCommand,
 } from './runtime/build'
+import { announceUpdateIfAvailable } from './update/check'
 import { CLI_VERSION } from './version'
 
 /** Root program description, shared by `--help` and the generated docs. */
@@ -150,6 +151,11 @@ export function buildProgram(options: { version?: boolean } = {}): Command {
   attachSecretCommands(program)
 
   program.addHelpText('after', HELP_EPILOGUE)
+
+  // Root hooks are inherited by the whole tree, and commander answers `--help`
+  // and `--version` during parsing without ever reaching an action — so the two
+  // invocations that must stay instant are excluded by construction.
+  program.hook('preAction', () => announceUpdateIfAvailable())
 
   refuseHelpAfterUnknownCommand(program)
   assertNoReservedProgramFlags(program)
