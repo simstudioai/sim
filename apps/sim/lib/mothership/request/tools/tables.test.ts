@@ -270,28 +270,32 @@ describe('automatic Copilot tool-output table persistence', () => {
     expect(result.output).toBeUndefined()
   })
 
-  it('still sees the returned rows when the run also exported sandbox files', async () => {
+  it('keeps the export receipt beside the table write when the run also exported files', async () => {
     const context = buildContext()
     const rows = [{ name: 'Ada' }, { name: 'Grace' }]
-    const message = 'Sandbox file exported to files/report.csv (12 bytes)'
+    const message = 'Sandbox file exported to files/xp-docs/xp-region-report.md (12 bytes)'
+    const files = [
+      {
+        fileId: 'file-1',
+        fileName: 'xp-region-report.md',
+        vfsPath: 'files/xp-docs/xp-region-report.md',
+        size: 12,
+        sha256: 'abc',
+        unchanged: false,
+      },
+    ]
 
     const result = await maybeWriteOutputToTable(
       RunFunction.id,
       {
         outputTable: 'table-1',
-        outputs: { files: [{ path: 'files/report.csv', sandboxPath: '/home/user/report.csv' }] },
+        outputs: {
+          files: [{ path: 'files/xp-docs/xp-region-report.md', sandboxPath: '/home/user/r.md' }],
+        },
       },
       {
         success: true,
-        output: {
-          result: rows,
-          exported: {
-            message,
-            files: [{ fileId: 'file-1', fileName: 'report.csv', vfsPath: 'files/report.csv' }],
-          },
-          message,
-          stdout: '',
-        },
+        output: { result: rows, exported: { message, files }, message, stdout: '' },
       },
       context
     )
@@ -299,15 +303,42 @@ describe('automatic Copilot tool-output table persistence', () => {
     expect(result).toEqual({
       success: true,
       output: {
-        message: 'Wrote 2 rows to table table-1',
+        message:
+          'Wrote 2 rows to table table-1 and exported 1 file: files/xp-docs/xp-region-report.md',
         tableId: 'table-1',
         rowCount: 2,
+        exported: { files },
       },
     })
     expect(mocks.executeReplace).toHaveBeenCalledWith(
       context,
       expect.objectContaining({ tableId: 'table-1', sourceRows: rows })
     )
+  })
+
+  it('pluralizes a multi-file export receipt on the table write', async () => {
+    const result = await maybeWriteOutputToTable(
+      RunFunction.id,
+      { outputTable: 'table-1' },
+      {
+        success: true,
+        output: {
+          result: [{ name: 'Ada' }, { name: 'Grace' }],
+          exported: {
+            message: '',
+            files: [{ vfsPath: 'files/a.csv' }, { vfsPath: 'files/b.csv' }],
+          },
+        },
+      },
+      buildContext()
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      output: {
+        message: 'Wrote 2 rows to table table-1 and exported 2 files: files/a.csv, files/b.csv',
+      },
+    })
   })
 
   it('fails closed when the authoritative inserted count is inconsistent', async () => {

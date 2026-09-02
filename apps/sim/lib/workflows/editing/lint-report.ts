@@ -4,6 +4,7 @@ import type { WorkflowState } from '@sim/workflow-types/workflow'
 import {
   collectDanglingBlockOutputReferences,
   collectWorkflowFieldIssues,
+  hasWorkflowEntryBlock,
   lintEditedWorkflowState,
   type WorkflowLintReport,
   type WorkflowLintUnresolvedReference,
@@ -29,6 +30,20 @@ const logger = createLogger('WorkflowLintReport')
  */
 export const REFERENCES_UNCHECKED_NOTE =
   'Credential, tool, and skill references were not checked because this caller does not act as a human user. Structural and field findings are complete.'
+
+/**
+ * A graph with nothing in it lints perfectly clean, which is the wrong signal
+ * for a `PUT /state` whose whole effect would be to erase the workflow.
+ */
+export const EMPTY_GRAPH_NOTE =
+  'The graph has no blocks — replacing with this empties the workflow.'
+
+/**
+ * Every block has an incoming edge, or none of them is a trigger: the graph
+ * may be fully wired and still have nowhere to begin. Not an `orphanBlocks`
+ * finding — a cycle of non-trigger blocks has no orphan and no entry.
+ */
+export const NO_ENTRY_BLOCK_NOTE = 'No entry block: nothing can start this workflow.'
 
 export interface WorkflowLintScope {
   workflowId: string
@@ -86,9 +101,16 @@ export async function buildWorkflowLintReport(
     }
   }
 
+  const graphLint = lintEditedWorkflowState(graph)
+
   const notes: string[] = []
   if (!scope.subjectUserId) notes.push(REFERENCES_UNCHECKED_NOTE)
   if (unresolvedReferences.length > 0) notes.push(UNRESOLVABLE_AT_LINT_NOTE)
+  if (Object.keys(graph.blocks ?? {}).length === 0) {
+    notes.push(EMPTY_GRAPH_NOTE)
+  } else if (graphLint.sources.length === 0 || !hasWorkflowEntryBlock(graph.blocks)) {
+    notes.push(NO_ENTRY_BLOCK_NOTE)
+  }
 
   /**
    * `fieldIssues`, `unresolvedReferences`, and `notes` are assigned after the
@@ -97,7 +119,7 @@ export async function buildWorkflowLintReport(
    * never discard a finding the linter made.
    */
   return {
-    ...lintEditedWorkflowState(graph),
+    ...graphLint,
     fieldIssues: collectWorkflowFieldIssues(graph.blocks),
     unresolvedReferences,
     notes,

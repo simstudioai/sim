@@ -682,13 +682,23 @@ export function sanitizeForCopilot(
   }
 }
 
+export interface ExportSanitizationOptions {
+  includeReferences?: boolean
+  /**
+   * Keep workspace-scoped resource bindings for a same-workspace round trip.
+   * Secrets and credentials are cleared either way; see
+   * `WorkflowSanitizationOptions.preserveWorkspaceBindings`.
+   */
+  preserveWorkspaceBindings?: boolean
+}
+
 /**
  * Sanitize workflow state for export by removing secrets but keeping positions
  * Users need positions to restore the visual layout when importing
  */
 export function sanitizeForExport(
   state: WorkflowState,
-  options: { includeReferences?: boolean } = {}
+  options: ExportSanitizationOptions = {}
 ): ExportWorkflowState {
   const canonicalLoops = generateLoopBlocks(state.blocks || {})
   const canonicalParallels = generateParallelBlocks(state.blocks || {})
@@ -708,6 +718,7 @@ export function sanitizeForExport(
     preserveEnvVars: true, // Keep {{ENV_VAR}} references in exported workflows
     redactOpaqueCredentialInputs: true,
     preserveReferenceMetadata: options.includeReferences,
+    ...(options.preserveWorkspaceBindings ? { preserveWorkspaceBindings: true } : {}),
   }) as ExportWorkflowState['state']
 
   return {

@@ -274,7 +274,7 @@ describe('applyWorkflowOperations', () => {
       orphanBlocks: [orphan],
       fieldIssues: [],
       unresolvedReferences: [],
-      notes: [],
+      notes: ['No entry block: nothing can start this workflow.'],
     })
   })
 

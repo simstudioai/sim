@@ -152,7 +152,10 @@ export const previewWorkflowImport = defineAuthorizedWorkflowUseCase({
   },
 })
 
-function receiptResult(report: WorkspaceOperationReport, replayed: boolean): ImportWorkflowResult {
+function receiptResult(
+  report: WorkspaceOperationReport,
+  replayed: boolean
+): Omit<ImportWorkflowResult, 'warnings'> {
   const imported = report.importedWorkflow
   if (!imported) throw new OrchestrationError('internal', 'Import receipt is missing its result')
   return {
@@ -172,7 +175,7 @@ export async function applyMappedWorkflowImport(
   principal: Principal,
   input: ImportWorkflowInput,
   context: ActiveWorkspaceApplicationContext
-): Promise<ImportWorkflowResult> {
+): Promise<Omit<ImportWorkflowResult, 'warnings'>> {
   if (!input.requestId || !input.previewFingerprint)
     throw new WorkflowImportError(
       'validation',

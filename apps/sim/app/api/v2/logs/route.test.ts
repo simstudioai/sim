@@ -97,6 +97,44 @@ describe('GET /api/v2/logs', () => {
     })
   })
 
+  it('publishes durationMs on included trace spans from the stored duration', async () => {
+    mocks.execute.mockResolvedValue({
+      items: [
+        {
+          log,
+          executionData: {
+            finalOutput: null,
+            traceSpans: [
+              {
+                id: 'agent-1',
+                name: 'Agent',
+                type: 'agent',
+                duration: 80,
+                startTime: '2026-08-06T00:00:00.010Z',
+                endTime: '2026-08-06T00:00:00.090Z',
+              },
+            ],
+          },
+        },
+      ],
+      nextCursorKeys: null,
+      includeFullDetails: true,
+      includeFinalOutput: false,
+      includeTraceSpans: true,
+    })
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&includeTraceSpans=true`
+      )
+    )
+
+    expect((await response.json()).data[0].traceSpans[0]).toMatchObject({
+      duration: 80,
+      durationMs: 80,
+    })
+  })
+
   it('serves a run whose persisted status is paused', async () => {
     mocks.execute.mockResolvedValue({
       items: [{ log: { ...log, status: 'paused' }, executionData: null }],
