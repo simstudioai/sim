@@ -511,7 +511,12 @@ export function Home({ chatId, userName, userId }: HomeProps) {
               searchedKnowledgeBases(knowledgeBasesRef.current, workspaceId)
             )
           : contexts
-      sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, turnContexts)
+      sendMessage(
+        trimmed || 'Analyze the attached file(s).',
+        fileAttachments,
+        turnContexts,
+        mode === 'ask' ? { requestMode: 'ask' } : undefined
+      )
     },
     [workspaceId, chatId, prepareResourceViewForAgentTurn, sendMessage, setSearchQuery]
   )
@@ -561,6 +566,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       prepareResourceViewForAgentTurn()
       sendMessage(detail.message, detail.fileAttachments, detail.contexts, {
         ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
+        ...(detail.requestMode ? { requestMode: detail.requestMode } : {}),
       })
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
@@ -595,6 +601,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         ...(handoff.resumeUserMessageId
           ? { resumeUserMessageId: handoff.resumeUserMessageId }
           : {}),
+        ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
       })
       return
     }

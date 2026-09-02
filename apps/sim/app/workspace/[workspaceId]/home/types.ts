@@ -23,11 +23,19 @@ export interface FileAttachmentForApi {
   path?: string
 }
 
+/**
+ * A request mode a send asks the agent for beyond the default. `ask` is an
+ * answer drawn from the attached knowledge bases with the knowledge tool
+ * alone: the server attaches no integration tools to the turn.
+ */
+export type ChatRequestMode = 'ask'
+
 export interface QueuedMessage {
   id: string
   content: string
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
+  requestMode?: ChatRequestMode
 }
 
 export const ToolCallStatus = {

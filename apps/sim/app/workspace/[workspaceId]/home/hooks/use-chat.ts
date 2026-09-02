@@ -142,6 +142,7 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type {
   ChatMessage,
   ChatMessageContext,
+  ChatRequestMode,
   ContentBlock,
   FileAttachmentForApi,
   GenericResourceData,
@@ -158,6 +159,8 @@ export interface SendMessageOptions {
    * attempts instead of opening a second chat.
    */
   resumeUserMessageId?: string
+  /** Asked for beyond the default agent turn; `ask` answers from the attached knowledge alone. */
+  requestMode?: ChatRequestMode
 }
 
 /**
@@ -181,6 +184,7 @@ interface StartSendMessageOptions {
    * opening a second chat and billing a second turn.
    */
   resumeUserMessageId?: string
+  requestMode?: ChatRequestMode
 }
 
 /** A send an unmount cleanup withdrew, as handed to the next chat surface. */
@@ -189,6 +193,7 @@ interface WithdrawnSend {
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
   userMessageId: string
+  requestMode?: ChatRequestMode
 }
 
 export interface UseChatReturn {
@@ -299,6 +304,7 @@ interface QueuedSendHandoffState {
   message: string
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
+  requestMode?: ChatRequestMode
   requestedAt: number
   resolveAttempts?: number
 }
@@ -3698,7 +3704,8 @@ export function useChat(
       message: string,
       fileAttachments?: FileAttachmentForApi[],
       contexts?: ChatContext[],
-      resumeUserMessageId?: string
+      resumeUserMessageId?: string,
+      requestMode?: ChatRequestMode
     ): QueuedMothershipMessage => {
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
@@ -3719,6 +3726,7 @@ export function useChat(
         fileAttachments,
         contexts,
         ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
+        ...(requestMode ? { requestMode } : {}),
         ...(supersededStreamId || handoffChatId
           ? {
               queuedSendHandoff: {
@@ -3860,6 +3868,7 @@ export function useChat(
           message,
           ...(fileAttachments ? { fileAttachments } : {}),
           ...(contexts ? { contexts } : {}),
+          ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
           requestedAt: Date.now(),
         })
       }
@@ -4086,6 +4095,7 @@ export function useChat(
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
+            ...(options?.requestMode ? { mode: options.requestMode } : {}),
             ...(workflowIdRef.current ? { workflowId: workflowIdRef.current } : {}),
             // Desktop-only capabilities (local filesystem tools, browser
             // subagent) — the server gates the features on these flags.
@@ -4286,7 +4296,13 @@ export function useChat(
   const handOffWithdrawnSend = useCallback(
     (send: WithdrawnSend) => {
       if (
-        sendMothershipMessage(send.content, send.contexts, send.fileAttachments, send.userMessageId)
+        sendMothershipMessage(
+          send.content,
+          send.contexts,
+          send.fileAttachments,
+          send.userMessageId,
+          send.requestMode
+        )
       ) {
         return
       }
@@ -4296,6 +4312,7 @@ export function useChat(
           ...(send.contexts?.length ? { contexts: send.contexts } : {}),
           ...(send.fileAttachments?.length ? { fileAttachments: send.fileAttachments } : {}),
           resumeUserMessageId: send.userMessageId,
+          ...(send.requestMode ? { requestMode: send.requestMode } : {}),
         },
         workspaceId
       )
@@ -4352,7 +4369,13 @@ export function useChat(
       ) {
         queueStore.enqueue(
           activeChatKey,
-          createQueuedMessage(message, fileAttachments, contexts, options?.resumeUserMessageId)
+          createQueuedMessage(
+            message,
+            fileAttachments,
+            contexts,
+            options?.resumeUserMessageId,
+            options?.requestMode
+          )
         )
         if (pendingStopPromiseRef.current || (queuedAheadCount > 0 && !sendingRef.current)) {
           void enqueueQueueDispatchRef.current({ type: 'send_head' })
@@ -4373,6 +4396,7 @@ export function useChat(
         fileAttachments,
         contexts,
         userMessageId: result.userMessageId,
+        ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
       }
       if (activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
         handOffWithdrawnSend(withdrawn)
@@ -4382,7 +4406,13 @@ export function useChat(
         .getState()
         .enqueue(
           activeChatKey,
-          createQueuedMessage(message, fileAttachments, contexts, result.userMessageId)
+          createQueuedMessage(
+            message,
+            fileAttachments,
+            contexts,
+            result.userMessageId,
+            options?.requestMode
+          )
         )
     },
     [workspaceId, createQueuedMessage, startSendMessage, handOffWithdrawnSend]
@@ -4556,6 +4586,7 @@ export function useChat(
     recoveringQueuedSendHandoffRef.current = { id: handoff.id, ownerId: claimOwnerId }
     void startSendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
       pendingStop: null,
+      ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
       queuedSendHandoff: {
         id: handoff.id,
         chatId: handoff.chatId,
@@ -5016,6 +5047,7 @@ export function useChat(
             ...(liveMsg.resumeUserMessageId
               ? { resumeUserMessageId: liveMsg.resumeUserMessageId }
               : {}),
+            ...(liveMsg.requestMode ? { requestMode: liveMsg.requestMode } : {}),
           }
         )
 
