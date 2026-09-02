@@ -32,7 +32,7 @@ function release(tag: string) {
 }
 
 function manifest(version: string) {
-  return [`version: ${version}`, 'files:', `  - url: Sim-${version}-universal-mac.zip`].join('\n')
+  return [`version: ${version}`, 'files:', `  - url: Sim-${version}-universal.zip`].join('\n')
 }
 
 async function getFeed(hostname: string, headers?: HeadersInit): Promise<Response> {
@@ -84,7 +84,7 @@ describe('desktop update manifest route', () => {
       expect(response.headers.get(FEED_STATUS_HEADER)).toBe('release')
       expect(body).toContain(`version: ${version}`)
       expect(body).toContain(
-        `https://github.com/${repository}/releases/download/${tag}/Sim-${version}-universal-mac.zip`
+        `https://github.com/${repository}/releases/download/${tag}/Sim-${version}-universal.zip`
       )
     }
   )
@@ -224,5 +224,25 @@ describe('desktop update manifest route', () => {
     expect(response.status).toBe(502)
     expect(await response.json()).toMatchObject({ error: 'Release manifest unavailable' })
     expect(fetchMock).toHaveBeenNthCalledWith(1, PRERELEASE_RELEASES_URL, expect.any(Object))
+  })
+
+  it('rejects an oversized updater manifest', async () => {
+    fetchMock
+      .mockResolvedValueOnce(Response.json([release('v1.1.0')]))
+      .mockResolvedValueOnce(new Response(new Uint8Array(256 * 1024 + 1)))
+
+    const response = await getFeed('www.sim.ai')
+
+    expect(response.status).toBe(502)
+    expect(await response.json()).toMatchObject({ error: 'Release manifest unavailable' })
+  })
+
+  it('surfaces malformed GitHub release data as a feed failure', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('not json'))
+
+    const response = await getFeed('www.sim.ai')
+
+    expect(response.status).toBe(502)
+    expect(await response.json()).toMatchObject({ error: 'Release feed unavailable' })
   })
 })

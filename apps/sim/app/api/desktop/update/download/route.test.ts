@@ -108,4 +108,13 @@ describe('desktop update download route', () => {
     expect(response.status).toBe(502)
     expect(await response.json()).toMatchObject({ error: 'Release feed unavailable' })
   })
+
+  it('surfaces a GitHub network failure instead of returning an internal error', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('network unavailable'))
+
+    const response = await getDownload()
+
+    expect(response.status).toBe(502)
+    expect(await response.json()).toMatchObject({ error: 'Release feed unavailable' })
+  })
 })

@@ -1,11 +1,14 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
+import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   channelForDeploymentEnvironment,
   type DesktopReleaseCandidate,
   MANIFEST_ASSET_NAME,
+  MAX_DESKTOP_UPDATE_MANIFEST_BYTES,
   releaseRepositoryForChannel,
   releasesApiUrl,
   resolveLatestRelease,
@@ -41,25 +44,35 @@ export const GET = withRouteHandler(async (_request: NextRequest): Promise<Respo
 
   // A token raises the GitHub API quota from 60/h per NAT IP to 5000/h.
   // Optional: the repo is public, so the feed works without one.
-  const githubToken = process.env.GITHUB_TOKEN
+  const githubToken = env.GITHUB_TOKEN
   const resolved = await resolveLatestRelease(channel, async (page) => {
-    const response = await fetch(releasesApiUrl(releaseRepository, page), {
-      headers: {
-        accept: 'application/vnd.github+json',
-        ...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}),
-      },
-      next: { revalidate: REVALIDATE_SECONDS },
-    })
-    if (!response.ok) {
-      logger.error('GitHub releases lookup failed', {
-        status: response.status,
+    try {
+      const response = await fetch(releasesApiUrl(releaseRepository, page), {
+        headers: {
+          accept: 'application/vnd.github+json',
+          ...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}),
+        },
+        next: { revalidate: REVALIDATE_SECONDS },
+      })
+      if (!response.ok) {
+        logger.error('GitHub releases lookup failed', {
+          status: response.status,
+          page,
+          channel,
+          releaseRepository,
+        })
+        return null
+      }
+      return (await response.json()) as DesktopReleaseCandidate[]
+    } catch (error) {
+      logger.error('GitHub releases response could not be read', {
+        message: getErrorMessage(error),
         page,
         channel,
         releaseRepository,
       })
       return null
     }
-    return (await response.json()) as DesktopReleaseCandidate[]
   })
   if ('error' in resolved) {
     return NextResponse.json({ error: 'Release feed unavailable' }, { status: 502 })
@@ -78,8 +91,6 @@ export const GET = withRouteHandler(async (_request: NextRequest): Promise<Respo
 
   const asset = release.assets?.find((candidate) => candidate.name === MANIFEST_ASSET_NAME)
   if (!asset) {
-    // selectReleaseForChannel already skips assetless releases, so this only
-    // fires when the API response omitted assets entirely.
     logger.error('Release is missing its updater manifest', {
       tag: release.tag_name,
       channel,
@@ -97,7 +108,19 @@ export const GET = withRouteHandler(async (_request: NextRequest): Promise<Respo
     })
     return NextResponse.json({ error: 'Release manifest unavailable' }, { status: 502 })
   }
-  const manifestSource = await manifestResponse.text()
+  let manifestSource: string
+  try {
+    manifestSource = await readResponseTextWithLimit(manifestResponse, {
+      maxBytes: MAX_DESKTOP_UPDATE_MANIFEST_BYTES,
+      label: 'Desktop update manifest',
+    })
+  } catch (error) {
+    logger.error('Updater manifest could not be read safely', {
+      tag: release.tag_name,
+      message: getErrorMessage(error),
+    })
+    return NextResponse.json({ error: 'Release manifest unavailable' }, { status: 502 })
+  }
   const manifestVersion = /^version:\s*(\S+)\s*$/m.exec(manifestSource)?.[1]
   const releaseVersion = release.tag_name.replace(/^v/, '')
   if (manifestVersion !== releaseVersion) {
@@ -108,6 +131,12 @@ export const GET = withRouteHandler(async (_request: NextRequest): Promise<Respo
     return NextResponse.json({ error: 'Release manifest unavailable' }, { status: 502 })
   }
   const manifest = rewriteManifestUrls(manifestSource, release.tag_name, releaseRepository)
+  if (!manifest) {
+    logger.error('Updater manifest referenced an unexpected artifact', {
+      tag: release.tag_name,
+    })
+    return NextResponse.json({ error: 'Release manifest unavailable' }, { status: 502 })
+  }
 
   return new NextResponse(manifest, {
     status: 200,

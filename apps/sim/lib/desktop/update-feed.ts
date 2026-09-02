@@ -66,6 +66,7 @@ export function channelOfVersion(version: string): DesktopUpdateChannel {
  * release belongs to is carried entirely by its tag.
  */
 export const MANIFEST_ASSET_NAME = 'latest-mac.yml'
+export const MAX_DESKTOP_UPDATE_MANIFEST_BYTES = 256 * 1024
 
 /** The subset of the GitHub releases API the feed needs. */
 export interface DesktopReleaseCandidate {
@@ -95,7 +96,7 @@ export function selectReleaseForChannel(
     // Defense in depth: a bare vX.Y.Z tag manually marked "pre-release" on
     // GitHub must not reach stable clients.
     if (channel === 'latest' && release.prerelease) continue
-    if (release.assets && !release.assets.some((asset) => asset.name === MANIFEST_ASSET_NAME)) {
+    if (!release.assets?.some((asset) => asset.name === MANIFEST_ASSET_NAME)) {
       continue
     }
     if (best === null) {
@@ -125,14 +126,32 @@ export function rewriteManifestUrls(
   manifest: string,
   tag: string,
   repository: DesktopReleaseRepository
-): string {
+): string | null {
   const base = `https://github.com/${repository}/releases/download/${tag}/`
-  return manifest.replace(/^(\s*(?:-\s*)?(?:url|path):\s*)(\S+)\s*$/gm, (line, prefix, value) => {
-    if (value.startsWith('http://') || value.startsWith('https://')) {
-      return line
+  const version = tag.replace(/^v/, '')
+  const expectedNames = new Set([`Sim-${version}-universal.dmg`, `Sim-${version}-universal.zip`])
+  let valid = true
+  const rewritten = manifest.replace(
+    /^(\s*(?:-\s*)?(?:url|path):\s*)(\S+)\s*$/gm,
+    (_line, prefix: string, value: string) => {
+      try {
+        const pathname =
+          value.startsWith('http://') || value.startsWith('https://')
+            ? new URL(value).pathname
+            : value
+        const name = decodeURIComponent(pathname.split('/').at(-1) ?? '')
+        if (!expectedNames.has(name)) {
+          valid = false
+          return ''
+        }
+        return `${prefix}${base}${encodeURIComponent(name)}`
+      } catch {
+        valid = false
+        return ''
+      }
     }
-    return `${prefix}${base}${encodeURIComponent(value)}`
-  })
+  )
+  return valid ? rewritten : null
 }
 
 /**
@@ -189,12 +208,19 @@ export async function resolveLatestRelease(
  * web-app and SDK tags that carry no desktop artifact at all.
  */
 export function selectInstallerAsset(
-  release: DesktopReleaseCandidate
+  release: DesktopReleaseCandidate,
+  repository: DesktopReleaseRepository
 ): { name: string; browser_download_url: string } | null {
   const assets = release.assets ?? []
-  return (
-    assets.find((asset) => asset.name.endsWith('.dmg')) ??
-    assets.find((asset) => asset.name.endsWith('.zip')) ??
-    null
-  )
+  const version = release.tag_name.replace(/^v/, '')
+  const dmgName = `Sim-${version}-universal.dmg`
+  const zipName = `Sim-${version}-universal.zip`
+  const asset =
+    assets.find((candidate) => candidate.name === dmgName) ??
+    assets.find((candidate) => candidate.name === zipName)
+  if (!asset) return null
+  return {
+    name: asset.name,
+    browser_download_url: `https://github.com/${repository}/releases/download/${release.tag_name}/${asset.name}`,
+  }
 }

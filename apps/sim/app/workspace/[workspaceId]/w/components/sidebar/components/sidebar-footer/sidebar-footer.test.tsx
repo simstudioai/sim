@@ -175,7 +175,7 @@ describe('SidebarFooter', () => {
     expect(helpTrigger()).toHaveClass('h-[30px]', 'px-2')
     expect(helpTrigger()).not.toHaveClass('bg-[var(--text-primary)]')
     expect(helpTrigger().querySelector('circle')).not.toBeInTheDocument()
-    expect(helpTrigger().querySelector('span')).toHaveClass(
+    expect(helpTrigger().querySelector('div')).toHaveClass(
       'size-[17px]',
       'rounded-full',
       'bg-[var(--text-primary)]'
@@ -193,15 +193,25 @@ describe('SidebarFooter', () => {
     expect(desktopMocks.install).not.toHaveBeenCalled()
   })
 
+  it('uses a collapsed-sidebar-safe element for the update icon', async () => {
+    await renderFooter(
+      { status: 'available', version: '1.4.0' },
+      { isCollapsed: true, showCollapsedTooltips: true }
+    )
+
+    expect(helpTrigger().querySelector('div')).toHaveClass('size-[17px]')
+    expect(helpTrigger().querySelector('span')).toBeNull()
+  })
+
   it('turns the menu action into restart-and-install when the update is ready', async () => {
     await renderFooter({ status: 'idle' })
 
     act(() => {
       desktopMocks.listener?.({ status: 'ready', version: '1.4.0' })
     })
-    expect(helpTrigger().querySelector('span')).toHaveClass('bg-[var(--text-primary)]')
+    expect(helpTrigger().querySelector('div')).toHaveClass('bg-[var(--text-primary)]')
     openHelpMenu()
-    act(() => menuItem('Update').click())
+    act(() => menuItem('Restart to update').click())
 
     expect(desktopMocks.install).toHaveBeenCalledTimes(1)
     expect(desktopMocks.check).not.toHaveBeenCalled()

@@ -19,10 +19,8 @@ on:
         type: boolean
         default: true
       sign:
-        description: Sign and notarize with the Apple Developer identity. When
-          false (prerelease testing before the signing secrets exist) the build
-          is packaged unsigned; installed shells detect this and offer manual
-          downloads instead of Squirrel installs.
+        description: Sign and notarize with the Apple Developer identity. Unsigned
+          builds are workflow artifacts only and cannot be published.
         required: false
         type: boolean
         default: true
@@ -50,6 +48,7 @@ jobs:
   build-sign-notarize:
     name: Build, Sign, Notarize
     runs-on: macos-26
+    timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -101,8 +100,8 @@ jobs:
             echo "::error::Manual desktop releases must use a stable source-repository tag."
             exit 1
           fi
-          if [ "$TOKEN_KIND" = stable ] && [ "$PUBLISH" = true ] && [ "$SIGN" != true ]; then
-            echo "::error::Stable desktop releases must be signed before publication."
+          if [ "$PUBLISH" = true ] && [ "$SIGN" != true ]; then
+            echo "::error::Desktop releases must be signed before publication."
             exit 1
           fi
           if [ "$TOKEN_KIND" = stable ]; then
@@ -206,10 +205,9 @@ jobs:
           bunx electron-builder --mac --publish never
           -c.productName="$PRODUCT_NAME" -c.appId="$APP_ID"
 
-      # Unsigned prerelease path: no Developer ID, no notarization. The
-      # binaries are explicitly ad-hoc signed with Hardened Runtime off, which
-      # runs locally but gets quarantined when downloaded — fine for testing
-      # the update pipeline without Developer ID credentials.
+      # Unsigned artifact-only path: no Developer ID or notarization. The bundle
+      # is ad-hoc signed with Hardened Runtime off for local workflow testing and
+      # must never be published.
       - name: Package unsigned
         if: ${{ !inputs.sign }}
         working-directory: apps/desktop
@@ -274,6 +272,9 @@ jobs:
       - name: Validate signature and notarization
         if: ${{ inputs.sign }}
         env:
+          APP_ID: ${{ steps.channel.outputs.app_id }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          PRODUCT_NAME: ${{ steps.channel.outputs.name }}
           VERSION: ${{ inputs.version }}
         run: |
           SEMVER="${VERSION#v}"
@@ -281,6 +282,25 @@ jobs:
           ZIP="apps/desktop/release/Sim-${SEMVER}-universal.zip"
           MOUNT_POINT="$RUNNER_TEMP/sim-dmg"
           ZIP_DIR="$(mktemp -d "$RUNNER_TEMP/sim-zip.XXXXXX")"
+          validate_identity() {
+            local APP_BUNDLE="$1"
+            local ACTUAL_APP_ID ACTUAL_NAME SIGNATURE
+            ACTUAL_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_BUNDLE/Contents/Info.plist")"
+            ACTUAL_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$APP_BUNDLE/Contents/Info.plist")"
+            SIGNATURE="$(codesign -dv --verbose=4 "$APP_BUNDLE" 2>&1)"
+            if [ "$ACTUAL_APP_ID" != "$APP_ID" ] || [ "$ACTUAL_NAME" != "$PRODUCT_NAME" ]; then
+              echo "::error::Unexpected packaged identity: $ACTUAL_NAME ($ACTUAL_APP_ID)."
+              exit 1
+            fi
+            if ! grep -Fxq "TeamIdentifier=$APPLE_TEAM_ID" <<< "$SIGNATURE"; then
+              echo "::error::The app was not signed by the expected Apple team."
+              exit 1
+            fi
+            if ! grep -Eq 'flags=.*runtime' <<< "$SIGNATURE"; then
+              echo "::error::The app was not signed with Hardened Runtime."
+              exit 1
+            fi
+          }
           mkdir -p "$MOUNT_POINT"
           hdiutil attach "$DMG" -mountpoint "$MOUNT_POINT" -nobrowse -quiet
           trap 'hdiutil detach "$MOUNT_POINT" -quiet || true; rm -rf "$ZIP_DIR"' EXIT
@@ -292,6 +312,7 @@ jobs:
           xcrun stapler validate "$APP_BUNDLE"
           spctl --assess --type execute --verbose "$APP_BUNDLE"
           codesign --verify --deep --strict "$APP_BUNDLE"
+          validate_identity "$APP_BUNDLE"
           unzip -q "$ZIP" -d "$ZIP_DIR"
           ZIP_APP="$(find "$ZIP_DIR" -maxdepth 2 -name '*.app' -print -quit)"
           if [ -z "$ZIP_APP" ]; then
@@ -301,6 +322,7 @@ jobs:
           xcrun stapler validate "$ZIP_APP"
           spctl --assess --type execute --verbose "$ZIP_APP"
           codesign --verify --deep --strict "$ZIP_APP"
+          validate_identity "$ZIP_APP"
           hdiutil detach "$MOUNT_POINT" -quiet
           rm -rf "$ZIP_DIR"
           trap - EXIT

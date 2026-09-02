@@ -75,6 +75,15 @@ export type BrowserToolName = (typeof BROWSER_TOOL_NAMES)[number]
 export const BROWSER_WAIT_FOR_DEFAULT_TIMEOUT_MS = 10_000
 export const BROWSER_WAIT_FOR_MAX_TIMEOUT_MS = 120_000
 export const BROWSER_WAIT_FOR_RENDERER_GRACE_MS = 15_000
+export const BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS = 8_000
+export const BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS = 60_000
+export const BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS = BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS
+const BROWSER_RENDERER_TRANSPORT_GRACE_MS = 2_000
+export const BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS =
+  BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS +
+  BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS +
+  BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS +
+  BROWSER_RENDERER_TRANSPORT_GRACE_MS
 
 /**
  * Normalizes the model-visible `browser_wait_for.timeoutMs` consistently in
@@ -1819,9 +1828,9 @@ export interface SimDesktopTerminalThemesApi {
 }
 
 /**
- * Where the shell's update pipeline currently is. `available` only occurs
- * when automatic downloads are disabled; with them enabled the shell moves
- * straight to `downloading`.
+ * Where the shell's update pipeline currently is. `available` occurs when
+ * automatic downloads are disabled or the shell requires a manual installer;
+ * self-updating shells with automatic downloads enabled move to `downloading`.
  */
 export type DesktopUpdateStatus =
   | 'idle'
@@ -1838,11 +1847,9 @@ export interface DesktopUpdateState {
   /** Whole-number download progress (0-100) while `downloading`. */
   percent?: number
   /**
-   * True when this shell cannot apply updates in place (a build without a
-   * Developer ID signature — local installs and pre-signing CI prereleases;
-   * Squirrel.Mac refuses to swap unsigned bundles). `available` is then the
-   * pipeline's terminal state and the advance action opens the download in
-   * the browser instead of downloading in the background.
+   * True when this shell cannot apply updates in place, such as an unsigned build
+   * or an app running outside /Applications. `available` is then the terminal state
+   * and the advance action opens the installer in the browser.
    */
   manual?: boolean
 }
@@ -1851,11 +1858,11 @@ export interface DesktopUpdateState {
 export interface SimDesktopUpdatesApi {
   getState(): Promise<DesktopUpdateState>
   /**
-   * Advance the pipeline: checks for an update, or starts the download when
-   * one is already known to be available (auto-download off).
+   * Advances the pipeline: checks for an update, downloads an available
+   * self-update, or opens an available manual installer.
    */
   check(): void
-  /** Quit and install a `ready` update. No-op in any other state. */
+  /** Installs a ready update or opens the installer for an available manual update. */
   install(): void
   /** Subscribe to pipeline state changes. Returns an unsubscribe function. */
   onState(callback: (state: DesktopUpdateState) => void): () => void

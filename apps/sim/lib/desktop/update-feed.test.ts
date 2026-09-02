@@ -121,9 +121,9 @@ describe('selectReleaseForChannel', () => {
     expect(selectReleaseForChannel(withBrokenNewest, 'dev')?.tag_name).toBe('v0.5.25-dev.412')
   })
 
-  it('tolerates release listings without asset data', () => {
-    const bare = { tag_name: 'v0.5.24', draft: false, prerelease: false }
-    expect(selectReleaseForChannel([bare], 'latest')?.tag_name).toBe('v0.5.24')
+  it('skips release listings without asset data', () => {
+    const bare = { tag_name: 'v0.5.25', draft: false, prerelease: false }
+    expect(selectReleaseForChannel([bare, release('v0.5.24')], 'latest')?.tag_name).toBe('v0.5.24')
   })
 
   it('skips drafts and unparseable tags', () => {
@@ -140,27 +140,32 @@ describe('rewriteManifestUrls', () => {
     const manifest = [
       'version: 0.5.24',
       'files:',
-      '  - url: Sim-0.5.24-universal-mac.zip',
+      '  - url: Sim-0.5.24-universal.zip',
       '    sha512: abc',
       '    size: 123',
-      'path: Sim-0.5.24-universal-mac.zip',
+      'path: Sim-0.5.24-universal.zip',
       'sha512: abc',
       "releaseDate: '2026-07-23T00:00:00.000Z'",
     ].join('\n')
     const rewritten = rewriteManifestUrls(manifest, 'v0.5.24', repository)
     expect(rewritten).toContain(
-      `  - url: https://github.com/${repository}/releases/download/v0.5.24/Sim-0.5.24-universal-mac.zip`
+      `  - url: https://github.com/${repository}/releases/download/v0.5.24/Sim-0.5.24-universal.zip`
     )
     expect(rewritten).toContain(
-      `path: https://github.com/${repository}/releases/download/v0.5.24/Sim-0.5.24-universal-mac.zip`
+      `path: https://github.com/${repository}/releases/download/v0.5.24/Sim-0.5.24-universal.zip`
     )
     expect(rewritten).toContain('sha512: abc')
   })
 
-  it('leaves already-absolute URLs alone', () => {
-    const manifest = '  - url: https://cdn.example.com/Sim.zip'
+  it('canonicalizes an expected absolute asset URL', () => {
+    const manifest = '  - url: https://cdn.example.com/Sim-0.5.24-universal.zip'
     expect(rewriteManifestUrls(manifest, 'v0.5.24', DESKTOP_STABLE_RELEASE_REPOSITORY)).toBe(
-      manifest
+      `  - url: https://github.com/${DESKTOP_STABLE_RELEASE_REPOSITORY}/releases/download/v0.5.24/Sim-0.5.24-universal.zip`
     )
+  })
+
+  it('rejects unexpected manifest asset names', () => {
+    const manifest = '  - url: https://cdn.example.com/unreviewed.zip'
+    expect(rewriteManifestUrls(manifest, 'v0.5.24', DESKTOP_STABLE_RELEASE_REPOSITORY)).toBeNull()
   })
 })
