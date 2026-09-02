@@ -145,10 +145,13 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
    * off, a connect is refused, so the chips say so instead of offering one.
    */
   const memberAccessAvailable = features?.knowledgeMemberAccess === true
-  const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS } = useWorkspaceMemberConnectors(
-    workspaceId,
-    { enabled: memberAccessAvailable }
-  )
+  const { data: memberConnectorRows } = useWorkspaceMemberConnectors(workspaceId, {
+    enabled: memberAccessAvailable,
+  })
+  /** Rows cached before the feature went off are not this surface's to show. */
+  const memberConnectors = memberAccessAvailable
+    ? (memberConnectorRows ?? EMPTY_MEMBER_CONNECTORS)
+    : EMPTY_MEMBER_CONNECTORS
   const connectionByType = useMemo(
     () => simSearchConnectionsByType(memberConnectors),
     [memberConnectors]

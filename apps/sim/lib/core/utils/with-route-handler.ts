@@ -1,5 +1,5 @@
 import { createLogger, runWithRequestContext } from '@sim/logger'
-import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
+import { describeError, getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getRateLimitHeaders } from '@/lib/api/server/rate-limit-context'
@@ -90,14 +90,15 @@ function traceIdFromTraceparent(header: string | null | undefined): string | und
 /**
  * What a wrapped error hides: a query failure from the database client carries
  * the driver's reason and the Postgres code on its cause, and only the outer
- * message names the query.
+ * message names the query. The shared describer reads the deepest cause and
+ * strips bound parameter values, so user data never reaches the log.
  */
 function errorDetail(error: unknown): { cause?: string; code?: string } {
-  const cause = error instanceof Error && error.cause !== undefined ? error.cause : undefined
-  const code = getPostgresErrorCode(error)
+  if (!(error instanceof Error) || error.cause === undefined) return {}
+  const described = describeError(error)
   return {
-    ...(cause !== undefined ? { cause: getErrorMessage(cause) } : {}),
-    ...(code ? { code } : {}),
+    cause: `${described.name}: ${described.message}`,
+    ...(described.code ? { code: described.code } : {}),
   }
 }
 

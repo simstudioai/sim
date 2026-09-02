@@ -68,13 +68,33 @@ export function findTermMatches(text: string, terms: readonly string[]): TermMat
   const pattern = new RegExp(terms.map(escapeRegExp).join('|'), 'giu')
   const matches: TermMatch[] = []
   for (const match of text.matchAll(pattern)) {
-    const before = text[match.index - 1]
-    const after = text[match.index + match[0].length]
+    const before = codePointBefore(text, match.index)
+    const after = codePointAt(text, match.index + match[0].length)
     if (before !== undefined && WORD_CHARACTER.test(before)) continue
     if (after !== undefined && WORD_CHARACTER.test(after)) continue
     matches.push({ index: match.index, length: match[0].length })
   }
   return matches
+}
+
+/** The whole character starting at a code-unit index, or undefined past the end. */
+function codePointAt(text: string, index: number): string | undefined {
+  const code = text.codePointAt(index)
+  return code === undefined ? undefined : String.fromCodePoint(code)
+}
+
+/** The whole character ending just before a code-unit index, or undefined at the start. */
+function codePointBefore(text: string, index: number): string | undefined {
+  if (index <= 0) return undefined
+  const unit = text.charCodeAt(index - 1)
+  const start = unit >= 0xdc00 && unit <= 0xdfff && index >= 2 ? index - 2 : index - 1
+  return codePointAt(text, start)
+}
+
+/** An index moved off the middle of a surrogate pair, so a slice never splits a character. */
+function alignToCodePoint(text: string, index: number): number {
+  const unit = text.charCodeAt(index)
+  return unit >= 0xdc00 && unit <= 0xdfff ? index - 1 : index
 }
 
 /**
@@ -94,11 +114,13 @@ export function matchSnippet(content: string, query?: string): string {
     const boundary = flat.indexOf(' ', start)
     if (boundary !== -1 && boundary - start < LEAD_LENGTH) start = boundary + 1
   }
+  start = alignToCodePoint(flat, start)
   if (flat.length - start <= SNIPPET_LENGTH) {
     return `${start > 0 ? '…' : ''}${flat.slice(start)}`
   }
   let end = start + SNIPPET_LENGTH
   const lastSpace = flat.lastIndexOf(' ', end)
   if (lastSpace > start + SNIPPET_LENGTH / 2) end = lastSpace
+  end = alignToCodePoint(flat, end)
   return `${start > 0 ? '…' : ''}${flat.slice(start, end).trimEnd()}…`
 }

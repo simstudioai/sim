@@ -199,10 +199,13 @@ export function KnowledgeSearchResults({
    * the viewer will see, and the list is not worth asking for.
    */
   const memberAccessAvailable = features?.knowledgeMemberAccess === true
-  const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS } = useWorkspaceMemberConnectors(
-    workspaceId,
-    { enabled: memberAccessAvailable }
-  )
+  const { data: memberConnectorRows } = useWorkspaceMemberConnectors(workspaceId, {
+    enabled: memberAccessAvailable,
+  })
+  /** Rows cached before the feature went off are not this surface's to show. */
+  const memberConnectors = memberAccessAvailable
+    ? (memberConnectorRows ?? EMPTY_MEMBER_CONNECTORS)
+    : EMPTY_MEMBER_CONNECTORS
   const indexing = indexingSourceNames(memberConnectors, knowledgeBaseIds)
   const documents = useMemo(() => groupResultsByDocument(results ?? []), [results])
   const sourceTypes = useMemo(

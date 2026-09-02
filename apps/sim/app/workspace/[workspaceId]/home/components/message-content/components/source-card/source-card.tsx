@@ -168,7 +168,7 @@ export function SourceCard({ source, query, onSummarize }: SourceCardProps) {
           </p>
         )}
       </div>
-      <div className='flex flex-shrink-0 items-center gap-1 self-start opacity-0 transition-opacity group-focus-within/source:opacity-100 group-hover/source:opacity-100'>
+      <div className='flex flex-shrink-0 items-center gap-1 self-start opacity-0 transition-opacity group-focus-within/source:opacity-100 group-hover/source:opacity-100 [@media(hover:none)]:opacity-100'>
         <CopyLinkAction url={source.url} />
         {onSummarize && (
           <Button variant='ghost' size='sm' onClick={() => onSummarize(source)}>

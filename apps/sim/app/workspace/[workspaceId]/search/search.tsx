@@ -90,7 +90,7 @@ function SourceRow({
       : connector.meta.description
   const description = unavailableReason ?? (personal ? state : NEEDS_KNOWLEDGE_BASE_SETUP)
   const connectable =
-    !unavailable && personal && (!membership || CONNECTABLE_MEMBERSHIPS.has(membership))
+    !unavailable && !waiting && personal && (!membership || CONNECTABLE_MEMBERSHIPS.has(membership))
   return (
     <SettingsResourceRow
       iconVariant='custom'
@@ -141,8 +141,14 @@ export function Search() {
    */
   const setSearchTerm = useDebouncedSearchSetter(setSearchTermParam)
 
-  const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS, isPending: connectionsPending } =
-    useWorkspaceMemberConnectors(workspaceId, { enabled: memberAccessAvailable })
+  const { data: memberConnectorRows, isPending: connectionsPending } = useWorkspaceMemberConnectors(
+    workspaceId,
+    { enabled: memberAccessAvailable }
+  )
+  /** Rows cached before the feature went off are not this surface's to show. */
+  const memberConnectors = memberAccessAvailable
+    ? (memberConnectorRows ?? EMPTY_MEMBER_CONNECTORS)
+    : EMPTY_MEMBER_CONNECTORS
   useScrollRestoration(scrollContainerRef, {
     ready: !memberAccessAvailable || !connectionsPending,
   })
@@ -179,6 +185,7 @@ export function Search() {
     setupConnector,
     closeSetup,
     isAwaiting,
+    isAwaitingSource,
     isPending,
     error,
   } = useMemberEnrollment({
@@ -237,7 +244,11 @@ export function Search() {
                         integrationAvailability,
                         memberAccessAvailable
                       )}
-                      waiting={connection ? isAwaiting(connection.connectorId) : false}
+                      waiting={
+                        connection
+                          ? isAwaiting(connection.connectorId)
+                          : isAwaitingSource(connector.type)
+                      }
                       isPending={isPending}
                       onConnect={() => connectSearchSource(workspaceId, connector, connection)}
                     />

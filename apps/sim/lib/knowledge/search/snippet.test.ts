@@ -60,6 +60,10 @@ describe('findTermMatches', () => {
     expect(findTermMatches('東京の天気', ['天気'])).toEqual([{ index: 3, length: 2 }])
   })
 
+  it('reads whole characters beside a hit, not code units', () => {
+    expect(findTermMatches('𝔘nicode volvo𝔘 volvo', ['volvo'])).toEqual([{ index: 17, length: 5 }])
+  })
+
   it('skips a hit glued to another word character', () => {
     expect(findTermMatches('subvolvo volvo_x volvo', ['volvo'])).toEqual([{ index: 17, length: 5 }])
   })
@@ -83,6 +87,14 @@ describe('matchSnippet', () => {
     expect(matchSnippet(EMAIL, '"Volvo order"')).toContain('The Volvo order shipped')
     const german = `${'Einleitung. '.repeat(30)}Die Lieferung nach Zürich ist unterwegs. ${'Mehr. '.repeat(30)}`
     expect(matchSnippet(german, 'Zürich')).toContain('nach Zürich')
+  })
+
+  it('never splits a surrogate pair at a window edge', () => {
+    const emoji = `${'🙂'.repeat(200)} volvo ${'🙂'.repeat(200)}`
+    const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
+    for (const snippet of [matchSnippet(emoji, 'volvo'), matchSnippet(emoji, 'none')]) {
+      expect(loneSurrogate.test(snippet)).toBe(false)
+    }
   })
 
   it('falls back to the opening when no term appears in the chunk', () => {

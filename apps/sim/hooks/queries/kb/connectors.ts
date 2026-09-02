@@ -524,10 +524,15 @@ export function useTriggerSync() {
       if (previous) {
         setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, previous)
       }
-      queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
-      /** The member-connector list took the same optimistic `pending`; a refetch is its rollback. */
+      /**
+       * The member-connector list took the same optimistic `pending`; a refetch
+       * is its rollback, and the connector list's own status was restored above,
+       * so it is not refetched over concurrent optimistic patches.
+       */
       if (previous && 'memberSyncStatus' in previous) {
         queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
+      } else {
+        queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
       }
     },
     /**

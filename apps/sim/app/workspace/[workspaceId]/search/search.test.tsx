@@ -140,6 +140,7 @@ vi.mock('@/hooks/use-member-enrollment', async () => {
       setupConnector: null,
       closeSetup: () => {},
       isAwaiting: () => false,
+      isAwaitingSource: () => false,
       isPending: false,
       error: null,
     }),

@@ -66,7 +66,7 @@ const DEFAULT_QUERY_TOP_K = 5
  * a source URL is quoted by name instead.
  */
 const KNOWLEDGE_CITATION_INSTRUCTION =
-  'Cite each result you use inline, right after the sentence it supports, as <source>{"url":<sourceUrl>,"title":<documentName>,"siteName":<knowledgeBaseName>,"connectorType":<connectorType>,"snippet":<the sentence or two of content you relied on>,"updatedAt":<sourceModifiedAt>,"author":<author>}</source>; leave out any optional field whose value is null or unknown, and omit the tag for a result whose sourceUrl is null and name the document instead.'
+  'Cite each result you use inline, right after the sentence it supports, as <source>{"url":"<sourceUrl>","title":"<documentName>","siteName":"<knowledgeBaseName>","connectorType":"<connectorType>","snippet":"<the sentence or two of content you relied on>","updatedAt":"<sourceModifiedAt>","author":"<author>"}</source> with every value JSON-escaped; leave out any optional field whose value is null or unknown, and omit the tag for a result whose sourceUrl is null and name the document instead.'
 
 /**
  * Resolves an environment-variable reference passed as a connector API key.
