@@ -234,7 +234,6 @@ const INITIAL_ACTIONS: Action[] = [
 /** Section heading per composer mode — Search reads as a connect-your-sources list. */
 const HEADINGS: Record<MothershipMode, string> = {
   build: 'Suggested actions',
-  ask: 'Sources',
   search: 'Sources',
 }
 
@@ -373,7 +372,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
               `collapsible-up`/`-down` interpolate height alone, so a margin here
               would hold its full value through the close and then vanish on unmount,
               snapping the content below up. */}
-          {mode !== 'build' && workspaceId ? (
+          {mode === 'search' && workspaceId ? (
             <div className='pt-1.5'>
               <SearchSources workspaceId={workspaceId} />
             </div>

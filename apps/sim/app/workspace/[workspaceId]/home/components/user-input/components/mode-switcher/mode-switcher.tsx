@@ -28,12 +28,11 @@ import {
 
 const MODE_LABELS: Record<MothershipMode, string> = {
   build: 'Build',
-  ask: 'Ask',
   search: 'Search',
 }
 
 /**
- * The composer's Build / Ask / Search switcher: a label-only `Chip` in its `round`
+ * The composer's Build / Search switcher: a label-only `Chip` in its `round`
  * shape — chip chrome throughout (`--text-body` label, `--surface-hover` on
  * hover, no text-color shift), fully round to sit in the toolbar's row of
  * round controls — opening a menu that checks the active mode, as

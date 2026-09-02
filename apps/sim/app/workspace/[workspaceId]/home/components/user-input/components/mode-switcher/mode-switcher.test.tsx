@@ -78,15 +78,14 @@ describe('ModeSwitcher', () => {
     expect(button.querySelector('svg')).toBeNull()
   })
 
-  it('lists every mode and checks the active one', () => {
+  it('lists both modes and checks the active one', () => {
     mount()
     openMenu()
 
     const rows = items()
-    expect(rows.map((row) => row.textContent)).toEqual(['Build', 'Ask', 'Search'])
+    expect(rows.map((row) => row.textContent)).toEqual(['Build', 'Search'])
     expect(rows[0].querySelector('svg')).not.toBeNull()
     expect(rows[1].querySelector('svg')).toBeNull()
-    expect(rows[2].querySelector('svg')).toBeNull()
   })
 
   it('switches the shared mode and reports the change', () => {
@@ -94,7 +93,7 @@ describe('ModeSwitcher', () => {
     openMenu()
 
     act(() => {
-      items()[2].dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
+      items()[1].dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
     })
 
     expect(useMothershipModeStore.getState().mode).toBe('search')

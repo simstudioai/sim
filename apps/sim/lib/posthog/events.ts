@@ -617,7 +617,13 @@ export interface PostHogEventMap {
   /** The chat composer's mode switcher picked a different mode. */
   chat_mode_changed: {
     workspace_id: string
-    mode: 'build' | 'ask' | 'search'
+    mode: 'build' | 'search'
+  }
+
+  /** Search mode's Answer toggle was flipped. */
+  chat_answer_toggled: {
+    workspace_id: string
+    enabled: boolean
   }
 
   /**

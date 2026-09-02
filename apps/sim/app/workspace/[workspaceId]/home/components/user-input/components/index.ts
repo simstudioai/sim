@@ -1,4 +1,5 @@
 export { AnimatedPlaceholderEffect } from './animated-placeholder-effect'
+export { AnswerToggle } from './answer-toggle'
 export { AttachedFilesList } from './attached-files-list'
 export type { ParsedChipLink, PortableKind } from './chip-clipboard-codec'
 export {

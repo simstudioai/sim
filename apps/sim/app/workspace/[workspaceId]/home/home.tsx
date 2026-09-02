@@ -195,6 +195,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     if (searchQuery) useMothershipModeStore.getState().setMode('search')
   }, [searchQuery])
   const composerMode = useMothershipModeStore((state) => state.mode)
+  const answerMode = useMothershipModeStore((state) => state.answer)
   /** The bases an Ask turn is grounded in; read through a ref so a list refresh never rebuilds the submit handler. */
   const { data: knowledgeBases = EMPTY_KNOWLEDGE_BASES } = useKnowledgeBasesQuery(workspaceId)
   const knowledgeBasesRef = useRef(knowledgeBases)
@@ -487,11 +488,13 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       })
 
       /**
-       * Search mode answers with documents, not a turn of the agent, and only
+       * Search without Answer lists documents, not a turn of the agent, and only
        * a query can be answered: attachments alone have nothing to search for.
+       * With Answer on, the query is a turn of the agent grounded in the sources.
        */
-      const mode = useMothershipModeStore.getState().mode
-      if (mode === 'search') {
+      const { mode, answer } = useMothershipModeStore.getState()
+      const answering = mode === 'search' && answer
+      if (mode === 'search' && !answer) {
         if (trimmed) setSearchQuery(trimmed)
         return
       }
@@ -501,18 +504,17 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       }
 
       prepareResourceViewForAgentTurn()
-      const turnContexts =
-        mode === 'ask'
-          ? withSearchedKnowledgeContexts(
-              contexts,
-              searchedKnowledgeBases(knowledgeBasesRef.current, workspaceId)
-            )
-          : contexts
+      const turnContexts = answering
+        ? withSearchedKnowledgeContexts(
+            contexts,
+            searchedKnowledgeBases(knowledgeBasesRef.current, workspaceId)
+          )
+        : contexts
       sendMessage(
         trimmed || 'Analyze the attached file(s).',
         fileAttachments,
         turnContexts,
-        mode === 'ask' ? { requestMode: 'ask' } : undefined
+        answering ? { requestMode: 'ask' } : undefined
       )
     },
     [workspaceId, chatId, prepareResourceViewForAgentTurn, sendMessage, setSearchQuery]
@@ -521,20 +523,23 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   /** An emptied search box returns to the sources; nothing else reads the cleared query. */
   const clearSearch = useCallback(() => setSearchQuery(''), [setSearchQuery])
 
-  /** Summarize or Answer on a result: hand the question to the agent in Ask mode. */
+  /** Summarize or Answer on a result: turn Answer on and hand the question to the agent. */
   const handleSummarize = (prompt: string) => {
-    useMothershipModeStore.getState().setMode('ask')
+    const store = useMothershipModeStore.getState()
+    store.setMode('search')
+    store.setAnswer(true)
     setSearchQuery('')
     handleSubmit(prompt)
   }
   /**
-   * A chat that already exists never opens in Search: its transcript is a
-   * conversation, and search results never join it. Build and Ask both carry
-   * over, so a follow-up question stays grounded in the sources.
+   * A chat that already exists never opens in document-listing Search: its
+   * transcript is a conversation, and search results never join it. Build and
+   * Search with Answer both carry over, so a follow-up stays grounded in the
+   * sources.
    */
   useEffect(() => {
     const store = useMothershipModeStore.getState()
-    if (chatId && store.mode === 'search') store.setMode('build')
+    if (chatId && store.mode === 'search' && !store.answer) store.setMode('build')
   }, [chatId])
   const showSearchResults = composerMode === 'search' && searchQuery.trim().length > 0
   const searchResults = showSearchResults ? (
@@ -767,7 +772,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
                     draftScopeKey={draftScopeKey}
                     onSubmit={handleSubmit}
                     canSearch
-                    clearOnSubmit={composerMode !== 'search'}
+                    clearOnSubmit={composerMode !== 'search' || answerMode}
                     onCleared={clearSearch}
                     isSending={isSending}
                     onStopGeneration={handleStopGeneration}
@@ -796,7 +801,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
             isLoading={showChatSkeleton}
             onSubmit={handleSubmit}
             canSearch
-            clearOnSubmit={composerMode !== 'search'}
+            clearOnSubmit={composerMode !== 'search' || answerMode}
             onCleared={clearSearch}
             onStopGeneration={handleStopGeneration}
             messageQueue={messageQueue}
