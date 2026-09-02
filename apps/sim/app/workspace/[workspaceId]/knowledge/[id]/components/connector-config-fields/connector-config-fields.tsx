@@ -2,13 +2,13 @@
 
 import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@sim/emcn'
 import { ArrowLeftRight, CircleInfo } from '@sim/emcn/icons'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import type {
   ConfigFieldMap,
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
-import type { SelectorKey } from '@/hooks/selectors/types'
 
 export interface ConnectorConfigFieldsProps {
   /** Registry definition whose `configFields` drive the rendered rows. */

@@ -8,7 +8,6 @@ import type { SubBlockConfig } from '@/blocks/types'
 // remap module never pulls the full registry (these cases use top-level selectors / dependents).
 vi.mock('@/tools/params', () => ({
   getToolIdForOperation: () => undefined,
-  getToolParametersConfig: () => null,
   getSubBlocksForToolInput: (
     _toolId: string,
     _type: string,

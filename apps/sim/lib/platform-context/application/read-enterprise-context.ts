@@ -2,6 +2,7 @@ import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { getActivePermissionGroupRestrictions } from '@/lib/permission-groups/features'
 import { platformContextDelegationPolicy } from '@/lib/platform-context/application/authorization'
 import { resolvePlatformContextWorkspace } from '@/lib/platform-context/application/context'
@@ -46,9 +47,9 @@ export const readEnterpriseContext = defineAuthorizedWorkspaceUseCase({
     const canWrite = permissionSatisfies(hostContext.viewer.permission, 'write')
     const canAdmin = permissionSatisfies(hostContext.viewer.permission, 'admin')
     const allDeploymentSurfacesHidden =
-      accessControl.config?.hideDeployApi === true &&
-      accessControl.config.hideDeployMcp === true &&
-      accessControl.config.hideDeployChatbot === true
+      capabilityDeniedBy('deploy.api', accessControl.config) &&
+      capabilityDeniedBy('deploy.mcp', accessControl.config) &&
+      capabilityDeniedBy('deploy.chat', accessControl.config)
 
     return {
       workspace: {

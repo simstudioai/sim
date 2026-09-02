@@ -122,11 +122,14 @@ export interface OAuthConfig {
   required: boolean // Whether this tool requires OAuth authentication
   provider: OAuthService // The service that needs to be authorized
   requiredScopes?: string[] // Specific scopes this tool needs (for granular scope validation)
+  /** Restricts execution to one stored credential kind after authorized token resolution. */
+  credentialKind?: 'oauth' | 'service-account'
   /** Token-response fields that must replace any caller-supplied tool parameter of the same name. */
   authoritativeParams?: readonly (
     | 'apiDomain'
     | 'authStyle'
     | 'cloudId'
+    | 'credentialType'
     | 'domain'
     | 'instanceUrl'
   )[]
@@ -147,12 +150,16 @@ export interface ToolParameterItemSchema {
   readonly const?: string | number | boolean
   readonly minimum?: number
   readonly maximum?: number
+  readonly minItems?: number
+  readonly maxItems?: number
   readonly minLength?: number
   readonly maxLength?: number
+  readonly format?: string
   readonly pattern?: string
   readonly additionalProperties?: boolean
   readonly required?: readonly string[]
   readonly properties?: Readonly<Record<string, ToolParameterItemSchema>>
+  readonly items?: ToolParameterItemSchema
   readonly anyOf?: readonly ToolParameterItemSchema[]
 }
 
@@ -173,6 +180,8 @@ export interface ToolConfig<P = any, R = any> {
       default?: any
       description?: string
       items?: ToolParameterItemSchema
+      minItems?: number
+      maxItems?: number
     }
   >
   // Output schema - what this tool produces
@@ -295,16 +304,6 @@ export interface TableRow {
     Key: string
     Value: any
   }
-}
-
-export interface OAuthTokenPayload {
-  credentialId?: string
-  credentialAccountUserId?: string
-  providerId?: string
-  toolId?: string
-  workflowId?: string
-  impersonateEmail?: string
-  scopes?: string[]
 }
 
 /**

@@ -16,13 +16,16 @@
 /** Bun version mirrored from the root packageManager field. */
 export const PI_BUN_VERSION = '1.3.14'
 
+/** Exact Pi version mirrored from the app dependencies and lockfile. */
+export const PI_PACKAGE_VERSION = '0.80.10'
+
 /** Exact global package versions mirrored from package.json and bun.lock. */
 export const PI_GLOBAL_NPM_PACKAGES = [
   `bun@${PI_BUN_VERSION}`,
-  '@earendil-works/pi-coding-agent@0.80.10',
-  '@earendil-works/pi-agent-core@0.80.10',
-  '@earendil-works/pi-ai@0.80.10',
-  '@earendil-works/pi-tui@0.80.10',
+  `@earendil-works/pi-coding-agent@${PI_PACKAGE_VERSION}`,
+  `@earendil-works/pi-agent-core@${PI_PACKAGE_VERSION}`,
+  `@earendil-works/pi-ai@${PI_PACKAGE_VERSION}`,
+  `@earendil-works/pi-tui@${PI_PACKAGE_VERSION}`,
 ] as const
 
 /**

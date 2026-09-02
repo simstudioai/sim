@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { hasToolId } from '@/tools/tool-ids'
 import { isAzureDevOpsEventMatch } from '@/triggers/azure_devops/utils'
-import { tools } from '../registry'
 import type { ToolConfig } from '../types'
 import { addCommentTool } from './add_comment'
 import { createWorkItemTool } from './create_work_item'
@@ -49,7 +49,6 @@ const baseParams = {
  * Uses the real tool registry: these assertions are about tool registration and
  * params, which the global `@/tools/registry` mock in vitest.setup.ts empties.
  */
-vi.unmock('@/tools/registry')
 
 const authHeader = `Basic ${Buffer.from(':pat-token').toString('base64')}`
 
@@ -136,7 +135,7 @@ describe('Azure DevOps tool contracts', () => {
 
     expect(allTools.map((tool) => tool.id).sort()).toEqual(expectedIds)
     for (const id of expectedIds) {
-      expect(tools[id]?.id).toBe(id)
+      expect(hasToolId(id), id).toBe(true)
     }
   })
 

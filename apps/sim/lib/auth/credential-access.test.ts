@@ -163,6 +163,25 @@ describe('authorizeCredentialUse', () => {
       expect(result.resolvedCredentialId).toBe(ACCOUNT_ID)
     })
 
+    it('pins a legacy account id to the explicitly authorized workspace', async () => {
+      const targetWorkspace = 'ws-2'
+      const targetRow = { id: 'cred-2', workspaceId: targetWorkspace, type: 'oauth' }
+      queueTableRows(credential, [])
+      queueTableRows(credential, [targetRow])
+      queueActorContext(targetRow)
+      queueTokenIdentity(null, OWNER)
+      mockResolveWorkspaceAccess.mockResolvedValue(workspaceAdmin)
+
+      const result = await authorizeCredentialUseForAuth(
+        { success: true, userId: 'acting-user', authType: 'session' },
+        { credentialId: ACCOUNT_ID, workspaceId: targetWorkspace }
+      )
+
+      expect(result.ok).toBe(true)
+      expect(result.workspaceId).toBe(targetWorkspace)
+      expect(result.resolvedCredentialId).toBe(ACCOUNT_ID)
+    })
+
     it('rejects when no workspace credential is reachable by the caller', async () => {
       queueTableRows(credential, [])
       queueTableRows(credential, [sharedRow])

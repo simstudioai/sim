@@ -6,8 +6,14 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-// The registry is globally mocked for import cost; this file asserts registration.
-vi.unmock('@/tools/registry')
+/**
+ * Only this service's configs are needed; the full registry is ~6,000 modules.
+ * Registration is asserted through the generated `@/tools/tool-ids`.
+ */
+vi.mock('@/tools/registry', async () => {
+  const { partialToolRegistry } = await import('@sim/testing/mocks/tool-registry.mock')
+  return { tools: partialToolRegistry(await import('@/tools/semrush')) }
+})
 
 import { SemrushBlock } from '@/blocks/blocks/semrush'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -22,6 +28,7 @@ import { semrushOrganicResultsTool } from '@/tools/semrush/organic_results'
 import { semrushReferringDomainsTool } from '@/tools/semrush/referring_domains'
 import { getColumnDef } from '@/tools/semrush/utils'
 import { semrushWinnersAndLosersTool } from '@/tools/semrush/winners_and_losers'
+import { hasToolId } from '@/tools/tool-ids'
 import type { ToolConfig } from '@/tools/types'
 
 function csvResponse(body: string, status = 200): Response {
@@ -406,6 +413,7 @@ describe('semrush registry surface', () => {
     expect(semrushTools).toHaveLength(44)
     for (const [id, tool] of semrushTools) {
       expect((tool as ToolConfig).id).toBe(id)
+      expect(hasToolId(id), `${id} registry`).toBe(true)
     }
   })
 

@@ -706,7 +706,21 @@ export async function copyWorkflowStateIntoTarget(
     parallels: newParallels,
     variables: remappedVariables,
   }
-  const saved = await saveWorkflowToNormalizedTables(targetWorkflowId, remappedState, tx)
+  const saved = await saveWorkflowToNormalizedTables(
+    targetWorkflowId,
+    remappedState,
+    {
+      /**
+       * Actorless. A fork copies rows that already exist in the source
+       * workspace; the blocks are not chosen by whoever triggered the fork, and
+       * governing the copy by their group would leave a fork that silently
+       * dropped part of the source graph.
+       */
+      workspaceId: null,
+      subjectUserId: null,
+    },
+    tx
+  )
   if (!saved.success) {
     throw new Error(`Failed to write forked workflow ${targetWorkflowId}: ${saved.error}`)
   }

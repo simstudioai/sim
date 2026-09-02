@@ -1,7 +1,7 @@
 import type { WorkflowExecutionAuthority, WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { TraceSpan } from '@/lib/logs/types'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import type { BlockOutput } from '@/blocks/types'
 import type {
   ChildWorkflowContext,
@@ -333,6 +333,24 @@ interface ExecutionMetadata {
     depth: number
   }
   userId?: string
+  /**
+   * Person whose permission group gates what this run's tools, models and
+   * blocks may do — the *gate*, deliberately separate from {@link userId},
+   * which is the billing/rate actor and the credential subject.
+   *
+   * The two coincide for a session-triggered run and diverge whenever the
+   * trigger has no acting person to charge: a table cell dispatched by a
+   * workspace API key attributes to the workspace's billing owner, and gating
+   * on that bystander is wrong in both directions — it applies a denylist
+   * nobody meant to apply, and it skips the one belonging to whoever actually
+   * asked.
+   *
+   * Tri-state on purpose. `undefined` means the trigger declares no separate
+   * gate, so the gate stays on {@link userId} (every surface that has always
+   * had one acting person). A declared `string` gates on that person; a
+   * declared `null` is an actorless run and applies no group gate at all.
+   */
+  capabilityGovernedUserId?: string | null
   principal?: WorkflowExecutionPrincipal
   executionId?: string
   triggerType?: string
@@ -402,6 +420,21 @@ export interface ExecutionContext {
    * block execution, so only a shared reference survives; a scalar written here would be lost.
    */
   toolBindingLabelCache?: Map<string, string | null>
+
+  /**
+   * Files produced during this execution, indexed by {@link UserFile.id}, so a
+   * model can name one by id in a tool argument and the runtime can hydrate it
+   * into the full object.
+   *
+   * Needed because a file an agent has just seen — a Gmail attachment fetched
+   * moments ago in the same turn — lives only in that turn's tool results, not
+   * in any block state or workspace row, so nothing else can resolve it. The
+   * index only *selects*; every read is still authorized on its own.
+   *
+   * A Map for the same reason as {@link toolBindingLabelCache}: `blockCtx` is a
+   * shallow clone per block execution, so only a shared reference survives.
+   */
+  executionFilesById?: Map<string, UserFile>
 
   blockStates: ReadonlyMap<string, BlockState>
   executedBlocks: ReadonlySet<string>
@@ -623,6 +656,12 @@ export interface ExecutionResult {
 }
 
 export interface StreamingExecution {
+  /** Selected block identity: a root block ID or `childWorkflowId.blockRef`. */
+  blockId?: string
+  /** Internal identity that disambiguates repeated invocations of one child workflow. */
+  childWorkflowInstanceId?: string
+  /** Per-run invocation order, unique across loop and parallel executions. */
+  executionOrder?: number
   /**
    * Provider stream payload. Format is declared by {@link streamFormat}:
    * - `'text'` (default): UTF-8 answer bytes (`ReadableStream<Uint8Array>`)

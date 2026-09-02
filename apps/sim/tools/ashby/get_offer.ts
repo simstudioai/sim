@@ -5,6 +5,7 @@ import type { ToolConfig, ToolResponse } from '@/tools/types'
 interface AshbyGetOfferParams {
   apiKey: string
   offerId: string
+  excludeFormDefinition?: boolean
 }
 
 interface AshbyGetOfferResponse extends ToolResponse {
@@ -30,6 +31,12 @@ export const getOfferTool: ToolConfig<AshbyGetOfferParams, AshbyGetOfferResponse
       visibility: 'user-or-llm',
       description: 'The UUID of the offer to fetch',
     },
+    excludeFormDefinition: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Omit the offer form definition from the response',
+    },
   },
 
   request: {
@@ -38,6 +45,9 @@ export const getOfferTool: ToolConfig<AshbyGetOfferParams, AshbyGetOfferResponse
     headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => ({
       offerId: params.offerId.trim(),
+      ...(params.excludeFormDefinition !== undefined
+        ? { excludeFormDefinition: params.excludeFormDefinition }
+        : {}),
     }),
   },
 

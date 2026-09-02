@@ -1,6 +1,6 @@
 ---
 title: File
-description: Read, get content, fetch, write, append, compress, decompress, and manage sharing for files
+description: Read, search, get content, fetch, write, append, compress, decompress, and manage sharing for files
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -11,23 +11,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-The File block is a built-in Sim block for working with files stored in the workspace, or fetched from external URLs. It handles reading, writing, appending, compressing, decompressing, and sharing files as part of a workflow.
+The File block is a built-in Sim block for working with files stored in the workspace, or fetched from external URLs. It handles reading, searching, writing, appending, compressing, decompressing, and sharing files as part of a workflow.
 
 With the File block, you can:
 
 - **Read and extract content**: Load workspace file objects and extract their text content
+- **Search workspace content**: Match a regular expression, or an exact piece of text, against the indexed lines of active workspace files with bounded line-level results
 - **Fetch from URLs**: Retrieve and parse files from external URLs with custom headers
 - **Write and append**: Create new workspace files or append content to existing ones
 - **Compress and decompress**: Bundle files into a .zip archive or extract an archive into the workspace
 - **Manage sharing**: Enable or disable a public share link for a file, with public, password, email, or SSO access modes
 
-In Sim, the File block allows your agents to read and extract text from workspace files, fetch and parse files from URLs, write or append content to files, bundle files into or out of .zip archives, and control public sharing access for a file—all programmatically as steps in a workflow. This makes it possible to move file content into and out of a workflow, package outputs for download or transfer, and expose files to external users through a managed share link.
+In Sim, the File block allows your agents to search, read, and extract text from workspace files, fetch and parse files from URLs, write or append content to files, bundle files into or out of .zip archives, and control public sharing access for a file—all programmatically as steps in a workflow. This makes it possible to explore workspace content, move file content into and out of a workflow, package outputs for download or transfer, and expose files to external users through a managed share link.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
+Read workspace file objects, search indexed text across all active workspace files, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
 
 
 
@@ -67,6 +68,36 @@ Extract the text content of one or more workspace files from selected file objec
 | --------- | ---- | ----------- |
 | `contents` | array | Array of file text contents, one entry per file in input order |
 
+### File Search
+
+Search the indexed text of active workspace files for lines matching a regular expression, and return each matching line once with its file ID and line number. Coverage is what the index currently holds, so check "complete" and "indexStatus" before concluding that something is absent.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | A regular expression matched against each line, 3-512 characters. Supports "." "*" "+" "?" "\{n,m\}" and their lazy forms, character classes such as "\[a-z\]" and "\[^0-9\]", the classes \d \w \s and \D \W \S, alternation "\|", groups "\(...\)" and "\(?:...\)", the anchors "^" and "$", and the word boundary \b. Lookahead, lookbehind, backreferences, named groups, inline flags such as "\(?i\)", \p\{...\} and POSIX "\[\[:alpha:\]\]" classes are not supported, and a pattern cannot span a line break. The pattern must contain at least 3 consecutive literal characters that every match will include — write "error \d+" rather than "\w+ \d+". Escape any metacharacter you mean literally. Matching is case-insensitive until the pattern contains an uppercase letter you are searching for; uppercase inside an escape or a character class, such as \D or \[A-Z\], does not make it case-sensitive. When the workflow builder sets Match to exact instead, the query is matched verbatim and no metacharacter needs escaping. |
+| `mode` | string | No | How the query is read, chosen by the workflow builder: "regex" \(default\) as a regular expression, or "exact" as verbatim text. |
+| `maxResults` | number | No | Hard result cap configured by the workflow builder \(1-200, default 50\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Matching logical lines with their workspace file ID and 1-based line number. |
+|   ↳ `fileId` | string | Canonical workspace file ID. |
+|   ↳ `lineNumber` | number | 1-based logical line number. |
+|   ↳ `text` | string | Matching line or bounded match-centered preview. |
+| `count` | number | Number of returned matching lines. |
+| `truncated` | boolean | Whether more matching lines exist beyond the configured hard cap. |
+| `complete` | boolean | Whether indexing has no pending or failed current revisions; skipped and partial coverage is reported separately. |
+| `indexStatus` | object | Current workspace search-index coverage by file status. |
+|   ↳ `readyFiles` | number | Files whose current revision is searchable. |
+|   ↳ `pendingFiles` | number | Files still waiting to be indexed. |
+|   ↳ `failedFiles` | number | Files whose current indexing attempt failed. |
+|   ↳ `skippedFiles` | number | Files intentionally excluded because they are unsupported or oversized. |
+|   ↳ `partialFiles` | number | Searchable files whose extracted text was truncated by the parser or cap. |
+
 ### File Fetch
 
 Fetch and parse a file from a URL with optional custom headers.
@@ -87,15 +118,17 @@ Fetch and parse a file from a URL with optional custom headers.
 
 ### File Write
 
-Create a new workspace file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv").
+Create a new workspace file, either from text content or from an existing file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv") unless overwrite is enabled.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `fileName` | string | Yes | File name \(e.g., "data.csv"\). If a file with this name exists, a numeric suffix is added automatically. |
-| `content` | string | Yes | The text content to write to the file. |
-| `contentType` | string | No | MIME type for new files \(e.g., "text/plain"\). Auto-detected from file extension if omitted. |
+| `fileName` | string | No | File name \(e.g., "data.csv"\). Required when writing text; optional when storing a file, which keeps its own name unless this overrides it. If the name already exists, a numeric suffix is added automatically unless overwrite is enabled. |
+| `content` | string | No | The text content to write to the file. Provide exactly one of content or fileInput. |
+| `fileInput` | file | No | An existing file to store in the workspace, such as one produced by an earlier tool. Use this for anything that is not text — PDFs, images, audio, archives. Provide exactly one of content or fileInput. |
+| `contentType` | string | No | MIME type for new files \(e.g., "text/plain"\). Auto-detected from the file extension, or taken from the stored file, if omitted. |
+| `overwrite` | boolean | No | Replace the contents of an existing file at the exact target path \(folder and name\) instead of creating a suffixed copy. Creates the file when that path does not exist yet. |
 
 #### Output
 

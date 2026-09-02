@@ -14,10 +14,11 @@ import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config
 import type {
   BlockConfig as AppBlockConfig,
   SubBlockConfig as BlockSubBlockConfig,
-  GenerationType,
+  SubBlockType,
 } from '@/blocks/types'
 import { isNonEmpty } from '@/tools/merge-params'
 import { getToolMetadata, type ToolMetadata } from '@/tools/metadata'
+import { buildSubBlockForToolParam } from '@/tools/param-shape'
 import { safeAssign } from '@/tools/safe-assign'
 import type {
   ExecutableToolConfig,
@@ -31,84 +32,6 @@ import type {
 const logger = createLogger('ToolsParams')
 type ToolParamDefinition = ToolConfig['params'][string]
 
-// Tag/Value Parsing Utilities
-
-interface Option {
-  label: string
-  value: string
-}
-
-interface ComponentCondition {
-  field: string
-  value: string | number | boolean | Array<string | number | boolean>
-  not?: boolean
-}
-
-interface UIComponentConfig {
-  type: string
-  options?: Option[]
-  placeholder?: string
-  password?: boolean
-  condition?: ComponentCondition
-  title?: string
-  value?: unknown
-  serviceId?: string
-  selectorKey?: BlockSubBlockConfig['selectorKey']
-  requiredScopes?: string[]
-  mimeType?: string
-  columns?: string[]
-  min?: number
-  max?: number
-  step?: number
-  integer?: boolean
-  language?: string
-  generationType?: string
-  acceptedTypes?: string[]
-  multiple?: boolean
-  multiSelect?: boolean
-  maxSize?: number
-  dependsOn?: string[] | { all?: string[]; any?: string[] }
-  /** Canonical parameter ID if this is part of a canonical group */
-  canonicalParamId?: string
-  /** The mode of the source subblock (basic/advanced/both) */
-  mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
-  /** The actual subblock ID this config was derived from */
-  actualSubBlockId?: string
-  /** Wand configuration for AI assistance */
-  wandConfig?: {
-    enabled: boolean
-    prompt: string
-    generationType?: GenerationType
-    placeholder?: string
-    maintainHistory?: boolean
-  }
-}
-
-interface SubBlockConfig {
-  id: string
-  type: string
-  title?: string
-  options?: Option[]
-  placeholder?: string
-  password?: boolean
-  condition?: ComponentCondition
-  value?: unknown
-  serviceId?: string
-  requiredScopes?: string[]
-  mimeType?: string
-  columns?: string[]
-  min?: number
-  max?: number
-  step?: number
-  integer?: boolean
-  language?: string
-  generationType?: string
-  acceptedTypes?: string[]
-  multiple?: boolean
-  maxSize?: number
-  dependsOn?: string[]
-}
-
 type ToolInputBlockConfig = Pick<AppBlockConfig, 'type' | 'subBlocks' | 'tools'>
 
 interface SchemaProperty {
@@ -117,6 +40,8 @@ interface SchemaProperty {
   items?: ToolParameterItemSchema
   properties?: Record<string, SchemaProperty>
   required?: string[]
+  minItems?: number
+  maxItems?: number
 }
 
 export interface ToolSchema {
@@ -169,26 +94,6 @@ export class ToolSchemaEnrichmentError extends Error {
 export interface ValidationResult {
   valid: boolean
   missingParams: string[]
-}
-
-export interface ToolParameterConfig {
-  id: string
-  type: string
-  required?: boolean // Required for tool execution
-  visibility?: ParameterVisibility // Controls who can/must provide this parameter
-  userProvided?: boolean // User filled this parameter
-  description?: string
-  default?: unknown
-  // UI component information from block config
-  uiComponent?: UIComponentConfig
-}
-
-export interface ToolWithParameters {
-  toolConfig: ToolMetadata
-  allParameters: ToolParameterConfig[]
-  userInputParameters: ToolParameterConfig[] // Parameters shown to user
-  requiredParameters: ToolParameterConfig[] // Must be filled by user or LLM
-  optionalParameters: ToolParameterConfig[] // Nice to have, shown to user
 }
 
 let blockConfigCache: Record<string, ToolInputBlockConfig> | null = null
@@ -245,271 +150,6 @@ export function getToolIdForOperation(
   return block.tools.access[0]
 }
 
-function resolveSubBlockForParam(
-  paramId: string,
-  subBlocks: BlockSubBlockConfig[],
-  valuesWithOperation: Record<string, unknown>,
-  paramType: string
-): BlockSubBlockConfig | undefined {
-  const blockSubBlocks = subBlocks
-
-  // First pass: find subblock with matching condition
-  let fallbackMatch: BlockSubBlockConfig | undefined
-
-  for (const sb of blockSubBlocks) {
-    const matches = sb.id === paramId || sb.canonicalParamId === paramId
-    if (!matches) continue
-
-    // Remember first match as fallback (for condition-based filtering in UI)
-    if (!fallbackMatch) fallbackMatch = sb
-
-    if (
-      !sb.condition ||
-      evaluateSubBlockCondition(sb.condition as SubBlockCondition, valuesWithOperation)
-    ) {
-      return sb
-    }
-  }
-
-  // Return fallback so its condition can be used for UI filtering
-  if (fallbackMatch) return fallbackMatch
-
-  // Check if boolean param is part of a checkbox-list
-  if (paramType === 'boolean') {
-    return blockSubBlocks.find(
-      (sb) =>
-        sb.type === 'checkbox-list' &&
-        Array.isArray(sb.options) &&
-        (sb.options as Array<{ id?: string }>).some((opt) => opt.id === paramId)
-    )
-  }
-
-  return undefined
-}
-
-/** Map a custom-block field sub-block type to a tool-parameter type. */
-function customFieldParamType(subBlockType: string): string {
-  switch (subBlockType) {
-    case 'switch':
-      return 'boolean'
-    case 'file-upload':
-      return 'file[]'
-    case 'code':
-      return 'json'
-    default:
-      return 'string'
-  }
-}
-
-/**
- * Gets all parameters for a tool, categorized by their usage
- * Also includes UI component information from block configurations
- */
-export function getToolParametersConfig(
-  toolId: string,
-  blockType?: string,
-  currentValues?: Record<string, unknown>,
-  blockConfigOverride?: Pick<ToolInputBlockConfig, 'subBlocks'>
-): ToolWithParameters | null {
-  try {
-    const toolConfig = getToolMetadata(toolId)
-    if (!toolConfig) {
-      logger.warn(`Tool not found: ${toolId}`)
-      return null
-    }
-
-    // Validate that toolConfig has required properties
-    if (!toolConfig.params || typeof toolConfig.params !== 'object') {
-      logger.warn(`Tool ${toolId} has invalid params configuration`)
-      return null
-    }
-
-    // Custom (deploy-as-block) blocks resolve to `workflow_executor`, but their
-    // editable inputs are their own per-field sub-blocks — not the generic
-    // workflowId/inputMapping. Surface those so the tool panel renders the block's
-    // real fields (and never the workflow-executor fields as "uncovered" params).
-    // MUST run before the `workflow_executor` branch below. Read subBlocks from the
-    // fresh, overlay-aware `blockConfigOverride` — the module `getBlockConfigurations`
-    // cache can miss async-hydrated custom blocks.
-    if (blockType && isCustomBlockType(blockType)) {
-      const blockConfig = blockConfigOverride ?? getBlockConfigurations()[blockType]
-      const fieldSubBlocks = (
-        (blockConfig?.subBlocks as BlockSubBlockConfig[] | undefined) ?? []
-      ).filter((sb) => !sb.hidden && !RESERVED_PARAMS.has(sb.id))
-      const parameters: ToolParameterConfig[] = fieldSubBlocks.map((sb) => ({
-        id: sb.id,
-        type: customFieldParamType(sb.type),
-        required: sb.required === true,
-        visibility: 'user-or-llm',
-        description: sb.description,
-        uiComponent: {
-          type: sb.type,
-          title: sb.title,
-          placeholder: sb.placeholder,
-          language: sb.language,
-          multiple: sb.multiple,
-        },
-      }))
-      return {
-        toolConfig,
-        allParameters: parameters,
-        userInputParameters: parameters,
-        requiredParameters: parameters.filter((param) => param.required),
-        optionalParameters: parameters.filter((param) => !param.required),
-      }
-    }
-
-    // Special handling for workflow_executor tool
-    if (toolId === 'workflow_executor') {
-      const parameters: ToolParameterConfig[] = [
-        {
-          id: 'workflowId',
-          type: 'string',
-          required: true,
-          visibility: 'user-only',
-          description: 'The ID of the workflow to execute',
-          uiComponent: {
-            type: 'workflow-selector',
-            placeholder: 'Select workflow to execute',
-            selectorKey: 'sim.workflows',
-          },
-        },
-        {
-          id: 'inputMapping',
-          type: 'object',
-          required: false,
-          visibility: 'user-or-llm',
-          description: 'Map inputs to the selected workflow',
-          uiComponent: {
-            type: 'workflow-input-mapper',
-            title: 'Workflow Inputs',
-            condition: {
-              field: 'workflowId',
-              value: '',
-              not: true, // Show when workflowId is not empty
-            },
-            dependsOn: ['workflowId'],
-          },
-        },
-      ]
-
-      return {
-        toolConfig,
-        allParameters: parameters,
-        userInputParameters: parameters.filter(
-          (param) => param.visibility === 'user-or-llm' || param.visibility === 'user-only'
-        ),
-        requiredParameters: parameters.filter((param) => param.required),
-        optionalParameters: parameters.filter(
-          (param) => param.visibility === 'user-only' && !param.required
-        ),
-      }
-    }
-
-    // Get block configuration for UI component information
-    let blockConfig: ToolInputBlockConfig | null = null
-    if (blockType) {
-      const blockConfigs = getBlockConfigurations()
-      blockConfig = blockConfigs[blockType] || null
-    }
-
-    // Build values for condition evaluation
-    // Operation should come from currentValues if provided, otherwise extract from toolId
-    const values = currentValues || {}
-    const valuesWithOperation = { ...values }
-    if (valuesWithOperation.operation === undefined) {
-      // Fallback: extract operation from tool ID (e.g., 'slack_message' -> 'message')
-      const parts = toolId.split('_')
-      valuesWithOperation.operation =
-        parts.length >= 3 ? parts.slice(2).join('_') : parts[parts.length - 1]
-    }
-
-    // Convert tool params to our standard format with UI component info
-    const allParameters: ToolParameterConfig[] = Object.entries(toolConfig.params).map(
-      ([paramId, param]) => {
-        const toolParam: ToolParameterConfig = {
-          id: paramId,
-          type: param.type,
-          required: param.required ?? false,
-          visibility: param.visibility ?? (param.required ? 'user-or-llm' : 'user-only'),
-          description: param.description,
-          default: param.default,
-        }
-
-        if (blockConfig) {
-          const subBlock = resolveSubBlockForParam(
-            paramId,
-            blockConfig.subBlocks || [],
-            valuesWithOperation,
-            param.type
-          )
-
-          if (subBlock) {
-            if (isSubBlockHidden(subBlock)) {
-              toolParam.visibility = 'hidden'
-            }
-
-            toolParam.uiComponent = {
-              type: subBlock.type,
-              options: subBlock.options as Option[] | undefined,
-              placeholder: subBlock.placeholder,
-              password: subBlock.password,
-              condition: subBlock.condition as ComponentCondition | undefined,
-              title: subBlock.title,
-              value: subBlock.value,
-              serviceId: subBlock.serviceId,
-              selectorKey: subBlock.selectorKey,
-              requiredScopes: subBlock.requiredScopes,
-              mimeType: subBlock.mimeType,
-              columns: subBlock.columns,
-              min: subBlock.min,
-              max: subBlock.max,
-              step: subBlock.step,
-              integer: subBlock.integer,
-              language: subBlock.language,
-              generationType: subBlock.generationType,
-              acceptedTypes: subBlock.acceptedTypes ? [subBlock.acceptedTypes] : undefined,
-              multiple: subBlock.multiple,
-              maxSize: subBlock.maxSize,
-              dependsOn: subBlock.dependsOn,
-              canonicalParamId: subBlock.canonicalParamId,
-              mode: subBlock.mode,
-              actualSubBlockId: subBlock.id,
-              wandConfig: subBlock.wandConfig,
-            }
-          }
-        }
-
-        return toolParam
-      }
-    )
-
-    // Parameters that should be shown to the user for input
-    const userInputParameters = allParameters.filter(
-      (param) => param.visibility === 'user-or-llm' || param.visibility === 'user-only'
-    )
-
-    // Parameters that are required (must be filled by user or LLM)
-    const requiredParameters = allParameters.filter((param) => param.required)
-
-    // Parameters that are optional but can be provided by user
-    const optionalParameters = allParameters.filter(
-      (param) => param.visibility === 'user-only' && !param.required
-    )
-
-    return {
-      toolConfig,
-      allParameters,
-      userInputParameters,
-      requiredParameters,
-      optionalParameters,
-    }
-  } catch (error) {
-    logger.error('Error getting tool parameters config:', error)
-    return null
-  }
-}
-
 /**
  * Creates a tool schema for LLM with user-provided parameters excluded
  */
@@ -521,8 +161,10 @@ function buildParameterSchema(
 ): SchemaProperty {
   const surface = options.surface ?? 'default'
 
-  if (surface === 'copilot' && (param.type === 'file' || param.type === 'file[]')) {
-    return buildCopilotFileParameterSchema(param)
+  if (param.type === 'file' || param.type === 'file[]') {
+    return surface === 'copilot'
+      ? buildCopilotFileParameterSchema(param)
+      : buildFileReferenceParameterSchema(param)
   }
 
   let schemaType = param.type
@@ -533,6 +175,8 @@ function buildParameterSchema(
   const propertySchema: SchemaProperty = {
     type: schemaType,
     description: param.description || '',
+    ...(param.minItems !== undefined ? { minItems: param.minItems } : {}),
+    ...(param.maxItems !== undefined ? { maxItems: param.maxItems } : {}),
   }
 
   if (param.type === 'array' && param.items) {
@@ -542,11 +186,45 @@ function buildParameterSchema(
         properties: { ...param.items.properties },
       }),
     }
+  } else if (param.type === 'object' && param.items?.type === 'object') {
+    Object.assign(propertySchema, param.items, { type: 'object' })
   } else if (param.items) {
     logger.warn(`items property ignored for non-array param "${paramId}" in tool "${toolId}"`)
   }
 
   return propertySchema
+}
+
+/**
+ * File schema for model-facing surfaces other than Copilot: a reference string,
+ * not a file object.
+ *
+ * A model has no way to produce the `key`, `url`, and `size` a real file object
+ * carries — those come from a previous tool result or the block's own
+ * configuration — so asking for the object would only invite invented values. An
+ * id it can copy verbatim from what it just saw; the runtime hydrates it into
+ * the full object before the tool runs.
+ *
+ * Without this branch a file param declared `user-or-llm` emitted `{"type":
+ * "file"}`, which is not a JSON Schema type at all.
+ */
+function buildFileReferenceParameterSchema(param: ToolParamDefinition): SchemaProperty {
+  const baseDescription =
+    param.description ||
+    (param.type === 'file' ? 'A file for tool execution.' : 'Files for tool execution.')
+  const resolutionDescription =
+    'Pass the file id from an earlier tool result, or a canonical workspace file id such as "wf_123". The runtime resolves it into the full file object before the tool runs.'
+  const description = `${baseDescription} ${resolutionDescription}`
+
+  if (param.type === 'file') {
+    return { type: 'string', description }
+  }
+
+  return {
+    type: 'array',
+    description,
+    items: { type: 'string', description: 'A file id.' },
+  }
 }
 
 function buildCopilotFileParameterSchema(param: ToolParamDefinition): SchemaProperty {
@@ -870,6 +548,28 @@ export function validateToolParameters(
 }
 
 /**
+ * A tool param's effective visibility.
+ *
+ * An undeclared visibility means the param is the user's to fill when it is optional,
+ * and either party's when the tool requires it. Only 59 of 28,612 registry params rely
+ * on this default, but the rule is duplicated wherever visibility is read, so it lives
+ * here once.
+ */
+export function resolveToolParamVisibility(
+  param: Pick<ToolParamDefinition, 'required' | 'visibility'>
+): ParameterVisibility {
+  return param.visibility ?? (param.required ? 'user-or-llm' : 'user-only')
+}
+
+/** Whether a tool param is offered to the user in a tool row. */
+export function isUserFacingToolParam(
+  param: Pick<ToolParamDefinition, 'required' | 'visibility'>
+): boolean {
+  const visibility = resolveToolParamVisibility(param)
+  return visibility === 'user-or-llm' || visibility === 'user-only'
+}
+
+/**
  * Helper to check if a parameter should be treated as a password field
  */
 export function isPasswordParameter(paramId: string): boolean {
@@ -957,12 +657,24 @@ const EXCLUDED_SUBBLOCK_TYPES = new Set([
   'mcp-server-selector',
   'mcp-tool-selector',
   'mcp-dynamic-args',
-  'input-mapping',
   'variables-input',
   'messages-input',
   'router-input',
   'text',
 ])
+
+/**
+ * Canvas controls that have a tool-input counterpart collecting the same param.
+ *
+ * A tool row is a different surface with different affordances — it has no canvas
+ * references to offer and far less room — so a couple of controls have a simpler
+ * sibling. Declaring the swap keeps the sub-block the single source of truth for the
+ * param: without it, the type would have to be excluded here and the field
+ * reintroduced by a hard-coded per-tool branch, which is what this replaced.
+ */
+const TOOL_INPUT_SUBBLOCK_TYPE_SUBSTITUTIONS: Record<string, SubBlockType> = {
+  'input-mapping': 'workflow-input-mapper',
+}
 
 export interface SubBlocksForToolInput {
   toolConfig: ToolMetadata
@@ -971,12 +683,62 @@ export interface SubBlocksForToolInput {
 }
 
 /**
- * Returns filtered SubBlockConfig[] for rendering in tool-input context.
- * Uses subblock definitions as the primary source of UI metadata,
- * getting all features (wandConfig, rich conditions, dependsOn, etc.) for free.
+ * Every sub-block id a tool param could resolve to, so a param backed by one is never
+ * also synthesized as a bare field.
  *
- * For blocks without paramVisibility annotations, falls back to inferring
- * visibility from the tool's param definitions.
+ * Built from the block's FULL sub-block list, before any visibility or condition
+ * filtering. A param whose sub-block exists but whose `condition` currently fails must
+ * stay hidden rather than reappear as an unconditional text box, so a param is claimed
+ * by its sub-block's existence, never by that sub-block surviving the filter.
+ */
+function buildClaimedParamIds(
+  allSubBlocks: BlockSubBlockConfig[],
+  canonicalIndex: ReturnType<typeof buildCanonicalIndex>
+): Set<string> {
+  const claimed = new Set<string>()
+
+  for (const sb of allSubBlocks) {
+    claimed.add(sb.id)
+    if (sb.canonicalParamId) claimed.add(sb.canonicalParamId)
+
+    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[sb.id]
+    if (canonicalId) {
+      claimed.add(canonicalId)
+      const group = canonicalIndex.groupsById[canonicalId]
+      if (group) {
+        if (group.basicId) claimed.add(group.basicId)
+        for (const advancedId of group.advancedIds) claimed.add(advancedId)
+      }
+    }
+
+    // A checkbox-list holds one boolean per option id, so those ids are the
+    // param names it collects.
+    if (
+      (sb.type === 'checkbox-list' || sb.type === 'grouped-checkbox-list') &&
+      Array.isArray(sb.options)
+    ) {
+      for (const option of sb.options) {
+        if (option && typeof option === 'object' && 'id' in option && option.id) {
+          claimed.add(String(option.id))
+        }
+      }
+    }
+  }
+
+  return claimed
+}
+
+/**
+ * The complete, ordered set of fields a tool exposes for configuration in a tool row.
+ *
+ * The block's own sub-blocks come first and are the primary source of UI metadata —
+ * conditions, `dependsOn`, `selectorKey`, wand config, canonical basic/advanced pairs
+ * all come along for free. Params the block does not surface get a `SubBlockConfig`
+ * synthesized from their declared type, so they render through the same canonical
+ * renderer instead of a parallel one that ignored their type and produced a text box.
+ *
+ * Synthesis is not optional: ~87 `user-only` params have no sub-block, and those are
+ * excluded from the model's schema, so a rendered field is their only channel.
  */
 export function getSubBlocksForToolInput(
   toolId: string,
@@ -994,16 +756,13 @@ export function getSubBlocksForToolInput(
 
     const blockConfigs = getBlockConfigurations()
     const blockConfig = blockConfigOverride ?? blockConfigs[blockType]
-    if (!blockConfig?.subBlocks?.length) {
-      return null
-    }
 
     // Custom (deploy-as-block) blocks: render their own editable field sub-blocks
     // as `user-or-llm` (the hidden workflowId/inputMapping wiring is filtered by
     // RESERVED_PARAMS — `isSubBlockHidden` does NOT honor `hidden: true`, so the
     // explicit reserved filter is what keeps them out).
     if (blockType && isCustomBlockType(blockType)) {
-      const fieldSubBlocks = (blockConfig.subBlocks as BlockSubBlockConfig[])
+      const fieldSubBlocks = ((blockConfig?.subBlocks ?? []) as BlockSubBlockConfig[])
         .filter((sb) => !sb.hidden && !RESERVED_PARAMS.has(sb.id))
         .map((sb) => ({ ...sb, paramVisibility: 'user-or-llm' as ParameterVisibility }))
       return {
@@ -1013,7 +772,7 @@ export function getSubBlocksForToolInput(
       }
     }
 
-    const allSubBlocks = blockConfig.subBlocks as BlockSubBlockConfig[]
+    const allSubBlocks = (blockConfig?.subBlocks ?? []) as BlockSubBlockConfig[]
     const canonicalIndex = buildCanonicalIndex(allSubBlocks)
 
     // Build values for condition evaluation
@@ -1028,8 +787,7 @@ export function getSubBlocksForToolInput(
     // Build a map of tool param IDs to their resolved visibility
     const toolParamVisibility: Record<string, ParameterVisibility> = {}
     for (const [paramId, param] of Object.entries(toolConfig.params || {})) {
-      toolParamVisibility[paramId] =
-        param.visibility ?? (param.required ? 'user-or-llm' : 'user-only')
+      toolParamVisibility[paramId] = resolveToolParamVisibility(param)
     }
 
     // Track which canonical groups we've already included (to avoid duplicates)
@@ -1037,7 +795,15 @@ export function getSubBlocksForToolInput(
 
     const filtered: BlockSubBlockConfig[] = []
 
-    for (const sb of allSubBlocks) {
+    /** Applies the tool-input counterpart of a canvas-only control, if it has one. */
+    const forToolInput = (subBlock: BlockSubBlockConfig): BlockSubBlockConfig => {
+      const substitute = TOOL_INPUT_SUBBLOCK_TYPE_SUBSTITUTIONS[subBlock.type]
+      return substitute ? { ...subBlock, type: substitute } : subBlock
+    }
+
+    for (const original of allSubBlocks) {
+      const sb = forToolInput(original)
+
       // Skip excluded types
       if (EXCLUDED_SUBBLOCK_TYPES.has(sb.type)) continue
 
@@ -1114,7 +880,7 @@ export function getSubBlocksForToolInput(
             // Find the advanced variant
             const advancedSb = allSubBlocks.find((s) => group.advancedIds.includes(s.id))
             if (advancedSb) {
-              filtered.push({ ...advancedSb, paramVisibility: visibility })
+              filtered.push({ ...forToolInput(advancedSb), paramVisibility: visibility })
             }
           } else {
             // Include basic variant (current sb if it's the basic one)
@@ -1123,7 +889,7 @@ export function getSubBlocksForToolInput(
             } else {
               const basicSb = allSubBlocks.find((s) => s.id === group.basicId)
               if (basicSb) {
-                filtered.push({ ...basicSb, paramVisibility: visibility })
+                filtered.push({ ...forToolInput(basicSb), paramVisibility: visibility })
               }
             }
           }
@@ -1133,6 +899,31 @@ export function getSubBlocksForToolInput(
 
       // Non-canonical, non-hidden, condition-passing subblock
       filtered.push({ ...sb, paramVisibility: visibility })
+    }
+
+    // A handful of sub-blocks declare no `title` (`function.language`, `router.routes`,
+    // …). On the canvas that is deliberate, but a tool row labels every field, so fall
+    // back to the formatted param id — the label the old renderer produced.
+    for (const [index, sb] of filtered.entries()) {
+      if (!sb.title) filtered[index] = { ...sb, title: formatParameterLabel(sb.id) }
+    }
+
+    const claimedParamIds = buildClaimedParamIds(allSubBlocks, canonicalIndex)
+
+    for (const [paramId, param] of Object.entries(toolConfig.params || {})) {
+      if (claimedParamIds.has(paramId)) continue
+
+      const visibility = toolParamVisibility[paramId]
+      if (visibility === 'hidden' || visibility === 'llm-only') continue
+
+      filtered.push(
+        buildSubBlockForToolParam(
+          paramId,
+          param,
+          formatParameterLabel(paramId),
+          isPasswordParameter(paramId)
+        )
+      )
     }
 
     return {

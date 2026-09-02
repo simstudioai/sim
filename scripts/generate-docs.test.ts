@@ -12,6 +12,15 @@ import {
 } from './generate-docs'
 
 describe('documentation tool metadata', () => {
+  it('uses evaluated outputs for factory-defined tools', async () => {
+    const approve = await getToolInfo('sailpoint_approve_access_request')
+    const identity = await getToolInfo('sailpoint_get_identity')
+
+    expect(Object.keys(approve?.outputs ?? {})).toEqual(['accepted', 'status'])
+    expect(Object.keys(identity?.outputs ?? {})).toEqual(['identity'])
+    expect(identity?.outputs.identity.properties).toHaveProperty('name')
+  }, 15_000)
+
   it('keeps legitimate parameters named params', async () => {
     const tool = await getToolInfo('supabase_rpc')
 
@@ -336,13 +345,7 @@ describe('subBlock param extraction', () => {
    * harmless today because no `notion_*` tool carries a hidden param besides `accessToken`.
    */
   it('reports a subBlocks array of only unfollowable spreads as UNKNOWN, not empty', () => {
-    for (const blockFile of [
-      'imap.ts',
-      'generic_webhook.ts',
-      'circleback.ts',
-      'rss.ts',
-      'sim_workspace_event.ts',
-    ]) {
+    for (const blockFile of ['imap.ts', 'generic_webhook.ts', 'rss.ts', 'sim_workspace_event.ts']) {
       expect(extractUserSettableParamIds(blockSource(blockFile))).toBeNull()
     }
 
@@ -619,6 +622,25 @@ describe('an unreadable subBlocks array', () => {
       syntheticBlock('Readable', `subBlocks: [{ id: 'query' }],`)
     )
     expect(readableConfig.userSettableParamIds).toEqual(['query'])
+  })
+
+  it('reads action ids from tools.access when another access array appears earlier', () => {
+    const [config] = extractAllBlockConfigs(`
+      import type { BlockConfig } from '@/blocks/types'
+
+      export const GovernBlock: BlockConfig = {
+        type: 'govern',
+        name: 'Govern',
+        description: 'A synthetic block',
+        canvasPresentation: {
+          sentences: { byOperation: { govern_request: ['Request access'] } },
+        },
+        subBlocks: [{ id: 'operation' }],
+        tools: { access: ['govern_request', 'govern_review'] },
+      }
+    `)
+
+    expect(config.tools?.access).toEqual(['govern_request', 'govern_review'])
   })
 
   /**

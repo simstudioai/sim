@@ -784,7 +784,7 @@ export async function runBabysitPiWithOptions(
     const lifetimeMs = resolvePiRunLifetimeMs(context.signal)
     const piTimeoutMs = resolvePiTimeoutMs(lifetimeMs)
 
-    return await withPiSandbox({ lifetimeMs }, async (runner) => {
+    return await withPiSandbox({ lifetimeMs, cost: context.sandboxCost }, async (runner) => {
       const clone = await raceAbort(
         runner.run(BABYSIT_CLONE_SCRIPT, {
           envs: {

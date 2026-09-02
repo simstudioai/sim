@@ -1,5 +1,5 @@
-import { getOAuth2Tokens } from '@better-auth/core/oauth2'
 import { createMockFetch, resetEnvMock, setEnv } from '@sim/testing'
+import { getOAuth2Tokens } from 'better-auth/oauth2'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
@@ -77,6 +77,9 @@ import {
   refreshOAuthToken,
 } from '@/lib/oauth'
 import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
+
+/** Compares real icon components by identity; the global `@/components/icons` stub in vitest.setup.ts would make that vacuous. */
+vi.unmock('@/components/icons')
 
 /**
  * Default OAuth token response for successful requests.

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 import { chatAuthTypeSchema, chatDeploymentPasswordSchema } from '@/lib/api/contracts/chats'
 import {
@@ -14,6 +15,7 @@ import {
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
 import { v2WorkflowIdParamsSchema } from '@/lib/api/contracts/v2/workflows'
+import { formatInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
 
 /**
  * v2 chat-deployment contracts.
@@ -110,6 +112,11 @@ export const v2StoredChatDeploymentCustomizationsSchema = z
 
 export const v2ChatDeploymentOutputConfigSchema = z
   .object({
+    workflowId: z
+      .string()
+      .min(1, 'outputConfigs[].workflowId cannot be empty')
+      .optional()
+      .describe('Child workflow containing the selected block. Omit for the deployed workflow.'),
     blockId: z
       .string()
       .min(1, 'outputConfigs[].blockId cannot be empty')
@@ -120,6 +127,13 @@ export const v2ChatDeploymentOutputConfigSchema = z
       .describe('Path within that block output.'),
   })
   .strict()
+  .superRefine((config, ctx) => {
+    try {
+      formatInternalOutputSelector(config.blockId, config.path, config.workflowId)
+    } catch (error) {
+      ctx.addIssue({ code: 'custom', message: getErrorMessage(error, 'Invalid output config') })
+    }
+  })
   .meta({
     id: 'ChatDeploymentOutputConfig',
     title: 'Chat deployment output config',
@@ -136,6 +150,10 @@ export const v2ChatDeploymentOutputConfigSchema = z
  */
 export const v2StoredChatDeploymentOutputConfigSchema = z
   .object({
+    workflowId: z
+      .string()
+      .optional()
+      .describe('Child workflow containing the selected block. Omitted for the deployed workflow.'),
     blockId: z.string().describe('Block whose output the chat streams.'),
     path: z.string().describe('Path within that block output. Empty means the whole output.'),
   })

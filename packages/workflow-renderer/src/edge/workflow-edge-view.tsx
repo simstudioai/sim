@@ -1,7 +1,13 @@
 import { useId, useMemo } from 'react'
 import { usePrefersReducedMotion } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
-import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
+import {
+  BaseEdge,
+  type Edge,
+  EdgeLabelRenderer,
+  type EdgeProps,
+  getSmoothStepPath,
+} from '@xyflow/react'
 import type { EdgeDiffStatus, EdgeRunStatus } from '../types'
 
 const EXECUTION_PULSE_LENGTH = 0.32
@@ -44,8 +50,14 @@ function getExecutionPulseMotion(length: number) {
  * otherwise be read from stores — diff status, run status, and whether the run
  * status originated from a preview — is resolved by the container and passed in.
  */
-export interface WorkflowEdgeViewProps extends EdgeProps {
-  sourceHandle?: string | null
+export interface WorkflowEdgeData extends Record<string, unknown> {
+  isSelected?: boolean
+  onDelete?: (edgeId: string) => void
+}
+
+export type WorkflowEdge = Edge<WorkflowEdgeData>
+
+export interface WorkflowEdgeViewProps extends EdgeProps<WorkflowEdge> {
   /** Pre-resolved diff state (container reads the diff store). */
   diffStatus: EdgeDiffStatus
   /** Pre-resolved execution outcome (container reads the execution store). */
@@ -82,9 +94,9 @@ export function WorkflowEdgeView({
   targetY,
   sourcePosition,
   targetPosition,
+  sourceHandleId,
   data,
   style,
-  sourceHandle,
   diffStatus,
   runStatus,
   isPreviewRun,
@@ -130,7 +142,7 @@ export function WorkflowEdgeView({
     (data as { labelZIndex?: number } | undefined)?.labelZIndex ?? DEFAULT_EDGE_LABEL_Z_INDEX
 
   const dataSourceHandle = (data as { sourceHandle?: string } | undefined)?.sourceHandle
-  const isErrorEdge = (sourceHandle ?? dataSourceHandle) === 'error'
+  const isErrorEdge = (sourceHandleId ?? dataSourceHandle) === 'error'
   const hasRunStatus = runStatus === 'success' || runStatus === 'error'
   const isTraversing = isWorkflowRunning && hasRunStatus && isTargetActive && !diffStatus
   /*

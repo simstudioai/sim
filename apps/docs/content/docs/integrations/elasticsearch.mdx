@@ -306,7 +306,7 @@ Retrieve index information including settings, mappings, and aliases.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `index` | json | Index information including aliases, mappings, and settings |
+| `indices` | json | Matched indices keyed by index name, each with its aliases, mappings, and settings |
 
 ### Elasticsearch Cluster Health
 
@@ -324,7 +324,7 @@ Get the health status of the Elasticsearch cluster.
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
 | `waitForStatus` | string | No | Wait until cluster reaches this status: green, yellow, or red |
-| `timeout` | string | No | Timeout for the wait operation \(e.g., 30s, 1m\) |
+| `clusterTimeout` | string | No | How long Elasticsearch waits for the cluster to reach the requested status, as an Elasticsearch time value \(e.g., 30s, 1m\). Not named "timeout": that name is reserved by the tool transport as a client-side abort deadline in milliseconds. |
 
 #### Output
 
@@ -377,12 +377,13 @@ List all indices in the Elasticsearch cluster with their health, status, and sta
 | `apiKey` | string | No | Elasticsearch API key |
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
+| `includeSystemIndices` | boolean | No | Include Elasticsearch system indices \(names starting with "."\). Omitted by default. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Summary message about the indices |
-| `indices` | json | Array of index information objects |
+| `indices` | json | Array of index information objects \(index, health, status, docsCount, storeSize, primaryShards, replicaShards\). System indices are omitted unless includeSystemIndices is set. |
 
 

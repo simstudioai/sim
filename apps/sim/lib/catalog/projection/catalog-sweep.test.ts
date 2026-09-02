@@ -41,6 +41,13 @@ import { getBlockRegistry } from '@/blocks/registry'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { getToolIds } from '@/tools/tool-ids'
 
+/**
+ * Asserts real tool params and outputs, which the global `@/tools/metadata`
+ * and `@/tools/metadata-outputs` mocks in vitest.setup.ts empty.
+ */
+vi.unmock('@/tools/metadata')
+vi.unmock('@/tools/metadata-outputs')
+
 /** Hosted deployment: the state under which every declared hosted key is published. */
 const HOSTED: CatalogDeployment = { hostedKeys: true }
 

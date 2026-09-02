@@ -17,6 +17,10 @@ import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import {
@@ -43,6 +47,7 @@ async function revertSavedWebhook(
       .update(webhook)
       .set({
         workflowId: existingWebhook.workflowId,
+        deploymentVersionId: existingWebhook.deploymentVersionId,
         blockId: existingWebhook.blockId,
         path: existingWebhook.path,
         provider: existingWebhook.provider,
@@ -267,8 +272,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         id: workflow.id,
         userId: workflow.userId,
         workspaceId: workflow.workspaceId,
+        deploymentVersionId: workflowDeploymentVersion.id,
       })
       .from(workflow)
+      .leftJoin(
+        workflowDeploymentVersion,
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflow.id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
       .where(eq(workflow.id, workflowId))
       .limit(1)
 
@@ -336,6 +349,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
+      const imapDeploymentCondition =
+        provider === 'imap'
+          ? workflowRecord.deploymentVersionId
+            ? eq(webhook.deploymentVersionId, workflowRecord.deploymentVersionId)
+            : isNull(webhook.deploymentVersionId)
+          : undefined
       const ownExisting = await db
         .select({ id: webhook.id })
         .from(webhook)
@@ -343,7 +362,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           and(
             eq(webhook.path, finalPath),
             eq(webhook.workflowId, workflowId),
-            isNull(webhook.archivedAt)
+            isNull(webhook.archivedAt),
+            imapDeploymentCondition
           )
         )
         .limit(1)
@@ -379,6 +399,45 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         .where(eq(webhook.id, targetWebhookId))
         .limit(1)
       existingWebhook = existingRows[0] || null
+    }
+
+    /**
+     * permission-group-enforced: triggers.webhook — a raw upsert handler with no
+     * application operation to declare the capability on, so it is asserted
+     * here.
+     *
+     * Creation and reactivation, because both end with a workflow newly
+     * reachable from an inbound webhook: this upsert always writes
+     * `isActive: true`, so re-saving a dormant webhook turns it back on exactly
+     * as `PATCH /api/webhooks/[id]` would, and that route already gates the same
+     * transition.
+     *
+     * Re-saving an already-active webhook is not gated. It changes the config of
+     * an endpoint that is already reachable and adds no exposure, and refusing
+     * it would strand a member unable to repair a live integration — the same
+     * reason inbound delivery is never gated. Inbound delivery runs with no
+     * session to resolve a group against, and refusing there would break live
+     * integrations at the provider rather than in Sim. Removing existing
+     * exposure stays a deliberate act of deleting or deactivating the webhook.
+     */
+    if (!existingWebhook || existingWebhook.isActive === false) {
+      const withheld = workflowRecord.workspaceId
+        ? await isWorkspaceCapabilityWithheld(
+            userId,
+            workflowRecord.workspaceId,
+            'triggers.webhook'
+          )
+        : false
+      if (withheld) {
+        logger.warn(
+          `[${requestId}] Webhook ${existingWebhook ? 'reactivation' : 'creation'} blocked by permission group`,
+          {
+            userId,
+            workflowId,
+          }
+        )
+        return NextResponse.json({ error: capabilityRefusal('triggers.webhook') }, { status: 403 })
+      }
     }
 
     const shouldRecreateSubscription =
@@ -435,6 +494,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           .set({
             blockId,
             provider,
+            ...(provider === 'imap'
+              ? { deploymentVersionId: workflowRecord.deploymentVersionId ?? null }
+              : {}),
             providerConfig: configToSave,
             isActive: true,
             updatedAt: new Date(),
@@ -455,6 +517,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           .values({
             id: webhookId,
             workflowId,
+            ...(provider === 'imap'
+              ? { deploymentVersionId: workflowRecord.deploymentVersionId ?? null }
+              : {}),
             blockId,
             path: finalPath,
             provider,
@@ -506,6 +571,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           const success = await pollingHandler.configurePolling({
             webhook: savedWebhook,
             requestId,
+            userId,
+            workspaceId:
+              typeof workflowRecord.workspaceId === 'string' ? workflowRecord.workspaceId : null,
+            deploymentVersionId: savedWebhook.deploymentVersionId ?? null,
           })
 
           if (!success) {

@@ -185,10 +185,17 @@ export class ExecutionEngine {
         metadata: this.context.metadata,
       }
 
-      if (error instanceof Error) {
-        attachExecutionResult(error, executionResult)
-      }
-      throw error
+      /**
+       * Normalized first so the attach is total rather than conditional on the throw already
+       * being an `Error`. A block failure is normalized on the way in, so the old guard held in
+       * practice; what it did not give was a guarantee. The copilot crossing reads a missing
+       * result as proof that no block ran, and that inference has to hold for every throw out of
+       * here, including a non-`Error` raised by this file's own synchronous work. `toError`
+       * returns an `Error` unchanged, so ordinary failures keep their identity and their type.
+       */
+      const thrown = toError(error)
+      attachExecutionResult(thrown, executionResult)
+      throw thrown
     } finally {
       this.cleanup()
     }

@@ -187,7 +187,7 @@ describe('document processing failure taxonomy', () => {
       new Error('Storage request timed out'),
       new Error('Database connection terminated unexpectedly'),
       new Error('Embedding provider returned 503'),
-      new TypeError('parseOfficeAsync is not a function'),
+      new TypeError('parseOffice is not a function'),
     ]) {
       expect(classifyDocumentProcessingFailure(error, 'Report.docx')).toMatchObject({
         disposition: 'transient',

@@ -457,8 +457,11 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
 }
 
 export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSettingsProps) {
-  const { data: organizationBillingData, isPending: organizationBillingLoading } =
-    useOrganizationBilling(orgId, { enabled: isBillingEnabled })
+  const {
+    data: organizationBillingData,
+    isPending: organizationBillingLoading,
+    error: organizationBillingError,
+  } = useOrganizationBilling(orgId, { enabled: isBillingEnabled })
   const { data: workspaces } = useWorkspacesQuery(true)
   const uploadWorkspaceId = workspaces?.find((workspace) => workspace.organizationId === orgId)?.id
   const { data: savedSettings, error: settingsError, isLoading } = useWhitelabelSettings(orgId)
@@ -481,6 +484,14 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
     return (
       <SettingsEmptyState tone='error'>
         {getErrorMessage(settingsError, 'Failed to load whitelabeling settings')}
+      </SettingsEmptyState>
+    )
+  }
+
+  if (isBillingEnabled && organizationBillingData === undefined && organizationBillingError) {
+    return (
+      <SettingsEmptyState tone='error'>
+        {getErrorMessage(organizationBillingError, 'Failed to load organization billing')}
       </SettingsEmptyState>
     )
   }

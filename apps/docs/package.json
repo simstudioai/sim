@@ -21,6 +21,7 @@
     "@sim/db": "workspace:*",
     "@sim/emcn": "workspace:*",
     "@sim/workflow-renderer": "workspace:*",
+    "@xyflow/react": "12.11.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
@@ -35,14 +36,12 @@
     "remark-breaks": "^4.0.0",
     "shiki": "4.3.1",
     "tailwind-merge": "^3.0.2",
-    "reactflow": "^11.11.4",
     "framer-motion": "^12.5.0",
     "zod": "4.3.6"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "^4.0.12",
-    "@types/mdx": "^2.0.13",
     "@types/node": "24.2.1",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.0.4",

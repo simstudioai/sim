@@ -20,7 +20,7 @@ import {
 } from '@sim/emcn'
 import { SelectAll } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { useReactFlow } from 'reactflow'
+import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'

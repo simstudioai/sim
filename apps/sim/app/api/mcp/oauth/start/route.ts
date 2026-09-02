@@ -93,7 +93,10 @@ function truncate(message: string): string {
 export const dynamic = 'force-dynamic'
 
 export const GET = withRouteHandler(
-  withMcpAuth('write')(async (request: NextRequest, { userId, workspaceId }) => {
+  withMcpAuth(
+    'write',
+    'mcp_tools.use'
+  )(async (request: NextRequest, { userId, workspaceId }) => {
     try {
       const parsed = await parseRequest(startMcpOauthContract, request, {})
       if (!parsed.success) return parsed.response

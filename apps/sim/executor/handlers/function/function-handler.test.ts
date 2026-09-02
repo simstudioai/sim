@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
+import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { BlockType } from '@/executor/constants'
 import { FunctionBlockHandler } from '@/executor/handlers/function/function-handler'
 import type { ExecutionContext } from '@/executor/types'
+import { readTrustedExecutionCost } from '@/executor/utils/errors'
 import {
   FUNCTION_BLOCK_CONTEXT_VARS_KEY,
   FUNCTION_BLOCK_DISPLAY_CODE_KEY,
@@ -252,6 +254,45 @@ describe('FunctionBlockHandler', () => {
       'Function execution failed: Code failed'
     )
     expect(mockExecuteTool).toHaveBeenCalled()
+  })
+
+  it.each([
+    { retryable: true, nonRetryable: false },
+    { retryable: false, nonRetryable: true },
+  ])(
+    'attaches trusted cost to a failed execution when retryable is $retryable',
+    async ({ retryable, nonRetryable }) => {
+      const cost = { input: 0, output: 0, total: 0.125 }
+      mockExecuteTool.mockResolvedValue({
+        success: false,
+        error: 'Remote Function failed',
+        retryable,
+        output: { result: null, stdout: '', cost },
+      })
+
+      let thrown: unknown
+      try {
+        await handler.execute(mockContext, mockBlock, { code: 'throw new Error("failed")' })
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(Error)
+      expect(thrown instanceof NonRetryableExecutionError).toBe(nonRetryable)
+      expect(readTrustedExecutionCost(thrown)).toEqual(cost)
+    }
+  )
+
+  it('attaches trusted cost to a successful execution for retry aggregation', async () => {
+    const cost = { input: 0, output: 0, total: 0.25 }
+    mockExecuteTool.mockResolvedValue({
+      success: true,
+      output: { result: 42, stdout: '', cost },
+    })
+
+    const output = await handler.execute(mockContext, mockBlock, { code: 'return 42' })
+
+    expect(readTrustedExecutionCost(output)).toEqual(cost)
   })
 
   it('should pass runtime context variables to function_execute', async () => {

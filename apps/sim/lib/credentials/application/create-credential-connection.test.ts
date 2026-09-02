@@ -31,6 +31,7 @@ vi.mock('@/lib/credentials/connect-draft', () => ({
 
 vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: mocks.getBaseUrl,
+  SITE_URL: 'http://localhost:3000',
 }))
 
 import { createCredentialConnection } from '@/lib/credentials/application/create-credential-connection'

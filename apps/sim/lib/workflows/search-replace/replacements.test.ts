@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
 import { buildWorkflowSearchReplacePlan } from '@/lib/workflows/search-replace/replacements'
 import {
@@ -11,15 +11,11 @@ import {
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 
 /**
- * Uses the real tool registry. Nothing here imports it directly — the dependency
- * is transitive: the search-replace planner resolves tool input params through
- * real subblock configs, so the global `@/tools/registry` mock in
- * vitest.setup.ts empties the data these assertions read.
- *
- * Not a no-op, despite the lack of a direct import. Dropping this opt-out fails
- * 8 tests across this file and its sibling suite.
+ * Asserts real tool params and outputs, which the global `@/tools/metadata`
+ * and `@/tools/metadata-outputs` mocks in vitest.setup.ts empty.
  */
-vi.unmock('@/tools/registry')
+vi.unmock('@/tools/metadata')
+vi.unmock('@/tools/metadata-outputs')
 
 describe('buildWorkflowSearchReplacePlan', () => {
   it('replaces selected text ranges across blocks without touching unselected matches', () => {

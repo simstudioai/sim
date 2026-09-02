@@ -1,11 +1,11 @@
 import { randomBytes } from 'node:crypto'
+import { normalizeEmail } from '@sim/utils/string'
 import {
   applyDefaultAccessTokenExpiry,
   createAuthorizationURL,
   type OAuth2Tokens,
   validateAuthorizationCode,
-} from '@better-auth/core/oauth2'
-import { normalizeEmail } from '@sim/utils/string'
+} from 'better-auth/oauth2'
 import {
   type ConnectorProviderConfig,
   getManagedOAuthConnectorProviderConfig,

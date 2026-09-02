@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { extractAudioFromVideo, isVideoFile } from '@/lib/audio/extractor'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -255,12 +256,18 @@ export async function executeSttOperation(
         }
       }
 
-      const urlValidation = await validateUrlWithDNS(audioUrl, 'audioUrl')
+      // A caller-supplied audio URL is content; a resolved internal one is a
+      // presigned URL against Sim's own storage, which on a self-hosted
+      // deployment legitimately sits on a private address.
+      const audioProfile: EgressProfile = internalAudioUrl ? 'configuredEndpoint' : 'contentFetch'
+
+      const urlValidation = await validateUrlWithDNS(audioUrl, 'audioUrl', audioProfile)
       if (!urlValidation.isValid) {
         return Response.json({ error: urlValidation.error }, { status: 400 })
       }
 
-      const response = await secureFetchWithPinnedIP(audioUrl, urlValidation.resolvedIP!, {
+      const response = await secureFetchWithPinnedIP(audioUrl, urlValidation.resolvedIP, {
+        profile: audioProfile,
         method: 'GET',
         maxResponseBytes: MAX_FILE_SIZE,
         signal,
@@ -289,13 +296,21 @@ export async function executeSttOperation(
           outputFormat: 'mp3',
           sampleRate: 16000,
           channels: 1,
+          signal,
         })
         signal?.throwIfAborted()
         audioBuffer = extracted.buffer
         audioMimeType = 'audio/mpeg'
         audioFileName = audioFileName.replace(/\.[^.]+$/, '.mp3')
       } catch (error) {
+        signal?.throwIfAborted()
         logger.error(`[${requestId}] Video extraction failed:`, error)
+        if (isPayloadSizeLimitError(error)) {
+          return Response.json(
+            { error: 'Extracted audio exceeds the maximum supported size' },
+            { status: 413 }
+          )
+        }
         return Response.json(
           {
             error: `Failed to extract audio from video: ${getErrorMessage(error, 'Unknown error')}`,

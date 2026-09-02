@@ -39,6 +39,14 @@ export const TABLE_LIMITS = {
   UPDATE_BATCH_SIZE: 100,
   /** Batch size for bulk delete operations */
   DELETE_BATCH_SIZE: 1000,
+  /**
+   * Serialized row-data budget for one committed delete snapshot batch. Batch
+   * deletes measure stored JSONB bytes while holding row locks and stop at this
+   * budget. A historical row already larger than the budget is deleted alone
+   * and logged; current writes cannot create another because row admission is
+   * capped at the same value.
+   */
+  DELETE_SNAPSHOT_BATCH_MAX_BYTES: 32 * 1024 * 1024,
   /** Maximum rows per batch insert */
   MAX_BATCH_INSERT_SIZE: 1000,
   /** Maximum rows per bulk update/delete operation */
@@ -140,13 +148,33 @@ export function getMaxPageBytes(): number {
 /**
  * Maximum serialized size in bytes of a single row. Defaults to
  * `TABLE_LIMITS.MAX_ROW_SIZE_BYTES`; overridable via the
- * `TABLE_MAX_ROW_SIZE_BYTES` env var (server-only, read at call time).
+ * `TABLE_MAX_ROW_SIZE_BYTES` env var (server-only, read at call time), capped
+ * at the delete snapshot budget so every accepted row fits in one batch.
  */
 export function getMaxRowSizeBytes(): number {
-  return envNumber(env.TABLE_MAX_ROW_SIZE_BYTES, TABLE_LIMITS.MAX_ROW_SIZE_BYTES, {
-    min: 1,
-    integer: true,
-  })
+  return Math.min(
+    envNumber(env.TABLE_MAX_ROW_SIZE_BYTES, TABLE_LIMITS.MAX_ROW_SIZE_BYTES, {
+      min: 1,
+      integer: true,
+    }),
+    TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES
+  )
+}
+
+/**
+ * Initial row-count cap for a delete snapshot batch. Delete paths additionally
+ * measure the selected rows as stored and shorten each transaction to the byte
+ * budget; this count avoids scanning more candidate ids than current writes can
+ * possibly fit.
+ */
+export function getDeleteSnapshotBatchSize(): number {
+  return Math.max(
+    1,
+    Math.min(
+      TABLE_LIMITS.DELETE_BATCH_SIZE,
+      Math.floor(TABLE_LIMITS.DELETE_SNAPSHOT_BATCH_MAX_BYTES / getMaxRowSizeBytes())
+    )
+  )
 }
 
 export type PlanName = keyof typeof DEFAULT_TABLE_PLAN_LIMITS

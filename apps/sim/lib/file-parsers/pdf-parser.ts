@@ -1,6 +1,8 @@
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
-import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/types/src/pdf'
+import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
+import type { FileParseOptions, FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8, truncationNotice } from '@/lib/file-parsers/utils'
 
 const logger = createLogger('PdfParser')
@@ -19,9 +21,10 @@ export const MAX_PDF_TEXT_CHARS = 10_000_000
 const PDF_EXTRACTION_TIMEOUT_MS = 60_000
 
 const PDF_TRUNCATION_WARNING = 'PDF text extraction stopped at a parser limit and is incomplete'
+const PDF_READ_DEADLINE_REACHED = Symbol('PDF_READ_DEADLINE_REACHED')
 
-type PdfDocumentProxy = Awaited<ReturnType<typeof import('unpdf')['getDocumentProxy']>>
-type PdfPageProxy = Awaited<ReturnType<PdfDocumentProxy['getPage']>>
+/** Stable metadata identifier retained for documents indexed before the parser swap. */
+const PDF_PARSER_SOURCE = 'unpdf'
 
 interface TextContentChunk {
   items?: Array<{ str?: unknown; hasEOL?: unknown }>
@@ -45,6 +48,69 @@ interface BoundedExtraction {
   truncated: boolean
 }
 
+function waitForAbort<T>(
+  operation: Promise<T>,
+  signal?: AbortSignal,
+  onAbort?: () => void
+): Promise<T> {
+  if (!signal) return operation
+
+  try {
+    signal.throwIfAborted()
+  } catch (error) {
+    onAbort?.()
+    return Promise.reject(error)
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    const cleanup = () => signal.removeEventListener('abort', handleAbort)
+    const handleAbort = () => {
+      cleanup()
+      onAbort?.()
+      reject(signal.reason)
+    }
+
+    signal.addEventListener('abort', handleAbort, { once: true })
+    if (signal.aborted) handleAbort()
+    operation.then(
+      (value) => {
+        cleanup()
+        resolve(value)
+      },
+      (error: unknown) => {
+        cleanup()
+        reject(error)
+      }
+    )
+  })
+}
+
+function waitForDeadline<T>(
+  operation: Promise<T>,
+  deadline: number,
+  signal: AbortSignal | undefined,
+  onDeadline: () => void,
+  onAbort: () => void
+): Promise<T | typeof PDF_READ_DEADLINE_REACHED> {
+  const remainingMs = deadline - Date.now()
+  if (remainingMs <= 0) {
+    onDeadline()
+    return Promise.resolve(PDF_READ_DEADLINE_REACHED)
+  }
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  const deadlineReached = new Promise<typeof PDF_READ_DEADLINE_REACHED>((resolve) => {
+    timeoutId = setTimeout(() => {
+      resolve(PDF_READ_DEADLINE_REACHED)
+      onDeadline()
+    }, remainingMs)
+  })
+
+  return waitForAbort(Promise.race([operation, deadlineReached]), signal, onAbort).finally(() => {
+    if (timeoutId !== undefined) clearTimeout(timeoutId)
+  })
+}
+
 /**
  * Reads one page's text through pdf.js's streaming API, stopping once the
  * character budget or the deadline is spent.
@@ -57,10 +123,12 @@ interface BoundedExtraction {
  * evaluator rather than letting it run the expansion to completion.
  */
 async function readPageWithinBudget(
-  page: PdfPageProxy,
+  page: PDFPageProxy,
   budget: number,
-  deadline: number
+  deadline: number,
+  signal?: AbortSignal
 ): Promise<PageExtraction> {
+  signal?.throwIfAborted()
   const reader = page
     .streamTextContent()
     .getReader() as ReadableStreamDefaultReader<TextContentChunk>
@@ -69,14 +137,33 @@ async function readPageWithinBudget(
   let remaining = budget
   let completed = false
   let dropped = false
+  let deadlineReached = false
+  let cancellation: Promise<void> | undefined
+
+  const cancelReader = (reason: unknown): Promise<void> => {
+    cancellation ??= reader.cancel(reason).catch(() => {})
+    return cancellation
+  }
 
   try {
     /**
      * Loops until content is actually dropped rather than until the budget hits
      * zero: text that ends exactly on the budget is complete, not truncated.
      */
-    while (!dropped && Date.now() <= deadline) {
-      const { value, done } = await reader.read()
+    while (!dropped) {
+      const result = await waitForDeadline(
+        reader.read(),
+        deadline,
+        signal,
+        () => void cancelReader(new Error('PDF text extraction deadline exceeded')),
+        () => void cancelReader(signal?.reason)
+      )
+      if (result === PDF_READ_DEADLINE_REACHED) {
+        deadlineReached = true
+        break
+      }
+
+      const { value, done } = result
       if (done) {
         completed = true
         break
@@ -99,19 +186,18 @@ async function readPageWithinBudget(
     }
   } finally {
     if (!completed) {
-      try {
-        await reader.cancel(new Error('PDF text extraction budget exceeded'))
-      } catch {
-        // Cancelling a stream that already failed is not itself an error, and
-        // throwing here would mask whatever ended the read loop.
-      }
+      const pendingCancellation = cancelReader(new Error('PDF text extraction budget exceeded'))
+      if (!signal?.aborted && !deadlineReached) await pendingCancellation
     }
   }
 
   return { text: parts.join(''), used: budget - remaining, completed }
 }
 
-async function extractTextWithinBudget(pdf: PdfDocumentProxy): Promise<BoundedExtraction> {
+async function extractTextWithinBudget(
+  pdf: PDFDocumentProxy,
+  signal?: AbortSignal
+): Promise<BoundedExtraction> {
   const deadline = Date.now() + PDF_EXTRACTION_TIMEOUT_MS
   const totalPages = pdf.numPages
   const pageLimit = Math.min(totalPages, MAX_PDF_PAGES)
@@ -121,8 +207,32 @@ async function extractTextWithinBudget(pdf: PdfDocumentProxy): Promise<BoundedEx
   let truncated = totalPages > pageLimit
 
   for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber++) {
-    const page = await pdf.getPage(pageNumber)
-    const { text, used, completed } = await readPageWithinBudget(page, remainingChars, deadline)
+    signal?.throwIfAborted()
+    const pagePromise = pdf.getPage(pageNumber)
+    const cleanupLatePage = () => {
+      void pagePromise.then((latePage) => latePage.cleanup()).catch(() => {})
+    }
+    const pageResult = await waitForDeadline(
+      pagePromise,
+      deadline,
+      signal,
+      cleanupLatePage,
+      cleanupLatePage
+    )
+    if (pageResult === PDF_READ_DEADLINE_REACHED) {
+      truncated = true
+      break
+    }
+
+    const page = pageResult
+    let extraction: PageExtraction
+    try {
+      extraction = await readPageWithinBudget(page, remainingChars, deadline, signal)
+    } finally {
+      page.cleanup()
+    }
+
+    const { text, used, completed } = extraction
 
     remainingChars -= used
 
@@ -131,7 +241,6 @@ async function extractTextWithinBudget(pdf: PdfDocumentProxy): Promise<BoundedEx
     if (completed || text.length > 0) {
       pageTexts.push(text)
     }
-    page.cleanup()
 
     if (!completed) {
       truncated = true
@@ -148,7 +257,7 @@ async function extractTextWithinBudget(pdf: PdfDocumentProxy): Promise<BoundedEx
 }
 
 export class PdfParser implements FileParser {
-  async parseFile(filePath: string): Promise<FileParseResult> {
+  async parseFile(filePath: string, options: FileParseOptions = {}): Promise<FileParseResult> {
     try {
       logger.info('Starting to parse file:', filePath)
 
@@ -157,28 +266,29 @@ export class PdfParser implements FileParser {
       }
 
       logger.info('Reading file...')
-      const dataBuffer = await readFile(filePath)
+      const dataBuffer = await readFile(filePath, { signal: options.signal })
       logger.info('File read successfully, size:', dataBuffer.length)
 
-      return this.parseBuffer(dataBuffer)
+      return this.parseBuffer(dataBuffer, options)
     } catch (error) {
       logger.error('Error reading file:', error)
       throw error
     }
   }
 
-  async parseBuffer(dataBuffer: Buffer): Promise<FileParseResult> {
+  async parseBuffer(dataBuffer: Buffer, options: FileParseOptions = {}): Promise<FileParseResult> {
     try {
+      options.signal?.throwIfAborted()
       logger.info('Starting to parse buffer, size:', dataBuffer.length)
 
-      const { getDocumentProxy } = await import('unpdf')
-
       const uint8Array = new Uint8Array(dataBuffer)
-
-      const pdf = await getDocumentProxy(uint8Array)
+      const pdf = await openPdfDocument(uint8Array, options.signal)
 
       try {
-        const { text, totalPages, pagesRead, truncated } = await extractTextWithinBudget(pdf)
+        const { text, totalPages, pagesRead, truncated } = await extractTextWithinBudget(
+          pdf,
+          options.signal
+        )
 
         logger.info('PDF parsed successfully, pages:', totalPages, 'text length:', text.length)
 
@@ -204,7 +314,7 @@ export class PdfParser implements FileParser {
           content: body + notice,
           metadata: {
             pageCount: totalPages,
-            source: 'unpdf',
+            source: PDF_PARSER_SOURCE,
             truncated,
             warning: truncated ? PDF_TRUNCATION_WARNING : undefined,
           },

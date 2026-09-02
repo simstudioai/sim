@@ -3,11 +3,19 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-vi.unmock('@/tools/registry')
+/**
+ * Only this service's configs are needed; the full registry is ~6,000 modules.
+ * Registration is asserted through the generated `@/tools/tool-ids`.
+ */
+vi.mock('@/tools/registry', async () => {
+  const { partialToolRegistry } = await import('@sim/testing/mocks/tool-registry.mock')
+  return { tools: partialToolRegistry(await import('@/tools/harmonic')) }
+})
 
 import { HarmonicBlock, HarmonicBlockMeta } from '@/blocks/blocks/harmonic'
 import { BLOCK_META_REGISTRY, BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import { tools } from '@/tools/registry'
+import { hasToolId } from '@/tools/tool-ids'
 
 describe('HarmonicBlock', () => {
   const buildParams = HarmonicBlock.tools.config!.params!
@@ -44,7 +52,8 @@ describe('HarmonicBlock', () => {
 
     for (const operation of operationIds) {
       const tool = tools[operation]
-      expect(tool?.id, `missing registry entry ${operation}`).toBe(operation)
+      expect(hasToolId(operation), `missing registry entry ${operation}`).toBe(true)
+      expect(tool?.id).toBe(operation)
 
       const blockOutputs = Object.entries(HarmonicBlock.outputs)
         .filter(([, output]) => {

@@ -3,13 +3,21 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-vi.unmock('@/tools/registry')
+/**
+ * Only this service's configs are needed; the full registry is ~6,000 modules.
+ * Registration is asserted through the generated `@/tools/tool-ids`.
+ */
+vi.mock('@/tools/registry', async () => {
+  const { partialToolRegistry } = await import('@sim/testing/mocks/tool-registry.mock')
+  return { tools: partialToolRegistry(await import('@/tools/pitchbook')) }
+})
 
 import { PitchBookBlock } from '@/blocks/blocks/pitchbook'
 import { ErrorExtractorId, extractErrorMessage, redactErrorData } from '@/tools/error-extractors'
 import { executeTool } from '@/tools/index'
 import RECORDED from '@/tools/pitchbook/__fixtures__/recorded-responses.json'
 import { tools } from '@/tools/registry'
+import { hasToolId } from '@/tools/tool-ids'
 
 /**
  * The registry is typed `Record<string, ToolConfig>`, so a tool's `url`/`headers`/
@@ -48,7 +56,7 @@ describe('pitchbook wiring', () => {
 
   it('registry keys match each tool id', () => {
     for (const id of access) {
-      expect(tools[id], `missing registry entry ${id}`).toBeDefined()
+      expect(hasToolId(id), `missing registry entry ${id}`).toBe(true)
       expect(tools[id].id).toBe(id)
     }
   })

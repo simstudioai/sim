@@ -7,7 +7,7 @@ import type {
   BillingReadOperation,
   BillingReadPrincipal,
 } from '@/lib/billing/application/operations'
-import type { OperationUseCase } from '@/lib/core/application'
+import { type OperationUseCase, requirePersonalApiKeysAllowed } from '@/lib/core/application'
 import {
   InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
@@ -16,6 +16,7 @@ import {
   WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import {
   type ActiveWorkspaceApplicationContext,
   loadActiveWorkspaceApplicationContext,
@@ -64,6 +65,29 @@ async function resolveBillingReadScope(
       throw new WorkspaceApiKeyScopeAuthorizationError()
     }
   } else if (!requestedWorkspaceId) {
+    /**
+     * permission-group-enforced: personal_api_key.use — the account-scoped read
+     * names no workspace, so nothing above resolved a group for it and the
+     * workspace branch's check below never runs.
+     *
+     * `personal_api_key.use` refuses a *principal kind* rather than a capability
+     * of the resource, so it applies to every operation a personal key can
+     * reach — including the one that happens to carry no workspace. Left out,
+     * the narrower scope would be the guarded one: the same key an organization
+     * withholds from `GET /billing?workspaceId=…` would still read the account's
+     * plan, balance and usage by omitting the parameter.
+     *
+     * Resolved from the organization's default group, the fallback
+     * {@link isCapabilityWithheldForUser} defines for a user-global action —
+     * the same one the personal-API-key and CLI mint paths use. A no-op when the
+     * caller is in no organization or no group governs them.
+     */
+    if (
+      principal.kind === 'personal_api_key' &&
+      (await isCapabilityWithheldForUser(principal.userId, 'personal_api_key.use'))
+    ) {
+      throw new PersonalApiKeysDisabledError()
+    }
     return { kind: 'account', userId: principal.userId }
   }
 
@@ -87,6 +111,18 @@ async function resolveBillingReadScope(
     if (!permissionSatisfies(permission, operation.workspaceMinimumRole)) {
       throw new InsufficientWorkspacePermissionsError()
     }
+    /**
+     * permission-group-enforced: personal_api_key.use — this path resolves its
+     * own workspace scope instead of running through
+     * `authorizeWorkspaceOperation`, so the funnel's personal-key refusal has to
+     * be repeated here or the same key the funnel refuses still reads billing.
+     *
+     * After the role check, like the funnel: it answers with a 403 naming how an
+     * organization configured one cohort, and running it ahead of the concealed
+     * no-access refusal would hand that to a caller with no reach into the
+     * workspace at all.
+     */
+    await requirePersonalApiKeysAllowed(principal.userId, workspace)
   }
 
   return { kind: 'workspace', workspace }

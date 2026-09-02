@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
@@ -18,7 +18,7 @@ import {
 
 const logger = createLogger('BYOKKeysQueries')
 
-export type { BYOKKey, BYOKKeysResponse }
+export type { BYOKKey }
 
 export const byokKeysKeys = {
   all: ['byok-keys'] as const,
@@ -39,9 +39,16 @@ async function fetchBYOKKeys(workspaceId: string, signal?: AbortSignal): Promise
     params: { id: workspaceId },
     signal,
   })
-  return {
-    keys: data.keys ?? [],
-  }
+  return { keys: data.keys ?? [] }
+}
+
+export function byokKeysQueryOptions(workspaceId: string) {
+  return queryOptions({
+    queryKey: byokKeysKeys.list(workspaceId),
+    queryFn: ({ signal }) => fetchBYOKKeys(workspaceId, signal),
+    retryOnMount: true,
+    staleTime: BYOK_KEY_LIST_STALE_TIME,
+  })
 }
 
 async function fetchOrganizationBYOKKeys(
@@ -66,11 +73,8 @@ async function fetchInheritedBYOKStatus(
 
 export function useBYOKKeys(workspaceId: string) {
   return useQuery({
-    queryKey: byokKeysKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchBYOKKeys(workspaceId, signal),
+    ...byokKeysQueryOptions(workspaceId),
     enabled: !!workspaceId,
-    staleTime: BYOK_KEY_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 

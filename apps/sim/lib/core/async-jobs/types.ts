@@ -44,6 +44,7 @@ export type JobType =
   | 'workflow-group-cell'
   | 'cleanup-logs'
   | 'cleanup-soft-deletes'
+  | 'cleanup-table-row-ttl'
   | 'cleanup-tasks'
   | 'run-data-drain'
 

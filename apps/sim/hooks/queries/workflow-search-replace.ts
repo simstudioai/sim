@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type { KnowledgeBaseData } from '@/lib/api/contracts/knowledge'
@@ -21,9 +21,18 @@ import {
 import { createMcpToolId } from '@/lib/mcp/shared'
 import type { Credential } from '@/lib/oauth'
 import {
-  getWorkflowSearchMatchResourceGroupKey,
-  stableStringifyWorkflowSearchValue,
-} from '@/lib/workflows/search-replace/resources'
+  executeSelectorRequest,
+  type LoadedSelectorOptions,
+  loadAllSelectorOptions,
+} from '@/lib/selectors/client/execute-selector'
+import { projectSelectorContext } from '@/lib/selectors/context'
+import {
+  getSelectorManifestEntry,
+  isSelectorReady,
+  type SelectorKey,
+} from '@/lib/selectors/manifest'
+import type { SelectorOption, SelectorScope } from '@/lib/selectors/types'
+import { getWorkflowSearchMatchResourceGroupKey } from '@/lib/workflows/search-replace/resources'
 import type {
   WorkflowSearchMatch,
   WorkflowSearchReplacementOption,
@@ -35,12 +44,12 @@ import {
   fetchOAuthCredentials,
 } from '@/hooks/queries/oauth/oauth-credentials'
 import { collectDuplicateNames, disambiguateLabelByFolder } from '@/hooks/queries/utils/folder-tree'
-import { getSelectorDefinition, loadAllSelectorOptions } from '@/hooks/selectors/registry'
-import type { SelectorKey, SelectorOption } from '@/hooks/selectors/types'
+import { selectorQueryRoots } from '@/hooks/queries/utils/selector-keys'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
 /** Stable identity while a folder list loads, so `select` isn't re-keyed on it. */
 const EMPTY_FOLDER_MAP: Record<string, WorkflowFolder> = {}
+let nextWorkflowSearchOpaqueRevision = 1
 
 export interface WorkflowSearchResolvedResource {
   matchRawValue: string
@@ -50,13 +59,18 @@ export interface WorkflowSearchResolvedResource {
   inaccessible: boolean
 }
 
+export interface WorkflowSearchSelectorReplacementOptions {
+  items: WorkflowSearchReplacementOption[]
+  truncated: boolean
+}
+
 export const workflowSearchReplaceKeys = {
-  all: ['workflow-search-replace'] as const,
+  all: selectorQueryRoots.workflowSearchReplace,
   resourceDetails: () => [...workflowSearchReplaceKeys.all, 'resource-detail'] as const,
   oauthDetails: (workflowId?: string) =>
     [...workflowSearchReplaceKeys.resourceDetails(), 'oauth', workflowId ?? ''] as const,
-  oauthDetail: (credentialId?: string, workflowId?: string) =>
-    [...workflowSearchReplaceKeys.oauthDetails(workflowId), credentialId ?? ''] as const,
+  oauthDetail: (workflowId?: string, ordinal?: number, revision?: number) =>
+    [...workflowSearchReplaceKeys.oauthDetails(workflowId), ordinal ?? -1, revision ?? 0] as const,
   replacementOptions: () => [...workflowSearchReplaceKeys.all, 'replacement-options'] as const,
   oauthReplacementOptions: (providerId?: string, workspaceId?: string, workflowId?: string) =>
     [
@@ -92,19 +106,20 @@ export const workflowSearchReplaceKeys = {
   knowledgeReplacementOptions: (workspaceId?: string) =>
     [...workflowSearchReplaceKeys.replacementOptions(), 'knowledge', workspaceId ?? ''] as const,
   selectorDetails: () => [...workflowSearchReplaceKeys.resourceDetails(), 'selector'] as const,
-  selectorDetail: (selectorKey?: string, contextKey?: string, value?: string) =>
+  selectorDetail: (selectorKey?: string, ordinal?: number, revision?: number) =>
     [
       ...workflowSearchReplaceKeys.selectorDetails(),
       selectorKey ?? '',
-      contextKey ?? '',
-      value ?? '',
+      ordinal ?? -1,
+      revision ?? 0,
     ] as const,
-  selectorReplacementOptions: (selectorKey?: string, contextKey?: string) =>
+  selectorReplacementOptions: (selectorKey?: string, ordinal?: number, revision?: number) =>
     [
       ...workflowSearchReplaceKeys.replacementOptions(),
       'selector',
       selectorKey ?? '',
-      contextKey ?? '',
+      ordinal ?? -1,
+      revision ?? 0,
     ] as const,
 }
 
@@ -135,32 +150,108 @@ function uniqueMatches(
   })
 }
 
-function selectorContextKey(match: WorkflowSearchMatch): string {
-  return stableStringifyWorkflowSearchValue(match.resource?.selectorContext ?? {})
+function sameValues(left: readonly unknown[], right: readonly unknown[]): boolean {
+  return (
+    left.length === right.length && left.every((value, index) => Object.is(value, right[index]))
+  )
+}
+
+function useOpaqueRevision(values: readonly unknown[]): number {
+  const state = useRef<{ values: readonly unknown[]; revision: number } | null>(null)
+  if (!state.current) {
+    state.current = { values, revision: nextWorkflowSearchOpaqueRevision++ }
+  }
+  if (!sameValues(state.current.values, values)) {
+    state.current = { values, revision: nextWorkflowSearchOpaqueRevision++ }
+  }
+  return state.current.revision
+}
+
+function sameSelectorContext(left: WorkflowSearchMatch, right: WorkflowSearchMatch): boolean {
+  const leftContext = left.resource?.selectorContext ?? {}
+  const rightContext = right.resource?.selectorContext ?? {}
+  const leftKeys = Object.keys(leftContext)
+  const rightKeys = Object.keys(rightContext)
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key) =>
+        Object.hasOwn(rightContext, key) &&
+        Object.is(
+          leftContext[key as keyof typeof leftContext],
+          rightContext[key as keyof typeof rightContext]
+        )
+    )
+  )
+}
+
+function selectorRevisionValues(
+  matches: WorkflowSearchMatch[],
+  includeRawValue: boolean
+): unknown[] {
+  const values: unknown[] = []
+  for (const match of matches) {
+    values.push(match.kind, match.resource?.selectorKey)
+    if (includeRawValue) values.push(match.rawValue)
+    const context = match.resource?.selectorContext ?? {}
+    const fields = Object.keys(context).sort()
+    values.push(fields.length)
+    for (const field of fields) {
+      values.push(field, context[field as keyof typeof context])
+    }
+  }
+  return values
+}
+
+function getSelectorScope(match: WorkflowSearchMatch): SelectorScope | undefined {
+  const context = match.resource?.selectorContext
+  if (context?.workflowId) {
+    return {
+      kind: 'workflow',
+      workflowId: context.workflowId,
+      ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+    }
+  }
+  if (context?.workspaceId) return { kind: 'workspace', workspaceId: context.workspaceId }
+  return undefined
 }
 
 function uniqueSelectorDetailMatches(matches: WorkflowSearchMatch[]): WorkflowSearchMatch[] {
-  const seen = new Set<string>()
+  const seen: WorkflowSearchMatch[] = []
   return matches.filter((match) => {
     const selectorKey = match.resource?.selectorKey
     if (!selectorKey || !match.rawValue) return false
-
-    const key = `${selectorKey}:${selectorContextKey(match)}:${match.rawValue}`
-    if (seen.has(key)) return false
-    seen.add(key)
+    if (
+      seen.some(
+        (candidate) =>
+          candidate.resource?.selectorKey === selectorKey &&
+          candidate.rawValue === match.rawValue &&
+          sameSelectorContext(candidate, match)
+      )
+    ) {
+      return false
+    }
+    seen.push(match)
     return true
   })
 }
 
 function uniqueSelectorOptionGroups(matches: WorkflowSearchMatch[]): WorkflowSearchMatch[] {
-  const seen = new Set<string>()
+  const seen: WorkflowSearchMatch[] = []
   return matches.filter((match) => {
     const selectorKey = match.resource?.selectorKey
     if (!selectorKey) return false
-
-    const key = `${match.kind}:${selectorKey}:${selectorContextKey(match)}`
-    if (seen.has(key)) return false
-    seen.add(key)
+    if (
+      seen.some(
+        (candidate) =>
+          candidate.kind === match.kind &&
+          candidate.resource?.selectorKey === selectorKey &&
+          sameSelectorContext(candidate, match)
+      )
+    ) {
+      return false
+    }
+    seen.push(match)
     return true
   })
 }
@@ -186,10 +277,11 @@ export function useWorkflowSearchOAuthCredentialDetails(
   workflowId?: string
 ) {
   const oauthMatches = useMemo(() => uniqueMatches(matches, 'oauth-credential'), [matches])
+  const revision = useOpaqueRevision(oauthMatches.map((match) => match.rawValue))
 
   return useQueries({
-    queries: oauthMatches.map((match) => ({
-      queryKey: workflowSearchReplaceKeys.oauthDetail(match.rawValue, workflowId),
+    queries: oauthMatches.map((match, ordinal) => ({
+      queryKey: workflowSearchReplaceKeys.oauthDetail(workflowId, ordinal, revision),
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         fetchOAuthCredentialDetail(match.rawValue, workflowId, signal),
       enabled: Boolean(match.rawValue),
@@ -378,39 +470,65 @@ export function useWorkflowSearchMcpToolDetails(
 
 export function useWorkflowSearchSelectorDetails(matches: WorkflowSearchMatch[]) {
   const selectorMatches = useMemo(() => uniqueSelectorDetailMatches(matches), [matches])
+  const revision = useOpaqueRevision(selectorRevisionValues(selectorMatches, true))
 
   return useQueries({
-    queries: selectorMatches.map((match) => {
+    queries: selectorMatches.map((match, ordinal) => {
       const selectorKey = match.resource?.selectorKey as SelectorKey
-      const context = match.resource?.selectorContext ?? {}
-      const contextKey = selectorContextKey(match)
-      const definition = getSelectorDefinition(selectorKey)
-      const queryArgs = { key: selectorKey, context, detailId: match.rawValue }
-      const baseEnabled = definition.enabled ? definition.enabled(queryArgs) : true
+      const context = projectSelectorContext(selectorKey, match.resource?.selectorContext ?? {})
+      const scope = getSelectorScope(match)
+      const manifest = getSelectorManifestEntry(selectorKey)
+      const baseEnabled = isSelectorReady(selectorKey, context)
 
       return {
-        queryKey: workflowSearchReplaceKeys.selectorDetail(selectorKey, contextKey, match.rawValue),
-        queryFn: async ({ signal }: { signal: AbortSignal }): Promise<SelectorOption | null> => {
-          if (definition.fetchById) {
-            return definition.fetchById({ ...queryArgs, signal })
+        queryKey: workflowSearchReplaceKeys.selectorDetail(selectorKey, ordinal, revision),
+        queryFn: async ({
+          signal,
+        }: {
+          signal: AbortSignal
+        }): Promise<{ option: SelectorOption | null; truncated: boolean }> => {
+          if (manifest.supportsDetail) {
+            const result = await executeSelectorRequest({
+              selectorKey,
+              scope,
+              context,
+              request: { kind: 'detail', id: match.rawValue },
+              signal,
+            })
+            return {
+              option: result.kind === 'detail' ? result.item : null,
+              truncated: false,
+            }
           }
 
-          const options = await loadAllSelectorOptions(definition, {
-            key: selectorKey,
+          const catalog = await loadAllSelectorOptions({
+            selectorKey,
+            scope,
             context,
             signal,
           })
-          return options.find((option) => option.id === match.rawValue) ?? null
+          return {
+            option: catalog.items.find((option) => option.id === match.rawValue) ?? null,
+            truncated: catalog.truncated,
+          }
         },
-        enabled: Boolean(selectorKey && match.rawValue && baseEnabled),
-        staleTime: definition.staleTime ?? WORKFLOW_SEARCH_SELECTOR_DETAIL_STALE_TIME,
-        select: (option: SelectorOption | null): WorkflowSearchResolvedResource => ({
-          matchRawValue: match.rawValue,
-          resourceGroupKey: match.resource?.resourceGroupKey,
-          label: option?.label ?? match.rawValue,
-          resolved: Boolean(option),
-          inaccessible: false,
-        }),
+        enabled: Boolean(
+          selectorKey &&
+            match.rawValue &&
+            baseEnabled &&
+            (manifest.classification === 'local' || scope)
+        ),
+        staleTime: manifest.staleTime ?? WORKFLOW_SEARCH_SELECTOR_DETAIL_STALE_TIME,
+        select: ({ option, truncated }): WorkflowSearchResolvedResource => {
+          const unresolvedIncompleteCatalog = !option && truncated
+          return {
+            matchRawValue: match.rawValue,
+            resourceGroupKey: match.resource?.resourceGroupKey,
+            label: option?.label ?? match.rawValue,
+            resolved: Boolean(option),
+            inaccessible: unresolvedIncompleteCatalog,
+          }
+        },
       }
     }),
   })
@@ -652,24 +770,33 @@ export function useWorkflowSearchMcpToolReplacementOptions(
 
 export function useWorkflowSearchSelectorReplacementOptions(matches: WorkflowSearchMatch[]) {
   const selectorGroups = useMemo(() => uniqueSelectorOptionGroups(matches), [matches])
+  const revision = useOpaqueRevision(selectorRevisionValues(selectorGroups, false))
 
   return useQueries({
-    queries: selectorGroups.map((match) => {
+    queries: selectorGroups.map((match, ordinal) => {
       const selectorKey = match.resource?.selectorKey as SelectorKey
-      const context = match.resource?.selectorContext ?? {}
-      const contextKey = selectorContextKey(match)
-      const definition = getSelectorDefinition(selectorKey)
-      const queryArgs = { key: selectorKey, context }
-      const baseEnabled = definition.enabled ? definition.enabled(queryArgs) : true
+      const context = projectSelectorContext(selectorKey, match.resource?.selectorContext ?? {})
+      const scope = getSelectorScope(match)
+      const manifest = getSelectorManifestEntry(selectorKey)
+      const baseEnabled = isSelectorReady(selectorKey, context)
 
       return {
-        queryKey: workflowSearchReplaceKeys.selectorReplacementOptions(selectorKey, contextKey),
+        queryKey: workflowSearchReplaceKeys.selectorReplacementOptions(
+          selectorKey,
+          ordinal,
+          revision
+        ),
         queryFn: ({ signal }: { signal: AbortSignal }) =>
-          loadAllSelectorOptions(definition, { ...queryArgs, signal }),
-        enabled: Boolean(selectorKey && baseEnabled),
-        staleTime: definition.staleTime ?? WORKFLOW_SEARCH_SELECTOR_REPLACEMENT_STALE_TIME,
-        select: (options: SelectorOption[]): WorkflowSearchReplacementOption[] =>
-          options.map((option) => ({
+          loadAllSelectorOptions({ selectorKey, scope, context, signal }),
+        enabled: Boolean(
+          selectorKey && baseEnabled && (manifest.classification === 'local' || scope)
+        ),
+        staleTime: manifest.staleTime ?? WORKFLOW_SEARCH_SELECTOR_REPLACEMENT_STALE_TIME,
+        select: ({
+          items,
+          truncated,
+        }: LoadedSelectorOptions): WorkflowSearchSelectorReplacementOptions => ({
+          items: items.map((option) => ({
             kind: match.kind,
             value: option.id,
             label: option.label,
@@ -677,6 +804,8 @@ export function useWorkflowSearchSelectorReplacementOptions(matches: WorkflowSea
             selectorContext: context,
             resourceGroupKey: match.resource?.resourceGroupKey,
           })),
+          truncated,
+        }),
       }
     }),
   })

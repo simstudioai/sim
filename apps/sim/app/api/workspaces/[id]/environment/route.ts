@@ -26,6 +26,8 @@ import {
   getPersonalAndWorkspaceEnv,
   invalidateEffectiveDecryptedEnvCache,
 } from '@/lib/environment/utils'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   getUserEntityPermissions,
@@ -34,6 +36,31 @@ import {
 } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceEnvironmentAPI')
+
+/**
+ * Refuses when the caller's permission group withholds secrets, and `null` when
+ * it does not.
+ *
+ * permission-group-enforced: secrets.manage — this route predates the operation
+ * boundary and is raw `withRouteHandler`, so the authorization funnel that
+ * applies the capability to `secretOperations` never sees it. It reads and
+ * writes the very values the Secrets tab shows, which is what the capability
+ * describes, so it takes the same one the `secrets.*` operations declare.
+ *
+ * Every handler here authenticates with `getSession` alone, so the caller is
+ * always a user-bearing session principal — a workspace API key cannot reach
+ * this route, and there is no executor delegation to refuse. Call this only
+ * after the workspace role check has passed: a caller with no role must learn
+ * that the workspace is out of reach, not how their organization's group is
+ * configured.
+ */
+async function secretsCapabilityRefusal(
+  userId: string,
+  workspaceId: string
+): Promise<NextResponse | null> {
+  const withheld = await isWorkspaceCapabilityWithheld(userId, workspaceId, 'secrets.manage')
+  return withheld ? capabilityRefusalResponse('secrets.manage') : null
+}
 
 /**
  * Reveals a workspace secret only to a workspace administrator, that secret's
@@ -120,6 +147,9 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
+      const withheld = await secretsCapabilityRefusal(userId, workspaceId)
+      if (withheld) return withheld
+
       const {
         workspaceDecrypted,
         personalDecrypted,
@@ -190,6 +220,9 @@ export const PUT = withRouteHandler(
       if (!permission) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
+
+      const withheld = await secretsCapabilityRefusal(userId, workspaceId)
+      if (withheld) return withheld
 
       const incomingKeys = Object.keys(variables)
       if (incomingKeys.length === 0) {
@@ -346,6 +379,9 @@ export const DELETE = withRouteHandler(
       if (!permission) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
+
+      const withheld = await secretsCapabilityRefusal(userId, workspaceId)
+      if (withheld) return withheld
 
       const { adminKeys, knownKeys } = await getWorkspaceEnvKeyAdminAccess({
         workspaceId,

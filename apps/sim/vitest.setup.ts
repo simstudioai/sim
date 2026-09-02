@@ -1,22 +1,27 @@
-import {
-  authMock,
-  databaseMock,
-  drizzleOrmMock,
-  envFlagsMock,
-  environmentUtilsMock,
-  envMock,
-  hybridAuthMock,
-  loggerMock,
-  redisConfigMock,
-  requestUtilsMock,
-  schemaMock,
-  setupGlobalFetchMock,
-  setupGlobalStorageMocks,
-  terminalConsoleMock,
-  urlsMock,
-  workflowAuthzMock,
-} from '@sim/testing'
+import { authMock } from '@sim/testing/mocks/auth.mock'
+import { databaseMock, drizzleOrmMock } from '@sim/testing/mocks/database.mock'
+import { envMock } from '@sim/testing/mocks/env.mock'
+import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
+import { environmentUtilsMock } from '@sim/testing/mocks/environment-utils.mock'
+import { setupGlobalFetchMock } from '@sim/testing/mocks/fetch.mock'
+import { hybridAuthMock } from '@sim/testing/mocks/hybrid-auth.mock'
+import { loggerMock } from '@sim/testing/mocks/logger.mock'
+import { redisConfigMock } from '@sim/testing/mocks/redis-config.mock'
+import { requestUtilsMock } from '@sim/testing/mocks/request.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { setupGlobalStorageMocks } from '@sim/testing/mocks/storage.mock'
+import { terminalConsoleMock } from '@sim/testing/mocks/terminal-console.mock'
+import { urlsMock } from '@sim/testing/mocks/urls.mock'
+import { workflowAuthzMock } from '@sim/testing/mocks/workflow-authz.mock'
 import { afterAll, vi } from 'vitest'
+
+/**
+ * This file runs once per test file, and with `isolate: true` every module it
+ * touches is re-evaluated each time. The `@sim/testing` barrel is 69 modules
+ * (factories, builders, assertions, every mock); the 15 mocks registered here
+ * are 16. Importing them by file keeps the fixed per-file setup cost at
+ * ~10ms instead of ~300ms — measured on the full suite: setup 926s -> 30s.
+ */
 
 /**
  * jest-dom only registers DOM matchers (`toBeVisible`, `toHaveTextContent`, …),
@@ -139,6 +144,53 @@ vi.mock('@/blocks/registry', () => ({
       : undefined
   ),
 }))
+
+/**
+ * `@trigger.dev/core/v3` is ~350ms of externals per test file and reaches the
+ * route builders through `lib/core/async-jobs`. Only `taskContext.isInsideTask`
+ * is read at import time; the two suites that exercise it mock it themselves.
+ */
+vi.mock('@trigger.dev/core/v3', () => ({ taskContext: { isInsideTask: false } }))
+
+/**
+ * The generated tool metadata and output catalogs are ~5MB modules each. Tests
+ * that assert real tool params or outputs opt out with `vi.unmock(...)`.
+ */
+vi.mock('@/tools/metadata', () => ({
+  getToolMetadata: vi.fn(() => undefined),
+  getToolParams: vi.fn(() => undefined),
+}))
+vi.mock('@/tools/metadata-outputs', () => ({
+  getToolOutputsMetadata: vi.fn(() => undefined),
+}))
+
+/**
+ * `@/components/icons` is a 10k-line sheet of brand SVGs that every block and
+ * trigger definition imports. Each name resolves to a stable stub component so
+ * identity comparisons and rendering both still work; tests that inspect real
+ * SVG markup opt out with `vi.unmock('@/components/icons')`.
+ */
+vi.mock('@/components/icons', async () => {
+  const React = await import('react')
+  const stubs = new Map<string, React.FC<Record<string, unknown>>>()
+  const stubFor = (name: string) => {
+    let stub = stubs.get(name)
+    if (!stub) {
+      stub = (props) => React.createElement('svg', { 'data-icon': name, ...props })
+      stub.displayName = name
+      stubs.set(name, stub)
+    }
+    return stub
+  }
+  return new Proxy(
+    {},
+    {
+      get: (_target, name) =>
+        typeof name === 'string' && name !== 'then' ? stubFor(name) : undefined,
+      has: (_target, name) => typeof name === 'string' && name !== 'then',
+    }
+  )
+})
 
 vi.mock('@trigger.dev/sdk', () => ({
   task: vi.fn(() => ({ trigger: vi.fn() })),

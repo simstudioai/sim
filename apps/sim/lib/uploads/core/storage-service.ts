@@ -1,7 +1,7 @@
 import type { Readable } from 'node:stream'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
+import { readNodeStreamToBufferWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   getStorageConfig,
   USE_BLOB_STORAGE,
@@ -507,7 +507,7 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
     }
   }
 
-  const { readFile, stat } = await import('fs/promises')
+  const { readFile } = await import('fs/promises')
   const { join } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
 
@@ -515,8 +515,22 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
   const filePath = join(UPLOAD_DIR_SERVER, safeKey)
 
   if (maxBytes !== undefined) {
-    const fileStats = await stat(filePath)
-    assertKnownSizeWithinLimit(fileStats.size, maxBytes, 'storage download')
+    // Bounded as the bytes arrive, the way every cloud provider branch above reads.
+    // Checking `stat` and then calling `readFile` describes the file only as of the
+    // stat, so a caller that asked for a ceiling would still get whatever the file
+    // became in between — and on a self-hosted deployment this is the same anonymous
+    // share path the cloud branches serve.
+    const { createReadStream } = await import('fs')
+    const stream = createReadStream(filePath, signal ? { signal } : undefined)
+    try {
+      return await readNodeStreamToBufferWithLimit(stream, {
+        maxBytes,
+        label: 'storage download',
+        signal,
+      })
+    } finally {
+      stream.destroy()
+    }
   }
 
   return readFile(filePath, signal ? { signal } : undefined)

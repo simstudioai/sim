@@ -5,6 +5,7 @@ import type {
 import {
   ashbyAuthHeaders,
   ashbyErrorMessage,
+  ashbyLimit,
   CANDIDATE_OUTPUTS,
   mapCandidate,
 } from '@/tools/ashby/utils'
@@ -39,6 +40,12 @@ export const searchCandidatesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Candidate email to search for (combined with name using AND logic)',
     },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum matches to return (1-100)',
+    },
   },
 
   request: {
@@ -49,6 +56,8 @@ export const searchCandidatesTool: ToolConfig<
       const body: Record<string, unknown> = {}
       if (params.name) body.name = params.name
       if (params.email) body.email = params.email
+      const limit = ashbyLimit(params.limit, 'limit')
+      if (limit) body.limit = limit
       return body
     },
   },

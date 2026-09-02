@@ -1,7 +1,7 @@
 import { generateId } from '@sim/utils/id'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { filterUniqueWorkflowEdges } from '@sim/workflow-types/workflow'
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'

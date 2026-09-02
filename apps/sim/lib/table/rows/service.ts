@@ -51,6 +51,7 @@ import {
 } from '@/lib/table/rows/executions'
 import {
   acquireRowOrderLock,
+  type DeletedTableRow,
   deleteOrderedRow,
   deleteOrderedRowsByIds,
   insertOrderedRow,
@@ -109,6 +110,24 @@ import {
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableRowsService')
+
+async function dispatchDeleteTriggers(
+  table: TableDefinition,
+  deletedRows: DeletedTableRow[],
+  requestId: string
+): Promise<void> {
+  if (deletedRows.length === 0) return
+  await fireTableTrigger(
+    table.id,
+    table.workspaceId,
+    table.name,
+    'delete',
+    deletedRows,
+    null,
+    table.schema,
+    requestId
+  )
+}
 
 /**
  * Inserts a single row into a table.
@@ -207,6 +226,7 @@ export async function insertRow(
 
   void fireTableTrigger(
     data.tableId,
+    table.workspaceId,
     table.name,
     'insert',
     [insertedRow],
@@ -222,6 +242,7 @@ export async function insertRow(
     isManualRun: false,
     requestId,
     triggeredByUserId: data.userId,
+    capabilityGovernedUserId: data.capabilityGovernedUserId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (insertRow) failed:`, err))
 
   return insertedRow
@@ -259,7 +280,7 @@ export async function batchInsertRows(
     addedRows: result.length,
     limit: rowLimit,
   })
-  dispatchAfterBatchInsert(table, result, requestId, data.userId)
+  dispatchAfterBatchInsert(table, result, requestId, data.userId, data.capabilityGovernedUserId)
   return result
 }
 
@@ -381,9 +402,20 @@ export function dispatchAfterBatchInsert(
   table: TableDefinition,
   result: TableRow[],
   requestId: string,
-  actorUserId?: string | null
+  actorUserId: string | null | undefined,
+  /** The gate's subject for the auto-fire pass; see {@link InsertRowData.capabilityGovernedUserId}. */
+  capabilityGovernedUserId: string | null
 ): void {
-  void fireTableTrigger(table.id, table.name, 'insert', result, null, table.schema, requestId)
+  void fireTableTrigger(
+    table.id,
+    table.workspaceId,
+    table.name,
+    'insert',
+    result,
+    null,
+    table.schema,
+    requestId
+  )
   // Scope to the newly-inserted row ids so the dispatcher doesn't walk every
   // row in the table. After the sidecar migration, all existing rows have
   // zero entries → `mode:'new'`'s `NOT EXISTS` filter would otherwise include
@@ -396,6 +428,7 @@ export function dispatchAfterBatchInsert(
     isManualRun: false,
     requestId,
     triggeredByUserId: actorUserId,
+    capabilityGovernedUserId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (batchInsertRows) failed:`, err))
 }
 
@@ -865,6 +898,7 @@ export async function upsertRow(
     })
     void fireTableTrigger(
       data.tableId,
+      table.workspaceId,
       table.name,
       'insert',
       [result.row],
@@ -876,6 +910,7 @@ export async function upsertRow(
     const oldRows = new Map([[result.row.id, result.previousData]])
     void fireTableTrigger(
       data.tableId,
+      table.workspaceId,
       table.name,
       'update',
       [result.row],
@@ -892,6 +927,7 @@ export async function upsertRow(
     isManualRun: false,
     requestId,
     triggeredByUserId: data.userId,
+    capabilityGovernedUserId: data.capabilityGovernedUserId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (upsertRow) failed:`, err))
 
   return result
@@ -1801,6 +1837,7 @@ export async function updateRow(
   const oldRows = new Map([[data.rowId, existingRow.data as RowData]])
   void fireTableTrigger(
     data.tableId,
+    table.workspaceId,
     table.name,
     'update',
     [updatedRow],
@@ -1843,6 +1880,7 @@ export async function updateRow(
           groupIds: inFlightDownstreamGroups,
           requestId,
           triggeredByUserId: data.actorUserId,
+          capabilityGovernedUserId: data.capabilityGovernedUserId,
         })
       } catch (err) {
         logger.error(`[${requestId}] cancel+rerun for in-flight downstream groups failed:`, err)
@@ -1857,6 +1895,7 @@ export async function updateRow(
     isManualRun: false,
     requestId,
     triggeredByUserId: data.actorUserId,
+    capabilityGovernedUserId: data.capabilityGovernedUserId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (updateRow) failed:`, err))
 
   return updatedRow
@@ -1886,6 +1925,7 @@ export async function deleteRow(
   if (!deleted) throw new OrchestrationError('not_found', 'Row not found')
 
   logger.info(`[${requestId}] Deleted row ${rowId} from table ${table.id}`)
+  void dispatchDeleteTriggers(table, [deleted], requestId)
 }
 
 type BulkUpdateMatch = { id: string; data: RowData }
@@ -2044,7 +2084,9 @@ function dispatchBulkUpdateEffects(
   patch: RowData,
   now: Date,
   requestId: string,
-  actorUserId: BulkUpdateData['actorUserId']
+  actorUserId: BulkUpdateData['actorUserId'],
+  /** The gate's subject for the auto-fire pass; see {@link BulkUpdateData.capabilityGovernedUserId}. */
+  capabilityGovernedUserId: string | null
 ): void {
   const affectedRowIdSet = new Set(affectedRowIds)
   const affectedRows = rows.filter((row) => affectedRowIdSet.has(row.id))
@@ -2061,6 +2103,7 @@ function dispatchBulkUpdateEffects(
   }))
   void fireTableTrigger(
     table.id,
+    table.workspaceId,
     table.name,
     'update',
     updatedRows,
@@ -2076,6 +2119,7 @@ function dispatchBulkUpdateEffects(
     isManualRun: false,
     requestId,
     triggeredByUserId: actorUserId,
+    capabilityGovernedUserId,
   }).catch((error) =>
     logger.error(`[${requestId}] auto-dispatch (updateRowsByFilter) failed:`, error)
   )
@@ -2207,7 +2251,8 @@ export async function updateRowsByFilter(
         data.data,
         now,
         requestId,
-        data.actorUserId
+        data.actorUserId,
+        data.capabilityGovernedUserId
       )
       afterId = nextAfterId
       if (batchRows.length < TABLE_LIMITS.UPDATE_BATCH_SIZE) break
@@ -2277,7 +2322,8 @@ export async function updateRowsByFilter(
     data.data,
     now,
     requestId,
-    data.actorUserId
+    data.actorUserId,
+    data.capabilityGovernedUserId
   )
 
   return {
@@ -2483,6 +2529,7 @@ export async function batchUpdateRows(
   if (updatedRowsForTrigger.length > 0) {
     void fireTableTrigger(
       data.tableId,
+      table.workspaceId,
       table.name,
       'update',
       updatedRowsForTrigger,
@@ -2515,6 +2562,7 @@ export async function batchUpdateRows(
             groupIds: inFlightDownstreamGroups,
             requestId,
             triggeredByUserId: data.actorUserId,
+            capabilityGovernedUserId: data.capabilityGovernedUserId,
           })
         }
       } catch (err) {
@@ -2534,6 +2582,7 @@ export async function batchUpdateRows(
       isManualRun: false,
       requestId,
       triggeredByUserId: data.actorUserId,
+      capabilityGovernedUserId: data.capabilityGovernedUserId,
     }).catch((err) => logger.error(`[${requestId}] auto-dispatch (batchUpdateRows) failed:`, err))
   }
 
@@ -2573,7 +2622,7 @@ export async function deleteRowsByFilter(
   )
 
   const limit = data.limit
-  const deletedRows: { id: string }[] = []
+  const deletedRowIds: string[] = []
   if (limit === undefined) {
     const cutoff = new Date()
     let afterId: string | undefined
@@ -2589,14 +2638,14 @@ export async function deleteRowsByFilter(
       if (page.length === 0) break
       const nextAfterId = page[page.length - 1]
       for (let index = 0; index < page.length; index += TABLE_LIMITS.DELETE_BATCH_SIZE) {
-        deletedRows.push(
-          ...(await deleteOrderedRowsByIds({
-            tableId: table.id,
-            workspaceId: table.workspaceId,
-            rowIds: page.slice(index, index + TABLE_LIMITS.DELETE_BATCH_SIZE),
-            proof,
-          }))
-        )
+        const deletedIds = await deleteOrderedRowsByIds({
+          tableId: table.id,
+          workspaceId: table.workspaceId,
+          rowIds: page.slice(index, index + TABLE_LIMITS.DELETE_BATCH_SIZE),
+          proof,
+          onDeleted: (rows) => dispatchDeleteTriggers(table, rows, requestId),
+        })
+        deletedRowIds.push(...deletedIds)
       }
       afterId = nextAfterId
       if (page.length < TABLE_LIMITS.DELETE_PAGE_SIZE) break
@@ -2612,19 +2661,18 @@ export async function deleteRowsByFilter(
     )
     const rowIds = matchingRows.map((row) => row.id)
     if (rowIds.length > 0) {
-      deletedRows.push(
-        ...(await deleteOrderedRowsByIds({
-          tableId: table.id,
-          workspaceId: table.workspaceId,
-          rowIds,
-          proof,
-        }))
-      )
+      const deletedIds = await deleteOrderedRowsByIds({
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        rowIds,
+        proof,
+        onDeleted: (rows) => dispatchDeleteTriggers(table, rows, requestId),
+      })
+      deletedRowIds.push(...deletedIds)
     }
   }
 
-  if (deletedRows.length === 0) return { affectedCount: 0, affectedRowIds: [] }
-  const deletedRowIds = deletedRows.map((row) => row.id)
+  if (deletedRowIds.length === 0) return { affectedCount: 0, affectedRowIds: [] }
 
   logger.info(`[${requestId}] Deleted ${deletedRowIds.length} rows from table ${table.id}`)
 
@@ -2650,19 +2698,18 @@ export async function deleteRowsByIds(
 
   const uniqueRequestedRowIds = Array.from(new Set(data.rowIds))
 
-  const deletedRows = await deleteOrderedRowsByIds({
+  const deletedIds = await deleteOrderedRowsByIds({
     tableId: data.tableId,
     workspaceId: data.workspaceId,
     rowIds: uniqueRequestedRowIds,
     proof,
+    onDeleted: (rows) => dispatchDeleteTriggers(table, rows, requestId),
   })
 
-  const deletedIds = deletedRows.map((r) => r.id)
   const deletedIdSet = new Set(deletedIds)
   const missingRowIds = uniqueRequestedRowIds.filter((id) => !deletedIdSet.has(id))
 
   logger.info(`[${requestId}] Deleted ${deletedIds.length} rows by ID from table ${data.tableId}`)
-
   return {
     deletedCount: deletedIds.length,
     deletedRowIds: deletedIds,

@@ -8,6 +8,7 @@ import {
   ChipCopyInput,
   ChipInput,
   ChipSelect,
+  ChipSwitch,
   ChipTextarea,
   cn,
   Expandable,
@@ -26,7 +27,10 @@ import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
@@ -47,6 +51,7 @@ interface SSOProvider {
   userId?: string
   oidcConfig?: string
   samlConfig?: string
+  jitProvisioningEnabled?: boolean
   providerType: 'oidc' | 'saml'
 }
 
@@ -201,6 +206,7 @@ const DEFAULT_FORM_DATA = {
   authorizationEndpoint: '',
   tokenEndpoint: '',
   jwksEndpoint: '',
+  jitProvisioningEnabled: true,
 }
 
 const DEFAULT_ERRORS = {
@@ -227,15 +233,25 @@ export function SSO({ organizationId }: SSOProps) {
 
 function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const { data: session } = useSession()
-  const { data: organizationBillingData, isLoading: isLoadingOrganizationBilling } =
-    useOrganizationBilling(organizationId)
+  const {
+    data: organizationBillingData,
+    isLoading: isLoadingOrganizationBilling,
+    isFetching: isFetchingOrganizationBilling,
+    error: organizationBillingError,
+    refetch: refetchOrganizationBilling,
+  } = useOrganizationBilling(organizationId)
 
-  const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders({
-    organizationId,
-  })
+  const {
+    data: providersData,
+    isLoading: isLoadingProviders,
+    isFetching: isFetchingProviders,
+    error: providersError,
+    refetch: refetchProviders,
+  } = useSSOProviders({ organizationId })
 
   const providers = providersData?.providers || []
   const existingProvider = providers[0] as SSOProvider | undefined
+  const existingJitProvisioningEnabled = existingProvider?.jitProvisioningEnabled ?? true
 
   const userId = session?.user?.id
   const hasEnterprisePlan = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
@@ -275,6 +291,27 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
 
   if (isLoadingProviders || (isBillingEnabled && isLoadingOrganizationBilling)) {
     return null
+  }
+
+  const providersLoadingError = providersData === undefined ? providersError : null
+  const organizationBillingLoadingError =
+    isBillingEnabled && organizationBillingData === undefined ? organizationBillingError : null
+  const loadingError = providersLoadingError ?? organizationBillingLoadingError
+  if (loadingError) {
+    return (
+      <SettingsQueryErrorState
+        error={loadingError}
+        fallback='Failed to load Single Sign-On settings'
+        isRetrying={
+          (Boolean(providersLoadingError) && isFetchingProviders) ||
+          (Boolean(organizationBillingLoadingError) && isFetchingOrganizationBilling)
+        }
+        onRetry={() => {
+          if (providersLoadingError) void refetchProviders()
+          if (organizationBillingLoadingError) void refetchOrganizationBilling()
+        }}
+      />
+    )
   }
 
   if (isBillingEnabled) {
@@ -410,6 +447,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               issuer: formData.issuerUrl,
               domain: formData.domain,
               orgId: organizationId,
+              jitProvisioningEnabled: formData.jitProvisioningEnabled,
               mapping: {
                 id: formData.mapId.trim() || OIDC_DEFAULT_MAPPING.id,
                 email: formData.mapEmail.trim() || OIDC_DEFAULT_MAPPING.email,
@@ -442,6 +480,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               issuer: formData.issuerUrl,
               domain: formData.domain,
               orgId: organizationId,
+              jitProvisioningEnabled: formData.jitProvisioningEnabled,
               mapping: {
                 id: formData.mapId.trim() || SAML_DEFAULT_MAPPING.id,
                 email: formData.mapEmail.trim() || SAML_DEFAULT_MAPPING.email,
@@ -581,6 +620,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
         authorizationEndpoint,
         tokenEndpoint,
         jwksEndpoint,
+        jitProvisioningEnabled: existingProvider.jitProvisioningEnabled ?? true,
       }
       setFormData(snapshot)
       setOriginalFormData(snapshot)
@@ -641,6 +681,23 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               </SettingRow>
             )}
           </div>
+        </SettingsSection>
+
+        <SettingsSection label='Member provisioning'>
+          <SettingRow label='On first SSO sign-in'>
+            <p className='text-[var(--text-body)] text-small'>
+              {existingJitProvisioningEnabled ? 'Automatic' : 'Invite only'}
+            </p>
+            <p className='text-[var(--text-muted)] text-small'>
+              {existingJitProvisioningEnabled
+                ? 'Users authenticated through this verified SSO connection join as Members and consume a seat. No workspace access is granted automatically.'
+                : 'SSO authenticates users, but an invitation is required before they join the organization or gain workspace access.'}
+            </p>
+          </SettingRow>
+          <p className='text-[var(--text-muted)] text-small'>
+            Disabling a user in your identity provider does not remove their Sim membership or
+            active sessions. Remove or suspend access in Sim as part of offboarding.
+          </p>
         </SettingsSection>
       </SettingsPanel>
     )
@@ -1137,6 +1194,31 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
               </Expandable>
             </div>
           </div>
+        </SettingsSection>
+
+        <SettingsSection label='Member provisioning'>
+          <SettingRow label='On first SSO sign-in'>
+            <ChipSwitch
+              value={formData.jitProvisioningEnabled ? 'automatic' : 'invite-only'}
+              onChange={(value) =>
+                handleInputChange('jitProvisioningEnabled', value === 'automatic')
+              }
+              aria-label='SSO member provisioning mode'
+              options={[
+                { value: 'automatic', label: 'Automatic' },
+                { value: 'invite-only', label: 'Invite only' },
+              ]}
+            />
+            <p className='text-[var(--text-muted)] text-small'>
+              {formData.jitProvisioningEnabled
+                ? 'Users authenticated through this verified SSO connection join as Members and consume a seat on first sign-in. They receive no workspace access until it is granted separately.'
+                : 'SSO only authenticates users. Invite them to grant organization membership or workspace access.'}
+            </p>
+          </SettingRow>
+          <p className='text-[var(--text-muted)] text-small'>
+            Existing members are not removed when you choose Invite only or disable them in your
+            identity provider. Offboarding remains an explicit Sim admin action.
+          </p>
         </SettingsSection>
       </SettingsPanel>
     </form>

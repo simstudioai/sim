@@ -828,6 +828,7 @@ const FILE_TOOL_IDS = [
   'file_write',
   'file_get',
   'file_read',
+  'file_search',
   'file_get_content',
   'file_compress',
   'file_decompress',
@@ -967,6 +968,49 @@ const MICROSOFT_TEAMS_TOOL_IDS = [
 ] as const
 
 const BREX_TOOL_IDS = ['brex_match_receipt', 'brex_upload_receipt'] as const
+
+const SAILPOINT_TOOL_IDS = [
+  'sailpoint_approve_access_request',
+  'sailpoint_cancel_access_request',
+  'sailpoint_decide_certification_review_items',
+  'sailpoint_get_access_request_config',
+  'sailpoint_get_account_selections',
+  'sailpoint_get_access_profile',
+  'sailpoint_get_access_profile_entitlements',
+  'sailpoint_get_access_request_status',
+  'sailpoint_get_account',
+  'sailpoint_get_account_activity',
+  'sailpoint_get_account_entitlements',
+  'sailpoint_get_campaign',
+  'sailpoint_get_certification',
+  'sailpoint_get_entitlement',
+  'sailpoint_get_entitlement_request_config',
+  'sailpoint_get_identity',
+  'sailpoint_get_role',
+  'sailpoint_get_role_entitlements',
+  'sailpoint_get_source',
+  'sailpoint_get_task_status',
+  'sailpoint_list_access_profiles',
+  'sailpoint_list_account_activities',
+  'sailpoint_list_accounts',
+  'sailpoint_list_campaigns',
+  'sailpoint_list_certification_review_items',
+  'sailpoint_list_certifications',
+  'sailpoint_list_entitlements',
+  'sailpoint_list_identities',
+  'sailpoint_list_identity_entitlements',
+  'sailpoint_list_pending_access_request_approvals',
+  'sailpoint_list_roles',
+  'sailpoint_list_sources',
+  'sailpoint_load_accounts',
+  'sailpoint_load_entitlements',
+  'sailpoint_reject_access_request',
+  'sailpoint_request_access',
+  'sailpoint_search',
+  'sailpoint_search_aggregate',
+  'sailpoint_search_count',
+  'sailpoint_sign_off_certification',
+] as const
 
 const LATEX_TOOL_IDS = ['latex_compile'] as const
 
@@ -1199,6 +1243,8 @@ const DISCORD_TOOL_IDS = ['discord_send_message'] as const
 
 const LINQ_TOOL_IDS = ['linq_create_attachment'] as const
 
+const ASHBY_TOOL_IDS = ['ashby_upload_candidate_file', 'ashby_upload_resume'] as const
+
 const MICROSOFT_DATAVERSE_TOOL_IDS = ['microsoft_dataverse_upload_file'] as const
 
 const SERVICENOW_TOOL_IDS = ['servicenow_upload_attachment'] as const
@@ -1229,6 +1275,10 @@ function registerFamily(
 }
 
 const handlerLoaders = new Map<string, InternalToolOperationHandlerLoader>()
+
+registerFamily(handlerLoaders, ASHBY_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/ashby/execute-tool')).executeAshbyTool
+})
 
 registerFamily(handlerLoaders, STS_TOOL_IDS, async () => {
   return (await import('@/lib/internal/sts/execute-tool')).executeStsTool
@@ -1487,6 +1537,9 @@ registerFamily(handlerLoaders, MICROSOFT_TEAMS_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, BREX_TOOL_IDS, async () => {
   return (await import('@/lib/internal/brex/execute-tool')).executeBrexTool
+})
+registerFamily(handlerLoaders, SAILPOINT_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/sailpoint/execute-tool')).executeSailPointTool
 })
 registerFamily(handlerLoaders, LATEX_TOOL_IDS, async () => {
   return (await import('@/lib/internal/latex/execute-tool')).executeLatexTool

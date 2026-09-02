@@ -3,12 +3,19 @@ import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateUserProfileContract } from '@/lib/api/contracts'
+import { getUserProfileContract, updateUserProfileContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
+import {
+  defineInternalJsonRoute,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getUserProfile } from '@/lib/users/queries'
+import { userAccountOperations } from '@/lib/users/application/operations'
+import { getCurrentUserProfileUseCase } from '@/lib/users/application/read-current-user'
 
 const logger = createLogger('UpdateUserProfileAPI')
 
@@ -71,31 +78,15 @@ export const PATCH = withRouteHandler(async (request: NextRequest) => {
   }
 })
 
-// GET endpoint to fetch current user profile
-export const GET = withRouteHandler(async () => {
-  const requestId = generateRequestId()
-
-  try {
-    const session = await getSession()
-
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized profile fetch attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const userId = session.user.id
-
-    const userRecord = await getUserProfile(userId)
-
-    if (!userRecord) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({
-      user: userRecord,
-    })
-  } catch (error: any) {
-    logger.error(`[${requestId}] Profile fetch error`, error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+export const GET = defineInternalJsonRoute({
+  contract: getUserProfileContract,
+  auth: internalSessionAuth,
+  operation: userAccountOperations.readProfile,
+  rateLimit: internalRateLimits.none({
+    reason: 'Authenticated current-user profile read',
+  }),
+  errorPolicy: internalOrchestrationErrorPolicy,
+  mapInput: () => ({}),
+  useCase: getCurrentUserProfileUseCase,
+  present: (userRecord) => ({ user: userRecord }),
 })

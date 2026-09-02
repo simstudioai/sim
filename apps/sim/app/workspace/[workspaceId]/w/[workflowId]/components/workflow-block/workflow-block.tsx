@@ -23,10 +23,15 @@ import {
   WorkflowBlockView,
 } from '@sim/workflow-renderer'
 import { wouldCreateCycle } from '@sim/workflow-types/workflow'
+import {
+  type Node,
+  type NodeProps,
+  useStore as useReactFlowStore,
+  useUpdateNodeInternals,
+} from '@xyflow/react'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { type NodeProps, useStore as useReactFlowStore, useUpdateNodeInternals } from 'reactflow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -616,11 +621,13 @@ const SubBlockRow = memo(function SubBlockRow({
   )
 }, areSubBlockRowPropsEqual)
 
+type WorkflowBlockNode = Node<WorkflowBlockProps, 'workflowBlock'>
+
 export const WorkflowBlock = memo(function WorkflowBlock({
   id,
   data,
   selected,
-}: NodeProps<WorkflowBlockProps>) {
+}: NodeProps<WorkflowBlockNode>) {
   const { type, config, name, isPending } = data
 
   const contentRef = useRef<HTMLDivElement>(null)
@@ -748,8 +755,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
              knob. */
           const isHighlighted = isEdgeHighlighted({
             isEndpointSelected:
-              state.nodeInternals.get(edge.source)?.selected ||
-              state.nodeInternals.get(edge.target)?.selected ||
+              state.nodeLookup.get(edge.source)?.selected ||
+              state.nodeLookup.get(edge.target)?.selected ||
               (edge.data as { isConnectedToSelection?: boolean } | undefined)
                 ?.isConnectedToSelection,
             isConnectedToEditor: isEdgeConnectedToEditor(

@@ -39,8 +39,24 @@ import {
   encodeLogSortCursor,
 } from '@/lib/logs/sort-cursor'
 
+/** What a caller asks for: the contract's query, plus cancellation. */
 export type ListLogsParams = z.output<typeof listLogsQuerySchema> & {
   signal?: AbortSignal
+}
+
+/**
+ * What the query actually runs with — the request, plus the viewer's spend
+ * projection.
+ *
+ * `hideCostInfo` is required and lives on this type rather than on
+ * {@link ListLogsParams} for two reasons that pull the same way. It is resolved
+ * by the application use case and never read off the query, so a client cannot
+ * ask for a row it is not entitled to; and being required rather than defaulted
+ * to `false`, a caller of this read that forgets it fails to compile instead of
+ * quietly disclosing every run's cost.
+ */
+export type ReadLogsParams = ListLogsParams & {
+  hideCostInfo: boolean
 }
 
 type SortBy = 'date' | 'duration' | 'cost' | 'status'
@@ -49,8 +65,9 @@ type SortOrder = 'asc' | 'desc'
 /**
  * Canonical logs list query after workspace authorization.
  */
-export async function readLogs(params: ListLogsParams): Promise<ListLogsResponse> {
+export async function readLogs(params: ReadLogsParams): Promise<ListLogsResponse> {
   params.signal?.throwIfAborted()
+  const { hideCostInfo } = params
   const sortBy = params.sortBy as SortBy
   const sortOrder = params.sortOrder as SortOrder
   const cursor = params.cursor ? decodeLogSortCursor(params.cursor) : null
@@ -61,7 +78,7 @@ export async function readLogs(params: ListLogsParams): Promise<ListLogsResponse
     ? await expandFolderIdsWithDescendants(params.workspaceId, params.folderIds)
     : params.folderIds
   params.signal?.throwIfAborted()
-  const p: ListLogsParams = { ...params, folderIds }
+  const p: ReadLogsParams = { ...params, folderIds }
 
   const workflowSortExpr: SQL<unknown> = (() => {
     switch (sortBy) {
@@ -185,7 +202,6 @@ export async function readLogs(params: ListLogsParams): Promise<ListLogsResponse
       workflowName: workflow.name,
       workflowDescription: workflow.description,
       workflowFolderId: workflow.folderId,
-      workflowUserId: workflow.userId,
       workflowWorkspaceId: workflow.workspaceId,
       workflowCreatedAt: workflow.createdAt,
       workflowUpdatedAt: workflow.updatedAt,
@@ -343,7 +359,6 @@ export async function readLogs(params: ListLogsParams): Promise<ListLogsResponse
             name: log.workflowName,
             description: log.workflowDescription,
             folderId: log.workflowFolderId,
-            userId: log.workflowUserId,
             workspaceId: log.workflowWorkspaceId,
             createdAt: log.workflowCreatedAt?.toISOString() ?? null,
             updatedAt: log.workflowUpdatedAt?.toISOString() ?? null,
@@ -352,7 +367,7 @@ export async function readLogs(params: ListLogsParams): Promise<ListLogsResponse
       jobTitle: null,
       // List cost is the cost_total projection (faithful ledger sum). Null until
       // completion (running) or until the one-time legacy backfill populates it.
-      cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
+      cost: hideCostInfo || log.costTotal == null ? null : { total: Number(log.costTotal) },
       pauseSummary: {
         status: log.pausedStatus ?? null,
         total: totalPauseCount,
@@ -379,7 +394,7 @@ export async function readLogs(params: ListLogsParams): Promise<ListLogsResponse
       createdAt: log.startedAt.toISOString(),
       workflow: null,
       jobTitle: log.jobTitle ?? null,
-      cost: jobCostTotal(log.cost),
+      cost: hideCostInfo ? null : jobCostTotal(log.cost),
       pauseSummary: { status: null, total: 0, resumed: 0 },
       hasPendingPause: false,
     }

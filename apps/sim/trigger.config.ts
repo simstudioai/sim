@@ -102,6 +102,9 @@ export default defineConfig({
       'e2b',
       '@e2b/code-interpreter',
       '@daytona/sdk',
+      // pdf.js resolves its worker via a runtime-relative dynamic import that
+      // breaks inside the worker bundle; it must load from node_modules.
+      'pdfjs-dist',
     ],
     extensions: [
       syncEnvVars(() => [
@@ -125,7 +128,6 @@ export default defineConfig({
       }),
       additionalPackages({
         packages: [
-          'unpdf',
           'isolated-vm',
           'react-dom',
           '@react-email/render',
@@ -133,6 +135,7 @@ export default defineConfig({
           '@earendil-works/pi-coding-agent',
           '@e2b/code-interpreter',
           '@daytona/sdk',
+          'pdfjs-dist',
         ],
       }),
     ],

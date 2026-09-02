@@ -1,10 +1,13 @@
 /** @vitest-environment node */
 import { Workflow } from '@sim/emcn/icons'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AgentSkillsIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { mentionIcon } from './mention-icon'
 import type { MentionKind } from './types'
+
+/** Compares real icon components by identity; the global `@/components/icons` stub in vitest.setup.ts would make that vacuous. */
+vi.unmock('@/components/icons')
 
 describe('mentionIcon', () => {
   it('uses the product-wide glyph for a known kind', () => {

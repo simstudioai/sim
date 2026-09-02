@@ -97,6 +97,7 @@ export function initBrowserAgentTransport(): void {
     useBrowserSessionStore.getState().setSessionAlive(alive, scopeId)
   })
   agent.onScopeSuspended(applyBrowserScopeSuspended)
+  agent.registerSitePermissionPromptSupport?.()
 }
 
 /** Makes one chat's browser set active in both renderer and desktop. */
@@ -357,6 +358,16 @@ export async function openUrlInNewBrowserTab(
   url: string,
   scopeId = currentBrowserScopeId()
 ): Promise<void> {
+  const agent = bridge()
+  if (!agent) throw new Error('The Sim desktop browser agent is unavailable.')
+  if (agent.openUrl) {
+    const state = await agent.openUrl(url, scopeId)
+    if (state.scopeId !== scopeId || !state.activeTabId) {
+      throw new Error('The desktop browser did not confirm the new tab.')
+    }
+    useBrowserSessionStore.getState().setTabsState(state)
+    return
+  }
   await openBrowserTab(scopeId)
   sendBrowserPanelAction('navigate', { url }, scopeId)
 }

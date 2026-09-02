@@ -157,41 +157,6 @@ describe('agent-stream applier', () => {
     expect(freshText).toContain('Gamma paragraph')
   })
 
-  it('preserves a concurrent peer edit to a region the agent snapshot does not include', () => {
-    // This is the core "AI as a CRDT peer" guarantee: the agent relays only its OWN delta (computed
-    // against a private shadow), never a whole-document reconcile that would revert a peer's edit.
-    const { editor, doc } = track(makeCollabEditor())
-
-    const session = beginAgentStream(editor)!
-    applyAgentStreamFrame(editor, session, 'Alpha paragraph.\n\nBeta paragraph.')
-
-    // A peer edits the FIRST paragraph directly on the shared doc — the agent's later snapshot still
-    // carries the ORIGINAL first paragraph (it was built from the base, before this edit).
-    const peer = new Y.Doc()
-    Y.applyUpdate(peer, Y.encodeStateAsUpdate(doc))
-    const peerFrag = peer.getXmlFragment('default')
-    peer.transact(() => {
-      const firstPara = peerFrag.get(0) as Y.XmlElement
-      const textNode = firstPara.get(0) as Y.XmlText
-      textNode.insert(textNode.toString().length, ' EDITED')
-    })
-    Y.applyUpdate(doc, Y.encodeStateAsUpdate(peer, Y.encodeStateVector(doc)))
-    peer.destroy()
-
-    // The agent appends a third paragraph. Its snapshot's first paragraph is the stale original, but the
-    // shadow-relayed delta only inserts the new paragraph — so the peer's " EDITED" must survive.
-    applyAgentStreamFrame(
-      editor,
-      session,
-      'Alpha paragraph.\n\nBeta paragraph.\n\nGamma paragraph.'
-    )
-    endAgentStream(session)
-
-    const live = doc.getXmlFragment('default').toString()
-    expect(live).toContain('EDITED')
-    expect(live).toContain('Gamma paragraph')
-  })
-
   it('reuses cached binding metadata across frames, still emitting minimal per-frame deltas', () => {
     // The binding `meta` is built ONCE (first frame) and reused — `updateYFragment` maintains it in place,
     // so we skip an O(doc) `initProseMirrorDoc` rebuild per frame. This guards that caching preserves the

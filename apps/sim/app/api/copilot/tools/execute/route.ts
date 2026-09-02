@@ -162,7 +162,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
         // glob/read/grep, function execute, ...) plus the server tool router
         // fallback — the plain server-tool adapter alone rejects VFS tools
         // with "Unknown server tool".
-        ensureHandlersRegistered()
+        await ensureHandlersRegistered()
         const result = await executeTool(toolName, params, {
           userId,
           workflowId: workflowId ?? '',

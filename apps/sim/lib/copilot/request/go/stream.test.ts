@@ -11,6 +11,12 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 
+/** Table side effects are not exercised here, and the real module loads the table application layer. */
+vi.mock('@/lib/copilot/request/tools/tables', () => ({
+  maybeWriteOutputToTable: vi.fn(async (_toolName, _params, result) => result),
+  maybeWriteReadCsvToTable: vi.fn(async (_toolName, _params, result) => result),
+}))
+
 vi.mock('@/lib/copilot/request/session', async () => {
   const actual = await vi.importActual<typeof import('@/lib/copilot/request/session')>(
     '@/lib/copilot/request/session'
@@ -143,6 +149,7 @@ function createStreamingContext(): StreamingContext {
     toolPermissions: {
       enabled: false,
       autoAllowed: new Set(),
+      autoAllowPermitted: true,
     },
   }
 }

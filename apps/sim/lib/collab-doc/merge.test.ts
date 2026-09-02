@@ -1,5 +1,5 @@
 /**
- * @vitest-environment jsdom
+ * @vitest-environment node
  */
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { describe, expect, it } from 'vitest'

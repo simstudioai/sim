@@ -1,10 +1,17 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { getToolMetadata, getToolParams } from '@/tools/metadata'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { getToolIds, hasToolId, resolveToolId } from '@/tools/tool-ids'
+
+/**
+ * Asserts real tool params and outputs, which the global `@/tools/metadata`
+ * and `@/tools/metadata-outputs` mocks in vitest.setup.ts empty.
+ */
+vi.unmock('@/tools/metadata')
+vi.unmock('@/tools/metadata-outputs')
 
 /**
  * Guards the properties the generated artifacts are relied on for. The
@@ -58,8 +65,9 @@ describe('generated tool metadata', () => {
      * Only a versioned id whose base name is *not* itself registered exercises
      * resolution — where both exist, the base name resolves to itself.
      */
+    const toolIds = new Set(getToolIds())
     const versionedId = getToolIds().find(
-      (id) => /_v[2-9]\d*$/.test(id) && !getToolIds().includes(id.replace(/_v\d+$/, ''))
+      (id) => /_v[2-9]\d*$/.test(id) && !toolIds.has(id.replace(/_v\d+$/, ''))
     )
 
     it('has at least one versioned tool to exercise', () => {
@@ -88,12 +96,13 @@ describe('generated tool metadata', () => {
    * consumers may iterate freely.
    */
   it('contains no null param entries', () => {
+    const empty: string[] = []
     for (const id of getToolIds()) {
       for (const [paramId, config] of Object.entries(getToolParams(id) ?? {})) {
-        expect(config, `${id}.${paramId} is empty`).not.toBeNull()
-        expect(config, `${id}.${paramId} is empty`).toBeDefined()
+        if (config === null || config === undefined) empty.push(`${id}.${paramId}`)
       }
     }
+    expect(empty).toEqual([])
   })
 
   /**
@@ -101,16 +110,18 @@ describe('generated tool metadata', () => {
    * importing them cannot pull the tool implementations into a module graph.
    */
   it('contains no function values', () => {
+    const functions: string[] = []
     for (const id of getToolIds()) {
       const metadata = getToolMetadata(id)
       for (const [key, value] of Object.entries(metadata ?? {})) {
-        expect(typeof value, `${id}.${key} is a function`).not.toBe('function')
+        if (typeof value === 'function') functions.push(`${id}.${key}`)
       }
       for (const [paramId, config] of Object.entries(metadata?.params ?? {})) {
         for (const [key, value] of Object.entries(config ?? {})) {
-          expect(typeof value, `${id}.params.${paramId}.${key} is a function`).not.toBe('function')
+          if (typeof value === 'function') functions.push(`${id}.params.${paramId}.${key}`)
         }
       }
     }
+    expect(functions).toEqual([])
   })
 })

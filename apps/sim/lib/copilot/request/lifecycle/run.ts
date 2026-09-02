@@ -1,7 +1,7 @@
 import type { Context } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { interruptibleSleep, sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
@@ -64,6 +64,7 @@ import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copil
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -206,8 +207,45 @@ async function resolveToolPermissions(
     isCopilotToolPermissionsEnabled &&
     options.interactive !== false &&
     (options.goRoute ?? '').startsWith('/api/mothership')
-  if (!enabled) return { enabled: false, autoAllowed: new Set() }
-  return { enabled: true, autoAllowed: await getAutoAllowedTools(options.userId, options.chatId) }
+  if (!enabled) return { enabled: false, autoAllowed: new Set(), autoAllowPermitted: true }
+
+  /**
+   * permission-group-enforced: copilot.tool_auto_approval — read at the point
+   * the decision is made, not only where one is saved. A member who clicked
+   * "always allow" before the key was set would otherwise keep the prompt
+   * silenced forever, so the stored list is not even loaded once the group
+   * withholds the capability.
+   *
+   * A failed lookup reads as withheld, matching the decision endpoint: letting
+   * it reject would abort the whole turn here, before any card is drawn, over a
+   * database hiccup — the turn is interactive by construction at this point, so
+   * there is a human to ask. Withholding keeps the capability fail-closed
+   * without wedging the turn: no stored always-allow is loaded, nothing durable
+   * is remembered, and every gated call still asks its one-time question.
+   */
+  const withheld =
+    options.userId && options.workspaceId
+      ? await isWorkspaceCapabilityWithheld(
+          options.userId,
+          options.workspaceId,
+          'copilot.tool_auto_approval'
+        ).catch((error) => {
+          logger.warn('Could not resolve the tool auto-approval capability; prompting every time', {
+            workspaceId: options.workspaceId,
+            error: getErrorMessage(error),
+          })
+          return true
+        })
+      : false
+  if (withheld) {
+    return { enabled: true, autoAllowed: new Set(), autoAllowPermitted: false }
+  }
+
+  return {
+    enabled: true,
+    autoAllowed: await getAutoAllowedTools(options.userId, options.chatId),
+    autoAllowPermitted: true,
+  }
 }
 
 export async function runCopilotLifecycle(

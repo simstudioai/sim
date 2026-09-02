@@ -57,7 +57,6 @@ const {
   mockRunWorkflowTool,
   mockReadAvailableCustomToolByIdOrTitleAsCopilot,
   mockReadAvailableCustomToolByIdOrTitleAsExecutor,
-  mockGenerateInternalDelegationToken,
   mockGenerateInternalToken,
   mockResolveWorkspaceFileReference,
   mockAssertPermissionsAllowed,
@@ -78,7 +77,6 @@ const {
   mockRunWorkflowTool: vi.fn(),
   mockReadAvailableCustomToolByIdOrTitleAsCopilot: vi.fn(),
   mockReadAvailableCustomToolByIdOrTitleAsExecutor: vi.fn(),
-  mockGenerateInternalDelegationToken: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
   mockAssertPermissionsAllowed: vi.fn(),
@@ -98,8 +96,6 @@ vi.mock('@/lib/api-key/byok', () => ({
 }))
 
 vi.mock('@/lib/auth/internal', () => ({
-  generateInternalDelegationToken: (...args: unknown[]) =>
-    mockGenerateInternalDelegationToken(...args),
   generateInternalToken: (...args: unknown[]) => mockGenerateInternalToken(...args),
 }))
 
@@ -111,13 +107,9 @@ vi.mock('@/lib/core/security/encryption', () => ({
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
   assertPermissionsAllowed: mockAssertPermissionsAllowed,
   validateBlockType: vi.fn().mockResolvedValue(undefined),
-  validateMcpToolsAllowed: vi.fn().mockResolvedValue(undefined),
-  validateCustomToolsAllowed: vi.fn().mockResolvedValue(undefined),
-  validateSkillsAllowed: vi.fn().mockResolvedValue(undefined),
   validateModelProvider: vi.fn().mockResolvedValue(undefined),
   validateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
   validatePublicApiAllowed: vi.fn().mockResolvedValue(undefined),
-  getUserPermissionConfig: vi.fn().mockResolvedValue(null),
   ProviderNotAllowedError: class ProviderNotAllowedError extends Error {},
   IntegrationNotAllowedError: class IntegrationNotAllowedError extends Error {},
   McpToolsNotAllowedError: class McpToolsNotAllowedError extends Error {},
@@ -125,6 +117,10 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
   SkillsNotAllowedError: class SkillsNotAllowedError extends Error {},
   InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {},
   PublicApiNotAllowedError: class PublicApiNotAllowedError extends Error {},
+}))
+
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfig: vi.fn().mockResolvedValue(null),
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({}))
@@ -154,6 +150,15 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
   markWorkspaceFileSecretProvenanceUnknown: (...args: unknown[]) =>
     mockMarkWorkspaceFileSecretProvenanceUnknown(...args),
+}))
+
+const { mockResolveExecutorCredentialToken } = vi.hoisted(() => ({
+  mockResolveExecutorCredentialToken: vi.fn(),
+}))
+
+vi.mock('@/executor/utils/credential-token', () => ({
+  resolveExecutorCredentialToken: (...args: unknown[]) =>
+    mockResolveExecutorCredentialToken(...args),
 }))
 
 vi.mock('@/executor/handlers/workflow/workflow-tool-runner', () => ({
@@ -465,7 +470,6 @@ vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQu
 beforeEach(() => {
   vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
   mockAssertPermissionsAllowed.mockResolvedValue(undefined)
-  mockGenerateInternalDelegationToken.mockResolvedValue('executor-token')
   mockRunWorkflowTool.mockResolvedValue({ success: true, output: {} })
   mockGetInternalToolOperationHandler.mockResolvedValue(mockExecuteInternalToolOperation)
   mockExecuteInternalToolOperation.mockImplementation(async (request: InternalToolOperationCall) =>
@@ -800,7 +804,7 @@ describe('executeTool Function', () => {
     cleanupEnvVars()
   })
 
-  it('executes trusted Function calls in process without dropping resolved execution context', async () => {
+  it('stamps standard Function identity and preserves trusted execution context', async () => {
     const fetchSpy = vi.fn()
     global.fetch = Object.assign(fetchSpy, { preconnect: vi.fn() }) as typeof fetch
 
@@ -856,7 +860,7 @@ describe('executeTool Function', () => {
         workspaceId: 'workspace-456',
         body: {
           code: 'return [{{API_KEY}}, __blockRef_0.field]',
-          isCustomTool: true,
+          isCustomTool: false,
           inputs: { location: 'San Francisco' },
           envVars: { API_KEY: 'resolved-secret' },
           contextVariables: {
@@ -1744,6 +1748,7 @@ describe('executeTool Function', () => {
   it('does not log plaintext or runtime aliases from Function errors', async () => {
     const secret = 'function-error-secret-value'
     const runtimeAlias = '__var_API_KEY'
+    const cost = { input: 0, output: 0, total: 0.00012345 }
     const registry = new ResolvedSecretTraceRegistry([
       {
         name: 'API_KEY',
@@ -1756,6 +1761,7 @@ describe('executeTool Function', () => {
         JSON.stringify({
           success: false,
           error: `Execution failed with ${secret} via ${runtimeAlias}`,
+          output: { result: null, stdout: 'trace', cost },
           __resolvedSecretNames: ['API_KEY'],
         }),
         {
@@ -1782,6 +1788,7 @@ describe('executeTool Function', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain(secret)
+    expect(result.output?.cost).toEqual(cost)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(secret)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(runtimeAlias)
     expect(JSON.stringify(projectToolResultForCopilot(result, registry))).not.toContain(secret)
@@ -1822,6 +1829,32 @@ describe('executeTool Function', () => {
     expect(result.error).toContain(secret)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(secret)
     expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(runtimeAlias)
+  })
+
+  it('does not lift an invalid sandbox cost from a Function error response', async () => {
+    mockExecuteFunction.mockResolvedValueOnce(
+      Response.json(
+        {
+          success: false,
+          error: 'boom',
+          output: {
+            result: null,
+            stdout: 'trace',
+            cost: { input: 0, output: 0, total: -1 },
+          },
+        },
+        { status: 422 }
+      )
+    )
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'throw new Error("boom")' },
+      { executionContext: createToolExecutionContext({ userId: 'user-1' }) }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.output).not.toHaveProperty('cost')
   })
 
   it('does not log a secret-bearing non-OK response stream error', async () => {
@@ -2783,7 +2816,8 @@ describe('Internal Route Trust', () => {
     expect(result.success).toBe(true)
     expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
       'http://127.0.0.2:3000/api/v1/workflows/test',
-      'toolUrl'
+      'toolUrl',
+      'requestTarget'
     )
     expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       'http://127.0.0.2:3000/api/v1/workflows/test',
@@ -2874,7 +2908,8 @@ describe('Internal Route Trust', () => {
       expect(result.success).toBe(true)
       expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
         'http://127.0.0.1:4000/api/provider',
-        'toolUrl'
+        'toolUrl',
+        'requestTarget'
       )
       expect(mockSecureFetchWithPinnedIP).toHaveBeenCalled()
     } finally {
@@ -2958,15 +2993,7 @@ describe('Internal Route Trust', () => {
     ;(tools as Record<string, unknown>)[ordinaryToolId] = createAuthorityTool(ordinaryToolId, false)
 
     const setTokenPayload = (payload: Record<string, unknown>) => {
-      global.fetch = Object.assign(
-        vi.fn().mockResolvedValue(
-          new Response(JSON.stringify(payload), {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-          })
-        ),
-        { preconnect: vi.fn() }
-      ) as typeof fetch
+      mockResolveExecutorCredentialToken.mockResolvedValue(payload)
     }
 
     try {
@@ -3011,6 +3038,70 @@ describe('Internal Route Trust', () => {
     } finally {
       Reflect.deleteProperty(tools, authorityToolId)
       Reflect.deleteProperty(tools, ordinaryToolId)
+    }
+  })
+
+  it('accepts credential-group provenance only from credential resolution', async () => {
+    const toolId = 'test_credential_type_authority'
+    const mockTool = {
+      id: toolId,
+      name: 'Credential Type Authority Test',
+      description: 'Verifies credential-derived request capabilities',
+      version: '1.0.0',
+      oauth: {
+        required: true,
+        provider: 'slack',
+        authoritativeParams: ['credentialType'] as const,
+      },
+      params: {
+        accessToken: { type: 'string', required: true, visibility: 'hidden' },
+        credentialType: { type: 'string', required: false, visibility: 'hidden' },
+      },
+      request: {
+        url: (params: Record<string, unknown>) => {
+          const types =
+            params.credentialType === 'managed_oauth' ? 'public_channel,im,mpim' : 'public_channel'
+          return `https://slack.com/api/conversations.list?types=${types}`
+        },
+        method: 'GET' as const,
+        headers: (params: Record<string, unknown>) => ({
+          Authorization: `Bearer ${params.accessToken}`,
+        }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    }
+    ;(tools as Record<string, unknown>)[toolId] = mockTool
+
+    const setTokenPayload = (payload: Record<string, unknown>) => {
+      mockResolveExecutorCredentialToken.mockResolvedValue(payload)
+    }
+
+    try {
+      setTokenPayload({ accessToken: 'legacy-token' })
+      const spoofedResult = await executeTool(toolId, {
+        credential: 'legacy-credential',
+        credentialType: 'managed_oauth',
+      })
+      expect(spoofedResult.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://slack.com/api/conversations.list?types=public_channel',
+        '93.184.216.34',
+        expect.anything()
+      )
+
+      mockSecureFetchWithPinnedIP.mockClear()
+      setTokenPayload({ accessToken: 'managed-token', credentialType: 'managed_oauth' })
+      const managedResult = await executeTool(toolId, {
+        credential: 'managed-credential',
+      })
+      expect(managedResult.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://slack.com/api/conversations.list?types=public_channel,im,mpim',
+        '93.184.216.34',
+        expect.anything()
+      )
+    } finally {
+      Reflect.deleteProperty(tools, toolId)
     }
   })
 
@@ -4149,7 +4240,7 @@ describe('Internal Route Trust', () => {
   })
 })
 
-describe('Copilot File Parameter Normalization', () => {
+describe('File Parameter Normalization', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
@@ -4275,7 +4366,16 @@ describe('Copilot File Parameter Normalization', () => {
     expect(mockResolveWorkspaceFileReference).toHaveBeenCalledTimes(3)
   })
 
-  it('does not resolve file params outside copilot execution', async () => {
+  it('resolves file params outside copilot execution too', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue({
+      id: 'wf_123',
+      name: 'brief.pdf',
+      path: '/api/files/wf_123',
+      size: 512,
+      type: 'application/pdf',
+      key: 'uploads/wf_123',
+    })
+
     const context = createToolExecutionContext({
       workspaceId: 'workspace-456',
       userId: 'user-1',
@@ -4287,11 +4387,72 @@ describe('Copilot File Parameter Normalization', () => {
       { executionContext: context }
     )
 
+    // By-reference is the only way any model can pass a file — it cannot
+    // synthesize a key or url — so resolution is not copilot-specific.
     expect(result.success).toBe(true)
     expect(mockExecuteInternalToolOperation.mock.calls[0]?.[0].input).toEqual({
-      attachment: 'wf_123',
+      attachment: {
+        id: 'wf_123',
+        name: 'brief.pdf',
+        url: '/api/files/wf_123',
+        size: 512,
+        type: 'application/pdf',
+        key: 'uploads/wf_123',
+        context: 'workspace',
+      },
+    })
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-456', 'wf_123')
+  })
+
+  it('resolves a file produced earlier in the same execution without a workspace lookup', async () => {
+    const executionFile = {
+      id: 'file_1700000000_abc',
+      name: 'invoice.pdf',
+      url: 'https://storage.example/invoice.pdf',
+      size: 2048,
+      type: 'application/pdf',
+      key: 'execution/workspace-456/wf-1/exec-1/abc/invoice.pdf',
+      context: 'execution',
+    }
+
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      userId: 'user-1',
+    } as any)
+    context.executionFilesById = new Map([[executionFile.id, executionFile]])
+
+    const result = await executeTool(
+      'test_single_file_tool',
+      { attachment: executionFile.id },
+      { executionContext: context }
+    )
+
+    // An execution-scoped attachment — a Gmail file fetched moments ago in the
+    // same agent turn — has no workspace row, so the workspace lookup would
+    // never find it.
+    expect(result.success).toBe(true)
+    expect(mockExecuteInternalToolOperation.mock.calls[0]?.[0].input).toEqual({
+      attachment: executionFile,
     })
     expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalled()
+  })
+
+  it('fails a file param naming an id that exists nowhere in scope', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue(null)
+
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      userId: 'user-1',
+    } as any)
+
+    const result = await executeTool(
+      'test_single_file_tool',
+      { attachment: 'wf_nope' },
+      { executionContext: context }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Could not resolve file reference "wf_nope"')
   })
 })
 
@@ -4328,21 +4489,15 @@ describe('Copilot OAuth Credential Enforcement', () => {
 
 describe('Managed OAuth Credential Delegation', () => {
   it('passes an opaque credential ID with trusted tool scope and origin-bound delegation', async () => {
-    mockGenerateInternalToken.mockResolvedValueOnce('legacy-token')
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ accessToken: 'managed-access-token' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ messages: [] }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      )
+    mockResolveExecutorCredentialToken.mockResolvedValueOnce({
+      accessToken: 'managed-access-token',
+    })
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ messages: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
     global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
 
     const executorDelegationOrigin = {
@@ -4368,23 +4523,23 @@ describe('Managed OAuth Credential Delegation', () => {
       { executionContext: context }
     )
 
-    expect(mockGenerateInternalDelegationToken).toHaveBeenCalledWith(executorDelegationOrigin)
-    const [tokenUrl, tokenRequest] = fetchMock.mock.calls[0]
-    expect(String(tokenUrl)).toContain('/api/auth/oauth/token')
-    expect(tokenRequest.headers).toMatchObject({
-      Authorization: 'Bearer legacy-token',
-      'x-sim-managed-oauth-delegation': 'Bearer executor-token',
-    })
-    expect(JSON.parse(tokenRequest.body)).toMatchObject({
-      credentialId: 'managed-credential-id',
-      toolId: 'gmail_read',
-      scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
-    })
+    expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: 'managed-credential-id',
+        toolId: 'gmail_read',
+        scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+        executorDelegationOrigin,
+      })
+    )
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes('/api/auth/oauth/token'))
+    ).toBe(false)
   })
 
   it('fails before transport when managed credential delegation lacks current workflow authority', async () => {
-    mockGenerateInternalDelegationToken.mockClear()
-    mockGenerateInternalToken.mockResolvedValueOnce('legacy-token')
+    mockResolveExecutorCredentialToken.mockRejectedValueOnce(
+      new Error('Managed credential delegation is missing current workflow authority')
+    )
     const fetchMock = vi.fn()
     global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
 
@@ -4419,7 +4574,6 @@ describe('Managed OAuth Credential Delegation', () => {
       success: false,
       error: 'Managed credential delegation is missing current workflow authority',
     })
-    expect(mockGenerateInternalDelegationToken).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
@@ -4951,13 +5105,29 @@ describe('MCP Tool Execution', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+  /**
+   * `retryDelayMs: 1` rather than `0`: the retry config falls back to the 500 ms
+   * default for a falsy delay, so 1 ms is the smallest delay the tool honors.
+   */
   describe('Tool request retries', () => {
     beforeEach(() => {
+      vi.useFakeTimers()
       mockValidateUrlWithDNS.mockResolvedValue({
         isValid: true,
         resolvedIP: '93.184.216.34',
       })
     })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    /** Runs the request with every retry backoff elapsed on the fake clock. */
+    async function executeWithRetries(params: Record<string, unknown>) {
+      const pending = executeTool('http_request', params)
+      await vi.runAllTimersAsync()
+      return pending
+    }
 
     function makeJsonResponse(
       status: number,
@@ -4978,11 +5148,11 @@ describe('MCP Tool Execution', () => {
         .mockResolvedValueOnce(makeJsonResponse(500, { error: 'nope' }))
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 2,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -4996,7 +5166,7 @@ describe('MCP Tool Execution', () => {
         makeJsonResponse(500, { error: 'server error' })
       )
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
       })
@@ -5008,11 +5178,11 @@ describe('MCP Tool Execution', () => {
     it('stops retrying after max attempts for http_request', async () => {
       mockSecureFetchWithPinnedIP.mockResolvedValue(makeJsonResponse(502, { error: 'bad gateway' }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 2,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5023,11 +5193,11 @@ describe('MCP Tool Execution', () => {
     it('does not retry on 4xx responses for http_request', async () => {
       mockSecureFetchWithPinnedIP.mockResolvedValue(makeJsonResponse(400, { error: 'bad request' }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 5,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5040,11 +5210,11 @@ describe('MCP Tool Execution', () => {
         .mockResolvedValueOnce(makeJsonResponse(500, { error: 'nope' }))
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'POST',
         retries: 2,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5057,12 +5227,12 @@ describe('MCP Tool Execution', () => {
         .mockResolvedValueOnce(makeJsonResponse(500, { error: 'nope' }))
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'POST',
         retries: 1,
         retryNonIdempotent: true,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 
@@ -5078,7 +5248,7 @@ describe('MCP Tool Execution', () => {
         )
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 3,
@@ -5096,7 +5266,7 @@ describe('MCP Tool Execution', () => {
         )
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 3,
@@ -5114,11 +5284,11 @@ describe('MCP Tool Execution', () => {
         )
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 2,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 5000,
       })
 
@@ -5134,11 +5304,11 @@ describe('MCP Tool Execution', () => {
         .mockRejectedValueOnce(etimedoutError)
         .mockResolvedValueOnce(makeJsonResponse(200, { ok: true }))
 
-      const result = await executeTool('http_request', {
+      const result = await executeWithRetries({
         url: 'https://api.example.com/test',
         method: 'GET',
         retries: 1,
-        retryDelayMs: 0,
+        retryDelayMs: 1,
         retryMaxDelayMs: 0,
       })
 

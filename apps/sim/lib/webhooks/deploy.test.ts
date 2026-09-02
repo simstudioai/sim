@@ -255,6 +255,7 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
         canonicalParamId: 'botCredential',
         required: true,
       },
+      { id: 'commandFilter', mode: 'trigger', required: false },
     ],
   }
 
@@ -266,6 +267,7 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     ;(getTrigger as unknown as Mock).mockReturnValue(slackTriggerDef)
     return resolveWebhookConfigForBlock({
       block: makeBlock('slack_oauth', values),
+      blocks: {},
       workflow,
       userId: 'deployer-1',
       requestId: 'req-1',
@@ -291,6 +293,31 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     expect(result.config.triggerPath).toBeNull()
     expect(result.config.providerConfig.bot_user_id).toBe('BUSER')
     expect(mockFetchSlackTeamId).not.toHaveBeenCalled()
+  })
+
+  it('deploys a slash command trigger and preserves its command filter', async () => {
+    mockGetSlackBotCredential.mockResolvedValue({
+      workspaceId: 'ws-1',
+      botToken: 'xoxb-token',
+      teamId: 'T123',
+      botUserId: 'BUSER',
+      signingSecret: 'secret',
+    })
+
+    const result = await resolveSlack({
+      eventType: 'slash_command',
+      commandFilter: '/ask-sim',
+      customBotCredential: 'cred_bot_1',
+    })
+
+    expect(result?.success).toBe(true)
+    if (!result?.success) throw new Error('expected success')
+    expect(result.config.provider).toBe('slack')
+    expect(result.config.routingKey).toBe('cred_bot_1')
+    expect(result.config.providerConfig).toMatchObject({
+      eventType: 'slash_command',
+      commandFilter: '/ask-sim',
+    })
   })
 
   it('does not validate an identity-less migrated bot for ordinary triggers', async () => {
@@ -428,6 +455,26 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
   })
 
+  it('rejects Agent Sessions events on the native Sim app', async () => {
+    mockGetSlackBotCredential.mockResolvedValue(null)
+    mockResolveOAuthAccountId.mockResolvedValue({ accountId: 'acct-1' })
+    queueTableRows(credential, [{ id: 'cred_oauth_1' }])
+
+    const result = await resolveSlack({
+      eventType: 'agent_session_stopped',
+      customBotCredential: 'cred_oauth_1',
+    })
+
+    expect(result?.success).toBe(false)
+    if (result?.success) throw new Error('expected failure')
+    expect(result?.error).toEqual({
+      message:
+        'This event is not available on the Sim Slack app. Use a custom bot or choose a supported event.',
+      status: 400,
+    })
+    expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
+  })
+
   it('routes an OAuth account by team_id on the slack_app provider', async () => {
     mockGetSlackBotCredential.mockResolvedValue(null)
     mockResolveOAuthAccountId.mockResolvedValue({ accountId: 'acct-1' })
@@ -482,6 +529,7 @@ describe('resolveWebhookConfigForBlock — migrated slack_webhook routing', () =
     ;(getTrigger as unknown as Mock).mockReturnValue(legacySlackTriggerDef)
     return resolveWebhookConfigForBlock({
       block: makeBlock('slack_webhook', values),
+      blocks: {},
       workflow: { workspaceId: 'ws-1' },
       userId: 'deployer-1',
       requestId: 'req-1',
@@ -546,6 +594,7 @@ describe('resolveWebhookConfigForBlock — TikTok routing', () => {
     ;(getTrigger as unknown as Mock).mockReturnValue(tiktokTriggerDef)
     return resolveWebhookConfigForBlock({
       block: makeBlock('tiktok', { triggerCredentials: credentialReference }),
+      blocks: {},
       workflow,
       userId: 'deployer-1',
       requestId: 'req-1',

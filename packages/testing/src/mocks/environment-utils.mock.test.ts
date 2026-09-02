@@ -10,6 +10,13 @@ describe('environment-utils mock', () => {
     resetEnvironmentUtilsMock()
   })
 
+  /**
+   * The default must carry EVERY field of the real `EnvironmentResolutionSnapshot`,
+   * including `personalOwners` and `workspaceUnredactedKeys`. A mirror that omits
+   * one lets a mocked snapshot reach production code as `undefined` and fail
+   * there instead of in the assertion, which is the opposite of what a default
+   * should do.
+   */
   it('defaults model a user with no environment variables', async () => {
     await expect(environmentUtilsMock.getEnvironmentVariableKeys('user-1')).resolves.toEqual({
       variableNames: [],
@@ -21,17 +28,27 @@ describe('environment-utils mock', () => {
       workspaceEncrypted: {},
       personalDecrypted: {},
       workspaceDecrypted: {},
+      personalOwners: {},
       conflicts: [],
       decryptionFailures: [],
+      workspaceUnredactedKeys: [],
     })
     await expect(environmentUtilsMock.getEffectiveEnvironmentSnapshot('user-1')).resolves.toEqual({
       personalEncrypted: {},
       workspaceEncrypted: {},
       personalDecrypted: {},
       workspaceDecrypted: {},
+      personalOwners: {},
       conflicts: [],
       decryptionFailures: [],
+      workspaceUnredactedKeys: [],
     })
+    await expect(
+      environmentUtilsMock.getEffectiveEnvironmentVariableNames('user-1')
+    ).resolves.toEqual([])
+    await expect(
+      environmentUtilsMock.resolveEffectiveEnvironmentVariables('user-1', 'ws-1', ['API_KEY'])
+    ).resolves.toEqual({})
     await expect(environmentUtilsMock.upsertPersonalEnvVars('user-1', {})).resolves.toEqual({
       added: [],
       updated: [],

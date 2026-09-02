@@ -7,9 +7,42 @@ import { X_DEMO_BOOKED_EVENT_ID } from '@/lib/consent/scripts'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import type { DemoLead } from '@/app/(landing)/demo/components/demo-form'
 
-/** The Cal.com event the demo books - set `NEXT_PUBLIC_CAL_LINK` to override. */
 const CAL_NAMESPACE = 'demo'
-const CAL_LINK = process.env.NEXT_PUBLIC_CAL_LINK ?? 'team/sim/demo'
+const DEFAULT_CAL_ORIGIN = 'https://app.cal.com'
+const DEFAULT_CAL_LINK = 'team/sim/demo'
+
+interface CalEmbedConfig {
+  calLink: string
+  calOrigin: string
+  embedJsUrl: string
+}
+
+function parseCalEmbedConfig(link: string): CalEmbedConfig {
+  const url = new URL(link.replace(/^\/+/, ''), `${DEFAULT_CAL_ORIGIN}/`)
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+    throw new Error('Cal link must use HTTP(S) without embedded credentials')
+  }
+
+  const calLink = `${url.pathname.replace(/^\/+/, '')}${url.search}`
+  if (!calLink) throw new Error('Cal link must include an event path')
+
+  return {
+    calLink,
+    calOrigin: url.origin,
+    embedJsUrl: `${url.origin}/embed/embed.js`,
+  }
+}
+
+/** Resolves the configured booker, falling back safely when the environment value is invalid. */
+export function resolveCalEmbedConfig(configuredLink?: string): CalEmbedConfig {
+  try {
+    return parseCalEmbedConfig(configuredLink?.trim() || DEFAULT_CAL_LINK)
+  } catch {
+    return parseCalEmbedConfig(DEFAULT_CAL_LINK)
+  }
+}
+
+const CAL_EMBED = resolveCalEmbedConfig(process.env.NEXT_PUBLIC_CAL_LINK)
 
 /**
  * Sim's brand color, matching the `--brand-agent` token. The embed renders in a
@@ -37,9 +70,9 @@ let calEmbedPreloaded = false
 export function preloadCalEmbed(): void {
   if (calEmbedPreloaded) return
   calEmbedPreloaded = true
-  getCalApi({ namespace: CAL_NAMESPACE })
+  getCalApi({ namespace: CAL_NAMESPACE, embedJsUrl: CAL_EMBED.embedJsUrl })
     .then((cal) => {
-      cal('preload', { calLink: CAL_LINK })
+      cal('preload', { calLink: CAL_EMBED.calLink })
     })
     .catch(() => {
       calEmbedPreloaded = false
@@ -71,7 +104,7 @@ export function DemoScheduler({ lead }: DemoSchedulerProps) {
       }
       if (marketing) window.twq?.('event', X_DEMO_BOOKED_EVENT_ID, {})
     }
-    const api = getCalApi({ namespace: CAL_NAMESPACE })
+    const api = getCalApi({ namespace: CAL_NAMESPACE, embedJsUrl: CAL_EMBED.embedJsUrl })
     api
       .then((cal) => {
         if (cancelled) return
@@ -104,8 +137,10 @@ export function DemoScheduler({ lead }: DemoSchedulerProps) {
       <div className='mt-5 min-h-0 flex-1'>
         <Cal
           namespace={CAL_NAMESPACE}
-          calLink={CAL_LINK}
-          style={{ width: '100%', height: '100%', overflow: 'auto' }}
+          calLink={CAL_EMBED.calLink}
+          calOrigin={CAL_EMBED.calOrigin}
+          embedJsUrl={CAL_EMBED.embedJsUrl}
+          className='size-full overflow-auto'
           config={{
             name: lead.name,
             email: lead.email,

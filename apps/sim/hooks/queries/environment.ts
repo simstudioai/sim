@@ -2,13 +2,14 @@ import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
-  type ContractBodyInput,
   removeWorkspaceEnvironmentContract,
   savePersonalEnvironmentContract,
   upsertWorkspaceEnvironmentContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/environment'
+import type { ContractBodyInput } from '@/lib/api/contracts/types'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/environment/api'
+import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 
 const logger = createLogger('EnvironmentQueries')
 
@@ -78,6 +79,7 @@ export function useSavePersonalEnvironment() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: environmentKeys.personal() }),
         queryClient.invalidateQueries({ queryKey: environmentKeys.workspaces() }),
+        invalidateSelectorQueries(queryClient),
       ])
     },
   })
@@ -103,9 +105,12 @@ export function useUpsertWorkspaceEnvironment() {
       return data
     },
     onSettled: (_data, _error, variables) =>
-      queryClient.invalidateQueries({
-        queryKey: environmentKeys.workspace(variables.workspaceId),
-      }),
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: environmentKeys.workspace(variables.workspaceId),
+        }),
+        invalidateSelectorQueries(queryClient),
+      ]),
   })
 }
 
@@ -129,8 +134,11 @@ export function useRemoveWorkspaceEnvironment() {
       return data
     },
     onSettled: (_data, _error, variables) =>
-      queryClient.invalidateQueries({
-        queryKey: environmentKeys.workspace(variables.workspaceId),
-      }),
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: environmentKeys.workspace(variables.workspaceId),
+        }),
+        invalidateSelectorQueries(queryClient),
+      ]),
   })
 }

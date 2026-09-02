@@ -41,6 +41,7 @@ const operation = defineWorkspaceOperation({
   minimumRole: 'write',
   workspaceApiKey: 'deny',
   principalKinds: ['session'],
+  capability: 'none',
 })
 
 const delegatedOperation = defineWorkspaceOperation({
@@ -49,6 +50,7 @@ const delegatedOperation = defineWorkspaceOperation({
   workspaceApiKey: 'deny',
   principalKinds: ['delegated'],
   delegatedServices: ['executor'],
+  capability: 'none',
 })
 
 const workspaceKeyOperation = defineWorkspaceOperation({
@@ -56,6 +58,7 @@ const workspaceKeyOperation = defineWorkspaceOperation({
   minimumRole: 'read',
   workspaceApiKey: 'allow',
   principalKinds: ['workspace_api_key'],
+  capability: 'none',
 })
 
 const resourcePolicyOperation = defineWorkspaceOperation({
@@ -67,6 +70,7 @@ const resourcePolicyOperation = defineWorkspaceOperation({
     resourceType: 'credential_group',
     action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
   },
+  capability: 'none',
 })
 
 interface TestInput {

@@ -146,7 +146,15 @@ export function CreditUsageView({ backHref = '/account/settings/billing' }: Cred
   })
 
   const logs = data?.pages.flatMap((page) => page.logs) ?? []
-  const totalCredits = data?.pages[0]?.summary.totalCredits ?? 0
+  const totalCredits = data?.pages[0]?.summary.totalCredits
+  const hasBlockingError = isError && data === undefined
+  const totalCreditsLabel = isLoading
+    ? 'Loading…'
+    : hasBlockingError
+      ? 'Unavailable'
+      : isPlaceholderData
+        ? 'Updating…'
+        : formatCreditsLabel(totalCredits ?? 0)
 
   return (
     <SettingsPanel
@@ -167,9 +175,7 @@ export function CreditUsageView({ backHref = '/account/settings/billing' }: Cred
       description='Every credit-consuming event behind your usage.'
     >
       <div className='flex items-center justify-between'>
-        <span className='text-[var(--text-muted)] text-small'>
-          Total: {formatCreditsLabel(totalCredits)}
-        </span>
+        <span className='text-[var(--text-muted)] text-small'>Total: {totalCreditsLabel}</span>
         <div className='relative'>
           <ChipCombobox
             options={PERIOD_OPTIONS}
@@ -208,8 +214,10 @@ export function CreditUsageView({ backHref = '/account/settings/billing' }: Cred
       >
         {isLoading ? (
           <SettingsEmptyState variant='inline'>Loading usage…</SettingsEmptyState>
-        ) : isError ? (
-          <SettingsEmptyState variant='inline'>Couldn't load credit usage.</SettingsEmptyState>
+        ) : hasBlockingError ? (
+          <SettingsEmptyState variant='inline' tone='error'>
+            Couldn't load credit usage.
+          </SettingsEmptyState>
         ) : logs.length === 0 ? (
           <SettingsEmptyState variant='inline'>No credit usage in this period.</SettingsEmptyState>
         ) : (

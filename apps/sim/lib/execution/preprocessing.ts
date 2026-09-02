@@ -97,6 +97,18 @@ export interface PreprocessExecutionOptions {
   triggerData?: SessionStartParams['triggerData']
   /** Use the authenticated user as actor for client executions and personal API keys. */
   useAuthenticatedUserAsActor?: boolean
+  /**
+   * Declares that `userId` names a stored reference — a workflow owner, a chat's
+   * creator — rather than someone who just acted, so the suspension gate skips
+   * it. Suspending one member must not take down the schedules, webhooks, and
+   * deployed chats their teammates depend on merely because that person's name
+   * sits on the row.
+   *
+   * Defaults to false so an unset call site keeps blocking. Withholding the
+   * suspended account's personal variables is handled separately, in
+   * {@link getExecutionEnvironment}.
+   */
+  userIdIsStoredReference?: boolean
   /** Pre-fetched workflow row for caller context; preprocessing still re-checks active state. */
   workflowRecord?: WorkflowRecord
   /**
@@ -189,6 +201,7 @@ export async function preprocessExecution(
     loggingSession: providedLoggingSession,
     triggerData,
     useAuthenticatedUserAsActor = false,
+    userIdIsStoredReference = false,
     workflowRecord: prefetchedWorkflowRecord,
     billingAttribution: providedBillingAttribution,
     executionType = 'sync',
@@ -449,16 +462,29 @@ export async function preprocessExecution(
 
   const banCheck = (async (): Promise<GateFailure | null> => {
     /**
-     * Blocks when the resolved actor, workflow owner, or caller-provided user
-     * has an active ban or blocked email domain. Including the workflow owner
-     * covers system-triggered executions.
+     * Blocks when an identity this run actually acts as has an active ban or
+     * blocked email domain.
+     *
+     * `userId` is a candidate unless the caller declares it a stored reference.
+     * The default is deliberately the blocking one: callers overload the
+     * parameter, and only the caller knows which kind it passed, so a call site
+     * that forgets to say must fail closed rather than silently admit a
+     * suspended account.
+     *
+     * `useAuthenticatedUserAsActor` cannot stand in for that declaration, which
+     * an earlier revision of this gate assumed. Resume passes the live
+     * authenticated resumer as `userId` and leaves that flag false on purpose —
+     * attribution is captured before the pause and must not move — so keying on
+     * it excluded exactly the person who just acted.
+     *
+     * A stored reference being banned must not take down work their teammates
+     * still depend on — but it must not lend that person's credentials either,
+     * which is why {@link getExecutionEnvironment} drops a suspended identity's
+     * personal namespace rather than this gate blocking the whole run.
      */
     const banCandidateIds = [actorUserId]
-    if (userId && userId !== 'unknown' && userId !== actorUserId) {
+    if (!userIdIsStoredReference && userId && userId !== 'unknown' && userId !== actorUserId) {
       banCandidateIds.push(userId)
-    }
-    if (workflowRecord.userId && !banCandidateIds.includes(workflowRecord.userId)) {
-      banCandidateIds.push(workflowRecord.userId)
     }
     try {
       const bannedUserIds = await getActivelyBannedUserIds(banCandidateIds)

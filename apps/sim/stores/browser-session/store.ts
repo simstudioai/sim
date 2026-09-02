@@ -2,6 +2,7 @@ import type {
   BrowserMediaPermissionRequest,
   BrowserPageIssue,
   BrowserPageState,
+  BrowserSitePermissionRequest,
   BrowserTabState,
   BrowserTabsState,
 } from '@sim/browser-protocol'
@@ -116,6 +117,23 @@ function retainMediaPermissionRequest(
   return mediaPermissionRequestEqual(current, incoming) ? current : incoming
 }
 
+function sitePermissionRequestEqual(
+  a: BrowserSitePermissionRequest | undefined,
+  b: BrowserSitePermissionRequest | undefined
+): boolean {
+  return Boolean(
+    a === b ||
+      (a && b && a.requestId === b.requestId && a.tabId === b.tabId && a.origin === b.origin)
+  )
+}
+
+function retainSitePermissionRequest(
+  current: BrowserSitePermissionRequest | undefined,
+  incoming: BrowserSitePermissionRequest | undefined
+): BrowserSitePermissionRequest | undefined {
+  return sitePermissionRequestEqual(current, incoming) ? current : incoming
+}
+
 function tabFieldsEqual(a: BrowserTabState, b: BrowserTabState): boolean {
   return (
     a.tabId === b.tabId &&
@@ -171,7 +189,8 @@ function pageStateEqual(a: BrowserPageState | null, b: BrowserPageState | null):
     a.canGoBack === b.canGoBack &&
     a.canGoForward === b.canGoForward &&
     pageIssueEqual(a.issue, b.issue) &&
-    mediaPermissionRequestEqual(a.mediaPermissionRequest, b.mediaPermissionRequest)
+    mediaPermissionRequestEqual(a.mediaPermissionRequest, b.mediaPermissionRequest) &&
+    sitePermissionRequestEqual(a.sitePermissionRequest, b.sitePermissionRequest)
   )
 }
 
@@ -237,6 +256,10 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
               mediaPermissionRequest: retainMediaPermissionRequest(
                 current.pageState?.mediaPermissionRequest,
                 pageState.mediaPermissionRequest
+              ),
+              sitePermissionRequest: retainSitePermissionRequest(
+                current.pageState?.sitePermissionRequest,
+                pageState.sitePermissionRequest
               ),
             }
             const nextTabs = current.tabs.map((tab) =>

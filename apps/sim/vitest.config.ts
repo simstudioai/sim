@@ -11,7 +11,14 @@ loadEnvConfig(projectDir)
 
 export default defineConfig({
   plugins: [react()],
+  /**
+   * Skip PostCSS entirely. Loading the Tailwind config for a `.module.css`
+   * import costs ~150ms per test file that reaches an emcn component, and no
+   * test reads real CSS.
+   */
+  css: { postcss: {} },
   test: {
+    css: false,
     globals: true,
     environment: 'node',
     include: ['**/*.test.{ts,tsx}'],
@@ -24,6 +31,12 @@ export default defineConfig({
     fileParallelism: true,
     maxConcurrency: 10,
     testTimeout: 10000,
+    /**
+     * CI splits this suite across runners (`1/2`, `2/2`). A single Vite server
+     * thread feeds every worker, so throughput stops scaling at ~4 workers on
+     * one machine; more machines is the only parallelism left.
+     */
+    shard: process.env.SIM_TEST_SHARD || undefined,
   },
   resolve: {
     tsconfigPaths: true,

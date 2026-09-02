@@ -7,11 +7,11 @@ import {
 import type {
   WorkflowSearchRange,
   WorkflowSearchResourceMeta,
+  WorkflowSearchSelectorContext,
 } from '@/lib/workflows/search-replace/types'
 import type { SubBlockConfig } from '@/blocks/types'
 import { normalizeName, REFERENCE } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
-import type { SelectorContext } from '@/hooks/selectors/types'
 
 export interface ParsedInlineReference {
   kind: 'environment' | 'workflow-reference'
@@ -136,7 +136,7 @@ export function resolveInlineReferenceSearchText(
 export function parseStructuredResourceReferences(
   value: unknown,
   subBlockConfig?: Pick<SubBlockConfig, 'type' | 'serviceId' | 'selectorKey' | 'requiredScopes'>,
-  selectorContext?: SelectorContext
+  selectorContext?: WorkflowSearchSelectorContext
 ): StructuredResourceReference[] {
   return parseWorkflowSearchSubBlockResources(value, subBlockConfig, selectorContext)
 }

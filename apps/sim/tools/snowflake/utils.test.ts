@@ -871,6 +871,22 @@ describe('Snowflake SQL API transport', () => {
     )
     expect(canceled).toBe(true)
     expect(emittedBytes).toBeLessThan(SNOWFLAKE_MAX_RESPONSE_BYTES * 2)
+
+    const budgetedBody = JSON.stringify({
+      statementHandle: 'budgeted',
+      data: [],
+      resultSetMetaData: { numRows: 0, partitionInfo: [{ rowCount: 0 }] },
+    })
+    const budgetedBodyBytes = Buffer.byteLength(budgetedBody)
+    const byteBudget = { remainingBytes: budgetedBodyBytes + 5 }
+    await expect(
+      readSnowflakeResult(new Response(budgetedBody), { byteBudget })
+    ).resolves.toMatchObject({ statementHandle: 'budgeted', status: 'SUCCEEDED' })
+    expect(byteBudget.remainingBytes).toBe(5)
+
+    await expect(readSnowflakeResult(new Response(budgetedBody), { byteBudget })).rejects.toThrow(
+      'Snowflake response body exceeds maximum size'
+    )
   })
 
   it('rejects session-context names that are not Snowflake identifiers', () => {

@@ -12,57 +12,19 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { getBlock } from '@/blocks/registry'
 
-const {
-  DEFAULT_PERMISSION_GROUP_CONFIG,
-  mockIsOrganizationOnEnterprisePlan,
-  mockGetWorkspaceWithOwner,
-  mockGetProviderFromModel,
-} = vi.hoisted(() => ({
-  DEFAULT_PERMISSION_GROUP_CONFIG: {
-    allowedIntegrations: null,
-    allowedModelProviders: null,
-    deniedModels: [],
-    deniedTools: [],
-    hideTraceSpans: false,
-    hideKnowledgeBaseTab: false,
-    hideTablesTab: false,
-    hideCopilot: false,
-    hideIntegrationsTab: false,
-    hideSecretsTab: false,
-    hideApiKeysTab: false,
-    hideInboxTab: false,
-    hideFilesTab: false,
-    disableMcpTools: false,
-    disableCustomTools: false,
-    disableSkills: false,
-    disableInvitations: false,
-    disablePublicApi: false,
-    disablePublicFileSharing: false,
-    allowedFileShareAuthTypes: null,
-    hideDeployApi: false,
-    hideDeployMcp: false,
-    hideDeployChatbot: false,
-    allowedChatDeployAuthTypes: null,
-  },
-  mockIsOrganizationOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
-  mockGetWorkspaceWithOwner: vi.fn<() => Promise<{ organizationId: string | null } | null>>(),
-  mockGetProviderFromModel: vi.fn<(model: string) => string>(),
-}))
+const { mockIsOrganizationOnEnterprisePlan, mockGetWorkspaceWithOwner, mockGetProviderFromModel } =
+  vi.hoisted(() => ({
+    mockIsOrganizationOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
+    mockGetWorkspaceWithOwner: vi.fn<() => Promise<{ organizationId: string | null } | null>>(),
+    mockGetProviderFromModel: vi.fn<(model: string) => string>(),
+  }))
 
-vi.mock('@/lib/billing', () => ({
+vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
-
-vi.mock('@/lib/permission-groups/types', () => ({
-  DEFAULT_PERMISSION_GROUP_CONFIG,
-  parsePermissionGroupConfig: (config: unknown) => {
-    if (!config || typeof config !== 'object') return DEFAULT_PERMISSION_GROUP_CONFIG
-    return { ...DEFAULT_PERMISSION_GROUP_CONFIG, ...config }
-  },
 }))
 
 vi.mock('@/providers/utils', () => ({
@@ -74,23 +36,21 @@ vi.mock('@/providers/utils', () => ({
   getProviderFromModel: mockGetProviderFromModel,
 }))
 
+import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
+import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import {
   assertPermissionsAllowed,
-  ChatDeployAuthNotAllowedError,
   CustomToolsNotAllowedError,
   getUserPermissionConfig,
   IntegrationNotAllowedError,
   McpToolsNotAllowedError,
   ModelNotAllowedError,
   ProviderNotAllowedError,
-  PublicFileSharingNotAllowedError,
-  resolveUserAccessControlContext,
   resolveVerifiedUserAccessControlContext,
   SkillsNotAllowedError,
   ToolNotAllowedError,
   validateBlockType,
   validateChatDeployAuth,
-  validateMcpToolsAllowed,
   validateModelProvider,
   validatePublicFileSharing,
 } from './permission-check'
@@ -187,13 +147,18 @@ describe('getUserPermissionConfig (org + entitlement gating)', () => {
     expect(mockIsOrganizationOnEnterprisePlan).not.toHaveBeenCalled()
   })
 
+  /**
+   * The env list is written by hand against whatever ids its author knew, so it
+   * is canonicalized on the way in: `slack` and `slack_v2` are the same policy,
+   * and the merged config carries the id every gate resolves a block type to.
+   */
   it('still applies the env allowlist on a no-org workspace', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({ organizationId: null })
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack'])
 
     const config = await getUserPermissionConfig('user-123', 'workspace-1')
 
-    expect(config?.allowedIntegrations).toEqual(['slack'])
+    expect(config?.allowedIntegrations).toEqual(['slack_v2'])
   })
 
   it('returns null when the organization is not on an enterprise plan', async () => {
@@ -231,27 +196,37 @@ describe('getUserPermissionConfig (org + entitlement gating)', () => {
   })
 })
 
-describe('resolveUserAccessControlContext', () => {
+describe('access control context resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
   })
 
-  it('describes a personal workspace without changing the config-only result', async () => {
+  it('loads the workspace to find its organization, archived workspaces included', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({ organizationId: null })
 
-    await expect(resolveUserAccessControlContext('user-123', 'workspace-1')).resolves.toEqual({
-      organizationId: null,
-      entitled: false,
-      permissionGroup: null,
-      config: null,
-    })
     await expect(getUserPermissionConfig('user-123', 'workspace-1')).resolves.toBeNull()
+    expect(mockGetWorkspaceWithOwner).toHaveBeenCalledWith('workspace-1', {
+      includeArchived: true,
+    })
+    expect(mockIsOrganizationOnEnterprisePlan).not.toHaveBeenCalled()
+  })
+
+  it('resolves the group through the organization the workspace lookup returned', async () => {
+    setEnterpriseOrgWorkspace()
+    queueGroupResolution([
+      { id: 'g', config: { disableMcpTools: true }, isMember: true, hasMembers: true },
+    ])
+
+    await expect(getUserPermissionConfig('user-123', 'workspace-1')).resolves.toMatchObject({
+      disableMcpTools: true,
+    })
+    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-1', 'throw')
   })
 
   it('returns the explicit governing group and its effective config', async () => {
-    setEnterpriseOrgWorkspace()
+    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
     queueGroupResolution([
       {
         id: 'group-explicit',
@@ -262,7 +237,9 @@ describe('resolveUserAccessControlContext', () => {
       },
     ])
 
-    await expect(resolveUserAccessControlContext('user-123', 'workspace-1')).resolves.toEqual({
+    await expect(
+      resolveVerifiedUserAccessControlContext('user-123', 'workspace-1', 'org-1')
+    ).resolves.toEqual({
       organizationId: 'org-1',
       entitled: true,
       permissionGroup: {
@@ -274,8 +251,19 @@ describe('resolveUserAccessControlContext', () => {
     })
   })
 
+  it('describes a personal workspace as unentitled and ungoverned', async () => {
+    await expect(
+      resolveVerifiedUserAccessControlContext('user-123', 'workspace-1', null)
+    ).resolves.toEqual({
+      organizationId: null,
+      entitled: false,
+      permissionGroup: null,
+      config: null,
+    })
+  })
+
   it('identifies an all-members governing group', async () => {
-    setEnterpriseOrgWorkspace()
+    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
     queueGroupResolution([
       {
         id: 'group-all-members',
@@ -286,7 +274,11 @@ describe('resolveUserAccessControlContext', () => {
       },
     ])
 
-    const context = await resolveUserAccessControlContext('user-123', 'workspace-1')
+    const context = await resolveVerifiedUserAccessControlContext(
+      'user-123',
+      'workspace-1',
+      'org-1'
+    )
 
     expect(context.permissionGroup).toEqual({
       id: 'group-all-members',
@@ -314,7 +306,7 @@ describe('resolveUserAccessControlContext', () => {
     )
 
     expect(mockGetWorkspaceWithOwner).not.toHaveBeenCalled()
-    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-verified')
+    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-verified', 'throw')
     expect(context).toMatchObject({
       organizationId: 'org-verified',
       entitled: true,
@@ -326,8 +318,14 @@ describe('resolveUserAccessControlContext', () => {
     })
   })
 
+  /**
+   * The group and the deployment name the same integrations by different
+   * vintages — the editor only offers current ids, `ALLOWED_INTEGRATIONS` is
+   * hand-written. Intersecting them textually left Slack out of a policy both
+   * layers permit, so both sides are successor-resolved first.
+   */
   it('identifies the default group and preserves the environment allowlist', async () => {
-    setEnterpriseOrgWorkspace()
+    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack'])
     queueGroupResolution(
       [],
@@ -335,19 +333,23 @@ describe('resolveUserAccessControlContext', () => {
         {
           id: 'group-default',
           name: 'Organization default',
-          config: { allowedIntegrations: ['slack', 'github'] },
+          config: { allowedIntegrations: ['slack_v2', 'github'] },
         },
       ]
     )
 
-    const context = await resolveUserAccessControlContext('user-123', 'workspace-1')
+    const context = await resolveVerifiedUserAccessControlContext(
+      'user-123',
+      'workspace-1',
+      'org-1'
+    )
 
     expect(context.permissionGroup).toEqual({
       id: 'group-default',
       name: 'Organization default',
       resolution: 'default',
     })
-    expect(context.config?.allowedIntegrations).toEqual(['slack'])
+    expect(context.config?.allowedIntegrations).toEqual(['slack_v2'])
   })
 })
 
@@ -454,6 +456,26 @@ describe('validateBlockType', () => {
       await validateBlockType('user-123', 'workspace-1', 'slack')
     })
 
+    /**
+     * Registry keys are lowercase, so a mixed-case block type must be folded
+     * *before* the successor lookup. Resolving first makes `getBlock('Slack')`
+     * miss, the successor answer `Slack`, and the comparison fall back to
+     * `slack` — refusing a block the allowlist permits as `slack_v2`.
+     */
+    it('resolves a superseded block supplied with different casing', async () => {
+      setEnterpriseOrgWorkspace()
+      mockGetBlock.mockImplementation((type: string) =>
+        type === 'slack'
+          ? { hideFromToolbar: true, sunset: { status: 'legacy', replacedBy: 'slack_v2' } }
+          : type === 'slack_v2'
+            ? {}
+            : undefined
+      )
+      queueGroupResolution([{ config: { allowedIntegrations: ['slack_v2'] } }])
+
+      await validateBlockType('user-123', 'workspace-1', 'Slack')
+    })
+
     it('still rejects a block absent from a mixed-case stored allowlist', async () => {
       setEnterpriseOrgWorkspace()
       queueGroupResolution([{ config: { allowedIntegrations: ['Slack'] } }])
@@ -489,12 +511,17 @@ describe('validateBlockType', () => {
       await validateBlockType(undefined, undefined, 'start_trigger')
     })
 
+    /**
+     * `thinking` is a real retired block with no successor: it has no editor row
+     * and nothing to be permitted *as*, so it is exempt. A retired block that
+     * does have one — `notion` — is judged as `notion_v2` instead and is not.
+     */
     it('always allows legacy blocks hidden from the toolbar', async () => {
       mockGetBlock.mockImplementation((type) =>
-        type === 'notion' ? { hideFromToolbar: true } : undefined
+        type === 'thinking' ? { hideFromToolbar: true } : undefined
       )
 
-      await validateBlockType(undefined, undefined, 'notion')
+      await validateBlockType(undefined, undefined, 'thinking')
     })
 
     it('does NOT treat preview blocks as exempt — preview is not legacy', async () => {
@@ -602,7 +629,7 @@ describe('validateModelProvider', () => {
   })
 })
 
-describe('validateMcpToolsAllowed', () => {
+describe('assertPermissionsAllowed (MCP tools)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -613,15 +640,19 @@ describe('validateMcpToolsAllowed', () => {
   it('throws McpToolsNotAllowedError when disableMcpTools is set', async () => {
     queueGroupResolution([{ config: { disableMcpTools: true } }])
 
-    await expect(validateMcpToolsAllowed('user-123', 'workspace-1')).rejects.toBeInstanceOf(
-      McpToolsNotAllowedError
-    )
+    await expect(
+      assertPermissionsAllowed({ userId: 'user-123', workspaceId: 'workspace-1', toolKind: 'mcp' })
+    ).rejects.toBeInstanceOf(McpToolsNotAllowedError)
   })
 
   it('no-ops when disableMcpTools is false', async () => {
     queueGroupResolution([{ config: {} }])
 
-    await validateMcpToolsAllowed('user-123', 'workspace-1')
+    await assertPermissionsAllowed({
+      userId: 'user-123',
+      workspaceId: 'workspace-1',
+      toolKind: 'mcp',
+    })
   })
 })
 
@@ -637,14 +668,14 @@ describe('validatePublicFileSharing', () => {
     queueGroupResolution([{ config: { disablePublicFileSharing: true } }])
     await expect(
       validatePublicFileSharing('user-123', 'workspace-1', 'password')
-    ).rejects.toBeInstanceOf(PublicFileSharingNotAllowedError)
+    ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
   })
 
   it('throws when the auth type is not in the allow-list', async () => {
     queueGroupResolution([{ config: { allowedFileShareAuthTypes: ['password', 'sso'] } }])
     await expect(
       validatePublicFileSharing('user-123', 'workspace-1', 'public')
-    ).rejects.toBeInstanceOf(PublicFileSharingNotAllowedError)
+    ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
   })
 
   it('allows an auth type that is in the allow-list', async () => {
@@ -661,6 +692,17 @@ describe('validatePublicFileSharing', () => {
     queueGroupResolution([{ config: { allowedFileShareAuthTypes: ['password'] } }])
     await validatePublicFileSharing('user-123', 'workspace-1')
   })
+
+  it('resolves the group once per request scope, not once per assertion', async () => {
+    queueGroupResolution([{ config: { allowedFileShareAuthTypes: null } }])
+
+    await withPermissionGroupScope(async () => {
+      await validatePublicFileSharing('user-123', 'workspace-1', 'password')
+      await validatePublicFileSharing('user-123', 'workspace-1', 'email')
+    })
+
+    expect(mockGetWorkspaceWithOwner).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('validateChatDeployAuth', () => {
@@ -675,7 +717,7 @@ describe('validateChatDeployAuth', () => {
     queueGroupResolution([{ config: { allowedChatDeployAuthTypes: ['password', 'sso'] } }])
     await expect(
       validateChatDeployAuth('user-123', 'workspace-1', 'public')
-    ).rejects.toBeInstanceOf(ChatDeployAuthNotAllowedError)
+    ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
   })
 
   it('allows an auth type that is in the allow-list', async () => {
@@ -743,13 +785,13 @@ describe('assertPermissionsAllowed', () => {
   it('exempts legacy blocks from the integration allowlist', async () => {
     queueGroupResolution([{ config: { allowedIntegrations: ['slack'] } }])
     mockGetBlock.mockImplementation((type) =>
-      type === 'notion' ? { hideFromToolbar: true } : undefined
+      type === 'thinking' ? { hideFromToolbar: true } : undefined
     )
 
     await assertPermissionsAllowed({
       userId: 'user-123',
       workspaceId: 'workspace-1',
-      blockType: 'notion',
+      blockType: 'thinking',
     })
   })
 

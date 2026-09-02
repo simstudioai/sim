@@ -197,6 +197,9 @@ const api: SimDesktopApi = {
   },
   browserAgent: {
     supportsAtomicPanelOcclusion: true,
+    registerSitePermissionPromptSupport: (): void => {
+      ipcRenderer.send('browser-agent:register-site-permission-prompt-support')
+    },
     executeTool: (
       toolCallId: string,
       tool: BrowserToolName,
@@ -213,6 +216,8 @@ const api: SimDesktopApi = {
     },
     openTab: (scopeId: string): Promise<BrowserTabsState> =>
       ipcRenderer.invoke('browser-agent:open-tab', scopeId),
+    openUrl: (url: string, scopeId: string): Promise<BrowserTabsState> =>
+      ipcRenderer.invoke('browser-agent:open-url', url, scopeId),
     activateScope: (scopeId: string): Promise<BrowserTabsState> =>
       ipcRenderer.invoke('browser-agent:activate-scope', scopeId),
     restoreScope: (scopeId: string): Promise<BrowserTabsState> =>

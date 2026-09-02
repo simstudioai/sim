@@ -1,8 +1,26 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  resolvePermission: vi.fn(),
+}))
+
+const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
+
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: () => true,
+  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
+}))
+
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+
+import type { WorkspaceOperation } from '@/lib/core/application'
+import { authorizeWorkspaceOperation, PermissionGroupCapabilityError } from '@/lib/core/application'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 describe('MCP server operation registry', () => {
   it('requires a human subject for tool discovery', () => {
@@ -101,5 +119,120 @@ describe('MCP server operation registry', () => {
   it('uses unique stable operation IDs', () => {
     const ids = Object.values(mcpServerOperations).map((operation) => operation.id)
     expect(new Set(ids).size).toBe(ids.length)
+  })
+})
+
+const sessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const context = {
+  workspaceId: 'workspace-1',
+  workspaceOrganizationId: 'organization-1',
+  allowPersonalApiKeys: true,
+}
+
+/**
+ * Every operation's capability, by name.
+ *
+ * Pinned as a whole map rather than derived from the registry, because the
+ * refusal tests below select their subjects with `operation.capability === x` —
+ * a filter over the very field under test. Dropping the capability from one
+ * operation would simply remove it from that filter and leave those tests green
+ * (`mcp_servers.create`, which registers a server and stores its credentials
+ * against the workspace, was verified to do exactly that). This map fails
+ * instead.
+ */
+const EXPECTED_CAPABILITIES: Record<keyof typeof mcpServerOperations, string> = {
+  list: 'mcp_tools.use',
+  read: 'mcp_tools.use',
+  create: 'mcp_tools.use',
+  register: 'mcp_tools.use',
+  update: 'mcp_tools.use',
+  reconfigure: 'mcp_tools.use',
+  delete: 'mcp_tools.use',
+  discoverTools: 'mcp_tools.use',
+  executeTool: 'mcp_tools.use',
+  listWorkflowDeployments: 'deploy.mcp',
+  readWorkflowDeploymentServer: 'deploy.mcp',
+  listWorkflowDeploymentTools: 'deploy.mcp',
+  createWorkflowDeploymentServer: 'deploy.mcp',
+  updateWorkflowDeploymentServer: 'deploy.mcp',
+  deleteWorkflowDeploymentServer: 'deploy.mcp',
+  deployWorkflowTool: 'deploy.mcp',
+  undeployWorkflowTool: 'deploy.mcp',
+}
+
+describe('MCP operation capability declarations', () => {
+  it('declares a capability on every operation, by name', () => {
+    const declared = Object.fromEntries(
+      Object.entries(mcpServerOperations).map(([key, operation]) => [key, operation.capability])
+    )
+
+    expect(declared).toEqual(EXPECTED_CAPABILITIES)
+  })
+})
+
+/** `tools.execute` admits only the executor delegation, so a session cannot stand in for it. */
+function sessionReachable(capability: string) {
+  return Object.values(mcpServerOperations).filter(
+    (operation) =>
+      operation.capability === capability && operation.principalKinds.includes('session')
+  )
+}
+
+/**
+ * The declaration is only half the gate; these prove the funnel actually
+ * refuses, so a capability could not be renamed into one nothing reads.
+ */
+describe('MCP operations under a withholding permission group', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolvePermission.mockResolvedValue('admin')
+  })
+
+  it('refuses every mcp_servers operation when the group blocks MCP tools', async () => {
+    resolveGroupConfigMock.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableMcpTools: true,
+    })
+
+    const registryOperations = sessionReachable('mcp_tools.use')
+    expect(registryOperations.length).toBeGreaterThan(0)
+
+    for (const operation of registryOperations) {
+      await expect(
+        authorizeWorkspaceOperation(sessionPrincipal, operation as WorkspaceOperation, context),
+        operation.id
+      ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
+    }
+  })
+
+  it('refuses every workflow-deployment operation when the group hides MCP deployment', async () => {
+    resolveGroupConfigMock.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideDeployMcp: true,
+    })
+
+    const deploymentOperations = sessionReachable('deploy.mcp')
+    expect(deploymentOperations.length).toBeGreaterThan(0)
+
+    for (const operation of deploymentOperations) {
+      await expect(
+        authorizeWorkspaceOperation(sessionPrincipal, operation as WorkspaceOperation, context),
+        operation.id
+      ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
+    }
+  })
+
+  it('allows the same operations when the group withholds neither', async () => {
+    resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+
+    for (const operation of [
+      ...sessionReachable('mcp_tools.use'),
+      ...sessionReachable('deploy.mcp'),
+    ]) {
+      await expect(
+        authorizeWorkspaceOperation(sessionPrincipal, operation as WorkspaceOperation, context),
+        operation.id
+      ).resolves.toBeUndefined()
+    }
   })
 })

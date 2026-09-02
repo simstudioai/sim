@@ -8,6 +8,11 @@ export const wealthboxWriteNoteTool: ToolConfig<WealthboxWriteParams, WealthboxW
   description: 'Create or update a Wealthbox note',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'wealthbox',
+  },
+
   params: {
     accessToken: {
       type: 'string',

@@ -6,40 +6,16 @@ import {
   forgetPasswordContract,
   getUserProfileContract,
   type UpdateUserProfileBody,
-  type UserProfileApiUser,
   updateUserProfileContract,
-} from '@/lib/api/contracts'
+} from '@/lib/api/contracts/user'
+import {
+  mapUserProfileResponse,
+  USER_PROFILE_STALE_TIME,
+  type UserProfile,
+  userProfileKeys,
+} from '@/hooks/queries/current-user-data'
 
 const logger = createLogger('UserProfileQuery')
-
-/**
- * Query key factories for user profile
- */
-export const USER_PROFILE_STALE_TIME = 5 * 60 * 1000
-
-export const userProfileKeys = {
-  all: ['userProfile'] as const,
-  profile: () => [...userProfileKeys.all, 'profile'] as const,
-}
-
-/**
- * User profile type, derived from the contract response shape minus
- * the auth-only `emailVerified` field which is not displayed in the UI.
- */
-export type UserProfile = Omit<UserProfileApiUser, 'emailVerified'>
-
-/**
- * Map raw API response user object to UserProfile.
- * Shared by both client fetch and server prefetch to prevent shape drift.
- */
-export function mapUserProfileResponse(user: UserProfileApiUser): UserProfile {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    image: user.image,
-  }
-}
 
 /**
  * Fetch user profile from API

@@ -1115,6 +1115,8 @@ input[type="search"]::-ms-clear {
   border-radius: 8px !important;
 }
 
-.react-flow__node[data-parent-node-id] .react-flow__handle {
+/* React Flow v12 no longer emits data-parent-node-id; the app stamps
+   .subflow-child-node (SUBFLOW_CHILD_NODE_CLASS) on nested nodes instead. */
+.react-flow__node.subflow-child-node .react-flow__handle {
   z-index: 30;
 }

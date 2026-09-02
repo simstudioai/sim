@@ -63,6 +63,7 @@ export const hubspotPollingTrigger: TriggerConfig = {
       description: 'The HubSpot list to watch for new members.',
       placeholder: 'Select a list',
       dependsOn: ['triggerCredentials'],
+      searchable: true,
       required: { field: 'objectType', value: 'list_membership' },
       mode: 'trigger',
       condition: { field: 'objectType', value: 'list_membership' },

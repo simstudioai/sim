@@ -15,10 +15,6 @@ export const helpFormBodySchema = z.object({
 })
 export type HelpFormBody = z.input<typeof helpFormBodySchema>
 
-export const emailPreviewQuerySchema = z.object({
-  template: z.string().optional(),
-})
-
 export const integrationRequestBodySchema = z.object({
   integrationName: z
     .string()

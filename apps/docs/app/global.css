@@ -54,8 +54,9 @@ body {
      nominally references; loading a webfont here would make docs the odd one out, not the
      aligned one. If the app ever wires that font up for real, add the var back in both
      places at once. */
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
 }
 
 /* Pure white light mode background */
@@ -243,14 +244,16 @@ body {
 
 /* Font family utilities */
 .font-sans {
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* Platform UI font — Season Sans, used by the chip chrome to match the main app */
 .font-season {
-  font-family: var(--font-season), system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    "Noto Sans", sans-serif;
+  font-family:
+    var(--font-season), system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
+    sans-serif;
 }
 
 :root {
@@ -445,8 +448,9 @@ html #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) 
   padding: 5px 0.5rem !important; /* 30px tall overall — the app's chip pill, at its px-2 */
   font-weight: 400 !important;
   border-radius: 0.5rem !important; /* platform rounded-lg */
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+  font-family:
+    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif !important;
 }
 
 /* Sidebar text — platform --text-body */
@@ -904,8 +908,9 @@ video {
 #nd-page:has(.api-page-header) div:not(.font-mono),
 #nd-page:has(.api-page-header) label:not(.font-mono),
 #nd-page:has(.api-page-header) button:not(.font-mono) {
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* Method badge pills — shared background colors (page + sidebar) */

@@ -60,7 +60,7 @@ interface Payload {
 function webhookEntry(config: Record<string, unknown> = {}) {
   return {
     webhook: { id: 'wh_1', providerConfig: { tableId: 'tbl_1', eventType: 'insert', ...config } },
-    workflow: { id: 'wf_1' },
+    workflow: { id: 'wf_1', workspaceId: 'ws_1' },
   }
 }
 
@@ -69,12 +69,13 @@ function firedPayloads(): Payload[] {
 }
 
 async function fire(
-  eventType: 'insert' | 'update',
+  eventType: 'insert' | 'update' | 'delete',
   data: RowData,
   oldRows: Map<string, RowData> | null = null
 ) {
   await fireTableTrigger(
     'tbl_1',
+    'ws_1',
     'Issues',
     eventType,
     [{ id: 'row_1', data } as never],
@@ -166,6 +167,19 @@ describe('fireTableTrigger — payload shape', () => {
     const [payload] = firedPayloads()
     expect(payload.changedColumns).toEqual(['Status'])
   })
+
+  it('emits the deleted row snapshot as the event row and previous row', async () => {
+    mockFetchActiveWebhooks.mockResolvedValue([webhookEntry({ eventType: 'delete' })])
+
+    await fire('delete', { col_title: 'Removed issue', col_status: 'opt_closed' })
+
+    const [payload] = firedPayloads()
+    const deletedRow = { Title: 'Removed issue', Status: 'Closed' }
+    expect(payload.rawRow).toEqual(deletedRow)
+    expect(payload.row).toEqual({ ...deletedRow, Tags: null })
+    expect(payload.previousRow).toEqual(deletedRow)
+    expect(payload.changedColumns).toEqual([])
+  })
 })
 
 describe('fireTableTrigger — gating', () => {
@@ -176,6 +190,14 @@ describe('fireTableTrigger — gating', () => {
 
   it('fires nothing for a different table', async () => {
     mockFetchActiveWebhooks.mockResolvedValue([webhookEntry({ tableId: 'tbl_other' })])
+    await fire('insert', { col_title: 'x' })
+    expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
+  })
+
+  it('fires nothing for a workflow in a different workspace', async () => {
+    mockFetchActiveWebhooks.mockResolvedValue([
+      { ...webhookEntry(), workflow: { id: 'wf_other', workspaceId: 'ws_other' } },
+    ])
     await fire('insert', { col_title: 'x' })
     expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
   })

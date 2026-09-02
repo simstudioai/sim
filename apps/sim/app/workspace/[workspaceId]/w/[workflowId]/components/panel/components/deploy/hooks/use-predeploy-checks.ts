@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import { validateWorkflowSchedules } from '@/lib/workflows/schedules/validation'
 import { Serializer } from '@/serializer'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'

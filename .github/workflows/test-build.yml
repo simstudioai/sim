@@ -180,13 +180,19 @@ jobs:
 
       # Runs the setup CLI's Bun tests plus each workspace's Vitest suite,
       # without `--coverage`. See the Codecov note below.
+      #
+      # apps/sim runs only its first shard here; `test-shard` below runs the
+      # others. That suite is bound by the single Vite server thread that feeds
+      # every worker — wall time is flat from 4 to 13 workers — so a bigger
+      # runner buys nothing and each extra runner takes a proportional slice.
       - name: Run tests
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
           NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
           DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
-          ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
+          ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
+          SIM_TEST_SHARD: 1/3
         run: bun run test
 
       - name: Check schema and migrations are in sync
@@ -201,6 +207,72 @@ jobs:
             exit 1
           fi
           echo "✅ Schema and migrations are in sync"
+
+  # The remaining shards of apps/sim's Vitest suite. Everything else — lint,
+  # the audits, type-check, the other workspaces' suites — lives in
+  # `test-build` with shard 1; these jobs exist only because that suite cannot
+  # go faster on one machine (see the "Run tests" note there). Three shards
+  # put each runner at roughly the fixed cost of checkout + install. The Turbo
+  # cache disk gets its own key so the shards' entries do not evict each other.
+  test-shard:
+    name: Test (shard ${{ matrix.shard }})
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [2, 3]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24
+
+      - name: Mount Bun cache
+        uses: ./.github/actions/cache-mount
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-bun-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+          path: ~/.bun/install/cache
+
+      - name: Mount node_modules
+        uses: ./.github/actions/cache-mount
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-node-modules-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}-${{ hashFiles('bun.lock') }}
+          path: ./node_modules
+
+      - name: Mount Turbo cache
+        uses: ./.github/actions/cache-mount
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          key: ${{ github.repository }}-turbo-cache-shard-${{ matrix.shard }}-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
+          path: ./.turbo
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Install ripgrep
+        run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
+
+      - name: Run tests (apps/sim shard ${{ matrix.shard }}/3)
+        env:
+          NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
+          NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
+          DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
+          ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
+          TURBO_CACHE_DIR: .turbo
+          SIM_TEST_SHARD: ${{ matrix.shard }}/3
+        run: bunx turbo run test --filter=@sim/app
 
   # Next.js production build, in parallel with lint + tests. Sticky disks are
   # cloned from the last committed snapshot per job and committed last-writer-
@@ -293,6 +365,6 @@ jobs:
           STRIPE_WEBHOOK_SECRET: 'dummy_secret_for_ci_only'
           RESEND_API_KEY: 'dummy_key_for_ci_only'
           AWS_REGION: 'us-west-2'
-          ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
+          ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
         run: bunx turbo run build --filter=@sim/app

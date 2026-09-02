@@ -3,7 +3,6 @@ import { member, organization, settings, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, sql } from 'drizzle-orm'
-import { getLimitEmailSubject, renderLimitThresholdEmail } from '@/components/emails'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
@@ -11,7 +10,6 @@ import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { buildUpgradeHref, type UpgradeReason } from '@/lib/billing/upgrade-reasons'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getEmailPreferences } from '@/lib/messaging/email/unsubscribe'
 
 const logger = createLogger('LimitNotifications')
@@ -217,6 +215,11 @@ export async function maybeSendLimitThresholdEmail(params: {
     const kind = desired === REACH_THRESHOLD ? 'reached' : 'warning'
     const percentUsed = Math.min(100, Math.round(percent))
     const upgradeLink = `${getBaseUrl()}${buildUpgradeHref(params.workspaceId, category)}`
+
+    const [{ getLimitEmailSubject, renderLimitThresholdEmail }, { sendEmail }] = await Promise.all([
+      import('@/components/emails'),
+      import('@/lib/messaging/email/mailer'),
+    ])
 
     let sent = 0
     for (const r of recipients) {

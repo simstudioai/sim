@@ -1,4 +1,4 @@
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import { describe, expect, it } from 'vitest'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import type { BlockState } from '@/stores/workflows/workflow/types'

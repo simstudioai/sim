@@ -250,13 +250,23 @@ function docPropertyNames(schema: unknown, spec: Json): Set<string> | null {
   return null
 }
 
-function toJsonSchema(schema: z.ZodType, io: 'input' | 'output'): Json {
-  return z.toJSONSchema(schema, {
+type SchemaIo = 'input' | 'output'
+
+const jsonSchemaCache = new WeakMap<z.ZodType, Map<SchemaIo, Json>>()
+
+function toJsonSchema(schema: z.ZodType, io: SchemaIo): Json {
+  const cached = jsonSchemaCache.get(schema)?.get(io)
+  if (cached) return cached
+  const converted = z.toJSONSchema(schema, {
     io,
     target: 'draft-2020-12',
     unrepresentable: 'any',
     cycles: 'ref',
   }) as Json
+  const byIo = jsonSchemaCache.get(schema) ?? new Map<SchemaIo, Json>()
+  byIo.set(io, converted)
+  jsonSchemaCache.set(schema, byIo)
+  return converted
 }
 
 const outputExampleValidator = new Ajv2020({
@@ -264,6 +274,10 @@ const outputExampleValidator = new Ajv2020({
   allErrors: true,
   validateFormats: false,
 })
+const outputValidatorCache = new WeakMap<
+  z.ZodType,
+  ReturnType<typeof outputExampleValidator.compile>
+>()
 
 function stripLegacySchemaIds(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stripLegacySchemaIds)
@@ -276,9 +290,11 @@ function stripLegacySchemaIds(value: unknown): unknown {
 }
 
 function outputExampleError(schema: z.ZodType, value: unknown): string | null {
-  const validate = outputExampleValidator.compile(
-    stripLegacySchemaIds(toJsonSchema(schema, 'output'))
-  )
+  let validate = outputValidatorCache.get(schema)
+  if (!validate) {
+    validate = outputExampleValidator.compile(stripLegacySchemaIds(toJsonSchema(schema, 'output')))
+    outputValidatorCache.set(schema, validate)
+  }
   if (validate(value)) return null
   return outputExampleValidator.errorsText(validate.errors)
 }

@@ -163,6 +163,8 @@ describe('performRevertToVersion', () => {
           },
         },
       }),
+      /** A revert restores a graph the workspace already deployed, so it writes as nobody. */
+      { workspaceId: null, subjectUserId: null },
       dbChainMock.db
     )
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
@@ -896,6 +898,7 @@ describe('mutation lock on the orchestration entry points', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('locked')
+    expect(result.errorCode).toBe('locked')
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 

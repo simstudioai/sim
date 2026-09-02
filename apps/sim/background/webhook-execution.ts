@@ -48,6 +48,7 @@ import {
 import {
   type EnvironmentResolutionSnapshot,
   getEffectiveEnvironmentSnapshot,
+  getExecutionEnvironment,
 } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -66,6 +67,8 @@ import {
   createWebhookExecutionPrincipal,
 } from '@/lib/webhooks/execution-principal'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import { SlackExecutionStreamController } from '@/lib/webhooks/slack-execution-stream'
+import { readSlackStreamResponseConfig } from '@/lib/webhooks/slack-stream-config'
 import {
   executeWorkflowCore,
   wasExecutionFinalizedByCore,
@@ -630,6 +633,21 @@ export async function executeWebhookJob(
   }
 }
 
+/**
+ * Resolves `{{VAR}}` references inside a webhook's provider config.
+ *
+ * `userId` is the workflow owner, which is the personal-variable identity this
+ * config was authored against. `actorUserId` is who the run acts as, and the
+ * two are resolved separately for the same reason the executor resolves them
+ * separately: workspace variables authorize against the running identity, while
+ * personal ones stay with whoever owns them. Reading both slices as the owner —
+ * as this did — meant a webhook stopped resolving its own signing secret the
+ * moment that person left the workspace, even though the run itself was acting
+ * as the workspace billing account the whole time.
+ *
+ * Omitting `actorUserId` keeps the single-identity behavior, for callers with no
+ * run to speak of.
+ */
 export async function resolveWebhookExecutionProviderConfig<
   T extends { id: string; providerConfig?: unknown },
 >(
@@ -639,6 +657,7 @@ export async function resolveWebhookExecutionProviderConfig<
   workspaceId?: string,
   options?: WebhookEnvResolutionOptions & {
     onEnvironmentSnapshot?: (snapshot: EnvironmentResolutionSnapshot) => void | Promise<void>
+    actorUserId?: string
   }
 ): Promise<T & { providerConfig: Record<string, unknown> }> {
   try {
@@ -646,9 +665,12 @@ export async function resolveWebhookExecutionProviderConfig<
       return await resolveWebhookRecordProviderConfig(webhookRecord, userId, workspaceId)
     }
 
-    const { onEnvironmentSnapshot, ...resolutionOptions } = options
+    const { onEnvironmentSnapshot, actorUserId, ...resolutionOptions } = options
     if (onEnvironmentSnapshot && resolutionOptions.envVars === undefined) {
-      const snapshot = await getEffectiveEnvironmentSnapshot(userId, workspaceId)
+      const snapshot =
+        actorUserId && workspaceId
+          ? await getExecutionEnvironment(userId, actorUserId, workspaceId)
+          : await getEffectiveEnvironmentSnapshot(userId, workspaceId)
       await onEnvironmentSnapshot(snapshot)
       resolutionOptions.envVars = {
         ...snapshot.personalDecrypted,
@@ -859,6 +881,13 @@ async function executeWebhookJobInternal(
       workflowRecord.userId,
       workspaceId,
       {
+        /**
+         * The identity preprocessing already elected for this run, so the
+         * provider config resolves against exactly the workspace variables the
+         * run's own blocks will see rather than against a second, narrower
+         * selection derived from the workflow owner.
+         */
+        actorUserId,
         onEnvironmentSnapshot: async (secretEnvironment) => {
           try {
             resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
@@ -1054,25 +1083,72 @@ async function executeWebhookJobInternal(
       })
     }
 
+    const persistedProviderConfig = isRecordLike(resolvedWebhookRecord.providerConfig)
+      ? resolvedWebhookRecord.providerConfig
+      : {}
+    const slackStreamConfig =
+      payload.provider === 'slack' || payload.provider === 'slack_app'
+        ? readSlackStreamResponseConfig(persistedProviderConfig)
+        : null
+    if (slackStreamConfig && payload.provider !== 'slack') {
+      throw new Error('Slack trigger response streaming is only supported for custom bots')
+    }
+    const slackStreamCredentialId =
+      typeof persistedProviderConfig.credentialId === 'string'
+        ? persistedProviderConfig.credentialId
+        : null
+    if (slackStreamConfig && !slackStreamCredentialId) {
+      throw new Error('Slack stream configuration is missing its custom bot credential')
+    }
+    const slackStreamController = slackStreamConfig
+      ? await SlackExecutionStreamController.create({
+          credentialId: slackStreamCredentialId!,
+          workspaceId,
+          workflowId: payload.workflowId,
+          executionId,
+          userId: actorUserId,
+          triggerInput,
+          config: slackStreamConfig,
+          loggingSession,
+          abortSignal: timeoutController.signal,
+        })
+      : null
+
     const snapshot = new ExecutionSnapshot(
       metadata,
       workflowRecord,
       triggerInput,
       workflowVariables,
-      []
+      slackStreamController?.selectedOutputs ?? []
     )
 
     workflowCoreStarted = true
-    const executionResult = await executeWorkflowCore({
-      snapshot,
-      callbacks: {},
-      loggingSession,
-      trustedInitialResolvedSecretTraceProvenance:
-        resolvedSecretTraceRegistry.exportProvenanceForValue(triggerInput),
-      includeFileBase64: false,
-      base64MaxBytes: undefined,
-      abortSignal: timeoutController.signal,
-    })
+    let executionResult: ExecutionResult
+    try {
+      executionResult = await executeWorkflowCore({
+        snapshot,
+        callbacks: slackStreamController?.callbacks ?? {},
+        loggingSession,
+        trustedInitialResolvedSecretTraceProvenance:
+          resolvedSecretTraceRegistry.exportProvenanceForValue(triggerInput),
+        includeFileBase64: false,
+        base64MaxBytes: undefined,
+        abortSignal: timeoutController.signal,
+      })
+    } catch (error) {
+      if (slackStreamController) {
+        await slackStreamController.finalize({
+          success: false,
+          output: {},
+          error: toError(error).message,
+        })
+      }
+      throw error
+    }
+    if (slackStreamController) {
+      await slackStreamController.finalize(executionResult)
+      slackStreamController.assertSucceeded()
+    }
 
     await handleExecutionResult(executionResult, {
       loggingSession,

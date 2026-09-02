@@ -1,14 +1,13 @@
 import type { DelegatedPrincipal, DelegatedServiceId, Principal } from '@sim/auth/principal'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import type { ApplicationOperation, PrincipalKind } from '@/lib/core/application/operation'
+import { assertOperationCapability } from '@/lib/core/application/operation'
 import {
   type ResourcePolicyBinding,
   requireResourcePolicyBinding,
 } from '@/lib/resource-policies/registry'
 
 type WorkspaceApiKeyPolicy<R extends PermissionType> = R extends 'admin' ? 'deny' : 'allow' | 'deny'
-
-export type { PrincipalKind }
 
 type WorkspaceOperationPrincipal = Extract<Principal, { kind: PrincipalKind }>
 
@@ -107,6 +106,22 @@ export function defineWorkspaceOperation<
   }
 
   if (operation.resourcePolicy) requireResourcePolicyBinding(operation.resourcePolicy)
+
+  /**
+   * `capability` is required, so refusing an absent one reads as unreachable.
+   * It is not. `apps/sim/tsconfig.json` excludes test files from type-checking,
+   * and `check-permission-group-enforcement.ts` walks past them too, so a test
+   * fixture is the one construction site no static check reads — and fixtures
+   * are where an operation is written from memory rather than from the
+   * surrounding domain.
+   *
+   * Left to reach authorization, an absent capability does not deny; it throws
+   * `Cannot read properties of undefined` from inside `capabilityDeniedBy`, and
+   * only for a caller whose organization has a permission group. It would pass
+   * every personal workspace and every non-enterprise test, then fail in the
+   * tenants that bought the feature. Named here instead, at definition time.
+   */
+  assertOperationCapability(operation)
 
   Object.freeze(operation.principalKinds)
   if (operation.delegatedServices) Object.freeze(operation.delegatedServices)

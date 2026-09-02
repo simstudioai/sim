@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
@@ -33,6 +33,16 @@ const catalogIdSchema = z
   .trim()
   .min(1, 'id cannot be empty')
   .max(255, 'id must be at most 255 characters')
+
+/**
+ * Ceiling on how long a caller may hold a tool call open.
+ *
+ * A tool call is one outbound request to a third party, so the wait is bounded
+ * by what the platform will hold a connection for rather than by anything the
+ * tool declares. Five minutes is the same order as the executor's per-tool
+ * default and well inside the request budget.
+ */
+export const V2_TOOL_EXECUTION_MAX_TIMEOUT_SECONDS = 300
 
 /** Workspace whose availability rules are applied to every catalog read. */
 const catalogWorkspaceQuerySchema = z
@@ -393,6 +403,78 @@ export const v2ToolDetailSchema = v2ToolSummarySchema
 export type V2ToolDetail = z.output<typeof v2ToolDetailSchema>
 
 /**
+ * Body for running one built-in tool.
+ *
+ * `workspaceId` rides in the body rather than the query, unlike the catalog
+ * reads, because it decides which credentials and secrets the call may resolve
+ * — the same placement every other v2 mutation uses.
+ */
+export const v2ExecuteToolBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe(
+      'Workspace whose integration allowlist, credentials, and environment variables govern this call.'
+    ),
+    input: z
+      .record(
+        z.string(),
+        z.unknown().describe('One argument value. Its shape is declared by the tool parameter.')
+      )
+      .default({})
+      .describe(
+        'Arguments for the tool, keyed by the parameter ids the tool catalog publishes for it. A parameter whose visibility is `user-only` also accepts an environment-variable reference written as the whole value, `{{VAR_NAME}}`, resolved server-side against the workspace environment; any other value is sent verbatim.'
+      ),
+    credentialId: catalogIdSchema
+      .optional()
+      .describe(
+        'Credential to authenticate with. Required when the tool declares an OAuth requirement; the workspace credentials list names the candidates.'
+      ),
+    timeoutSeconds: z
+      .number()
+      .int('timeoutSeconds must be a whole number')
+      .min(1, 'timeoutSeconds must be at least 1')
+      .max(
+        V2_TOOL_EXECUTION_MAX_TIMEOUT_SECONDS,
+        `timeoutSeconds cannot exceed ${V2_TOOL_EXECUTION_MAX_TIMEOUT_SECONDS}`
+      )
+      .optional()
+      .describe('How long to wait for the tool before abandoning the call.'),
+  })
+  .strict()
+export type V2ExecuteToolBody = z.input<typeof v2ExecuteToolBodySchema>
+
+/**
+ * Outcome of one tool call.
+ *
+ * A tool that ran and refused is a `200` carrying `status: "failed"`, not an
+ * error envelope: the call itself succeeded, and the refusal is the tool's
+ * answer. The envelope is reserved for failures of this API — authorization,
+ * validation, an unknown tool.
+ */
+export const v2ToolExecutionSchema = z
+  .object({
+    toolId: z
+      .string()
+      .describe(
+        'Tool that ran. An unversioned name resolves to the newest version visible in the workspace, so this can differ from the id in the path.'
+      ),
+    status: z
+      .enum(['succeeded', 'failed'])
+      .describe('Whether the tool reported success. A failed tool call is still a 200.'),
+    // untyped-response: every tool declares its own output shape, already published by GET /api/v2/tools/{toolId}
+    output: z.unknown().describe('Whatever the tool produced, shaped by its declared outputs.'),
+    error: z
+      .object({ message: z.string().describe('Why the tool call did not succeed.') })
+      .nullable()
+      .describe('Populated only when `status` is `failed`.'),
+  })
+  .meta({
+    id: 'V2ToolExecution',
+    title: 'Tool execution',
+    description: 'The result of running one built-in tool.',
+  })
+export type V2ToolExecution = z.output<typeof v2ToolExecutionSchema>
+
+/**
  * One value an operation needs.
  *
  * An operation's inputs come from two places — the tool's own declared params
@@ -734,6 +816,24 @@ export const v2GetToolContract = defineRouteContract({
   params: v2GetToolParamsSchema,
   query: catalogWorkspaceQuerySchema,
   response: { mode: 'json', schema: v2DataResponse(v2ToolDetailSchema) },
+})
+
+/**
+ * Runs one built-in tool and returns what it produced.
+ *
+ * The verb the catalog was missing: `GET /api/v2/tools/{toolId}` already
+ * publishes the parameters, and this is how a caller supplies them. Sim
+ * resolves the credential, injects a hosted API key where it supplies one, and
+ * substitutes environment-variable references, so the request carries arguments
+ * rather than secrets.
+ */
+export const v2ExecuteToolContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tools/[toolId]/execute',
+  params: v2GetToolParamsSchema,
+  query: noInputSchema,
+  body: v2ExecuteToolBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2ToolExecutionSchema) },
 })
 
 export const v2ListConnectorTypesContract = defineRouteContract({

@@ -270,14 +270,23 @@ export const {Service}Block: BlockConfig = {
 {
   id: 'project',
   type: 'project-selector',
+  selectorKey: '{service}.projects',
   dependsOn: ['credential'],
 },
 {
   id: 'issue',
   type: 'file-selector',
+  selectorKey: '{service}.issues',
   dependsOn: ['credential', 'project'],
 }
 ```
+
+Every remote `selectorKey` must use the unified server selector path. Apply the `add-selector` skill:
+add browser-safe metadata to `apps/sim/lib/selectors/manifest.ts`, reuse or extract a server-only
+provider listing primitive, and add a credential- and destination-bound server attachment. Do not
+add code under `hooks/selectors/providers`, a provider-specific query key, browser token acquisition,
+or a selector-only API route. The shared context builder sends only active `dependsOn` values and
+preserves exact `{{KEY}}` environment references for server-side resolution.
 
 **Basic/Advanced mode for dual UX:**
 ```typescript
@@ -589,7 +598,15 @@ If creating V2 versions (API-aligned outputs):
 
 1. **V2 Tools** - Add `_v2` suffix, version `2.0.0`, flat outputs
 2. **V2 Block** - Add `_v2` type, use `createVersionedToolSelector`
-3. **V1 Block** - Add `(Legacy)` to name, set `hideFromToolbar: true`
+3. **V1 Block** - Add `(Legacy)` to name, set `hideFromToolbar: true`, and add
+   `sunset: { status: 'legacy', replacedBy: '{service}_v2' }` — `check-block-registry`
+   fails a legacy block with no `replacedBy`, and the amber legacy badge plus its
+   click-to-upgrade action read from that field.
+
+   **Only add `replacedBy` once the target is GA.** The same check also fails when
+   the target is unregistered, itself sunset, or still `preview: true`. If v2 is
+   preview-gated, leave v1 alone until GA and drop `preview` in the *same commit*
+   that adds the sunset — splitting them breaks the build in between.
 4. **Registry** - Register both versions
 
 ```typescript
@@ -630,6 +647,10 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Added credential field with `requiredScopes: getScopesForService('{service}')`
 - [ ] Added conditional fields per operation
 - [ ] Set up dependsOn for cascading selectors
+- [ ] Every remote `selectorKey` exists in the shared manifest and has one server attachment with
+      trusted credential provider binding and a fixed, credential-bound, or explicitly reviewed
+      user-controlled destination policy
+- [ ] No selector provider logic, credential resolution, or provider route call runs in the browser
 - [ ] Configured tools.access with all tool IDs
 - [ ] Configured tools.config.tool selector
 - [ ] Defined outputs matching tool outputs
@@ -922,7 +943,8 @@ requiredScopes: getScopesForService('{service}'),
 3. **Block type is snake_case** - `type: 'stripe'`, not `type: 'Stripe'`
 4. **Alphabetical ordering** - Keep imports and registry entries alphabetically sorted
 5. **Required can be conditional** - Use `required: { field: 'op', value: 'create' }` instead of always true
-6. **DependsOn clears options** - When a dependency changes, selector options are refetched
+6. **DependsOn clears options** - When an active dependency changes, the shared selector facade
+   refetches with an opaque query revision; dependency values and references never enter query keys
 7. **Never pass Buffer directly to fetch** - Convert to `new Uint8Array(buffer)` for TypeScript compatibility
 8. **Always handle legacy file params** - Keep hidden `fileContent` params for backwards compatibility
 9. **Optional fields use advanced mode** - Set `mode: 'advanced'` on rarely-used optional fields

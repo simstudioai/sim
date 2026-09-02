@@ -41,7 +41,7 @@ import type {
   ConfluenceUpdateSpaceBody,
   ConfluenceUploadAttachmentBody,
   ConfluenceUserBody,
-} from '@/lib/api/contracts/selectors/confluence'
+} from '@/lib/api/contracts/tools/confluence'
 import {
   validateAlphanumericId,
   validateNumericId,
@@ -52,6 +52,7 @@ import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   asArray,
   asObject,
+  type ConfluenceClient,
   createConfluenceClient,
   type JsonObject,
   nested,
@@ -120,6 +121,71 @@ function mappedPage(value: unknown): JsonObject {
     version: page.version ?? null,
     webUrl: nested(page, '_links', 'webui') ?? null,
   }
+}
+
+const NUMERIC_SPACE_ID_PATTERN = /^[1-9][0-9]{0,19}$/
+const SPACE_STATUSES = ['current', 'archived'] as const
+
+function normalizedConfluenceSpaceKey(value: string): string {
+  const spaceKey = value.trim()
+  if (!spaceKey || spaceKey.length > 255 || spaceKey.includes('\0')) {
+    throw new ConfluenceOperationError('Invalid Confluence space key', 400)
+  }
+  return spaceKey
+}
+
+async function findConfluenceSpaceByKey(
+  client: ConfluenceClient,
+  spaceKey: string,
+  signal?: AbortSignal
+): Promise<JsonObject | null> {
+  for (const status of SPACE_STATUSES) {
+    const query = new URLSearchParams({ keys: spaceKey, limit: '1', status })
+    const data = await client.json(client.apiV2(`/spaces?${query}`), {}, signal)
+    const match = asArray(data.results)
+      .map(asObject)
+      .find((space) => space.key === spaceKey)
+    if (match) return match
+  }
+  return null
+}
+
+async function resolveConfluenceSpaceId(
+  client: ConfluenceClient,
+  value: string,
+  signal?: AbortSignal
+): Promise<string> {
+  const spaceIdentifier = value.trim()
+  if (NUMERIC_SPACE_ID_PATTERN.test(spaceIdentifier)) return spaceIdentifier
+
+  const spaceKey = normalizedConfluenceSpaceKey(spaceIdentifier)
+  const space = await findConfluenceSpaceByKey(client, spaceKey, signal)
+  const resolvedId = space?.id
+  if (
+    (typeof resolvedId !== 'string' && typeof resolvedId !== 'number') ||
+    !NUMERIC_SPACE_ID_PATTERN.test(String(resolvedId))
+  ) {
+    throw new ConfluenceOperationError(`Confluence space key "${spaceKey}" was not found`, 404)
+  }
+  return String(resolvedId)
+}
+
+async function resolveConfluenceSpaceKey(
+  client: ConfluenceClient,
+  value: string,
+  signal?: AbortSignal
+): Promise<string> {
+  const spaceIdentifier = normalizedConfluenceSpaceKey(value)
+  if (!NUMERIC_SPACE_ID_PATTERN.test(spaceIdentifier)) return spaceIdentifier
+
+  const space = await client.json(client.apiV2(`/spaces/${spaceIdentifier}`), {}, signal)
+  if (typeof space.key !== 'string' || !space.key) {
+    throw new ConfluenceOperationError(
+      `Confluence space ID "${spaceIdentifier}" did not return a space key`,
+      422
+    )
+  }
+  return space.key
 }
 
 export async function executeConfluenceRetrievePage(
@@ -208,17 +274,11 @@ export async function executeConfluenceCreatePage(
   input: ConfluenceCreatePageBody,
   context: ConfluenceOperationContext
 ) {
-  if (!/^\d+$/.test(String(input.spaceId))) {
-    throw new ConfluenceOperationError(
-      'Invalid Space ID. The Space ID must be a numeric value, not the space key from the URL. Use the "list" operation to get all spaces with their numeric IDs.',
-      400
-    )
-  }
-  assertId(input.spaceId, 'spaceId')
-  if (input.parentId) assertId(input.parentId, 'parentId')
   const client = await createConfluenceClient(input, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
+  if (input.parentId) assertId(input.parentId, 'parentId')
   const body: JsonObject = {
-    spaceId: input.spaceId,
+    spaceId,
     status: 'current',
     title: input.title,
     body: { representation: 'storage', value: input.content },
@@ -853,9 +913,9 @@ export async function executeConfluenceSearchInSpace(
   input: ConfluenceSearchInSpaceBody,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceKey, 'spaceKey')
   const client = await createConfluenceClient(input, context.signal)
-  let cql = `space = "${escapeCql(input.spaceKey)}"`
+  const spaceKey = await resolveConfluenceSpaceKey(client, input.spaceKey, context.signal)
+  let cql = `space = "${escapeCql(spaceKey)}"`
   if (input.query) cql += ` AND text ~ "${escapeCql(input.query)}"`
   if (input.contentType) cql += ` AND type = "${escapeCql(input.contentType)}"`
   const query = new URLSearchParams({ cql, limit: cappedLimit(input.limit) })
@@ -873,21 +933,21 @@ export async function executeConfluenceSearchInSpace(
       lastModified: result.lastModified ?? null,
     }
   })
-  return { results, spaceKey: input.spaceKey, totalSize: data.totalSize ?? results.length }
+  return { results, spaceKey, totalSize: data.totalSize ?? results.length }
 }
 
 export async function executeConfluenceListBlogPostsInSpace(
   input: ConfluenceSpaceBlogPostsBody,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   const client = await createConfluenceClient(input, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
   const query = new URLSearchParams({ limit: cappedLimit(input.limit) })
   if (input.status) query.set('status', input.status)
   if (input.bodyFormat) query.set('body-format', input.bodyFormat)
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(
-    client.apiV2(`/spaces/${input.spaceId}/blogposts?${query}`),
+    client.apiV2(`/spaces/${spaceId}/blogposts?${query}`),
     {},
     context.signal
   )
@@ -914,14 +974,14 @@ export async function executeConfluenceListPagesInSpace(
   input: ConfluenceSpacePagesBody,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   const client = await createConfluenceClient(input, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
   const query = new URLSearchParams({ limit: cappedLimit(input.limit) })
   if (input.status) query.set('status', input.status)
   if (input.bodyFormat) query.set('body-format', input.bodyFormat)
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(
-    client.apiV2(`/spaces/${input.spaceId}/pages?${query}`),
+    client.apiV2(`/spaces/${spaceId}/pages?${query}`),
     {},
     context.signal
   )
@@ -938,12 +998,12 @@ export async function executeConfluenceListSpaceLabels(
   input: ConfluenceSpaceLabelsQuery,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   const client = await createConfluenceClient(input, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
   const query = new URLSearchParams({ limit: cappedLimit(input.limit) })
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(
-    client.apiV2(`/spaces/${input.spaceId}/labels?${query}`),
+    client.apiV2(`/spaces/${spaceId}/labels?${query}`),
     {},
     context.signal
   )
@@ -952,7 +1012,7 @@ export async function executeConfluenceListSpaceLabels(
       const label = asObject(value)
       return { id: label.id, name: label.name, prefix: label.prefix || 'global' }
     }),
-    spaceId: input.spaceId,
+    spaceId,
     nextCursor: nextCursor(data),
   }
 }
@@ -961,13 +1021,13 @@ export async function executeConfluenceListSpacePermissions(
   input: ConfluenceSpacePermissionsBody,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   assertCursor(input.cursor)
   const client = await createConfluenceClient(input, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
   const query = new URLSearchParams({ limit: cappedLimit(input.limit) })
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(
-    client.apiV2(`/spaces/${input.spaceId}/permissions?${query}`),
+    client.apiV2(`/spaces/${spaceId}/permissions?${query}`),
     {},
     context.signal
   )
@@ -984,7 +1044,7 @@ export async function executeConfluenceListSpacePermissions(
         unlicensedAccess: permission.unlicensedAccess ?? false,
       }
     }),
-    spaceId: input.spaceId,
+    spaceId,
     nextCursor: nextCursor(data),
   }
 }
@@ -1025,10 +1085,11 @@ export async function executeConfluenceCreateBlogPost(
     throw new ConfluenceOperationError('Invalid create blog post request', 400)
   }
   const client = await createConfluenceClient(input, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
   const data = await client.json(
     client.apiV2('/blogposts'),
     jsonInit('POST', {
-      spaceId: input.spaceId,
+      spaceId,
       status: input.status || 'current',
       title: input.title,
       body: { representation: 'storage', value: input.content },
@@ -1123,9 +1184,9 @@ export async function executeConfluenceGetSpace(
   input: ConfluenceGetSpaceQuery,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   const client = await createConfluenceClient(input, context.signal)
-  return client.json(client.apiV2(`/spaces/${input.spaceId}`), {}, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
+  return client.json(client.apiV2(`/spaces/${spaceId}`), {}, context.signal)
 }
 
 export async function executeConfluenceCreateSpace(
@@ -1144,7 +1205,6 @@ export async function executeConfluenceUpdateSpace(
   input: ConfluenceUpdateSpaceBody,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   if (!input.name && input.description === undefined) {
     throw new ConfluenceOperationError(
       'At least one of name or description is required for update',
@@ -1152,7 +1212,8 @@ export async function executeConfluenceUpdateSpace(
     )
   }
   const client = await createConfluenceClient(input, context.signal)
-  const current = await client.json(client.apiV2(`/spaces/${input.spaceId}`), {}, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
+  const current = await client.json(client.apiV2(`/spaces/${spaceId}`), {}, context.signal)
   const body: JsonObject = { name: input.name || current.name }
   if (input.description !== undefined) {
     body.description = { plain: { value: input.description, representation: 'plain' } }
@@ -1168,9 +1229,9 @@ export async function executeConfluenceDeleteSpace(
   input: ConfluenceDeleteSpaceBody,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   const client = await createConfluenceClient(input, context.signal)
-  const current = await client.json(client.apiV2(`/spaces/${input.spaceId}`), {}, context.signal)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
+  const current = await client.json(client.apiV2(`/spaces/${spaceId}`), {}, context.signal)
   const response = await client.fetch(
     client.rest(`/space/${encodeURIComponent(String(current.key))}`),
     { method: 'DELETE' },
@@ -1190,7 +1251,7 @@ export async function executeConfluenceDeleteSpace(
     context.signal?.throwIfAborted()
   }
   return {
-    spaceId: input.spaceId,
+    spaceId,
     deleted: true,
     longTaskId: longTask.id,
     longTaskStatusLink: nested(longTask, 'links', 'status'),
@@ -1228,16 +1289,16 @@ export async function executeConfluenceSpaceProperties(
   input: ConfluenceSpacePropertiesBody,
   context: ConfluenceOperationContext
 ) {
-  assertId(input.spaceId, 'spaceId')
   const client = await createConfluenceClient(input, context.signal)
-  const base = client.apiV2(`/spaces/${input.spaceId}/properties`)
+  const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
+  const base = client.apiV2(`/spaces/${spaceId}/properties`)
   if (input.action === 'delete') {
     if (!input.propertyId) {
       throw new ConfluenceOperationError('Property ID is required for delete action', 400)
     }
     assertId(input.propertyId, 'propertyId')
     await client.delete(`${base}/${encodeURIComponent(input.propertyId)}`, context.signal)
-    return { spaceId: input.spaceId, propertyId: input.propertyId, deleted: true }
+    return { spaceId, propertyId: input.propertyId, deleted: true }
   }
   if (input.action === 'create') {
     if (!input.key) {
@@ -1248,7 +1309,7 @@ export async function executeConfluenceSpaceProperties(
       jsonInit('POST', { key: input.key, value: input.value ?? {} }),
       context.signal
     )
-    return { propertyId: data.id, key: data.key, value: data.value ?? null, spaceId: input.spaceId }
+    return { propertyId: data.id, key: data.key, value: data.value ?? null, spaceId }
   }
   assertCursor(input.cursor)
   const query = new URLSearchParams({ limit: cappedLimit(input.limit) })
@@ -1259,7 +1320,7 @@ export async function executeConfluenceSpaceProperties(
       const property = asObject(value)
       return { id: property.id, key: property.key, value: property.value ?? null }
     }),
-    spaceId: input.spaceId,
+    spaceId,
     nextCursor: nextCursor(data),
   }
 }

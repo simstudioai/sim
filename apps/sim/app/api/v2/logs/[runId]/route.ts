@@ -49,11 +49,13 @@ export const GET = defineV2JsonRoute({
       endedAt: log.endedAt ? log.endedAt.toISOString() : null,
       totalDurationMs: log.totalDurationMs,
       files: projectLogFiles(log),
+      executedByEmail: log.executedByEmail,
       workflow: {
         id: log.workflowId,
         name: log.workflowName || 'Deleted Workflow',
         description: log.workflowDescription,
         folderPath: workflowFolderPath,
+        /** Deprecated in favour of the run-level `executedByEmail`. */
         ownerEmail: log.workflowOwnerEmail,
         workspaceId: log.workflowWorkspaceId,
         createdAt: log.workflowCreatedAt ? log.workflowCreatedAt.toISOString() : null,

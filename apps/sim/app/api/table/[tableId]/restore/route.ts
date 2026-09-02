@@ -4,6 +4,8 @@ import { tableIdParamsSchema } from '@/lib/api/contracts/tables'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { getTableById } from '@/lib/table'
 import { performRestoreTable } from '@/lib/table/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -30,6 +32,14 @@ export const POST = withRouteHandler(
       const permission = await getUserEntityPermissions(auth.userId, 'workspace', table.workspaceId)
       if (permission !== 'admin' && permission !== 'write') {
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+      }
+
+      // permission-group-enforced: tables.use — raw route that queries directly and predates the operation boundary
+      if (
+        table.workspaceId &&
+        (await isWorkspaceCapabilityWithheld(auth.userId, table.workspaceId, 'tables.use'))
+      ) {
+        return capabilityRefusalResponse('tables.use')
       }
 
       const result = await performRestoreTable({ tableId, userId: auth.userId, requestId })

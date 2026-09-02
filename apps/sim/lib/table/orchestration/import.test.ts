@@ -91,6 +91,7 @@ function importParams(overrides: Record<string, unknown> = {}) {
     mode: 'append' as const,
     timezone: 'UTC',
     requestId: 'req-1',
+    capabilityGovernedUserId: 'user-1' as string | null,
     ...overrides,
   }
 }
@@ -131,6 +132,43 @@ describe('performTableCsvImport', () => {
     // orchestration's job rather than the writer's.
     expect(mockDispatchAfterBatchInsert).toHaveBeenCalled()
     expect(mockSignalSchemaChanged).toHaveBeenCalledWith('table-1')
+  })
+
+  /**
+   * The rows an import lands start the table's workflow columns, and those
+   * cells gate their tools on the governed subject. Dropping it here would run
+   * the importing member's cells with no per-tool gate at all — the one thing
+   * `null` means on this field.
+   */
+  it('dispatches the auto-fired cells under the importing person', async () => {
+    await performTableCsvImport(importParams({ capabilityGovernedUserId: 'user-9' }))
+
+    expect(mockDispatchAfterBatchInsert).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'req-1',
+      'user-1',
+      'user-9'
+    )
+    expect(mockImportAppendRows).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ capabilityGovernedUserId: 'user-9' })
+    )
+  })
+
+  /** An actorless import still says so explicitly rather than by omission. */
+  it('carries a null subject through unchanged', async () => {
+    await performTableCsvImport(importParams({ capabilityGovernedUserId: null }))
+
+    expect(mockDispatchAfterBatchInsert).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'req-1',
+      'user-1',
+      null
+    )
   })
 
   it('reports the deleted count on a replace', async () => {
@@ -271,6 +309,39 @@ describe('performTableCsvImport', () => {
       })
     })
 
+    it('counts invalid TTL cells that the import blanks', async () => {
+      const result = await performTableCsvImport(
+        importParams({
+          table: {
+            ...TABLE,
+            schema: {
+              columns: [
+                {
+                  id: 'col_expires_at',
+                  name: 'expires_at',
+                  type: 'ttl',
+                  required: false,
+                  unique: false,
+                },
+              ],
+            },
+          },
+          fileStream: csvStream('expires_at\n2023-11-14T22:13:20Z\nnot-a-date\n'),
+        })
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.data?.rejections).toEqual({
+        rowsRejected: 0,
+        cellsRejected: 1,
+        rejectedSamples: [],
+      })
+      expect(mockImportAppendRows.mock.calls[0][2]).toEqual([
+        { col_expires_at: 1_700_000_000 },
+        { col_expires_at: null },
+      ])
+    })
+
     it('omits the accounting entirely from a clean import', async () => {
       const result = await performTableCsvImport(importParams())
 
@@ -311,6 +382,7 @@ describe('performCreateTableFromCsv', () => {
       folderId: null,
       timezone: 'UTC',
       requestId: 'req-1',
+      capabilityGovernedUserId: 'user-1',
     }
   }
 

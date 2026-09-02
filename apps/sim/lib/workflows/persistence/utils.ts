@@ -21,18 +21,23 @@ import {
   collectErrorSourceBlockIds,
   normalizeWorkflowEdgeHandles,
 } from '@sim/workflow-types/workflow'
+import type { Edge } from '@xyflow/react'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
-import type { Edge } from 'reactflow'
 import { releaseWebhookPathClaims } from '@/lib/webhooks/path-claims'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
 import {
   backfillCanonicalModes,
+  migrateCanonicalModeIds,
   migrateSubblockIds,
 } from '@/lib/workflows/migrations/subblock-migrations'
 import { backfillWhatsAppInteractiveType } from '@/lib/workflows/migrations/whatsapp-interactive-type'
+import {
+  assertNoWithheldBlockType,
+  type WorkflowPersistGovernance,
+} from '@/lib/workflows/persistence/block-access-guard'
 import { supersedeInFlightDeploymentOperations } from '@/lib/workflows/persistence/deployment-operations'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 
@@ -368,6 +373,11 @@ const applyBlockMigrations = createMigrationPipeline([
   },
 
   (ctx) => {
+    const { blocks, migrated } = migrateCanonicalModeIds(ctx.blocks)
+    return { ...ctx, blocks, migrated: ctx.migrated || migrated }
+  },
+
+  (ctx) => {
     const { blocks, migrated } = backfillCanonicalModes(ctx.blocks)
     return { ...ctx, blocks, migrated: ctx.migrated || migrated }
   },
@@ -638,11 +648,30 @@ export function buildWorkflowDeploymentSnapshot(
   }
 }
 
+/**
+ * The one door every normalized-table write goes through, and therefore the one
+ * place the workspace's integration allowlist can be enforced for all of them.
+ *
+ * `governance` is required rather than optional: a whole-graph write hands over
+ * finished blocks naming whatever types it likes, so every caller has to state
+ * whose grants judge them. Passing `{ subjectUserId: null }` is how a caller
+ * declares itself actorless — the executor persisting a run's own graph, a fork
+ * copying rows, workspace creation seeding a starter workflow — and that is a
+ * claim a reader can check, where an omitted argument was not.
+ *
+ * The check runs before any transaction is opened so a refusal never holds the
+ * workflow's row lock, and it throws rather than folding into the `{ success }`
+ * union: the union collapses to a 500 at every caller, and this refusal is a
+ * 403.
+ */
 export async function saveWorkflowToNormalizedTables(
   workflowId: string,
   state: WorkflowState,
+  governance: WorkflowPersistGovernance,
   externalTx?: DbOrTx
 ): Promise<{ success: boolean; error?: string }> {
+  await assertNoWithheldBlockType(governance, Object.values(state.blocks))
+
   if (externalTx) {
     return saveWorkflowToNormalizedTablesRaw(workflowId, state, externalTx)
   }

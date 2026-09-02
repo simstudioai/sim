@@ -52,6 +52,22 @@ export const hybridAuthMockFns = {
  */
 export const hybridAuthMock = {
   AuthType: AuthTypeMock,
+  /**
+   * The real derivation, not a vi.fn(): it is a pure branch on fields the test
+   * already controls through the auth result, and a stub returning undefined
+   * would silently un-gate every consumer. Mirrors `capabilityGovernedAuthUserId`
+   * in `@/lib/auth/hybrid` — only a session or a personal API key names a
+   * governed subject.
+   */
+  capabilityGovernedAuthUserId: (auth?: {
+    userId?: string
+    authType?: string
+    apiKeyType?: string
+  }): string | null => {
+    if (!auth?.userId) return null
+    if (auth.authType === 'session') return auth.userId
+    return auth.authType === 'api_key' && auth.apiKeyType === 'personal' ? auth.userId : null
+  },
   checkHybridAuth: hybridAuthMockFns.mockCheckHybridAuth,
   checkSessionOrInternalAuth: hybridAuthMockFns.mockCheckSessionOrInternalAuth,
   checkInternalAuth: hybridAuthMockFns.mockCheckInternalAuth,

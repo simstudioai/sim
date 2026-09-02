@@ -2,7 +2,11 @@
  * @vitest-environment node
  */
 
-import { createMockRequest } from '@sim/testing'
+import {
+  createMockRequest,
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -116,6 +120,14 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   isDocSandboxEnabled: false,
 }))
 
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+
+const mockResolvePermissionGroupConfig =
+  permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
+
+import { chatOperations } from '@/lib/copilot/application/operations'
+import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST } from '@/app/api/v2/chat/route'
 
 const personalAuth = {
@@ -242,7 +254,11 @@ describe('POST /api/v2/chat', () => {
     mockAuthenticateV2ApiKey.mockResolvedValue(personalAuth)
     mockCheckPreAuthRate.mockResolvedValue({ allowed: true, remaining: 10, resetAt: new Date() })
     mockCheckOperationRate.mockResolvedValue({ allowed: true, remaining: 10, resetAt: new Date() })
-    mockAssertActiveWorkspaceAccess.mockResolvedValue({ permission: 'admin' })
+    mockAssertActiveWorkspaceAccess.mockResolvedValue({
+      permission: 'admin',
+      workspace: { organizationId: null, allowPersonalApiKeys: true },
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue(null)
     mockResolveBillingAttribution.mockResolvedValue(billingAttributionSnapshot)
     mockRequestExplicitStreamAbort.mockResolvedValue(undefined)
     mockPersistCopilotChatTurn.mockResolvedValue(undefined)
@@ -294,6 +310,124 @@ describe('POST /api/v2/chat', () => {
 
     expect(response.status).toBe(403)
     expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `admitV2Request` authenticates and rate-limits but never authorizes, so
+   * nothing but this route applies the capability `chat.send` declares.
+   */
+  it('answers 403 when the permission group withholds copilot.use', async () => {
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideCopilot: true,
+    })
+
+    const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'FORBIDDEN',
+        message: "Chat is not available under your organization's permission group",
+        details: { code: CAPABILITY_RULES[chatOperations.send.capability].detailCode },
+      },
+    })
+    expect(mockResolveOrCreateChat).not.toHaveBeenCalled()
+    expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The route only ever runs for a personal API key, and `admitV2Request` never
+   * authorizes, so both halves of the funnel's personal-key policy have to be
+   * repeated here. The workspace column is the first half.
+   */
+  it('answers 403 when the workspace has switched personal API keys off', async () => {
+    mockAssertActiveWorkspaceAccess.mockResolvedValue({
+      permission: 'admin',
+      workspace: { organizationId: null, allowPersonalApiKeys: false },
+    })
+
+    const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Personal API keys are not allowed for this workspace',
+        details: { code: 'PERSONAL_API_KEYS_DISABLED' },
+      },
+    })
+    expect(mockResolveOrCreateChat).not.toHaveBeenCalled()
+    expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The group half. The column and the key combine with AND, so a workspace
+   * that allows personal keys still refuses the cohort whose group withholds
+   * them — the case `copilot.use` alone could never see.
+   */
+  it('answers 403 when the permission group withholds personal_api_key.use', async () => {
+    mockAssertActiveWorkspaceAccess.mockResolvedValue({
+      permission: 'admin',
+      workspace: { organizationId: 'org-1', allowPersonalApiKeys: true },
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disablePersonalApiKeys: true,
+    })
+
+    const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Personal API keys are not allowed for this workspace',
+        details: { code: 'PERSONAL_API_KEYS_DISABLED' },
+      },
+    })
+    expect(mockResolveOrCreateChat).not.toHaveBeenCalled()
+    expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
+  })
+
+  /** A workspace with no organization resolves no group, so the key passes. */
+  it('runs one turn for a personal key in a workspace no group governs', async () => {
+    mockAssertActiveWorkspaceAccess.mockResolvedValue({
+      permission: 'admin',
+      workspace: { organizationId: null, allowPersonalApiKeys: true },
+    })
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disablePersonalApiKeys: true,
+    })
+
+    const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
+
+    expect(response.status).toBe(200)
+    expect(mockRunHeadlessCopilotLifecycle).toHaveBeenCalledTimes(1)
+  })
+
+  /** Workspace reach is decided first, so the refusal cannot name a group to an outsider. */
+  it('refuses an inaccessible workspace before consulting a permission group', async () => {
+    mockAssertActiveWorkspaceAccess.mockRejectedValue(new MockWorkspaceAccessDeniedError('denied'))
+    mockResolvePermissionGroupConfig.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideCopilot: true,
+    })
+
+    const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
+
+    expect(response.status).toBe(403)
+    expect(mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
+  })
+
+  it('runs one turn when a group governs the caller but withholds nothing', async () => {
+    mockResolvePermissionGroupConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+
+    const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
+
+    expect(response.status).toBe(200)
+    expect(mockRunHeadlessCopilotLifecycle).toHaveBeenCalledTimes(1)
   })
 
   it('runs one turn and answers the reply with a server-issued conversation id', async () => {

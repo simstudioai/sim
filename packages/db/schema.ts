@@ -9,6 +9,7 @@ import {
   date,
   decimal,
   doublePrecision,
+  foreignKey,
   index,
   integer,
   json,
@@ -2237,6 +2238,131 @@ export const workspaceFiles = pgTable(
 export const workspaceFileColumns = omit(getTableColumns(workspaceFiles), ['size'])
 export type WorkspaceFileRow = Omit<typeof workspaceFiles.$inferSelect, 'size'>
 
+export const workspaceFileSearchIndexStatusEnum = pgEnum('workspace_file_search_index_status', [
+  'pending',
+  'ready',
+  'skipped',
+  'failed',
+])
+
+/** Current and historical search-index state for one immutable workspace-file content revision. */
+export const workspaceFileSearchIndex = pgTable(
+  'workspace_file_search_index',
+  {
+    fileId: text('file_id').notNull(),
+    workspaceId: text('workspace_id').notNull(),
+    sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
+    status: workspaceFileSearchIndexStatusEnum('status').notNull().default('pending'),
+    partial: boolean('partial').notNull().default(false),
+    failureReason: text('failure_reason'),
+    lineCount: integer('line_count').notNull().default(0),
+    indexedBytes: integer('indexed_bytes').notNull().default(0),
+    dispatchedAt: timestamp('dispatched_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({
+      name: 'workspace_file_search_index_pk',
+      columns: [table.fileId, table.sourceContentUpdatedAt],
+    }),
+    fileFk: foreignKey({
+      name: 'workspace_file_search_index_file_fk',
+      columns: [table.fileId],
+      foreignColumns: [workspaceFiles.id],
+    }).onDelete('cascade'),
+    workspaceFk: foreignKey({
+      name: 'workspace_file_search_index_workspace_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspace.id],
+    }).onDelete('cascade'),
+    workspaceStatusIdx: index('workspace_file_search_index_workspace_status_idx').on(
+      table.workspaceId,
+      table.status,
+      table.sourceContentUpdatedAt
+    ),
+    pendingDispatchIdx: index('workspace_file_search_index_pending_dispatch_idx')
+      .on(table.workspaceId, table.updatedAt, table.fileId, table.sourceContentUpdatedAt)
+      .where(sql`${table.status} = 'pending' AND ${table.dispatchedAt} IS NULL`),
+    activeDispatchIdx: index('workspace_file_search_index_active_dispatch_idx')
+      .on(table.workspaceId, table.dispatchedAt)
+      .where(sql`${table.status} = 'pending' AND ${table.dispatchedAt} IS NOT NULL`),
+  })
+)
+
+/** One bounded scheduler row per workspace with current file revisions awaiting dispatch. */
+export const workspaceFileSearchDispatchQueue = pgTable(
+  'workspace_file_search_dispatch_queue',
+  {
+    workspaceId: text('workspace_id').primaryKey(),
+    enqueuedAt: timestamp('enqueued_at').notNull().defaultNow(),
+    lastDispatchedAt: timestamp('last_dispatched_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceFk: foreignKey({
+      name: 'workspace_file_search_queue_workspace_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspace.id],
+    }).onDelete('cascade'),
+    scheduleIdx: index('workspace_file_search_dispatch_queue_schedule_idx').on(
+      table.lastDispatchedAt.asc().nullsFirst(),
+      table.enqueuedAt,
+      table.workspaceId
+    ),
+  })
+)
+
+/** Singleton keyset cursor for the resumable initial workspace-file search backfill. */
+export const workspaceFileSearchBackfill = pgTable('workspace_file_search_backfill', {
+  id: text('id').primaryKey(),
+  afterWorkspaceId: text('after_workspace_id'),
+  afterFileId: text('after_file_id'),
+  completedAt: timestamp('completed_at'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+/** Bounded, overlapping logical-line segments searched through PostgreSQL trigram indexes. */
+export const workspaceFileSearchSegment = pgTable(
+  'workspace_file_search_segment',
+  {
+    fileId: text('file_id').notNull(),
+    workspaceId: text('workspace_id').notNull(),
+    sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
+    lineNumber: integer('line_number').notNull(),
+    segmentNumber: integer('segment_number').notNull(),
+    segmentStart: integer('segment_start').notNull(),
+    lineLength: integer('line_length').notNull(),
+    content: text('content').notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({
+      name: 'workspace_file_search_segment_pk',
+      columns: [table.fileId, table.sourceContentUpdatedAt, table.lineNumber, table.segmentNumber],
+    }),
+    fileFk: foreignKey({
+      name: 'workspace_file_search_segment_file_fk',
+      columns: [table.fileId],
+      foreignColumns: [workspaceFiles.id],
+    }).onDelete('cascade'),
+    workspaceFk: foreignKey({
+      name: 'workspace_file_search_segment_workspace_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspace.id],
+    }).onDelete('cascade'),
+    workspaceRevisionIdx: index('workspace_file_search_segment_workspace_revision_idx').on(
+      table.workspaceId,
+      table.fileId,
+      table.sourceContentUpdatedAt
+    ),
+    contentTrigramIdx: index('workspace_file_search_segment_workspace_content_trgm_idx').using(
+      'gin',
+      table.workspaceId.asc().op('text_ops'),
+      table.content.asc().op('gin_trgm_ops')
+    ),
+  })
+)
+
 export const uploadSessionStatusEnum = pgEnum('upload_session_status', [
   'uploading',
   'completing',
@@ -3640,6 +3766,13 @@ export const ssoProvider = pgTable(
      * Defaults to true so pre-existing providers keep signing in across deploy.
      */
     domainVerified: boolean('domain_verified').notNull().default(true),
+    /**
+     * Whether a successful SSO sign-in may provision a new organization
+     * membership. Sim owns this admission path so seat checks, billing effects,
+     * session policy, and audit all use the same transaction as every other join.
+     * Defaults to true to preserve existing providers during a rolling deploy.
+     */
+    jitProvisioningEnabled: boolean('jit_provisioning_enabled').notNull().default(true),
   },
   (table) => ({
     // Better Auth resolves providers by `providerId` alone (no org scoping), so
@@ -3898,6 +4031,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'voice-input',
   'enrichment',
   'voice-output',
+  'api-tool',
 ])
 
 export const usageLog = pgTable(
@@ -4706,6 +4840,11 @@ export const userTableRows = pgTable(
       table.orderKey,
       table.id
     ),
+    tableCreatedIdIdx: index('user_table_rows_table_created_id_idx').on(
+      table.tableId,
+      table.createdAt,
+      table.id
+    ),
     /**
      * Keyset pagination by id within one table (the delete-job worker's page walk). Without it
      * the planner scans the global pkey in id order, filtering out every other table's rows —
@@ -4866,6 +5005,25 @@ export const tableRowExecutions = pgTable(
     blockErrors: jsonb('block_errors').notNull().default({}),
     cancelledAt: timestamp('cancelled_at'),
     /**
+     * Person whose permission group gates this cell's tools, persisted with the
+     * dispatcher's `pending` pre-stamp.
+     *
+     * The stamp and the worker that runs it are not the same run: a cell task
+     * that finds the row's cascade lock held bails, and the lock owner drains
+     * the marker itself. That owner belongs to whatever dispatch queued IT, so
+     * without the subject on the marker the drained cell would run under the
+     * wrong person's group — or under none, when the owner is an actorless
+     * auto-fire. Read only while the marker is unclaimed (`pending` with a null
+     * `execution_id`); later writes on the same cell carry no subject and null
+     * it, which is why nothing reads it after pickup.
+     *
+     * `ON DELETE SET NULL`, matching `table_run_dispatches`: a deleted person's
+     * runs are stopped by that table's cancel, not held open by this reference.
+     */
+    capabilityGovernedUserId: text('capability_governed_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    /**
      * Enrichment cascade breakdown (provider outcomes, cost, timing) for
      * `enrichment`-type groups. Null for workflow groups and pre-feature runs.
      * Deliberately excluded from the hot grid read (`loadExecutionsByRow`) — read
@@ -4933,6 +5091,24 @@ export const tableRunDispatches = pgTable(
     triggeredByUserId: text('triggered_by_user_id').references(() => user.id, {
       onDelete: 'set null',
     }),
+    /** The person whose permission group governs what this run's cells may do.
+     *  Distinct from `triggered_by_user_id`, which is an *attribution* and
+     *  substitutes the workspace billed account when the credential names no
+     *  human — right for a meter, wrong for a gate, since it would run a
+     *  bystander's tool denylist against an actorless request. Null when the
+     *  run has no acting person (workspace API key, schedule, auto-fire), which
+     *  means no per-tool gate applies. Producers set it explicitly, `null`
+     *  included: it is required on every dispatch input precisely so a new one
+     *  cannot inherit the attribution by omission.
+     *
+     *  `set null` on delete, paired with a cancel of this account's non-terminal
+     *  dispatches inside `deleteUserAccount`. Nulling alone would be a silent
+     *  un-gate — the worker cannot tell a subject erased by deletion from one
+     *  that was never there — and `restrict` would block account deletion behind
+     *  background work. Going terminal first makes the nulled row unreachable. */
+    capabilityGovernedUserId: text('capability_governed_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
     requestedAt: timestamp('requested_at').notNull().defaultNow(),
     /** Last time the dispatcher loop made progress on this dispatch. Stamped by
      *  the same per-window writes that advance `cursor` and `processed_count`,
@@ -4948,6 +5124,15 @@ export const tableRunDispatches = pgTable(
   (table) => ({
     activeIdx: index('table_run_dispatches_active_idx').on(table.tableId, table.status),
     watchdogIdx: index('table_run_dispatches_watchdog_idx').on(table.status, table.requestedAt),
+    /** Account deletion cancels every still-active dispatch the departing
+     *  account governs, and that is the only query keyed on the subject. The
+     *  other two indexes lead with `table_id` / `status`, so without this one
+     *  the deletion scans every active dispatch in the deployment while holding
+     *  its transaction open. Partial on the two live statuses: a terminal row is
+     *  never a cancellation target, and dispatch history is what grows. */
+    governedActiveIdx: index('table_run_dispatches_governed_active_idx')
+      .on(table.capabilityGovernedUserId, table.status)
+      .where(sql`${table.status} IN ('pending', 'dispatching')`),
   })
 )
 

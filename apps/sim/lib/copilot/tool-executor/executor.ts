@@ -166,7 +166,7 @@ function normalizeToolParams(
 /**
  * Records the secrets an integration tool call resolved.
  *
- * `resolveCopilotEnvReferences` in `@/tools` substitutes `{{SECRET}}` into a tool's
+ * `resolveToolEnvReferences` in `@/tools` substitutes `{{SECRET}}` into a tool's
  * `user-only` params — an API key reaching Slack or Stripe is as real a use as one read in
  * sandboxed code, and without this the trail reports "never used" for it. Every tool call
  * gets its own registry (`forkForInputPaths([])` returns one with no active entries), so this

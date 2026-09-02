@@ -20,11 +20,10 @@ import {
 } from '@sim/workflow-types/workflow'
 import {
   Handle,
-  internalsSymbol,
   Position,
   useStoreApi as useReactFlowStoreApi,
   useUpdateNodeInternals,
-} from 'reactflow'
+} from '@xyflow/react'
 import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '../dimensions'
 import { humanizeBlockName } from '../lib/humanize-block-name'
 import { OverflowSpan } from '../lib/overflow-span'
@@ -567,7 +566,7 @@ export function WorkflowBlockView({
   const updateNodeInternals = useUpdateNodeInternals()
   const reactFlowStore = useReactFlowStoreApi()
   const getConnectionNodeId = useCallback(
-    () => reactFlowStore.getState().connectionNodeId,
+    () => reactFlowStore.getState().connection.fromNode?.id ?? null,
     [reactFlowStore]
   )
   const supportsCursorHandle = type !== 'response'
@@ -627,7 +626,7 @@ export function WorkflowBlockView({
     if (!handleElement || !nodeElement) return
 
     const state = reactFlowStore.getState()
-    const sourceBounds = state.nodeInternals.get(id)?.[internalsSymbol]?.handleBounds?.source
+    const sourceBounds = state.nodeLookup.get(id)?.internals.handleBounds?.source
     const handleId = handleElement.dataset.handleid
     const handlePosition = handleElement.dataset.handlepos as Position | undefined
     const zoom = state.transform[2]
@@ -638,6 +637,8 @@ export function WorkflowBlockView({
     const [originX, originY] = state.nodeOrigin
     const nextBounds = {
       id: handleId,
+      nodeId: id,
+      type: 'source' as const,
       position: handlePosition,
       x: (handleBounds.left - nodeBounds.left - nodeBounds.width * originX) / zoom,
       y: (handleBounds.top - nodeBounds.top - nodeBounds.height * originY) / zoom,

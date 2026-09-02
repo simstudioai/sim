@@ -9,7 +9,7 @@ import type {
   jsmObjectTypeAttributesContract,
   jsmSearchObjectsAqlContract,
   jsmUpdateObjectContract,
-} from '@/lib/api/contracts/selectors/jsm'
+} from '@/lib/api/contracts/tools/jsm'
 import { asArray, createJsmAssetsClient } from '@/lib/internal/jsm/client'
 import { mapAssetObject } from '@/tools/jsm/utils'
 

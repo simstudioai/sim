@@ -84,7 +84,14 @@ interface SlackTriggerEvent {
   text: string
   timestamp: string
   thread_ts: string
+  streaming_message_ts: string[]
+  title: string
+  previous_title: string
+  tab: string
+  context: Record<string, unknown> | null
   team_id: string
+  user_team_id: string
+  enterprise_id: string
   event_id: string
   reaction: string
   item_user: string
@@ -134,7 +141,14 @@ function createSlackEvent(): SlackTriggerEvent {
     text: '',
     timestamp: '',
     thread_ts: '',
+    streaming_message_ts: [],
+    title: '',
+    previous_title: '',
+    tab: '',
+    context: null,
     team_id: '',
+    user_team_id: '',
+    enterprise_id: '',
     event_id: '',
     reaction: '',
     item_user: '',
@@ -341,7 +355,7 @@ async function downloadSlackFiles(
     }
 
     try {
-      const urlValidation = await validateUrlWithDNS(urlPrivate, 'url_private')
+      const urlValidation = await validateUrlWithDNS(urlPrivate, 'url_private', 'contentFetch')
       if (!urlValidation.isValid) {
         logger.warn('Slack file url_private failed DNS validation, skipping', {
           fileId: f.id,
@@ -350,7 +364,8 @@ async function downloadSlackFiles(
         continue
       }
 
-      const response = await secureFetchWithPinnedIP(urlPrivate, urlValidation.resolvedIP!, {
+      const response = await secureFetchWithPinnedIP(urlPrivate, urlValidation.resolvedIP, {
+        profile: 'contentFetch',
         headers: { Authorization: `Bearer ${botToken}` },
       })
 
@@ -578,6 +593,10 @@ const CONTENT_MESSAGE_SUBTYPES = new Set([
  * fans out to `message` / `message_edited` / `message_deleted` by subtype.
  */
 export function resolveSlackEventKey(body: Record<string, unknown>): string | null {
+  if (typeof body.command === 'string' && body.command.startsWith('/')) {
+    return 'slash_command'
+  }
+
   const event = body.event as Record<string, unknown> | undefined
   if (!event) {
     // Interactivity payloads (button clicks, modal submits) have no `event`
@@ -605,6 +624,9 @@ export function resolveSlackEventKey(body: Record<string, unknown>): string | nu
     case 'pin_removed':
     case 'team_join':
     case 'app_home_opened':
+    case 'agent_session_stopped':
+    case 'agent_session_title_changed':
+    case 'app_context_changed':
     case 'assistant_thread_started':
     case 'assistant_thread_context_changed':
       return type
@@ -763,6 +785,12 @@ export function shouldSkipSlackTriggerEvent(
           : (actions[0]?.action_id as string | undefined)
       if (!interactionId || !ids.includes(interactionId)) return true
     }
+  }
+
+  if (supports('command')) {
+    const expectedCommand =
+      typeof providerConfig.commandFilter === 'string' ? providerConfig.commandFilter.trim() : ''
+    if (expectedCommand && body.command !== expectedCommand) return true
   }
 
   // Channels — picker or manual IDs, the basic/advanced sides of one canonical
@@ -936,7 +964,14 @@ export const slackHandler: WebhookProviderHandler = {
     const isReactionEvent = SLACK_REACTION_EVENTS.has(eventType)
 
     const item = rawEvent?.item as Record<string, unknown> | undefined
-    const channel: string = resolveSlackEventChannel(rawEvent) || ''
+    const assistantThread = isRecordLike(rawEvent?.assistant_thread)
+      ? rawEvent.assistant_thread
+      : undefined
+    const assistantContext = isRecordLike(assistantThread?.context)
+      ? assistantThread.context
+      : undefined
+    const channel: string =
+      resolveSlackEventChannel(rawEvent) || asString(assistantThread?.channel_id)
     const messageTs: string = isReactionEvent
       ? (item?.ts as string) || ''
       : (rawEvent?.ts as string) || (rawEvent?.event_ts as string) || ''
@@ -961,12 +996,30 @@ export const slackHandler: WebhookProviderHandler = {
     event.subtype = asString(rawEvent?.subtype)
     event.channel = channel
     event.channel_type = asString(rawEvent?.channel_type)
-    event.user = asString(rawEvent?.user)
+    event.user = asString(rawEvent?.user) || asString(assistantThread?.user_id)
     event.bot_id = asString(rawEvent?.bot_id)
     event.text = text
     event.timestamp = messageTs
-    event.thread_ts = asString(rawEvent?.thread_ts)
-    event.team_id = asString(b?.team_id) || asString(rawEvent?.team)
+    event.thread_ts = asString(rawEvent?.thread_ts) || asString(assistantThread?.thread_ts)
+    event.streaming_message_ts = Array.isArray(rawEvent?.streaming_message_ts)
+      ? rawEvent.streaming_message_ts.filter((value): value is string => typeof value === 'string')
+      : []
+    event.title = asString(rawEvent?.title)
+    event.previous_title = asString(rawEvent?.previous_title)
+    event.tab = asString(rawEvent?.tab)
+    event.context = isRecordLike(rawEvent?.context)
+      ? rawEvent.context
+      : isRecordLike(rawEvent?.app_context)
+        ? rawEvent.app_context
+        : null
+    event.team_id =
+      asString(b?.team_id) ||
+      asString(rawEvent?.team_id) ||
+      asString(rawEvent?.team) ||
+      asString(assistantContext?.team_id)
+    event.user_team_id =
+      asString(rawEvent?.user_team) || asString(assistantContext?.team_id) || event.team_id
+    event.enterprise_id = asString(rawEvent?.enterprise_id) || asString(b?.enterprise_id)
     event.event_id = asString(b?.event_id)
     event.api_app_id = asString(b?.api_app_id)
     event.app_id =

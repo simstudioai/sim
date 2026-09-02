@@ -65,6 +65,12 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
   claimWorkflowToolExecution,
 }))
 
+/** Table side effects are not exercised here, and the real module loads the table application layer. */
+vi.mock('@/lib/copilot/request/tools/tables', () => ({
+  maybeWriteOutputToTable: vi.fn(async (_toolName, _params, result) => result),
+  maybeWriteReadCsvToTable: vi.fn(async (_toolName, _params, result) => result),
+}))
+
 vi.mock('@/lib/copilot/request/tools/client', () => ({
   waitForClientToolCompletion,
   waitForToolCompletion,
@@ -134,6 +140,7 @@ describe('sse-handlers tool lifecycle', () => {
       toolPermissions: {
         enabled: false,
         autoAllowed: new Set(),
+        autoAllowPermitted: true,
       },
     }
     execContext = {
@@ -238,6 +245,7 @@ describe('sse-handlers tool lifecycle', () => {
     context.toolPermissions = {
       enabled: true,
       autoAllowed: new Set(),
+      autoAllowPermitted: true,
     }
 
     const event = {
@@ -275,6 +283,7 @@ describe('sse-handlers tool lifecycle', () => {
     context.toolPermissions = {
       enabled: false,
       autoAllowed: new Set(),
+      autoAllowPermitted: true,
     }
 
     const event = {
@@ -302,6 +311,7 @@ describe('sse-handlers tool lifecycle', () => {
     context.toolPermissions = {
       enabled: true,
       autoAllowed: new Set(),
+      autoAllowPermitted: true,
     }
 
     const event = {
@@ -331,6 +341,7 @@ describe('sse-handlers tool lifecycle', () => {
     context.toolPermissions = {
       enabled: true,
       autoAllowed: new Set(['deploy_as_api']),
+      autoAllowPermitted: true,
     }
 
     const event = {

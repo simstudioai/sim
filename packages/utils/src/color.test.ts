@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { perceivedBrightness } from './color'
+import { perceivedBackgroundBrightness, perceivedBrightness } from './color'
 
 describe('perceivedBrightness', () => {
   it('returns 1 for white and 0 for black (hex and keywords)', () => {
@@ -25,5 +25,33 @@ describe('perceivedBrightness', () => {
   it('reads saturated brand colors perceptually (bright yellow is light)', () => {
     expect((perceivedBrightness('#EAB308') as number) > 0.6).toBe(true)
     expect((perceivedBrightness('#3B82F6') as number) < 0.6).toBe(true)
+  })
+})
+
+describe('perceivedBackgroundBrightness', () => {
+  it('preserves solid-color brightness', () => {
+    expect(perceivedBackgroundBrightness('#ffffff')).toBe(1)
+    expect(perceivedBackgroundBrightness('#000000')).toBe(0)
+  })
+
+  it('averages supported CSS gradient stops', () => {
+    expect(
+      perceivedBackgroundBrightness('linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)')
+    ).toBeCloseTo(0.9715)
+    expect(perceivedBackgroundBrightness('linear-gradient(45deg, #000, #fff)')).toBe(0.5)
+    expect(
+      perceivedBackgroundBrightness('radial-gradient(circle, black, #fff, white)')
+    ).toBeCloseTo(2 / 3)
+  })
+
+  it('returns null for unsupported backgrounds', () => {
+    expect(
+      perceivedBackgroundBrightness('linear-gradient(45deg, currentColor, transparent)')
+    ).toBeNull()
+    expect(
+      perceivedBackgroundBrightness('linear-gradient(45deg, #fff, rebeccapurple, #000)')
+    ).toBeNull()
+    expect(perceivedBackgroundBrightness('linear-gradient(rebeccapurple, #fff, #000)')).toBeNull()
+    expect(perceivedBackgroundBrightness('currentColor')).toBeNull()
   })
 })

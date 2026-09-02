@@ -1,8 +1,9 @@
-import type {
-  DelegatedPrincipal,
-  Principal,
-  SessionPrincipal,
-  WorkflowExecutionDelegatedPrincipal,
+import {
+  type DelegatedPrincipal,
+  type Principal,
+  resolvePrincipalSubjectUserId,
+  type SessionPrincipal,
+  type WorkflowExecutionDelegatedPrincipal,
 } from '@sim/auth/principal'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -38,6 +39,7 @@ import {
   messageForOrchestrationError,
   statusForOrchestrationError,
 } from '@/lib/core/orchestration/types'
+import { enforceUserRateLimit, type TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export class InternalUnauthenticatedError extends Error {
@@ -102,19 +104,49 @@ export function createInternalSessionOrExecutorAuth(
   }
 }
 
-interface InternalRateLimitPolicy {
+interface InternalNoRateLimitPolicy {
   readonly kind: 'none'
   readonly reason: string
   enforce(request: NextRequest, principal: Principal): Promise<void>
 }
 
+interface InternalUserRateLimitPolicy {
+  readonly kind: 'user'
+  readonly bucketName: string
+  enforce(request: NextRequest, principal: Principal): Promise<NextResponse | null>
+}
+
+type InternalRateLimitPolicy = InternalNoRateLimitPolicy | InternalUserRateLimitPolicy
+
 export const internalRateLimits = {
-  none({ reason }: { reason: string }): InternalRateLimitPolicy {
+  none({ reason }: { reason: string }): InternalNoRateLimitPolicy {
     if (!reason.trim()) throw new Error('A rate-limit exemption reason is required')
     return {
       kind: 'none',
       reason,
       async enforce() {},
+    }
+  },
+  user({
+    bucketName,
+    config,
+  }: {
+    bucketName: string
+    config?: TokenBucketConfig
+  }): InternalUserRateLimitPolicy {
+    if (!bucketName.trim()) throw new Error('A user rate-limit bucket name is required')
+    return {
+      kind: 'user',
+      bucketName,
+      async enforce(_request, principal) {
+        const userId = resolvePrincipalSubjectUserId(principal)
+        if (!userId) {
+          throw new Error(
+            `User rate limit cannot resolve a subject for ${principal.kind} principal`
+          )
+        }
+        return enforceUserRateLimit(bucketName, userId, config)
+      },
     }
   },
 } as const
@@ -256,6 +288,8 @@ type InternalJsonRouteOptions<
   }): void | Promise<void>
   onSuccess?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): void | Promise<void>
   statusForResult?(result: NoInfer<R>): number
+  /** Headers applied last to every response path, including authentication and parse failures. */
+  staticResponseHeaders?: HeadersInit
   responseHeaders?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): HeadersInit
   finalizeResponse?(args: {
     request: NextRequest
@@ -332,7 +366,8 @@ export function defineInternalJsonRoute<
         throw error
       }
 
-      await options.rateLimit.enforce(request, principal)
+      const rateLimitResponse = await options.rateLimit.enforce(request, principal)
+      if (rateLimitResponse) return responseWithRequestId(rateLimitResponse)
       if (options.beforeParse) {
         try {
           await options.beforeParse({ request, principal, params: rawParams })
@@ -408,5 +443,13 @@ export function defineInternalJsonRoute<
     }
   )
 
-  return async (request, context) => wrapped(request, context)
+  return async (request, context) => {
+    const response = await wrapped(request, context)
+    if (options.staticResponseHeaders) {
+      new Headers(options.staticResponseHeaders).forEach((value, key) => {
+        response.headers.set(key, value)
+      })
+    }
+    return response
+  }
 }

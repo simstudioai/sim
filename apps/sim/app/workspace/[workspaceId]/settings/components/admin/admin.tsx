@@ -157,7 +157,7 @@ export function Admin() {
         },
         onSuccess: async () => {
           recordImpersonation(email)
-          await clearUserData()
+          await clearUserData({ preserveRecentImpersonations: true })
           window.location.assign('/workspace')
         },
       }

@@ -88,6 +88,13 @@ export function toolCallNeedsApproval(
     }
   }
 
+  /**
+   * permission-group-enforced: copilot.tool_auto_approval — the stored list is
+   * consulted here, so honouring the key only where an entry is written would
+   * leave every entry saved before the policy changed still silencing prompts.
+   */
+  if (!context.toolPermissions.autoAllowPermitted) return true
+
   return !context.toolPermissions.autoAllowed.has(toolName)
 }
 
@@ -271,10 +278,25 @@ export function runGatedToolExecution(
 
       span.setAttribute(TraceAttr.CopilotAsyncToolPermissionDecision, decision.decision)
 
-      if (decisionSuppressesFuturePrompts(decision.decision)) {
-        // Same-turn effect: a second call to this tool later in the turn must
-        // not re-prompt. The durable write (chat row or user settings) happens
-        // in the endpoint.
+      if (
+        decisionSuppressesFuturePrompts(decision.decision) &&
+        context.toolPermissions.autoAllowPermitted
+      ) {
+        /**
+         * Same-turn effect: a second call to this tool later in the turn must
+         * not re-prompt. The durable write (chat row or user settings) happens
+         * in the endpoint, which refuses it under the same capability.
+         *
+         * `autoAllowPermitted` is the snapshot the turn opened with, and it is
+         * deliberately not re-read here. Re-reading would not see a key revoked
+         * mid-turn anyway: `resolvePermissionGroupConfig` memoizes per request
+         * scope, so every read inside one turn answers with the value that
+         * scope resolved first. Revocation therefore takes effect on the next
+         * turn — seconds to minutes away — and in the meantime silences only
+         * prompts this user answered in person, never persisting one: the
+         * endpoint reads the capability on its own request and refuses the
+         * durable write.
+         */
         context.toolPermissions.autoAllowed.add(toolName)
       }
 

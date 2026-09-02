@@ -207,6 +207,7 @@ silently available.
   id: 'channel',
   title: 'Channel',
   type: 'channel-selector',
+  selectorKey: '{service}.channels',
   serviceId: '{service}',
   placeholder: 'Select channel',
   dependsOn: ['credential'],
@@ -217,6 +218,7 @@ silently available.
   id: 'project',
   title: 'Project',
   type: 'project-selector',
+  selectorKey: '{service}.projects',
   serviceId: '{service}',
   dependsOn: ['credential'],
 }
@@ -226,6 +228,7 @@ silently available.
   id: 'file',
   title: 'File',
   type: 'file-selector',
+  selectorKey: '{service}.files',
   serviceId: '{service}',
   mimeType: 'application/pdf',
   dependsOn: ['credential'],
@@ -236,6 +239,7 @@ silently available.
   id: 'user',
   title: 'User',
   type: 'user-selector',
+  selectorKey: '{service}.users',
   serviceId: '{service}',
   dependsOn: ['credential'],
 }
@@ -691,6 +695,10 @@ export const ServiceBlock: BlockConfig = {
   type: 'service',
   name: 'Service (Legacy)',
   hideFromToolbar: true,  // Hide from toolbar
+  // Required: drives the amber legacy badge and its click-to-upgrade action.
+  // `check-block-registry` fails a legacy block with no `replacedBy`, one whose
+  // target does not exist, or one whose target is itself sunset or still `preview`.
+  sunset: { status: 'legacy', replacedBy: 'service_v2' },
   // ... rest of config
 }
 
@@ -1065,7 +1073,11 @@ After creating the block, you MUST validate it against every tool it references:
 
 A sub-block gets its choices from exactly one of two places. There is no third.
 
-**`selectorKey` — every remote list.** Register the list in `hooks/selectors/providers/<service>/selectors.ts`, add its key to `SelectorKey`, and point the sub-block at it. A selector is parameterized by an explicit `SelectorContext`, so the same definition serves the canvas, the workspace-fork sync modal, and anything added later.
+**`selectorKey` — every remote list.** Use the `add-selector` skill to add browser-safe metadata in
+`apps/sim/lib/selectors/manifest.ts`. Attach `provider-server` selectors under
+`apps/sim/lib/selectors/server/providers/` and `internal-server` selectors in
+`apps/sim/lib/selectors/server/internal.ts`. Point the sub-block at that key. All remote selectors
+execute through `selectors.execute`; never add a client provider module or selector-only fetch route.
 
 ```ts
 { id: 'triggerCredentials', type: 'oauth-input', canonicalParamId: 'oauthCredential', mode: 'trigger' },
@@ -1074,7 +1086,13 @@ A sub-block gets its choices from exactly one of two places. There is no third.
 { id: 'manualLabelIds', type: 'short-input', mode: 'trigger-advanced' },
 ```
 
-`canonicalParamId: 'oauthCredential'` on the credential sub-block is the line people forget. `buildSelectorContextFromBlock` keys the context on a sub-block's CANONICAL id, so without it `context.oauthCredential` is never set and the picker looks unfixable without reading the store. (A credential field is also recognised by its `oauth-input` TYPE as a fallback, so a block whose shipped param is already named something else does not have to rename it.)
+`canonicalParamId: 'oauthCredential'` on the credential sub-block is the line people forget. The
+shared context builder projects only active `dependsOn` values and keys canonical pairs by their
+canonical id. Exact environment references such as `{{GMAIL_CREDENTIAL_ID}}` stay unresolved in the
+browser and are resolved only by the authorized server executor. The builder does not infer a
+nonstandard credential id from `type: 'oauth-input'`; give it
+`canonicalParamId: 'oauthCredential'`, or declare an explicit manifest `sourceFields` alias when a
+legacy source id must be retained.
 
 **`options` — everything else.** A static array, or a pure function of the block's own values for a list that narrows to a sibling's selection. No I/O.
 
@@ -1089,5 +1107,6 @@ options: (params) => {
 
 Two rules the checks enforce:
 
-- **A secret never enters a selector's `getQueryKey`.** A query key identifies a resource; a credential authorizes access to it. A credential *id* is fine; a typed password is not (see `imap.mailboxes`).
+- **Selector query keys contain no context values.** This includes credential IDs, raw secrets,
+  unresolved references, and hashes of those values; the shared facade uses an opaque local revision.
 - **A sub-block that `dependsOn` a credential / knowledge-base / table selector must be reconfigurable at fork-sync time** — a `selectorKey`, a canonical pair whose basic member is a selector, or a `short-input`/`long-input`. `bun run check:fork-dependent-coverage` fails otherwise, because a fork sync clears those fields on every push and an unofferable one can never be set anywhere that sticks.

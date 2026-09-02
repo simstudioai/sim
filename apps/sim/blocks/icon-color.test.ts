@@ -18,9 +18,10 @@ describe('isLightTileColor', () => {
     expect(isLightTileColor('#B2C147')).toBe(false)
   })
 
-  it('treats dark tiles, gradients, and empty values as dark', () => {
+  it('uses gradient stops while keeping dark and empty values dark', () => {
     expect(isLightTileColor('#171717')).toBe(false)
     expect(isLightTileColor('#9B5CFF')).toBe(false)
+    expect(isLightTileColor('linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)')).toBe(true)
     expect(isLightTileColor('linear-gradient(45deg, #fff, #000)')).toBe(false)
     expect(isLightTileColor(null)).toBe(false)
     expect(isLightTileColor(undefined)).toBe(false)

@@ -1,4 +1,4 @@
-import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
+import { ashbyAuthHeaders, ashbyErrorMessage, ashbyLimit } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListCustomFieldsParams {
@@ -29,7 +29,7 @@ interface AshbyListCustomFieldsResponse extends ToolResponse {
     customFields: AshbyCustomFieldDefinition[]
     moreDataAvailable: boolean
     nextCursor: string | null
-    syncToken: string | null
+    nextSyncCursor: string | null
   }
 }
 
@@ -82,7 +82,8 @@ export const listCustomFieldsTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.cursor) body.cursor = params.cursor
-      if (params.perPage) body.limit = params.perPage
+      const limit = ashbyLimit(params.perPage)
+      if (limit) body.limit = limit
       if (params.syncToken) body.syncToken = params.syncToken
       if (params.includeArchived !== undefined) body.includeArchived = params.includeArchived
       return body
@@ -101,7 +102,7 @@ export const listCustomFieldsTool: ToolConfig<
       output: {
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
-        syncToken: data.syncToken ?? null,
+        nextSyncCursor: data.syncToken ?? null,
         customFields: (data.results ?? []).map(
           (f: Record<string, unknown> & { selectableValues?: Array<Record<string, unknown>> }) => ({
             id: (f.id as string) ?? '',
@@ -174,7 +175,7 @@ export const listCustomFieldsTool: ToolConfig<
       description: 'Opaque cursor for fetching the next page',
       optional: true,
     },
-    syncToken: {
+    nextSyncCursor: {
       type: 'string',
       description: 'Opaque sync token returned after the last page; pass on next sync',
       optional: true,

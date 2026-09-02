@@ -45,6 +45,7 @@ const REQUIRE_RE = /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g
  * design, so flagging them would bury the one rule that matters.
  */
 const SUBPATH_REQUIRED = new Set(['@sim/utils'])
+const repositoryFiles = new Set<string>()
 
 /** Repo-relative path, always `/`-separated — `relative()` yields `\` on Windows. */
 function repoPath(absolute: string): string {
@@ -70,7 +71,10 @@ function walk(dir: string, acc: string[] = []): string[] {
     if (e.name.startsWith('.') || SKIP_DIRS.has(e.name)) continue
     const full = join(dir, e.name)
     if (e.isDirectory()) walk(full, acc)
-    else if (isCompiledSource(full, e.name)) acc.push(full)
+    else {
+      repositoryFiles.add(full)
+      if (isCompiledSource(full, e.name)) acc.push(full)
+    }
   }
   return acc
 }
@@ -98,13 +102,13 @@ function isFile(p: string): boolean {
 
 /** `<base>`, `<base><ext>`, or `<base>/index<ext>`. */
 function probe(base: string): string | null {
-  if (isFile(base)) return base
+  if (repositoryFiles.has(base)) return base
   for (const ext of EXTENSIONS) {
-    if (isFile(base + ext)) return base + ext
+    if (repositoryFiles.has(base + ext)) return base + ext
   }
   for (const ext of EXTENSIONS) {
     const idx = join(base, `index${ext}`)
-    if (isFile(idx)) return idx
+    if (repositoryFiles.has(idx)) return idx
   }
   return null
 }
@@ -279,6 +283,18 @@ function resolveSpecifier(spec: string, importer: string): Outcome | null {
   return null // bare npm specifier — not ours to verify
 }
 
+const resolutionCache = new Map<string, Outcome | null>()
+
+function resolveSpecifierCached(spec: string, importer: string): Outcome | null {
+  const workspace = workspaceFor(importer)
+  const scope = spec.startsWith('.') ? dirname(importer) : (workspace?.dir ?? ROOT)
+  const key = `${scope}\0${spec}`
+  if (resolutionCache.has(key)) return resolutionCache.get(key) ?? null
+  const outcome = resolveSpecifier(spec, importer)
+  resolutionCache.set(key, outcome)
+  return outcome
+}
+
 interface Violation {
   file: string
   line: number
@@ -328,7 +344,7 @@ for (const file of files) {
       const spec = m[1]
       // `m.index` is the newline ending the previous line; the specifier's offset is exact.
       const at = m.index + m[0].lastIndexOf(spec)
-      const outcome = resolveSpecifier(spec, file)
+      const outcome = resolveSpecifierCached(spec, file)
       if (outcome) {
         checked++
         if (!outcome.ok) {

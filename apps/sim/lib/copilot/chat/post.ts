@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { chatOperations } from '@/lib/copilot/application/operations'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
@@ -64,6 +65,8 @@ import {
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import type { AtomicClaimResult } from '@/lib/core/idempotency'
 import { chatSendIdempotency } from '@/lib/core/idempotency'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import {
@@ -1051,6 +1054,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       typeof session.user.name === 'string' ? session.user.name : undefined
 
     const body = ChatMessageSchema.parse(await req.json())
+
     const userMetadata = {
       ...(authenticatedUserName ? { name: authenticatedUserName } : {}),
       ...(authenticatedUserEmail ? { email: authenticatedUserEmail } : {}),
@@ -1069,7 +1073,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       executionId,
       runId,
       transport: CopilotTransport.Stream,
-      userMessagePreview: body.message,
     })
     if (otelRoot.requestId) {
       requestId = otelRoot.requestId
@@ -1084,10 +1087,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     if (authenticatedUserEmail) {
       otelRoot.span.setAttribute(TraceAttr.UserEmail, authenticatedUserEmail)
     }
-    // `setInputMessages` is internally gated on
-    // OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT; safe to call.
-    otelRoot.setInputMessages({ userMessage: body.message })
-
     // Wrap the rest of the handler so nested spans attach to the
     // root via AsyncLocalStorage (otherwise they orphan into new traces).
     const activeOtelRoot = otelRoot
@@ -1118,6 +1117,54 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.finish('error')
         return branch
       }
+
+      /**
+       * permission-group-enforced: copilot.use — Chat is a raw handler rather
+       * than a workspace operation, so the authorization funnel never sees it.
+       * The capability is read off `chatOperations.send` rather than restated,
+       * so the assertion and the refusal cannot drift from the declaration a
+       * declarative surface would enforce — including the `'none'` case, where
+       * a declarative surface asserts nothing and so does this.
+       *
+       * Gated on the workspace the turn actually lands in, which is the one
+       * `resolveBranch` just resolved rather than the one the request asked
+       * for. A send naming `workflowId` resolves the workflow's own workspace
+       * and ignores any `workspaceId` beside it, so reading the request's copy
+       * would aim the check at a workspace the chat never touches — or, with
+       * no `workspaceId` sent at all, skip it entirely. A branch that resolves
+       * no workspace is governed by no group.
+       *
+       * Still ahead of everything durable: no chat is resolved, no pending
+       * stream lock is taken and no run is created, which also settles the
+       * resume stream — with no run there is nothing to replay. The send claim
+       * taken above is released by the `finally`, so a refused send leaves a
+       * later retry free to start a turn.
+       */
+      const chatCapability = chatOperations.send.capability
+      if (
+        branch.workspaceId &&
+        chatCapability !== 'none' &&
+        (await isWorkspaceCapabilityWithheld(
+          authenticatedUserId,
+          branch.workspaceId,
+          chatCapability
+        ))
+      ) {
+        activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, 403)
+        activeOtelRoot.finish('error')
+        return capabilityRefusalResponse(chatCapability)
+      }
+
+      /* Prompt content is captured only once the turn is going to run. Both
+         calls are internally gated on
+         OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT, but the gate is on
+         whether capture is enabled at all, not on whether this caller may send
+         — so stamping them at span start exported the message of every turn the
+         capability check above then refused. Every refusal ahead of this point
+         (a rejected branch, a withheld `copilot.use`) now records the shape of
+         the request and none of its content. */
+      activeOtelRoot.setUserMessagePreview(body.message)
+      activeOtelRoot.setInputMessages({ userMessage: body.message })
 
       let currentChat: ChatLoadResult['chat'] = null
       let conversationHistory: unknown[] = []

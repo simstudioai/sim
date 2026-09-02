@@ -1,5 +1,5 @@
 import type { OAuthService } from '@/lib/oauth/types'
-import type { SelectorKey } from '@/hooks/selectors/types'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 
 /**
  * Authentication configuration for a connector.

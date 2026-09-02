@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  optionalNumberQuerySchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const v1LogParamsSchema = z.object({
@@ -19,10 +23,10 @@ export const v1ListLogsQuerySchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   executionId: z.string().optional(),
-  minDurationMs: z.coerce.number().optional(),
-  maxDurationMs: z.coerce.number().optional(),
-  minCost: z.coerce.number().optional(),
-  maxCost: z.coerce.number().optional(),
+  minDurationMs: optionalNumberQuerySchema,
+  maxDurationMs: optionalNumberQuerySchema,
+  minCost: optionalNumberQuerySchema,
+  maxCost: optionalNumberQuerySchema,
   model: z.string().optional(),
   details: z.enum(['basic', 'full']).optional().default('basic'),
   includeTraceSpans: booleanQueryFlagSchema.optional().default(false),

@@ -92,8 +92,6 @@ const nextConfig: NextConfig = {
   output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
   serverExternalPackages: [
     '@1password/sdk',
-    'unpdf',
-    'fluent-ffmpeg',
     'ws',
     'isolated-vm',
     '@e2b/code-interpreter',
@@ -209,7 +207,7 @@ const nextConfig: NextConfig = {
      */
     optimizePackageImports: [
       'framer-motion',
-      'reactflow',
+      '@xyflow/react',
       '@radix-ui/react-dialog',
       '@radix-ui/react-dropdown-menu',
       '@radix-ui/react-popover',

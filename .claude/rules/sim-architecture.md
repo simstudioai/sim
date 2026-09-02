@@ -62,21 +62,25 @@ Every export of a `'use client'` module becomes a *client reference* on the serv
 Server code runs in two runtimes with **different environments**. The app container loads the
 full env from `SIM_ENV_SECRET_ID` (Secrets Manager). Trigger.dev workers — which execute
 workflows, so every block handler and every tool call — get their env from the Trigger.dev
-dashboard, and `trigger.config.ts` syncs only `DB_APP_NAME`. The repo cannot see what the
-dashboard holds.
+dashboard; `trigger.config.ts` additionally syncs `DB_APP_NAME`, `TRIGGER_DEV_ENABLED`, and the
+`FUNCTION_EXECUTION_ENV` vars. The repo cannot see what the dashboard holds.
 
 So before replacing a worker's HTTP call to our own API with an in-process call, ask what env
 that work reads *on the app side*. Anything gated by a `require*Capability` helper is the sharp
 case: those **throw** when the variable is absent (`requireOAuthClientCapability` →
 `EnvCapabilityConfigurationError`), and the throw may be caught and reported as something
-unrelated. OAuth token refresh is the known example — moving it into the worker turns every
-expired credential into `Failed to refresh access token`, while a still-valid token hides the
-bug entirely, so it surfaces hours later and only for whoever's token lapsed first.
+unrelated — an in-worker OAuth refresh missing a provider's client pair reports every expired
+credential as `Failed to refresh access token`, while a still-valid token hides the bug until it
+lapses. The required step before such a conversion is verifying the dashboard env holds every
+variable the moved code reads (for OAuth refresh: the `OAUTH_CLIENT_CAPABILITIES` key pairs in
+`packages/deployment-config/src/env-capabilities.ts`).
 
 An in-process conversion is safe when the same work already runs in that runtime (the agent
 block has always called `executeProviderRequest` in-process, so router and evaluator joining it
-is proven), or when the caller and the callee are both the app (a route calling a lib module, an
-RSC prefetch reading the data layer). It is not safe on reasoning alone.
+is proven; connector sync refreshing OAuth tokens in-worker is what proved credential-token
+resolution could move in-process), or when the caller and the callee are both the app (a route
+calling a lib module, an RSC prefetch reading the data layer). It is not safe on reasoning
+alone — verify the env, then convert.
 
 ## Feature Organization
 

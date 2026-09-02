@@ -4,6 +4,7 @@
 import { deflateSync } from 'zlib'
 import { describe, expect, it } from 'vitest'
 import { MAX_PDF_TEXT_CHARS, PdfParser } from '@/lib/file-parsers/pdf-parser'
+import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
 
 /**
  * Builds a single-page PDF that draws 64 characters per repeat from a
@@ -49,8 +50,26 @@ function buildTextFreePdf(pageCount: number): Buffer {
   ])
 }
 
+/** Builds a structurally valid PDF that requires a password before opening. */
+function buildEncryptedPdf(): Buffer {
+  const ownerAndUserKey = '00'.repeat(32)
+  const documentId = '11'.repeat(16)
+
+  return assemblePdf(
+    [
+      Buffer.from('<< /Type /Catalog /Pages 2 0 R >>'),
+      Buffer.from('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'),
+      Buffer.from('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>'),
+      Buffer.from(
+        `<< /Filter /Standard /V 1 /R 2 /O <${ownerAndUserKey}> /U <${ownerAndUserKey}> /P -4 >>`
+      ),
+    ],
+    `/Encrypt 4 0 R /ID [<${documentId}> <${documentId}>]`
+  )
+}
+
 /** Serializes numbered objects into a PDF with a matching xref table and trailer. */
-function assemblePdf(objects: Buffer[]): Buffer {
+function assemblePdf(objects: Buffer[], trailerEntries = ''): Buffer {
   const chunks: Buffer[] = [Buffer.from('%PDF-1.4\n')]
   const offsets: number[] = []
   let offset = chunks[0].length
@@ -72,7 +91,7 @@ function assemblePdf(objects: Buffer[]): Buffer {
   chunks.push(
     Buffer.from(
       `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${xrefRows}` +
-        `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${offset}\n%%EOF\n`
+        `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R ${trailerEntries} >>\nstartxref\n${offset}\n%%EOF\n`
     )
   )
 
@@ -80,6 +99,27 @@ function assemblePdf(objects: Buffer[]): Buffer {
 }
 
 describe('PdfParser', () => {
+  it('preloads the server worker instead of relying on a runtime-relative worker path', async () => {
+    const previousWorker: unknown = Reflect.get(globalThis, 'pdfjsWorker')
+    Reflect.deleteProperty(globalThis, 'pdfjsWorker')
+
+    const pdf = await openPdfDocument(new Uint8Array(buildTextFreePdf(1)))
+
+    try {
+      expect(Reflect.get(globalThis, 'pdfjsWorker')).toEqual({
+        WorkerMessageHandler: expect.anything(),
+      })
+      expect(pdf.numPages).toBe(1)
+    } finally {
+      await pdf.destroy()
+      if (previousWorker === undefined) {
+        Reflect.deleteProperty(globalThis, 'pdfjsWorker')
+      } else {
+        Reflect.set(globalThis, 'pdfjsWorker', previousWorker)
+      }
+    }
+  })
+
   it('bounds extracted text from a compression-bomb PDF instead of exhausting the heap', async () => {
     const bomb = buildTextBombPdf(200_000)
     expect(bomb.length).toBeLessThan(200 * 1024)
@@ -103,6 +143,7 @@ describe('PdfParser', () => {
     expect(result.metadata?.truncated).toBe(false)
     expect(result.metadata?.warning).toBeUndefined()
     expect(result.metadata?.pageCount).toBe(1)
+    expect(result.metadata?.source).toBe('unpdf')
     expect(result.content).toContain('AAAA')
     expect(result.content).not.toContain('truncated')
   }, 30_000)
@@ -113,4 +154,16 @@ describe('PdfParser', () => {
     expect(result.content.trim()).toBe('')
     expect(result.content).not.toContain('[...')
   }, 30_000)
+
+  it('rejects malformed PDF input', async () => {
+    await expect(new PdfParser().parseBuffer(Buffer.from('%PDF-1.4\nnot a PDF'))).rejects.toThrow(
+      /Invalid PDF|PDF structure|document/i
+    )
+  })
+
+  it('preserves the password-required error for encrypted PDFs', async () => {
+    await expect(new PdfParser().parseBuffer(buildEncryptedPdf())).rejects.toMatchObject({
+      name: 'PasswordException',
+    })
+  })
 })

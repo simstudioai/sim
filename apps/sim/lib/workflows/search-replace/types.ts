@@ -1,11 +1,11 @@
 import type { SubBlockType } from '@sim/workflow-types/blocks'
+import type { SelectorContext } from '@/lib/selectors/types'
 import type {
   WorkflowSearchSubflowEditableValue,
   WorkflowSearchSubflowFieldId,
 } from '@/lib/workflows/search-replace/subflow-fields'
 import type { StoredCustomToolRecord } from '@/lib/workflows/subblocks/display'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { SelectorContext } from '@/hooks/selectors/types'
 import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
 
 export type WorkflowSearchMode = 'text' | 'resource' | 'all'
@@ -26,6 +26,14 @@ export type WorkflowSearchMatchKind =
 
 export type WorkflowSearchValuePath = Array<string | number>
 
+/** Raw selector inputs plus the resource scope needed by the client transport. */
+export interface WorkflowSearchSelectorContext extends SelectorContext {
+  workflowId?: string
+  workspaceId?: string
+  /** Search metadata for MCP tools; never forwarded to selectors.execute. */
+  mcpServerId?: string
+}
+
 export interface WorkflowSearchRange {
   start: number
   end: number
@@ -36,7 +44,7 @@ export interface WorkflowSearchResourceMeta {
   providerId?: string
   serviceId?: string
   selectorKey?: string
-  selectorContext?: SelectorContext
+  selectorContext?: WorkflowSearchSelectorContext
   resourceGroupKey?: string
   requiredScopes?: string[]
   token?: string
@@ -119,7 +127,7 @@ export interface WorkflowSearchReplacementOption {
   providerId?: string
   serviceId?: string
   selectorKey?: string
-  selectorContext?: SelectorContext
+  selectorContext?: WorkflowSearchSelectorContext
   resourceGroupKey?: string
 }
 

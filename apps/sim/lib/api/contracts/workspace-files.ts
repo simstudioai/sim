@@ -307,13 +307,3 @@ const compiledCheckResponseSchema = z.union([
   z.object({ ok: z.literal(true) }),
   z.object({ ok: z.literal(false), error: z.string(), errorName: z.string() }),
 ])
-
-export const workspaceFileCompiledCheckContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/workspaces/[id]/files/[fileId]/compiled-check',
-  params: workspaceFileParamsSchema,
-  response: {
-    mode: 'json',
-    schema: compiledCheckResponseSchema,
-  },
-})

@@ -206,8 +206,6 @@ export async function prepareWorkspaceInvitationContext({
 
   const targets: WorkspaceInvitationTarget[] = []
   for (const workspaceId of uniqueWorkspaceIds) {
-    await validateInvitationsAllowed(inviterId, workspaceId)
-
     const isAdmin = await hasWorkspaceAdminAccess(inviterId, workspaceId)
     if (!isAdmin) {
       throw new WorkspaceInvitationError({
@@ -215,6 +213,16 @@ export async function prepareWorkspaceInvitationContext({
         status: 403,
       })
     }
+
+    /**
+     * permission-group-enforced: invitations.send — after the admin check, not
+     * before it. The refusal names an organization setting, so answering it to
+     * someone with no admin reach into `workspaceId` would tell a bystander in
+     * the same organization how another workspace's group is configured. The
+     * role check is also the cheaper of the two and names the remedy the caller
+     * can actually act on.
+     */
+    await validateInvitationsAllowed(inviterId, workspaceId)
 
     const workspaceDetails = await getWorkspaceWithOwner(workspaceId)
     if (!workspaceDetails) {

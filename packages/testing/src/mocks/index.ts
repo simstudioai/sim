@@ -123,6 +123,11 @@ export {
   OauthStepTimeoutErrorMock,
 } from './mcp-oauth.mock'
 // Permission mocks
+export {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+  resetPermissionGroupScopeMock,
+} from './permission-group-scope.mock'
 export { permissionsMock, permissionsMockFns } from './permissions.mock'
 // PostHog server mocks (for @/lib/posthog/server)
 export { posthogServerMock, posthogServerMockFns } from './posthog-server.mock'
@@ -172,6 +177,14 @@ export {
 } from './terminal-console.mock'
 // URL mocks
 export { LOCALHOST_HOSTNAMES_MOCK, resetUrlsMock, urlsMock, urlsMockFns } from './urls.mock'
+// v1 public API ambient request-admission mocks and credential factories
+export {
+  v1PersonalKeyCredential,
+  v1RateLimitContextModuleMock,
+  v1RateLimiterModuleMock,
+  v1SubscriptionModuleMock,
+  v1WorkspaceKeyCredential,
+} from './v1-route.mock'
 export {
   MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,

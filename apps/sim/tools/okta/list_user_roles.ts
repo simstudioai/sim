@@ -35,7 +35,7 @@ export const oktaListUserRolesTool: ToolConfig<OktaListUserRolesParams, OktaList
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'User ID or login to list admin roles for',
+        description: 'Okta user ID (not a login or email) to list admin roles for',
       },
     },
 

@@ -1,7 +1,6 @@
 import { ahrefsAnalytics } from '@c15t/scripts/ahrefs-analytics'
 import { gtag } from '@c15t/scripts/google-tag'
 import { xPixel } from '@c15t/scripts/x-pixel'
-import type { ScriptCallbackInfo } from 'c15t'
 
 export const GOOGLE_ANALYTICS_ID = 'G-DR7YBE70VS' as const
 export const X_PIXEL_ID = 'q5xbl' as const
@@ -19,6 +18,9 @@ const GOOGLE_ANALYTICS_SCRIPT = gtag({
   id: GOOGLE_ANALYTICS_ID,
   category: 'measurement',
 })
+export type ConsentScriptCallbackInfo = Parameters<
+  NonNullable<typeof GOOGLE_ANALYTICS_SCRIPT.onBeforeLoad>
+>[0]
 const initializeGoogleAnalytics = GOOGLE_ANALYTICS_SCRIPT.onBeforeLoad
 
 function withoutQueryOrHash(value: string): string | undefined {
@@ -34,7 +36,7 @@ function withoutQueryOrHash(value: string): string | undefined {
 export const GLOBAL_CONSENT_SCRIPTS = [
   {
     ...GOOGLE_ANALYTICS_SCRIPT,
-    onBeforeLoad: (info: ScriptCallbackInfo) => {
+    onBeforeLoad: (info: ConsentScriptCallbackInfo) => {
       window.dataLayer ||= []
       window.gtag ||= (...args: unknown[]) => {
         window.dataLayer.push(args)

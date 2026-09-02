@@ -13,6 +13,7 @@ const {
   publishToolPermissionDecision,
   addAutoAllowedTool,
   addChatAutoAllowedTool,
+  getUserPermissionConfig,
 } = vi.hoisted(() => ({
   getAsyncToolCall: vi.fn(),
   getRunSegment: vi.fn(),
@@ -20,6 +21,7 @@ const {
   publishToolPermissionDecision: vi.fn(),
   addAutoAllowedTool: vi.fn(),
   addChatAutoAllowedTool: vi.fn(),
+  getUserPermissionConfig: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
@@ -49,6 +51,10 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   isCopilotToolPermissionsEnabled: true,
 }))
 
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfig,
+}))
+
 import { POST } from './route'
 
 describe('Copilot tool permission API', () => {
@@ -69,7 +75,9 @@ describe('Copilot tool permission API', () => {
       id: 'run-1',
       userId: 'user-1',
       chatId: 'chat-1',
+      workspaceId: 'workspace-1',
     })
+    getUserPermissionConfig.mockResolvedValue(null)
     recordToolPermissionDecision.mockResolvedValue({
       toolCallId: 'tool-1',
       runId: 'run-1',
@@ -135,5 +143,78 @@ describe('Copilot tool permission API', () => {
 
     expect(response.status).toBe(200)
     expect(recordToolPermissionDecision).toHaveBeenCalledWith('tool-1', decision)
+  })
+
+  describe('when the permission group withholds tool auto-approval', () => {
+    beforeEach(() => {
+      getUserPermissionConfig.mockResolvedValue({ disableToolAutoApproval: true })
+    })
+
+    it.each(['always_allow', 'allow_chat'] as const)(
+      'answers the %s prompt without remembering it',
+      async (decision) => {
+        recordToolPermissionDecision.mockResolvedValueOnce({
+          toolCallId: 'tool-1',
+          runId: 'run-1',
+          toolName: 'run_workflow',
+          status: 'pending',
+          permissionDecision: decision,
+          permissionDecidedAt: new Date('2026-08-01T00:00:00.000Z'),
+        })
+
+        const response = await POST(createRequest(decision))
+
+        // The waiting orchestrator still gets its answer; only the durable
+        // preference is refused, so the next call prompts again.
+        expect(response.status).toBe(200)
+        expect(publishToolPermissionDecision).toHaveBeenCalledWith(
+          expect.objectContaining({ toolCallId: 'tool-1', decision })
+        )
+        expect(addAutoAllowedTool).not.toHaveBeenCalled()
+        expect(addChatAutoAllowedTool).not.toHaveBeenCalled()
+      }
+    )
+
+    /**
+     * The row is claimed before this lookup runs, so a rejection that escaped
+     * would answer 500 with the decision unpublished — and the retry lands on
+     * the already-answered branch, which does not republish, leaving the turn
+     * to wait out its permission timeout.
+     */
+    it('answers the prompt when the lookup itself fails, remembering nothing', async () => {
+      getUserPermissionConfig.mockRejectedValue(new Error('permission group lookup failed'))
+      recordToolPermissionDecision.mockResolvedValueOnce({
+        toolCallId: 'tool-1',
+        runId: 'run-1',
+        toolName: 'run_workflow',
+        status: 'pending',
+        permissionDecision: 'always_allow',
+        permissionDecidedAt: new Date('2026-08-01T00:00:00.000Z'),
+      })
+
+      const response = await POST(createRequest('always_allow'))
+
+      expect(response.status).toBe(200)
+      expect(publishToolPermissionDecision).toHaveBeenCalledWith(
+        expect.objectContaining({ toolCallId: 'tool-1', decision: 'always_allow' })
+      )
+      expect(addAutoAllowedTool).not.toHaveBeenCalled()
+    })
+
+    it('remembers it again once the group allows it', async () => {
+      getUserPermissionConfig.mockResolvedValue({ disableToolAutoApproval: false })
+      recordToolPermissionDecision.mockResolvedValueOnce({
+        toolCallId: 'tool-1',
+        runId: 'run-1',
+        toolName: 'run_workflow',
+        status: 'pending',
+        permissionDecision: 'always_allow',
+        permissionDecidedAt: new Date('2026-08-01T00:00:00.000Z'),
+      })
+
+      await POST(createRequest('always_allow'))
+
+      expect(addAutoAllowedTool).toHaveBeenCalledWith('user-1', 'run_workflow')
+    })
   })
 })

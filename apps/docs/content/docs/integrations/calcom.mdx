@@ -44,7 +44,7 @@ Create a new booking on Cal.com
 | --------- | ---- | -------- | ----------- |
 | `eventTypeId` | number | Yes | The ID of the event type to book |
 | `start` | string | Yes | Start time in UTC ISO 8601 format \(e.g., 2024-01-15T09:00:00Z\) |
-| `attendee` | object | Yes | Attendee information object with name, email, timeZone, and optional phoneNumber \(constructed from individual attendee fields\) |
+| `attendee` | object | Yes | Attendee information object with name, email, timeZone, and optional phoneNumber. The Cal.com block composes this from its individual attendee fields; a direct caller sends the object. |
 | `guests` | array | No | Array of guest email addresses |
 | `lengthInMinutes` | number | No | Duration of the booking in minutes \(overrides event type default\) |
 | `metadata` | object | No | Custom metadata to attach to the booking |

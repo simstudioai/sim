@@ -28,9 +28,9 @@ export class GrafanaClient {
   ): Promise<GrafanaClientResult> {
     this.signal?.throwIfAborted()
     const url = `${this.baseUrl}${path}`
-    const validation = await validateUrlWithDNS(url, 'baseUrl')
+    const validation = await validateUrlWithDNS(url, 'baseUrl', 'configuredEndpoint')
     this.signal?.throwIfAborted()
-    if (!validation.isValid || !validation.resolvedIP) {
+    if (!validation.isValid) {
       return { success: false, error: `Invalid Grafana baseUrl: ${validation.error}` }
     }
 
@@ -43,6 +43,7 @@ export class GrafanaClient {
     if (this.organizationId) headers['X-Grafana-Org-Id'] = this.organizationId
 
     const response = await secureFetchWithPinnedIP(url, validation.resolvedIP, {
+      profile: 'configuredEndpoint',
       method: options.method,
       headers,
       ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),

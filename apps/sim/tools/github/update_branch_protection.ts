@@ -2,6 +2,70 @@ import type { BranchProtectionResponse, UpdateBranchProtectionParams } from '@/t
 import { BRANCH_PROTECTION_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Names the failure class without echoing the rejected text. `JSON.parse` quotes
+ * the input it rejected back into its own message, and these fields can carry
+ * values resolved from other blocks.
+ */
+const BRANCH_PROTECTION_SHAPE_ERROR =
+  'Branch protection fields must be a JSON object, or left empty to disable the rule'
+
+const BRANCH_PROTECTION_BOOLEAN_ERROR =
+  'enforce_admins must be true, false, or null (leave empty to disable enforcement)'
+
+/**
+ * GitHub documents `required_status_checks`, `enforce_admins`,
+ * `required_pull_request_reviews` and `restrictions` as required body fields
+ * that are nullable — each says "Set to null to disable". "Required" there means
+ * *present in the body*, and `null` satisfies it. Sim's `required: true` means
+ * the user must supply a non-empty value, which is strictly stronger and made
+ * the tool unusable. The params below are therefore optional and this builder
+ * supplies the explicit `null` GitHub demands for every field left unset.
+ */
+function toNullableObject(value: unknown): Record<string, unknown> | null {
+  if (value === undefined || value === null || value === '') return null
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed === '' || trimmed === 'null') return null
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      throw new Error(BRANCH_PROTECTION_SHAPE_ERROR)
+    }
+    if (parsed === null) return null
+    if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(BRANCH_PROTECTION_SHAPE_ERROR)
+    }
+    return parsed as Record<string, unknown>
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(BRANCH_PROTECTION_SHAPE_ERROR)
+  }
+  return value as Record<string, unknown>
+}
+
+/**
+ * Normalizes a nullable boolean body field, tolerating the block's dropdown
+ * strings and the case a model is likely to emit.
+ *
+ * Unrecognized values are rejected rather than coerced. `Boolean(value)` would
+ * read `'0'`, `'no'` and `'False '` as `true` and silently ENABLE administrator
+ * enforcement for a caller asking to disable it — the opposite of the stated
+ * intent, on a field that is `user-or-llm` and therefore model-supplied.
+ */
+function toNullableBoolean(value: unknown): boolean | null {
+  if (value === undefined || value === null) return null
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === '' || normalized === 'null') return null
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+  throw new Error(BRANCH_PROTECTION_BOOLEAN_ERROR)
+}
+
 export const updateBranchProtectionTool: ToolConfig<
   UpdateBranchProtectionParams,
   BranchProtectionResponse
@@ -33,30 +97,31 @@ export const updateBranchProtectionTool: ToolConfig<
     },
     required_status_checks: {
       type: 'object',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Required status check configuration (null to disable). Object with strict (boolean) and contexts (string array)',
+        'Required status check configuration. Object with strict (boolean) and contexts (string array). Omit to disable status checks — GitHub receives an explicit null.',
     },
     enforce_admins: {
       type: 'boolean',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Whether to enforce restrictions for administrators',
+      description:
+        'Whether to enforce restrictions for administrators. Omit to disable admin enforcement — GitHub receives an explicit null.',
     },
     required_pull_request_reviews: {
       type: 'object',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'PR review requirements (null to disable). Object with optional required_approving_review_count, dismiss_stale_reviews, require_code_owner_reviews',
+        'PR review requirements. Object with optional required_approving_review_count, dismiss_stale_reviews, require_code_owner_reviews. Omit to disable review requirements — GitHub receives an explicit null.',
     },
     restrictions: {
       type: 'object',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Push restrictions (null to disable). Object with users (string array) and teams (string array)',
+        'Push restrictions, available only for organization-owned repositories. Object with users (string array), teams (string array) and optional apps (string array). Omit to disable push restrictions — GitHub receives an explicit null.',
     },
     apiKey: {
       type: 'string',
@@ -76,16 +141,12 @@ export const updateBranchProtectionTool: ToolConfig<
       'X-GitHub-Api-Version': '2022-11-28',
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      const body: any = {
-        required_status_checks: params.required_status_checks,
-        enforce_admins: params.enforce_admins,
-        required_pull_request_reviews: params.required_pull_request_reviews,
-        restrictions: params.restrictions,
-      }
-
-      return body
-    },
+    body: (params) => ({
+      required_status_checks: toNullableObject(params.required_status_checks),
+      enforce_admins: toNullableBoolean(params.enforce_admins),
+      required_pull_request_reviews: toNullableObject(params.required_pull_request_reviews),
+      restrictions: toNullableObject(params.restrictions),
+    }),
   },
 
   transformResponse: async (response) => {

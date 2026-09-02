@@ -18,33 +18,30 @@ const NOTIFY_TIMEOUT_MS = 2000
 const APPLY_EDIT_TIMEOUT_MS = FILE_DOC_TIMEOUTS.applyEditMs
 
 /**
- * Best-effort fan-out to the realtime server that a workspace's file tree changed,
- * so every browser currently viewing that workspace's files refetches. File
- * mutations happen over the HTTP API (not the socket); this is a lossy liveness
- * signal — a dropped notification only degrades to stale-until-refetch.
- *
- * Never throws. Callers `await` it (rather than fire-and-forget) so the fetch is
- * guaranteed to dispatch before a Node route handler returns — a floating promise
- * can be dropped after the response is sent. It is a normally-sub-millisecond
- * local call and is hard-bounded to {@link NOTIFY_TIMEOUT_MS}, so it adds that
+ * POST one workspace list-changed signal (`/api/workspace-<x>-changed`) to the realtime server,
+ * which fans it out to every socket in that workspace's live-list room so their browser refetches.
+ * Lossy — a dropped notification only degrades to stale-until-refetch. Never throws. Callers
+ * `await` it (rather than fire-and-forget) so the fetch is guaranteed to dispatch before a Node
+ * route handler returns — a floating promise can be dropped after the response is sent. It is a
+ * normally-sub-millisecond local call, hard-bounded to {@link NOTIFY_TIMEOUT_MS}, so it adds that
  * latency only when the socket pod is unreachable.
  */
-export async function notifyWorkspaceFilesChanged(workspaceId: string): Promise<void> {
+async function postWorkspaceListChanged(endpoint: string, workspaceId: string): Promise<void> {
   try {
-    const response = await fetch(`${getSocketServerUrl()}/api/workspace-files-changed`, {
+    const response = await fetch(`${getSocketServerUrl()}/api/${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
       body: JSON.stringify({ workspaceId }),
       signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
     })
     if (!response.ok) {
-      logger.warn('workspace-files-changed notify failed', {
+      logger.warn(`${endpoint} notify failed`, {
         workspaceId,
         status: response.status,
       })
     }
   } catch (error) {
-    logger.warn('workspace-files-changed notify error', {
+    logger.warn(`${endpoint} notify error`, {
       workspaceId,
       error: getErrorMessage(error),
     })
@@ -52,36 +49,34 @@ export async function notifyWorkspaceFilesChanged(workspaceId: string): Promise<
 }
 
 /**
- * Best-effort fan-out to the realtime server that a workspace's table list changed (a table was
- * created, renamed, moved, deleted, or restored), so every browser currently viewing that
- * workspace's tables refetches. The list-level counterpart to {@link notifyWorkspaceFilesChanged};
- * table mutations happen server-side (HTTP routes AND copilot), so this fires from the shared table
- * service, not a socket. Lossy — a dropped notification only degrades to stale-until-refetch.
- *
- * Never throws. Callers `await` it so the fetch is guaranteed to dispatch before the mutation
- * returns; hard-bounded to {@link NOTIFY_TIMEOUT_MS}, so it adds that latency only when the socket
- * pod is unreachable.
+ * Best-effort fan-out that a workspace's file tree changed, so every viewer of that workspace's
+ * files refetches. See {@link postWorkspaceListChanged} for the shared lossy/never-throws contract.
  */
-export async function notifyWorkspaceTablesChanged(workspaceId: string): Promise<void> {
-  try {
-    const response = await fetch(`${getSocketServerUrl()}/api/workspace-tables-changed`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
-      body: JSON.stringify({ workspaceId }),
-      signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
-    })
-    if (!response.ok) {
-      logger.warn('workspace-tables-changed notify failed', {
-        workspaceId,
-        status: response.status,
-      })
-    }
-  } catch (error) {
-    logger.warn('workspace-tables-changed notify error', {
-      workspaceId,
-      error: getErrorMessage(error),
-    })
-  }
+export function notifyWorkspaceFilesChanged(workspaceId: string): Promise<void> {
+  return postWorkspaceListChanged('workspace-files-changed', workspaceId)
+}
+
+/**
+ * Best-effort fan-out that a workspace's table list changed (a table was created, renamed, moved,
+ * deleted, or restored), so every viewer of that workspace's tables refetches. Fires from the
+ * shared table service, so it covers every surface (HTTP routes AND copilot). See
+ * {@link postWorkspaceListChanged} for the shared lossy/never-throws contract.
+ */
+export function notifyWorkspaceTablesChanged(workspaceId: string): Promise<void> {
+  return postWorkspaceListChanged('workspace-tables-changed', workspaceId)
+}
+
+/**
+ * Best-effort fan-out that a workspace's workflow registry changed (a workflow was created,
+ * renamed, moved, deleted, duplicated, imported, restored, or reordered, or a workflow folder
+ * changed), so every viewer's sidebar workflow list refetches. The list-level counterpart to the
+ * per-workflow editor notifications ({@link notifyWorkflowUpdated}): those only reach sockets with
+ * that workflow's canvas open, while this reaches everyone in the workspace. Fires from the
+ * workflow application use cases, so it covers every surface (UI, CLI, copilot, API). See
+ * {@link postWorkspaceListChanged} for the shared lossy/never-throws contract.
+ */
+export function notifyWorkspaceWorkflowsChanged(workspaceId: string): Promise<void> {
+  return postWorkspaceListChanged('workspace-workflows-changed', workspaceId)
 }
 
 /** Best-effort fan-out that invalidates open editors for one durably changed workflow. */
@@ -149,12 +144,13 @@ export async function notifyWorkflowReverted(workflowId: string, timestamp: numb
  * (create/rename/move/delete/restore) for one of these must fan out the same list-changed signal as a
  * direct resource mutation, because a new/renamed/removed folder changes what that resource's browser
  * shows. Extend this map as more resource lists adopt an invalidation room — `file` and
- * `knowledge_base` currently refetch through their own paths, and `workflow` has no such list room.
+ * `knowledge_base` currently refetch through their own paths.
  */
 const FOLDER_RESOURCE_NOTIFIERS: Partial<
   Record<FolderResourceType, (workspaceId: string) => Promise<void>>
 > = {
   table: notifyWorkspaceTablesChanged,
+  workflow: notifyWorkspaceWorkflowsChanged,
 }
 
 /**

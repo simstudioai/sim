@@ -655,18 +655,7 @@ export const workflowExecutionStatusQuerySchema = z.object({
     ),
 })
 
-/**
- * Cancellation outcomes produced by the cancellation service, and so the whole
- * vocabulary the public v2 endpoint can return — `cancelWorkflowRun` delegates
- * its outcome to that service. Mirrors `CancelWorkflowExecutionReason` in
- * `lib/execution/cancel-workflow-execution` (contracts stay import-clean of
- * server modules). Keeping the internal route's extra outcomes out of here is
- * what stops the published v2 schema advertising reasons v2 cannot emit.
- *
- * `already_cancelled`/`already_completed`/`already_failed` report a run that was
- * already terminal when the request arrived: the request is satisfied, but no
- * durable write happened, so they always pair with `durablyRecorded: false`.
- */
+/** Mirrors the surface-neutral cancellation service's complete outcome vocabulary. */
 export const cancelWorkflowExecutionReasonSchema = z.enum([
   'recorded',
   'already_cancelled',
@@ -676,22 +665,6 @@ export const cancelWorkflowExecutionReasonSchema = z.enum([
   'redis_write_failed',
   'paused_event_publish_failed',
   'paused_database_cancel_failed',
-])
-
-/**
- * The internal route's vocabulary. It reimplements cancellation rather than
- * calling the service, so it resolves three further outcomes of its own:
- * `queue_cancelled` (the run was still queued, so no execution log row existed),
- * `active_resume_signal_failed`, and `cancellation_not_finalized`. Several ride
- * on `success: true` responses, so validating them against the service enum
- * makes `requestJson` reject cancellations that genuinely applied.
- *
- * The `already_*` outcomes are no longer route-local: the service now observes
- * the run's terminal status itself, so both surfaces name a terminal no-op with
- * the same member.
- */
-export const internalCancelWorkflowExecutionReasonSchema = z.enum([
-  ...cancelWorkflowExecutionReasonSchema.options,
   'queue_cancelled',
   'active_resume_signal_failed',
   'cancellation_not_finalized',
@@ -704,7 +677,7 @@ const cancelWorkflowExecutionResponseSchema = z.object({
   durablyRecorded: z.boolean(),
   locallyAborted: z.boolean(),
   pausedCancelled: z.boolean(),
-  reason: internalCancelWorkflowExecutionReasonSchema.optional(),
+  reason: cancelWorkflowExecutionReasonSchema.optional(),
 })
 
 export type CancelWorkflowExecutionResponse = z.output<typeof cancelWorkflowExecutionResponseSchema>

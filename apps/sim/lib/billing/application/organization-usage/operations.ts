@@ -1,5 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import type { ApplicationOperation } from '@/lib/core/application'
+import { assertOperationCapability } from '@/lib/core/application'
 
 /**
  * Session only.
@@ -27,6 +28,7 @@ function defineOrganizationUsageOperation<const Id extends string>(
       `Organization usage operation ${operation.id} may only be performed by a session`
     )
   }
+  assertOperationCapability(operation)
   Object.freeze(operation.organizationRoles)
   Object.freeze(operation.principalKinds)
   return Object.freeze(operation)
@@ -37,17 +39,37 @@ const BASE = {
   organizationRoles: ['admin', 'owner'],
   workspaceApiKey: 'deny',
   principalKinds: ['session'],
-} as const satisfies Omit<OrganizationUsageOperation, 'id'>
+} as const satisfies Omit<OrganizationUsageOperation, 'id' | 'capability'>
 
+/**
+ * Every one takes `capability: 'none'`, written out at each call site rather than
+ * folded into `BASE`: `check:permission-group-enforcement` reads the literal at
+ * the call site, and a capability arriving through a spread is a capability
+ * nothing outside the type system ever sees.
+ */
 export const organizationUsageOperations = {
-  readSummary: defineOrganizationUsageOperation({ id: 'organization_usage.summary.read', ...BASE }),
-  readBreakdown: defineOrganizationUsageOperation({
-    id: 'organization_usage.breakdown.read',
+  // permission-group-exempt: the organization's pooled ledger is authorized by organization billing-admin authority, which no workspace-shaped group key names
+  readSummary: defineOrganizationUsageOperation({
+    id: 'organization_usage.summary.read',
+    capability: 'none',
     ...BASE,
   }),
-  listEvents: defineOrganizationUsageOperation({ id: 'organization_usage.events.list', ...BASE }),
+  // permission-group-exempt: the same pooled ledger, broken down; organization billing-admin authority governs it
+  readBreakdown: defineOrganizationUsageOperation({
+    id: 'organization_usage.breakdown.read',
+    capability: 'none',
+    ...BASE,
+  }),
+  // permission-group-exempt: organization billing events, governed by organization billing-admin authority rather than a workspace group
+  listEvents: defineOrganizationUsageOperation({
+    id: 'organization_usage.events.list',
+    capability: 'none',
+    ...BASE,
+  }),
+  // permission-group-exempt: exports the same organization billing events; logs.export names workflow run logs, not the billing ledger
   exportEvents: defineOrganizationUsageOperation({
     id: 'organization_usage.events.export',
+    capability: 'none',
     ...BASE,
   }),
 } as const

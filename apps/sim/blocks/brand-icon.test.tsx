@@ -8,6 +8,9 @@ import { OAUTH_PROVIDERS } from '@/lib/oauth'
 import { BrandIcon, withBrandIcon } from '@/blocks/brand-icon'
 import { getAllBlocks } from '@/blocks/registry'
 
+/** Compares real icon components by identity; the global `@/components/icons` stub in vitest.setup.ts would make that vacuous. */
+vi.unmock('@/components/icons')
+
 vi.mocked(getAllBlocks).mockReturnValue([
   { icon: DropboxIcon, iconColor: '#0061FF' },
 ] as unknown as ReturnType<typeof getAllBlocks>)

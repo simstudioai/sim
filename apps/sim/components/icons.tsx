@@ -5893,6 +5893,17 @@ export function PipedriveIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function SailPointIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 109.5 107'>
+      <path fill='#0033A1' d='M63,0l13.2,78.6H0L63,0z' />
+      <path fill='#CC27B0' d='M62.9,0l46.7,78.6H76L62.9,0z' />
+      <path fill='#0071CE' d='M0,78.6h76.2l4.8,28.4L0,78.6z' />
+      <path fill='#E17FD2' d='M76,78.6h33.5L80.8,107L76,78.6z' />
+    </svg>
+  )
+}
+
 export function SalesforceIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 273 191'>

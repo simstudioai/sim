@@ -21,6 +21,12 @@ export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
       visibility: 'user-or-llm',
       description: 'The UUID of the job to fetch',
     },
+    includeUnpublishedJobPostingIds: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Include IDs for unpublished job postings on this job',
+    },
   },
 
   request: {
@@ -30,6 +36,9 @@ export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
     body: (params) => ({
       id: params.jobId.trim(),
       expand: ['openings', 'location', 'compensation'],
+      ...(params.includeUnpublishedJobPostingIds !== undefined
+        ? { includeUnpublishedJobPostingIds: params.includeUnpublishedJobPostingIds }
+        : {}),
     }),
   },
 

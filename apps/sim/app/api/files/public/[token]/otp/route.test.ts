@@ -223,6 +223,7 @@ describe('PUT /api/files/public/[token]/otp', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolveActiveShareByToken.mockResolvedValue(emailShare)
+    mockIsEmailAllowed.mockReturnValue(true)
     mockGetOTP.mockResolvedValue('123456:0')
     mockDecodeOTPValue.mockReturnValue({ otp: '123456', attempts: 0 })
   })
@@ -232,13 +233,23 @@ describe('PUT /api/files/public/[token]/otp', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ authType: 'email' })
     expect(mockDeleteOTP).toHaveBeenCalledWith('file', 'sh_1', 'user@acme.com')
-    expect(mockSetDeploymentAuthCookie).toHaveBeenCalledWith(
-      expect.anything(),
-      'file',
-      'sh_1',
-      'email',
-      null
-    )
+    expect(mockSetDeploymentAuthCookie).toHaveBeenCalledWith({
+      response: expect.anything(),
+      cookiePrefix: 'file',
+      resource: emailShare.share,
+      verifiedEmail: 'user@acme.com',
+    })
+  })
+
+  it('rejects a valid code when the email is no longer allowed', async () => {
+    mockIsEmailAllowed.mockReturnValueOnce(false)
+
+    const res = await PUT(put('user@acme.com', '123456'), params())
+
+    expect(res.status).toBe(403)
+    expect(mockGetOTP).not.toHaveBeenCalled()
+    expect(mockDeleteOTP).not.toHaveBeenCalled()
+    expect(mockSetDeploymentAuthCookie).not.toHaveBeenCalled()
   })
 
   it('rejects a wrong code with 400 and increments attempts', async () => {

@@ -13,8 +13,8 @@ import {
   type NoteSearchHighlight,
   type NoteSearchRange,
 } from '@sim/workflow-renderer'
+import { type Node, type NodeProps, useReactFlow } from '@xyflow/react'
 import dynamic from 'next/dynamic'
-import { type NodeProps, useReactFlow } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import { appendNoteImageMarkdown } from '@/lib/workflows/notes/add-image'
 import {
@@ -36,6 +36,8 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface NoteBlockNodeData extends WorkflowBlockProps {}
+
+type NoteBlockNode = Node<NoteBlockNodeData, 'noteBlock'>
 
 /**
  * Lazy for the same reason every other consumer of the markdown field is: it
@@ -68,14 +70,10 @@ function renderNoteContentEditor(props: NoteContentEditorProps) {
  * deterministic dimensions and renders the pure view shared with the docs
  * preview — injecting the editor-only {@link ActionBar} via the `actionBar` slot.
  */
-export const NoteBlock = memo(function NoteBlock({
-  id,
-  data,
-  selected,
-}: NodeProps<NoteBlockNodeData>) {
+export const NoteBlock = memo(function NoteBlock({ id, data, selected }: NodeProps<NoteBlockNode>) {
   const { type, name } = data
   const focusFrameRef = useRef<number | null>(null)
-  const { getNode, getViewport, setCenter } = useReactFlow()
+  const { getInternalNode, getViewport, setCenter } = useReactFlow()
 
   const { activeWorkflowId, isEnabled, hasRing, ringStyles } = useBlockVisual({
     blockId: id,
@@ -346,8 +344,7 @@ export const NoteBlock = memo(function NoteBlock({
       focusFrameRef.current = requestAnimationFrame(() => {
         focusFrameRef.current = requestAnimationFrame(() => {
           focusFrameRef.current = null
-          const node = getNode(id)
-          const position = node?.positionAbsolute ?? node?.position
+          const position = getInternalNode(id)?.internals.positionAbsolute
           if (!position) return
           void setCenter(
             position.x + BLOCK_DIMENSIONS.NOTE_WIDTH / 2,
@@ -360,7 +357,7 @@ export const NoteBlock = memo(function NoteBlock({
         })
       })
     },
-    [blockHeight, canEditNote, getNode, getViewport, handleNoteSelect, id, setCenter]
+    [blockHeight, canEditNote, getInternalNode, getViewport, handleNoteSelect, id, setCenter]
   )
 
   /**

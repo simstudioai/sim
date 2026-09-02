@@ -114,6 +114,31 @@ const organizationMock = {
   updatedAt: 'organization.updatedAt',
 }
 
+const workspaceFileSearchIndexMock = {
+  fileId: 'workspaceFileSearchIndex.fileId',
+  workspaceId: 'workspaceFileSearchIndex.workspaceId',
+  sourceContentUpdatedAt: 'workspaceFileSearchIndex.sourceContentUpdatedAt',
+  status: 'workspaceFileSearchIndex.status',
+  partial: 'workspaceFileSearchIndex.partial',
+  failureReason: 'workspaceFileSearchIndex.failureReason',
+  lineCount: 'workspaceFileSearchIndex.lineCount',
+  indexedBytes: 'workspaceFileSearchIndex.indexedBytes',
+  dispatchedAt: 'workspaceFileSearchIndex.dispatchedAt',
+  createdAt: 'workspaceFileSearchIndex.createdAt',
+  updatedAt: 'workspaceFileSearchIndex.updatedAt',
+}
+
+const workspaceFileSearchSegmentMock = {
+  fileId: 'workspaceFileSearchSegment.fileId',
+  workspaceId: 'workspaceFileSearchSegment.workspaceId',
+  sourceContentUpdatedAt: 'workspaceFileSearchSegment.sourceContentUpdatedAt',
+  lineNumber: 'workspaceFileSearchSegment.lineNumber',
+  segmentNumber: 'workspaceFileSearchSegment.segmentNumber',
+  segmentStart: 'workspaceFileSearchSegment.segmentStart',
+  lineLength: 'workspaceFileSearchSegment.lineLength',
+  content: 'workspaceFileSearchSegment.content',
+}
+
 export const schemaMock = {
   user: {
     id: 'user.id',
@@ -702,6 +727,8 @@ export const schemaMock = {
     uploadedAt: 'workspaceFile.uploadedAt',
   },
   workspaceFiles: workspaceFilesMock,
+  workspaceFileSearchIndex: workspaceFileSearchIndexMock,
+  workspaceFileSearchSegment: workspaceFileSearchSegmentMock,
   workspaceFileColumns: workspaceFilesMock,
   workspaceFileSecretProvenance: {
     fileId: 'workspaceFileSecretProvenance.fileId',
@@ -1114,6 +1141,7 @@ export const schemaMock = {
     providerId: 'ssoProvider.providerId',
     organizationId: 'ssoProvider.organizationId',
     domainVerified: 'ssoProvider.domainVerified',
+    jitProvisioningEnabled: 'ssoProvider.jitProvisioningEnabled',
   },
   ssoDomain: {
     id: 'ssoDomain.id',
@@ -1443,6 +1471,7 @@ export const schemaMock = {
     runningBlockIds: 'tableRowExecutions.runningBlockIds',
     blockErrors: 'tableRowExecutions.blockErrors',
     cancelledAt: 'tableRowExecutions.cancelledAt',
+    capabilityGovernedUserId: 'tableRowExecutions.capabilityGovernedUserId',
     updatedAt: 'tableRowExecutions.updatedAt',
   },
   tableRunDispatches: {
@@ -1458,6 +1487,7 @@ export const schemaMock = {
     processedCount: 'tableRunDispatches.processedCount',
     isManualRun: 'tableRunDispatches.isManualRun',
     triggeredByUserId: 'tableRunDispatches.triggeredByUserId',
+    capabilityGovernedUserId: 'tableRunDispatches.capabilityGovernedUserId',
     requestedAt: 'tableRunDispatches.requestedAt',
     heartbeatAt: 'tableRunDispatches.heartbeatAt',
     completedAt: 'tableRunDispatches.completedAt',

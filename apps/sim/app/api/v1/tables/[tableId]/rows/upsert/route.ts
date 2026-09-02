@@ -17,10 +17,12 @@ import {
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
 import {
+  capabilityGovernedUserId,
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
-  resolveWorkspaceRequestActor,
+  requireWorkspaceRequestActor,
+  tableAccessPrincipal,
   v1ValidationErrorResponse,
   v1ValidationErrorResponseFromError,
 } from '@/app/api/v1/middleware'
@@ -44,7 +46,6 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
     const parsed = await parseRequest(v1UpsertTableRowContract, request, context, {
       validationErrorResponse: v1ValidationErrorResponse,
     })
@@ -52,14 +53,13 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
 
-    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId, 'write')
     if (scopeError) return scopeError
-    const actorUserId = await resolveWorkspaceRequestActor(rateLimit, validated.workspaceId)
-    if (!actorUserId) {
-      throw new Error(`Unable to resolve system actor for workspace ${validated.workspaceId}`)
-    }
+    const actor = await requireWorkspaceRequestActor(rateLimit, validated.workspaceId)
+    if (!actor.ok) return actor.response
+    const actorUserId = actor.actorUserId
 
-    const result = await checkAccess(tableId, userId, 'write')
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -77,6 +77,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
         workspaceId: validated.workspaceId,
         data: rowData,
         userId: actorUserId,
+        capabilityGovernedUserId: capabilityGovernedUserId(rateLimit),
         conflictTarget: validated.conflictTarget,
         secretProvenance: createExactEmptyTableRowSecretProvenance(rowData),
       },

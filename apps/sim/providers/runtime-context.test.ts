@@ -147,6 +147,35 @@ describe('provider runtime context', () => {
     )
   })
 
+  it('accumulates cost only for failed canonical Function results', async () => {
+    const failedFunctionToolCost = { total: 0 }
+    const context = {
+      failedFunctionToolCost,
+      toolIdByWireId: new Map([['function_execute__sim_2', 'function_execute']]),
+    }
+
+    mockExecuteTool
+      .mockResolvedValueOnce({
+        success: false,
+        output: { cost: { total: 0.125 } },
+        error: 'execution failed',
+      })
+      .mockResolvedValueOnce({ success: true, output: { cost: { total: 4 } } })
+      .mockResolvedValueOnce({
+        success: false,
+        output: { cost: { total: 8 } },
+        error: 'other tool failed',
+      })
+
+    await runWithProviderRuntimeContext(context, () =>
+      executeProviderTool('function_execute__sim_2', {})
+    )
+    await runWithProviderRuntimeContext(context, () => executeProviderTool('function_execute', {}))
+    await runWithProviderRuntimeContext(context, () => executeProviderTool('exa_search', {}))
+
+    expect(failedFunctionToolCost.total).toBe(0.125)
+  })
+
   it('rebinds a prompt-exposed environment placeholder for the exact tool call', async () => {
     const sourceRegistry = new ResolvedSecretTraceRegistry([
       {

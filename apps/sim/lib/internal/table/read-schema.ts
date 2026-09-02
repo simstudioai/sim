@@ -32,7 +32,12 @@ export async function readTableSchemaAsExecutor({
     if (typeof column.name !== 'string' || !isColumnType(column.type)) {
       throw new Error(`Invalid table column ${index} while enriching schema for ${tableId}`)
     }
-    return { name: column.name, type: column.type }
+    // `multiple` is a select-only concern (it decides which filter operators the
+    // column accepts), so it is carried only where it means something rather
+    // than stamped onto every column.
+    return column.type === 'select'
+      ? { name: column.name, type: column.type, multiple: column.multiple === true }
+      : { name: column.name, type: column.type }
   })
 
   return { name: table.name, columns }

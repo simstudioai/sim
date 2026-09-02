@@ -305,8 +305,11 @@ describe('isBlockedSubresourceUrl', () => {
 })
 
 describe('subresourceNeedsResolution', () => {
-  it('exempts only the high-volume, non-readable types', () => {
-    expect(subresourceNeedsResolution('image')).toBe(false)
+  it('resolves images because their rendered contents are observable in screenshots', () => {
+    expect(subresourceNeedsResolution('image')).toBe(true)
+  })
+
+  it('exempts only fonts from hostname resolution', () => {
     expect(subresourceNeedsResolution('font')).toBe(false)
   })
 

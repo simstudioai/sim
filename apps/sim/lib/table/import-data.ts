@@ -265,7 +265,14 @@ export async function importAppendRows(
   table: TableDefinition,
   additions: { id?: string; name: string; type: string; required?: boolean; unique?: boolean }[],
   rows: RowData[],
-  ctx: { workspaceId: string; userId?: string; requestId: string }
+  ctx: {
+    workspaceId: string
+    userId?: string
+    requestId: string
+    /** Gate subject for cells the appended rows auto-fire — the subject the
+     *  importing surface resolved from its principal, or `null` for none. */
+    capabilityGovernedUserId: string | null
+  }
 ): Promise<{ inserted: TableRow[]; table: TableDefinition }> {
   // Gate capacity before opening the tx — the lookup is a separate pool read.
   const rowLimit = await assertRowCapacity({
@@ -294,6 +301,7 @@ export async function importAppendRows(
           rows: batch,
           workspaceId: ctx.workspaceId,
           userId: ctx.userId,
+          capabilityGovernedUserId: ctx.capabilityGovernedUserId,
           secretProvenance: batch.map(createExactEmptyTableRowSecretProvenance),
         },
         working,

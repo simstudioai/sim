@@ -1,10 +1,10 @@
 import type { ForkDependentReconfig } from '@/lib/api/contracts/workspace-fork'
-import { subBlockTypeForField } from '@/blocks/custom/build-config'
+import { subBlockTypeForValueType } from '@/tools/param-shape'
 
 /**
  * Which control the sync modal renders for a repointed custom block's input.
  *
- * Derived from `subBlockTypeForField` — the same function that decides what the field becomes
+ * Derived from `subBlockTypeForValueType` — the same function that decides what the field becomes
  * on the canvas — rather than re-reading the raw field type. The modal cannot reuse the canvas
  * sub-block renderer (that one is bound to the workflow store, by workflow and block id), so it
  * draws its own controls; taking the field's KIND from one place is what stops the two drifting
@@ -17,7 +17,7 @@ import { subBlockTypeForField } from '@/blocks/custom/build-config'
 export type CustomBlockInputControl = 'switch' | 'textarea' | 'input' | 'unsupported'
 
 export function customBlockInputControl(fieldType: string | undefined): CustomBlockInputControl {
-  switch (subBlockTypeForField(fieldType ?? '')) {
+  switch (subBlockTypeForValueType(fieldType ?? '')) {
     // Stored as a real boolean on the canvas, so it must be toggled rather than typed — a text
     // field would persist the string `'true'`.
     case 'switch':

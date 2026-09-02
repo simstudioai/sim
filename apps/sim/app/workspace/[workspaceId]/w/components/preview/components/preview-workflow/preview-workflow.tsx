@@ -1,32 +1,38 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
-import { useParams } from 'next/navigation'
-import ReactFlow, {
+import {
   ConnectionLineType,
   type Edge,
   type EdgeTypes,
   type Node,
   type NodeTypes,
+  ReactFlow,
   ReactFlowProvider,
   useReactFlow,
-} from 'reactflow'
-import 'reactflow/dist/style.css'
+} from '@xyflow/react'
+import { useParams } from 'next/navigation'
+import '@xyflow/react/dist/style.css'
 
 import { cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import {
   BLOCK_DIMENSIONS,
   BLOCK_Z_BASE,
+  CANVAS_Z_INDEX_MODE,
   CONTAINER_CHILD_Z_BASE,
   CONTAINER_DIMENSIONS,
   EDGE_Z_BASE,
   EDGE_Z_MAX,
   getEdgeZIndexForTarget,
+  useCanvasColorMode,
 } from '@sim/workflow-renderer'
 import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
-import { estimateBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
+import {
+  estimateBlockDimensions,
+  SUBFLOW_CHILD_NODE_CLASS,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { PreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/block'
 import { PreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/subflow'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
@@ -250,6 +256,7 @@ export function PreviewWorkflow({
   // placeholder map must not mislabel valid workflows as deleted.
   const workflowLabelsReady = isWorkflowMapLoaded && !isWorkflowMapPlaceholderData
   const containerRef = useRef<HTMLDivElement>(null)
+  const colorMode = useCanvasColorMode()
   const nodeTypes = previewNodeTypes
   const isValidWorkflowState = workflowState?.blocks && workflowState.edges
 
@@ -428,6 +435,7 @@ export function PreviewWorkflow({
           type: 'subflowNode',
           position: block.position,
           parentId,
+          className: parentId ? SUBFLOW_CHILD_NODE_CLASS : undefined,
           extent: block.data?.extent || undefined,
           draggable: false,
           zIndex: nestingDepth,
@@ -471,6 +479,7 @@ export function PreviewWorkflow({
         type: nodeType,
         position: block.position,
         parentId,
+        className: parentId ? SUBFLOW_CHILD_NODE_CLASS : undefined,
         extent: block.data?.extent || undefined,
         draggable: false,
         zIndex: parentId ? CONTAINER_CHILD_Z_BASE : BLOCK_Z_BASE,
@@ -653,6 +662,8 @@ export function PreviewWorkflow({
           .preview-mode.interactive-nodes .react-flow__node * { cursor: pointer !important; }
         `}</style>
         <ReactFlow
+          colorMode={colorMode}
+          zIndexMode={CANVAS_Z_INDEX_MODE}
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
@@ -693,6 +704,7 @@ export function PreviewWorkflow({
               : undefined
           }
           onPaneClick={onPaneClick}
+          className='[--xy-background-color:var(--bg)]'
         />
         <FitViewOnChange
           nodeIds={blocksStructure.ids}

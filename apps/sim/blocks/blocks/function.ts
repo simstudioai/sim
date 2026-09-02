@@ -1,6 +1,7 @@
 import { CodeIcon } from '@/components/icons'
 import { isSandboxesEnabled } from '@/lib/core/config/env-flags'
 import { CodeLanguage, getLanguageDisplayName } from '@/lib/execution/languages'
+import { SANDBOX_OUTPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type { BlockConfig } from '@/blocks/types'
 import type { CodeExecutionOutput } from '@/tools/function/types'
 
@@ -17,6 +18,9 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
   - Shell code runs CLI commands in a remote sandbox.
   - To import third-party packages or add curated CLI tools, create a sandbox in Settings > Sandboxes and select it under the block's advanced options. Without one, only the default image's packages and commands are available.
   - Can reference workflow variables using <blockName.output> syntax as usual within code. Avoid XML/HTML tags.
+  - To read a file from an earlier block, reference its path: <blockName.files[0].path> mounts the file and resolves to its location on the sandbox filesystem, which any language can open. Use <blockName.files[0].base64> instead when you only want the contents inline in JavaScript.
+  - Anything the code writes to ${SANDBOX_OUTPUT_DIR} is returned as \`files\`, ready to attach to an email or upload without any extra step.
+  - Referencing a file path runs the block in the remote sandbox, so it is slower to start than a plain local JavaScript run.
   `,
   docsLink: 'https://docs.sim.ai/workflows/blocks/function',
   category: 'blocks',
@@ -173,6 +177,10 @@ try {
     stdout: {
       type: 'string',
       description: 'Console log output and debug messages from function execution',
+    },
+    files: {
+      type: 'file[]',
+      description: `Files the code wrote to ${SANDBOX_OUTPUT_DIR}, ready to attach or upload downstream`,
     },
   },
 }

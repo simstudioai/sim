@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { getOtpSubject, renderOTPEmail } from '@/components/emails'
@@ -103,7 +104,7 @@ export const POST = withRouteHandler(
           createErrorResponse(getValidationErrorMessage(error, 'Invalid request'), 400),
       })
       if (!parsed.success) return parsed.response
-      const { email } = parsed.data.body
+      const email = normalizeEmail(parsed.data.body.email)
 
       const deploymentResult = await db
         .select({
@@ -157,7 +158,8 @@ export const PUT = withRouteHandler(
           createErrorResponse(getValidationErrorMessage(error, 'Invalid request'), 400),
       })
       if (!parsed.success) return parsed.response
-      const { email, otp } = parsed.data.body
+      const { otp } = parsed.data.body
+      const email = normalizeEmail(parsed.data.body.email)
 
       const deploymentResult = await db
         .select({
@@ -167,6 +169,7 @@ export const PUT = withRouteHandler(
           customizations: chat.customizations,
           authType: chat.authType,
           password: chat.password,
+          allowedEmails: chat.allowedEmails,
           outputConfigs: chat.outputConfigs,
           includeThinking: chat.includeThinking,
           includeToolCalls: chat.includeToolCalls,
@@ -186,6 +189,9 @@ export const PUT = withRouteHandler(
 
       if (deployment.authType !== 'email') {
         return createErrorResponse('This chat does not use email authentication', 400)
+      }
+      if (!isEmailAllowed(email, deployment.allowedEmails)) {
+        return createErrorResponse('Email not authorized', 403)
       }
 
       const storedValue = await getOTP('chat', deployment.id, email)
@@ -222,7 +228,7 @@ export const PUT = withRouteHandler(
         includeThinking: deployment.includeThinking ?? false,
         includeToolCalls: deployment.includeToolCalls ?? false,
       })
-      setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
+      setChatAuthCookie(response, deployment, email)
 
       return response
     } catch (error) {

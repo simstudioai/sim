@@ -1,5 +1,6 @@
 export {
   BLOCK_Z_BASE,
+  CANVAS_Z_INDEX_MODE,
   CONNECTION_PICKER_Z,
   CONTAINER_CHILD_Z_BASE,
   EDGE_Z_BASE,
@@ -9,7 +10,12 @@ export {
   getEdgeZIndexForTarget,
 } from './canvas-layers'
 export * from './dimensions'
-export { WorkflowEdgeView, type WorkflowEdgeViewProps } from './edge/workflow-edge-view'
+export {
+  type WorkflowEdge,
+  type WorkflowEdgeData,
+  WorkflowEdgeView,
+  type WorkflowEdgeViewProps,
+} from './edge/workflow-edge-view'
 export { humanizeBlockName } from './lib/humanize-block-name'
 export {
   NOTE_MARKDOWN_FLOW,
@@ -46,6 +52,7 @@ export type {
   EdgeDiffStatus,
   EdgeRunStatus,
 } from './types'
+export { useCanvasColorMode } from './use-canvas-color-mode'
 export {
   type CanvasSentenceSegment,
   CanvasSentenceView,

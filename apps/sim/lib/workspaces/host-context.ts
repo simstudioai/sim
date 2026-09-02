@@ -36,6 +36,7 @@ async function resolveWorkspaceHostContextForViewer(
       name: access.workspace.name,
       workspaceMode: access.workspace.workspaceMode,
       billedAccountUserId: access.workspace.billedAccountUserId,
+      allowPersonalApiKeys: access.workspace.allowPersonalApiKeys,
     },
     hostOrganizationId,
     ownerBilling,

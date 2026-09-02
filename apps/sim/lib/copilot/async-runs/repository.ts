@@ -187,6 +187,8 @@ export async function getRunSegment(runId: string) {
           workflowId: copilotRuns.workflowId,
           // Needed to scope an "allow for this chat" decision to its chat.
           chatId: copilotRuns.chatId,
+          // Needed to resolve the deciding user's permission group.
+          workspaceId: copilotRuns.workspaceId,
         })
         .from(copilotRuns)
         .where(eq(copilotRuns.id, runId))
