@@ -1,4 +1,4 @@
-import { splitFolderPathList, v2SearchFileContentContract } from '@/lib/api/contracts/v2/files'
+import { parseFolderPathList, v2SearchFileContentContract } from '@/lib/api/contracts/v2/files'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -29,7 +29,7 @@ export const GET = defineV2JsonRoute({
     mode: query.mode,
     maxResults: query.maxResults,
     folderPaths:
-      query.folderPaths === undefined ? undefined : splitFolderPathList(query.folderPaths),
+      query.folderPaths === undefined ? undefined : parseFolderPathList(query.folderPaths),
     includeSubfolders: query.includeSubfolders,
   }),
   useCase: searchWorkspaceFileContent,

@@ -1154,6 +1154,26 @@ export function splitFolderPathList(value: string): string[] {
     .filter(Boolean)
 }
 
+/**
+ * Splits a comma-separated folder list and normalizes each entry.
+ *
+ * `v2FolderPathInputSchema` accepts a path with the leading slash omitted and
+ * emits the canonical form. Validating with it and keeping the raw string
+ * throws that normalization away, so `Reports` passed validation and then
+ * reached folder resolution as `Reports`, which matches nothing.
+ *
+ * Entries are already known valid by the time the route calls this — the
+ * schema's `superRefine` rejected the request otherwise — so a parse failure
+ * here would be a contract bug, and the raw entry is kept rather than throwing
+ * inside a mapper.
+ */
+export function parseFolderPathList(value: string): string[] {
+  return splitFolderPathList(value).map((entry) => {
+    const parsed = v2FolderPathInputSchema.safeParse(entry)
+    return parsed.success ? parsed.data : entry
+  })
+}
+
 export const v2SearchFileContentQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace to search.'),

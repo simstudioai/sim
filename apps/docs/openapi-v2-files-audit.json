@@ -2238,6 +2238,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -2924,7 +2927,7 @@
             "example": {
               "error": {
                 "code": "CONFLICT",
-                "message": "File already exists, or it changed since it was read"
+                "message": "The request conflicts with the current state of the file"
               }
             }
           }

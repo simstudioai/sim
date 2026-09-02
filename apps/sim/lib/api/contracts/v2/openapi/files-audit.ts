@@ -840,7 +840,7 @@ const declaredRoutes = [
       operationId: 'searchFileContent',
       summary: 'Search File Content',
       description: `Search the indexed text of active workspace files and return each matching line with its file id and line number. \`folderPaths\` confines the search to one or more folder trees, which also narrows the reported coverage, so \`complete\` and \`indexStatus\` describe the folders searched rather than the whole workspace. Coverage matters: the index is built asynchronously, so when \`complete\` is \`false\` a term that was not found is **unknown rather than absent**, and acting on the absence risks creating a duplicate of something already stored. \`truncated\` separately reports that more matches exist beyond \`maxResults\`.`,
-      errors: [...WORKSPACE_ERRORS, 'Locked'],
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Locked'],
       success: { description: 'Matching lines and the index coverage they were drawn from.' },
     }),
     {
@@ -1126,13 +1126,14 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
   headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   /*
-   * One example serves every route in this document, so it has to name both
-   * kinds of conflict the file endpoints raise: a name that is already taken,
-   * and a write that lost a race. Naming only the first made an in-place edit's
-   * stale-write 409 read as a duplicate-name error.
+   * One example serves every route in this document, and the routes raise 409
+   * for unrelated reasons: a name already taken, a write that lost a race, a
+   * generated document still compiling. Enumerating them is wrong for whichever
+   * cases the list omits, so this states the SHAPE of the conflict instead.
+   * Per-operation examples would need an override on `defineOpenApiRoute`.
    */
   errorResponses: withErrorExamples({
-    Conflict: { message: 'File already exists, or it changed since it was read' },
+    Conflict: { message: 'The request conflicts with the current state of the file' },
   }),
   routes,
 })
