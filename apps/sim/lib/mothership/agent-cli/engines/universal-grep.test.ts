@@ -58,6 +58,16 @@ describe('universal grep', () => {
     expect(count.stdout).toMatch(/^\d+ \(blocks=\d+\)$/)
   })
 
+  it('accepts the world/resource path a match line prints as --in', async () => {
+    const byPath = await runEngine('grep', ['id'], runtimeWith(CATALOG), { in: 'blocks/agent' })
+    expect(byPath.exitCode).toBe(0)
+    expect(byPath.stdout).toContain('blocks/agent:')
+    expect(byPath.stdout).not.toContain('blocks/slack_v2:')
+    const world = await runEngine('grep', ['id'], runtimeWith(CATALOG), { in: 'blocks' })
+    expect(world.stdout).toContain('blocks/agent:')
+    expect(world.stdout).toContain('blocks/slack_v2:')
+  })
+
   it('refuses an unknown scope with a did-you-mean and the scope list', async () => {
     const result = await runEngine('grep', ['x'], runtimeWith({}), { scope: 'block' })
     expect(result.exitCode).toBe(1)
