@@ -39,7 +39,7 @@ export const zendeskCreateUsersBulkTool: ToolConfig<
     apiToken: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Zendesk API token',
     },
     subdomain: {

@@ -529,6 +529,86 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
 }
 
 /**
+ * One legacy-to-current `canonicalParamId` rename for a block type.
+ *
+ * Renaming a canonical id is otherwise invisible to persistence — values are
+ * stored under subblock `id`, which does not move — with one exception:
+ * `data.canonicalModes` is keyed by canonical id, so the old entry is orphaned
+ * and the pair reverts to whatever {@link backfillCanonicalModes} infers.
+ *
+ * That inference is right whenever exactly one side holds a value, which is why
+ * this is a narrow migration rather than a general one. It is wrong when BOTH
+ * sides hold values: `setBlockCanonicalMode` writes the mode without clearing
+ * the sibling, so a workflow that uploaded a file, switched to advanced, and
+ * typed a reference has both — and `resolveCanonicalMode` prefers basic, which
+ * would silently swap which value the run uses.
+ */
+export interface CanonicalIdMigration {
+  /** The canonical id a legacy saved state stores the mode under. */
+  from: string
+  /** The canonical id the block definition declares now. */
+  to: string
+}
+
+/** Canonical-id renames per block type. */
+export const CANONICAL_ID_MIGRATIONS: Record<string, readonly CanonicalIdMigration[]> = {
+  /**
+   * The tool parameter is `file`, and `check-block-registry.ts` requires the
+   * canonical id to match it once the parameter is `user-only` — which it
+   * became so a direct `POST /api/v2/tools/{toolId}/execute` caller could
+   * supply the document at all.
+   */
+  mistral_parse_v3: [{ from: 'document', to: 'file' }],
+}
+
+/**
+ * Renames persisted canonical-mode keys whose block definition moved them.
+ *
+ * Runs before {@link backfillCanonicalModes} so a carried-over selection is
+ * already present and the backfill leaves it alone; anything genuinely missing
+ * still gets inferred there.
+ */
+export function migrateCanonicalModeIds(blocks: Record<string, BlockState>): {
+  blocks: Record<string, BlockState>
+  migrated: boolean
+} {
+  let anyMigrated = false
+  const result: Record<string, BlockState> = {}
+
+  for (const [blockId, block] of Object.entries(blocks)) {
+    const migrations = CANONICAL_ID_MIGRATIONS[block.type]
+    const modes = block.data?.canonicalModes
+    if (!migrations || !isPlainRecord(modes)) {
+      result[blockId] = block
+      continue
+    }
+
+    type CanonicalModes = Record<string, 'basic' | 'advanced'>
+    let patched: CanonicalModes | null = null
+    for (const { from, to } of migrations) {
+      if (!(from in modes)) continue
+      const next: CanonicalModes = patched ?? { ...(modes as CanonicalModes) }
+      // A value already stored under the current id wins: it was written by the
+      // current definition, so it is newer than the legacy one.
+      if (!(to in next)) next[to] = next[from]
+      delete next[from]
+      patched = next
+    }
+
+    if (!patched) {
+      result[blockId] = block
+      continue
+    }
+
+    logger.info('Migrated legacy canonical-mode ids', { blockId: block.id, blockType: block.type })
+    anyMigrated = true
+    result[blockId] = { ...block, data: { ...block.data, canonicalModes: patched } }
+  }
+
+  return { blocks: result, migrated: anyMigrated }
+}
+
+/**
  * Backfills missing `canonicalModes` entries in block data.
  *
  * When a canonical pair is added to a block definition, existing blocks

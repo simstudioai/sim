@@ -174,6 +174,19 @@ async function assertToolPermissionsWithRetry({
   }
 }
 
+/**
+ * Which environment-variable reference forms a caller's `user-only` params may use.
+ *
+ * Split out of `copilotToolExecution` because the two questions are not the same
+ * one. `explicit-and-bare` also reads a bare identifier as a variable name when a
+ * variable by that name exists, which is right for a model that improvises
+ * reference syntax and wrong for a caller that types the value: a real credential
+ * matching the identifier pattern and colliding with a variable name would be
+ * silently swapped for a different secret. A surface picks the form it can
+ * defend rather than inheriting the model's.
+ */
+export type ToolEnvReferenceMode = 'off' | 'explicit' | 'explicit-and-bare'
+
 interface ToolExecutionScope {
   workspaceId?: string
   workflowId?: string
@@ -183,6 +196,7 @@ interface ToolExecutionScope {
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
   copilotToolExecution?: boolean
+  envReferenceMode?: ToolEnvReferenceMode
   billingAttribution?: BillingAttributionSnapshot
 }
 
@@ -205,6 +219,17 @@ function resolveToolScope(
     copilotToolExecution: (executionContext?.copilotToolExecution ?? ctx?.copilotToolExecution) as
       | boolean
       | undefined,
+    /**
+     * Defaults to what the surface's other flag already implied, so every
+     * existing caller keeps its behavior: Copilot resolves both forms, and a
+     * workflow run resolves neither because the executor substitutes variables
+     * before a tool ever sees them.
+     */
+    envReferenceMode:
+      (ctx?.envReferenceMode as ToolEnvReferenceMode | undefined) ??
+      ((executionContext?.copilotToolExecution ?? ctx?.copilotToolExecution)
+        ? 'explicit-and-bare'
+        : 'off'),
     billingAttribution: (executionContext?.metadata.billingAttribution ??
       ctx?.billingAttribution) as BillingAttributionSnapshot | undefined,
   }
@@ -371,39 +396,47 @@ async function normalizeFileParams(
 }
 
 /**
- * Resolves whole-value {{ENV_VAR}} references in user-only params for copilot
- * tool executions. Chat agents never see secret values (the workspace VFS
- * exposes env var names only), so they pass references; workflow runs resolve
- * these in the executor, and this is the equivalent step for direct tool
- * calls, delegating to the executor's resolver so both paths share one set of
- * reference semantics. Resolution is deliberately restricted to params
- * declared `visibility: 'user-only'` (API keys and other operator-supplied
- * secrets) and to values that are exactly one reference, so LLM-writable
- * params (URLs, headers, bodies) can never be used to extract secret values.
+ * Resolves whole-value {{ENV_VAR}} references in user-only params, for the
+ * surfaces whose {@link ToolEnvReferenceMode} asks for it.
+ *
+ * Neither surface that uses it should be holding the secret. Chat agents never
+ * see secret values (the workspace VFS exposes env var names only), and an API
+ * caller writing a tool call into a script or a CI step would otherwise put a
+ * live credential on the command line. Workflow runs resolve these in the
+ * executor, and this is the equivalent step for direct tool calls, delegating
+ * to the executor's resolver so every path shares one set of reference
+ * semantics. Resolution is deliberately restricted to params declared
+ * `visibility: 'user-only'` (API keys and other operator-supplied secrets) and
+ * to values that are exactly one reference, so LLM-writable params (URLs,
+ * headers, bodies) can never be used to extract secret values.
  *
  * Mutates only the given params object — callers pass the per-execution copy,
  * never the copilot-side tool-call state, so decrypted values cannot leak
  * into failure logs or persisted chat state.
  */
-async function resolveCopilotEnvReferences(
+async function resolveToolEnvReferences(
   tool: ToolDefinition,
   params: Record<string, unknown>,
   scope: ToolExecutionScope,
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 ): Promise<void> {
-  if (!scope.copilotToolExecution) {
+  const mode = scope.envReferenceMode ?? 'off'
+  if (mode === 'off') {
     return
   }
 
-  // Models improvise reference syntax: after `{{NAME}}`, the bare variable
-  // name is the common fallback — it previously went upstream as the literal
-  // credential and failed with an undiagnosable 401. `{{NAME}}` is the one
-  // explicit reference form, so a missing variable is a hard error. A bare
-  // name is a reference only when a variable by that exact name exists
-  // (`soft`): plenty of real API keys match the identifier pattern, and
-  // those must pass through verbatim. `$NAME` is deliberately NOT a
-  // reference — real credentials can start with `$`, and a secret must never
-  // be reinterpreted as a lookup.
+  // `{{NAME}}` is the one explicit reference form, so a missing variable is a
+  // hard error. Anything else is a literal and goes upstream verbatim, which is
+  // what lets a caller pass a real secret in the same field.
+  //
+  // Models improvise reference syntax: after `{{NAME}}`, the bare variable name
+  // is the common fallback — it previously went upstream as the literal
+  // credential and failed with an undiagnosable 401. So under
+  // `explicit-and-bare` a bare name is a reference too, but only when a variable
+  // by that exact name exists (`soft`), since plenty of real API keys match the
+  // identifier pattern. `$NAME` is deliberately NOT a reference — real
+  // credentials can start with `$`, and a secret must never be reinterpreted as
+  // a lookup.
   const pending: Array<{ paramId: string; value: string; soft?: boolean }> = []
   for (const [paramId, paramDef] of Object.entries(tool.params || {})) {
     if (paramDef?.visibility !== 'user-only') continue
@@ -413,7 +446,7 @@ async function resolveCopilotEnvReferences(
       pending.push({ paramId, value })
       continue
     }
-    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+    if (mode === 'explicit-and-bare' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
       pending.push({ paramId, value: `{{${value}}}`, soft: true })
     }
   }
@@ -1792,7 +1825,7 @@ async function executeToolImplementation(
     await normalizeFileParams(tool, contextParams, scope, executionContext)
     normalizeCopilotCredentialParams(contextParams)
     enforceCopilotCredentialSelection(toolId, tool, contextParams, scope)
-    await resolveCopilotEnvReferences(tool, contextParams, scope, resolvedSecretTraceRegistry)
+    await resolveToolEnvReferences(tool, contextParams, scope, resolvedSecretTraceRegistry)
 
     // Inject hosted API key if tool supports it and user didn't provide one
     const hostedKeyInfo = await injectHostedKeyIfNeeded(

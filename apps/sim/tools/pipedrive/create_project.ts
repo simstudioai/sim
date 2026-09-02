@@ -17,6 +17,11 @@ export const pipedriveCreateProjectTool: ToolConfig<
   description: 'Create a new project in Pipedrive',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'pipedrive',
+  },
+
   params: {
     accessToken: {
       type: 'string',

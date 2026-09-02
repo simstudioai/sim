@@ -7,6 +7,36 @@ import { CommandTable } from '@/components/ui/command-table'
 
 Every command below also accepts the [global options](/cli/commands#global-options).
 
+## Run one built-in tool and print what it produced
+
+```bash
+sim tools execute <toolId> [options]
+```
+
+Run one built-in tool and print what it produced (personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `toolId` | Yes | Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--input <json\|@file>` | No | Tool arguments as JSON, keyed by the parameter ids `sim tools get &lt;toolId&gt;` lists (JSON, or @path / @- to read a file or stdin). |
+| `--credential-id <value>` | No | Credential to authenticate with, required for OAuth tools. |
+| `--timeout <value>` | No | Seconds to wait before abandoning the call. |
+
+</CommandTable>
+
 ## Get tool
 
 ```bash
