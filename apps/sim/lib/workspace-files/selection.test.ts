@@ -46,6 +46,20 @@ describe('findSelectedWorkspaceFile', () => {
     ).toBe('wf_archive')
   })
 
+  it('does not match a storage key that is only a substring of the URL owner', () => {
+    const overlapping = [
+      { ...files[0], key: 'workspace/ws/report' },
+      { ...files[1], key: 'workspace/ws/report-final' },
+    ]
+
+    expect(
+      findSelectedWorkspaceFile(
+        { path: 'https://files.example/workspace/ws/report-final', name: 'report.md' },
+        overlapping
+      )?.id
+    ).toBe('wf_archive')
+  })
+
   it('does not guess when a legacy name is ambiguous', () => {
     expect(findSelectedWorkspaceFile({ name: 'report.md' }, files)).toBeUndefined()
   })

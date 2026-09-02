@@ -1112,11 +1112,13 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     sentences: {
       byOperation: {
         file_read: [
-          { text: 'Get', field: READ_FILE_FIELD, core: true },
+          'Get workspace files',
+          { text: 'selected as', field: READ_FILE_FIELD },
           { text: 'in', field: FOLDER_SCOPE_FIELD },
         ],
         file_get_content: [
-          { text: 'Extract text from', field: GET_CONTENT_FILE_FIELD, core: true },
+          'Extract text from workspace files',
+          { text: 'selected as', field: GET_CONTENT_FILE_FIELD },
           { text: 'in', field: FOLDER_SCOPE_FIELD },
         ],
         file_search: [{ text: 'Search workspace files for', field: 'query', core: true }],
@@ -1142,11 +1144,12 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           { text: 'after line', field: 'afterLine' },
         ],
         file_compress: [
-          { text: 'Compress', field: COMPRESS_FILE_FIELD, core: true },
+          'Compress workspace files',
+          { text: 'selected as', field: COMPRESS_FILE_FIELD },
           { text: 'in', field: FOLDER_SCOPE_FIELD },
           { text: 'into', field: 'archiveName' },
         ],
-        file_list: [{ text: 'List', field: FOLDER_PATH_FIELD, core: true }],
+        file_list: ['List files and folders', { text: 'in', field: FOLDER_PATH_FIELD }],
         file_create_folder: [
           { text: 'Create folder', field: 'folderName', core: true },
           { text: 'in', field: CREATE_PARENT_FIELD },

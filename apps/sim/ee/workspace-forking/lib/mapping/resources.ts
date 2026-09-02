@@ -20,7 +20,7 @@ import { alias } from 'drizzle-orm/pg-core'
 import type { ForkCopyableKind } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
-import { parseFolderPath } from '@/lib/folders/paths'
+import { parseFolderPath, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import type { ForkResourceType } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import type {
@@ -202,11 +202,17 @@ const fileFolderCandidatesQuery = async (
     maxRows: MAX_FOLDERS_PER_WORKSPACE,
   })
   const requested = paths ? new Set(paths) : null
-  const candidates = Array.from(index.idByPath.keys())
+  const candidates = [ROOT_FOLDER_PATH, ...index.idByPath.keys()]
     .filter((path) => !requested || requested.has(path))
-    .map((path) => ({ id: path, label: parseFolderPath(path).join(' / ') }))
+    .map((path) => ({
+      id: path,
+      label: path === ROOT_FOLDER_PATH ? 'Workspace root' : parseFolderPath(path).join(' / '),
+    }))
     .sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id))
-  return paths ? candidates : candidates.slice(0, CANDIDATE_LIMIT)
+  if (paths) return candidates
+  const root = candidates.find((candidate) => candidate.id === ROOT_FOLDER_PATH)
+  const folders = candidates.filter((candidate) => candidate.id !== ROOT_FOLDER_PATH)
+  return root ? [root, ...folders.slice(0, CANDIDATE_LIMIT - 1)] : folders.slice(0, CANDIDATE_LIMIT)
 }
 
 // Copyable workspace files WITH their folder grouping (LEFT JOIN gated on a live folder, so a file

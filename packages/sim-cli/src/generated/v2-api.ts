@@ -5419,6 +5419,20 @@ export type ListFileFoldersQuery = {
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
   sortOrder?: 'asc' | 'desc'
   scope?: 'active' | 'archived'
+  recursive?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
+  depth?: number
 }
 
 type ListFileFoldersResponseRef0 = {
@@ -11919,6 +11933,28 @@ export const V2_OPERATIONS = {
         default: 'active',
         describe:
           'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.',
+      },
+      recursive: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        describe: 'Whether parentPath includes every descendant instead of direct children only.',
+      },
+      depth: {
+        kind: 'integer',
+        describe: 'Deepest level below parentPath to include when recursive is true.',
       },
     },
   },

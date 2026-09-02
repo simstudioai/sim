@@ -953,6 +953,7 @@ function SubBlockComponent({
               blockId={blockId}
               subBlock={config}
               disabled={isDisabled}
+              required={isFieldRequired(config, subBlockValues)}
               isPreview={isPreview}
               previewValue={previewValue}
             />

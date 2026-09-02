@@ -2,6 +2,7 @@ import type { CursorKey } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
+import type { FolderIdScope } from '@/lib/folders/scope'
 import { collectDescendantFolderIdsFrom, indexFolderChildren } from '@/lib/folders/subtree'
 import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import {
@@ -34,6 +35,8 @@ export interface QueryWorkspaceFilePageInput {
   sortOrder: 'asc' | 'desc'
   limit: number
   after?: CursorKey[]
+  /** Pre-resolved folder ids for trusted in-process callers that already loaded the tree. */
+  folderScope?: FolderIdScope
 }
 
 export interface ListWorkspaceFilesInFolderScopeInput {
@@ -91,6 +94,12 @@ export const queryWorkspaceFilePage = defineAuthorizedWorkspaceFileUseCase({
   resolveContext: ({ input }: { input: QueryWorkspaceFilePageInput }) =>
     resolveListWorkspaceFileContext(input.workspaceId),
   async execute({ input, context }) {
+    if (input.folderPath !== undefined && input.folderScope !== undefined) {
+      throw new OrchestrationError(
+        'validation',
+        'Specify either folderPath or folderScope, not both'
+      )
+    }
     /**
      * Capped the way the workflow, table, and knowledge lists cap theirs. A
      * truncated index does not fail — it silently loses paths, and the only
@@ -112,6 +121,7 @@ export const queryWorkspaceFilePage = defineAuthorizedWorkspaceFileUseCase({
     const { files, nextKeys } = await queryWorkspaceFiles(context.workspaceId, {
       scope: input.scope,
       folderId,
+      folderScope: input.folderScope,
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,

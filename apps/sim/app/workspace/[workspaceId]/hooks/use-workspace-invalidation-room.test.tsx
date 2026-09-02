@@ -22,9 +22,14 @@ function fakeSocket() {
 let socket: ReturnType<typeof fakeSocket>
 const roots: Root[] = []
 
-function mount(workspaceId: string, roomType: RoomType): Root {
+function mount(
+  workspaceId: string,
+  roomType: RoomType,
+  onChanged: () => void = () => {},
+  dedupeKey?: string
+): Root {
   function Probe() {
-    useWorkspaceInvalidationRoom(workspaceId, roomType, () => {})
+    useWorkspaceInvalidationRoom(workspaceId, roomType, onChanged, dedupeKey)
     return null
   }
   const container = document.createElement('div')
@@ -81,6 +86,20 @@ describe('useWorkspaceInvalidationRoom', () => {
     unmount(first)
 
     expect(emitted('leave-workspace-files')).toBe(0)
+  })
+
+  it('shares one socket handler and one callback per dedupe key', () => {
+    const onChanged = vi.fn()
+    mount('ws-1', 'workspace-files', onChanged, 'file-browser')
+    mount('ws-1', 'workspace-files', onChanged, 'file-browser')
+
+    const changedHandlers = socket.on.mock.calls.filter(
+      ([event]) => event === 'workspace-files-changed'
+    )
+    expect(changedHandlers).toHaveLength(1)
+
+    act(() => changedHandlers[0][1]({ workspaceId: 'ws-1' }))
+    expect(onChanged).toHaveBeenCalledTimes(1)
   })
 
   it('leaves once the last subscriber unmounts', () => {

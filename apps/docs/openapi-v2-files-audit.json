@@ -2403,6 +2403,42 @@
               "type": "string",
               "enum": ["active", "archived"]
             }
+          },
+          {
+            "name": "recursive",
+            "in": "query",
+            "required": false,
+            "description": "Whether parentPath includes every descendant instead of direct children only.",
+            "schema": {
+              "description": "Whether parentPath includes every descendant instead of direct children only.",
+              "enum": [
+                "true",
+                "1",
+                "yes",
+                "on",
+                "y",
+                "enabled",
+                "false",
+                "0",
+                "no",
+                "off",
+                "n",
+                "disabled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "description": "Deepest level below parentPath to include when recursive is true.",
+            "schema": {
+              "description": "Deepest level below parentPath to include when recursive is true.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64
+            }
           }
         ],
         "responses": {

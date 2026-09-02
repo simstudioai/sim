@@ -14,6 +14,7 @@ interface WorkspaceFolderSelectorProps {
   blockId: string
   subBlock: SubBlockConfig
   disabled?: boolean
+  required?: boolean
   isPreview?: boolean
   previewValue?: unknown
 }
@@ -30,6 +31,7 @@ export function WorkspaceFolderSelector({
   blockId,
   subBlock,
   disabled = false,
+  required = false,
   isPreview = false,
   previewValue,
 }: WorkspaceFolderSelectorProps) {
@@ -41,17 +43,16 @@ export function WorkspaceFolderSelector({
   const value = isPreview ? previewValue : storeValue
   const selected = readFolderPath(value)
   const selectedPaths = readFolderPaths(value)
-  const { folders, isLoading } = useResourceFolders(workspaceId, resourceType)
+  const { folders, isLoading, error, refetch } = useResourceFolders(workspaceId, resourceType)
 
   const options = useMemo(() => {
     const folderOptions = folders.map((folder) => ({
       value: folder.path,
       label: parseFolderPath(folder.path).join(' / '),
     }))
-    return subBlock.multiSelect
-      ? folderOptions
-      : [{ value: '', label: 'Anywhere in the workspace' }, ...folderOptions]
-  }, [folders, subBlock.multiSelect])
+    if (subBlock.multiSelect || required) return folderOptions
+    return [{ value: '', label: subBlock.placeholder ?? 'Workspace root' }, ...folderOptions]
+  }, [folders, required, subBlock.multiSelect, subBlock.placeholder])
 
   return (
     <ChipCombobox
@@ -70,6 +71,10 @@ export function WorkspaceFolderSelector({
       placeholder={subBlock.placeholder ?? 'Anywhere in the workspace'}
       disabled={disabled || isPreview}
       isLoading={isLoading}
+      error={error}
+      onOpenChange={(open) => {
+        if (open && error) refetch()
+      }}
       searchable
       searchPlaceholder='Search folders...'
       emptyMessage='No folders found'

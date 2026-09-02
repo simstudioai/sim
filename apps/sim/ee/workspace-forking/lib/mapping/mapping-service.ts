@@ -45,10 +45,14 @@ interface ForkMappingViewParams {
 
 export function suggestTarget(
   kind: ForkRemapKind,
+  sourceId: string,
   sourceLabel: string,
   sourceProviderId: string | undefined,
   candidates: ForkResourceCandidate[]
 ): string | null {
+  if (kind === 'file-folder') {
+    return candidates.some((candidate) => candidate.id === sourceId) ? sourceId : null
+  }
   const normalized = sourceLabel.trim().toLowerCase()
   const byLabel = candidates.filter((c) => c.label.trim().toLowerCase() === normalized)
   if (kind === 'credential' && sourceProviderId) {
@@ -252,7 +256,13 @@ export async function getForkMappingView(
 
     const targetId =
       currentTargetId ??
-      suggestTarget(p.reference.kind, p.sourceLabel, p.sourceProviderId, candidates)
+      suggestTarget(
+        p.reference.kind,
+        p.reference.sourceId,
+        p.sourceLabel,
+        p.sourceProviderId,
+        candidates
+      )
     // True when `targetId` is an unconfirmed name/provider suggestion (no persisted
     // mapping). The modal treats a suggestion as a pending change so it shows the
     // pre-sync reconfigure rather than letting an accepted suggestion silently clear

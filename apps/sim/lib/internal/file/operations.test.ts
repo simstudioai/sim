@@ -908,15 +908,26 @@ describe('file manage folder wiring', () => {
     expect(body.data.truncated).toBe(false)
   })
 
-  it('refuses to materialize an oversized directory listing', async () => {
+  it('reports a bounded directory listing as truncated when more files exist', async () => {
     mockQueryWorkspaceFilePage.mockResolvedValueOnce({ files: [], nextKeys: ['cursor'] })
 
     const response = await POST(
       createMockRequest('POST', { operation: 'list', workspaceId: 'workspace-1' })
     )
 
-    expect(response.status).toBe(413)
-    expect(String((await response.json()).error)).toContain('more than 5000 files')
+    expect(response.status).toBe(200)
+    expect((await response.json()).data.truncated).toBe(true)
+    expect(mockQueryWorkspaceFilePage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          folderScope: {
+            folderIds: new Set<string>(),
+            includeRootItems: true,
+          },
+          limit: 200,
+        }),
+      })
+    )
   })
 })
 

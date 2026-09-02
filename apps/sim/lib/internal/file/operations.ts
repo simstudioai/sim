@@ -28,6 +28,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
 import { buildFolderPath, parseFolderPath, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
+import { collectFolderDepths } from '@/lib/folders/subtree'
 import { ShareValidationError } from '@/lib/public-shares/share-manager'
 import {
   ArchiveError,
@@ -1911,25 +1912,10 @@ export async function executeFileManageOperation(
          * filtered queries cannot be interleaved afterwards.
          */
         signal?.throwIfAborted()
-        const [{ folders }, filePage] = await Promise.all([
-          listWorkspaceFileFoldersOperation.execute({ principal, input: { workspaceId } }),
-          queryWorkspaceFilePage.execute({
-            principal,
-            input: {
-              workspaceId,
-              sortBy: 'uploadedAt',
-              sortOrder: 'asc',
-              limit: MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
-            },
-          }),
-        ])
-        if (filePage.nextKeys) {
-          throw new OrchestrationError(
-            'payload_too_large',
-            `Directory listing contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
-          )
-        }
-        const { files } = filePage
+        const { folders } = await listWorkspaceFileFoldersOperation.execute({
+          principal,
+          input: { workspaceId },
+        })
 
         const rootPath = body.path ?? ROOT_FOLDER_PATH
         const projected = folders.map((folder) => ({
@@ -1949,9 +1935,28 @@ export async function executeFileManageOperation(
           rootId = [...selection.folderIds][0] ?? null
         }
 
-        const { entries, truncated } = selectDirectoryEntries(
+        const maxDepth = body.recursive ? (body.depth ?? Number.POSITIVE_INFINITY) : 1
+        const fileParentDepths = collectFolderDepths(projected, rootId, {
+          maxDepth: Math.max(0, maxDepth - 1),
+        })
+        const folderIds = new Set(fileParentDepths.keys())
+        if (rootId) folderIds.add(rootId)
+        const limit = body.limit ?? DEFAULT_FILE_LIST_LIMIT
+        const filePage = await queryWorkspaceFilePage.execute({
+          principal,
+          input: {
+            workspaceId,
+            folderScope: { folderIds, includeRootItems: rootId === null },
+            search: body.search,
+            sortBy: 'name',
+            sortOrder: 'asc',
+            limit,
+          },
+        })
+
+        const listing = selectDirectoryEntries(
           projected,
-          files.map((file) => ({
+          filePage.files.map((file) => ({
             id: file.id,
             name: file.name,
             folderId: file.folderId ?? null,
@@ -1962,13 +1967,20 @@ export async function executeFileManageOperation(
           {
             rootId,
             rootPath,
-            maxDepth: body.recursive ? (body.depth ?? Number.POSITIVE_INFINITY) : 1,
+            maxDepth,
             search: body.search,
-            limit: body.limit ?? DEFAULT_FILE_LIST_LIMIT,
+            limit,
           }
         )
 
-        return Response.json({ success: true, data: { path: rootPath, entries, truncated } })
+        return Response.json({
+          success: true,
+          data: {
+            path: rootPath,
+            entries: listing.entries,
+            truncated: listing.truncated || filePage.nextKeys !== null,
+          },
+        })
       }
 
       case 'create_folder': {

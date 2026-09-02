@@ -274,7 +274,7 @@ describe('suggestTarget', () => {
   })
 
   it('disambiguates same-name credentials by matching the source provider', () => {
-    const target = suggestTarget('credential', 'Work', 'google-email', [
+    const target = suggestTarget('credential', 'source-credential', 'Work', 'google-email', [
       cand('c1', 'Work', 'google-calendar'),
       cand('c2', 'Work', 'google-email'),
     ])
@@ -283,22 +283,41 @@ describe('suggestTarget', () => {
 
   it('suggests a unique name match for a non-credential kind', () => {
     expect(
-      suggestTarget('table', 'Orders', undefined, [cand('t1', 'Orders'), cand('t2', 'Other')])
+      suggestTarget('table', 'source-table', 'Orders', undefined, [
+        cand('t1', 'Orders'),
+        cand('t2', 'Other'),
+      ])
     ).toBe('t1')
   })
 
   it('returns null when the name is ambiguous (two same-name candidates)', () => {
     expect(
-      suggestTarget('table', 'Dup', undefined, [cand('t1', 'Dup'), cand('t2', 'Dup')])
+      suggestTarget('table', 'source-table', 'Dup', undefined, [
+        cand('t1', 'Dup'),
+        cand('t2', 'Dup'),
+      ])
     ).toBeNull()
   })
 
   it('returns null when no candidate name matches', () => {
-    expect(suggestTarget('table', 'Orders', undefined, [cand('t1', 'Other')])).toBeNull()
+    expect(
+      suggestTarget('table', 'source-table', 'Orders', undefined, [cand('t1', 'Other')])
+    ).toBeNull()
   })
 
   it('matches the name case- and whitespace-insensitively', () => {
-    expect(suggestTarget('table', '  Orders  ', undefined, [cand('t1', 'orders')])).toBe('t1')
+    expect(
+      suggestTarget('table', 'source-table', '  Orders  ', undefined, [cand('t1', 'orders')])
+    ).toBe('t1')
+  })
+
+  it('matches file folders by canonical path instead of a colliding display label', () => {
+    expect(
+      suggestTarget('file-folder', '/Team%2FDocs', 'Team / Docs', undefined, [
+        cand('/Team/Docs', 'Team / Docs'),
+        cand('/Team%2FDocs', 'Team / Docs'),
+      ])
+    ).toBe('/Team%2FDocs')
   })
 })
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo } from 'react'
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import { useWorkspaceInvalidationRoom } from '@/app/workspace/[workspaceId]/hooks/use-workspace-invalidation-room'
@@ -10,6 +11,7 @@ import { getCanonicalFolderPath } from '@/hooks/queries/utils/folder-tree'
 import {
   invalidateWorkspaceFileBrowsers,
   useWorkspaceFileFolders,
+  WORKSPACE_FILE_BROWSER_INVALIDATION_KEY,
 } from '@/hooks/queries/workspace-file-folders'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
@@ -27,6 +29,9 @@ export interface UseResourceFoldersResult {
   /** Canonical path keyed by folder id, for resolving a stored value back to a row. */
   byPath: Map<string, ResourceFolder>
   isLoading: boolean
+  isPlaceholderData: boolean
+  error: string | null
+  refetch: () => void
 }
 
 /**
@@ -75,7 +80,8 @@ export function useResourceFolders(
   useWorkspaceInvalidationRoom(
     isFileResource ? (workspaceId ?? '') : '',
     ROOM_TYPES.WORKSPACE_FILES,
-    onFilesChanged
+    onFilesChanged,
+    WORKSPACE_FILE_BROWSER_INVALIDATION_KEY
   )
 
   const rows = useMemo<WorkflowFolder[]>(() => {
@@ -122,10 +128,16 @@ export function useResourceFolders(
     }
     folders.sort((a, b) => a.path.localeCompare(b.path))
 
+    const query = isFileResource ? files : generic
     return {
       folders,
       byPath: new Map(folders.map((folder) => [folder.path, folder])),
-      isLoading: isFileResource ? files.isLoading : generic.isLoading,
+      isLoading: query.isLoading,
+      isPlaceholderData: query.isPlaceholderData,
+      error: query.error ? getErrorMessage(query.error, 'Failed to load folders') : null,
+      refetch: () => {
+        void query.refetch()
+      },
     }
-  }, [rows, isFileResource, files.isLoading, generic.isLoading])
+  }, [rows, isFileResource, files, generic])
 }

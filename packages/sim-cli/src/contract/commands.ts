@@ -596,6 +596,12 @@ export const CLI_CONTRACT: CliContract = {
         describe: 'Whether each folder scope includes nested folders; on by default',
       },
     },
+    itemsPath: 'results',
+    columns: [
+      { header: 'file', path: 'fileId' },
+      { header: 'line', path: 'lineNumber' },
+      { header: 'text' },
+    ],
   },
   searchKnowledge: {
     // Accepts a string or an array on the wire; the CLI always sends the array.

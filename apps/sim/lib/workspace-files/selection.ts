@@ -36,7 +36,19 @@ export function findSelectedWorkspaceFile<T extends WorkspaceFileSelectionCandid
   if (selection.path) {
     const selectedPath = selection.path
     const byPath = candidates.find(
-      (candidate) => candidate.path === selectedPath || selectedPath.includes(candidate.key)
+      (candidate) =>
+        candidate.path === selectedPath ||
+        (() => {
+          const pathWithoutQuery = selectedPath.split(/[?#]/, 1)[0]
+          try {
+            const decodedPath = decodeURIComponent(pathWithoutQuery)
+            return decodedPath === candidate.key || decodedPath.endsWith(`/${candidate.key}`)
+          } catch {
+            return (
+              pathWithoutQuery === candidate.key || pathWithoutQuery.endsWith(`/${candidate.key}`)
+            )
+          }
+        })()
     )
     if (byPath) return byPath
   }

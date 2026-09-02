@@ -39,6 +39,7 @@ import {
   v2UploadTokenHeadersSchema,
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
+import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
@@ -513,13 +514,35 @@ export const v2DeleteFileFolderDataSchema = z
  * knowledge folders do not — so `scope` is added here rather than to the shared
  * schema, which would give three other surfaces a parameter they ignore.
  */
-export const v2ListFileFoldersQuerySchema = v2ListFoldersQuerySchema.extend({
-  scope: v2FileScopeSchema
-    .default('active')
-    .describe(
-      'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.'
-    ),
-})
+export const v2ListFileFoldersQuerySchema = v2ListFoldersQuerySchema
+  .extend({
+    scope: v2FileScopeSchema
+      .default('active')
+      .describe(
+        'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.'
+      ),
+    recursive: z
+      .stringbool({ case: 'sensitive' })
+      .optional()
+      .describe('Whether parentPath includes every descendant instead of direct children only.')
+      .meta({ enum: [...V2_TRUE_VALUES, ...V2_FALSE_VALUES] }),
+    depth: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_FOLDER_PATH_SEGMENTS)
+      .optional()
+      .describe('Deepest level below parentPath to include when recursive is true.'),
+  })
+  .superRefine((query, context) => {
+    if (query.depth !== undefined && query.recursive !== true) {
+      context.addIssue({
+        code: 'custom',
+        path: ['depth'],
+        message: 'depth requires recursive=true',
+      })
+    }
+  })
 export type V2ListFileFoldersQuery = z.output<typeof v2ListFileFoldersQuerySchema>
 
 export const v2ListFileFoldersContract = defineRouteContract({

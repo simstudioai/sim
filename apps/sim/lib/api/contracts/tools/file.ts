@@ -20,7 +20,10 @@ const fileIdSelectionSchema = z.union([
   z.string().min(1),
   z.array(z.string().min(1)).min(1).max(MAX_WORKSPACE_FILE_BULK_REQUEST_IDS, 'Too many file IDs'),
 ])
-const fileFolderPathsSchema = z.array(v2FolderPathInputSchema).max(64, 'Too many folders')
+const fileFolderPathsSchema = z
+  .array(v2FolderPathInputSchema)
+  .min(1, 'At least one folder is required')
+  .max(64, 'Too many folders')
 
 function validateFolderTarget(
   data: { folderPath?: string; folderPaths?: string[] },

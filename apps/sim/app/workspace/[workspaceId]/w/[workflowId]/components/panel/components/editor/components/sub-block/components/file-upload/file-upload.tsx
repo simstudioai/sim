@@ -13,6 +13,7 @@ import { Progress } from '@/components/ui/progress'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { fileDeleteContract } from '@/lib/api/contracts/storage-transfer'
+import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { readFolderPaths } from '@/lib/folders/selection'
 import { formatFileSize, getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 import { containsReference } from '@/lib/workflows/sanitization/references'
@@ -21,6 +22,7 @@ import { isFileInFolderScope } from '@/lib/workspace-files/folder-path-selection
 import { findSelectedWorkspaceFile } from '@/lib/workspace-files/selection'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useResourceFolders } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-resource-folders'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import {
@@ -384,6 +386,28 @@ export function FileUpload({
 
   const hasConcreteFolderScope =
     folderScopePaths.length > 0 && folderScopePaths.every((path) => !containsReference(path))
+  const {
+    byPath: folderByPath,
+    isLoading: loadingFolderScope,
+    isPlaceholderData: folderScopeIsPlaceholderData,
+    error: folderScopeError,
+  } = useResourceFolders(folderScope && !isPreview ? workspaceId : undefined, 'file')
+  const uploadTargetFolderId = useMemo<string | null | undefined>(() => {
+    if (!folderScope || folderScopePaths.length === 0) return null
+    if (!hasConcreteFolderScope || folderScopePaths.length !== 1) return undefined
+    if (folderScopePaths[0] === ROOT_FOLDER_PATH) return null
+    if (loadingFolderScope || folderScopeIsPlaceholderData || folderScopeError) return undefined
+    return folderByPath.get(folderScopePaths[0])?.id
+  }, [
+    folderByPath,
+    folderScope,
+    folderScopeError,
+    folderScopeIsPlaceholderData,
+    folderScopePaths,
+    hasConcreteFolderScope,
+    loadingFolderScope,
+  ])
+  const folderScopeUploadBlocked = uploadTargetFolderId === undefined
   const scopedWorkspaceFiles = useMemo(
     () =>
       hasConcreteFolderScope
@@ -456,7 +480,7 @@ export function FileUpload({
     e.preventDefault()
     e.stopPropagation()
 
-    if (disabled || cloudUploadBlocked) return
+    if (disabled || cloudUploadBlocked || folderScopeUploadBlocked) return
 
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -477,7 +501,7 @@ export function FileUpload({
    * Handles file upload when new file(s) are selected
    */
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isPreview || disabled || cloudUploadBlocked) return
+    if (isPreview || disabled || cloudUploadBlocked || folderScopeUploadBlocked) return
 
     e.stopPropagation()
 
@@ -537,6 +561,7 @@ export function FileUpload({
           const data = await uploadFileMutation.mutateAsync({
             workspaceId,
             file,
+            folderId: uploadTargetFolderId,
             skipToast: true,
             skipInvalidation: true,
           })
@@ -545,6 +570,7 @@ export function FileUpload({
             name: data.file.name,
             path: data.file.url,
             key: data.file.key,
+            id: data.file.id,
             size: data.file.size,
             type: data.file.type,
           })
@@ -777,7 +803,11 @@ export function FileUpload({
   // Options for multiple file mode (filters out already selected files)
   const comboboxOptions = useMemo(
     () => [
-      { label: 'Upload New File', value: '__upload_new__', disabled: cloudUploadBlocked },
+      {
+        label: 'Upload New File',
+        value: '__upload_new__',
+        disabled: cloudUploadBlocked || folderScopeUploadBlocked,
+      },
       ...[...availableWorkspaceFiles].sort(byFolderThenName).map((file) => {
         const isAccepted =
           !acceptedTypes || acceptedTypes === '*' || isFileTypeAccepted(file.type, acceptedTypes)
@@ -789,13 +819,17 @@ export function FileUpload({
         }
       }),
     ],
-    [availableWorkspaceFiles, acceptedTypes, cloudUploadBlocked]
+    [availableWorkspaceFiles, acceptedTypes, cloudUploadBlocked, folderScopeUploadBlocked]
   )
 
   // Options for single file mode (includes all files, selected one will be highlighted)
   const singleFileOptions = useMemo(
     () => [
-      { label: 'Upload New File', value: '__upload_new__', disabled: cloudUploadBlocked },
+      {
+        label: 'Upload New File',
+        value: '__upload_new__',
+        disabled: cloudUploadBlocked || folderScopeUploadBlocked,
+      },
       ...[...scopedWorkspaceFiles].sort(byFolderThenName).map((file) => {
         const isAccepted =
           !acceptedTypes || acceptedTypes === '*' || isFileTypeAccepted(file.type, acceptedTypes)
@@ -806,7 +840,7 @@ export function FileUpload({
         }
       }),
     ],
-    [scopedWorkspaceFiles, acceptedTypes, cloudUploadBlocked]
+    [scopedWorkspaceFiles, acceptedTypes, cloudUploadBlocked, folderScopeUploadBlocked]
   )
 
   // Find the selected file's workspace ID for highlighting in single file mode
@@ -838,7 +872,7 @@ export function FileUpload({
     setInputValue('')
 
     if (value === '__upload_new__') {
-      if (cloudUploadBlocked) return
+      if (cloudUploadBlocked || folderScopeUploadBlocked) return
       handleOpenFileDialog({
         preventDefault: () => {},
         stopPropagation: () => {},
@@ -864,6 +898,12 @@ export function FileUpload({
         <div className='mb-2 text-muted-foreground text-xs'>
           Cloud storage (S3 or Blob) is required for file uploads. Configure S3_BUCKET_NAME and
           AWS_REGION, or Azure Blob env vars.
+        </div>
+      )}
+
+      {folderScopeUploadBlocked && !loadingFolderScope && (
+        <div className='mb-2 text-muted-foreground text-xs'>
+          Choose one available folder to upload a new file. Existing files can still be selected.
         </div>
       )}
 
