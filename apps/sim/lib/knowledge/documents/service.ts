@@ -82,6 +82,7 @@ import {
   SYSTEM_ACCESS_SCOPE,
   type SystemAccessScope,
 } from '@/lib/knowledge/access/types'
+import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
 import {
   assertDocumentChunkCountWithinLimit,
   isPermanentDocumentProcessingError,
@@ -820,14 +821,27 @@ async function isDocumentAcceptedWithoutDispatch(
   return accepted.length > 0
 }
 
+/**
+ * The sync run a connector dispatch proves before it queues processing. The
+ * document writes prove the lease in their own transactions, but the queue
+ * write is a later transaction: a run reclaimed in between would otherwise
+ * install a processing generation, spend an attempt, and dispatch a worker
+ * beside the replacement run's own dispatch for the same document.
+ */
+export interface ProcessingDispatchLease extends SyncWriteLease {
+  connectorId: string
+}
+
 async function markDocumentsQueued(
   documentIds: string[],
   knowledgeBaseId: string,
   queueToken: string,
-  queuedAt: Date
+  queuedAt: Date,
+  lease: ProcessingDispatchLease | undefined
 ): Promise<MarkDocumentsQueuedResult> {
   const legacyAdoptionCutoff = new Date(queuedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
   return db.transaction(async (tx) => {
+    if (lease) await assertSyncLeaseHeldInTx(tx, lease.connectorId, lease)
     const claimed = await tx
       .update(document)
       .set({
@@ -1016,14 +1030,16 @@ async function bestEffortWithdrawDocumentsQueued(
  * available, or in-process otherwise. Throws only when every dispatch fails;
  * partial failures are returned and recovered by the next sync's stuck-doc
  * pass. A successful Trigger.dev hand-off is only an accepted child run, not a
- * claim about its eventual processing outcome.
+ * claim about its eventual processing outcome. A connector sync passes its
+ * lease, and the queue write then lands only while the run still holds it.
  */
 export async function processDocumentsWithQueue(
   createdDocuments: DocumentData[],
   knowledgeBaseId: string,
   processingOptions: ProcessingOptions,
   requestId: string,
-  billingAttribution: BillingAttributionSnapshot | undefined
+  billingAttribution: BillingAttributionSnapshot | undefined,
+  lease?: ProcessingDispatchLease
 ): Promise<DocumentProcessingDispatchResult> {
   const seenDocumentIds = new Set<string>()
   const uniqueDocuments = createdDocuments.filter((createdDocument) => {
@@ -1042,7 +1058,7 @@ export async function processDocumentsWithQueue(
     generations: queuedGenerations,
     acceptedWithoutDispatchIds,
     unresolvedIds,
-  } = await markDocumentsQueued(documentIds, knowledgeBaseId, requestId, queuedAt)
+  } = await markDocumentsQueued(documentIds, knowledgeBaseId, requestId, queuedAt, lease)
   const generationByDocumentId = new Map(
     queuedGenerations.map((generation) => [generation.documentId, generation])
   )

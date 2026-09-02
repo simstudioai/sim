@@ -886,6 +886,7 @@ export async function createStreamingResponse(
                 fileKeys: result.metadata?.fileKeys ?? options.fileKeys,
                 allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
                 userId: options.userId,
+                principal: options.principal,
                 redactToolPayloads: streamConfig.isSecureMode === true,
               }
             )

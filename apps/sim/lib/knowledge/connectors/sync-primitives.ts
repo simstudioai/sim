@@ -1769,11 +1769,13 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<void> {
           connector.knowledgeBaseId,
           {},
           generateId(),
-          billingAttribution
+          billingAttribution,
+          { connectorId, stillHeld: input.lease.stillHeld }
         )
         result.processingDispatch.accepted += dispatch.accepted
         result.processingDispatch.failed += dispatch.failed
       } catch (error) {
+        if (error instanceof SyncLockLostException) throw error
         result.processingDispatch.failed += batchDocs.length
         logger.warn('Failed to enqueue batch for processing — will retry on next sync', {
           connectorId,
@@ -2300,7 +2302,8 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
         knowledgeBaseId,
         {},
         generateId(),
-        billingAttribution
+        billingAttribution,
+        { connectorId, stillHeld: input.lease.stillHeld }
       )
       result.processingDispatch.accepted += dispatch.accepted
       result.processingDispatch.failed += dispatch.failed

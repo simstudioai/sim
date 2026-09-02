@@ -205,7 +205,10 @@ function optimisticallySetConnectorStatus(
 /**
  * The optimistic "queued" write for a sync trigger, on whichever engine the
  * connector runs: a members connector queues a member run, so its content
- * status must not flip. Returns what to restore if the trigger is refused.
+ * status must not flip. The Search surface reads the same member sync status
+ * from the workspace member-connector list, so that cache is queued too; it
+ * has no poll to reconcile it, and the write cannot stop one, so it is patched
+ * rather than refetched. Returns what to restore if the trigger is refused.
  */
 function optimisticallyQueueSync(
   queryClient: QueryClient,
@@ -220,6 +223,15 @@ function optimisticallyQueueSync(
     setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, {
       memberSyncStatus: 'pending',
     })
+    queryClient.setQueriesData<WorkspaceMemberConnector[]>(
+      { queryKey: memberConnectorKeys.lists() },
+      (connectors) =>
+        connectors?.map((connector) =>
+          connector.connectorId === connectorId
+            ? { ...connector, memberSyncStatus: 'pending' }
+            : connector
+        )
+    )
     return { memberSyncStatus: cached.memberSyncStatus }
   }
   setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, { status: 'pending' })
@@ -507,6 +519,10 @@ export function useTriggerSync() {
         setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, previous)
       }
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      /** The member-connector list took the same optimistic `pending`; a refetch is its rollback. */
+      if (previous && 'memberSyncStatus' in previous) {
+        queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
+      }
     },
     /**
      * Deliberately no invalidation on success. The route answers without

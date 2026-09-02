@@ -14,6 +14,8 @@ const SOURCE_MODIFIED_AT_KEYS = [
   'updatedAt',
   'updated_at',
   'updated',
+  /** JSM requests: the time the request last changed status, the list endpoint's only change signal. */
+  'statusDate',
 ] as const
 
 /** Earlier than any plausible document; guards against epoch-zero placeholders. */

@@ -1,1 +1,5 @@
-export { groupResultsByDocument, KnowledgeSearchResults } from './knowledge-search-results'
+export {
+  groupResultsByDocument,
+  indexingSourceNames,
+  KnowledgeSearchResults,
+} from './knowledge-search-results'

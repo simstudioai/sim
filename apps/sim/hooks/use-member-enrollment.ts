@@ -83,6 +83,16 @@ export function describeMembership({
   }
 }
 
+/** An enrollment tab this surface opened that has not connected yet. */
+interface AwaitingEnrollment {
+  since: number
+  /**
+   * The Sim Search source whose connect created the connector, so the source
+   * can be told it is awaited before its membership row exists to look it up by.
+   */
+  connectorType: string | null
+}
+
 interface UseMemberEnrollmentProps {
   /** Queries this surface reads memberships from, refreshed while a connection is awaited. */
   membershipQueryKeys: readonly QueryKey[]
@@ -109,7 +119,9 @@ export function useMemberEnrollment({
   const queryClient = useQueryClient()
   const enrollment = useStartConnectorMemberEnrollment()
   const sourceConnection = useConnectSimSearchConnector()
-  const [awaitingSince, setAwaitingSince] = useState<ReadonlyMap<string, number>>(() => new Map())
+  const [awaitingSince, setAwaitingSince] = useState<ReadonlyMap<string, AwaitingEnrollment>>(
+    () => new Map()
+  )
   const [popupBlocked, setPopupBlocked] = useState(false)
 
   useEffect(() => {
@@ -129,7 +141,7 @@ export function useMemberEnrollment({
       setAwaitingSince((current) => {
         const next = new Map(
           [...current].filter(
-            ([id, since]) =>
+            ([id, { since }]) =>
               !connectedRef.current.has(id) && now - since < AWAITING_CONNECTION_TIMEOUT_MS
           )
         )
@@ -146,7 +158,7 @@ export function useMemberEnrollment({
   /** Opens the tab inside the click, then sends it wherever `start` mints. */
   const openEnrollment = (
     start: (handlers: {
-      onSuccess: (url: string, connectorId: string) => void
+      onSuccess: (url: string, connectorId: string, connectorType?: string) => void
       onError: () => void
     }) => void
   ) => {
@@ -158,9 +170,14 @@ export function useMemberEnrollment({
     tab.opener = null
     setPopupBlocked(false)
     start({
-      onSuccess: (url, connectorId) => {
+      onSuccess: (url, connectorId, connectorType) => {
         tab.location.href = url
-        setAwaitingSince((current) => new Map(current).set(connectorId, Date.now()))
+        setAwaitingSince((current) =>
+          new Map(current).set(connectorId, {
+            since: Date.now(),
+            connectorType: connectorType ?? null,
+          })
+        )
       },
       onError: () => tab.close(),
     })
@@ -194,7 +211,7 @@ export function useMemberEnrollment({
       sourceConnection.mutate(
         { workspaceId, connectorType, sourceConfig },
         {
-          onSuccess: ({ url, connectorId }) => onSuccess(url, connectorId),
+          onSuccess: ({ url, connectorId }) => onSuccess(url, connectorId, connectorType),
           onError: (err) => {
             onError()
             logger.error('Failed to connect a Sim Search source', { error: err.message })
@@ -229,6 +246,16 @@ export function useMemberEnrollment({
   const isAwaiting = (connectorId: string) =>
     awaitingSince.has(connectorId) && !connectedConnectorIds.has(connectorId)
 
+  /**
+   * Whether a Sim Search source is awaited by the connect that created its
+   * connector: the membership list has no row for it until it refetches, so
+   * the source cannot be looked up by connector id yet.
+   */
+  const isAwaitingSource = (connectorType: string) =>
+    [...awaitingSince].some(
+      ([id, awaiting]) => awaiting.connectorType === connectorType && !connectedConnectorIds.has(id)
+    )
+
   /** The surface reports the latest attempt, whichever path made it. */
   const latest =
     enrollment.submittedAt >= sourceConnection.submittedAt ? enrollment : sourceConnection
@@ -239,6 +266,7 @@ export function useMemberEnrollment({
     setupConnector,
     closeSetup: () => setSetupConnector(null),
     isAwaiting,
+    isAwaitingSource,
     isPending: latest.isPending,
     error: popupBlocked ? POPUP_BLOCKED_MESSAGE : (latest.error?.message ?? null),
   }

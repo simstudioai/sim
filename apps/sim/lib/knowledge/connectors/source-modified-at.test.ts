@@ -15,6 +15,7 @@ describe('resolveSourceModifiedAt', () => {
     ['updatedAt', '2026-08-20T12:00:00Z'],
     ['updated', '2026-08-20T12:00:00Z'],
     ['lastUpdated', '2026-08-20 12:00:00Z'],
+    ['statusDate', '2026-08-20T12:00:00.000+0000'],
   ])('reads %s', (key, value) => {
     expect(resolveSourceModifiedAt({ [key]: value }, NOW)?.toISOString()).toBe(
       '2026-08-20T12:00:00.000Z'

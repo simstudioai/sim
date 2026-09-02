@@ -7,8 +7,14 @@ import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { isIndexing } from '@/app/workspace/[workspaceId]/home/components/search-sources'
-import { useWorkspaceMemberConnectors } from '@/hooks/queries/kb/connectors'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import {
+  useWorkspaceMemberConnectors,
+  type WorkspaceMemberConnector,
+} from '@/hooks/queries/kb/connectors'
 import { useKnowledgeBasesQuery, useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
+
+const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
 
 /** A search spans at most this many knowledge bases. */
 const MAX_SEARCHED_KNOWLEDGE_BASES = 20
@@ -45,6 +51,25 @@ export function groupResultsByDocument(
     grouped.push(result)
   }
   return grouped
+}
+
+/**
+ * The names of the sources still indexing for the viewer among the bases the
+ * search spans, each once. A base outside the search cannot grow its results,
+ * so its indexing is not the reader's concern here.
+ */
+export function indexingSourceNames(
+  memberConnectors: readonly WorkspaceMemberConnector[],
+  knowledgeBaseIds: readonly string[]
+): string[] {
+  const searched = new Set(knowledgeBaseIds)
+  return [
+    ...new Set(
+      memberConnectors
+        .filter((connection) => searched.has(connection.knowledgeBaseId) && isIndexing(connection))
+        .map((connection) => connectorDisplayName(connection.connectorType))
+    ),
+  ]
 }
 
 /**
@@ -124,15 +149,17 @@ export function KnowledgeSearchResults({
     isFetching,
     error,
   } = useWorkspaceKnowledgeSearch(workspaceId, knowledgeBaseIds, query)
-  const { data: memberConnectors = [] } = useWorkspaceMemberConnectors(workspaceId)
-  /** Every per-member connector still indexing for the viewer, in any base the search spans. */
-  const indexing = [
-    ...new Set(
-      memberConnectors
-        .filter(isIndexing)
-        .map((connection) => connectorDisplayName(connection.connectorType))
-    ),
-  ]
+  const { features } = useWorkspaceHostContext()
+  /**
+   * Judged by the workspace, as the server judges it: with per-member access
+   * off, member-scoped documents are hidden, so no source is indexing anything
+   * the viewer will see, and the list is not worth asking for.
+   */
+  const memberAccessAvailable = features?.knowledgeMemberAccess === true
+  const { data: memberConnectors = EMPTY_MEMBER_CONNECTORS } = useWorkspaceMemberConnectors(
+    memberAccessAvailable ? workspaceId : undefined
+  )
+  const indexing = indexingSourceNames(memberConnectors, knowledgeBaseIds)
   const documents = useMemo(() => groupResultsByDocument(results ?? []), [results])
   const sourceTypes = useMemo(
     () => [...new Set(documents.map((result) => result.connectorType ?? 'upload'))],

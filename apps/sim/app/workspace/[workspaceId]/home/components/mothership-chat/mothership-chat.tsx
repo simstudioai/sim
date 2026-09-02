@@ -70,6 +70,8 @@ interface MothershipChatProps {
     fileAttachments?: FileAttachmentForApi[],
     contexts?: ChatContext[]
   ) => void
+  /** Whether the composer offers Search mode; only the Home composer answers a search. */
+  canSearch?: boolean
   /** Off in Search mode, where the query stays put so the person can refine it. */
   clearOnSubmit?: boolean
   /** Fires when the composer's text goes from something to nothing. */
@@ -324,6 +326,7 @@ export function MothershipChat({
   isReconnecting = false,
   isLoading = false,
   onSubmit,
+  canSearch = false,
   clearOnSubmit,
   onCleared,
   onStopGeneration,
@@ -844,6 +847,7 @@ export function MothershipChat({
               key={draftScopeKey}
               ref={userInputRef}
               onSubmit={onSubmit}
+              canSearch={canSearch}
               clearOnSubmit={clearOnSubmit}
               onCleared={onCleared}
               isSending={isStreamActive}
