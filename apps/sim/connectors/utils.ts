@@ -56,6 +56,22 @@ export function parseOptionalUnlimitedSafeInteger(value: unknown, errorMessage: 
   return parsed
 }
 
+/**
+ * Parses a connector cap that keeps `defaultValue` when the field is blank —
+ * absent, null, or a string of nothing but whitespace — and otherwise reads
+ * like {@link parseOptionalUnlimitedSafeInteger}, where 0 lifts the cap. A
+ * per-member sync writes that explicit 0; a form left empty must not.
+ */
+export function parseDefaultedUnlimitedSafeInteger(
+  value: unknown,
+  defaultValue: number,
+  errorMessage: string
+): number {
+  if (value === undefined || value === null) return defaultValue
+  if (typeof value === 'string' && value.trim() === '') return defaultValue
+  return parseOptionalUnlimitedSafeInteger(value, errorMessage)
+}
+
 const MICROSOFT_GRAPH_ORIGIN = 'https://graph.microsoft.com'
 
 export interface MicrosoftGraphTraversalState {
@@ -761,4 +777,21 @@ export const PER_MEMBER_LISTING_CONTEXT = { perMemberListing: true } as const
 
 export function isPerMemberListing(syncContext: Record<string, unknown> | undefined): boolean {
   return syncContext?.perMemberListing === true
+}
+
+/**
+ * Whether a folder request that failed while walking a Microsoft Graph drive
+ * can be left out of the listing: under a member's own token a descendant
+ * folder Graph reports as unreachable (403, 404) is simply not shared with
+ * them, so their listing stays complete without it and their access to its
+ * files is withdrawn. The configured root is the whole scope, which the
+ * members-mode crawl reads as a complete listing of nothing, and a shared
+ * credential never skips: dropping the folder's files would read as deletions.
+ */
+export function isSkippableMicrosoftGraphFolderError(
+  error: unknown,
+  syncContext: Record<string, unknown> | undefined,
+  isRootFolder: boolean
+): boolean {
+  return !isRootFolder && isListingScopeUnavailableError(error) && isPerMemberListing(syncContext)
 }

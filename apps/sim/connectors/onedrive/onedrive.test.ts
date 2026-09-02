@@ -16,6 +16,7 @@ import { onedriveConnector } from '@/connectors/onedrive/onedrive'
 import {
   encodeMicrosoftGraphTraversalCursor,
   MICROSOFT_GRAPH_MAX_PENDING_FOLDERS,
+  PER_MEMBER_LISTING_CONTEXT,
 } from '@/connectors/utils'
 
 const GRAPH = 'https://graph.microsoft.com/v1.0'
@@ -429,6 +430,47 @@ describe('onedrive listing scope', () => {
       expect(onedriveConnector.isListingScopeUnavailableError!(error)).toBe(true)
     }
   )
+
+  it('skips a subfolder the member cannot reach and keeps their listing complete', async () => {
+    mockGraph({
+      [ROOT_URL]: {
+        body: { value: [file('f1', 'a.txt'), folder('open', 'open'), folder('locked', 'locked')] },
+      },
+      [childrenUrl('locked')]: { status: 403, body: {} },
+      [childrenUrl('open')]: { body: { value: [file('f2', 'b.md')] } },
+    })
+    const syncContext: Record<string, unknown> = { ...PER_MEMBER_LISTING_CONTEXT }
+
+    const result = await onedriveConnector.listDocuments('token', {}, undefined, syncContext)
+
+    expect(result.documents.map((d) => d.externalId)).toEqual(['f1', 'f2'])
+    expect(result.hasMore).toBe(false)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('still fails a shared listing on a subfolder it cannot reach', async () => {
+    mockGraph({
+      [ROOT_URL]: { body: { value: [file('f1', 'a.txt'), folder('locked', 'locked')] } },
+    })
+
+    const error = await onedriveConnector
+      .listDocuments('token', {}, undefined, {})
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(onedriveConnector.isListingScopeUnavailableError!(error)).toBe(true)
+  })
+
+  it('reads an unreachable root as the whole scope under a per-member listing', async () => {
+    mockGraph({ [ROOT_URL]: { status: 403, body: {} } })
+
+    const error = await onedriveConnector
+      .listDocuments('token', {}, undefined, { ...PER_MEMBER_LISTING_CONTEXT })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(onedriveConnector.isListingScopeUnavailableError!(error)).toBe(true)
+  })
 
   it('keeps any other listing failure retryable', async () => {
     mockGraph({ [ROOT_URL]: { status: 500, body: {} } })

@@ -6,8 +6,8 @@ import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/
 import {
   htmlToPlainText,
   joinTagArray,
+  parseDefaultedUnlimitedSafeInteger,
   parseMultiValue,
-  parseOptionalUnlimitedSafeInteger,
   parseTagDate,
 } from '@/connectors/utils'
 
@@ -452,14 +452,12 @@ export const gmailConnector: ConnectorConfig = {
       labelIndex = resolved
     }
     const searchQuery = buildSearchQuery(sourceConfig, labelIndex)
-    /** Absent means the default cap; an explicit 0 (a per-member sync) means unlimited. */
-    const maxThreads =
-      sourceConfig.maxThreads === undefined
-        ? DEFAULT_MAX_THREADS
-        : parseOptionalUnlimitedSafeInteger(
-            sourceConfig.maxThreads,
-            'maxThreads must be a non-negative integer'
-          )
+    /** A blank field keeps the default cap; an explicit 0 (a per-member sync) means unlimited. */
+    const maxThreads = parseDefaultedUnlimitedSafeInteger(
+      sourceConfig.maxThreads,
+      DEFAULT_MAX_THREADS,
+      'maxThreads must be a non-negative integer'
+    )
 
     const totalFetched = (syncContext?.totalThreadsFetched as number) ?? 0
     if (maxThreads > 0 && totalFetched >= maxThreads) {

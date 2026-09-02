@@ -22,6 +22,7 @@ import {
   appendPendingMicrosoftGraphFolders,
   encodeMicrosoftGraphTraversalCursor,
   MICROSOFT_GRAPH_MAX_PENDING_FOLDERS,
+  PER_MEMBER_LISTING_CONTEXT,
 } from '@/connectors/utils'
 
 const GRAPH = 'https://graph.microsoft.com/v1.0'
@@ -477,6 +478,52 @@ describe('listDocuments', () => {
     expect(result.documents).toHaveLength(2)
     expect(result.hasMore).toBe(false)
     expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('skips a subfolder the member cannot reach and keeps their listing complete', async () => {
+    mockGraph({
+      ...childrenRoute(DEFAULT_DRIVE_ID, null, [
+        file('f1', 'a.txt'),
+        folder('open', 'Open'),
+        folder('locked', 'Locked'),
+      ]),
+      [`${GRAPH}/drives/${DEFAULT_DRIVE_ID}/items/locked/children?$top=200&$select=${ITEM_SELECT}`]:
+        { status: 403, body: {} },
+      ...childrenRoute(DEFAULT_DRIVE_ID, 'open', [file('f2', 'b.txt')]),
+    })
+    const syncContext = { ...listContext(), ...PER_MEMBER_LISTING_CONTEXT }
+
+    const result = await list(undefined, syncContext)
+
+    expect(result.documents.map((doc) => doc.externalId)).toEqual(['f1', 'f2'])
+    expect(result.hasMore).toBe(false)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('still fails a shared listing on a subfolder it cannot reach', async () => {
+    mockGraph({
+      ...childrenRoute(DEFAULT_DRIVE_ID, null, [file('f1', 'a.txt'), folder('locked', 'Locked')]),
+    })
+
+    const error = await list(undefined, listContext()).catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(sharepointConnector.isListingScopeUnavailableError!(error)).toBe(true)
+  })
+
+  it('reads an unreachable root as the whole scope under a per-member listing', async () => {
+    mockGraph({
+      [`${GRAPH}/drives/${DEFAULT_DRIVE_ID}/root/children?$top=200&$select=${ITEM_SELECT}`]: {
+        status: 403,
+        body: {},
+      },
+    })
+    const syncContext = { ...listContext(), ...PER_MEMBER_LISTING_CONTEXT }
+
+    const error = await list(undefined, syncContext).catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(sharepointConnector.isListingScopeUnavailableError!(error)).toBe(true)
   })
 
   it('drains subfolders within a single call instead of one folder per page', async () => {

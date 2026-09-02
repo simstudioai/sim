@@ -7,7 +7,7 @@ import {
   htmlToPlainText,
   isListingScopeUnavailableError,
   listingRequestError,
-  parseOptionalUnlimitedSafeInteger,
+  parseDefaultedUnlimitedSafeInteger,
   parseTagDate,
 } from '@/connectors/utils'
 
@@ -613,9 +613,9 @@ function formatConversation(
  * per-member listing is complete.
  */
 function parseMaxConversations(value: unknown): number {
-  if (value === undefined || value === null || value === '') return DEFAULT_MAX_CONVERSATIONS
-  return parseOptionalUnlimitedSafeInteger(
+  return parseDefaultedUnlimitedSafeInteger(
     value,
+    DEFAULT_MAX_CONVERSATIONS,
     'Max conversations must be a positive safe integer, or 0 for unlimited'
   )
 }

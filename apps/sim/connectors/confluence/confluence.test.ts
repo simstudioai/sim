@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   AtlassianSiteNotAccessibleError,
   AtlassianSiteNotMatchedError,
@@ -406,5 +406,68 @@ describe('preserveConfluenceCallouts', () => {
     const result = preserveConfluenceCallouts(html)
     expect(result).not.toContain('for:GitLab')
     expect(result).toContain('[WARNING] Do NOT use this form for: GitLab')
+  })
+})
+
+describe('confluence incremental CQL listing', () => {
+  const fetchMock =
+    vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>()
+
+  function jsonResponse(body: unknown): Response {
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  function cqlOfCall(index: number): string | null {
+    return new URL(String(fetchMock.mock.calls[index][0])).searchParams.get('cql')
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('keeps one lastModified clause across pages that straddle a minute boundary', async () => {
+    const lastSyncAt = new Date('2026-09-01T11:30:00Z')
+    const config = { domain: 'example.atlassian.net', spaceKey: 'ENG' }
+    const syncContext: Record<string, unknown> = { cloudId: 'cloud-1' }
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          results: [],
+          _links: { next: '/wiki/rest/api/content/search?cursor=page-2&cql=ignored' },
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({ results: [] }))
+
+    vi.setSystemTime(new Date('2026-09-01T12:00:59Z'))
+    const first = await confluenceConnector.listDocuments(
+      'token',
+      config,
+      undefined,
+      syncContext,
+      lastSyncAt
+    )
+    expect(first.nextCursor).toBe('page-2')
+
+    vi.setSystemTime(new Date('2026-09-01T12:01:01Z'))
+    await confluenceConnector.listDocuments(
+      'token',
+      config,
+      first.nextCursor,
+      syncContext,
+      lastSyncAt
+    )
+
+    expect(cqlOfCall(0)).toContain('lastModified >= now("-31m")')
+    expect(cqlOfCall(1)).toBe(cqlOfCall(0))
   })
 })

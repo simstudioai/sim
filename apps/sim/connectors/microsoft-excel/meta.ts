@@ -14,7 +14,11 @@ export const microsoftExcelConnectorMeta: ConnectorMeta = {
     requiredScopes: ['Files.ReadWrite'],
   },
 
-  /** Every worksheet of the one workbook is listed; nothing caps the listing. */
+  /**
+   * No config field caps the listing: every worksheet of the one workbook is
+   * listed. The `MAX_WORKSHEETS` memory bound flags `listingCapped` when it
+   * bites, which the members-mode crawl reads as an incomplete listing.
+   */
   permissionScopedListing: { capFieldIds: [] },
   configFields: [
     {

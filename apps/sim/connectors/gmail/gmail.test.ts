@@ -12,6 +12,7 @@ vi.mock('@/lib/knowledge/documents/utils', () => ({
 vi.mock('@/components/icons', () => ({ GmailIcon: () => null }))
 
 import { gmailConnector } from '@/connectors/gmail/gmail'
+import { DEFAULT_MAX_THREADS } from '@/connectors/gmail/meta'
 
 function threads(count: number, prefix: string) {
   return Array.from({ length: count }, (_, i) => ({ id: `${prefix}-${i}`, historyId: '1' }))
@@ -84,5 +85,22 @@ describe('gmail listDocuments with maxThreads 0 (unlimited, a per-member sync)',
     expect(result.hasMore).toBe(false)
     expect(result.nextCursor).toBeUndefined()
     expect(syncContext.listingCapped).toBe(true)
+  })
+})
+
+describe('gmail listDocuments with a blank maxThreads', () => {
+  it.each([null, '', '   '])('keeps the default cap for %j', async (maxThreads) => {
+    mockPages([])
+    const syncContext: Record<string, unknown> = { totalThreadsFetched: DEFAULT_MAX_THREADS }
+
+    const result = await gmailConnector.listDocuments(
+      'token',
+      { maxThreads },
+      undefined,
+      syncContext
+    )
+
+    expect(result.hasMore).toBe(false)
+    expect(mockFetchWithRetry).not.toHaveBeenCalled()
   })
 })

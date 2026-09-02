@@ -20,6 +20,7 @@ import {
   isIndexableConnectorFile,
   isListingScopeUnavailableError,
   isMicrosoftGraphDriveItem,
+  isSkippableMicrosoftGraphFolderError,
   isSkippedDocument,
   type MicrosoftGraphTraversalState,
   markSkipped,
@@ -267,7 +268,20 @@ export const onedriveConnector: ConnectorConfig = {
           status: response.status,
           error: errorText,
         })
-        throw microsoftGraphListingError('Failed to list OneDrive files', response.status)
+        const error = microsoftGraphListingError('Failed to list OneDrive files', response.status)
+        const isRootFolder = state.currentFolder === undefined
+        if (!isSkippableMicrosoftGraphFolderError(error, syncContext, isRootFolder)) throw error
+        logger.warn('Skipping a OneDrive folder the member cannot reach', {
+          folderId: state.currentFolder,
+          status: response.status,
+        })
+        if (state.folderStack.length === 0) {
+          done = true
+          break
+        }
+        state.currentFolder = state.folderStack.pop()!
+        state.nextLink = undefined
+        continue
       }
 
       const data = parseMicrosoftGraphDriveItemList(await response.json(), 'OneDrive')

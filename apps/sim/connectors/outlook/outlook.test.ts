@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_MAX_CONVERSATIONS } from '@/connectors/outlook/meta'
 import {
   DELETED_ITEMS_FOLDER,
   isAllMailSync,
@@ -496,6 +497,21 @@ describe('listDocuments conversation cap', () => {
     )
 
     expect(result.documents).toHaveLength(2)
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
+  it('keeps the default cap when the field holds only whitespace', async () => {
+    routeFetch([inboxMessagesRoute(DEFAULT_MAX_CONVERSATIONS + 1)])
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await outlookConnector.listDocuments(
+      'token',
+      { folder: 'inbox', maxConversations: '   ' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(DEFAULT_MAX_CONVERSATIONS)
     expect(syncContext.listingCapped).toBe(true)
   })
 

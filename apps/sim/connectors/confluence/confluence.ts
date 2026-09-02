@@ -699,6 +699,23 @@ export function buildLastModifiedClause(lastSyncAt: Date, now: Date): string {
 }
 
 /**
+ * The `lastModified` clause every page of one listing shares. The clause is a
+ * window relative to the server clock, so recomputing it on a later page that
+ * crosses a minute boundary would pair the cursor `_links.next` issued with a
+ * query it was not issued for; the first page fixes it for the run.
+ */
+export function resolveLastModifiedClause(
+  lastSyncAt: Date,
+  syncContext: Record<string, unknown> | undefined
+): string {
+  const fixed = syncContext?.cqlLastModifiedClause
+  if (typeof fixed === 'string') return fixed
+  const clause = buildLastModifiedClause(lastSyncAt, new Date())
+  if (syncContext) syncContext.cqlLastModifiedClause = clause
+  return clause
+}
+
+/**
  * Page size for CQL search. The endpoint defaults to 25 and documents no hard
  * maximum, so this stays conservatively below the fixed system limits it warns
  * about rather than mirroring the v2 endpoints' 250.
@@ -749,7 +766,7 @@ async function listDocumentsViaCql(
     cql += ` AND label in (${labelList})`
   }
 
-  if (lastSyncAt) cql += ` AND ${buildLastModifiedClause(lastSyncAt, new Date())}`
+  if (lastSyncAt) cql += ` AND ${resolveLastModifiedClause(lastSyncAt, syncContext)}`
 
   const fetchedSoFar = (syncContext?.totalDocsFetched as number) ?? 0
   const remaining = maxPages > 0 ? maxPages - fetchedSoFar : Number.POSITIVE_INFINITY

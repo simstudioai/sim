@@ -22,6 +22,7 @@ import {
   isIndexableConnectorFile,
   isListingScopeUnavailableError,
   isMicrosoftGraphDriveItem,
+  isSkippableMicrosoftGraphFolderError,
   isSkippedDocument,
   type MicrosoftGraphTraversalState,
   markSkipped,
@@ -865,7 +866,24 @@ export const sharepointConnector: ConnectorConfig = {
     let cappedWithItemsLeft = false
 
     for (let request = 0; request < MAX_LIST_REQUESTS_PER_CALL; request++) {
-      const data = await listFolderItems(accessToken, driveId, state.currentFolder, state.nextLink)
+      let data: Awaited<ReturnType<typeof listFolderItems>>
+      try {
+        data = await listFolderItems(accessToken, driveId, state.currentFolder, state.nextLink)
+      } catch (error) {
+        const isRootFolder = state.currentFolder === rootFolderId
+        if (!isSkippableMicrosoftGraphFolderError(error, syncContext, isRootFolder)) throw error
+        logger.warn('Skipping a SharePoint folder the member cannot reach', {
+          folderId: state.currentFolder,
+          error: getErrorMessage(error),
+        })
+        if (state.folderStack.length === 0) {
+          stopPaging = true
+          break
+        }
+        state.currentFolder = state.folderStack.pop()!
+        state.nextLink = undefined
+        continue
+      }
 
       // Separate files and subfolders
       const subfolders: string[] = []
