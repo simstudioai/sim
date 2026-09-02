@@ -976,6 +976,7 @@ function SubBlockComponent({
             blockId={blockId}
             subBlock={config}
             disabled={isDisabled}
+            folderScope={config.folderScope}
             isPreview={isPreview}
             previewValue={previewValue as any}
           />

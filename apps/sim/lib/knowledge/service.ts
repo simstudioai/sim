@@ -150,6 +150,12 @@ const KNOWLEDGE_BASE_SORTS = {
 export interface GetKnowledgeBasesOptions {
   /** Restrict to one knowledge-base folder; `undefined` lists all and `null` lists the root. */
   folderId?: string | null
+  /**
+   * Restrict to a set of knowledge-base folders, for a scope that spans a folder
+   * and its descendants. An empty array matches nothing, which is what an empty
+   * folder subtree should read as. Mutually exclusive with `folderId`.
+   */
+  folderIds?: string[]
   /** Case-insensitive substring match on the knowledge base name. */
   search?: string
   sortBy?: V2KnowledgeBaseSortBy
@@ -267,6 +273,7 @@ async function readWorkspaceKnowledgeBaseRows(
 }> {
   const {
     folderId,
+    folderIds,
     search,
     sortBy = 'createdAt',
     sortOrder = 'asc',
@@ -286,11 +293,15 @@ async function readWorkspaceKnowledgeBaseRows(
     and(
       eq(knowledgeBase.workspaceId, workspaceId),
       knowledgeBaseScopeCondition(scope),
-      folderId === undefined
-        ? undefined
-        : folderId === null
-          ? isNull(knowledgeBase.folderId)
-          : eq(knowledgeBase.folderId, folderId),
+      folderIds !== undefined
+        ? folderIds.length === 0
+          ? sql`false`
+          : inArray(knowledgeBase.folderId, folderIds)
+        : folderId === undefined
+          ? undefined
+          : folderId === null
+            ? isNull(knowledgeBase.folderId)
+            : eq(knowledgeBase.folderId, folderId),
       searchFilter(knowledgeBase.name, search),
       resumeKeyset(keys, cursorKeys, sortOrder)
     ),

@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   recordEmbeddingUsage: vi.fn(),
   importProvenance: vi.fn(),
   rerank: vi.fn(),
+  getWorkspaceKnowledgeBases: vi.fn(),
+  loadActiveFolderPathIndex: vi.fn(),
 }))
 
 vi.mock('@/lib/knowledge/reranker', () => ({
@@ -48,8 +50,26 @@ vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
 }))
 
+/*
+ * Folder expansion reads through this same module, so the factory has to name
+ * `getWorkspaceKnowledgeBases` too — a factory listing only what today's tests
+ * touch leaves a new code path undefined and unreachable by any test.
+ */
 vi.mock('@/lib/knowledge/service', () => ({
   getKnowledgeBaseById: mocks.getKnowledgeBase,
+  getWorkspaceKnowledgeBases: mocks.getWorkspaceKnowledgeBases,
+}))
+
+vi.mock('@/lib/folders/queries', () => ({
+  loadActiveFolderPathIndex: mocks.loadActiveFolderPathIndex,
+  resolveFolderPathFilter: (index: { pathById: Map<string, string> }, path?: string) => {
+    if (path === undefined) return { kind: 'unfiltered' as const }
+    if (path === '/') return { kind: 'folder' as const, folderId: null }
+    for (const [folderId, folderPath] of index.pathById) {
+      if (folderPath === path) return { kind: 'folder' as const, folderId }
+    }
+    return { kind: 'noMatch' as const }
+  },
 }))
 
 vi.mock('@/lib/knowledge/embeddings', () => ({
@@ -412,5 +432,226 @@ describe('knowledge search application use case', () => {
         },
       })
     ).rejects.toBe(failure)
+  })
+  /*
+   * A folder stands for the knowledge bases inside it, resolved at run time. The
+   * expansion has to land on the SAME authorization path as an explicit list, so
+   * these assert what reaches `executeKnowledgeSearch` and that permission is
+   * still resolved first.
+   */
+  describe('folder scope', () => {
+    const SESSION = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+
+    function withFolders(paths: Record<string, string>) {
+      mocks.loadActiveFolderPathIndex.mockResolvedValue({
+        pathById: new Map(Object.entries(paths)),
+        rowById: new Map(
+          Object.keys(paths).map((id) => [
+            id,
+            { id, parentId: id === 'support' ? null : 'support' },
+          ])
+        ),
+      })
+    }
+
+    beforeEach(() => {
+      withFolders({ support: '/Support', tier1: '/Support/Tier1' })
+      mocks.getWorkspaceKnowledgeBases.mockResolvedValue({ data: [knowledgeBase] })
+    })
+
+    it('searches the knowledge bases a folder expands to', async () => {
+      const result = await searchKnowledge.execute({
+        principal: SESSION,
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: [],
+          folderPath: '/Support',
+          query: 'answer',
+          topK: 5,
+        },
+      })
+
+      expect(mocks.getWorkspaceKnowledgeBases).toHaveBeenCalledWith('workspace-1', 'active', {
+        folderId: 'support',
+      })
+      expect(mocks.executeSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ knowledgeBaseIds: ['knowledge-1'] })
+      )
+      expect(result.knowledgeBases).toEqual([{ id: 'knowledge-1', name: 'Docs' }])
+    })
+
+    it('reaches subfolders only when asked', async () => {
+      await searchKnowledge.execute({
+        principal: SESSION,
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: [],
+          folderPath: '/Support',
+          folderIncludeSubfolders: true,
+          query: 'answer',
+          topK: 5,
+        },
+      })
+
+      expect(mocks.getWorkspaceKnowledgeBases).toHaveBeenCalledWith(
+        'workspace-1',
+        'active',
+        expect.objectContaining({ folderIds: ['support', 'tier1'] })
+      )
+    })
+
+    /*
+     * A folder is a scope, so naming a knowledge base inside it is the narrower
+     * answer. Unioning would make "this folder, specifically this one" search
+     * more than either alone.
+     */
+    it('lets a named knowledge base win over the folder rather than adding to it', async () => {
+      mocks.getWorkspaceKnowledgeBases.mockResolvedValue({
+        data: [knowledgeBase, { ...knowledgeBase, id: 'knowledge-2' }],
+      })
+
+      await searchKnowledge.execute({
+        principal: SESSION,
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: ['knowledge-1'],
+          folderPath: '/Support',
+          query: 'answer',
+          topK: 5,
+        },
+      })
+
+      expect(mocks.executeSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ knowledgeBaseIds: ['knowledge-1'] })
+      )
+      /* The folder is not even expanded when the caller already named a target. */
+      expect(mocks.getWorkspaceKnowledgeBases).not.toHaveBeenCalled()
+    })
+
+    /*
+     * `resolveFolderPathFromIndex` reports the root as `null`, so a descending
+     * root scope must NOT go through `folderIds`: `inArray` never matches a NULL
+     * folder id, and every knowledge base sitting loose at the root would
+     * silently drop out of a search that asked for everything.
+     */
+    it('reads a descending root scope as the whole workspace, not a folder-id list', async () => {
+      await searchKnowledge.execute({
+        principal: SESSION,
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: [],
+          folderPath: '/',
+          folderIncludeSubfolders: true,
+          query: 'answer',
+          topK: 5,
+        },
+      })
+
+      expect(mocks.getWorkspaceKnowledgeBases).toHaveBeenCalledWith('workspace-1', 'active', {})
+    })
+
+    it('reads a non-descending root scope as the knowledge bases loose at the root', async () => {
+      await searchKnowledge.execute({
+        principal: SESSION,
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: [],
+          folderPath: '/',
+          query: 'answer',
+          topK: 5,
+        },
+      })
+
+      expect(mocks.getWorkspaceKnowledgeBases).toHaveBeenCalledWith('workspace-1', 'active', {
+        folderId: null,
+      })
+    })
+
+    it('does not re-read a knowledge base the folder expansion already loaded', async () => {
+      await searchKnowledge.execute({
+        principal: SESSION,
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: [],
+          folderPath: '/Support',
+          query: 'answer',
+          topK: 5,
+        },
+      })
+
+      expect(mocks.getKnowledgeBase).not.toHaveBeenCalled()
+    })
+
+    /*
+     * Empty is an answer, not a failure — but the permission check still has to
+     * run, or pointing at an empty folder would be a way around it.
+     */
+    it('returns no results for an empty folder, having still authorized the read', async () => {
+      mocks.getWorkspaceKnowledgeBases.mockResolvedValue({ data: [] })
+
+      const result = await searchKnowledge.execute({
+        principal: SESSION,
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: [],
+          folderPath: '/Support',
+          query: 'answer',
+          topK: 5,
+        },
+      })
+
+      expect(result.results).toEqual([])
+      expect(result.totalResults).toBe(0)
+      expect(mocks.resolvePermission).toHaveBeenCalled()
+      expect(mocks.executeSearch).not.toHaveBeenCalled()
+      expect(mocks.generateEmbedding).not.toHaveBeenCalled()
+    })
+
+    it('treats a folder path that matches nothing as an empty folder', async () => {
+      const result = await searchKnowledge.execute({
+        principal: SESSION,
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: [],
+          folderPath: '/Nope',
+          query: 'answer',
+          topK: 5,
+        },
+      })
+
+      expect(result.results).toEqual([])
+      expect(mocks.getWorkspaceKnowledgeBases).not.toHaveBeenCalled()
+    })
+
+    it('refuses a folder scope whose expansion exceeds the search fan-out cap', async () => {
+      mocks.getWorkspaceKnowledgeBases.mockResolvedValue({
+        data: Array.from({ length: 21 }, (_, index) => ({
+          ...knowledgeBase,
+          id: `knowledge-${index}`,
+        })),
+      })
+
+      await expect(
+        searchKnowledge.execute({
+          principal: SESSION,
+          input: {
+            workspaceId: 'workspace-1',
+            knowledgeBaseIds: [],
+            folderPath: '/Support',
+            query: 'answer',
+            topK: 5,
+          },
+        })
+      ).rejects.toThrow('holds 21 knowledge bases; a search covers at most 20')
+    })
+
+    it('refuses a folder scope with no workspace to resolve it against', async () => {
+      await expect(
+        searchKnowledge.execute({
+          principal: SESSION,
+          input: { knowledgeBaseIds: [], folderPath: '/Support', query: 'answer', topK: 5 },
+        })
+      ).rejects.toThrow('folder scope requires a workspace')
+    })
   })
 })

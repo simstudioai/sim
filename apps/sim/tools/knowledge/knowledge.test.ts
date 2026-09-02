@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { internalKnowledgeSearchBodySchema } from '@/lib/api/contracts/knowledge/search'
 import { knowledgeCreateDocumentTool } from '@/tools/knowledge/create_document'
 import { knowledgeSearchTool } from '@/tools/knowledge/search'
 import { knowledgeUpdateChunkTool } from '@/tools/knowledge/update_chunk'
@@ -332,5 +333,57 @@ describe('Knowledge Tools', () => {
         expect(result.output.data.chunkId).toBe('chunk-123')
       })
     })
+  })
+})
+
+/*
+ * A folder stands for the knowledge bases inside it, resolved when the workflow
+ * runs. The request body has to say that in the shape the internal contract
+ * reads: an ABSENT knowledge base list means "the folder decides", while an
+ * empty array is a malformed selection the search refuses.
+ */
+describe('knowledgeSearchTool folder scope input', () => {
+  function bodyFor(params: Record<string, unknown>) {
+    return knowledgeSearchTool.operation.input?.(params as never) as Record<string, unknown>
+  }
+
+  it('omits the knowledge base list entirely when only a folder was given', () => {
+    const body = bodyFor({ folderPath: '/Support', query: 'answer' })
+
+    expect(body).not.toHaveProperty('knowledgeBaseIds')
+    expect(body.folderPath).toBe('/Support')
+    expect(internalKnowledgeSearchBodySchema.safeParse(body).success).toBe(true)
+    /* The path is trimmed, and a blank one is no scope at all. */
+    expect(bodyFor({ knowledgeBaseId: 'kb-1', folderPath: '  /Support  ' }).folderPath).toBe(
+      '/Support'
+    )
+    expect(bodyFor({ knowledgeBaseId: 'kb-1', folderPath: '   ' })).not.toHaveProperty('folderPath')
+  })
+
+  it('carries a knowledge base and a folder together', () => {
+    const body = bodyFor({ knowledgeBaseId: ' kb-1 ', folderPath: '/Support', query: 'q' })
+
+    expect(body.knowledgeBaseIds).toEqual(['kb-1'])
+    expect(body.folderPath).toBe('/Support')
+    expect(internalKnowledgeSearchBodySchema.safeParse(body).success).toBe(true)
+  })
+
+  /* Absent already means "this folder only", so only the on case travels. */
+  it('says nothing about subfolders unless they were asked for', () => {
+    expect(bodyFor({ folderPath: '/Support' })).not.toHaveProperty('folderIncludeSubfolders')
+    expect(bodyFor({ folderPath: '/Support', folderIncludeSubfolders: true })).toMatchObject({
+      folderIncludeSubfolders: true,
+    })
+    expect(bodyFor({ folderPath: '/Support', folderIncludeSubfolders: 'true' })).toMatchObject({
+      folderIncludeSubfolders: true,
+    })
+    /* And never a subfolder scope with no folder to descend from. */
+    expect(bodyFor({ knowledgeBaseId: 'kb-1', folderIncludeSubfolders: true })).not.toHaveProperty(
+      'folderIncludeSubfolders'
+    )
+  })
+
+  it('refuses a body naming neither a knowledge base nor a folder', () => {
+    expect(internalKnowledgeSearchBodySchema.safeParse(bodyFor({ query: 'q' })).success).toBe(false)
   })
 })

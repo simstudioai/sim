@@ -67,6 +67,7 @@ vi.mock(
     ScheduleInfo: stubInput('schedule-info'),
     SelectorInput: stubInput('selector-input'),
     ShortInput: stubInput('short-input'),
+    SimFolderTreeSelector: stubInput('sim-folder-tree-selector'),
     SkillInput: stubInput('skill-input'),
     SliderInput: stubInput('slider-input'),
     SortBuilder: stubInput('sort-builder'),

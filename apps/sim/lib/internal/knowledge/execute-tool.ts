@@ -17,22 +17,36 @@ import {
   updateKnowledgeChunkContract,
   upsertKnowledgeDocumentContract,
 } from '@/lib/api/contracts/knowledge'
+import {
+  knowledgeCreateFolderResponseSchema,
+  knowledgeCreateFolderSchemas,
+  knowledgeDeleteFolderResponseSchema,
+  knowledgeDeleteFolderSchemas,
+  knowledgeListFoldersResponseSchema,
+  knowledgeListFoldersSchemas,
+  knowledgeUpdateFolderResponseSchema,
+  knowledgeUpdateFolderSchemas,
+} from '@/lib/api/contracts/knowledge/folders'
 import type { JsonErrorResponseDescriptor } from '@/lib/api/server/routes/types'
 import {
   createChunkOperation,
   createDocumentsOperation,
+  createFolderOperation,
   deleteChunkOperation,
   deleteDocumentOperation,
+  deleteFolderOperation,
   type KnowledgeOperationResponse,
   listChunksOperation,
   listConnectorsOperation,
   listDocumentsOperation,
+  listFoldersOperation,
   listTagsOperation,
   readConnectorOperation,
   readDocumentOperation,
   searchOperation,
   syncConnectorOperation,
   updateChunkOperation,
+  updateFolderOperation,
   upsertDocumentOperation,
 } from '@/lib/internal/knowledge/operations'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
@@ -54,17 +68,21 @@ const MAX_KNOWLEDGE_BODY_BYTES = 2 * 1024 * 1024
 
 export const KNOWLEDGE_TOOL_IDS = [
   'knowledge_create_document',
+  'knowledge_create_folder',
   'knowledge_delete_chunk',
   'knowledge_delete_document',
+  'knowledge_delete_folder',
   'knowledge_get_connector',
   'knowledge_get_document',
   'knowledge_list_chunks',
   'knowledge_list_connectors',
   'knowledge_list_documents',
+  'knowledge_list_folders',
   'knowledge_list_tags',
   'knowledge_search',
   'knowledge_trigger_sync',
   'knowledge_update_chunk',
+  'knowledge_update_folder',
   'knowledge_upload_chunk',
   'knowledge_upsert_document',
 ] as const
@@ -309,6 +327,42 @@ export const executeKnowledgeTool: InternalToolOperationHandler = async (request
         return successResponse(
           upsertKnowledgeDocumentContract,
           await upsertDocumentOperation(parsed.data.params.id, parsed.data.body, context)
+        )
+      }
+      case 'knowledge_list_folders': {
+        policy = internalKnowledgeErrorPolicies.folders
+        const parsed = parseInternalOperationInput(knowledgeListFoldersSchemas, input)
+        if (!parsed.success) return parsed.response
+        return schemaSuccessResponse(
+          knowledgeListFoldersResponseSchema,
+          await listFoldersOperation(parsed.data.body, context)
+        )
+      }
+      case 'knowledge_create_folder': {
+        policy = internalKnowledgeErrorPolicies.folders
+        const parsed = parseInternalOperationInput(knowledgeCreateFolderSchemas, input)
+        if (!parsed.success) return parsed.response
+        return schemaSuccessResponse(
+          knowledgeCreateFolderResponseSchema,
+          await createFolderOperation(parsed.data.body, context)
+        )
+      }
+      case 'knowledge_update_folder': {
+        policy = internalKnowledgeErrorPolicies.folders
+        const parsed = parseInternalOperationInput(knowledgeUpdateFolderSchemas, input)
+        if (!parsed.success) return parsed.response
+        return schemaSuccessResponse(
+          knowledgeUpdateFolderResponseSchema,
+          await updateFolderOperation(parsed.data.body, context)
+        )
+      }
+      case 'knowledge_delete_folder': {
+        policy = internalKnowledgeErrorPolicies.folders
+        const parsed = parseInternalOperationInput(knowledgeDeleteFolderSchemas, input)
+        if (!parsed.success) return parsed.response
+        return schemaSuccessResponse(
+          knowledgeDeleteFolderResponseSchema,
+          await deleteFolderOperation(parsed.data.body, context)
         )
       }
       default:

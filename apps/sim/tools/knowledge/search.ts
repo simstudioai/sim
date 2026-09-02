@@ -13,9 +13,24 @@ export const knowledgeSearchTool: InternalToolConfig<any, KnowledgeSearchRespons
   params: {
     knowledgeBaseId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'ID of the knowledge base to search in',
+      description:
+        'ID of the knowledge base to search in. Optional when a folder is given, which searches every knowledge base in that folder.',
+    },
+    folderPath: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Search every knowledge base in this folder, resolved when the workflow runs so a knowledge base added later is included. Canonical folder path, percent-encoded, e.g. "/Support/Tier%201". The workspace root is "/".',
+    },
+    folderIncludeSubfolders: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Extend the folder scope to its subfolders. Off by default, so a folder means only the knowledge bases directly inside it.',
     },
     query: {
       type: 'string',
@@ -93,8 +108,17 @@ export const knowledgeSearchTool: InternalToolConfig<any, KnowledgeSearchRespons
     input: (params) => {
       const workflowId = params._context?.workflowId
 
-      // Use single knowledge base ID
-      const knowledgeBaseIds = [params.knowledgeBaseId]
+      /*
+       * Omitted entirely rather than sent empty when only a folder was given:
+       * the contract reads an absent list as "the folder decides", while an
+       * empty array is a malformed selection.
+       */
+      const knowledgeBaseId =
+        typeof params.knowledgeBaseId === 'string' ? params.knowledgeBaseId.trim() : ''
+      const folderPath =
+        typeof params.folderPath === 'string' && params.folderPath.trim() !== ''
+          ? params.folderPath.trim()
+          : undefined
 
       // Parse tag filters from various formats (array, JSON string)
       const structuredFilters = parseTagFilters(params.tagFilters)
@@ -117,7 +141,11 @@ export const knowledgeSearchTool: InternalToolConfig<any, KnowledgeSearchRespons
         : undefined
 
       const requestBody = {
-        knowledgeBaseIds,
+        ...(knowledgeBaseId ? { knowledgeBaseIds: [knowledgeBaseId] } : {}),
+        ...(folderPath ? { folderPath } : {}),
+        ...(folderPath &&
+          (params.folderIncludeSubfolders === true ||
+            params.folderIncludeSubfolders === 'true') && { folderIncludeSubfolders: true }),
         query: params.query,
         topK: params.topK ? Math.max(1, Math.min(100, Number(params.topK))) : 10,
         ...(structuredFilters.length > 0 && { tagFilters: structuredFilters }),

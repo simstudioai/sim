@@ -9,10 +9,18 @@ import {
   type updateChunkBodySchema,
   type upsertDocumentBodySchema,
 } from '@/lib/api/contracts/knowledge'
+import type {
+  knowledgeCreateFolderBodySchema,
+  knowledgeDeleteFolderBodySchema,
+  knowledgeListFoldersBodySchema,
+  knowledgeUpdateFolderBodySchema,
+} from '@/lib/api/contracts/knowledge/folders'
+import { DEFAULT_KNOWLEDGE_LIST_LIMIT } from '@/lib/api/contracts/knowledge/folders'
 import type { KnowledgeSearchBody } from '@/lib/api/contracts/knowledge/search'
 import { AuthType } from '@/lib/auth/hybrid'
 import { requireWorkspaceBillingAttributionHeader } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { parentFolderPath, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import {
   internalKnowledgeAnalytics,
   internalKnowledgeProvenanceUserId,
@@ -47,8 +55,16 @@ import {
   readKnowledgeDocument,
   upsertKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
+import {
+  createKnowledgeFolder,
+  deleteKnowledgeFolder,
+  listKnowledgeFolders,
+  relocateKnowledgeFolder,
+} from '@/lib/knowledge/application/folders'
+import { listKnowledgeBases } from '@/lib/knowledge/application/knowledge-bases'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { listKnowledgeTags } from '@/lib/knowledge/application/tags'
+import { selectKnowledgeDirectoryEntries } from '@/lib/knowledge/directory-listing'
 import { prepareKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { createKnowledgeDocumentSourceValue } from '@/lib/knowledge/secret-provenance'
 
@@ -584,7 +600,11 @@ export async function listTagsOperation(
 }
 
 export async function searchOperation(
-  bodyInput: KnowledgeSearchBody & { skipUsageBilling?: boolean },
+  bodyInput: KnowledgeSearchBody & {
+    skipUsageBilling?: boolean
+    folderPath?: string
+    folderIncludeSubfolders?: boolean
+  },
   context: KnowledgeOperationContext
 ): Promise<KnowledgeOperationResponse> {
   throwIfAborted(context)
@@ -592,9 +612,14 @@ export async function searchOperation(
     principal: context.principal,
     input: {
       workspaceId: context.principal.workspaceId,
-      knowledgeBaseIds: Array.isArray(bodyInput.knowledgeBaseIds)
-        ? bodyInput.knowledgeBaseIds
-        : [bodyInput.knowledgeBaseIds],
+      knowledgeBaseIds:
+        bodyInput.knowledgeBaseIds === undefined
+          ? []
+          : Array.isArray(bodyInput.knowledgeBaseIds)
+            ? bodyInput.knowledgeBaseIds
+            : [bodyInput.knowledgeBaseIds],
+      folderPath: bodyInput.folderPath,
+      folderIncludeSubfolders: bodyInput.folderIncludeSubfolders,
       query: bodyInput.query,
       topK: bodyInput.topK,
       tagFilters: bodyInput.tagFilters,
@@ -644,4 +669,171 @@ export async function searchOperation(
     registry: result.resultSecretRegistry,
   })
   return { body, ...finalization }
+}
+
+/**
+ * The folder a listing is rooted at, as an id.
+ *
+ * A contract-validated path is already byte-identical to the canonical form
+ * `buildFolderPath` produces — `parseFolderPath` rejects any other spelling of
+ * the same path — so matching on the string is exact, and a folder genuinely
+ * named `Q3/Q4` stays one segment on both sides.
+ */
+function resolveListingRoot(
+  folders: readonly { id: string; path: string }[],
+  path: string | undefined
+): { rootId: string | null; rootPath: string } {
+  if (!path || path === ROOT_FOLDER_PATH) return { rootId: null, rootPath: ROOT_FOLDER_PATH }
+  const root = folders.find((folder) => folder.path === path)
+  if (!root) throw new OrchestrationError('not_found', `Folder not found: ${path}`)
+  return { rootId: root.id, rootPath: path }
+}
+
+function toInternalKnowledgeFolder(folder: {
+  id: string
+  name: string
+  path: string
+  createdAt: Date
+  updatedAt: Date
+}) {
+  return {
+    id: folder.id,
+    name: folder.name,
+    path: folder.path,
+    parentPath: parentFolderPath(folder.path),
+    createdAt: folder.createdAt.toISOString(),
+    updatedAt: folder.updatedAt.toISOString(),
+  }
+}
+
+/**
+ * Lists a knowledge folder's subfolders and knowledge bases together.
+ *
+ * Takes the whole tree and the whole knowledge base set rather than asking
+ * either use case to filter, because the answer mixes two kinds: depth, search
+ * and ordering have to be decided over both at once, and two separately filtered
+ * queries cannot be interleaved afterwards.
+ */
+export async function listFoldersOperation(
+  body: z.output<typeof knowledgeListFoldersBodySchema>,
+  context: KnowledgeOperationContext
+): Promise<KnowledgeOperationResponse> {
+  throwIfAborted(context)
+  const workspaceId = context.principal.workspaceId
+  const [{ folders }, { knowledgeBases }] = await Promise.all([
+    listKnowledgeFolders.execute({
+      principal: context.principal,
+      input: { workspaceId },
+      request: { headers: context.headers },
+    }),
+    listKnowledgeBases.execute({
+      principal: context.principal,
+      input: { workspaceId, scope: 'active' },
+      request: { headers: context.headers },
+    }),
+  ])
+  throwIfAborted(context)
+
+  const projected = folders.map((folder) => ({
+    ...toInternalKnowledgeFolder(folder),
+    parentId: folder.parentId,
+  }))
+  const { rootId, rootPath } = resolveListingRoot(projected, body.path)
+
+  const { entries, truncated } = selectKnowledgeDirectoryEntries(
+    projected,
+    knowledgeBases.map(({ knowledgeBase }) => ({
+      id: knowledgeBase.id,
+      name: knowledgeBase.name,
+      description: knowledgeBase.description,
+      folderId: knowledgeBase.folderId,
+      docCount: knowledgeBase.docCount,
+      tokenCount: knowledgeBase.tokenCount,
+      createdAt: knowledgeBase.createdAt.toISOString(),
+      updatedAt: knowledgeBase.updatedAt.toISOString(),
+    })),
+    {
+      rootId,
+      rootPath,
+      maxDepth: body.recursive ? (body.depth ?? Number.POSITIVE_INFINITY) : 1,
+      search: body.search,
+      limit: body.limit ?? DEFAULT_KNOWLEDGE_LIST_LIMIT,
+    }
+  )
+
+  return { body: { success: true, data: { path: rootPath, entries, truncated } } }
+}
+
+export async function createFolderOperation(
+  body: z.output<typeof knowledgeCreateFolderBodySchema>,
+  context: KnowledgeOperationContext
+): Promise<KnowledgeOperationResponse> {
+  throwIfAborted(context)
+  const { folder } = await createKnowledgeFolder.execute({
+    principal: context.principal,
+    input: { workspaceId: context.principal.workspaceId, path: body.path, source: 'agent' },
+    request: { headers: context.headers },
+  })
+  throwIfAborted(context)
+  return { body: { success: true, data: { folder: toInternalKnowledgeFolder(folder) } } }
+}
+
+export async function updateFolderOperation(
+  body: z.output<typeof knowledgeUpdateFolderBodySchema>,
+  context: KnowledgeOperationContext
+): Promise<KnowledgeOperationResponse> {
+  throwIfAborted(context)
+  const { folder } = await relocateKnowledgeFolder.execute({
+    principal: context.principal,
+    input: {
+      workspaceId: context.principal.workspaceId,
+      path: body.path,
+      destinationPath: body.destinationPath,
+      source: 'agent',
+    },
+    request: { headers: context.headers },
+  })
+  throwIfAborted(context)
+  return {
+    body: {
+      success: true,
+      data: { folder: toInternalKnowledgeFolder(folder), previousPath: body.path },
+    },
+  }
+}
+
+export async function deleteFolderOperation(
+  body: z.output<typeof knowledgeDeleteFolderBodySchema>,
+  context: KnowledgeOperationContext
+): Promise<KnowledgeOperationResponse> {
+  throwIfAborted(context)
+  const result = await deleteKnowledgeFolder.execute({
+    principal: context.principal,
+    input: {
+      workspaceId: context.principal.workspaceId,
+      path: body.path,
+      recursive: body.recursive,
+      source: 'agent',
+    },
+    request: { headers: context.headers },
+  })
+  throwIfAborted(context)
+  return {
+    body: {
+      success: true,
+      data: {
+        path: result.path,
+        deleted: true as const,
+        deletedItems: {
+          /*
+           * The cascade counts the deleted folder itself; this output promises
+           * what went WITH it, so the folder is subtracted here the same way the
+           * audit projection does it.
+           */
+          folders: Math.max(result.deletedItems.folders - 1, 0),
+          knowledgeBases: result.deletedItems.knowledgeBases ?? 0,
+        },
+      },
+    },
+  }
 }

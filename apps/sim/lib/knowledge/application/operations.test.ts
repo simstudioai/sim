@@ -150,11 +150,31 @@ describe('knowledge operation registry', () => {
     expect(knowledgeOperations.updateDocument.principalKinds).toContain('delegated')
     expect(knowledgeOperations.updateTag.principalKinds).toContain('delegated')
     expect(knowledgeOperations.syncConnector.principalKinds).toContain('delegated')
-    expect(knowledgeOperations.listFolders.principalKinds).not.toContain('delegated')
     expect(knowledgeOperations.uploadComplete.principalKinds).not.toContain('delegated')
-    expect(knowledgeOperations.list.delegatedServices).toEqual(['copilot'])
+    expect(knowledgeOperations.list.delegatedServices).toEqual(['copilot', 'executor'])
     expect(knowledgeOperations.search.delegatedServices).toEqual(['copilot', 'executor'])
     expect(knowledgeOperations.uploadComplete.delegatedServices).toBeUndefined()
+  })
+
+  /*
+   * Each folder operation is reachable by a workflow, so each admits the
+   * executor. `list` is here because listing a folder answers with the knowledge
+   * bases inside it as well as its subfolders, so `knowledge_list_folders` calls
+   * both use cases. `manageVfsFolders` deliberately stays copilot-only: no tool
+   * calls it.
+   */
+  it('admits the executor on exactly the folder operations a workflow tool reaches', () => {
+    for (const operation of [
+      knowledgeOperations.listFolders,
+      knowledgeOperations.createFolder,
+      knowledgeOperations.relocateFolder,
+      knowledgeOperations.deleteFolder,
+      knowledgeOperations.list,
+    ]) {
+      expect(operation.principalKinds).toContain('delegated')
+      expect(operation.delegatedServices).toContain('executor')
+    }
+    expect(knowledgeOperations.manageVfsFolders.delegatedServices).not.toContain('executor')
   })
 
   it('withholds knowledge base creation separately from using existing ones', () => {

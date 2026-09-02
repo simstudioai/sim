@@ -1,6 +1,12 @@
 import { knowledgeCreateDocumentTool } from '@/tools/knowledge/create_document'
 import { knowledgeDeleteChunkTool } from '@/tools/knowledge/delete_chunk'
 import { knowledgeDeleteDocumentTool } from '@/tools/knowledge/delete_document'
+import {
+  knowledgeCreateFolderTool,
+  knowledgeDeleteFolderTool,
+  knowledgeListFoldersTool,
+  knowledgeUpdateFolderTool,
+} from '@/tools/knowledge/folders'
 import { knowledgeGetConnectorTool } from '@/tools/knowledge/get_connector'
 import { knowledgeGetDocumentTool } from '@/tools/knowledge/get_document'
 import { knowledgeListChunksTool } from '@/tools/knowledge/list_chunks'
@@ -14,6 +20,10 @@ import { knowledgeUploadChunkTool } from '@/tools/knowledge/upload_chunk'
 import { knowledgeUpsertDocumentTool } from '@/tools/knowledge/upsert_document'
 
 export {
+  knowledgeCreateFolderTool,
+  knowledgeDeleteFolderTool,
+  knowledgeListFoldersTool,
+  knowledgeUpdateFolderTool,
   knowledgeSearchTool,
   knowledgeUploadChunkTool,
   knowledgeCreateDocumentTool,

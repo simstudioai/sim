@@ -393,17 +393,21 @@ const MSSQL_TOOL_IDS = [
 
 const KNOWLEDGE_TOOL_IDS = [
   'knowledge_create_document',
+  'knowledge_create_folder',
   'knowledge_delete_chunk',
   'knowledge_delete_document',
+  'knowledge_delete_folder',
   'knowledge_get_connector',
   'knowledge_get_document',
   'knowledge_list_chunks',
   'knowledge_list_connectors',
   'knowledge_list_documents',
+  'knowledge_list_folders',
   'knowledge_list_tags',
   'knowledge_search',
   'knowledge_trigger_sync',
   'knowledge_update_chunk',
+  'knowledge_update_folder',
   'knowledge_upload_chunk',
   'knowledge_upsert_document',
 ] as const

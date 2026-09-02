@@ -84,6 +84,12 @@ export const internalKnowledgeErrorPolicies = {
    */
   bulkMove: internalKnowledgeErrorPolicy('Failed to move knowledge bases'),
   bulkDelete: internalKnowledgeErrorPolicy('Failed to delete knowledge bases'),
+  /**
+   * Folder routes name a workspace and a path rather than one knowledge base,
+   * so there is no knowledge base identity to conceal — same reasoning as the
+   * bulk routes above.
+   */
+  folders: internalKnowledgeErrorPolicy('Failed to process knowledge folder request'),
   default: internalKnowledgeErrorPolicy('Internal server error'),
   documents: concealKnowledgeBase(
     internalKnowledgeErrorPolicy('Failed to process knowledge document request')

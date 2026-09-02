@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { resolvedSecretTraceProvenanceSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { v2FolderPathInputSchema } from '@/lib/api/contracts/v2/shared'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { DEFAULT_RERANKER_MODEL, rerankerModelSchema } from '@/lib/knowledge/reranker-models'
 
@@ -28,10 +29,18 @@ export const knowledgeSearchModeSchema = z
 
 export const knowledgeSearchBodySchema = z
   .object({
-    knowledgeBaseIds: z.union([
-      z.string().min(1, 'Knowledge base ID is required'),
-      z.array(z.string().min(1)).min(1, 'At least one knowledge base ID is required'),
-    ]),
+    /**
+     * Optional because the internal body may name a folder instead, which
+     * expands to the knowledge bases inside it when the workflow runs. The
+     * internal schema refines that at least one of the two is present; no
+     * public contract consumes this schema.
+     */
+    knowledgeBaseIds: z
+      .union([
+        z.string().min(1, 'Knowledge base ID is required'),
+        z.array(z.string().min(1)).min(1, 'At least one knowledge base ID is required'),
+      ])
+      .optional(),
     query: z
       .string()
       .optional()
@@ -89,14 +98,33 @@ export const knowledgeSearchBodySchema = z
   )
 export type KnowledgeSearchBody = z.output<typeof knowledgeSearchBodySchema>
 
-export const internalKnowledgeSearchBodySchema = z.intersection(
-  knowledgeSearchBodySchema,
-  z.object({
-    workflowId: z.string().optional(),
-    skipUsageBilling: z.boolean().optional(),
-    [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
+/**
+ * Folder scope is internal-only on purpose.
+ *
+ * A folder stands for the knowledge bases inside it, resolved when the workflow
+ * runs rather than when the block is configured — so a knowledge base added to
+ * the folder tomorrow is searched tomorrow. Keeping it off the v1 and v2 bodies
+ * means no permanent public API commitment while the shape proves itself.
+ */
+export const internalKnowledgeSearchBodySchema = z
+  .intersection(
+    knowledgeSearchBodySchema,
+    z.object({
+      workflowId: z.string().optional(),
+      skipUsageBilling: z.boolean().optional(),
+      folderPath: v2FolderPathInputSchema.optional(),
+      /**
+       * Off by default: a folder means its own knowledge bases unless the
+       * caller asks for the subtree. The opposite of the File block, where a
+       * read scope descends unless told otherwise.
+       */
+      folderIncludeSubfolders: z.boolean().optional(),
+      [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
+    })
+  )
+  .refine((body) => body.knowledgeBaseIds !== undefined || body.folderPath !== undefined, {
+    message: 'Provide either knowledgeBaseIds or folderPath to choose what to search',
   })
-)
 
 export const internalKnowledgeSearchResultSchema = z.object({
   documentId: z.string(),

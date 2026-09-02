@@ -19,6 +19,8 @@ import {
   isDurableSecretProvenanceEnforced,
   reportUnrecordedDurableProvenance,
 } from '@/lib/execution/durable-secret-provenance-enforcement'
+import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
+import { collectFolderDepths } from '@/lib/folders/subtree'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   KnowledgeUsageLimitExceededError,
@@ -30,7 +32,7 @@ import {
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
+import { ALL_TAG_SLOTS, MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE } from '@/lib/knowledge/constants'
 import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { rerank } from '@/lib/knowledge/reranker'
@@ -42,7 +44,8 @@ import {
   type SearchResult,
 } from '@/lib/knowledge/search/queries'
 import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
-import { getKnowledgeBaseById } from '@/lib/knowledge/service'
+import type { GetKnowledgeBasesOptions } from '@/lib/knowledge/service'
+import { getKnowledgeBaseById, getWorkspaceKnowledgeBases } from '@/lib/knowledge/service'
 import {
   type KnowledgeTagNameFilter,
   resolveKnowledgeTagFilters,
@@ -80,6 +83,14 @@ export interface SearchKnowledgeInput {
   /** Optional assertion from a trusted adapter or public contract. */
   workspaceId?: string
   knowledgeBaseIds: string[]
+  /**
+   * Canonical folder path standing for the knowledge bases inside it, resolved
+   * now rather than when the block was configured — so a knowledge base added to
+   * the folder since then is searched.
+   */
+  folderPath?: string
+  /** Whether the folder scope reaches into its subfolders. Off by default. */
+  folderIncludeSubfolders?: boolean
   query?: string
   topK: number
   tagFilters?: KnowledgeSearchTagFilter[]
@@ -144,16 +155,143 @@ export interface SearchKnowledgeResult {
   resultSecretRegistry?: ResolvedSecretTraceRegistry
 }
 
+/**
+ * The knowledge bases a folder scope stands for.
+ *
+ * Descendants are collected by walking `parentId` rather than by comparing path
+ * strings, so a folder genuinely named `Q3/Q4` cannot be mistaken for two
+ * levels. A path matching no folder yields an empty set rather than a 404,
+ * matching the read-side convention `resolveFolderPathFilter` documents — a
+ * scope that selects nothing is an empty result, not a failure.
+ */
+async function resolveFolderScopeKnowledgeBases(
+  workspaceId: string,
+  folderPath: string,
+  includeSubfolders: boolean
+): Promise<KnowledgeBaseWithCounts[]> {
+  const index = await loadActiveFolderPathIndex(workspaceId, 'knowledge_base', undefined, {
+    maxRows: MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE,
+  })
+  const filter = resolveFolderPathFilter(index, folderPath)
+  if (filter.kind === 'noMatch') return []
+
+  /*
+   * `resolveFolderPathFromIndex` reports the workspace root as `null`, so the
+   * root has three readings and only two of them are a folder-id filter:
+   *
+   *   root + descending  -> the whole workspace, and NO folder filter at all.
+   *   root, not descending -> the knowledge bases sitting loose at the root,
+   *                           which is `folderId: null`.
+   *   a real folder      -> that folder, plus its descendants when descending.
+   *
+   * The first case has to skip `folderIds`: it is an `inArray` over folder ids,
+   * and no id ever equals SQL NULL, so enumerating every folder would silently
+   * drop every knowledge base that sits outside one — a "search everything"
+   * that quietly searches less.
+   */
+  const rootId = filter.kind === 'folder' ? filter.folderId : null
+  const scope = (): GetKnowledgeBasesOptions => {
+    if (rootId === null) return includeSubfolders ? {} : { folderId: null }
+    if (!includeSubfolders) return { folderId: rootId }
+    const folderIds = [rootId]
+    for (const id of collectFolderDepths([...index.rowById.values()], rootId).keys()) {
+      folderIds.push(id)
+    }
+    return { folderIds }
+  }
+
+  const page = await getWorkspaceKnowledgeBases(workspaceId, 'active', scope())
+  return page.data as KnowledgeBaseWithCounts[]
+}
+
+/**
+ * What the search will actually read: the knowledge bases named outright, plus
+ * whatever the folder scope expands to, deduplicated.
+ */
+interface ResolvedSearchTargets {
+  knowledgeBaseIds: string[]
+  /**
+   * Rows the folder expansion already read, so the context load does not fetch
+   * them a second time. Expansion returns whole rows; re-reading each id would
+   * be one aggregate query per knowledge base, up to the fan-out cap.
+   */
+  preloaded: Map<string, KnowledgeBaseWithCounts>
+  /** Set only for a folder scope, where it is required and therefore known. */
+  folderWorkspaceId?: string
+}
+
+async function resolveSearchTargets(input: SearchKnowledgeInput): Promise<ResolvedSearchTargets> {
+  if (input.folderPath === undefined) {
+    return { knowledgeBaseIds: input.knowledgeBaseIds, preloaded: new Map() }
+  }
+  const workspaceId = input.workspaceId
+  if (!workspaceId) {
+    throw new OrchestrationError(
+      'validation',
+      'A folder scope requires a workspace, because a folder is only meaningful inside one'
+    )
+  }
+  /*
+   * Named knowledge bases win. A folder is a scope, so naming one knowledge base
+   * inside it is the narrower answer, not an addition to it — unioning the two
+   * would make "search this folder, specifically this one" search MORE than
+   * either alone, which is the opposite of what a scope means.
+   */
+  if (input.knowledgeBaseIds.length > 0) {
+    return {
+      knowledgeBaseIds: input.knowledgeBaseIds,
+      preloaded: new Map(),
+      folderWorkspaceId: workspaceId,
+    }
+  }
+  const expanded = await resolveFolderScopeKnowledgeBases(
+    workspaceId,
+    input.folderPath,
+    input.folderIncludeSubfolders ?? false
+  )
+  return {
+    knowledgeBaseIds: expanded.map((base) => base.id),
+    preloaded: new Map(expanded.map((base) => [base.id, base])),
+    folderWorkspaceId: workspaceId,
+  }
+}
+
 async function resolveKnowledgeSearchContext(
   input: SearchKnowledgeInput
 ): Promise<KnowledgeSearchContext> {
+  const { knowledgeBaseIds, preloaded, folderWorkspaceId } = await resolveSearchTargets(input)
+
+  /*
+   * A folder that holds nothing is an empty result, not an error — but it still
+   * resolves a workspace context so the operation is authorized exactly as a
+   * populated folder would be. Pointing at an empty folder must not be a way
+   * around the permission check.
+   *
+   * `folderWorkspaceId` carries the narrowing from the guard that produced it,
+   * so this branch cannot be reached without a workspace.
+   */
+  if (knowledgeBaseIds.length === 0 && folderWorkspaceId !== undefined) {
+    return {
+      ...(await resolveKnowledgeWorkspaceContext({ workspaceId: folderWorkspaceId })),
+      knowledgeBases: [],
+    }
+  }
+
   if (
-    input.knowledgeBaseIds.length < 1 ||
-    input.knowledgeBaseIds.length > KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases
+    knowledgeBaseIds.length < 1 ||
+    knowledgeBaseIds.length > KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases
   ) {
+    /*
+     * A folder scope resolves when the workflow runs, so this can start failing
+     * because someone else added a knowledge base to the folder. The message has
+     * to name the folder and the count, or the owner of a workflow they did not
+     * change is left with an error that mentions neither.
+     */
     throw new OrchestrationError(
       'validation',
-      `Knowledge search requires between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases} knowledge bases`
+      input.folderPath !== undefined
+        ? `Folder "${input.folderPath}" holds ${knowledgeBaseIds.length} knowledge bases; a search covers at most ${KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases}. Narrow the folder or turn off Include Subfolders.`
+        : `Knowledge search requires between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases} knowledge bases`
     )
   }
   if (
@@ -166,8 +304,12 @@ async function resolveKnowledgeSearchContext(
       `topK must be an integer between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxTopK}`
     )
   }
-  const knowledgeBases = await Promise.all(input.knowledgeBaseIds.map(getKnowledgeBaseById))
-  const missingIds = input.knowledgeBaseIds.filter((_, index) => !knowledgeBases[index])
+  const knowledgeBases = await Promise.all(
+    knowledgeBaseIds.map(
+      async (id) => preloaded.get(id) ?? (await getKnowledgeBaseById(id)) ?? undefined
+    )
+  )
+  const missingIds = knowledgeBaseIds.filter((_, index) => !knowledgeBases[index])
   if (missingIds.length > 0) {
     throw new OrchestrationError(
       'not_found',
@@ -185,7 +327,7 @@ async function resolveKnowledgeSearchContext(
   if (input.workspaceId && input.workspaceId !== canonicalWorkspaceId) {
     throw new OrchestrationError(
       'not_found',
-      `Knowledge bases not found or access denied: ${input.knowledgeBaseIds.join(', ')}`
+      `Knowledge bases not found or access denied: ${knowledgeBaseIds.join(', ')}`
     )
   }
   if (!canonicalWorkspaceId) {
@@ -193,7 +335,7 @@ async function resolveKnowledgeSearchContext(
     if (ownerUserIds.size !== 1) {
       throw new OrchestrationError(
         'not_found',
-        `Knowledge bases not found or access denied: ${input.knowledgeBaseIds.join(', ')}`
+        `Knowledge bases not found or access denied: ${knowledgeBaseIds.join(', ')}`
       )
     }
     const legacyPersonalOwnerUserId = knowledgeBases[0]?.userId
@@ -271,6 +413,35 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       ? await input.prepareModelInputProvenance({ userId, workspaceId: context.workspaceId })
       : undefined
     const resultSecretRegistry = preparedRegistry ?? input.resultSecretRegistry
+
+    /*
+     * An empty folder scope answers with nothing, before any embedding is
+     * generated or billed. Returning here rather than falling through keeps the
+     * "no knowledge bases" case from paying for a query it cannot run.
+     */
+    if (context.knowledgeBases.length === 0) {
+      return {
+        results: [] as KnowledgeSearchItem[],
+        query: input.query ?? '',
+        knowledgeBaseIds: [] as string[],
+        knowledgeBases: [] as Array<{ id: string; name: string }>,
+        knowledgeBaseId: '',
+        topK: input.topK,
+        totalResults: 0,
+        /*
+         * Declared rather than omitted so both returns have one shape: an early
+         * return that drops a key narrows the inferred union, and every consumer
+         * reading `cost` or `rerankerStatus` stops compiling. Nothing was
+         * reranked and nothing was billed, which is what these two say.
+         */
+        rerankerStatus: 'not_requested' as RerankerStatus,
+        cost: undefined as KnowledgeSearchCost | undefined,
+        ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+        userId,
+        resultSecretRegistry,
+      }
+    }
+
     const queryEmbeddingPromise = hasQuery
       ? runWithKnowledgeModelInputProvenance(resultSecretRegistry, () =>
           generateSearchEmbedding(input.query!, embeddingModel, context.workspaceId)

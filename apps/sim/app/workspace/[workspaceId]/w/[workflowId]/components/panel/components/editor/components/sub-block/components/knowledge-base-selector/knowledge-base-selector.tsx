@@ -6,9 +6,12 @@ import { X } from '@sim/emcn/icons'
 import { useQueries } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { PackageSearchIcon } from '@/components/icons'
+import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
+import { collectFolderDepths } from '@/lib/folders/subtree'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useResourceFolders } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-resource-folders'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -25,6 +28,11 @@ interface KnowledgeBaseSelectorProps {
   onKnowledgeBaseSelect?: (knowledgeBaseId: string | string[]) => void
   isPreview?: boolean
   previewValue?: string | null
+  /**
+   * A sibling folder field that narrows what this picker offers, and the switch
+   * saying whether that scope descends. See `SubBlockConfig.folderScope`.
+   */
+  folderScope?: { fieldId: string; recursiveFieldId?: string }
 }
 
 export function KnowledgeBaseSelector({
@@ -34,6 +42,7 @@ export function KnowledgeBaseSelector({
   onKnowledgeBaseSelect,
   isPreview = false,
   previewValue,
+  folderScope,
 }: KnowledgeBaseSelectorProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
@@ -81,10 +90,54 @@ export function KnowledgeBaseSelector({
     })),
   })
 
+  /*
+   * A sibling folder field narrows what this picker offers. Choosing a folder
+   * means the run only searches that folder, so listing knowledge bases from
+   * anywhere else would let a selection be built that the operation then
+   * ignores — the picker has to describe the same set the run will read.
+   *
+   * Falling back to this control's own id keeps the hook call unconditional for
+   * a picker with no folder scope; its own value is never a folder path, so the
+   * scope reads as absent.
+   */
+  const resourceFolders = useResourceFolders(workspaceId, 'knowledge_base')
+  const [folderScopeValue] = useSubBlockValue<unknown>(blockId, folderScope?.fieldId ?? subBlock.id)
+  const [folderScopeRecursive] = useSubBlockValue<unknown>(
+    blockId,
+    folderScope?.recursiveFieldId ?? subBlock.id
+  )
+  const folderScopePath =
+    folderScope && typeof folderScopeValue === 'string' ? folderScopeValue.trim() : ''
+  const folderScopeIncludesSubfolders =
+    folderScopeRecursive === true || folderScopeRecursive === 'true'
+
+  /**
+   * The folder ids the scope covers, walked through `parentId` rather than
+   * compared as path strings — a folder genuinely named `Q3/Q4` is one level in
+   * either spelling and only a parent walk sees that. An unresolvable path
+   * covers nothing, which reads as an empty picker rather than an unfiltered
+   * one.
+   */
+  const scopedFolderIds = useMemo(() => {
+    if (!folderScopePath || folderScopePath === ROOT_FOLDER_PATH) return null
+    const root = resourceFolders.byPath.get(folderScopePath)
+    if (!root) return new Set<string>()
+    const ids = new Set<string>([root.id])
+    if (folderScopeIncludesSubfolders) {
+      for (const id of collectFolderDepths(resourceFolders.folders, root.id).keys()) ids.add(id)
+    }
+    return ids
+  }, [folderScopePath, folderScopeIncludesSubfolders, resourceFolders])
+
   const combinedKnowledgeBases = useMemo<KnowledgeBaseData[]>(() => {
     const merged = new Map<string, KnowledgeBaseData>()
-    knowledgeBases.forEach((kb) => merged.set(kb.id, kb))
+    const inScope = (kb: KnowledgeBaseData) =>
+      !scopedFolderIds || (kb.folderId !== null && scopedFolderIds.has(kb.folderId))
+    knowledgeBases.forEach((kb) => {
+      if (inScope(kb)) merged.set(kb.id, kb)
+    })
 
+    /* A knowledge base already chosen stays listed, or the chip loses its label. */
     selectedKnowledgeBaseQueries.forEach((query) => {
       if (query.data) {
         merged.set(query.data.id, query.data)
@@ -92,7 +145,7 @@ export function KnowledgeBaseSelector({
     })
 
     return Array.from(merged.values())
-  }, [knowledgeBases, selectedKnowledgeBaseQueries])
+  }, [knowledgeBases, selectedKnowledgeBaseQueries, scopedFolderIds])
 
   /**
    * Display names, with the folder path appended when two knowledge bases share

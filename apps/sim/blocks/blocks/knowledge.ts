@@ -1,8 +1,15 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { PackageSearchIcon } from '@/components/icons'
+import { MAX_KNOWLEDGE_LIST_LIMIT } from '@/lib/api/contracts/knowledge/folders'
+import {
+  encodeFolderPathSegment,
+  MAX_FOLDER_PATH_SEGMENTS,
+  ROOT_FOLDER_PATH,
+} from '@/lib/folders/paths'
 import { DEFAULT_RERANKER_MODEL, SUPPORTED_RERANKER_MODELS } from '@/lib/knowledge/reranker-models'
+import { readFolderPath } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sim-folder-tree-selector/selection'
 import type { BlockConfig } from '@/blocks/types'
-import { getCohereRerankerApiKeyCondition } from '@/blocks/utils'
+import { getCohereRerankerApiKeyCondition, parseOptionalNumberInput } from '@/blocks/utils'
 
 /*
  * Canonical basic/advanced pairs, shared by the card sentences below. Listing
@@ -11,6 +18,94 @@ import { getCohereRerankerApiKeyCondition } from '@/blocks/utils'
  */
 const KNOWLEDGE_BASE_FIELD = ['knowledgeBaseSelector', 'manualKnowledgeBaseId'] as const
 const DOCUMENT_FIELD = ['documentSelector', 'documentId'] as const
+const SEARCH_FOLDER_FIELD = ['searchFolder', 'manualSearchFolder'] as const
+/*
+ * Search takes either a knowledge base or a folder standing for the knowledge
+ * bases inside it, so the clause names whichever one the card actually carries.
+ */
+const SEARCH_TARGET_FIELD = [...KNOWLEDGE_BASE_FIELD, ...SEARCH_FOLDER_FIELD] as const
+const FOLDER_FIELD = ['folderPath', 'manualFolderPath'] as const
+const CREATE_PARENT_FIELD = ['createParentPath', 'manualCreateParentPath'] as const
+const DESTINATION_PARENT_FIELD = ['destinationParentPath', 'manualDestinationParentPath'] as const
+
+/** The operations that address a knowledge base. The folder operations do not. */
+const KNOWLEDGE_BASE_OPERATIONS = [
+  'search',
+  'list_documents',
+  'get_document',
+  'create_document',
+  'upsert_document',
+  'delete_document',
+  'list_chunks',
+  'upload_chunk',
+  'update_chunk',
+  'delete_chunk',
+  'list_tags',
+  'list_connectors',
+  'get_connector',
+  'trigger_sync',
+] as const
+
+/*
+ * Search is absent: a folder alone is a valid target there, so requiring a
+ * knowledge base would reject a well-formed folder-scoped search.
+ */
+const KNOWLEDGE_BASE_REQUIRED_OPERATIONS = KNOWLEDGE_BASE_OPERATIONS.filter(
+  (operation) => operation !== 'search'
+)
+
+const FOLDER_OPERATIONS = [
+  'list_folders',
+  'create_folder',
+  'update_folder',
+  'delete_folder',
+] as const
+
+/**
+ * The folder field, and the switch saying how deep it reaches, as the knowledge
+ * base picker beside it needs them: a picker offering knowledge bases outside
+ * the chosen folder would let a selection be built that the run then ignores.
+ */
+const SEARCH_FOLDER_SCOPE = {
+  fieldId: 'searchFolder',
+  recursiveFieldId: 'searchFolderIncludeSubfolders',
+} as const
+
+/*
+ * An untouched text subblock arrives as '', not undefined, and '' is not a
+ * canonical folder path — so an omitted optional path has to be normalized away
+ * rather than forwarded. A switch arrives as either a boolean or the string
+ * 'true' depending on how it was set.
+ */
+function optionalText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+}
+
+function switchValue(value: unknown, fallback = false): boolean {
+  if (value === undefined || value === null || value === '') return fallback
+  return value === true || value === 'true'
+}
+
+/**
+ * The prefix a child path hangs off. The workspace root contributes nothing, so
+ * a child of the root is `/name` rather than `//name`.
+ */
+function folderPathPrefix(parentPath: string | undefined): string {
+  return parentPath && parentPath !== ROOT_FOLDER_PATH ? parentPath : ''
+}
+
+/**
+ * The folder scope on search: which knowledge bases the run looks at.
+ *
+ * Kept as a path rather than the knowledge bases it holds today, because the
+ * tool expands it when the workflow runs — so a folder means whatever is inside
+ * it then, and a knowledge base added tomorrow is searched tomorrow. The
+ * workspace root is no scope at all.
+ */
+function folderScopePath(value: unknown): string | undefined {
+  const path = readFolderPath(value)
+  return path === ROOT_FOLDER_PATH ? undefined : path || undefined
+}
 
 export const KnowledgeBlock: BlockConfig = {
   type: 'knowledge',
@@ -33,7 +128,7 @@ export const KnowledgeBlock: BlockConfig = {
     sentences: {
       byOperation: {
         search: [
-          { text: 'Search', field: KNOWLEDGE_BASE_FIELD, core: true },
+          { text: 'Search', field: SEARCH_TARGET_FIELD, core: true },
           { text: 'for', field: 'query' },
           { text: ', returning top', field: 'topK', after: 'matches' },
         ],
@@ -87,6 +182,16 @@ export const KnowledgeBlock: BlockConfig = {
           { text: 'Start a sync on connector', field: 'connectorId', core: true },
           { text: 'in', field: KNOWLEDGE_BASE_FIELD },
         ],
+        list_folders: [{ text: 'List', field: FOLDER_FIELD, core: true }],
+        create_folder: [
+          { text: 'Create folder', field: 'folderName', core: true },
+          { text: 'in', field: CREATE_PARENT_FIELD },
+        ],
+        update_folder: [
+          { text: 'Move folder', field: FOLDER_FIELD, core: true },
+          { text: 'into', field: DESTINATION_PARENT_FIELD },
+        ],
+        delete_folder: [{ text: 'Delete folder', field: FOLDER_FIELD, core: true }],
       },
     },
   },
@@ -112,8 +217,44 @@ export const KnowledgeBlock: BlockConfig = {
         { label: 'List Connectors', id: 'list_connectors' },
         { label: 'Get Connector', id: 'get_connector' },
         { label: 'Trigger Sync', id: 'trigger_sync' },
+        { label: 'List Folders', id: 'list_folders' },
+        { label: 'Create Folder', id: 'create_folder' },
+        { label: 'Move Folder', id: 'update_folder' },
+        { label: 'Delete Folder', id: 'delete_folder' },
       ],
       value: () => 'search',
+    },
+    {
+      id: 'searchFolder',
+      title: 'Folder',
+      type: 'sim-folder-tree-selector',
+      resourceType: 'knowledge_base',
+      canonicalParamId: 'searchFolderRef',
+      mode: 'basic',
+      placeholder: 'Anywhere in the workspace',
+      description:
+        'Narrows the knowledge bases below. With none picked, searches every knowledge base in the folder.',
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'manualSearchFolder',
+      title: 'Folder Path',
+      type: 'short-input',
+      canonicalParamId: 'searchFolderRef',
+      mode: 'advanced',
+      placeholder: '/Support/Tier1',
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'searchFolderIncludeSubfolders',
+      title: 'Include Subfolders',
+      type: 'switch',
+      /* Controls nothing until a folder is chosen, so it does not render until one is. */
+      condition: {
+        field: 'operation',
+        value: 'search',
+        and: { field: 'searchFolderRef', value: '', not: true },
+      },
     },
     // Knowledge base selector - basic mode
     {
@@ -123,8 +264,10 @@ export const KnowledgeBlock: BlockConfig = {
       canonicalParamId: 'knowledgeBaseId',
       placeholder: 'Select knowledge base',
       multiSelect: false,
-      required: true,
+      folderScope: SEARCH_FOLDER_SCOPE,
+      required: { field: 'operation', value: [...KNOWLEDGE_BASE_REQUIRED_OPERATIONS] },
       mode: 'basic',
+      condition: { field: 'operation', value: [...KNOWLEDGE_BASE_OPERATIONS] },
     },
     // Knowledge base ID - advanced mode
     {
@@ -134,7 +277,8 @@ export const KnowledgeBlock: BlockConfig = {
       canonicalParamId: 'knowledgeBaseId',
       mode: 'advanced',
       placeholder: 'Enter knowledge base ID',
-      required: true,
+      required: { field: 'operation', value: [...KNOWLEDGE_BASE_REQUIRED_OPERATIONS] },
+      condition: { field: 'operation', value: [...KNOWLEDGE_BASE_OPERATIONS] },
     },
     {
       id: 'query',
@@ -394,6 +538,121 @@ export const KnowledgeBlock: BlockConfig = {
       ],
       condition: { field: 'operation', value: 'list_chunks' },
     },
+
+    // --- Folder operations ---
+    {
+      id: 'folderPath',
+      title: 'Folder',
+      type: 'sim-folder-tree-selector',
+      resourceType: 'knowledge_base',
+      placeholder: 'Select a folder',
+      canonicalParamId: 'folderRef',
+      mode: 'basic',
+      condition: { field: 'operation', value: ['list_folders', 'update_folder', 'delete_folder'] },
+      required: { field: 'operation', value: ['update_folder', 'delete_folder'] },
+    },
+    {
+      id: 'manualFolderPath',
+      title: 'Folder Path',
+      type: 'short-input',
+      canonicalParamId: 'folderRef',
+      mode: 'advanced',
+      placeholder: '/Support/Tier1',
+      condition: { field: 'operation', value: ['list_folders', 'update_folder', 'delete_folder'] },
+      required: { field: 'operation', value: ['update_folder', 'delete_folder'] },
+    },
+    {
+      id: 'createParentPath',
+      title: 'Parent Folder',
+      type: 'sim-folder-tree-selector',
+      resourceType: 'knowledge_base',
+      placeholder: 'Workspace root',
+      canonicalParamId: 'createParentRef',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'create_folder' },
+    },
+    {
+      id: 'manualCreateParentPath',
+      title: 'Parent Folder Path',
+      type: 'short-input',
+      canonicalParamId: 'createParentRef',
+      mode: 'advanced',
+      placeholder: '/Support',
+      condition: { field: 'operation', value: 'create_folder' },
+    },
+    {
+      id: 'folderName',
+      title: 'Name',
+      type: 'short-input',
+      placeholder: 'Tier1',
+      condition: { field: 'operation', value: 'create_folder' },
+      required: { field: 'operation', value: 'create_folder' },
+    },
+    {
+      id: 'destinationParentPath',
+      title: 'Move Into',
+      type: 'sim-folder-tree-selector',
+      resourceType: 'knowledge_base',
+      placeholder: 'Workspace root',
+      canonicalParamId: 'destinationParentRef',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'update_folder' },
+    },
+    {
+      id: 'manualDestinationParentPath',
+      title: 'Move Into Path',
+      type: 'short-input',
+      canonicalParamId: 'destinationParentRef',
+      mode: 'advanced',
+      placeholder: '/Archive',
+      condition: { field: 'operation', value: 'update_folder' },
+    },
+    {
+      id: 'folderRecursive',
+      title: 'Include Subfolders',
+      type: 'switch',
+      condition: { field: 'operation', value: 'list_folders' },
+    },
+    {
+      id: 'folderDepth',
+      title: 'Max Depth',
+      type: 'short-input',
+      placeholder: 'Unlimited',
+      mode: 'advanced',
+      /*
+       * A listing that does not descend is exactly its direct children, so a
+       * depth beside it means nothing. The contract rejects the pair; gating the
+       * field here is what stops a human building the combination it rejects.
+       */
+      condition: {
+        field: 'operation',
+        value: 'list_folders',
+        and: { field: 'folderRecursive', value: true },
+      },
+    },
+    {
+      id: 'folderSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'tier1',
+      description: 'Matches folder and knowledge base names.',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_folders' },
+    },
+    {
+      id: 'folderLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '200',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_folders' },
+    },
+    {
+      id: 'deleteFolderRecursive',
+      title: 'Delete Contents',
+      type: 'switch',
+      condition: { field: 'operation', value: 'delete_folder' },
+    },
   ],
   tools: {
     access: [
@@ -411,6 +670,10 @@ export const KnowledgeBlock: BlockConfig = {
       'knowledge_list_connectors',
       'knowledge_get_connector',
       'knowledge_trigger_sync',
+      'knowledge_list_folders',
+      'knowledge_create_folder',
+      'knowledge_update_folder',
+      'knowledge_delete_folder',
     ],
     config: {
       tool: (params) => {
@@ -443,17 +706,114 @@ export const KnowledgeBlock: BlockConfig = {
             return 'knowledge_get_connector'
           case 'trigger_sync':
             return 'knowledge_trigger_sync'
+          case 'list_folders':
+            return 'knowledge_list_folders'
+          case 'create_folder':
+            return 'knowledge_create_folder'
+          case 'update_folder':
+            return 'knowledge_update_folder'
+          case 'delete_folder':
+            return 'knowledge_delete_folder'
           default:
             return 'knowledge_search'
         }
       },
       params: (params) => {
         params = { ...params }
-        const knowledgeBaseId = params.knowledgeBaseId ? String(params.knowledgeBaseId).trim() : ''
-        if (!knowledgeBaseId) {
-          throw new Error('Knowledge base ID is required')
+
+        if (params.operation === 'list_folders') {
+          return {
+            path: optionalText(params.folderRef),
+            recursive: switchValue(params.folderRecursive),
+            depth: parseOptionalNumberInput(params.folderDepth, 'Max Depth', {
+              integer: true,
+              min: 1,
+              max: MAX_FOLDER_PATH_SEGMENTS,
+            }),
+            search: optionalText(params.folderSearch),
+            limit: parseOptionalNumberInput(params.folderLimit, 'Limit', {
+              integer: true,
+              min: 1,
+              max: MAX_KNOWLEDGE_LIST_LIMIT,
+            }),
+          }
         }
-        params.knowledgeBaseId = knowledgeBaseId
+
+        if (params.operation === 'create_folder') {
+          /*
+           * A folder is created by naming it inside a parent, not by spelling
+           * its whole path. The parent is pickable and the name is not, so the
+           * path is composed here — percent-encoding the typed name, because the
+           * tool takes a canonical path.
+           */
+          const name = optionalText(params.folderName)
+          const parentPrefix = folderPathPrefix(optionalText(params.createParentRef))
+          return {
+            path: name ? `${parentPrefix}/${encodeFolderPathSegment(name)}` : undefined,
+          }
+        }
+
+        if (params.operation === 'update_folder') {
+          /*
+           * The tool takes the full path the folder will HAVE, which by
+           * definition does not exist yet and so cannot be picked. It is
+           * composed from a destination parent plus the folder's own name,
+           * carried from the source path's last segment. An unset parent means
+           * the workspace root.
+           */
+          const sourcePath = optionalText(params.folderRef)
+          const segment = sourcePath?.split('/').pop()
+          const parentPrefix = folderPathPrefix(optionalText(params.destinationParentRef))
+          return {
+            path: sourcePath,
+            destinationPath: segment ? `${parentPrefix}/${segment}` : undefined,
+          }
+        }
+
+        if (params.operation === 'delete_folder') {
+          return {
+            path: optionalText(params.folderRef),
+            recursive: switchValue(params.deleteFolderRecursive),
+          }
+        }
+
+        const knowledgeBaseId = params.knowledgeBaseId ? String(params.knowledgeBaseId).trim() : ''
+        /*
+         * Search accepts a folder instead: it stands for the knowledge bases
+         * inside it, resolved when the workflow runs. Every other operation
+         * addresses one knowledge base and still requires it.
+         */
+        const searchFolderPath =
+          params.operation === 'search' ? folderScopePath(params.searchFolderRef) : undefined
+        if (!knowledgeBaseId && !searchFolderPath) {
+          throw new Error(
+            params.operation === 'search'
+              ? 'A knowledge base or a folder is required for search'
+              : 'Knowledge base ID is required'
+          )
+        }
+        params.knowledgeBaseId = knowledgeBaseId || undefined
+        /*
+         * The folder travels only when no knowledge base is picked. The picker
+         * offers just that folder's knowledge bases, so a picked one is always
+         * the narrower answer — sending both would search the whole folder
+         * *and* the pick, which is the opposite of what the field says it does.
+         *
+         * Assembled rather than assigned onto `params`, because the wire field
+         * shares a name with the folder-operation subblock and reading
+         * `params.folderPath` would pick up a value the serializer has already
+         * deleted. Absent subfolders already means "this folder only", so only
+         * the on case travels.
+         */
+        const searchFolderFields =
+          searchFolderPath && !knowledgeBaseId
+            ? {
+                folderPath: searchFolderPath,
+                ...(switchValue(params.searchFolderIncludeSubfolders)
+                  ? { folderIncludeSubfolders: true }
+                  : {}),
+              }
+            : {}
 
         const docOps = [
           'get_document',
@@ -518,7 +878,7 @@ export const KnowledgeBlock: BlockConfig = {
           params.enabled = params.enabled === 'true'
         }
 
-        return params
+        return { ...params, ...searchFolderFields }
       },
     },
   },
@@ -553,6 +913,26 @@ export const KnowledgeBlock: BlockConfig = {
     chunkEnabledFilter: { type: 'string', description: 'Filter chunks by enabled status' },
     upsertDocumentId: { type: 'string', description: 'Document ID for upsert operation' },
     connectorId: { type: 'string', description: 'Connector identifier' },
+    searchFolderRef: {
+      type: 'string',
+      description: 'Folder whose knowledge bases a search covers',
+    },
+    searchFolderIncludeSubfolders: {
+      type: 'boolean',
+      description: 'Extend the search folder scope to its subfolders',
+    },
+    folderRef: { type: 'string', description: 'Knowledge folder to list, move, or delete' },
+    createParentRef: { type: 'string', description: 'Parent folder a new folder is created in' },
+    destinationParentRef: { type: 'string', description: 'Folder a move places the folder into' },
+    folderName: { type: 'string', description: 'Name of the folder to create' },
+    folderRecursive: { type: 'boolean', description: 'List the whole subtree' },
+    folderDepth: { type: 'number', description: 'Deepest level to include when listing' },
+    folderSearch: { type: 'string', description: 'Match folder and knowledge base names' },
+    folderLimit: { type: 'number', description: 'Max entries a listing returns' },
+    deleteFolderRecursive: {
+      type: 'boolean',
+      description: 'Also delete the folder’s contents',
+    },
   },
   outputs: {
     results: { type: 'json', description: 'Search results' },

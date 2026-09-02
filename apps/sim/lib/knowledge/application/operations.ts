@@ -17,6 +17,21 @@ const ALL_PRINCIPAL_WITH_EXECUTOR_POLICY = {
 
 const HTTP_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'workspace_api_key'] as const
 
+/**
+ * Executor only, deliberately narrower than {@link ALL_PRINCIPAL_WITH_EXECUTOR_POLICY}.
+ *
+ * The workflow tool surface is these operations' only delegated caller; Copilot
+ * manages knowledge folders through `knowledge.vfs.folders.manage`, which is
+ * purpose-built for it. Granting copilot here would also hand a model the
+ * recursive delete flag: `visibility: 'user-only'` is an editor-role concept
+ * that collapses on a direct or Copilot call, where `createUserToolSchema`
+ * publishes every parameter that is not `hidden`.
+ */
+const HUMAN_AND_EXECUTOR_PRINCIPAL_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  delegatedServices: ['executor'],
+} as const
+
 const HUMAN_AND_DELEGATED_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'delegated'] as const
 
 const HUMAN_AND_COPILOT_PRINCIPAL_POLICY = {
@@ -44,7 +59,7 @@ export const knowledgeOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
-    ...ALL_PRINCIPAL_POLICY,
+    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
   }),
   read: defineWorkspaceOperation({
     id: 'knowledge.read',
@@ -154,28 +169,28 @@ export const knowledgeOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
-    principalKinds: HTTP_PRINCIPAL_KINDS,
+    ...HUMAN_AND_EXECUTOR_PRINCIPAL_POLICY,
   }),
   createFolder: defineWorkspaceOperation({
     id: 'knowledge.folders.create',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
-    principalKinds: HTTP_PRINCIPAL_KINDS,
+    ...HUMAN_AND_EXECUTOR_PRINCIPAL_POLICY,
   }),
   relocateFolder: defineWorkspaceOperation({
     id: 'knowledge.folders.relocate',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
-    principalKinds: HTTP_PRINCIPAL_KINDS,
+    ...HUMAN_AND_EXECUTOR_PRINCIPAL_POLICY,
   }),
   deleteFolder: defineWorkspaceOperation({
     id: 'knowledge.folders.delete',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
-    principalKinds: HTTP_PRINCIPAL_KINDS,
+    ...HUMAN_AND_EXECUTOR_PRINCIPAL_POLICY,
   }),
   listDocuments: defineWorkspaceOperation({
     id: 'knowledge.documents.list',
