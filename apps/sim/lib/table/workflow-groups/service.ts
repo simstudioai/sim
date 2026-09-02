@@ -157,7 +157,43 @@ export async function addWorkflowGroup(
         )
       }
 
-      const existingNames = new Set(schema.columns.map((c) => c.name.toLowerCase()))
+      /**
+       * An output column the table already has is attached to the group rather
+       * than created again — the group takes the column over, so the column
+       * must be free (no owning group) and eligible (a workflow output can be
+       * neither required nor unique, per the schema invariants). Keyed by
+       * column id, valued by the ref the caller wrote, so the id remap below
+       * resolves that ref however it was cased.
+       */
+      const existingByName = new Map(schema.columns.map((c) => [c.name.toLowerCase(), c]))
+      const attached = new Map<string, string>()
+      const attach = (
+        existing: ColumnDefinition,
+        ref: string,
+        requestedType?: ColumnDefinition['type']
+      ) => {
+        if (existing.workflowGroupId) {
+          throw new OrchestrationError(
+            'validation',
+            `Column "${existing.name}" already belongs to workflow group "${existing.workflowGroupId}"`
+          )
+        }
+        if (existing.required || existing.unique) {
+          throw new OrchestrationError(
+            'validation',
+            `Column "${existing.name}" cannot become a workflow output because it is ${existing.required ? 'required' : 'unique'}`
+          )
+        }
+        if (requestedType !== undefined && requestedType !== existing.type) {
+          throw new OrchestrationError(
+            'validation',
+            `Column "${existing.name}" already exists with type "${existing.type}"; omit it from outputColumns or match its type`
+          )
+        }
+        attached.set(getColumnId(existing), ref)
+      }
+
+      const newColumns: ColumnDefinition[] = []
       for (const col of data.outputColumns) {
         if (!NAME_PATTERN.test(col.name)) {
           throw new OrchestrationError(
@@ -165,26 +201,42 @@ export async function addWorkflowGroup(
             `Invalid output column name "${col.name}". Must satisfy ${NAME_PATTERN.source}.`
           )
         }
-        if (existingNames.has(col.name.toLowerCase())) {
-          throw new OrchestrationError('validation', `Column "${col.name}" already exists`)
+        const existing = existingByName.get(col.name.toLowerCase())
+        if (existing) {
+          attach(existing, col.name, col.type)
+          continue
+        }
+        // Assign stable ids to the new output columns so outputs/deps/inputMappings
+        // key on ids — matching the row-data storage key and surviving future renames.
+        newColumns.push(col.id ? col : { ...col, id: generateColumnId() })
+      }
+
+      // An output may name an existing column with no `outputColumns` entry at all.
+      const newNames = new Set(newColumns.map((c) => c.name.toLowerCase()))
+      for (const output of data.group.outputs) {
+        if (newNames.has(output.columnName.toLowerCase())) continue
+        const existing = schema.columns.find((c) => columnMatchesRef(c, output.columnName))
+        if (existing && !attached.has(getColumnId(existing))) {
+          attach(existing, output.columnName)
         }
       }
 
-      if (schema.columns.length + data.outputColumns.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
+      if (schema.columns.length + newColumns.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
         throw new OrchestrationError(
           'validation',
-          `Adding ${data.outputColumns.length} columns would exceed the maximum (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE}).`
+          `Adding ${newColumns.length} columns would exceed the maximum (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE}).`
         )
       }
 
-      // Assign stable ids to the new output columns, then rewrite the group's
-      // column refs from name → id so outputs/deps/inputMappings key on ids —
-      // matching the row-data storage key and surviving future renames.
-      const outputColumns = data.outputColumns.map((col) =>
-        col.id ? col : { ...col, id: generateColumnId() }
-      )
-      const updatedColumns = [...schema.columns, ...outputColumns]
+      const updatedColumns = [
+        ...schema.columns.map((c) =>
+          attached.has(getColumnId(c)) ? { ...c, workflowGroupId: data.group.id } : c
+        ),
+        ...newColumns,
+      ]
+      // Rewrite the group's column refs from name → id.
       const idByName = new Map(updatedColumns.map((c) => [c.name, getColumnId(c)]))
+      for (const [columnId, ref] of attached) idByName.set(ref, columnId)
       const group = remapGroupColumnRefs(data.group, idByName)
 
       const updatedSchema: TableSchema = {
@@ -199,7 +251,7 @@ export async function addWorkflowGroup(
       let updatedMetadata = table.metadata
       if (existingOrder && existingOrder.length > 0) {
         const known = new Set(existingOrder)
-        const append = outputColumns.map(getColumnId).filter((id) => !known.has(id))
+        const append = newColumns.map(getColumnId).filter((id) => !known.has(id))
         if (append.length > 0) {
           updatedMetadata = { ...table.metadata, columnOrder: [...existingOrder, ...append] }
         }
@@ -219,7 +271,7 @@ export async function addWorkflowGroup(
         )
 
       logger.info(
-        `[${requestId}] Added workflow group "${data.group.id}" with ${data.outputColumns.length} output column(s) to table ${data.tableId}`
+        `[${requestId}] Added workflow group "${data.group.id}" with ${newColumns.length} new and ${attached.size} attached output column(s) to table ${data.tableId}`
       )
 
       return {

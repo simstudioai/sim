@@ -27,6 +27,7 @@ import {
   computeExecutionSets,
   overlayVariableInputs,
   type RunFromBlockContext,
+  RunFromBlockValidationError,
   resolveContainerToSentinelStart,
   validateRunFromBlock,
 } from '@/executor/utils/run-from-block'
@@ -143,7 +144,9 @@ export class DAGExecutor {
     const executedBlocks = new Set(sourceSnapshot.executedBlocks)
     const validation = validateRunFromBlock(startBlockId, dag, executedBlocks)
     if (!validation.valid) {
-      throw new Error(validation.error)
+      throw new RunFromBlockValidationError(
+        validation.error ?? `Cannot run from block: ${startBlockId}`
+      )
     }
 
     const { dirtySet, upstreamSet, reachableUpstreamSet } = computeExecutionSets(dag, startBlockId)

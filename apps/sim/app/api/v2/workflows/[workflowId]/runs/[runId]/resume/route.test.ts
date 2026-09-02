@@ -220,6 +220,7 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
         workflowId: WORKFLOW_ID,
         status: 'completed',
         output: { approved: true },
+        blockOutputs: null,
         error: null,
         startedAt: '2026-08-05T00:00:00.000Z',
         endedAt: '2026-08-05T00:00:01.000Z',
