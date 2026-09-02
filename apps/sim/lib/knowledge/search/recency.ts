@@ -1,9 +1,9 @@
+import { RRF_K } from '@/lib/knowledge/search/rank'
+
 /** Age at which a document's recency boost has decayed to half. */
 export const RECENCY_HALF_LIFE_DAYS = 90
 /** The most a fully fresh document's rank score is raised, as a fraction. */
 export const RECENCY_WEIGHT = 0.15
-/** The rank-score denominator offset; shared with reciprocal-rank fusion so the two agree. */
-export const RECENCY_RANK_K = 60
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -33,7 +33,7 @@ export function applyRecencyBoost<T extends { sourceModifiedAt: Date | null }>(
   const boosted = rows.map((row, index) => ({
     row,
     score:
-      (1 / (RECENCY_RANK_K + index + 1)) *
+      (1 / (RRF_K + index + 1)) *
       (1 + RECENCY_WEIGHT * recencyFreshness(row.sourceModifiedAt, now)),
   }))
   return boosted.sort((a, b) => b.score - a.score).map((entry) => entry.row)

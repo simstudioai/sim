@@ -92,6 +92,15 @@ const MEMBER_SYNC_IN_FLIGHT_TOOLTIP = {
   running: 'Syncing members',
 } as const
 
+/** How each member-engine status reads on the card's badge. */
+const MEMBER_SYNC_STATUS_AS_CONNECTOR_STATUS = {
+  idle: 'active',
+  pending: 'pending',
+  running: 'syncing',
+  error: 'error',
+  disabled: 'disabled',
+} as const satisfies Record<string, keyof typeof STATUS_CONFIG>
+
 const CONNECTOR_ACTION_BUTTON_CLASSES =
   'size-7 rounded-lg p-0 text-[var(--text-muted)] hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
 
@@ -286,8 +295,19 @@ function ConnectorCard({
   const connectorDef = CONNECTOR_META_REGISTRY[connector.connectorType]
   const Icon = connectorDef?.icon
   const brandBg = getBlock(connector.connectorType)?.bgColor ?? null
+  /**
+   * A members-mode connector's content status stays `active` while the member
+   * engine does the work, so its badge reads the member engine's status. A
+   * paused or disabled content status still wins: the user set it.
+   */
+  const effectiveStatus =
+    connector.accessMode === 'members' && connector.status === 'active'
+      ? (MEMBER_SYNC_STATUS_AS_CONNECTOR_STATUS[
+          connector.memberSyncStatus as keyof typeof MEMBER_SYNC_STATUS_AS_CONNECTOR_STATUS
+        ] ?? 'active')
+      : connector.status
   const statusConfig =
-    STATUS_CONFIG[connector.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.active
+    STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.active
 
   const serviceId = connectorDef?.auth.mode === 'oauth' ? connectorDef.auth.provider : undefined
   const providerId = serviceId ? getProviderIdFromServiceId(serviceId) : undefined
@@ -452,6 +472,15 @@ function ConnectorCard({
                   <Tooltip.Content>{lastSyncError}</Tooltip.Content>
                 </Tooltip.Root>
               )}
+              {connector.accessRewritePending && (
+                <>
+                  <span>·</span>
+                  <span className='flex items-center gap-1'>
+                    <Loader className='size-3' animate />
+                    Updating access
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -570,6 +599,22 @@ function ConnectorCard({
           </Tooltip.Root>
         </div>
       </div>
+
+      {syncsPerMember && connector.memberSyncStatus === 'disabled' && (
+        <div className='border-[var(--border-muted)] border-t px-2 py-2'>
+          <div className='flex flex-col gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-3)] px-2.5 py-2'>
+            <div className='flex items-center gap-1.5 text-[var(--text-primary)] text-caption'>
+              <TriangleAlert className='size-3 flex-shrink-0 text-[var(--caution)]' />
+              Per-member sync is disabled
+            </div>
+            <p className='text-[var(--text-muted)] text-caption leading-snug'>
+              {connector.lastMemberSyncError ?? 'The connector can no longer sync per member.'}{' '}
+              Members keep no access until it is fixed; switch the connector's access to re-enable
+              it.
+            </p>
+          </div>
+        </div>
+      )}
 
       {connector.status === 'disabled' && (
         <div className='border-[var(--border-muted)] border-t px-2 py-2'>

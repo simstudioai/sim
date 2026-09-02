@@ -10,7 +10,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
-import { and, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lte, sql } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
@@ -21,6 +21,7 @@ import {
   type CredentialGroupOptionCredentialReference,
   loadCredentialGroupCredentialListContext,
 } from '@/lib/credential-groups/credentials'
+import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { EMPTY_ACL, subjectToken } from '@/lib/knowledge/access/tokens'
 import {
   KnowledgeConnectorMemberAccessDeniedError,
@@ -145,9 +146,15 @@ interface MemberListingOutcome {
   removedExternalIds: readonly string[]
   listedCount: number
   complete: boolean
+  /**
+   * An incomplete listing the next run can pick up where this one stopped —
+   * the budget ended, or a feed pass hit its page cap — rather than one a
+   * retry cannot improve on, such as a capped or truncated source.
+   */
+  resumable: boolean
   suspect: boolean
-  /** Cursor to store when this outcome lands; undefined leaves the member's cursor untouched. */
-  changeCursor: string | undefined
+  /** Cursor to store when this outcome lands: a value, null to close the feed, undefined to leave it. */
+  changeCursor: string | null | undefined
 }
 
 interface UnionEntry {
@@ -457,17 +464,33 @@ interface MembershipReconciliation {
  * purges members suspended past the window. Every change that alters what an
  * observer contributes to an ACL is collected for rematerialisation.
  */
+/** The credential-group option the connector was bound to no longer exists. */
+class MemberBindingGoneError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'MemberBindingGoneError'
+  }
+}
+
 async function reconcileMembership(
   run: MemberSyncRun,
   binding: { credentialGroupId: string; credentialGroupOptionId: string }
 ): Promise<MembershipReconciliation> {
   const group = await loadCredentialGroupCredentialListContext(binding.credentialGroupId)
-  const option = group?.options.find(
-    (candidate) => candidate.id === binding.credentialGroupOptionId
-  )
+  if (!group) {
+    throw new MemberBindingGoneError(
+      'The Credential Group this connector synced through was deleted'
+    )
+  }
+  const option = group.options.find((candidate) => candidate.id === binding.credentialGroupOptionId)
+  if (!option) {
+    throw new MemberBindingGoneError(
+      'The Credential Group option this connector synced through was removed'
+    )
+  }
   const optionState = {
-    groupActive: group?.status === 'active',
-    optionActive: option?.status === 'active',
+    groupActive: group.status === 'active',
+    optionActive: option.status === 'active',
   }
 
   const snapshots = new Map<string, MemberCredentialSnapshot>()
@@ -623,6 +646,12 @@ async function claimNextMember(run: MemberSyncRun): Promise<MemberRow | null> {
  * a member this run claimed but could not finish is re-armed for now, and the
  * immediate re-dispatch this count triggers is what lets them finish.
  */
+/**
+ * Members with a due timestamp, which is what re-dispatch waits for. A NULL
+ * `nextAttemptAt` means "with the connector's next run" — a new member, or a
+ * completed one on a manual-only connector — and must not keep the connector
+ * re-dispatching itself; only an explicit time that has passed does that.
+ */
 async function countDueMembers(run: MemberSyncRun): Promise<number> {
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -631,10 +660,7 @@ async function countDueMembers(run: MemberSyncRun): Promise<number> {
       and(
         eq(knowledgeConnectorMember.connectorId, run.connectorId),
         eq(knowledgeConnectorMember.status, 'active'),
-        or(
-          isNull(knowledgeConnectorMember.nextAttemptAt),
-          lte(knowledgeConnectorMember.nextAttemptAt, new Date())
-        )
+        lte(knowledgeConnectorMember.nextAttemptAt, new Date())
       )
     )
   return row?.count ?? 0
@@ -672,11 +698,13 @@ interface MemberListing {
   documents: ExternalDocument[]
   removedExternalIds: string[]
   complete: boolean
+  /** See {@link MemberListingOutcome.resumable}. */
+  resumable: boolean
   /** The source itself said this member reaches nothing; not a listing shape to doubt. */
   authoritative: boolean
   startedAt: Date
-  /** Cursor to store once the listing lands; undefined leaves the member's cursor alone. */
-  changeCursor: string | undefined
+  /** Cursor to store once the listing lands: a value, null to close the feed, undefined to leave it. */
+  changeCursor: string | null | undefined
 }
 
 async function listForMember(input: {
@@ -720,18 +748,22 @@ async function listForMember(input: {
         })
       } catch (error) {
         if (connectorConfig.isChangeCursorInvalidError?.(error) !== true) throw error
-        logger.info('Member change feed cursor expired; reopening it from a full listing', {
+        logger.warn('Member change feed cursor rejected; reopening it from a full listing', {
           connectorId: run.connectorId,
           memberId: member.id,
+          error: getErrorMessage(error),
         })
         return listForMember({ ...input, forceFull: true })
       }
+      const complete = pass.exhausted && !pass.budgetAborted
       return {
         kind: 'listed',
         mode: 'changes',
         documents: pass.upserts,
         removedExternalIds: pass.removedExternalIds,
-        complete: pass.exhausted && !pass.budgetAborted,
+        complete,
+        /** The cursor already sits past every page read, so the next run continues. */
+        resumable: !complete,
         authoritative: false,
         startedAt,
         changeCursor: pass.cursor,
@@ -777,6 +809,8 @@ async function listForMember(input: {
       documents: listing.documents,
       removedExternalIds: [],
       complete,
+      /** Only the deadline is worth retrying at once; a capped or truncated source reads the same next time. */
+      resumable: listing.budgetAborted,
       authoritative: false,
       startedAt,
       changeCursor: full && complete ? openedCursor : undefined,
@@ -797,9 +831,11 @@ async function listForMember(input: {
         documents: [],
         removedExternalIds: [],
         complete: true,
+        resumable: false,
         authoritative: true,
         startedAt,
-        changeCursor: undefined,
+        /** A feed over a scope the member cannot reach says nothing; the next full listing reopens one. */
+        changeCursor: null,
       }
     }
     logger.warn('Member listing failed', {
@@ -837,7 +873,13 @@ async function applyMemberListing(
   await db.transaction(async (tx) => {
     const added = await recordMemberObservations(tx, outcome.member.id, seenDocumentIds, run.runId)
     run.result.observationsAdded += added
-    if (added > 0) for (const documentId of seenDocumentIds) affected.add(documentId)
+    /**
+     * Every seen document is rematerialised, not only the newly observed ones:
+     * a run that died between writing observations and writing ACLs left them
+     * hidden, and the observation graph is the only record that says so.
+     * Rematerialising an already-correct ACL is a no-op write.
+     */
+    for (const documentId of seenDocumentIds) affected.add(documentId)
     if (removesAllowed) {
       const removed = await removeUnseenMemberObservations(tx, outcome.member.id, run.runId)
       run.result.observationsRemoved += removed.length
@@ -862,7 +904,9 @@ async function applyMemberListing(
         consecutiveFailures: 0,
         lastError: null,
         ...(outcome.mode === 'full' ? { lastListedCount: outcome.listedCount } : {}),
-        nextAttemptAt: outcome.complete ? nextMemberSyncTime(now, syncIntervalMinutes, false) : now,
+        nextAttemptAt: outcome.resumable
+          ? now
+          : nextMemberSyncTime(now, syncIntervalMinutes, false),
         ...(removesAllowed
           ? { lastCompleteListingAt: now, memberSyncedThrough: outcome.listingStartedAt }
           : {}),
@@ -870,7 +914,10 @@ async function applyMemberListing(
           ? { memberSyncedThrough: outcome.listingStartedAt }
           : {}),
         ...(outcome.changeCursor !== undefined
-          ? { changeCursor: outcome.changeCursor, changeCursorAt: now }
+          ? {
+              changeCursor: outcome.changeCursor,
+              changeCursorAt: outcome.changeCursor === null ? null : now,
+            }
           : {}),
         updatedAt: now,
       })
@@ -909,7 +956,20 @@ async function completeMemberSync(
       .from(knowledgeBase)
       .where(and(eq(knowledgeBase.id, run.knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
       .for('update')
-    if (!activeKnowledgeBase) return false
+    if (!activeKnowledgeBase) {
+      /** Nothing to record against a deleted knowledge base; hand the lease back rather than let it expire as a failure. */
+      await tx
+        .update(knowledgeConnector)
+        .set({
+          memberSyncStatus: 'idle',
+          nextMemberSyncAt: null,
+          memberSyncLockToken: null,
+          memberSyncLockLeaseAt: null,
+          updatedAt: now,
+        })
+        .where(stillHoldsMemberSyncLock(run.connectorId, run.runId))
+      return false
+    }
     const [held] = await tx
       .select({ id: knowledgeConnector.id })
       .from(knowledgeConnector)
@@ -1157,6 +1217,13 @@ export async function executeMemberSync(
         error: 'Credential Groups are not available',
       }
     }
+    if (!(await isKnowledgeMemberAccessAvailable({ workspaceId: run.workspaceId }))) {
+      await disableMemberSync(run, 'Per-member access is not enabled for this workspace')
+      return {
+        ...skipped(result, 'connector_not_syncable'),
+        error: 'Per-member access is not enabled',
+      }
+    }
     if (!connector.credentialGroupId || !connector.credentialGroupOptionId) {
       await disableMemberSync(run, 'Connector is no longer attached to a Credential Group option')
       return {
@@ -1254,6 +1321,7 @@ export async function executeMemberSync(
         removedExternalIds: listed.removedExternalIds,
         listedCount: admitted.seenExternalIds.size,
         complete: listed.complete,
+        resumable: listed.resumable,
         suspect,
         /** A doubted listing does not open the feed either: the next full listing decides. */
         changeCursor: suspect ? undefined : listed.changeCursor,
@@ -1368,6 +1436,10 @@ export async function executeMemberSync(
       logger.info('Connector deleted during member sync', { connectorId })
       await failMemberSyncLog(runId, result, 'Connector deleted during sync').catch(() => undefined)
       return skipped(result, 'connector_deleted_during_sync')
+    }
+    if (error instanceof MemberBindingGoneError) {
+      await disableMemberSync(run, error.message)
+      return { ...skipped(result, 'connector_not_syncable'), error: error.message }
     }
 
     const errorMessage = toError(error).message

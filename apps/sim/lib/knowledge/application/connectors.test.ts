@@ -108,6 +108,7 @@ const crossWorkspaceContext = {
 
 const connectorContext = {
   ...crossWorkspaceContext,
+  access: { get: async () => ({ kind: 'workspace' as const, tokens: ['ws', 'pub'] as const }) },
   connectorId: 'connector-b',
   connector: {
     id: 'connector-b',

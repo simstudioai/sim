@@ -3035,6 +3035,7 @@ export async function bulkDocumentOperationByFilter(
   knowledgeBaseId: string,
   operation: 'enable' | 'disable' | 'delete',
   enabledFilter: 'all' | 'enabled' | 'disabled' | undefined,
+  access: KnowledgeAccessScope,
   requestId: string
 ): Promise<{
   success: boolean
@@ -3054,6 +3055,8 @@ export async function bulkDocumentOperationByFilter(
     eq(document.userExcluded, false),
     isNull(document.archivedAt),
     isNull(document.deletedAt),
+    /** "Every document" means every document the caller can see. */
+    knowledgeAccessCondition(access),
   ]
 
   if (enabledFilter === 'enabled') {

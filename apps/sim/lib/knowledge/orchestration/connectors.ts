@@ -893,10 +893,10 @@ export async function performDeleteKnowledgeConnector(
     ])
   }
 
-  if (existing.credentialGroupId) {
+  if (existing.credentialGroupId && kb.workspaceId) {
     await revokeKnowledgeConnectorCredentialAccess(
       {
-        workspaceId: kb.workspaceId ?? '',
+        workspaceId: kb.workspaceId,
         credentialGroupId: existing.credentialGroupId,
         connectorId,
       },

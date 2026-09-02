@@ -871,6 +871,7 @@ export async function getTagUsage(
  */
 export async function getTagUsageStats(
   knowledgeBaseId: string,
+  access: KnowledgeAccessScope,
   requestId: string
 ): Promise<
   Array<{
@@ -898,6 +899,7 @@ export async function getTagUsageStats(
           eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt),
+          knowledgeAccessCondition(access),
           sql`${sql.raw(tagSlot)} IS NOT NULL`
         )
       )
@@ -912,6 +914,7 @@ export async function getTagUsageStats(
           eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt),
+          knowledgeAccessCondition(access),
           sql`${sql.raw(`embedding.${tagSlot}`)} IS NOT NULL`
         )
       )

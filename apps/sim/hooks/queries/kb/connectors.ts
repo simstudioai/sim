@@ -145,20 +145,22 @@ export function useConnectorDetail(knowledgeBaseId?: string, connectorId?: strin
  * never starting that poll, and showing stale sync history behind the list's
  * spinner.
  */
+type ConnectorStatusPatch = Pick<ConnectorData, 'status'> | Pick<ConnectorData, 'memberSyncStatus'>
+
 function setCachedConnectorStatus(
   queryClient: QueryClient,
   knowledgeBaseId: string,
   connectorId: string,
-  status: ConnectorData['status']
+  patch: ConnectorStatusPatch
 ) {
   queryClient.setQueryData<ConnectorData[]>(connectorKeys.lists(knowledgeBaseId), (connectors) =>
     connectors?.map((connector) =>
-      connector.id === connectorId ? { ...connector, status } : connector
+      connector.id === connectorId ? { ...connector, ...patch } : connector
     )
   )
   queryClient.setQueryData<ConnectorDetailData>(
     connectorKeys.detail(knowledgeBaseId, connectorId),
-    (detail) => (detail ? { ...detail, status } : detail)
+    (detail) => (detail ? { ...detail, ...patch } : detail)
   )
 }
 
@@ -186,9 +188,33 @@ function optimisticallySetConnectorStatus(
     .getQueryData<ConnectorData[]>(connectorKeys.lists(knowledgeBaseId))
     ?.find((connector) => connector.id === connectorId)?.status
 
-  setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, status)
+  setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, { status })
 
   return previousStatus
+}
+
+/**
+ * The optimistic "queued" write for a sync trigger, on whichever engine the
+ * connector runs: a members connector queues a member run, so its content
+ * status must not flip. Returns what to restore if the trigger is refused.
+ */
+function optimisticallyQueueSync(
+  queryClient: QueryClient,
+  knowledgeBaseId: string,
+  connectorId: string
+): ConnectorStatusPatch | undefined {
+  const cached = queryClient
+    .getQueryData<ConnectorData[]>(connectorKeys.lists(knowledgeBaseId))
+    ?.find((connector) => connector.id === connectorId)
+  if (!cached) return undefined
+  if (cached.accessMode === 'members') {
+    setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, {
+      memberSyncStatus: 'pending',
+    })
+    return { memberSyncStatus: cached.memberSyncStatus }
+  }
+  setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, { status: 'pending' })
+  return { status: cached.status }
 }
 
 interface CreateConnectorParams {
@@ -227,6 +253,7 @@ export function useCreateConnector() {
      */
     onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
     },
   })
 }
@@ -271,7 +298,9 @@ export function useUpdateConnector() {
     },
     onError: (_error, { knowledgeBaseId, connectorId }, previousStatus) => {
       if (previousStatus) {
-        setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, previousStatus)
+        setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, {
+          status: previousStatus,
+        })
       }
     },
     onSettled: (_data, _error, { knowledgeBaseId }) => {
@@ -317,6 +346,8 @@ export function useUpdateConnectorAccess() {
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
         exact: true,
       })
+      /** The base list says whether any connector syncs per member. */
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
     },
   })
 }
@@ -365,6 +396,7 @@ export function useDeleteConnector() {
       if (deleteDocuments) {
         queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentDetails(knowledgeBaseId) })
       }
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
     },
   })
 }
@@ -400,15 +432,15 @@ export function useTriggerSync() {
      */
     onMutate: async ({ knowledgeBaseId, connectorId }) => {
       await queryClient.cancelQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
-      return optimisticallySetConnectorStatus(queryClient, knowledgeBaseId, connectorId, 'pending')
+      return optimisticallyQueueSync(queryClient, knowledgeBaseId, connectorId)
     },
     /**
      * Rolling back also stops the poll the optimistic `pending` started, so a
      * refused sync does not leave the row spinning.
      */
-    onError: (_error, { knowledgeBaseId, connectorId }, previousStatus) => {
-      if (previousStatus) {
-        setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, previousStatus)
+    onError: (_error, { knowledgeBaseId, connectorId }, previous) => {
+      if (previous) {
+        setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, previous)
       }
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
     },

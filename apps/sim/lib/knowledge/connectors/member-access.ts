@@ -14,6 +14,7 @@ import {
 import {
   type CredentialGroupCredentialListContext,
   type CredentialGroupOptionCredentialReference,
+  isManagedCredentialGroupBindingLive,
   listCredentialGroupOptionCredentialReferences,
   loadManagedCredentialGroupBinding,
 } from '@/lib/credential-groups/credentials'
@@ -298,6 +299,11 @@ export async function mintKnowledgeConnectorMemberToken(
       'Managed credential is not enrolled in a Credential Group in this workspace'
     )
   }
+  if (!isManagedCredentialGroupBindingLive(binding)) {
+    throw new KnowledgeConnectorMemberAccessDeniedError(
+      'Managed credential is not currently usable: its enrollment, option, or group is not active'
+    )
+  }
   await assertKnowledgeConnectorCredentialAccess({
     workspaceId: binding.workspaceId,
     credentialGroupId: binding.credentialGroupId,
@@ -358,10 +364,33 @@ export type KnowledgeConnectorMembersBindingValidation =
   | { ok: true; option: CredentialGroupOptionConfig }
   | { ok: false; message: string }
 
+/** Whether a listing cap is in force. Blank, `0`, and `'0'` all mean unlimited. */
 function isCapFieldSet(value: unknown): boolean {
   if (value === undefined || value === null) return false
-  if (typeof value === 'string') return value.trim().length > 0
+  if (typeof value === 'number') return value > 0
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.length === 0) return false
+    const parsed = Number(trimmed)
+    return !(Number.isFinite(parsed) && parsed <= 0)
+  }
   return true
+}
+
+/**
+ * The source config without its listing caps. A cap has no meaning once a
+ * connector syncs per member, so the switch clears it rather than refusing a
+ * connector the admin can no longer see the field on.
+ */
+export function stripListingCapFields(
+  connectorMeta: Pick<ConnectorMeta, 'permissionScopedListing'>,
+  sourceConfig: Record<string, unknown>
+): Record<string, unknown> {
+  const capFieldIds = connectorMeta.permissionScopedListing?.capFieldIds ?? []
+  if (capFieldIds.length === 0) return sourceConfig
+  const stripped = { ...sourceConfig }
+  for (const fieldId of capFieldIds) delete stripped[fieldId]
+  return stripped
 }
 
 /**

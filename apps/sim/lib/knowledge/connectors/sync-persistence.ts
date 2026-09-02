@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
-import { document, embedding, knowledgeBase } from '@sim/db/schema'
+import { document, embedding, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, exists, isNull, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import type { DbOrTx } from '@/lib/db/types'
 import { EMPTY_ACL, WORKSPACE_ACL } from '@/lib/knowledge/access/tokens'
 import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
@@ -41,7 +42,10 @@ function updatedDocumentAcl(access: SyncDocumentAccess): { acl?: string[] } {
  * whatever a mode switch or an interrupted rewrite left behind. Idempotent and
  * a no-op on a healthy connector.
  */
-export async function restoreWorkspaceDocumentAcls(connectorId: string): Promise<number> {
+export async function restoreWorkspaceDocumentAcls(
+  executor: DbOrTx,
+  connectorId: string
+): Promise<number> {
   /**
    * The comparison array is assembled from scalar binds: the shared pool runs
    * with `fetch_types: false`, under which a JS array bound as one parameter
@@ -52,10 +56,26 @@ export async function restoreWorkspaceDocumentAcls(connectorId: string): Promise
     WORKSPACE_ACL.map((token) => sql`${token}`),
     sql`, `
   )}]::text[]`
-  const restored = await db
+  const restored = await executor
     .update(document)
     .set({ acl: [...WORKSPACE_ACL] })
-    .where(and(eq(document.connectorId, connectorId), sql`${document.acl} <> ${workspaceAcl}`))
+    .where(
+      and(
+        eq(document.connectorId, connectorId),
+        sql`${document.acl} <> ${workspaceAcl}`,
+        exists(
+          executor
+            .select({ one: sql`1` })
+            .from(knowledgeConnector)
+            .where(
+              and(
+                eq(knowledgeConnector.id, connectorId),
+                eq(knowledgeConnector.accessMode, 'workspace')
+              )
+            )
+        )
+      )
+    )
     .returning({ id: document.id })
   return restored.length
 }
@@ -243,8 +263,8 @@ export async function persistSkippedDocuments(
     existingId?: string
     extDoc: ExternalDocument
   }>,
-  sourceConfig?: Record<string, unknown>,
-  access: SyncDocumentAccess = 'workspace'
+  sourceConfig: Record<string, unknown> | undefined,
+  access: SyncDocumentAccess
 ): Promise<number> {
   if (skipOps.length === 0) {
     return 0
@@ -304,6 +324,7 @@ export async function persistSkippedDocuments(
           storageKey: skipped.storageKey,
           fileSize: skipped.fileSize,
           mimeType: skipped.mimeType,
+          sourceModifiedAt: skipped.sourceModifiedAt,
           processingStatus: skipped.processingStatus,
           processingError: skipped.processingError,
           processingStartedAt: null,
@@ -395,8 +416,8 @@ export async function addDocument(
   connectorType: string,
   extDoc: ExternalDocument,
   kbOwner: KnowledgeBaseOwner,
-  sourceConfig?: Record<string, unknown>,
-  access: SyncDocumentAccess = 'workspace'
+  sourceConfig: Record<string, unknown> | undefined,
+  access: SyncDocumentAccess
 ): Promise<DocumentData> {
   const documentId = generateId()
   const artifact = connectorStoredArtifact(extDoc)
@@ -492,8 +513,8 @@ export async function updateDocument(
   connectorType: string,
   extDoc: ExternalDocument,
   kbOwner: KnowledgeBaseOwner,
-  sourceConfig?: Record<string, unknown>,
-  access: SyncDocumentAccess = 'workspace'
+  sourceConfig: Record<string, unknown> | undefined,
+  access: SyncDocumentAccess
 ): Promise<DocumentData> {
   const existingRows = await db
     .select({ fileUrl: document.fileUrl })

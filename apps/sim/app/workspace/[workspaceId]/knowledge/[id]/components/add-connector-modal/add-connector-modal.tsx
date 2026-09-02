@@ -85,8 +85,9 @@ export function AddConnectorModal({
   const [searchTerm, setSearchTerm] = useState('')
 
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const { ownerBilling } = useWorkspaceHostContext()
+  const { ownerBilling, features } = useWorkspaceHostContext()
   const { canAdmin } = useUserPermissionsContext()
+  const memberAccessAvailable = features?.knowledgeMemberAccess === true
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
   const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
@@ -335,6 +336,17 @@ export function AddConnectorModal({
             </div>
           ) : connectorConfig ? (
             <>
+              {!isApiKeyMode && memberAccessAvailable && (
+                <ConnectorAccessField
+                  workspaceId={workspaceId}
+                  connectorConfig={connectorConfig}
+                  value={access}
+                  onChange={setAccess}
+                  canAdmin={canAdmin}
+                  disabled={isCreating}
+                />
+              )}
+
               {isApiKeyMode ? (
                 <ChipModalField
                   type='custom'
@@ -358,8 +370,16 @@ export function AddConnectorModal({
                     }
                   />
                 </ChipModalField>
-              ) : isMembersMode ? null : (
-                <ChipModalField type='custom' title='Account'>
+              ) : (
+                <ChipModalField
+                  type='custom'
+                  title={isMembersMode ? 'Browse with' : 'Account'}
+                  hint={
+                    isMembersMode
+                      ? `Only used to pick folders and spaces below. The connector syncs as each member, not as this account.`
+                      : undefined
+                  }
+                >
                   <ChipCombobox
                     options={[
                       ...credentials.map(
@@ -390,21 +410,10 @@ export function AddConnectorModal({
                 </ChipModalField>
               )}
 
-              {!isApiKeyMode && (
-                <ConnectorAccessField
-                  workspaceId={workspaceId}
-                  connectorConfig={connectorConfig}
-                  value={access}
-                  onChange={setAccess}
-                  canAdmin={canAdmin}
-                  disabled={isCreating}
-                />
-              )}
-
               <ConnectorConfigFields
                 connectorConfig={connectorConfig}
                 sourceConfig={sourceConfig}
-                credentialId={isMembersMode ? null : effectiveCredentialId}
+                credentialId={effectiveCredentialId}
                 canonicalGroups={canonicalGroups}
                 canonicalModes={canonicalModes}
                 isFieldVisible={(field) =>

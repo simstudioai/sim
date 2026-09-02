@@ -9,6 +9,7 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
+import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import {
   executeKnowledgeSearch,
   generateSearchEmbedding,
@@ -46,7 +47,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, topK, query, tagFilters, searchMode } = parsed.data.body
+    const {
+      workspaceId,
+      topK,
+      query,
+      tagFilters,
+      searchMode: requestedSearchMode,
+    } = parsed.data.body
 
     const accessError = await validateWorkspaceAccess(
       rateLimit,
@@ -190,7 +197,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     let results: SearchResult[]
     let queryEmbeddingIsBYOK: boolean | null = null
-    const access = await resolveV1KnowledgeAccessScope(userId, rateLimit, workspaceId)
+    const [access, { searchMode, boostRecency }] = await Promise.all([
+      resolveV1KnowledgeAccessScope(userId, rateLimit, workspaceId),
+      resolveKnowledgeSearchDefaults({ workspaceId, userId, requestedMode: requestedSearchMode }),
+    ])
 
     if (!hasQuery && hasFilters) {
       results = await executeKnowledgeSearch({
@@ -198,6 +208,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         topK,
         access,
         searchMode,
+        boostRecency,
         structuredFilters,
       })
     } else if (hasQuery) {
@@ -213,6 +224,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         topK,
         access,
         searchMode,
+        boostRecency,
         query,
         queryVector,
         structuredFilters: hasFilters ? structuredFilters : undefined,

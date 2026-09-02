@@ -930,13 +930,14 @@ export async function updateKnowledgeBase(
 
   logger.info(`[${requestId}] Updated knowledge base: ${knowledgeBaseId}`)
 
-  return {
-    ...updatedKb[0],
-    chunkingConfig: updatedKb[0].chunkingConfig as ChunkingConfig,
-    docCount: Number(updatedKb[0].docCount),
-    connectorTypes: [],
-    hasMemberScopedConnector: false,
-  }
+  const [withConnectors] = await attachConnectorTypes([
+    {
+      ...updatedKb[0],
+      chunkingConfig: updatedKb[0].chunkingConfig as ChunkingConfig,
+      docCount: Number(updatedKb[0].docCount),
+    },
+  ])
+  return withConnectors
 }
 
 /**
@@ -1007,13 +1008,14 @@ export async function getKnowledgeBaseById(
     return null
   }
 
-  return {
-    ...result[0],
-    chunkingConfig: result[0].chunkingConfig as ChunkingConfig,
-    docCount: Number(result[0].docCount),
-    connectorTypes: [],
-    hasMemberScopedConnector: false,
-  }
+  const [withConnectors] = await attachConnectorTypes([
+    {
+      ...result[0],
+      chunkingConfig: result[0].chunkingConfig as ChunkingConfig,
+      docCount: Number(result[0].docCount),
+    },
+  ])
+  return withConnectors
 }
 
 /**

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   loadGroup: vi.fn(),
   dispatchSync: vi.fn(),
   dispatchMemberSync: vi.fn(),
+  memberAccessAvailable: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -33,9 +34,13 @@ vi.mock('@/lib/knowledge/connectors/member-access', () => ({
   revokeKnowledgeConnectorCredentialAccess: mocks.revoke,
   validateKnowledgeConnectorMembersBinding: mocks.validateBinding,
   findListingCapViolation: vi.fn(() => null),
+  stripListingCapFields: (_meta: unknown, sourceConfig: Record<string, unknown>) => sourceConfig,
 }))
 vi.mock('@/lib/credential-groups/credentials', () => ({
   loadCredentialGroupCredentialListContext: mocks.loadGroup,
+}))
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  isKnowledgeMemberAccessAvailable: mocks.memberAccessAvailable,
 }))
 vi.mock('@/lib/knowledge/connectors/queue', () => ({ dispatchSync: mocks.dispatchSync }))
 vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
@@ -95,13 +100,35 @@ function switchTo(target: Parameters<typeof performUpdateKnowledgeConnectorAcces
 }
 
 describe('resolveKnowledgeConnectorMembersBinding', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.memberAccessAvailable.mockResolvedValue(true)
+  })
+
+  it('refuses members mode where the feature is off, before loading anything', async () => {
+    mocks.memberAccessAvailable.mockResolvedValue(false)
+    await expect(
+      resolveKnowledgeConnectorMembersBinding({
+        workspaceId: 'ws-1',
+        actingUserId: 'admin-1',
+        connectorMeta: {} as never,
+        binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
+        sourceConfig: {},
+      })
+    ).rejects.toMatchObject({ message: 'Per-member access is not available for this workspace' })
+    expect(mocks.memberAccessAvailable).toHaveBeenCalledWith({
+      workspaceId: 'ws-1',
+      userId: 'admin-1',
+    })
+    expect(mocks.loadGroup).not.toHaveBeenCalled()
+  })
 
   it('refuses a group from another workspace before validating anything', async () => {
     mocks.loadGroup.mockResolvedValue({ workspaceId: 'ws-2', status: 'active', options: [] })
     await expect(
       resolveKnowledgeConnectorMembersBinding({
         workspaceId: 'ws-1',
+        actingUserId: 'admin-1',
         connectorMeta: {} as never,
         binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
         sourceConfig: {},
@@ -116,6 +143,7 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
     await expect(
       resolveKnowledgeConnectorMembersBinding({
         workspaceId: 'ws-1',
+        actingUserId: 'admin-1',
         connectorMeta: {} as never,
         binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
         sourceConfig: { maxFiles: '5' },

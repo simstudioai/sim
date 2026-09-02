@@ -38,6 +38,7 @@ import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
+import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import {
   executeKnowledgeSearch,
   generateSearchEmbedding,
@@ -288,6 +289,11 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       : Promise.resolve(null)
     /** Resolved alongside the embedding call; both are needed before the first leg runs. */
     const accessPromise = context.access.get()
+    const searchDefaults = await resolveKnowledgeSearchDefaults({
+      workspaceId: context.workspaceId,
+      userId,
+      requestedMode: input.searchMode,
+    })
     const useReranker = Boolean(input.rerankerEnabled && hasQuery)
     const candidateTopK = useReranker
       ? input.rerankerInputCount !== undefined
@@ -302,7 +308,8 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       knowledgeBaseIds,
       topK: candidateTopK,
       access,
-      searchMode: input.searchMode ?? 'hybrid',
+      searchMode: searchDefaults.searchMode,
+      boostRecency: searchDefaults.boostRecency,
       query: input.query,
       queryVector: hasQuery
         ? JSON.stringify((await queryEmbeddingPromise)?.embedding ?? null)

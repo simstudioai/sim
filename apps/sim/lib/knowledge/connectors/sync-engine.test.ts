@@ -2687,6 +2687,8 @@ describe('completeSuccessfulSync', () => {
     queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
     queueTableRows(schemaMock.document, [{ count: 4 }])
     dbChainMockFns.returning
+      /** The workspace ACL restore finds nothing drifted. */
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'log-1' }])
       .mockResolvedValueOnce([{ id: 'c-1' }])
 
@@ -2724,7 +2726,7 @@ describe('completeSuccessfulSync', () => {
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
     queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
     queueTableRows(schemaMock.document, [{ count: 4 }])
-    dbChainMockFns.returning.mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockResolvedValueOnce([]).mockResolvedValueOnce([])
 
     await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).resolves.toBe(
       false

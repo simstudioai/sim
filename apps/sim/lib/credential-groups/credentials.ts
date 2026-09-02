@@ -54,6 +54,28 @@ export interface ManagedCredentialGroupBinding {
   credentialGroupId: string
   credentialGroupOptionId: string
   managedOauthStatus: ManagedOAuthCredentialStatus
+  enrollmentStatus: CredentialGroupEnrollmentStatus
+  groupStatus: 'active' | 'disabled'
+  /** Null when the option was removed from the group. */
+  optionStatus: 'active' | 'disabled' | null
+}
+
+/**
+ * Whether a managed credential may be used right now: the credential, its
+ * enrollment, its option, and its group are all live. Every consumer that
+ * mints a token from a binding checks this, so a disabled option or a revoked
+ * enrollment denies without waiting for a scope bump to invalidate the
+ * credential itself.
+ */
+export function isManagedCredentialGroupBindingLive(
+  binding: ManagedCredentialGroupBinding
+): boolean {
+  return (
+    binding.managedOauthStatus === 'active' &&
+    (binding.enrollmentStatus === 'in_progress' || binding.enrollmentStatus === 'completed') &&
+    binding.groupStatus === 'active' &&
+    binding.optionStatus === 'active'
+  )
 }
 
 export interface CredentialGroupEnrollmentAccess {
@@ -175,12 +197,16 @@ export async function loadManagedCredentialGroupBinding(
       credentialGroupId: credentialGroupEnrollment.credentialGroupId,
       credentialGroupOptionId: credential.credentialGroupOptionId,
       managedOauthStatus: credential.managedOauthStatus,
+      enrollmentStatus: credentialGroupEnrollment.status,
+      groupStatus: credentialGroup.status,
+      groupOptions: credentialGroup.options,
     })
     .from(credential)
     .innerJoin(
       credentialGroupEnrollment,
       eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
     )
+    .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
     .where(and(eq(credential.id, credentialId), eq(credential.type, 'managed_oauth')))
     .limit(1)
   if (!row) return null
@@ -198,6 +224,10 @@ export async function loadManagedCredentialGroupBinding(
     credentialGroupId: row.credentialGroupId,
     credentialGroupOptionId: row.credentialGroupOptionId,
     managedOauthStatus: row.managedOauthStatus,
+    enrollmentStatus: row.enrollmentStatus,
+    groupStatus: row.groupStatus,
+    optionStatus:
+      row.groupOptions.find((option) => option.id === row.credentialGroupOptionId)?.status ?? null,
   }
 }
 

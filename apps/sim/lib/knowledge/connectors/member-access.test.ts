@@ -35,6 +35,16 @@ vi.mock('@/lib/resource-policies/repository', async () => {
 vi.mock('@/lib/credential-groups/credentials', () => ({
   loadManagedCredentialGroupBinding: mocks.loadBinding,
   listCredentialGroupOptionCredentialReferences: mocks.listOptionCredentials,
+  isManagedCredentialGroupBindingLive: (binding: {
+    managedOauthStatus: string
+    enrollmentStatus: string
+    groupStatus: string
+    optionStatus: string | null
+  }) =>
+    binding.managedOauthStatus === 'active' &&
+    (binding.enrollmentStatus === 'in_progress' || binding.enrollmentStatus === 'completed') &&
+    binding.groupStatus === 'active' &&
+    binding.optionStatus === 'active',
 }))
 
 vi.mock('@/lib/credentials/managed-oauth', () => ({
@@ -44,6 +54,7 @@ vi.mock('@/lib/credentials/managed-oauth', () => ({
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import { CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT } from '@/lib/credential-groups/workflow-access-limits'
 import {
+  findListingCapViolation,
   grantKnowledgeConnectorCredentialAccess,
   KnowledgeConnectorMemberAccessDeniedError,
   listKnowledgeConnectorMemberCredentials,
@@ -279,6 +290,9 @@ describe('knowledge connector member access', () => {
         credentialGroupId: GROUP_ID,
         credentialGroupOptionId: 'option-drive',
         managedOauthStatus: 'active',
+        enrollmentStatus: 'completed',
+        groupStatus: 'active',
+        optionStatus: 'active',
       })
       mocks.resolveManagedOAuthToken.mockResolvedValue({ accessToken: 'token', refreshed: false })
     })
@@ -342,6 +356,32 @@ describe('knowledge connector member access', () => {
       expect(mocks.resolveManagedOAuthToken).not.toHaveBeenCalled()
     })
 
+    it.each([
+      ['a revoked enrollment', { enrollmentStatus: 'revoked' }],
+      ['a disabled option', { optionStatus: 'disabled' }],
+      ['a removed option', { optionStatus: null }],
+      ['a disabled group', { groupStatus: 'disabled' }],
+      ['a credential needing re-auth', { managedOauthStatus: 'needs_reauth' }],
+    ] as const)('denies %s before consulting any policy', async (_name, overrides) => {
+      mocks.loadBinding.mockResolvedValue({
+        credentialId: 'credential-1',
+        workspaceId: 'workspace-1',
+        providerId: 'google-drive',
+        credentialGroupId: GROUP_ID,
+        credentialGroupOptionId: 'option-drive',
+        managedOauthStatus: 'active',
+        enrollmentStatus: 'completed',
+        groupStatus: 'active',
+        optionStatus: 'active',
+        ...overrides,
+      })
+
+      await expect(mintKnowledgeConnectorMemberToken(mintInput)).rejects.toBeInstanceOf(
+        KnowledgeConnectorMemberAccessDeniedError
+      )
+      expect(mocks.requireResourcePolicy).not.toHaveBeenCalled()
+    })
+
     it('denies a credential from another workspace before consulting any policy', async () => {
       mocks.loadBinding.mockResolvedValue({
         credentialId: 'credential-1',
@@ -350,6 +390,9 @@ describe('knowledge connector member access', () => {
         credentialGroupId: GROUP_ID,
         credentialGroupOptionId: 'option-drive',
         managedOauthStatus: 'active',
+        enrollmentStatus: 'completed',
+        groupStatus: 'active',
+        optionStatus: 'active',
       })
 
       await expect(mintKnowledgeConnectorMemberToken(mintInput)).rejects.toBeInstanceOf(
@@ -482,5 +525,20 @@ describe('knowledge connector member access', () => {
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.message).toContain(message)
     })
+  })
+})
+
+describe('findListingCapViolation', () => {
+  const meta = {
+    permissionScopedListing: { capFieldIds: ['maxFiles'] },
+    configFields: [{ id: 'maxFiles', title: 'Max Files' }],
+  } as never
+
+  it.each([[undefined], [null], [''], ['0'], [0], [' 0 ']])('treats %j as unlimited', (value) => {
+    expect(findListingCapViolation(meta, { maxFiles: value })).toBeNull()
+  })
+
+  it.each([['5'], [5], ['abc']])('refuses %j', (value) => {
+    expect(findListingCapViolation(meta, { maxFiles: value })).toContain('Max Files')
   })
 })

@@ -53,9 +53,6 @@ export async function resolveKnowledgeBase(
 }
 
 /**
- * Serializes a date value for JSON responses.
- */
-/**
  * The document-access scope of a v1 API caller. A personal key acts as its
  * user; a workspace key has no person behind it and reads as the workspace.
  */
@@ -68,6 +65,9 @@ export async function resolveV1KnowledgeAccessScope(
   return resolveUserKnowledgeAccessScope(userId, workspaceId)
 }
 
+/**
+ * Serializes a date value for JSON responses.
+ */
 export function serializeDate(date: Date | string | null | undefined): string | null {
   if (date === null || date === undefined) return null
   if (date instanceof Date) return date.toISOString()

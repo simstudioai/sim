@@ -14,6 +14,7 @@ const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
     TABLES_V2_API: undefined as boolean | undefined,
     TABLE_ROW_TTL: undefined as boolean | undefined,
     CREDENTIAL_GROUPS: undefined as boolean | undefined,
+    KNOWLEDGE_MEMBER_ACCESS: undefined as boolean | undefined,
   },
 }))
 
@@ -123,6 +124,40 @@ describe('isFeatureEnabled', () => {
     vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.CREDENTIAL_GROUPS = undefined
+    envRef.KNOWLEDGE_MEMBER_ACCESS = undefined
+  })
+
+  describe('knowledge-member-access flag', () => {
+    it('uses a global fallback switch off AppConfig', async () => {
+      expect(await isFeatureEnabled('knowledge-member-access')).toBe(false)
+
+      envRef.KNOWLEDGE_MEMBER_ACCESS = true
+      expect(await isFeatureEnabled('knowledge-member-access')).toBe(true)
+    })
+
+    it('opens for an allowlisted workspace only', async () => {
+      withAppConfig({ 'knowledge-member-access': { workspaceIds: ['ws-1'] } })
+      expect(
+        await isFeatureEnabled('knowledge-member-access', { workspaceId: 'ws-1', userId: 'u1' })
+      ).toBe(true)
+      expect(
+        await isFeatureEnabled('knowledge-member-access', { workspaceId: 'ws-2', userId: 'u1' })
+      ).toBe(false)
+      expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
+    })
+
+    it('opens for a platform admin in any workspace', async () => {
+      withAppConfig({ 'knowledge-member-access': { workspaceIds: ['ws-1'], adminEnabled: true } })
+      mockIsPlatformAdmin.mockResolvedValue(true)
+      expect(
+        await isFeatureEnabled('knowledge-member-access', { workspaceId: 'ws-2', userId: 'admin' })
+      ).toBe(true)
+      mockIsPlatformAdmin.mockResolvedValue(false)
+      expect(
+        await isFeatureEnabled('knowledge-member-access', { workspaceId: 'ws-2', userId: 'u1' })
+      ).toBe(false)
+      expect(await isFeatureEnabled('knowledge-member-access', { workspaceId: 'ws-2' })).toBe(false)
+    })
   })
 
   describe('credential-groups flag', () => {

@@ -20,6 +20,7 @@ import {
   getCredentialActorContext,
   resolveCredentialTokenIdentity,
 } from '@/lib/credentials/access'
+import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   resolveKnowledgeAttributedUserId,
@@ -432,6 +433,7 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       }
       membersBinding = await resolveKnowledgeConnectorMembersBinding({
         workspaceId,
+        actingUserId: subjectUserId,
         connectorMeta,
         binding: {
           credentialGroupId: input.credentialGroupId,
@@ -720,6 +722,7 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
       eq(document.connectorId, context.connectorId),
       isNull(document.archivedAt),
       isNull(document.deletedAt),
+      knowledgeAccessCondition(await context.access.get()),
     ] as const
     const [[activeCount], excludedCountRows] = await Promise.all([
       db

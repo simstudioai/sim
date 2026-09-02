@@ -162,7 +162,8 @@ describe('knowledge search application use case', () => {
       expect.objectContaining({
         knowledgeBaseIds: ['knowledge-1'],
         topK: 5,
-        searchMode: 'hybrid',
+        searchMode: 'vector',
+        boostRecency: false,
       })
     )
     expect(result.results[0]).toMatchObject({

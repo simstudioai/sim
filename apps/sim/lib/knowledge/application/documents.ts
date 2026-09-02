@@ -1002,6 +1002,7 @@ export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
           context.knowledgeBaseId,
           input.operation,
           input.enabledFilter,
+          await context.access.get(),
           generateRequestId()
         )
       : input.documentIds?.length

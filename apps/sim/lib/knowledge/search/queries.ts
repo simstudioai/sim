@@ -5,6 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
+import { RRF_K } from '@/lib/knowledge/search/rank'
 import { applyRecencyBoost } from '@/lib/knowledge/search/recency'
 import {
   coerceTagFilterValue,
@@ -361,12 +362,6 @@ export function getStructuredTagFilters(filters: StructuredFilter[], embeddingTa
  * using the `emb_content_fts_idx` GIN index and degrades to a sequential scan.
  */
 const FTS_CONFIG = 'english'
-
-/**
- * Reciprocal-rank-fusion damping constant. 60 is the value from the original RRF
- * paper and matches the docs search retriever (`apps/docs/app/api/search/route.ts`).
- */
-export const RRF_K = 60
 
 /**
  * Row visibility predicates shared by every search leg: a chunk is only
@@ -763,6 +758,8 @@ export interface ExecuteKnowledgeSearchParams {
   /** What the caller may read; resolved from the principal by the use case, never from input. */
   access: KnowledgeAccessScope
   searchMode: KnowledgeSearchMode
+  /** Lets a recently modified document edge past a stale one of similar relevance; off by default. */
+  boostRecency?: boolean
   query?: string
   /** Required whenever `query` is present. */
   queryVector?: string
@@ -777,8 +774,16 @@ export interface ExecuteKnowledgeSearchParams {
 export async function executeKnowledgeSearch(
   params: ExecuteKnowledgeSearchParams
 ): Promise<SearchResult[]> {
-  const { knowledgeBaseIds, topK, searchMode, query, queryVector, structuredFilters, access } =
-    params
+  const {
+    knowledgeBaseIds,
+    topK,
+    searchMode,
+    query,
+    queryVector,
+    structuredFilters,
+    access,
+    boostRecency = false,
+  } = params
 
   const hasQuery = Boolean(query?.trim())
   const hasFilters = Boolean(structuredFilters && structuredFilters.length > 0)
@@ -808,7 +813,8 @@ export async function executeKnowledgeSearch(
     : handleVectorOnlySearch({ knowledgeBaseIds, topK, queryVector, distanceThreshold, access })
 
   if (searchMode === 'vector') {
-    return applyRecencyBoost(await vectorSearch)
+    const results = await vectorSearch
+    return boostRecency ? applyRecencyBoost(results) : results
   }
 
   /**
@@ -837,5 +843,6 @@ export async function executeKnowledgeSearch(
    * threshold is precisely what a caller opted into hybrid to recover, and at
    * `topK: 1` something has to win.
    */
-  return applyRecencyBoost(fuseByReciprocalRank([keywordResults, vectorResults], topK))
+  const fused = fuseByReciprocalRank([keywordResults, vectorResults], topK)
+  return boostRecency ? applyRecencyBoost(fused) : fused
 }

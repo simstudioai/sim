@@ -178,7 +178,13 @@ export async function materializeDocumentAcls(
     const rows = await db
       .update(document)
       .set({ acl: observedAcl() })
-      .where(and(inArray(document.id, batch), eq(document.connectorId, connectorId)))
+      .where(
+        and(
+          inArray(document.id, batch),
+          eq(document.connectorId, connectorId),
+          sql`${document.acl} IS DISTINCT FROM ${observedAcl()}`
+        )
+      )
       .returning({ id: document.id })
     updated += rows.length
   }
@@ -324,10 +330,13 @@ export interface StaleMemberSweepResult {
  *
  * Fail-closed but schedule-relative: an active member is swept only when both
  * their last start and their last complete listing are older than
- * `max(24 h, 2 × interval)`, so queue lag in a large group never trips it, and
- * a suspended member only once they have been suspended past the same window.
- * The member row survives; the next run that lists for them rebuilds their
- * observations. Purging is left to a run holding the lease.
+ * `max(24 h, 2 × interval)`, so queue lag in a large group never trips it. A
+ * suspended member is not swept at all: suspension already drops their token
+ * from every ACL, and their observations are kept so a re-auth restores access
+ * without a re-crawl until membership reconciliation purges the row after
+ * `MEMBER_SUSPENDED_PURGE_DAYS`. The member row survives; the next run that
+ * lists for them rebuilds their observations. Purging is left to a run holding
+ * the lease.
  */
 export async function sweepStaleMemberObservations(now: Date): Promise<StaleMemberSweepResult> {
   const staleWindow = sql`GREATEST(
@@ -353,23 +362,15 @@ export async function sweepStaleMemberObservations(now: Date): Promise<StaleMemb
             .from(knowledgeDocumentObservation)
             .where(eq(knowledgeDocumentObservation.memberId, knowledgeConnectorMember.id))
         ),
+        eq(knowledgeConnectorMember.status, 'active'),
+        lt(knowledgeConnectorMember.createdAt, cutoff),
         or(
-          and(
-            eq(knowledgeConnectorMember.status, 'active'),
-            lt(knowledgeConnectorMember.createdAt, cutoff),
-            or(
-              isNull(knowledgeConnectorMember.lastStartedAt),
-              lt(knowledgeConnectorMember.lastStartedAt, cutoff)
-            ),
-            or(
-              isNull(knowledgeConnectorMember.lastCompleteListingAt),
-              lt(knowledgeConnectorMember.lastCompleteListingAt, cutoff)
-            )
-          ),
-          and(
-            inArray(knowledgeConnectorMember.status, ['suspended', 'disabled']),
-            lt(knowledgeConnectorMember.suspendedAt, cutoff)
-          )
+          isNull(knowledgeConnectorMember.lastStartedAt),
+          lt(knowledgeConnectorMember.lastStartedAt, cutoff)
+        ),
+        or(
+          isNull(knowledgeConnectorMember.lastCompleteListingAt),
+          lt(knowledgeConnectorMember.lastCompleteListingAt, cutoff)
         )
       )
     )

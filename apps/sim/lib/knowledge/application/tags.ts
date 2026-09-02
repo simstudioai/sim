@@ -354,7 +354,13 @@ export const readKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ principal, input }: { principal: Principal; input: ListKnowledgeTagsInput }) =>
     resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ context }) {
-    return { usage: await getTagUsageStats(context.knowledgeBaseId, generateRequestId()) }
+    return {
+      usage: await getTagUsageStats(
+        context.knowledgeBaseId,
+        await context.access.get(),
+        generateRequestId()
+      ),
+    }
   },
 })
 

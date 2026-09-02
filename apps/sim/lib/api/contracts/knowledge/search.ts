@@ -16,16 +16,15 @@ export const knowledgeSearchTagFilterSchema = z.object({
 export const KNOWLEDGE_SEARCH_MODES = ['vector', 'hybrid'] as const
 
 /**
- * Shared by the internal and v1 search contracts. Defaults to `hybrid`: the
- * full-text leg recovers the exact tokens embeddings rank poorly, and a caller
- * that wants semantic-only ranking asks for `vector`.
+ * Shared by the internal and v1 search contracts. Omitted, the workspace's
+ * default applies: `hybrid` where permission-aware knowledge is on, else
+ * `vector`. The use case resolves that, so the schema carries no default.
  */
 export const knowledgeSearchModeSchema = z
   .enum(KNOWLEDGE_SEARCH_MODES)
   .optional()
   .nullable()
-  .default('hybrid')
-  .transform((val) => val ?? 'hybrid')
+  .transform((val) => val ?? undefined)
 
 export const knowledgeSearchBodySchema = z
   .object({
@@ -52,10 +51,10 @@ export const knowledgeSearchBodySchema = z
       .nullable()
       .transform((val) => val || undefined),
     /**
-     * `hybrid` (default) runs a full-text leg alongside semantic retrieval and
-     * fuses the two by reciprocal rank, which recovers exact tokens (error codes,
-     * ticket keys, identifiers) that embeddings rank poorly. `vector` is
-     * semantic-only retrieval.
+     * `hybrid` runs a full-text leg alongside semantic retrieval and fuses the
+     * two by reciprocal rank, which recovers exact tokens (error codes, ticket
+     * keys, identifiers) that embeddings rank poorly. `vector` is semantic-only
+     * retrieval. Omitted, the workspace's default applies.
      */
     searchMode: knowledgeSearchModeSchema,
     rerankerEnabled: z.boolean().optional().default(false),

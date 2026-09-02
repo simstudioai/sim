@@ -4790,7 +4790,11 @@ export const knowledgeConnectorMember = pgTable(
     /** `active`, `suspended`, or `disabled`. */
     status: text('status').notNull().default('active'),
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
-    /** Back-off gate for the per-member queue; NULL means due now. */
+    /**
+     * When the member is next due. NULL means "with the connector's next run":
+     * a new member, or one that completed on a manual-only connector. An explicit
+     * time that has passed is what keeps a connector re-dispatching itself.
+     */
     nextAttemptAt: timestamp('next_attempt_at'),
     lastStartedAt: timestamp('last_started_at'),
     /** Last listing that was full, complete, and not suspect — the only kind that may remove observations. */

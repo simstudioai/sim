@@ -7,7 +7,7 @@ import type { InternalToolConfig } from '@/tools/types'
 export const knowledgeSearchTool: InternalToolConfig<any, KnowledgeSearchResponse> = {
   id: 'knowledge_search',
   name: 'Knowledge Search',
-  description: 'Search for similar content in a knowledge base using vector similarity',
+  description: 'Search for similar content in a knowledge base by relevance',
   version: '1.0.0',
 
   params: {
@@ -47,7 +47,7 @@ export const knowledgeSearchTool: InternalToolConfig<any, KnowledgeSearchRespons
       required: false,
       visibility: 'user-only',
       description:
-        "Retrieval mode: 'hybrid' (default) fuses a full-text leg with semantic similarity, 'vector' uses semantic similarity only",
+        "Retrieval mode: 'hybrid' fuses a full-text leg with semantic similarity, 'vector' uses semantic similarity only; omit for the workspace's default",
     },
     rerankerEnabled: {
       type: 'boolean',

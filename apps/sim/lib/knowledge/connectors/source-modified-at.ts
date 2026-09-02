@@ -4,7 +4,6 @@
  * so the persisted column is derived here rather than in each of them.
  */
 const SOURCE_MODIFIED_AT_KEYS = [
-  'sourceModifiedAt',
   'modifiedTime',
   'lastModified',
   'lastModifiedDateTime',

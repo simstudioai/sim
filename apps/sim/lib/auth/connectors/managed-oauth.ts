@@ -68,6 +68,9 @@ function canonicalGoogleScope(scope: string): string {
   return scope
 }
 
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
+const DRIVE_READONLY_SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
+
 function hasRequiredGoogleScopes(
   providerId: string,
   grantedScopes: string[],
@@ -77,12 +80,18 @@ function hasRequiredGoogleScopes(
   return requiredScopes.every((requestedScope) => {
     const required = canonicalGoogleScope(requestedScope)
     if (granted.has(required)) return true
-    return (
+    if (
       providerId === 'google-email' &&
       granted.has(GMAIL_MODIFY_SCOPE) &&
       (required === GMAIL_READONLY_SCOPE ||
         required === GMAIL_SEND_SCOPE ||
         required === GMAIL_LABELS_SCOPE)
+    ) {
+      return true
+    }
+    /** Full Drive access implies read-only access, which is all a crawler asks for. */
+    return (
+      providerId === 'google-drive' && granted.has(DRIVE_SCOPE) && required === DRIVE_READONLY_SCOPE
     )
   })
 }

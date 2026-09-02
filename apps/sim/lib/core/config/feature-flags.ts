@@ -85,6 +85,16 @@ const FEATURE_FLAGS = {
       'Enterprise subscription. Off-AppConfig falls back to CREDENTIAL_GROUPS.',
     fallback: 'CREDENTIAL_GROUPS',
   },
+  'knowledge-member-access': {
+    description:
+      'Permission-aware knowledge bases: lets a workspace admin sync a connector once per ' +
+      'Credential Group member so each person sees only what their own account can read, and ' +
+      'makes hybrid retrieval with a source-recency boost the default for searches in that ' +
+      'workspace. Gated by workspaceId and platform admins via AppConfig; off-AppConfig falls ' +
+      'back to KNOWLEDGE_MEMBER_ACCESS. Requires the credential-groups flag for the connector ' +
+      'side to do anything.',
+    fallback: 'KNOWLEDGE_MEMBER_ACCESS',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**

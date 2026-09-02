@@ -211,6 +211,21 @@ export async function completeSuccessfulSync(
         .for('update')
       if (!lockedConnector) throw new SyncCompletionOwnershipLost()
 
+      /**
+       * Self-healing invariant of workspace mode: a mode switch back from
+       * members that was interrupted, or any other drift, leaves no document
+       * of this connector hidden from the workspace once a sync completes.
+       * Inside the completion transaction, after the lock is proven held, so a
+       * reclaimed run cannot rewrite a connector that has since changed mode.
+       */
+      const restoredAcls = await restoreWorkspaceDocumentAcls(tx, connectorId)
+      if (restoredAcls > 0) {
+        logger.warn('Restored workspace access on connector documents that had drifted', {
+          connectorId,
+          restoredAcls,
+        })
+      }
+
       const [{ count: actualDocCount }] = await tx
         .select({ count: sql<number>`count(*)::int` })
         .from(document)
@@ -247,15 +262,17 @@ export async function completeSuccessfulSync(
 
       const [writtenConnector] = await tx
         .update(knowledgeConnector)
-        .set(
-          buildSyncSuccessUpdate(
+        .set({
+          ...buildSyncSuccessUpdate(
             now,
             actualDocCount,
             calculateNextSyncTime(syncIntervalMinutes),
             reconciliationHoldNotice,
             result.docsFailed === 0
-          )
-        )
+          ),
+          /** Restored above, under this same lock. */
+          accessRewritePending: false,
+        })
         .where(stillHoldsSyncLock(connectorId, syncLogId))
         .returning({ id: knowledgeConnector.id })
       if (!writtenConnector) throw new SyncCompletionOwnershipLost()
@@ -666,6 +683,7 @@ export async function executeSync(
     .set(buildSyncLockAcquisition(syncLogId, new Date()))
     .where(
       and(
+        eq(knowledgeConnector.accessMode, 'workspace'),
         eq(knowledgeConnector.id, connectorId),
         inArray(knowledgeConnector.status, LOCKABLE_CONNECTOR_STATUSES),
         /**
@@ -933,19 +951,6 @@ export async function executeSync(
       result,
       lease,
     })
-
-    /**
-     * Self-healing invariant of workspace mode: a mode switch back from
-     * members that was interrupted, or any other drift, leaves no document of
-     * this connector hidden from the workspace once a sync completes.
-     */
-    const restoredAcls = await restoreWorkspaceDocumentAcls(connectorId)
-    if (restoredAcls > 0) {
-      logger.warn('Restored workspace access on connector documents that had drifted', {
-        connectorId,
-        restoredAcls,
-      })
-    }
 
     const completionLanded = await completeSuccessfulSync(
       connectorId,
