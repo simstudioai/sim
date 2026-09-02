@@ -33,9 +33,11 @@ if (grafanaConfigured && !grafanaFullyConfigured) {
  * sandbox's artifact store or the isolated-vm fallback. The app authors
  * documents for whichever compiler it sees, so a worker missing the doc
  * template falls back to isolated-vm and tries to run Python or Node-style
- * sources as sandbox JavaScript. The values still have to exist in the
- * Trigger.dev environment; syncing only keeps the worker's view of them
- * aligned with the app's.
+ * sources as sandbox JavaScript. Reading a generated document under the doc
+ * sandbox means loading its compiled artifact from the copilot storage
+ * context, so that bucket has to be visible to the run as well. The values
+ * still have to exist in the Trigger.dev environment; syncing only keeps the
+ * worker's view of them aligned with the app's.
  */
 const FUNCTION_EXECUTION_ENV = [
   { name: 'REDIS_URL', secret: true },
@@ -49,6 +51,9 @@ const FUNCTION_EXECUTION_ENV = [
   { name: 'DAYTONA_API_KEY', secret: true },
   { name: 'DAYTONA_FUNCTION_SNAPSHOT_ID', secret: false },
   { name: 'DAYTONA_DOC_SNAPSHOT_ID', secret: false },
+  { name: 'S3_COPILOT_BUCKET_NAME', secret: false },
+  { name: 'AZURE_STORAGE_COPILOT_CONTAINER_NAME', secret: false },
+  { name: 'GCS_COPILOT_BUCKET_NAME', secret: false },
 ] as const
 
 function getFunctionExecutionEnvVars() {

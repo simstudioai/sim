@@ -1694,6 +1694,9 @@ export async function fetchWorkspaceFileBuffer(
     )
     return buffer
   } catch (error) {
+    // A cancelled read is not a download failure: surface the abort itself so the
+    // caller sees cancellation, not a transport error it might retry or record.
+    options.signal?.throwIfAborted()
     logger.error(`Failed to download workspace file ${fileRecord.name}:`, error)
     // Rethrow a `maxBytes` breach unwrapped: callers distinguish "too large" from a
     // transport failure to answer with their own placeholder, and re-wrapping it in a
