@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type { DelegatedPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import { credentialOperations } from '@/lib/credentials/application/operations'
@@ -82,10 +82,21 @@ function executorPrincipal(): WorkflowExecutionDelegatedPrincipal {
   }
 }
 
-function requireAccess(
-  principal: WorkflowExecutionDelegatedPrincipal,
-  accessContext = context
-): Promise<void> {
+function copilotPrincipal(subjectUserId: string | null = 'user-1'): DelegatedPrincipal {
+  return {
+    kind: 'delegated',
+    serviceId: 'copilot',
+    ...(subjectUserId ? { subjectUserId } : {}),
+    workspaceId: 'workspace-1',
+    delegationId: 'copilot-tool:call-1',
+    audience: 'sim:managed-oauth-credentials',
+    issuedAt: new Date(Date.now() - 1_000),
+    expiresAt: new Date(Date.now() + 60_000),
+    resourceScope: { credentialId: 'credential-1', chatId: 'chat-1' },
+  }
+}
+
+function requireAccess(principal: DelegatedPrincipal, accessContext = context): Promise<void> {
   return requireCredentialGroupCredentialAccess(
     principal,
     accessContext,
@@ -101,6 +112,33 @@ describe('requireCredentialGroupCredentialAccess', () => {
       enrollmentId: 'enrollment-1',
       email: 'person@example.com',
     })
+  })
+
+  it("allows a Chat turn to use only the credential under the signed-in user's own enrollment", async () => {
+    await expect(requireAccess(copilotPrincipal())).resolves.toBeUndefined()
+    expect(mocks.loadEnrollmentAccess).toHaveBeenCalledWith('group-1', {
+      kind: 'sim_user',
+      userId: 'user-1',
+    })
+
+    await expect(
+      requireAccess(copilotPrincipal(), { ...context, credentialGroupEnrollmentId: 'enrollment-2' })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('denies a Chat turn whose user holds no live enrollment, even for an allowlisted workflow', async () => {
+    mocks.requirePolicy.mockResolvedValue(storedPolicy(['workflow-1']))
+    mocks.loadEnrollmentAccess.mockResolvedValue(null)
+
+    await expect(requireAccess(copilotPrincipal())).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  it('denies a Chat turn with no Sim user subject before reading anything', async () => {
+    await expect(requireAccess(copilotPrincipal(null))).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    expect(mocks.requirePolicy).not.toHaveBeenCalled()
+    expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
   })
 
   it('allows an external actor to use only their own enrollment', async () => {

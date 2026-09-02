@@ -1,8 +1,11 @@
 import { db } from '@sim/db'
 import {
   credential,
+  credentialGroup,
+  credentialGroupEnrollment,
   credentialMember,
   permissions,
+  user,
   workspace,
   workspaceEnvironment,
 } from '@sim/db/schema'
@@ -11,6 +14,7 @@ import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
+import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   getEffectiveWorkspacePermission,
@@ -829,9 +833,61 @@ export interface AccessibleOAuthCredential {
   providerId: string
   displayName: string
   role: 'admin' | 'member'
-  /** Distinguishes a personal OAuth connection from a shared service account. */
-  type: 'oauth' | 'service_account'
+  /**
+   * A personal OAuth connection, a shared service account, or a Credential
+   * Group credential the person collected under their own enrollment.
+   */
+  type: 'oauth' | 'service_account' | 'managed_oauth'
   updatedAt: Date
+}
+
+/**
+ * The Credential Group credentials a verified person holds through their own
+ * live enrollments in the workspace: active managed OAuth rows whose enrollment
+ * email is the person's. These are theirs to use as themselves; the policy's
+ * actor statement is what a use is authorized against, so nothing here widens
+ * access, it only tells the person (and the agent acting for them) what exists.
+ */
+export async function getEnrolledManagedOAuthCredentials(
+  workspaceId: string,
+  userId: string
+): Promise<AccessibleOAuthCredential[]> {
+  const rows = await db
+    .select({
+      id: credential.id,
+      providerId: credential.providerId,
+      displayName: credential.displayName,
+      groupName: credentialGroup.name,
+      updatedAt: credential.updatedAt,
+    })
+    .from(credential)
+    .innerJoin(
+      credentialGroupEnrollment,
+      eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
+    )
+    .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
+    .innerJoin(user, eq(sql<string>`lower(btrim(${user.email}))`, credentialGroupEnrollment.email))
+    .where(
+      and(
+        eq(credential.workspaceId, workspaceId),
+        eq(credential.type, 'managed_oauth'),
+        eq(credential.managedOauthStatus, 'active'),
+        inArray(credentialGroupEnrollment.status, [...LIVE_ENROLLMENT_STATUSES]),
+        eq(user.id, userId),
+        eq(user.emailVerified, true)
+      )
+    )
+
+  return rows
+    .filter((row): row is typeof row & { providerId: string } => Boolean(row.providerId))
+    .map((row) => ({
+      id: row.id,
+      providerId: row.providerId,
+      displayName: `${row.displayName} (${row.groupName})`,
+      role: 'member' as const,
+      type: 'managed_oauth' as const,
+      updatedAt: row.updatedAt,
+    }))
 }
 
 export async function getAccessibleOAuthCredentials(

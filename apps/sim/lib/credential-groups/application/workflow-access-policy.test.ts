@@ -8,6 +8,7 @@ import {
   credentialGroupWorkflowAccessPolicyCodec,
   decodeCredentialGroupKnowledgeConnectorAccess,
   decodeCredentialGroupWorkflowAccessPolicy,
+  evaluateCredentialGroupActorCredentialAccess,
   evaluateCredentialGroupKnowledgeConnectorAccess,
   evaluateCredentialGroupWorkflowAccess,
   requireDefaultCredentialGroupWorkflowAccessPolicy,
@@ -432,6 +433,21 @@ describe('Credential Group workflow access policy', () => {
         credentialGroupId: GROUP_ID,
       })
     ).toThrow('non-default')
+  })
+
+  it("evaluates the actor statement alone when there is no workflow, granting only the actor's own credential", () => {
+    const document = policy(['workflow-1'])
+    const evaluate = (selectedEnrollmentId: string) =>
+      evaluateCredentialGroupActorCredentialAccess({
+        document,
+        credentialGroupId: GROUP_ID,
+        selectedEnrollmentId,
+        actorEnrollmentId: 'enrollment-1',
+        resourcePolicy: RESOURCE_POLICY,
+      }).decision
+
+    expect(evaluate('enrollment-1')).toBe('allow')
+    expect(evaluate('enrollment-2')).toBe('implicit_deny')
   })
 
   it('evaluates actor ownership and deployed workflow access through registered statements', () => {

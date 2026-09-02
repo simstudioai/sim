@@ -151,27 +151,6 @@ describe('copilot tool executor fallback', () => {
     expect(result).toEqual({ success: true, output: { emails: [] } })
   })
 
-  it('refuses integration tools on an Ask turn without dispatching them', async () => {
-    isKnownTool.mockReturnValue(false)
-    isSimExecuted.mockReturnValue(false)
-
-    const result = await executeTool(
-      'gmail_read',
-      { maxResults: 10 },
-      {
-        userId: 'user-1',
-        workflowId: '',
-        workspaceId: 'ws-1',
-        chatId: 'chat-1',
-        requestMode: 'ask',
-      }
-    )
-
-    expect(executeAppTool).not.toHaveBeenCalled()
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('Ask mode')
-  })
-
   it('forwards trusted authority and cancellation to dynamic custom tools', async () => {
     isKnownTool.mockReturnValue(false)
     isSimExecuted.mockReturnValue(false)

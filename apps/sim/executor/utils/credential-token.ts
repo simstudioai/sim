@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { AuthType } from '@/lib/auth/hybrid'
+import type { CopilotExecutionContext } from '@/lib/copilot/auth/application-delegation'
+import { createCopilotManagedOAuthPrincipal } from '@/lib/credentials/application/copilot-managed-oauth-delegation'
 import { bindExecutorManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
 import {
   type CredentialTokenPayload,
@@ -24,6 +26,11 @@ export interface ResolveExecutorCredentialTokenParams {
   enforceCredentialAccess?: boolean
   /** Proves managed-credential delegations in-process when the run carries one. */
   executorDelegationOrigin?: ExecutorDelegationOrigin
+  /**
+   * The trusted Chat tool call this token is for, when there is no workflow
+   * run: it proves the signed-in user's own Credential Group credential.
+   */
+  copilotExecutionContext?: CopilotExecutionContext
 }
 
 /**
@@ -36,11 +43,27 @@ export interface ResolveExecutorCredentialTokenParams {
 export async function resolveExecutorCredentialToken(
   params: ResolveExecutorCredentialTokenParams
 ): Promise<CredentialTokenPayload> {
-  const { requestId, credentialId, userId, workflowId, toolId, executorDelegationOrigin } = params
+  const {
+    requestId,
+    credentialId,
+    userId,
+    workflowId,
+    toolId,
+    executorDelegationOrigin,
+    copilotExecutionContext,
+  } = params
 
   if (executorDelegationOrigin && !executorDelegationOrigin.currentWorkflow) {
     throw new Error('Managed credential delegation is missing current workflow authority')
   }
+
+  const resolveManagedPrincipal = executorDelegationOrigin
+    ? (managedCredentialId: string) =>
+        bindExecutorManagedOAuthDelegation(executorDelegationOrigin, managedCredentialId)
+    : copilotExecutionContext?.copilotToolExecution
+      ? async (managedCredentialId: string) =>
+          createCopilotManagedOAuthPrincipal(copilotExecutionContext, managedCredentialId)
+      : undefined
 
   const result = await resolveCredentialAccessToken({
     requestId,
@@ -55,10 +78,7 @@ export async function resolveExecutorCredentialToken(
       userId,
       authType: AuthType.INTERNAL_JWT,
     }),
-    resolveManagedPrincipal: executorDelegationOrigin
-      ? (managedCredentialId: string) =>
-          bindExecutorManagedOAuthDelegation(executorDelegationOrigin, managedCredentialId)
-      : undefined,
+    resolveManagedPrincipal,
   })
 
   if (!result.ok) {

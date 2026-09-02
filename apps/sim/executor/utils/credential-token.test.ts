@@ -4,12 +4,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 
-const { mockBindExecutorManagedOAuthDelegation, mockResolveCredentialAccessToken } = vi.hoisted(
-  () => ({
-    mockBindExecutorManagedOAuthDelegation: vi.fn(),
-    mockResolveCredentialAccessToken: vi.fn(),
-  })
-)
+const {
+  mockBindExecutorManagedOAuthDelegation,
+  mockCreateCopilotManagedOAuthPrincipal,
+  mockResolveCredentialAccessToken,
+} = vi.hoisted(() => ({
+  mockBindExecutorManagedOAuthDelegation: vi.fn(),
+  mockCreateCopilotManagedOAuthPrincipal: vi.fn(),
+  mockResolveCredentialAccessToken: vi.fn(),
+}))
+
+vi.mock('@/lib/credentials/application/copilot-managed-oauth-delegation', () => ({
+  createCopilotManagedOAuthPrincipal: mockCreateCopilotManagedOAuthPrincipal,
+}))
 
 vi.mock('@/lib/oauth/token-resolution', () => ({
   resolveCredentialAccessToken: mockResolveCredentialAccessToken,
@@ -92,6 +99,45 @@ describe('resolveExecutorCredentialToken', () => {
     expect(input.resolveManagedPrincipal).toBeTypeOf('function')
     await input.resolveManagedPrincipal('managed-1')
     expect(mockBindExecutorManagedOAuthDelegation).toHaveBeenCalledWith(ORIGIN, 'managed-1')
+  })
+
+  it('proves a Chat turn through the copilot principal when there is no workflow run', async () => {
+    mockCreateCopilotManagedOAuthPrincipal.mockReturnValue({ kind: 'delegated' })
+    const copilotExecutionContext = {
+      userId: 'user-1',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      toolCallId: 'call-1',
+      copilotToolExecution: true as const,
+    }
+
+    await resolveExecutorCredentialToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      copilotExecutionContext,
+    })
+
+    const input = mockResolveCredentialAccessToken.mock.calls[0][0]
+    await input.resolveManagedPrincipal('managed-1')
+    expect(mockCreateCopilotManagedOAuthPrincipal).toHaveBeenCalledWith(
+      copilotExecutionContext,
+      'managed-1'
+    )
+    expect(mockBindExecutorManagedOAuthDelegation).not.toHaveBeenCalled()
+  })
+
+  it('leaves managed credentials unproven for a context that is not a trusted Chat call', async () => {
+    await resolveExecutorCredentialToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      copilotExecutionContext: { userId: 'user-1', workspaceId: 'ws-1' },
+    })
+
+    expect(
+      mockResolveCredentialAccessToken.mock.calls[0][0].resolveManagedPrincipal
+    ).toBeUndefined()
   })
 
   it('fails before dispatch when the origin lacks current workflow authority', async () => {

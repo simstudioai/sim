@@ -481,6 +481,30 @@ export function evaluateCredentialGroupWorkflowAccess(input: {
 }
 
 /**
+ * Decides whether the person acting on their own behalf, outside any workflow
+ * run, may use a credential: only the actor statement can match, and it grants
+ * exactly the credential collected under the actor's own enrollment. The
+ * workflow statements need a current workflow fact and never match here.
+ */
+export function evaluateCredentialGroupActorCredentialAccess(input: {
+  document: CredentialGroupWorkflowAccessPolicy
+  credentialGroupId: string
+  selectedEnrollmentId: string
+  actorEnrollmentId: string
+  resourcePolicy: ResourcePolicyBindingFor<'credential_group'>
+}): ResourcePolicyDecision {
+  const document = parseCanonicalDocument(input.document, input.credentialGroupId)
+  return evaluateResourcePolicy({
+    document,
+    action: input.resourcePolicy.action,
+    facts: {
+      credentialGroupActorEnrollmentId: input.actorEnrollmentId,
+      credentialGroupCredentialEnrollmentId: input.selectedEnrollmentId,
+    },
+  })
+}
+
+/**
  * Decides whether a knowledge connector may use a credential collected under
  * one option. There is no actor and no workflow: the connector is the principal
  * and the option is the only condition, so the actor and workflow statements can

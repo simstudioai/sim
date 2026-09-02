@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
-import { ASK_REQUEST_MODE } from '@/lib/copilot/chat/ask-mode'
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
@@ -33,10 +32,6 @@ export function hasHandler(toolId: string): boolean {
 export function clearHandlers(): void {
   handlerRegistry.clear()
 }
-
-/** An Ask turn answers from the attached knowledge bases; the agent reaches no connected service. */
-const ASK_MODE_INTEGRATION_REFUSAL =
-  'Integration tools are not available in Ask mode. Answer from the attached knowledge bases with the knowledge tool (query operation), cite each source, and say so when nothing relevant is found.'
 
 export async function executeTool(
   toolId: string,
@@ -77,15 +72,6 @@ export async function executeTool(
   }
 
   const normalizedParams = normalizeToolParams(toolId, params, context)
-
-  /**
-   * An Ask turn reaches only Sim-executed server tools. An integration call and
-   * a headless workflow run are both actions on a connected service or the
-   * workspace, which an answer drawn from the knowledge bases never takes.
-   */
-  if (context.requestMode === ASK_REQUEST_MODE && !(isKnownTool(toolId) && isSimExecuted(toolId))) {
-    return { success: false, error: ASK_MODE_INTEGRATION_REFUSAL }
-  }
 
   const canUseRegisteredHandler =
     isKnownTool(toolId) && (isSimExecuted(toolId) || usesHeadlessClientFallback)
