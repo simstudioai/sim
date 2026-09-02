@@ -10,6 +10,7 @@ import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { collectFolderDepths } from '@/lib/folders/subtree'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { readFolderPath } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sim-folder-tree-selector/selection'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useResourceFolders } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-resource-folders'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -115,9 +116,14 @@ export function KnowledgeBaseSelector({
     blockId,
     folderScope?.recursiveFieldId ?? subBlock.id
   )
-  const readScopeValue = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
+  /*
+   * `readFolderPath` is the shared parser the block's own params transformer
+   * uses. Reading the raw string here instead would miss the legacy array and
+   * JSON-array forms a persisted value can still take, and the picker would
+   * then scope differently from the run.
+   */
   const folderScopePath = folderScope
-    ? readScopeValue(folderScopeValue) || readScopeValue(manualFolderScopeValue)
+    ? readFolderPath(folderScopeValue) || readFolderPath(manualFolderScopeValue)
     : ''
   const folderScopeIncludesSubfolders =
     folderScopeRecursive === true || folderScopeRecursive === 'true'

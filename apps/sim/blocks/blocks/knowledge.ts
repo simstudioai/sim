@@ -260,11 +260,25 @@ export const KnowledgeBlock: BlockConfig = {
       id: 'searchFolderIncludeSubfolders',
       title: 'Include Subfolders',
       type: 'switch',
-      /* Controls nothing until a folder is chosen, so it does not render until one is. */
-      condition: {
-        field: 'operation',
-        value: 'search',
-        and: { field: 'searchFolderRef', value: '', not: true },
+      /*
+       * Controls nothing until a folder is chosen, so it does not render until
+       * one is. Conditions read raw subblock values, never canonical param ids,
+       * so this has to name whichever half of the pair is actually filled —
+       * `searchFolderRef` would never match anything and the switch would always
+       * render.
+       */
+      condition: (values?: Record<string, unknown>) => {
+        const manual = values?.manualSearchFolder
+        const hasManual = typeof manual === 'string' && manual.trim() !== ''
+        return {
+          field: 'operation',
+          value: 'search',
+          and: {
+            field: hasManual ? 'manualSearchFolder' : 'searchFolder',
+            value: '',
+            not: true,
+          },
+        }
       },
     },
     // Knowledge base selector - basic mode

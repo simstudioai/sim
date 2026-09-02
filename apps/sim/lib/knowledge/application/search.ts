@@ -398,11 +398,31 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
          * reading `cost` or `rerankerStatus` stops compiling. Nothing was
          * reranked and nothing was billed, which is what these two say.
          */
-        rerankerStatus: 'not_requested' as RerankerStatus,
+        /*
+         * Reranking that found no candidates was still requested. Saying
+         * `not_requested` would report the caller's own configuration back to
+         * them incorrectly; `skipped` is what the populated no-candidate path
+         * reports.
+         */
+        rerankerStatus: (input.rerankerEnabled ? 'skipped' : 'not_requested') as RerankerStatus,
         cost: undefined as KnowledgeSearchCost | undefined,
         ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
         userId,
-        resultSecretRegistry,
+        /*
+         * Same fallback the populated path builds. A caller that sent no
+         * provenance envelope gets `undefined` back from
+         * `prepareModelInputProvenance`, and the internal dispatch rejects a
+         * response with no registry — so returning early without one turns a
+         * documented empty result into a 500.
+         */
+        resultSecretRegistry:
+          resultSecretRegistry ??
+          (input.prepareModelInputProvenance
+            ? new ResolvedSecretTraceRegistry([], {
+                userId,
+                workspaceId: context.workspaceId,
+              })
+            : undefined),
       }
     }
 

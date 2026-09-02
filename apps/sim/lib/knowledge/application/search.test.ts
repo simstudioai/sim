@@ -694,6 +694,48 @@ describe('knowledge search application use case', () => {
       ).rejects.toThrow('topK must be an integer')
     })
 
+    /*
+     * The internal dispatch rejects a response with no provenance registry, so
+     * an empty folder returning early without one turns a documented empty
+     * result into a 500 for any caller that sent no provenance envelope.
+     */
+    it('still produces a provenance registry for an empty folder', async () => {
+      mocks.getWorkspaceKnowledgeBases.mockResolvedValue({ data: [] })
+
+      const result = await searchKnowledge.execute({
+        principal: SESSION,
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: [],
+          folderPath: '/Support',
+          query: 'answer',
+          topK: 5,
+          prepareModelInputProvenance: async () => undefined,
+        },
+      })
+
+      expect(result.results).toEqual([])
+      expect(result.resultSecretRegistry).toBeDefined()
+    })
+
+    it('reports reranking as skipped, not unrequested, when an empty folder had nothing to rerank', async () => {
+      mocks.getWorkspaceKnowledgeBases.mockResolvedValue({ data: [] })
+
+      const result = await searchKnowledge.execute({
+        principal: SESSION,
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: [],
+          folderPath: '/Support',
+          query: 'answer',
+          topK: 5,
+          rerankerEnabled: true,
+        },
+      })
+
+      expect(result.rerankerStatus).toBe('skipped')
+    })
+
     it('refuses a folder scope with no workspace to resolve it against', async () => {
       await expect(
         searchKnowledge.execute({

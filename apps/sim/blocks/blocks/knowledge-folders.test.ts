@@ -276,6 +276,25 @@ describe('the knowledge base picker is scoped by the folder beside it', () => {
     expect(ids.indexOf('manualSearchFolder')).toBeLessThan(ids.indexOf('knowledgeBaseSelector'))
   })
 
+  /*
+   * Conditions read raw subblock values, never canonical param ids, so a guard
+   * naming `searchFolderRef` matches nothing and the control renders always.
+   */
+  it('hides Include Subfolders until a folder is set, in either mode', () => {
+    const subfolders = KnowledgeBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'searchFolderIncludeSubfolders'
+    )
+    const resolve = (values: Record<string, unknown>) =>
+      typeof subfolders?.condition === 'function' ? subfolders.condition(values) : undefined
+
+    expect(resolve({})?.and).toMatchObject({ field: 'searchFolder', value: '', not: true })
+    expect(resolve({ manualSearchFolder: '/Support' })?.and).toMatchObject({
+      field: 'manualSearchFolder',
+      value: '',
+      not: true,
+    })
+  })
+
   it('offers the folder only where it is a scope', () => {
     const folder = KnowledgeBlock.subBlocks.find((subBlock) => subBlock.id === 'searchFolder')
 
