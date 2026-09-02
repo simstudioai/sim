@@ -19,6 +19,7 @@ import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/applica
 import {
   applyLineInsertion,
   applyStringReplacement,
+  countLines,
   EditContentError,
 } from '@/lib/workspace-files/edit-content'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
@@ -165,7 +166,7 @@ export const editWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
         size: content.length,
         principalKind: principal.kind,
       })
-      return { file: updated, lineCount: after.split(/\r\n|\n/).length }
+      return { file: updated, lineCount: countLines(after) }
     } finally {
       await releaseLock(lockKey, lockValue)
     }

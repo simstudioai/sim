@@ -767,6 +767,30 @@
               "minimum": 1,
               "maximum": 26214400
             }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "First line to return, 1-based. Absent starts at the first line.",
+            "schema": {
+              "description": "First line to return, 1-based. Absent starts at the first line.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "How many lines to return from `offset`. Absent reads to the end.",
+            "schema": {
+              "description": "How many lines to return from `offset`. Absent reads to the end.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
           }
         ],
         "responses": {
@@ -1923,6 +1947,91 @@
       }
     },
     "/api/v2/files/{fileId}/content": {
+      "patch": {
+        "operationId": "editFileContent",
+        "summary": "Edit File Content",
+        "description": "Change part of a text file in place, leaving the rest untouched. `PUT` on this path replaces the whole file; this is the partial counterpart, so one line can be corrected without regenerating everything around it. `replace_string` requires `oldString` to match **exactly once** — several matches answer `400` naming the lines they sit on, because replacing an arbitrary one of them would be a silent write to a line the caller never chose. `insert_lines` inserts after a 1-based line, with `0` meaning the top; a line past the end of the file answers `400` rather than appending. Line numbers are the ones `GET /api/v2/files/{fileId}/text` and file search report. Only files whose stored bytes are UTF-8 text can be edited: editing works on the bytes, never on parsed text, so a PDF or DOCX answers `400`. A concurrent write answers `409`, and retrying means re-reading first.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "File identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "File identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and the change to apply.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditFileContentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The edited file and its new line count.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2EditedFileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
       "put": {
         "operationId": "updateFileContent",
         "summary": "Replace File Content",
@@ -1993,6 +2102,130 @@
           },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/files/search": {
+      "get": {
+        "operationId": "searchFileContent",
+        "summary": "Search File Content",
+        "description": "Search the indexed text of active workspace files and return each matching line with its file id and line number. `folderPaths` confines the search to one or more folder trees, which also narrows the reported coverage, so `complete` and `indexStatus` describe the folders searched rather than the whole workspace. Coverage matters: the index is built asynchronously, so when `complete` is `false` a term that was not found is **unknown rather than absent**, and acting on the absence risks creating a duplicate of something already stored. `truncated` separately reports that more matches exist beyond `maxResults`.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace to search.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace to search."
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "description": "Regular expression, or exact text when `mode` is `exact`.",
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 512,
+              "description": "Regular expression, or exact text when `mode` is `exact`."
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "description": "How `query` is read.",
+            "schema": {
+              "default": "regex",
+              "description": "How `query` is read.",
+              "type": "string",
+              "enum": ["exact", "regex"]
+            }
+          },
+          {
+            "name": "maxResults",
+            "in": "query",
+            "required": false,
+            "description": "Maximum matching lines to return.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum matching lines to return.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "folderPaths",
+            "in": "query",
+            "required": false,
+            "description": "Folders the search is confined to. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.",
+            "schema": {
+              "description": "Folders the search is confined to. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.",
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/FolderPathInput"
+              }
+            }
+          },
+          {
+            "name": "includeSubfolders",
+            "in": "query",
+            "required": false,
+            "description": "Whether the scope descends into nested folders. Absent means yes.",
+            "schema": {
+              "description": "Whether the scope descends into nested folders. Absent means yes.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching lines and the index coverage they were drawn from.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FileSearchResultsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3395,6 +3628,32 @@
             "minimum": 0,
             "maximum": 9007199254740991,
             "description": "Source bytes read from storage before extraction."
+          },
+          "lineRange": {
+            "description": "Present when `offset` or `limit` narrowed the response. `totalLines` is what separates a file that ended from a window that stopped early.",
+            "type": "object",
+            "properties": {
+              "offset": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "First line returned, 1-based."
+              },
+              "lineCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Lines returned."
+              },
+              "totalLines": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Lines the whole file holds."
+              }
+            },
+            "required": ["offset", "lineCount", "totalLines"],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -4195,6 +4454,270 @@
           {
             "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
             "isActive": false
+          }
+        ]
+      },
+      "V2EditedFile": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "description": "The file after the edit.",
+            "$ref": "#/components/schemas/V2File"
+          },
+          "lineCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Lines the file holds after the edit."
+          }
+        },
+        "required": ["file", "lineCount"],
+        "additionalProperties": false,
+        "title": "Edited file",
+        "description": "A workspace file after an in-place content edit."
+      },
+      "V2EditedFileResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2EditedFile"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Edited file response",
+        "description": "A workspace file after an in-place content edit.",
+        "examples": [
+          {
+            "data": {
+              "file": {
+                "id": "wf_V1StGXR8z5jdHi6BmyT91",
+                "webUrl": "https://www.sim.ai/workspace/a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64/files/wf_V1StGXR8z5jdHi6BmyT91",
+                "name": "data.csv",
+                "size": 1024,
+                "type": "text/csv",
+                "key": "workspace/example/data.csv",
+                "folderPath": "/Engineering",
+                "uploadedByEmail": "jane@example.com",
+                "uploadedAt": "2026-01-15T10:30:00Z",
+                "updatedAt": "2026-01-15T10:30:00Z",
+                "deletedAt": null
+              },
+              "lineCount": 5
+            }
+          }
+        ]
+      },
+      "EditFileContentRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the file."
+          },
+          "edit": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "const": "replace_string",
+                    "description": "Replace one exact piece of text with another."
+                  },
+                  "oldString": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Exact text to replace, matched verbatim. It must appear exactly once: several matches are refused with `400` naming the lines they sit on, so include enough surrounding text to be unique."
+                  },
+                  "newString": {
+                    "type": "string",
+                    "description": "Text to put in its place. An empty string deletes the matched text."
+                  }
+                },
+                "required": ["mode", "oldString", "newString"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "const": "insert_lines",
+                    "description": "Insert new lines at a given line."
+                  },
+                  "afterLine": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "The 1-based line to insert after; 0 inserts at the top. A line past the end is refused rather than appended."
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "Text to insert. Multiple lines insert as multiple lines."
+                  }
+                },
+                "required": ["mode", "afterLine", "content"],
+                "additionalProperties": false
+              }
+            ],
+            "description": "The change to apply."
+          }
+        },
+        "required": ["workspaceId", "edit"],
+        "additionalProperties": false,
+        "title": "Edit file content request",
+        "description": "Workspace scope and the change to apply.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "edit": {
+              "mode": "replace_string",
+              "oldString": "- based in NYC",
+              "newString": "- based in SF"
+            }
+          },
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "edit": {
+              "mode": "insert_lines",
+              "afterLine": 4,
+              "content": "- prefers async updates"
+            }
+          }
+        ]
+      },
+      "V2FileSearchResults": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fileId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_-]+$",
+                  "description": "File the line belongs to."
+                },
+                "lineNumber": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991,
+                  "description": "1-based line the match sits on."
+                },
+                "text": {
+                  "type": "string",
+                  "description": "The matching line."
+                }
+              },
+              "required": ["fileId", "lineNumber", "text"],
+              "additionalProperties": false
+            },
+            "description": "Matching lines, one entry per line."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of results returned."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when more matches exist beyond `maxResults`."
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "True when every file revision in the searched scope is indexed without failures. When false, a term that was not found is unknown rather than absent."
+          },
+          "indexStatus": {
+            "type": "object",
+            "properties": {
+              "readyFiles": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Files whose current revision is indexed and searchable."
+              },
+              "pendingFiles": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Files not yet indexed at their current revision. Their content was not searched."
+              },
+              "failedFiles": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Files whose indexing failed. Their content was not searched."
+              },
+              "skippedFiles": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Files deliberately not indexed, such as binaries and files above the size ceiling."
+              },
+              "partialFiles": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Files indexed only in part, so matches beyond the indexed portion are not found."
+              }
+            },
+            "required": [
+              "readyFiles",
+              "pendingFiles",
+              "failedFiles",
+              "skippedFiles",
+              "partialFiles"
+            ],
+            "additionalProperties": false,
+            "description": "Index coverage across the searched scope."
+          }
+        },
+        "required": ["results", "count", "truncated", "complete", "indexStatus"],
+        "additionalProperties": false,
+        "title": "File search results",
+        "description": "Matching lines from indexed workspace file content, with index coverage."
+      },
+      "V2FileSearchResultsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileSearchResults"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "File search results response",
+        "description": "Matching lines from indexed workspace file content.",
+        "examples": [
+          {
+            "data": {
+              "results": [
+                {
+                  "fileId": "wf_V1StGXR8z5jdHi6BmyT91",
+                  "lineNumber": 4,
+                  "text": "- based in NYC"
+                }
+              ],
+              "count": 1,
+              "truncated": false,
+              "complete": true,
+              "indexStatus": {
+                "readyFiles": 12,
+                "pendingFiles": 0,
+                "failedFiles": 0,
+                "skippedFiles": 0,
+                "partialFiles": 0
+              }
+            }
           }
         ]
       },

@@ -1,6 +1,10 @@
-import { v2UpdateFileContentContract } from '@/lib/api/contracts/v2/files'
+import {
+  v2EditFileContentContract,
+  v2UpdateFileContentContract,
+} from '@/lib/api/contracts/v2/files'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
+import { editWorkspaceFileContent } from '@/lib/workspace-files/application/edit-workspace-file-content'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
   admitUpdateWorkspaceFileContent,
@@ -35,4 +39,35 @@ export const PUT = defineV2JsonRoute({
   }),
   useCase: updateWorkspaceFileContent,
   present: async ({ file }) => ({ data: await toV2File(file) }),
+})
+
+/**
+ * PATCH /api/v2/files/[fileId]/content — Change part of a file's bytes.
+ *
+ * The partial counterpart to `PUT` on this path, which replaces the whole file.
+ * Correcting one line without regenerating everything around it is the point:
+ * a whole-file rewrite of a long document both costs more and drifts.
+ *
+ * A string replacement must match exactly once. Several matches are refused
+ * with `400` naming the lines, because replacing an arbitrary one of them is a
+ * silent write to a line the caller never chose.
+ */
+export const PATCH = defineV2JsonRoute({
+  contract: v2EditFileContentContract,
+  auth: v2ApiKeyAuth,
+  operation: fileOperations.updateContent,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
+  beforeParse: async ({ principal, params }) => {
+    if (typeof params.fileId === 'string') {
+      await admitUpdateWorkspaceFileContent(principal, params.fileId)
+    }
+  },
+  mapInput: ({ params, body }) => ({
+    fileId: params.fileId,
+    assertedWorkspaceId: body.workspaceId,
+    edit: body.edit,
+  }),
+  useCase: editWorkspaceFileContent,
+  present: async ({ file, lineCount }) => ({ data: { file: await toV2File(file), lineCount } }),
 })

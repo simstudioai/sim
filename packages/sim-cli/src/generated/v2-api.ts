@@ -3312,6 +3312,51 @@ export type DuplicateWorkflowResponse = {
   data: DuplicateWorkflowResponseRef0
 }
 
+/** `PATCH /api/v2/files/[fileId]/content` */
+export type EditFileContentParams = {
+  fileId: string
+}
+
+export type EditFileContentQuery = Record<string, unknown>
+
+export type EditFileContentBody = {
+  workspaceId: string
+  edit:
+    | {
+        mode: 'replace_string'
+        oldString: string
+        newString: string
+      }
+    | {
+        mode: 'insert_lines'
+        afterLine: number
+        content: string
+      }
+}
+
+type EditFileContentResponseRef0 = {
+  id: string
+  webUrl: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedByEmail: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+type EditFileContentResponseRef1 = {
+  file: EditFileContentResponseRef0
+  lineCount: number
+}
+
+export type EditFileContentResponse = {
+  data: EditFileContentResponseRef1
+}
+
 /** `POST /api/v2/tools/[toolId]/execute` */
 export type ExecuteToolParams = {
   toolId: string
@@ -6760,6 +6805,8 @@ export type ReadFileTextParams = {
 export type ReadFileTextQuery = {
   workspaceId: string
   maxBytes?: number
+  offset?: number
+  limit?: number
 }
 
 type ReadFileTextResponseRef0 = {
@@ -6772,6 +6819,11 @@ type ReadFileTextResponseRef0 = {
   degradedReason: string | null
   charCount: number
   byteCount: number
+  lineRange?: {
+    offset: number
+    lineCount: number
+    totalLines: number
+  }
 }
 
 export type ReadFileTextResponse = {
@@ -7531,6 +7583,40 @@ type RunRowEnrichmentResponseRef0 = {
 
 export type RunRowEnrichmentResponse = {
   data: RunRowEnrichmentResponseRef0
+}
+
+/** `GET /api/v2/files/search` */
+type SearchFileContentQueryRef0 = string
+
+export type SearchFileContentQuery = {
+  workspaceId: string
+  query: string
+  mode?: 'exact' | 'regex'
+  maxResults?: number
+  folderPaths?: Array<SearchFileContentQueryRef0>
+  includeSubfolders?: boolean
+}
+
+type SearchFileContentResponseRef0 = {
+  results: Array<{
+    fileId: string
+    lineNumber: number
+    text: string
+  }>
+  count: number
+  truncated: boolean
+  complete: boolean
+  indexStatus: {
+    readyFiles: number
+    pendingFiles: number
+    failedFiles: number
+    skippedFiles: number
+    partialFiles: number
+  }
+}
+
+export type SearchFileContentResponse = {
+  data: SearchFileContentResponseRef0
 }
 
 /** `POST /api/v2/knowledge/search` */
@@ -10748,6 +10834,18 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  editFileContent: {
+    method: 'PATCH',
+    path: '/api/v2/files/[fileId]/content',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
+    responseMode: 'json',
+    summary: 'Edit File Content',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      edit: { kind: 'unknown', required: true, describe: 'The change to apply.' },
+    },
+  },
   executeTool: {
     method: 'POST',
     path: '/api/v2/tools/[toolId]/execute',
@@ -13083,6 +13181,14 @@ export const V2_OPERATIONS = {
         describe:
           'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.',
       },
+      offset: {
+        kind: 'integer',
+        describe: 'First line to return, 1-based. Absent starts at the first line.',
+      },
+      limit: {
+        kind: 'integer',
+        describe: 'How many lines to return from `offset`. Absent reads to the end.',
+      },
     },
   },
   relocateFileFolder: {
@@ -13416,6 +13522,37 @@ export const V2_OPERATIONS = {
     summary: 'Run Enrichment For One Row',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+    },
+  },
+  searchFileContent: {
+    method: 'GET',
+    path: '/api/v2/files/search',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Search File Content',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace to search.' },
+      query: {
+        kind: 'string',
+        required: true,
+        describe: 'Regular expression, or exact text when `mode` is `exact`.',
+      },
+      mode: {
+        kind: 'enum',
+        values: ['exact', 'regex'] as const,
+        default: 'regex',
+        describe: 'How `query` is read.',
+      },
+      maxResults: { kind: 'integer', default: 50, describe: 'Maximum matching lines to return.' },
+      folderPaths: {
+        kind: 'array',
+        describe:
+          'Folders the search is confined to. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.',
+      },
+      includeSubfolders: {
+        kind: 'boolean',
+        describe: 'Whether the scope descends into nested folders. Absent means yes.',
+      },
     },
   },
   searchKnowledge: {

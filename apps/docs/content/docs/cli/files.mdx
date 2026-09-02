@@ -172,6 +172,32 @@ sim files delete <fileId> [options]
 
 </CommandTable>
 
+## Edit file content
+
+```bash
+sim files content update <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--edit <json\|@file>` | Yes | The change to apply. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
 ## Show file metadata and sharing status
 
 ```bash
@@ -310,6 +336,8 @@ sim files read <fileId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--max-bytes <value>` | No | Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit. |
+| `--offset <value>` | No | First line to return, 1-based. Absent starts at the first line. |
+| `--limit <value>` | No | How many lines to return from `offset`. Absent reads to the end. (caps a --filter match only; omit it to act on every match, and note 0 is not accepted). |
 
 </CommandTable>
 
@@ -352,6 +380,27 @@ sim files restore <fileId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+## Search file content
+
+```bash
+sim files search [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--query <value>` | Yes | Regular expression, or exact text when `mode` is `exact`. |
+| `--mode <value>` | No | How `query` is read. Accepted values: `exact`, `regex`. |
+| `--max-results <value>` | No | Maximum matching lines to return. |
+| `--folder-paths <json\|@file>` | No | Folders the search is confined to. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace. (JSON, or @path / @- to read a file or stdin). |
+| `--include-subfolders` | No | Whether the scope descends into nested folders. Absent means yes. |
+| `--no-include-subfolders` | No | Send --include-subfolders as false. |
 
 </CommandTable>
 

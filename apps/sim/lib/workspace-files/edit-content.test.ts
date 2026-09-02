@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyLineInsertion,
   applyStringReplacement,
+  countLines,
   EditContentError,
 } from '@/lib/workspace-files/edit-content'
 
@@ -117,5 +118,36 @@ describe('applyLineInsertion', () => {
 
   it('counts lines the way a reader does, ignoring the trailing newline', () => {
     expect(() => applyLineInsertion('a\nb\n', 3, 'x')).toThrow(/has 2 lines/)
+  })
+})
+
+/*
+ * Every surface that reports or accepts a line number counts through here, so
+ * `insert` accepts exactly the range that a ranged read and an edit report.
+ * Counting the trailing newline as a line told an agent the file was one line
+ * longer than `insert` would take.
+ */
+describe('countLines', () => {
+  it('does not count the trailing newline as a line', () => {
+    expect(countLines('a\nb\n')).toBe(2)
+  })
+
+  it('counts a file with no trailing newline', () => {
+    expect(countLines('a\nb')).toBe(2)
+  })
+
+  it('counts an empty file as one line', () => {
+    expect(countLines('')).toBe(1)
+  })
+
+  it('counts blank lines in the middle', () => {
+    expect(countLines('a\n\nb\n')).toBe(3)
+  })
+
+  it('agrees with the largest line insert will accept', () => {
+    const text = 'a\nb\nc\n'
+
+    expect(() => applyLineInsertion(text, countLines(text), 'x')).not.toThrow()
+    expect(() => applyLineInsertion(text, countLines(text) + 1, 'x')).toThrow()
   })
 })

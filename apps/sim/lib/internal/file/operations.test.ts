@@ -22,6 +22,7 @@ const {
   mockLoadActiveWorkspaceContext,
   mockLoadActiveWorkspaceFileContext,
   mockMoveWorkspaceFileItems,
+  mockEditWorkspaceFileContent,
   mockResolveEffectiveWorkspacePermission,
   mockGetFileMetadataByKey,
   mockGetWorkspaceFile,
@@ -46,6 +47,7 @@ const {
   mockLoadActiveWorkspaceContext: vi.fn(),
   mockLoadActiveWorkspaceFileContext: vi.fn(),
   mockMoveWorkspaceFileItems: vi.fn(),
+  mockEditWorkspaceFileContent: vi.fn(),
   mockResolveEffectiveWorkspacePermission: vi.fn(),
   mockGetFileMetadataByKey: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
@@ -133,6 +135,12 @@ vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   },
   restoreWorkspaceFileFolderOperation: {
     execute: (...args: unknown[]) => mockRestoreWorkspaceFileFolder(...args),
+  },
+}))
+
+vi.mock('@/lib/workspace-files/application/edit-workspace-file-content', () => ({
+  editWorkspaceFileContent: {
+    execute: (...args: unknown[]) => mockEditWorkspaceFileContent(...args),
   },
 }))
 
@@ -337,11 +345,170 @@ describe('file manage folder wiring', () => {
       key: 'workspace/workspace-1/new.txt',
       url: '/api/files/serve/new-file',
     })
+    /* The manager takes (workspaceId, reference) positionally, not an object. */
     mockResolveWorkspaceFileReference.mockImplementation(
-      async ({ reference }: { reference: string }) => workspaceFile(reference)
+      async (_workspaceId: string, reference: string) => workspaceFile(reference)
     )
     mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('before'))
     mockUpdateWorkspaceFileContent.mockResolvedValue({ file: workspaceFile('file-1') })
+    mockEditWorkspaceFileContent.mockResolvedValue({
+      file: workspaceFile('file-in-folder'),
+      lineCount: 4,
+    })
+  })
+
+  /*
+   * A per-user memory tree is exactly where a name collides: `self.md` exists
+   * under every user's folder. These pin that the folder is what disambiguates
+   * it, and that an ambiguous name is refused rather than resolved arbitrarily.
+   */
+  describe('editing a named file inside a folder', () => {
+    const MEMORY_FOLDERS = [
+      { ...FOLDER_ROW, id: 'memory', name: 'memory', path: 'memory' },
+      { ...FOLDER_ROW, id: 'user-a', parentId: 'memory', name: 'user-a', path: 'memory/user-a' },
+      {
+        ...FOLDER_ROW,
+        id: 'user-a-people',
+        parentId: 'user-a',
+        name: 'people',
+        path: 'memory/user-a/people',
+      },
+      { ...FOLDER_ROW, id: 'user-b', parentId: 'memory', name: 'user-b', path: 'memory/user-b' },
+    ]
+
+    beforeEach(() => {
+      mockListWorkspaceFileFolders.mockResolvedValue({ folders: MEMORY_FOLDERS })
+      mockListAllWorkspaceFiles.mockResolvedValue({
+        files: [
+          { ...workspaceFile('a-self'), name: 'self.md', folderId: 'user-a' },
+          { ...workspaceFile('a-people-self'), name: 'self.md', folderId: 'user-a-people' },
+          { ...workspaceFile('b-self'), name: 'self.md', folderId: 'user-b' },
+        ],
+      })
+    })
+
+    it('resolves a name inside its folder rather than workspace-wide', async () => {
+      const response = await POST(
+        createMockRequest('POST', {
+          operation: 'edit',
+          workspaceId: 'workspace-1',
+          fileName: 'self.md',
+          folderPath: '/memory/user-a',
+          includeSubfolders: false,
+          oldString: 'old',
+          newString: 'new',
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-1', 'a-self')
+    })
+
+    /* The refusal names the candidates so the caller can choose one. */
+    it('refuses an ambiguous name instead of editing an arbitrary file', async () => {
+      const response = await POST(
+        createMockRequest('POST', {
+          operation: 'edit',
+          workspaceId: 'workspace-1',
+          fileName: 'self.md',
+          folderPath: '/memory/user-a',
+          oldString: 'old',
+          newString: 'new',
+        })
+      )
+
+      const body = await response.json()
+      expect(body.success).toBe(false)
+      expect(String(body.error)).toContain('a-self')
+      expect(String(body.error)).toContain('a-people-self')
+      expect(mockEditWorkspaceFileContent).not.toHaveBeenCalled()
+    })
+
+    it("never reaches a sibling user's file of the same name", async () => {
+      await POST(
+        createMockRequest('POST', {
+          operation: 'edit',
+          workspaceId: 'workspace-1',
+          fileName: 'self.md',
+          folderPath: '/memory/user-a',
+          includeSubfolders: false,
+          oldString: 'old',
+          newString: 'new',
+        })
+      )
+
+      expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalledWith('workspace-1', 'b-self')
+    })
+
+    it('passes the replacement through as a string edit', async () => {
+      await POST(
+        createMockRequest('POST', {
+          operation: 'edit',
+          workspaceId: 'workspace-1',
+          fileName: 'a-self',
+          oldString: 'old text',
+          newString: 'new text',
+        })
+      )
+
+      expect(mockEditWorkspaceFileContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            edit: { mode: 'replace_string', oldString: 'old text', newString: 'new text' },
+          }),
+        })
+      )
+    })
+
+    it('passes an insert through as a line edit', async () => {
+      await POST(
+        createMockRequest('POST', {
+          operation: 'insert',
+          workspaceId: 'workspace-1',
+          fileName: 'a-self',
+          afterLine: 3,
+          content: '- new commitment',
+        })
+      )
+
+      expect(mockEditWorkspaceFileContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            edit: { mode: 'insert_lines', afterLine: 3, content: '- new commitment' },
+          }),
+        })
+      )
+    })
+
+    it('rejects a negative insert line at the contract', async () => {
+      const response = await POST(
+        createMockRequest('POST', {
+          operation: 'insert',
+          workspaceId: 'workspace-1',
+          fileName: 'a-self',
+          afterLine: -1,
+          content: 'x',
+        })
+      )
+
+      expect(response.status).toBe(400)
+      expect(mockEditWorkspaceFileContent).not.toHaveBeenCalled()
+    })
+
+    it('rejects empty search text at the contract', async () => {
+      const response = await POST(
+        createMockRequest('POST', {
+          operation: 'edit',
+          workspaceId: 'workspace-1',
+          fileName: 'a-self',
+          oldString: '',
+          newString: 'x',
+        })
+      )
+
+      expect(response.status).toBe(400)
+      expect(mockEditWorkspaceFileContent).not.toHaveBeenCalled()
+    })
   })
 
   it('expands a folder-only read instead of rejecting it', async () => {

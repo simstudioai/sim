@@ -42,6 +42,13 @@ import {
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
+import {
+  FILE_SEARCH_DEFAULT_MAX_RESULTS,
+  FILE_SEARCH_MAX_QUERY_LENGTH,
+  FILE_SEARCH_MAX_RESULTS,
+  FILE_SEARCH_MIN_QUERY_LENGTH,
+} from '@/lib/workspace-files/search/constants'
+import { FILE_SEARCH_MODES } from '@/lib/workspace-files/search/pattern'
 
 /**
  * v2 files contracts. v2 drops the v1 `{ success, data, limits }` envelope in
@@ -765,6 +772,18 @@ export const v2ReadFileTextQuerySchema = z
       .describe(
         'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.'
       ),
+    offset: z.coerce
+      .number()
+      .int()
+      .min(1, 'offset starts at line 1')
+      .optional()
+      .describe('First line to return, 1-based. Absent starts at the first line.'),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1, 'limit must be at least 1')
+      .optional()
+      .describe('How many lines to return from `offset`. Absent reads to the end.'),
   })
   .strict()
 export type V2ReadFileTextQuery = z.output<typeof v2ReadFileTextQuerySchema>
@@ -793,6 +812,17 @@ export const v2FileTextSchema = z
       .int()
       .nonnegative()
       .describe('Source bytes read from storage before extraction.'),
+    lineRange: z
+      .object({
+        offset: z.number().int().min(1).describe('First line returned, 1-based.'),
+        lineCount: z.number().int().nonnegative().describe('Lines returned.'),
+        totalLines: z.number().int().nonnegative().describe('Lines the whole file holds.'),
+      })
+      .strict()
+      .optional()
+      .describe(
+        'Present when `offset` or `limit` narrowed the response. `totalLines` is what separates a file that ended from a window that stopped early.'
+      ),
   })
   .strict()
   .meta({
@@ -1041,6 +1071,199 @@ export const v2UpsertFileShareContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2FileShareSchema),
+  },
+})
+
+/**
+ * Partial content edit body.
+ *
+ * `PUT` on the same path replaces the whole file; this changes part of it,
+ * which is what makes correcting one line possible without regenerating
+ * everything around it. Discriminated so a client narrows exhaustively.
+ */
+export const v2EditFileContentBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
+    edit: z
+      .discriminatedUnion('mode', [
+        z
+          .object({
+            mode: z
+              .literal('replace_string')
+              .describe('Replace one exact piece of text with another.'),
+            oldString: z
+              .string()
+              .min(1, 'oldString cannot be empty')
+              .describe(
+                'Exact text to replace, matched verbatim. It must appear exactly once: several matches are refused with `400` naming the lines they sit on, so include enough surrounding text to be unique.'
+              ),
+            newString: z
+              .string()
+              .describe('Text to put in its place. An empty string deletes the matched text.'),
+          })
+          .strict(),
+        z
+          .object({
+            mode: z.literal('insert_lines').describe('Insert new lines at a given line.'),
+            afterLine: z
+              .number()
+              .int('afterLine must be a whole number')
+              .min(0, 'afterLine cannot be negative')
+              .describe(
+                'The 1-based line to insert after; 0 inserts at the top. A line past the end is refused rather than appended.'
+              ),
+            content: z
+              .string()
+              .describe('Text to insert. Multiple lines insert as multiple lines.'),
+          })
+          .strict(),
+      ])
+      .describe('The change to apply.'),
+  })
+  .strict()
+
+export type V2EditFileContentBody = z.input<typeof v2EditFileContentBodySchema>
+
+export const v2EditedFileSchema = z
+  .object({
+    file: v2FileSchema.describe('The file after the edit.'),
+    lineCount: z.number().int().nonnegative().describe('Lines the file holds after the edit.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2EditedFile',
+    title: 'Edited file',
+    description: 'A workspace file after an in-place content edit.',
+  })
+
+export const v2SearchFileContentQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace to search.'),
+    query: z
+      .string()
+      .min(
+        FILE_SEARCH_MIN_QUERY_LENGTH,
+        `query must be at least ${FILE_SEARCH_MIN_QUERY_LENGTH} characters`
+      )
+      .max(
+        FILE_SEARCH_MAX_QUERY_LENGTH,
+        `query cannot exceed ${FILE_SEARCH_MAX_QUERY_LENGTH} characters`
+      )
+      .refine((query) => !query.includes('\0'), 'query cannot contain NUL characters')
+      .describe('Regular expression, or exact text when `mode` is `exact`.'),
+    mode: z.enum(FILE_SEARCH_MODES).default('regex').describe('How `query` is read.'),
+    maxResults: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(FILE_SEARCH_MAX_RESULTS)
+      .default(FILE_SEARCH_DEFAULT_MAX_RESULTS)
+      .describe('Maximum matching lines to return.'),
+    folderPaths: z
+      .array(v2FolderPathInputSchema)
+      .max(64, 'Too many folders')
+      .optional()
+      .describe(
+        'Folders the search is confined to. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.'
+      ),
+    includeSubfolders: z
+      .boolean()
+      .optional()
+      .describe('Whether the scope descends into nested folders. Absent means yes.'),
+  })
+  .strict()
+export type V2SearchFileContentQuery = z.output<typeof v2SearchFileContentQuerySchema>
+
+export const v2FileSearchResultsSchema = z
+  .object({
+    results: z
+      .array(
+        z
+          .object({
+            fileId: workspaceFileIdSchema.describe('File the line belongs to.'),
+            lineNumber: z.number().int().min(1).describe('1-based line the match sits on.'),
+            text: z.string().describe('The matching line.'),
+          })
+          .strict()
+      )
+      .describe('Matching lines, one entry per line.'),
+    count: z.number().int().nonnegative().describe('Number of results returned.'),
+    truncated: z.boolean().describe('True when more matches exist beyond `maxResults`.'),
+    complete: z
+      .boolean()
+      .describe(
+        'True when every file revision in the searched scope is indexed without failures. When false, a term that was not found is unknown rather than absent.'
+      ),
+    indexStatus: z
+      .object({
+        readyFiles: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe('Files whose current revision is indexed and searchable.'),
+        pendingFiles: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe(
+            'Files not yet indexed at their current revision. Their content was not searched.'
+          ),
+        failedFiles: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe('Files whose indexing failed. Their content was not searched.'),
+        skippedFiles: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe(
+            'Files deliberately not indexed, such as binaries and files above the size ceiling.'
+          ),
+        partialFiles: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe(
+            'Files indexed only in part, so matches beyond the indexed portion are not found.'
+          ),
+      })
+      .strict()
+      .describe('Index coverage across the searched scope.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2FileSearchResults',
+    title: 'File search results',
+    description: 'Matching lines from indexed workspace file content, with index coverage.',
+  })
+
+/**
+ * Searches the indexed text of workspace files.
+ *
+ * Index-backed, so coverage is reported rather than assumed: `complete` and
+ * `indexStatus` are what separate "this is not in the files" from "the index
+ * has not caught up yet", and only the first of those is safe to act on.
+ */
+export const v2SearchFileContentContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/files/search',
+  query: v2SearchFileContentQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2FileSearchResultsSchema),
+  },
+})
+
+export const v2EditFileContentContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/files/[fileId]/content',
+  query: noInputSchema,
+  params: v2FileParamsSchema,
+  body: v2EditFileContentBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2EditedFileSchema),
   },
 })
 

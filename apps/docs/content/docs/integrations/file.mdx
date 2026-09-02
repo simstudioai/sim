@@ -74,7 +74,7 @@ Extract the text content of one or more workspace files from selected file objec
 
 ### File Search
 
-Search the indexed text of active workspace files for lines matching a regular expression, and return each matching line once with its file ID and line number. Coverage is what the index currently holds, so check "complete" and "indexStatus" before concluding that something is absent.
+Search the indexed text of active workspace files for lines matching a regular expression, and return each matching line once with its file ID and line number. Coverage is what the index currently holds: when "complete" is false the index is still catching up, so a term that is not found is unknown rather than absent. Re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one folder tree, which also narrows "indexStatus" to that tree.
 
 #### Input
 
@@ -164,6 +164,96 @@ Append content to an existing workspace file. The file must already exist. Conte
 | `name` | string | File name |
 | `size` | number | File size in bytes |
 | `url` | string | URL to access the file |
+
+### File Edit
+
+Replace one exact piece of text in an existing workspace file, leaving the rest untouched. Use this to correct a fact in place instead of rewriting the whole file. The search text must match exactly once: if it appears several times the edit is refused and the matching line numbers are returned, so include enough surrounding text to be unique. Only plain-text files can be edited.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileName` | string | Yes | Name or ID of the workspace file to edit. |
+| `folderPath` | string | No | Folder the file lives in. Naming it targets exactly one file when the same name exists in several folders. Canonical folder path, percent-encoded, e.g. "/memory/user-a/people". The workspace root is "/". |
+| `oldString` | string | Yes | The exact text to replace, matched verbatim including whitespace and line breaks. It must appear exactly once in the file. |
+| `newString` | string | Yes | The text to put in its place. Pass an empty string to delete the old text. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | file[] | Workspace file objects with share status \(read\), fetched file objects \(fetch\), the compressed archive \(compress\), or extracted files \(decompress\) |
+| `contents` | array | Array of file text contents, one entry per file \(get content\) |
+| `lineRanges` | array | Line window returned per file when a range was requested, as objects with offset, lineCount, and totalLines \(get content\) |
+| `lineCount` | number | Lines in the file after the change \(edit, insert\) |
+| `results` | array | Matching lines as objects with fileId, lineNumber, and text fields \(search\) |
+| `count` | number | Returned matching line count \(search\) |
+| `truncated` | boolean | Whether results were cut short by a cap: more matches exist \(search\), or more entries exist \(list\) |
+| `complete` | boolean | Whether every file revision in the searched scope is indexed without failures. When false, a term that was not found is unknown rather than absent \(search\) |
+| `indexStatus` | json | Workspace search-index coverage counts: readyFiles, pendingFiles, failedFiles, skippedFiles, and partialFiles |
+| `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
+| `id` | string | File ID \(write and append\) |
+| `name` | string | File name \(write and append\) |
+| `size` | number | File size in bytes \(write and append\) |
+| `url` | string | URL to access the file \(write and append\), or the public share link when shared; empty when set to private \(manage sharing\) |
+| `isActive` | boolean | Whether the public link is enabled \(manage sharing\) |
+| `entries` | array | What the folder holds, each with kind "folder" or "file", a name, and its depth below the listed folder \(list\) |
+| `folder` | json | The affected folder \(create, move, delete, and restore folder\) |
+| `path` | string | The folder that was listed or deleted \(list and delete folder\) |
+| `previousPath` | string | The path the folder had before it moved \(move folder\) |
+| `deleted` | boolean | Whether the folder was deleted \(delete folder\) |
+| `deletedItems` | json | Counts of folders and files deleted alongside the folder \(delete folder\) |
+| `fileId` | string | The file that was moved \(move file\) |
+| `folderPath` | string | The folder the file now lives in \(move file\) |
+| `restoredItems` | json | Counts of folders and files restored alongside the folder \(restore folder\) |
+| `authType` | string | Public link access mode: public, password, email, or sso \(manage sharing\) |
+| `hasPassword` | boolean | Whether the public link is password-protected \(manage sharing\) |
+| `allowedEmails` | array | Allowed emails/domains for email or SSO access \(manage sharing\) |
+
+### File Insert
+
+Insert new lines into an existing workspace file at a given line, leaving the rest untouched. Use this to add an entry under a heading without rewriting the file. Line numbers are the ones returned by search and by a ranged read. Only plain-text files can be edited.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileName` | string | Yes | Name or ID of the workspace file to insert into. |
+| `folderPath` | string | No | Folder the file lives in. Naming it targets exactly one file when the same name exists in several folders. Canonical folder path, percent-encoded, e.g. "/memory/user-a/people". The workspace root is "/". |
+| `afterLine` | number | Yes | The 1-based line to insert after. Use 0 to insert at the top of the file. A line past the end of the file is refused rather than appended, so read or search first if you are not sure how long the file is. |
+| `content` | string | Yes | The text to insert. Multiple lines are inserted as multiple lines; no trailing newline is needed. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | file[] | Workspace file objects with share status \(read\), fetched file objects \(fetch\), the compressed archive \(compress\), or extracted files \(decompress\) |
+| `contents` | array | Array of file text contents, one entry per file \(get content\) |
+| `lineRanges` | array | Line window returned per file when a range was requested, as objects with offset, lineCount, and totalLines \(get content\) |
+| `lineCount` | number | Lines in the file after the change \(edit, insert\) |
+| `results` | array | Matching lines as objects with fileId, lineNumber, and text fields \(search\) |
+| `count` | number | Returned matching line count \(search\) |
+| `truncated` | boolean | Whether results were cut short by a cap: more matches exist \(search\), or more entries exist \(list\) |
+| `complete` | boolean | Whether every file revision in the searched scope is indexed without failures. When false, a term that was not found is unknown rather than absent \(search\) |
+| `indexStatus` | json | Workspace search-index coverage counts: readyFiles, pendingFiles, failedFiles, skippedFiles, and partialFiles |
+| `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
+| `id` | string | File ID \(write and append\) |
+| `name` | string | File name \(write and append\) |
+| `size` | number | File size in bytes \(write and append\) |
+| `url` | string | URL to access the file \(write and append\), or the public share link when shared; empty when set to private \(manage sharing\) |
+| `isActive` | boolean | Whether the public link is enabled \(manage sharing\) |
+| `entries` | array | What the folder holds, each with kind "folder" or "file", a name, and its depth below the listed folder \(list\) |
+| `folder` | json | The affected folder \(create, move, delete, and restore folder\) |
+| `path` | string | The folder that was listed or deleted \(list and delete folder\) |
+| `previousPath` | string | The path the folder had before it moved \(move folder\) |
+| `deleted` | boolean | Whether the folder was deleted \(delete folder\) |
+| `deletedItems` | json | Counts of folders and files deleted alongside the folder \(delete folder\) |
+| `fileId` | string | The file that was moved \(move file\) |
+| `folderPath` | string | The folder the file now lives in \(move file\) |
+| `restoredItems` | json | Counts of folders and files restored alongside the folder \(restore folder\) |
+| `authType` | string | Public link access mode: public, password, email, or sso \(manage sharing\) |
+| `hasPassword` | boolean | Whether the public link is password-protected \(manage sharing\) |
+| `allowedEmails` | array | Allowed emails/domains for email or SSO access \(manage sharing\) |
 
 ### File Compress
 

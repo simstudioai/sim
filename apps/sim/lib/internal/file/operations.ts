@@ -81,6 +81,7 @@ import {
   updateWorkspaceFileFolderOperation,
 } from '@/lib/workspace-files/application/workspace-file-folders'
 import { selectDirectoryEntries } from '@/lib/workspace-files/directory-listing'
+import { countLines } from '@/lib/workspace-files/edit-content'
 import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 import { resolveFolderIdsForPaths } from '@/lib/workspace-files/folder-path-selection'
 import {
@@ -311,13 +312,8 @@ function sliceTextLines(
 ): { text: string; range?: FileContentLineRange } {
   if (offset === undefined && limit === undefined) return { text }
 
-  const lines = text.split(/\r\n|\n/)
-  /*
-   * Text ending in a newline splits to a trailing empty element that is not a
-   * line a reader sees, so it is dropped to keep these numbers agreeing with
-   * the line numbers search reports and insert accepts.
-   */
-  const effective = lines.length > 1 && lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines
+  /* Counted the same way insert accepts them; see {@link countLines}. */
+  const effective = text.split(/\r\n|\n/).slice(0, countLines(text))
   const start = Math.max((offset ?? 1) - 1, 0)
   const window = effective.slice(start, limit === undefined ? undefined : start + limit)
 

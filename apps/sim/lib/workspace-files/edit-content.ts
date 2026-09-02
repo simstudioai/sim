@@ -82,6 +82,23 @@ function splitLines(text: string): string[] {
 }
 
 /**
+ * The lines a reader sees.
+ *
+ * Text ending in a newline splits to a trailing empty element that is not a
+ * line anyone can point at. Every surface that reports or accepts a line number
+ * counts through here, so `insert` accepts exactly the range that `search`,
+ * a ranged read, and the count returned after an edit all describe.
+ */
+export function countLines(text: string): number {
+  return visibleLines(text).length
+}
+
+function visibleLines(text: string): string[] {
+  const lines = splitLines(text)
+  return lines.length > 1 && lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines
+}
+
+/**
  * Inserts `content` after the 1-based `afterLine`; `0` puts it at the top.
  *
  * A line past the end is refused rather than clamped. Clamping turns an
@@ -92,19 +109,13 @@ export function applyLineInsertion(text: string, afterLine: number, content: str
   if (!Number.isInteger(afterLine) || afterLine < 0) {
     throw new EditContentError('afterLine must be a whole number, 0 or greater', {
       reason: 'line_out_of_range',
-      lineCount: splitLines(text).length,
+      lineCount: countLines(text),
     })
   }
 
   const eol = detectLineEnding(text)
-  const lines = splitLines(text)
-  /*
-   * A file ending in a newline splits to a trailing empty element, which is not
-   * a line anyone can insert after. Dropping it keeps `afterLine` counting the
-   * lines a reader sees, matching what search and read report.
-   */
-  const hasTrailingNewline = lines.length > 1 && lines[lines.length - 1] === ''
-  const effective = hasTrailingNewline ? lines.slice(0, -1) : lines
+  const effective = visibleLines(text)
+  const hasTrailingNewline = effective.length !== splitLines(text).length
 
   if (afterLine > effective.length) {
     throw new EditContentError(
