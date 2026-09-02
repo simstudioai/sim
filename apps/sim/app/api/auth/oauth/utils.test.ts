@@ -151,6 +151,35 @@ describe('OAuth Utils', () => {
       expect(result).toEqual({ accessToken: 'new-token', refreshed: true })
     })
 
+    it('persists a rotated Monday refresh token with the refreshed access token', async () => {
+      const credential = {
+        id: 'monday-credential-id',
+        accessToken: 'expired-monday-token',
+        refreshToken: 'old-monday-refresh-token',
+        accessTokenExpiresAt: new Date(Date.now() - 60_000),
+        providerId: 'monday',
+      }
+      mockRefreshOAuthToken.mockResolvedValueOnce({
+        ok: true,
+        accessToken: 'new-monday-token',
+        expiresIn: 3600,
+        refreshToken: 'rotated-monday-refresh-token',
+      })
+      const { mockSet } = mockUpdateChain()
+
+      const result = await refreshTokenIfNeeded('request-id', credential, credential.id)
+
+      expect(mockRefreshOAuthToken).toHaveBeenCalledWith('monday', 'old-monday-refresh-token')
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accessToken: 'new-monday-token',
+          refreshToken: 'rotated-monday-refresh-token',
+          accessTokenExpiresAt: expect.any(Date),
+        })
+      )
+      expect(result).toEqual({ accessToken: 'new-monday-token', refreshed: true })
+    })
+
     it('should handle refresh token error', async () => {
       const mockCredential = {
         id: 'credential-id',
@@ -184,6 +213,21 @@ describe('OAuth Utils', () => {
 
       expect(mockRefreshOAuthToken).not.toHaveBeenCalled()
       expect(result).toEqual({ accessToken: 'token', refreshed: false })
+    })
+
+    it('keeps a legacy non-expiring Monday credential usable without refreshing it', async () => {
+      const legacyCredential = {
+        id: 'legacy-monday-credential-id',
+        accessToken: 'legacy-monday-access-token',
+        refreshToken: null,
+        accessTokenExpiresAt: null,
+        providerId: 'monday',
+      }
+
+      const result = await refreshTokenIfNeeded('request-id', legacyCredential, legacyCredential.id)
+
+      expect(mockRefreshOAuthToken).not.toHaveBeenCalled()
+      expect(result).toEqual({ accessToken: 'legacy-monday-access-token', refreshed: false })
     })
   })
 
