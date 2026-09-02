@@ -631,6 +631,7 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
       title: 'Delete Contents',
       type: 'switch',
       condition: { field: 'operation', value: 'delete_folder' },
+      paramVisibility: 'user-only',
     },
 
     /*
