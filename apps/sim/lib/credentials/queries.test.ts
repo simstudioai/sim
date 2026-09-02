@@ -16,7 +16,7 @@ describe('listVisibleWorkspaceCredentials', () => {
     resetDbChainMock()
   })
 
-  it('always excludes managed OAuth credentials from selector-backed listings', async () => {
+  it('always excludes managed credentials from selector-backed listings', async () => {
     dbChainMockFns.orderBy.mockResolvedValueOnce([])
 
     await listVisibleWorkspaceCredentials({
@@ -25,7 +25,10 @@ describe('listVisibleWorkspaceCredentials', () => {
       workspaceAccess: { canAdmin: true },
     })
 
-    expect(drizzleOrmMock.ne).toHaveBeenCalledWith(schemaMock.credential.type, 'managed_oauth')
+    expect(drizzleOrmMock.notInArray).toHaveBeenCalledWith(schemaMock.credential.type, [
+      'managed_oauth',
+      'managed_mcp',
+    ])
   })
 
   it('does not expose Credential Group configuration on a custom Slack bot', async () => {
@@ -153,11 +156,14 @@ describe('ordinary credential lookups', () => {
           credentialId: 'credential-1',
         }),
     ],
-  ])('excludes managed OAuth from the %s path', async (_name, lookup) => {
+  ])('excludes managed credentials from the %s path', async (_name, lookup) => {
     dbChainMockFns.limit.mockResolvedValue([])
 
     await lookup()
 
-    expect(drizzleOrmMock.ne).toHaveBeenCalledWith(schemaMock.credential.type, 'managed_oauth')
+    expect(drizzleOrmMock.notInArray).toHaveBeenCalledWith(schemaMock.credential.type, [
+      'managed_oauth',
+      'managed_mcp',
+    ])
   })
 })

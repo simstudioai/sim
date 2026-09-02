@@ -10,6 +10,7 @@ import { syntheticConnectorEmail } from '@/lib/auth/connector-email'
 import { env } from '@/lib/core/config/env'
 import { inspectConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
@@ -22,6 +23,11 @@ import {
   getBoundMicrosoftDataverseEnvironment,
   resolveMicrosoftDataverseOAuthCallbackScopes,
 } from '@/lib/oauth/microsoft-dataverse'
+import {
+  exchangeMondayAuthorizationCode,
+  MONDAY_OAUTH_AUTHORIZATION_URL,
+  MONDAY_OAUTH_TOKEN_URL,
+} from '@/lib/oauth/monday'
 import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { MONDAY_API_URL, MONDAY_API_VERSION } from '@/tools/monday/utils'
@@ -84,6 +90,17 @@ interface AttioWorkspaceMemberResponse {
     email_address?: string | null
     avatar_url?: string | null
   }
+}
+
+interface MondayUserInfoResponse {
+  data?: {
+    me?: {
+      id?: string | number
+      name?: string | null
+      email?: string | null
+    } | null
+  }
+  errors?: unknown[]
 }
 
 /**
@@ -1729,15 +1746,29 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'monday',
       clientId: env.MONDAY_CLIENT_ID as string,
       clientSecret: env.MONDAY_CLIENT_SECRET as string,
-      authorizationUrl: 'https://auth.monday.com/oauth2/authorize',
-      tokenUrl: 'https://auth.monday.com/oauth2/token',
+      authorizationUrl: MONDAY_OAUTH_AUTHORIZATION_URL,
+      tokenUrl: MONDAY_OAUTH_TOKEN_URL,
       userInfoUrl: 'https://api.monday.com/v2',
       scopes: getCanonicalScopesForProvider('monday'),
       responseType: 'code',
-      pkce: false,
+      pkce: true,
+      authentication: 'post',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/monday`,
+      getToken: async ({ code, codeVerifier, redirectURI }) => {
+        if (!codeVerifier) {
+          throw new Error('Monday OAuth token exchange requires a PKCE verifier')
+        }
+        return exchangeMondayAuthorizationCode({
+          clientId: env.MONDAY_CLIENT_ID as string,
+          clientSecret: env.MONDAY_CLIENT_SECRET as string,
+          code,
+          codeVerifier,
+          redirectUri: redirectURI,
+        })
+      },
       getUserInfo: async (tokens) => {
         try {
+          const signal = AbortSignal.timeout(15_000)
           const response = await fetch(MONDAY_API_URL, {
             method: 'POST',
             headers: {
@@ -1746,10 +1777,15 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
               Authorization: tokens.accessToken ?? '',
             },
             body: JSON.stringify({ query: '{ me { id name email } }' }),
+            signal,
           })
 
           if (!response.ok) {
-            await response.text().catch(() => {})
+            await readResponseTextWithLimit(response, {
+              maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+              label: 'Monday OAuth user info error response',
+              signal,
+            }).catch(() => {})
             logger.error('Error fetching Monday.com user info:', {
               status: response.status,
               statusText: response.statusText,
@@ -1757,16 +1793,33 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
             return null
           }
 
-          const data = await response.json()
+          const data = await readResponseJsonWithLimit<MondayUserInfoResponse>(response, {
+            maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+            label: 'Monday OAuth user info response',
+            signal,
+          })
+          if (data.errors?.length) {
+            logger.error('Monday.com user info returned GraphQL errors', {
+              errorCount: data.errors.length,
+            })
+            return null
+          }
           const user = data.data?.me
-          if (!user) return null
+          const userId =
+            typeof user?.id === 'string' || typeof user?.id === 'number'
+              ? String(user.id)
+              : undefined
+          if (!user || !userId) return null
+
+          const email = typeof user.email === 'string' ? user.email : undefined
+          const name = typeof user.name === 'string' ? user.name : undefined
 
           const now = new Date()
           return {
-            id: `${user.id.toString()}-${generateId()}`,
-            name: user.name || 'Monday.com User',
-            email: user.email || syntheticConnectorEmail('monday', user.id),
-            emailVerified: !!user.email,
+            id: `${userId}-${generateId()}`,
+            name: name || 'Monday.com User',
+            email: email || syntheticConnectorEmail('monday', userId),
+            emailVerified: !!email,
             createdAt: now,
             updatedAt: now,
           }

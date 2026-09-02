@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, auditUpdatedFields, recordAudit } from '@sim/audit'
 import { db, mcpServers } from '@sim/db'
-import { mcpServerOauth } from '@sim/db/schema'
+import { credential, mcpServerOauth } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -99,6 +99,7 @@ export interface PerformMcpServerResult {
   revived?: boolean
   authType?: McpAuthType
   configurationChanged?: boolean
+  retiredManagedConnectionIds?: string[]
   /**
    * Fields the update's SET clause wrote, minus `updatedAt`, for audit. Only
    * the writer knows these: a param is not a write, and callers cannot see the
@@ -169,12 +170,21 @@ export async function createMcpServer(
         authType: mcpServers.authType,
         oauthClientId: mcpServers.oauthClientId,
         oauthClientSecret: mcpServers.oauthClientSecret,
+        managedConnectorId: mcpServers.managedConnectorId,
       })
       .from(mcpServers)
       .where(and(eq(mcpServers.id, serverId), eq(mcpServers.workspaceId, params.workspaceId)))
       .limit(1)
 
     const urlChanged = existingServer ? existingServer.url !== params.url : true
+
+    if (existingServer?.managedConnectorId) {
+      return {
+        success: false,
+        error: 'This MCP server is managed by a Credential Group',
+        errorCode: 'conflict',
+      }
+    }
 
     if (
       existingServer &&
@@ -506,16 +516,40 @@ export async function deleteMcpServer(
 ): Promise<PerformMcpServerResult> {
   try {
     await revokeMcpOauthTokens(params.serverId, params.workspaceId)
-    const [server] = await db
-      .delete(mcpServers)
-      .where(
-        and(eq(mcpServers.id, params.serverId), eq(mcpServers.workspaceId, params.workspaceId))
-      )
-      .returning()
+    const deleted = await db.transaction(async (tx) => {
+      const [target] = await tx
+        .select()
+        .from(mcpServers)
+        .where(
+          and(eq(mcpServers.id, params.serverId), eq(mcpServers.workspaceId, params.workspaceId))
+        )
+        .limit(1)
+        .for('update')
+      if (!target) return null
 
-    if (!server) return { success: false, error: 'Server not found', errorCode: 'not_found' }
+      const retired = await tx
+        .delete(credential)
+        .where(
+          and(
+            eq(credential.workspaceId, params.workspaceId),
+            eq(credential.type, 'managed_mcp'),
+            eq(credential.mcpServerId, params.serverId)
+          )
+        )
+        .returning({ id: credential.id })
+      const [server] = await tx
+        .delete(mcpServers)
+        .where(
+          and(eq(mcpServers.id, params.serverId), eq(mcpServers.workspaceId, params.workspaceId))
+        )
+        .returning()
+      if (!server) throw new Error('MCP server disappeared during deletion')
+      return { server, retiredManagedConnectionIds: retired.map((row) => row.id) }
+    })
 
-    return { success: true, server }
+    if (!deleted) return { success: false, error: 'Server not found', errorCode: 'not_found' }
+
+    return { success: true, ...deleted }
   } catch (error) {
     logger.error('Failed to delete MCP server', { error })
     throw error
@@ -700,6 +734,11 @@ export async function applyMcpServerMutationEffects(params: {
       action === 'delete' ? 'server deleted' : 'config changed'
     )
   }
+  await Promise.all(
+    (result.retiredManagedConnectionIds ?? []).map((connectionId) =>
+      mcpService.evictServerConnections(connectionId, 'managed connection retired')
+    )
+  )
 
   if (action === 'create' && result.updated === false && result.server) {
     const { PlatformEvents } = await import('@/lib/core/telemetry')

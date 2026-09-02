@@ -17,7 +17,7 @@ import {
 import {
   CREDENTIAL_GROUP_WORKFLOW_CATALOG_LIMIT,
   CREDENTIAL_GROUP_WORKFLOW_NAME_MAX_LENGTH,
-} from '@/lib/credential-groups/workflow-access-limits'
+} from '@/lib/credential-groups/limits'
 import {
   ResourcePolicyRevisionConflictError,
   requireResourcePolicy,

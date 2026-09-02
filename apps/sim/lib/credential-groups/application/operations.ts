@@ -72,6 +72,30 @@ export const credentialGroupOperations = {
     principalKinds: ['session'],
   }),
   // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
+  createMcpConnector: defineWorkspaceOperation({
+    id: 'credential_groups.mcp_connectors.create',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    principalKinds: ['session'],
+  }),
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
+  updateMcpConnector: defineWorkspaceOperation({
+    id: 'credential_groups.mcp_connectors.update',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    principalKinds: ['session'],
+  }),
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
+  deleteMcpConnector: defineWorkspaceOperation({
+    id: 'credential_groups.mcp_connectors.delete',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    principalKinds: ['session'],
+  }),
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
   inviteBatch: defineWorkspaceOperation({
     id: 'credential_groups.invites.send_batch',
     minimumRole: 'admin',
@@ -98,6 +122,15 @@ export const credentialGroupOperations = {
   // permission-group-exempt: read by the executor to resolve an enrolled person's credential; the group's enrollment rows are the gate, and no group key names them
   listCredentials: defineWorkspaceOperation({
     id: 'credential_groups.credentials.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    principalKinds: ['delegated'],
+    delegatedServices: ['executor'],
+  }),
+  // permission-group-exempt: read by the executor to resolve an enrolled person's MCP connection; use is enforced by the Credential Group policy
+  listMcpConnections: defineWorkspaceOperation({
+    id: 'credential_groups.mcp_connections.list',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',

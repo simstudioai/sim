@@ -320,3 +320,8 @@ if (!('_mcpConnectionPool' in _g)) {
 }
 
 export const mcpConnectionPool: McpConnectionPool | null = _g._mcpConnectionPool ?? null
+
+/** Evicts every warm connection for a server without importing the full MCP service. */
+export async function evictMcpServerConnections(serverId: string, reason: string): Promise<void> {
+  await mcpConnectionPool?.evictServer(serverId, reason)
+}

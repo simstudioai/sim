@@ -275,7 +275,10 @@ export class McpClient {
     return { ...this.connectionStatus }
   }
 
-  async listTools(signal?: AbortSignal): Promise<McpTool[]> {
+  async listTools(
+    signal?: AbortSignal,
+    options: { requireComplete?: boolean } = {}
+  ): Promise<McpTool[]> {
     if (!this.isConnected) {
       throw new McpConnectionError('Not connected to server', this.config.name)
     }
@@ -381,6 +384,12 @@ export class McpClient {
           toolsCollected: tools.length,
           pagesFetched,
         })
+        if (options.requireComplete) {
+          throw new McpConnectionError(
+            `Tool discovery was truncated by the ${truncated} limit`,
+            this.config.name
+          )
+        }
       }
 
       return tools
@@ -397,6 +406,8 @@ export class McpClient {
         sessionIdPresent: Boolean(this.transport.sessionId),
         error: getMcpSafeErrorDiagnostics(error),
       })
+      if (options.requireComplete) throw error
+
       // At least one page succeeded → keep its (possibly empty) partial result rather than
       // failing discovery and marking the server unhealthy; only a page-one failure throws.
       if (pagesFetched > 0) return tools

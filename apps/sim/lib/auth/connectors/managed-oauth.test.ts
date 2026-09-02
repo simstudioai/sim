@@ -296,6 +296,14 @@ describe('userinfo-backed managed OAuth connectors', () => {
     }
   )
 
+  it('requires PKCE and refresh-token persistence for Monday OAuth 2.1', () => {
+    expect(policyFor('monday')).toMatchObject({
+      pkce: true,
+      requiresRefreshToken: true,
+      nonceVerification: 'state_only',
+    })
+  })
+
   it.each(['linear', 'monday'])(
     'treats a partial %s GraphQL response as no identity at all',
     async (providerId) => {

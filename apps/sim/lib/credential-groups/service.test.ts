@@ -79,7 +79,7 @@ describe('Credential Group service', () => {
           },
         ],
       })
-    ).resolves.toMatchObject({ id: 'group-1' })
+    ).resolves.toMatchObject({ credentialGroup: { id: 'group-1' } })
 
     expect(mockGetPolicy).toHaveBeenCalledWith(
       expect.objectContaining({ slackBotCredentialId: 'bot-1' }),
@@ -175,7 +175,11 @@ describe('Credential Group service', () => {
       .mockResolvedValueOnce([{ id: 'policy-1' }])
       .mockResolvedValueOnce([{ id: 'group-1' }])
 
-    await expect(deleteCredentialGroup('workspace-1', 'group-1')).resolves.toBe(true)
+    await expect(deleteCredentialGroup('workspace-1', 'group-1')).resolves.toEqual({
+      deleted: true,
+      retiredMcpConnectionIds: [],
+      retiredMcpServerIds: [],
+    })
 
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
     expect(dbChainMockFns.delete).toHaveBeenCalledTimes(2)

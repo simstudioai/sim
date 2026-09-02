@@ -3876,7 +3876,12 @@ export function useChat(
         ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
         ...(c.kind === 'skill' && 'skillId' in c ? { skillId: c.skillId } : {}),
         ...(c.kind === 'integration' && 'blockType' in c ? { blockType: c.blockType } : {}),
-        ...(c.kind === 'mcp' && 'serverId' in c ? { serverId: c.serverId } : {}),
+        ...(c.kind === 'mcp' && 'serverId' in c
+          ? {
+              serverId: c.serverId,
+              ...(c.managedConnectorId ? { managedConnectorId: c.managedConnectorId } : {}),
+            }
+          : {}),
         ...(c.kind === 'file_selection'
           ? {
               fileName: c.fileName,

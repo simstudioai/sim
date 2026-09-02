@@ -29,7 +29,7 @@ export function CredentialGroupOAuthToast({ message, variant }: CredentialGroupO
     else toast.error(message)
 
     void setOAuthStatus(
-      { connected: null, oauth: null, submitted: null },
+      { connected: null, mcp: null, mcpServerId: null, oauth: null, submitted: null },
       { history: 'replace', scroll: false }
     )
   }, [message, setOAuthStatus, toast, variant])

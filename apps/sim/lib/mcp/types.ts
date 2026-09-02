@@ -1,4 +1,5 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type McpTransport = 'streamable-http'
@@ -91,6 +92,7 @@ export interface McpTool extends Pick<Tool, 'name' | 'description'> {
   inputSchema: McpToolSchema
   serverId: string
   serverName: string
+  managedConnectorId?: ManagedMcpConnectorId
 }
 
 export interface McpToolCall {

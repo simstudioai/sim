@@ -1,4 +1,7 @@
-import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
+import {
+  type OAuthClientProvider,
+  UnauthorizedError,
+} from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
@@ -12,7 +15,7 @@ import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
-import { mcpConnectionPool } from '@/lib/mcp/connection-pool'
+import { evictMcpServerConnections, mcpConnectionPool } from '@/lib/mcp/connection-pool'
 import { MAX_MCP_LAST_ERROR_LENGTH } from '@/lib/mcp/constants'
 import {
   isMcpDomainAllowed,
@@ -43,6 +46,7 @@ import {
   type McpTransport,
 } from '@/lib/mcp/types'
 import { MCP_CLIENT_CONSTANTS, MCP_CONSTANTS } from '@/lib/mcp/utils'
+import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 import {
   isResolvedSecretTraceProvenanceV1,
   type ResolvedSecretTraceProvenanceV1,
@@ -64,6 +68,7 @@ type ResolvedSecretTraceProvenanceCallback = (provenance: ResolvedSecretTracePro
 
 interface McpRequestOptions {
   signal?: AbortSignal
+  requireComplete?: boolean
 }
 
 interface McpToolExecutionOptions extends McpRequestOptions {
@@ -454,6 +459,90 @@ class McpService {
     })
   }
 
+  private async createManagedOauthClient(
+    config: McpServerConfig,
+    authProvider: OAuthClientProvider,
+    signal?: AbortSignal
+  ): Promise<McpClient> {
+    if (config.authType !== 'oauth' || !config.url) {
+      throw new Error('Managed MCP connection requires an OAuth HTTP server')
+    }
+    if (
+      [config.url, ...Object.values(config.headers ?? {})].some((value) =>
+        createEnvVarPattern().test(value)
+      )
+    ) {
+      throw new Error('Credential Group MCP servers cannot use personal environment references')
+    }
+    validateMcpDomain(config.url)
+    const resolvedIP = await validateMcpServerSsrf(config.url)
+    const client = new McpClient({
+      config,
+      securityPolicy: {
+        requireConsent: true,
+        auditLevel: 'basic',
+        maxToolExecutionsPerHour: 1000,
+        allowedOrigins: [new URL(config.url).origin],
+      },
+      authProvider,
+      resolvedIP: resolvedIP ?? undefined,
+    })
+    await client.connect({ signal })
+    return client
+  }
+
+  async discoverManagedMcpTools(
+    serverId: string,
+    workspaceId: string,
+    authProvider: OAuthClientProvider,
+    signal?: AbortSignal,
+    options: { requireComplete?: boolean } = {}
+  ): Promise<McpTool[]> {
+    const config = await this.getServerConfig(serverId, workspaceId)
+    if (!config) throw new Error('Managed MCP server is unavailable')
+    return this.withServerClient(
+      { key: '', serverId, allowPool: false },
+      () => this.createManagedOauthClient(config, authProvider, signal),
+      (client) =>
+        options.requireComplete
+          ? client.listTools(signal, { requireComplete: true })
+          : client.listTools(signal)
+    )
+  }
+
+  async executeManagedMcpTool(params: {
+    connectionId: string
+    serverId: string
+    workspaceId: string
+    toolCall: McpToolCall
+    loadAuthProvider: () => Promise<OAuthClientProvider>
+    extraHeaders?: Record<string, string>
+    signal?: AbortSignal
+    timeoutMs?: number
+  }): Promise<McpToolResult> {
+    const config = await this.getServerConfig(params.serverId, params.workspaceId)
+    if (!config) throw new Error('Managed MCP server is unavailable')
+    const effectiveConfig = params.extraHeaders
+      ? { ...config, headers: { ...config.headers, ...params.extraHeaders } }
+      : config
+    return withMcpOauthRefreshLock(params.connectionId, () =>
+      this.withServerClient(
+        { key: '', serverId: params.serverId, allowPool: false },
+        async () =>
+          this.createManagedOauthClient(
+            effectiveConfig,
+            await params.loadAuthProvider(),
+            params.signal
+          ),
+        (client) =>
+          client.callTool(params.toolCall, {
+            signal: params.signal,
+            timeoutMs: params.timeoutMs,
+          })
+      )
+    )
+  }
+
   /** Auth-scoped pool key: a server's resolved credentials depend on the (user, workspace) env. */
   private poolKey(
     serverId: string,
@@ -512,7 +601,8 @@ class McpService {
     userId: string,
     workspaceId: string,
     onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    requireComplete = false
   ): Promise<McpTool[]> {
     for (let attempt = 0; ; attempt++) {
       signal?.throwIfAborted()
@@ -538,7 +628,9 @@ class McpService {
               workspaceId,
               onResolvedSecretTraceProvenance
             )
-            return client.listTools(signal)
+            return requireComplete
+              ? client.listTools(signal, { requireComplete: true })
+              : client.listTools(signal)
           }
         )
       } catch (error) {
@@ -1041,18 +1133,19 @@ class McpService {
     onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
     options: McpRequestOptions = {}
   ): Promise<McpTool[]> {
-    if (onResolvedSecretTraceProvenance || options.signal) {
+    if (onResolvedSecretTraceProvenance || options.signal || options.requireComplete) {
       return this.discoverServerToolsImpl(
         userId,
         serverId,
         workspaceId,
         refresh,
         createInvocationProvenanceReporter(onResolvedSecretTraceProvenance),
-        options.signal
+        options.signal,
+        options.requireComplete
       )
     }
 
-    const inflightKey = `${workspaceId}:${serverId}:${userId}:${refresh}`
+    const inflightKey = `${workspaceId}:${serverId}:${userId}:${refresh}:partial-ok`
     const existing = this.inflightServerDiscovery.get(inflightKey)
     if (existing) return existing
 
@@ -1062,7 +1155,8 @@ class McpService {
       workspaceId,
       refresh,
       undefined,
-      undefined
+      undefined,
+      false
     ).finally(() => {
       this.inflightServerDiscovery.delete(inflightKey)
     })
@@ -1076,14 +1170,15 @@ class McpService {
     workspaceId: string,
     refresh: McpDiscoveryRefresh,
     onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    requireComplete = false
   ): Promise<McpTool[]> {
     signal?.throwIfAborted()
     const requestId = generateRequestId()
     const discoveryStartedAt = new Date()
     const maxRetries = 2
 
-    if (refresh === 'cache-aside') {
+    if (refresh === 'cache-aside' && !requireComplete) {
       try {
         const cached = await this.cacheAdapter.get(serverCacheKey(workspaceId, serverId))
         if (cached) {
@@ -1119,7 +1214,8 @@ class McpService {
           userId,
           workspaceId,
           onResolvedSecretTraceProvenance,
-          signal
+          signal,
+          requireComplete
         )
         logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
         await Promise.allSettled([
@@ -1265,7 +1361,7 @@ class McpService {
 
   /** Evict a single server's warm pooled connections (all users) — call on config change/delete. */
   async evictServerConnections(serverId: string, reason: string): Promise<void> {
-    await mcpConnectionPool?.evictServer(serverId, reason)
+    await evictMcpServerConnections(serverId, reason)
   }
 }
 

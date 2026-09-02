@@ -3,11 +3,13 @@ import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
+import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
+import { containsReference } from '@/lib/workflows/sanitization/references'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
   buildCanonicalIndex,
@@ -278,6 +280,14 @@ function validateAgentToolEntry(item: any, index: number): string | null {
       toolName.trim() !== ''
     if (!ok) {
       return `${where} (mcp) must include params.serverId and params.toolName`
+    }
+    return null
+  }
+
+  if (type === MCP_SERVER_ADVANCED_TOOL_TYPE) {
+    const serverId = item.params?.serverId
+    if (typeof serverId !== 'string' || !serverId.trim()) {
+      return `${where} (${MCP_SERVER_ADVANCED_TOOL_TYPE}) must include params.serverId`
     }
     return null
   }
@@ -1303,9 +1313,13 @@ export async function collectUnresolvedAgentToolReferences(
               error: toError(error).message,
             })
           }
-        } else if (tool.type === 'mcp' && workspaceId) {
+        } else if (
+          (tool.type === 'mcp' || tool.type === MCP_SERVER_ADVANCED_TOOL_TYPE) &&
+          workspaceId
+        ) {
           const serverId = tool.params?.serverId
           if (typeof serverId !== 'string' || serverId.trim() === '') continue
+          if (containsReference(serverId)) continue
           try {
             const result = await validateSelectorIds('mcp-server-selector', serverId, context)
             if (result.invalid.length > 0) {

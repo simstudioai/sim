@@ -10,7 +10,7 @@ import {
   evaluateCredentialGroupWorkflowAccess,
   requireDefaultCredentialGroupWorkflowAccessPolicy,
 } from '@/lib/credential-groups/application/workflow-access-policy'
-import { CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT } from '@/lib/credential-groups/workflow-access-limits'
+import { CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT } from '@/lib/credential-groups/limits'
 import type { ResourcePolicyBindingFor } from '@/lib/resource-policies/registry'
 
 const GROUP_ID = 'group-1'

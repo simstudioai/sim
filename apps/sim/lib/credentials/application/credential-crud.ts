@@ -3,7 +3,11 @@ import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
+import {
+  canUseCredential,
+  getCredentialActorContext,
+  requireOrdinaryCredentialType,
+} from '@/lib/credentials/access'
 import {
   defineAuthorizedCredentialUseCase,
   requireCredentialAccess,
@@ -241,7 +245,7 @@ export const createWorkspaceCredential = defineAuthorizedWorkspaceUseCase({
       requirePrincipalSubjectUserId(principal),
       'credential_connected',
       {
-        credential_type: result.credential.type,
+        credential_type: requireOrdinaryCredentialType(result.credential.type),
         provider_id: result.credential.providerId ?? result.credential.type,
         workspace_id: context.workspaceId,
       },

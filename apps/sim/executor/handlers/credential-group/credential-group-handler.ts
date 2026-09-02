@@ -3,6 +3,7 @@ import { CREDENTIAL_GROUP_DELEGATION_AUDIENCE } from '@/lib/credential-groups/ap
 import { createCredentialGroupInviteLink } from '@/lib/credential-groups/application/create-invite-link'
 import { listCredentialGroupCredentials } from '@/lib/credential-groups/application/list-credentials'
 import { listCredentialGroupsForWorkflow } from '@/lib/credential-groups/application/list-groups'
+import { listCredentialGroupMcpConnections } from '@/lib/credential-groups/application/list-mcp-connections'
 import {
   CREDENTIAL_GROUP_PEOPLE_STATUSES,
   listCredentialGroupPeople,
@@ -21,6 +22,7 @@ const logger = createLogger('CredentialGroupBlockHandler')
 
 const CREDENTIAL_GROUP_OPERATION_IDS = [
   'list_credentials',
+  'list_mcp_connections',
   'send_invite',
   'get_invite_link',
   'list_people',
@@ -126,6 +128,24 @@ export class CredentialGroupBlockHandler implements BlockHandler {
           },
         })
         logger.info('Listed Credential Group credentials', {
+          credentialGroupId,
+          count: result.count,
+          hasMore: result.hasMore,
+        })
+        return result
+      }
+      case 'list_mcp_connections': {
+        const result = await listCredentialGroupMcpConnections.execute({
+          principal,
+          input: {
+            credentialGroupId: credentialGroupId!,
+            limit: parseLimit(inputs.limit),
+            cursor: parseOptionalString(inputs.cursor, 'Cursor'),
+            email: parseOptionalString(inputs.email, 'Email'),
+            mcpServerId: parseOptionalString(inputs.mcpServerId, 'MCP Server ID'),
+          },
+        })
+        logger.info('Listed Credential Group MCP connections', {
           credentialGroupId,
           count: result.count,
           hasMore: result.hasMore,
