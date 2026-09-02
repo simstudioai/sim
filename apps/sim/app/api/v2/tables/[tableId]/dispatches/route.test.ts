@@ -62,6 +62,14 @@ const DISPATCH = {
   completedAt: null,
   cancelledAt: null,
 }
+const COMPLETED_DISPATCH = {
+  ...DISPATCH,
+  id: 'dispatch-2',
+  status: 'complete' as const,
+  processedCount: 13,
+  requestedAt: new Date('2026-01-01T00:10:00Z'),
+  completedAt: new Date('2026-01-01T00:12:00Z'),
+}
 
 function list(query = `?workspaceId=${WORKSPACE_ID}`) {
   const request = new NextRequest(`http://localhost/api/v2/tables/table-1/dispatches${query}`, {
@@ -80,11 +88,18 @@ describe('GET /api/v2/tables/[tableId]/dispatches', () => {
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.listDispatches.mockResolvedValue({ table: { id: 'table-1' }, dispatches: [DISPATCH] })
+    mocks.listDispatches.mockResolvedValue({
+      table: { id: 'table-1' },
+      dispatches: [COMPLETED_DISPATCH, DISPATCH],
+    })
     mocks.startRun.mockResolvedValue({ table: { id: 'table-1' }, dispatchId: 'dispatch-1' })
   })
 
-  it('delegates the canonical table scope and returns the full set', async () => {
+  /**
+   * Settled dispatches are part of the set: a run that completed between two
+   * polls must still show up next to the `dispatchId` its create returned.
+   */
+  it('delegates the canonical table scope and returns the full set, settled dispatches included', async () => {
     const invocation = list()
     const response = await invocation.response
 
@@ -95,11 +110,15 @@ describe('GET /api/v2/tables/[tableId]/dispatches', () => {
       request: invocation.request,
     })
     const body = await response.json()
-    expect(body.data).toHaveLength(1)
+    expect(body.data.map((dispatch: { id: string; status: string }) => dispatch.status)).toEqual([
+      'complete',
+      'pending',
+    ])
+    expect(body.data[0]).toMatchObject({ id: 'dispatch-2', processedCount: 13 })
     expect(body.nextCursor).toBeNull()
   })
 
-  /** The set is dispatcher-bounded, so there is no page for a limit to select. */
+  /** The set is capped by the use case, so there is no page for a limit to select. */
   it('rejects pagination parameters this list does not implement', async () => {
     const response = await list(`?workspaceId=${WORKSPACE_ID}&limit=10`).response
 

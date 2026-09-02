@@ -970,7 +970,7 @@ const declaredRoutes = [
       operationId: 'addTableWorkflowGroup',
       summary: 'Add Workflow Group',
       description:
-        'Bind a workflow or enrichment to the table and create the columns populated by its outputs.',
+        'Bind a workflow or enrichment to the table and create the columns populated by its outputs. An output whose column the table already has attaches that column to the group instead of creating it, so `outputColumns` may be omitted when every output lands in an existing column.',
       errors: TABLE_MUTATION_ERRORS,
       success: { description: 'The created workflow group and resulting columns.' },
     }),
@@ -1855,18 +1855,18 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.readRun,
       operationId: 'listTableDispatches',
-      summary: 'List Active Run Dispatches',
+      summary: 'List Run Dispatches',
       description:
-        'List in-flight run dispatches for a table in one page; `nextCursor` is always null. Use Get Run Dispatch to read a settled dispatch.',
+        'List the run dispatches on one table, most recent first — settled dispatches (`complete`, `canceled`) alongside the ones still in flight, so a run that finished between two polls is still visible next to the `dispatchId` its create returned. Capped at the 100 most recent, so this list is unpaginated and `nextCursor` is always null.',
       errors: RESOURCE_ERRORS,
-      success: { description: "The table's active run dispatches." },
+      success: { description: "The table's most recent run dispatches." },
     }),
     {
       params: documentedSchema(
         v2ListTableDispatchesContract.params,
         'ListTableDispatchesParams',
         'List table dispatches path parameters',
-        'Table whose active run dispatches should be listed.'
+        'Table whose run dispatches should be listed.'
       ),
       query: documentedSchema(
         v2ListTableDispatchesContract.query,
@@ -1878,7 +1878,7 @@ const declaredRoutes = [
         v2ListTableDispatchesContract.response.schema,
         'V2TableRunDispatchListResponse',
         'Table run dispatch list response',
-        "The table's active run dispatches."
+        "The table's most recent run dispatches, settled ones included."
       ),
     }
   ),
