@@ -380,7 +380,7 @@ export function CredentialSelector({
     if (isAllCredentials && selectedAllCredential) {
       return (
         <div className='flex w-full items-center truncate'>
-          <div className='mr-2 flex-shrink-0 opacity-90'>
+          <div className='mr-2 shrink-0 opacity-90'>
             <Key className='size-3' />
           </div>
           <span className='truncate'>
@@ -392,7 +392,7 @@ export function CredentialSelector({
 
     return (
       <div className='flex w-full items-center truncate'>
-        <div className='mr-2 flex-shrink-0 opacity-90'>
+        <div className='mr-2 shrink-0 opacity-90'>
           {getProviderIcon(selectedCredentialProvider)}
         </div>
         <span className='truncate'>

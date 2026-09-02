@@ -1178,7 +1178,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       <>
         {chipBlocks.map((subBlock, index) => (
           <Fragment key={`statement-${subBlock.id}`}>
-            {index > 0 && <span className='flex-shrink-0 text-[var(--text-muted)] text-sm'>·</span>}
+            {index > 0 && <span className='shrink-0 text-[var(--text-muted)] text-sm'>·</span>}
             <SubBlockRow
               title={getCanvasRowTitle(subBlock)}
               value={getDisplayValue(subBlockState[subBlock.id]?.value)}

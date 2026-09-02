@@ -1017,7 +1017,7 @@ export function NoteBlockView({
                     }
                   }}
                   className={cn(
-                    'nodrag nopan nowheel h-7 w-full min-w-0 select-text border-none bg-transparent px-0 text-[17px] text-current caret-current outline-none focus-visible:outline-none',
+                    'nodrag nopan nowheel h-7 w-full min-w-0 select-text border-none bg-transparent px-0 text-[17px] text-current caret-current outline-hidden focus-visible:outline-hidden',
                     colorOption.selectionClassName,
                     !isEnabled && 'opacity-50'
                   )}

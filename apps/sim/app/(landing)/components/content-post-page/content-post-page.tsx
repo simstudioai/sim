@@ -54,7 +54,7 @@ export function ContentPostPage({
         </div>
 
         <div className='flex flex-col gap-8 md:flex-row md:gap-12'>
-          <div className='w-full flex-shrink-0 md:w-[450px]'>
+          <div className='w-full shrink-0 md:w-[450px]'>
             <div className='relative w-full overflow-hidden rounded-[5px]'>
               <Image
                 src={post.ogImage}

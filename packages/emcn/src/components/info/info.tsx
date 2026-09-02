@@ -43,7 +43,7 @@ export function Info({ children, className, side = 'top', align = 'start' }: Inf
           type='button'
           aria-label='More information'
           className={cn(
-            'inline-flex size-[14px] items-center justify-center text-[var(--text-icon)] focus-visible:outline-none',
+            'inline-flex size-[14px] items-center justify-center text-[var(--text-icon)] focus-visible:outline-hidden',
             className
           )}
         >

@@ -74,7 +74,7 @@ const FIELD_MIRROR_CLASSES = cn(
 export const TEXTAREA_BASE_CLASSES = cn(
   FIELD_MIRROR_CLASSES,
   'block h-auto resize-none overflow-hidden',
-  'text-transparent caret-[var(--text-primary)] outline-none',
+  'text-transparent caret-[var(--text-primary)] outline-hidden',
   'placeholder:text-[var(--text-muted)]',
   'focus-visible:ring-0 focus-visible:ring-offset-0'
 )

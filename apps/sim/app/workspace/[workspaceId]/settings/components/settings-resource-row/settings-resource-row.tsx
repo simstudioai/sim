@@ -51,7 +51,7 @@ interface SettingsResourceRowProps {
   /**
    * Interactive controls pinned to the row's end (chips, actions menu). These sit
    * ABOVE the row's own hit area, so their clicks are theirs. The row keeps them at
-   * their natural size — callers never need their own `flex-shrink-0`.
+   * their natural size — callers never need their own `shrink-0`.
    *
    * Decorative trailing content (a status badge, a tag) belongs in {@link badge}:
    * anything placed here swallows clicks meant for the row.
@@ -95,7 +95,7 @@ interface SettingsResourceRowProps {
 }
 
 /** The one navigation chevron for every settings resource row. */
-export const RESOURCE_ROW_ARROW_CLASSES = 'size-4 flex-shrink-0 text-[var(--text-icon)]'
+export const RESOURCE_ROW_ARROW_CLASSES = 'size-4 shrink-0 text-[var(--text-icon)]'
 
 /**
  * Single-column list of {@link SettingsResourceRow}s. The rows carry their own
@@ -117,7 +117,7 @@ export const RESOURCE_LIST_GRID =
   'grid grid-cols-[repeat(auto-fit,minmax(264px,1fr))] gap-x-6 gap-y-0.5'
 
 const PLAIN_BASE =
-  'flex size-[14px] flex-shrink-0 items-center justify-center text-[var(--text-icon)] [&_svg]:size-[14px] [&_img]:size-[14px]'
+  'flex size-[14px] shrink-0 items-center justify-center text-[var(--text-icon)] [&_svg]:size-[14px] [&_img]:size-[14px]'
 
 export function SettingsResourceRow({
   icon,
@@ -191,7 +191,7 @@ export function SettingsResourceRow({
   // Decoration and the chevron stay click-through so the row's right edge never
   // becomes a dead zone; only `trailing` takes pointer events back.
   const end = hasEnd ? (
-    <div className='pointer-events-none relative z-20 flex flex-shrink-0 items-center gap-2'>
+    <div className='pointer-events-none relative z-20 flex shrink-0 items-center gap-2'>
       {badge}
       {trailing != null && <div className='pointer-events-auto flex items-center'>{trailing}</div>}
       {navigable && <ArrowRight className={RESOURCE_ROW_ARROW_CLASSES} />}
@@ -217,7 +217,7 @@ export function SettingsResourceRow({
 
   const controlClass = cn(
     clusterClass,
-    'min-w-0 flex-1 cursor-pointer focus-visible:outline-none',
+    'min-w-0 flex-1 cursor-pointer focus-visible:outline-hidden',
     'after:absolute after:inset-0 after:rounded-lg after:content-[""]',
     'focus-visible:after:ring-2 focus-visible:after:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)]'
   )

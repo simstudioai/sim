@@ -170,7 +170,7 @@ export function KnowledgeHeroLoop() {
             fading ? 'opacity-0' : 'opacity-100'
           )}
         >
-          <div className='flex h-[44px] flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6'>
+          <div className='flex h-[44px] shrink-0 items-center justify-between border-[var(--border)] border-b px-6'>
             <div className='flex items-center gap-3'>
               <Database className='size-[14px] text-[var(--text-icon)]' />
               <span className='text-[var(--text-body)] text-sm'>Knowledge Base</span>
@@ -181,9 +181,9 @@ export function KnowledgeHeroLoop() {
             </div>
           </div>
 
-          <div className='flex flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6 py-2.5'>
+          <div className='flex shrink-0 items-center justify-between border-[var(--border)] border-b px-6 py-2.5'>
             <div className='flex items-center gap-2.5'>
-              <Search className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              <Search className='size-[14px] shrink-0 text-[var(--text-icon)]' />
               <span className='text-[var(--text-subtle)] text-caption'>
                 Search knowledge bases...
               </span>
@@ -237,7 +237,7 @@ export function KnowledgeHeroLoop() {
                     >
                       <td className='px-6 py-2.5 align-middle'>
                         <span className='flex min-w-0 items-center gap-3 text-[var(--text-body)] text-sm'>
-                          <Database className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                          <Database className='size-[14px] shrink-0 text-[var(--text-icon)]' />
                           <span className='truncate'>{row.name}</span>
                         </span>
                       </td>
@@ -251,7 +251,7 @@ export function KnowledgeHeroLoop() {
                         <span className='flex items-center gap-2.5'>
                           <span className='flex items-center gap-1'>
                             {row.connectors.map((Icon, iconIndex) => (
-                              <Icon key={iconIndex} className='size-3.5 flex-shrink-0' />
+                              <Icon key={iconIndex} className='size-3.5 shrink-0' />
                             ))}
                           </span>
                           {isSyncRow && syncPhase === 'syncing' && (

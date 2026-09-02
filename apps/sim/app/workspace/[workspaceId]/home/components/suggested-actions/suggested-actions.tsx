@@ -362,14 +362,14 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
          */}
         <ChevronDown
           className={cn(
-            'size-[14px] flex-shrink-0 text-[var(--text-icon)] opacity-0 transition-[opacity,transform] duration-150',
+            'size-[14px] shrink-0 text-[var(--text-icon)] opacity-0 transition-[opacity,transform] duration-150',
             'group-hover/suggested:opacity-100 group-focus-visible/toggle:opacity-100',
             !expanded && '-rotate-90'
           )}
         />
       </button>
       <Expandable expanded={expanded}>
-        <ExpandableContent className={cn(!animationsEnabled && '!animate-none')}>
+        <ExpandableContent className={cn(!animationsEnabled && 'animate-none!')}>
           {/* 6px, matching a sidebar section header to its first item — both headers
               are an 18px box around 12px text, so equal padding reads as equal
               distance. Padding an inner wrapper rather than the animated element:
@@ -389,7 +389,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
                     i > 0 && 'border-t'
                   )}
                 >
-                  <BrandIcon icon={Icon} className='size-[16px] flex-shrink-0' />
+                  <BrandIcon icon={Icon} className='size-[16px] shrink-0' />
                   <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
                     {action.label}
                   </span>

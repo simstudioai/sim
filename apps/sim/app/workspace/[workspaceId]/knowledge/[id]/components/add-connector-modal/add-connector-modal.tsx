@@ -404,7 +404,7 @@ export function AddConnectorModal({
                         <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>
                           {tagDef.displayName}
                         </span>
-                        <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
+                        <span className='shrink-0 text-[var(--text-muted)] text-xs'>
                           ({tagDef.fieldType})
                         </span>
                       </div>
@@ -490,7 +490,7 @@ function ConnectorTypeCard({ type, config, onClick }: ConnectorTypeCardProps) {
       className='flex w-full items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
       onClick={onClick}
     >
-      <div className='size-9 flex-shrink-0'>
+      <div className='size-9 shrink-0'>
         <div
           className={cn(
             'flex size-full items-center justify-center rounded-xl border',
@@ -515,7 +515,7 @@ function ConnectorTypeCard({ type, config, onClick }: ConnectorTypeCardProps) {
           className='text-[var(--text-muted)] text-caption'
         />
       </div>
-      <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
+      <ArrowRight className='size-4 shrink-0 text-[var(--text-icon)]' />
     </button>
   )
 }

@@ -22,7 +22,7 @@ export function WorkflowBlockContent({ block }: WorkflowBlockContentProps) {
       >
         <div
           className={cn(
-            'flex size-[24px] flex-shrink-0 items-center justify-center rounded-md',
+            'flex size-[24px] shrink-0 items-center justify-center rounded-md',
             block.tileBorder && 'border border-[var(--border-1)]'
           )}
           style={{ background: block.bgColor }}
@@ -40,11 +40,9 @@ export function WorkflowBlockContent({ block }: WorkflowBlockContentProps) {
         <div className='flex flex-col gap-2 p-2'>
           {block.rows.map((row) => (
             <div key={row.title} className='flex items-center gap-2'>
-              <span className='flex-shrink-0 text-[14px] text-[var(--text-muted)]'>
-                {row.title}
-              </span>
+              <span className='shrink-0 text-[14px] text-[var(--text-muted)]'>{row.title}</span>
               <span className='flex min-w-0 flex-1 items-center justify-end gap-1.5 text-[14px] text-[var(--text-body)]'>
-                {row.valueIcon && <row.valueIcon className='size-[14px] flex-shrink-0' />}
+                {row.valueIcon && <row.valueIcon className='size-[14px] shrink-0' />}
                 <span className='truncate'>{row.value}</span>
               </span>
             </div>

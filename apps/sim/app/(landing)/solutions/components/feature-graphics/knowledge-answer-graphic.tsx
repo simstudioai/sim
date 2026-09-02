@@ -13,7 +13,7 @@ import styles from '@/app/(landing)/solutions/components/feature-graphics/knowle
  * `--surface-3` fill), the agent's grounded answer reads back as plain
  * `--text-primary` prose, and the tile's highlight is the citation — a
  * white source card in the audit tile's exact chrome (`--white` fill,
- * 1px `--border-1` hairline, `rounded-xl`, `shadow-sm`) pairing a
+ * 1px `--border-1` hairline, `rounded-xl`, `shadow-xs`) pairing a
  * `BookOpen` icon in the lifecycle header's outlined `size-6` icon box
  * with the knowledge-base document the answer came from.
  *
@@ -77,7 +77,7 @@ export function KnowledgeAnswerGraphic({
 
           <div
             className={cn(
-              'flex items-center gap-2.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm',
+              'flex items-center gap-2.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs',
               styles.stepSource
             )}
           >

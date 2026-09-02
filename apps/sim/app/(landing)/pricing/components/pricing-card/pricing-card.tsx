@@ -48,14 +48,14 @@ export interface PricingCardProps {
  */
 function FeatureValue({ value }: { value: CellValue }) {
   if (value === true) {
-    return <Check className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+    return <Check className='size-[14px] shrink-0 text-[var(--text-icon)]' />
   }
   if (value === false) {
     return <span className='select-none text-[var(--text-muted)]'>–</span>
   }
   if (typeof value === 'object') {
     const Icon = CELL_ICONS[value.icon]
-    return <Icon className='size-[14px] flex-shrink-0' />
+    return <Icon className='size-[14px] shrink-0' />
   }
   return (
     <span className='whitespace-nowrap text-right text-[var(--text-primary)] text-sm tabular-nums'>

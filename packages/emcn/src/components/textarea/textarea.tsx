@@ -4,7 +4,7 @@ import { cn } from '../../lib/cn'
 
 /** `[letter-spacing:inherit]` — see the note on `INPUT_CLASS`; keep the two in step. */
 const textareaVariants = cva(
-  'flex w-full touch-manipulation rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-2 font-sans text-sm text-[var(--text-primary)] [letter-spacing:inherit] transition-colors placeholder:text-[var(--text-muted)] outline-none resize-none overflow-auto disabled:cursor-not-allowed disabled:opacity-50',
+  'flex w-full touch-manipulation rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-2 font-sans text-sm text-[var(--text-primary)] [letter-spacing:inherit] transition-colors placeholder:text-[var(--text-muted)] outline-hidden resize-none overflow-auto disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       variant: {

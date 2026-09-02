@@ -87,10 +87,10 @@ export const CommandSearch = forwardRef<HTMLInputElement, CommandSearchProps>(
           SEARCH_SURFACE_CLASSNAME[surface]
         )}
       >
-        <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
+        <Search className='size-[14px] shrink-0 text-[var(--text-muted)]' />
         <Command.Input
           ref={ref}
-          className='-ml-1 h-8 min-w-0 flex-1 cursor-text bg-transparent indent-1 text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
+          className='-ml-1 h-8 min-w-0 flex-1 cursor-text bg-transparent indent-1 text-[var(--text-body)] text-sm outline-hidden placeholder:text-[var(--text-muted)] focus:outline-hidden'
           onKeyDown={handleKeyDown}
           {...props}
         />

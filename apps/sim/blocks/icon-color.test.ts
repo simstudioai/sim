@@ -37,7 +37,7 @@ describe('getTileIconColorClass', () => {
   })
 
   it('emits the important variant when requested', () => {
-    expect(getTileIconColorClass('#FFFFFF', true)).toBe('!text-black')
-    expect(getTileIconColorClass('#171717', true)).toBe('!text-white')
+    expect(getTileIconColorClass('#FFFFFF', true)).toBe('text-black!')
+    expect(getTileIconColorClass('#171717', true)).toBe('text-white!')
   })
 })

@@ -6,7 +6,7 @@
 
 /** The floating panel: bordered card with the enter animation, width-capped like the chat mention menu. */
 export const SUGGESTION_SURFACE_CLASS =
-  'min-w-[220px] max-w-[320px] origin-top-left animate-in rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1.5 shadow-sm duration-100 fade-in-0 zoom-in-95 slide-in-from-top-2 motion-reduce:animate-none'
+  'min-w-[220px] max-w-[320px] origin-top-left animate-in rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1.5 shadow-xs duration-100 fade-in-0 zoom-in-95 slide-in-from-top-2 motion-reduce:animate-none'
 
 /**
  * A scrollable list body, added alongside {@link SUGGESTION_SURFACE_CLASS}. Caps the height and scrolls
@@ -17,7 +17,7 @@ export const SUGGESTION_SCROLL_CLASS = 'max-h-[240px] scroll-py-1.5 overflow-y-a
 /** A selectable row: icon + label, 14px icon in `--text-icon`, truncating label. The `img` rules
  * size custom-block image icons (rendered as `<img>`, so the `svg` rules never reach them). */
 export const SUGGESTION_ITEM_CLASS =
-  'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left text-[var(--text-body)] text-caption outline-none transition-colors [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)] [&_img]:pointer-events-none [&_img]:size-[14px] [&_img]:shrink-0'
+  'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left text-[var(--text-body)] text-caption outline-hidden transition-colors [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)] [&_img]:pointer-events-none [&_img]:size-[14px] [&_img]:shrink-0'
 
 /** A group heading above a run of rows. */
 export const SUGGESTION_GROUP_LABEL_CLASS =

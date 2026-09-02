@@ -119,7 +119,7 @@ function ChatFilePreview({ file, onRemove }: ChatFilePreviewProps) {
   return (
     <div
       className={cn(
-        'group relative flex-shrink-0 overflow-hidden rounded-md bg-[var(--surface-2)]',
+        'group relative shrink-0 overflow-hidden rounded-md bg-[var(--surface-2)]',
         previewUrl
           ? 'size-[40px]'
           : 'flex min-w-[80px] max-w-[120px] items-center justify-center px-2 py-0.5'
@@ -909,14 +909,14 @@ export function Chat() {
       {/* Header with drag handle */}
       <div
         role='presentation'
-        className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
+        className='flex h-[32px] shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >
-        <span className='flex-shrink-0 pr-0.5 text-[var(--text-primary)] text-sm'>Chat</span>
+        <span className='shrink-0 pr-0.5 text-[var(--text-primary)] text-sm'>Chat</span>
 
         {/* Start inputs button and output selector - with max-width to prevent overflow */}
         <div
-          className='ml-auto flex min-w-0 flex-shrink items-center gap-1.5'
+          className='ml-auto flex min-w-0 shrink items-center gap-1.5'
           onMouseDown={(e) => e.stopPropagation()}
         >
           {shouldShowConfigureStartInputsButton && (
@@ -945,13 +945,13 @@ export function Chat() {
           />
         </div>
 
-        <div className='flex flex-shrink-0 items-center gap-2'>
+        <div className='flex shrink-0 items-center gap-2'>
           {/* More menu with actions */}
           <Popover size='sm' open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant='ghost'
-                className='!p-1.5 -m-1.5'
+                className='-m-1.5 p-1.5!'
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreVertical className='size-[14px]' />
@@ -990,7 +990,7 @@ export function Chat() {
           </Popover>
 
           {/* Close button */}
-          <Button variant='ghost' className='!p-1.5 -m-1.5' onClick={handleClose}>
+          <Button variant='ghost' className='-m-1.5 p-1.5!' onClick={handleClose}>
             <X className='size-[16px]' />
           </Button>
         </div>
@@ -1083,12 +1083,12 @@ export function Chat() {
                     <Badge
                       onClick={() => document.getElementById('floating-chat-file-input')?.click()}
                       className={cn(
-                        '!bg-transparent !border-0 cursor-pointer rounded-md p-[0px]',
+                        'cursor-pointer rounded-md border-0! bg-transparent! p-[0px]',
                         (!activeWorkflowId || isExecuting || chatFiles.length >= MAX_CHAT_FILES) &&
                           'cursor-not-allowed opacity-50'
                       )}
                     >
-                      <Paperclip className='!h-3.5 !w-3.5' />
+                      <Paperclip className='h-3.5! w-3.5!' />
                     </Badge>
                   </Tooltip.Trigger>
                   <Tooltip.Content>Attach file</Tooltip.Content>

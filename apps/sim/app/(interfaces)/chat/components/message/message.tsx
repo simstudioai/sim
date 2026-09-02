@@ -183,7 +183,7 @@ export const ClientChatMessage = memo(function ClientChatMessage({
                         />
                       ) : (
                         <>
-                          <div className='flex size-10 flex-shrink-0 items-center justify-center rounded bg-[var(--surface-3)] md:size-12'>
+                          <div className='flex size-10 shrink-0 items-center justify-center rounded bg-[var(--surface-3)] md:size-12'>
                             {getFileIcon(attachment.type)}
                           </div>
                           <div className='min-w-0 flex-1'>

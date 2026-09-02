@@ -125,7 +125,7 @@ const ToolbarItem = memo(function ToolbarItem({
       onContextMenu={handleContextMenu}
       className={cn(
         chipVariants({ fullWidth: true }),
-        'focus-visible:bg-[var(--surface-active)] focus-visible:outline-none active:cursor-grabbing'
+        'focus-visible:bg-[var(--surface-active)] focus-visible:outline-hidden active:cursor-grabbing'
       )}
       onKeyDown={handleKeyDown}
     >
@@ -309,7 +309,7 @@ const ToolbarSection = memo(function ToolbarSection({
 
   return (
     <section>
-      <div className='sticky top-0 z-10 flex w-full flex-shrink-0 items-center gap-2 bg-[var(--bg)] px-4 pt-3 pb-2'>
+      <div className='sticky top-0 z-10 flex w-full shrink-0 items-center gap-2 bg-[var(--bg)] px-4 pt-3 pb-2'>
         <button
           type='button'
           onClick={toggle}
@@ -328,7 +328,7 @@ const ToolbarSection = memo(function ToolbarSection({
         <Info>{tooltip}</Info>
       </div>
       <Expandable expanded={expanded}>
-        <ExpandableContent className={animate ? undefined : '!animate-none'}>
+        <ExpandableContent className={animate ? undefined : 'animate-none!'}>
           <div className='flex flex-col gap-0.5 px-2'>
             {items.map((item, index) => (
               <ToolbarItem
@@ -784,7 +784,7 @@ export const Toolbar = memo(
         <div
           role='button'
           tabIndex={0}
-          className='mx-[-1px] flex flex-shrink-0 cursor-pointer items-center justify-between border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'
+          className='mx-[-1px] flex shrink-0 cursor-pointer items-center justify-between border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'
           onClick={focusSearch}
           onKeyDown={(event) => handleKeyboardActivation(event, focusSearch)}
         >
@@ -806,7 +806,7 @@ export const Toolbar = memo(
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onBlur={handleSearchBlur}
-                className='w-full border-none bg-transparent pr-0.5 text-right text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
+                className='w-full border-none bg-transparent pr-0.5 text-right text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-hidden'
               />
             )}
           </div>

@@ -107,3 +107,7 @@ __pycache__/
 # `apps/sim/lib/uploads/` — 61 files of tracked source — and silently ignore
 # anything added there later.
 /uploads
+
+# Scratch dir for `bun run cn:check` in packages/emcn (regenerates the cn
+# lookup tables to a throwaway path and diffs them against the committed copy).
+.cn-check/

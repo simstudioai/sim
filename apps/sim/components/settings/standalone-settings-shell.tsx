@@ -95,7 +95,7 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
       */}
       <aside
         style={{ width: SIDEBAR_WIDTH.DEFAULT }}
-        className='flex h-full flex-shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3'
+        className='flex h-full shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3'
         aria-label={`${SETTINGS_PLANE_CHROME[plane].label} settings navigation`}
       >
         {sidebar}

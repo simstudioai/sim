@@ -738,7 +738,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
             isAgentResponding={isSending}
             genericResourceData={genericResourceData ?? undefined}
             onUserInteraction={handleResourceInteraction}
-            className={skipResourceTransition ? '!transition-none' : undefined}
+            className={skipResourceTransition ? 'transition-none!' : undefined}
           />
         </Suspense>
       </MothershipResourcesProvider>

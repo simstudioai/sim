@@ -38,7 +38,7 @@ const DEFAULT_DUPLICATE_OFFSET = { x: 50, y: 50 }
 const ACTION_BUTTON_STYLES = [
   'size-[24px] rounded-md p-0',
   'border-none bg-transparent text-[var(--text-icon)]',
-  'hover-hover:bg-[var(--surface-5)] hover-hover:!text-[var(--text-primary)]',
+  'hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]!',
   'dark:hover-hover:bg-[var(--surface-4)]',
   'transition-[background-color,color,opacity,transform] duration-150 active:scale-[0.96]',
 ].join(' ')
@@ -309,7 +309,7 @@ export const ActionBar = memo(
       isSwell && [
         'group-data-[node-selected]:text-[var(--surface-2)]',
         'hover-hover:group-data-[node-selected]:bg-[var(--surface-2)]',
-        'hover-hover:group-data-[node-selected]:!text-[var(--text-primary)]',
+        'hover-hover:group-data-[node-selected]:text-[var(--text-primary)]!',
       ]
     )
     /*
@@ -338,15 +338,15 @@ export const ActionBar = memo(
           ],
         actionId === 'run' &&
           isRunning && [
-            '!bg-[var(--text-secondary)] !text-[var(--text-inverse)]',
-            'hover-hover:!bg-[var(--white)] hover-hover:!text-[var(--surface-inverted)]',
-            'dark:hover-hover:!bg-[var(--surface-4)] dark:hover-hover:!text-[var(--text-primary)]',
-            'focus-visible:!bg-[var(--white)] focus-visible:!text-[var(--surface-inverted)]',
-            'dark:focus-visible:!bg-[var(--surface-4)] dark:focus-visible:!text-[var(--text-primary)]',
+            'bg-[var(--text-secondary)]! text-[var(--text-inverse)]!',
+            'hover-hover:bg-[var(--white)]! hover-hover:text-[var(--surface-inverted)]!',
+            'dark:hover-hover:bg-[var(--surface-4)]! dark:hover-hover:text-[var(--text-primary)]!',
+            'focus-visible:bg-[var(--white)]! focus-visible:text-[var(--surface-inverted)]!',
+            'dark:focus-visible:bg-[var(--surface-4)]! dark:focus-visible:text-[var(--text-primary)]!',
           ],
         isSwell &&
           actionId === firstActionId &&
-          "!w-[40px] [clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24L36_24A4_4_0_0_0_40_20L40_4A4_4_0_0_0_36_0Z')] [&>svg]:translate-y-px",
+          "w-[40px]! [clip-path:path('M23.75_0A8_8_0_0_0_17.6_2.88L3.41_19.9A2.5_2.5_0_0_0_5.34_24L36_24A4_4_0_0_0_40_20L40_4A4_4_0_0_0_36_0Z')] [&>svg]:translate-y-px",
         isSwell &&
           actionId === firstActionId &&
           (actionId === 'run' || actionId === 'color'
@@ -354,7 +354,7 @@ export const ActionBar = memo(
             : '[&>svg]:translate-x-[6px]'),
         isSwell &&
           actionId === 'delete' &&
-          "!w-[40px] [clip-path:path('M16.25_0A8_8_0_0_1_22.4_2.88L36.59_19.9A2.5_2.5_0_0_1_34.66_24L4_24A4_4_0_0_1_0_20L0_4A4_4_0_0_1_4_0Z')] [&_svg]:-translate-x-[6px] [&_svg]:translate-y-px",
+          "w-[40px]! [clip-path:path('M16.25_0A8_8_0_0_1_22.4_2.88L36.59_19.9A2.5_2.5_0_0_1_34.66_24L4_24A4_4_0_0_1_0_20L0_4A4_4_0_0_1_4_0Z')] [&_svg]:-translate-x-[6px] [&_svg]:translate-y-px",
         /*
          * A bystander card's actions dim mid-run because they are not available
          * — but `run` is Stop while the workflow runs, and `canStopWorkflow` is
@@ -366,19 +366,19 @@ export const ActionBar = memo(
         isWorkflowRunning &&
           !isRunning &&
           actionId !== 'run' && [
-            '!bg-transparent !opacity-25',
-            'hover-hover:!bg-transparent dark:hover-hover:!bg-transparent',
+            'bg-transparent! opacity-25!',
+            'hover-hover:bg-transparent! dark:hover-hover:bg-transparent!',
           ],
         /* The hatch is painted across the row, not per slot — a slot only clears
            itself out of its way. */
         isRunningSweepSlot && [
-          '!opacity-100 [&_svg]:!opacity-0',
-          '!bg-transparent hover-hover:!bg-transparent',
+          'opacity-100! [&_svg]:opacity-0!',
+          'bg-transparent! hover-hover:bg-transparent!',
         ],
         /* `!` is required: these buttons are also `disabled` when locked, and
            the emcn Button base carries `disabled:opacity-70`, which outranks a
            plain `opacity-35` on specificity. */
-        !isWorkflowRunning && actionId !== 'lock' && isLocked && '!opacity-35'
+        !isWorkflowRunning && actionId !== 'lock' && isLocked && 'opacity-35!'
       )
     }
 

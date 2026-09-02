@@ -1,6 +1,373 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "./tailwind.css";
+@import "tw-animate-css";
+
+@plugin '@tailwindcss/typography';
+
+/**
+ * Explicit sources rather than v4's automatic detection, so the scanned set
+ * stays exactly what the v3 `content` array covered. `lib` styles rendered
+ * markdown (`lib/content/mdx.tsx`) and `blocks/icon-color.ts` returns the app's
+ * only bare `text-black` candidate — dropping either silently resolves those to
+ * nothing.
+ */
+@source '../../app';
+@source '../../components';
+@source '../../blocks';
+@source '../../lib';
+@source '../../ee';
+@source '../../content';
+@source '../../../../packages/emcn/src';
+@source '../../../../packages/workflow-renderer/src';
+
+/* Tests are not production styling sources. */
+@source not '../../**/*.test.{js,ts,jsx,tsx,mdx}';
+@source not '../../**/*.spec.{js,ts,jsx,tsx,mdx}';
+
+/**
+ * emcn's compiled `cn` lookup tables encode Tailwind's own class-group literals
+ * as string data. The scanner cannot tell those from real class usage, so
+ * leaving the file in scope emits utilities nothing renders (`float-left`,
+ * `clear-end`, …).
+ */
+@source not '../../../../packages/emcn/src/lib/cn-tables.ts';
+
+/**
+ * Nesting-aware dark variant: `dark:` utilities apply inside a `.dark` subtree
+ * UNLESS they sit inside a nested `.light` island. The landing page pins itself
+ * light (a `.light` wrapper) while the visitor's `<html>` may carry `.dark`;
+ * without this exclusion, `dark:` utilities on emcn components (e.g. the
+ * `primary` chip's `dark:bg-white`) would leak through and render
+ * white-on-white. `:where()` keeps specificity equal to base utilities so the
+ * normal (non-island) dark-mode cascade is unchanged.
+ */
+@custom-variant dark (&:where(.dark, .dark *):not(:where(.light, .light *)));
+
+@custom-variant hover-hover {
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      @slot;
+    }
+  }
+}
+
+/**
+ * `inline` is required, not stylistic: it substitutes each value into the
+ * utility instead of routing it through a `--color-*` variable declared on
+ * `:root`. A theme variable defined as `var(--x)` computes once at `:root`, so
+ * a nested `.dark`/`.light` island that redefines `--x` would inherit the
+ * frozen root value. Inlining resolves the reference at the element, which is
+ * what the v3 config did and what the light-island pattern depends on.
+ */
+@theme inline {
+  /**
+   * Pinned to the v3 default stack. v4's own `--font-sans` is an
+   * `-apple-system`-first list, and Preflight resolves the document font through
+   * it, so taking the new default would shift the face on every element that
+   * does not name a font.
+   */
+  --font-sans:
+    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+    "Noto Color Emoji";
+
+  --font-season: var(--font-season);
+  --font-body:
+    ui-sans-serif, -apple-system, system-ui, Segoe UI, Helvetica, Apple Color Emoji, Arial,
+    sans-serif, Segoe UI Emoji, Segoe UI Symbol;
+  --font-mono:
+    var(--font-martian-mono, ui-monospace), SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+
+  --text-micro: 10px;
+  /**
+   * `xs` is the one size here that also exists in Tailwind's own scale, so it
+   * inherits `--text-xs--line-height` unless that is overridden too. v4's ratio
+   * (4/3) against an 11px size yields 14.67px, where v3 resolved 16.5px; the
+   * paired value keeps the leading where it was.
+   */
+  --text-xs: 11px;
+  --text-xs--line-height: 1.5;
+  --text-caption: 12px;
+  --text-small: 13px;
+  --text-base: 15px;
+  --text-md: 16px;
+
+  /**
+   * Hairline scale key. Overriding `spacing` rather than `width`/`height` keeps
+   * every derived scale in agreement — a `w-px` line and the `-right-px` offset
+   * that positions it resolve to the same value, which a width-only override
+   * desynchronizes by half a device pixel.
+   */
+  --spacing-px: var(--border-width);
+
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  /**
+   * Neutral border colors are plain hex, not the HSL triplets the shadcn keys
+   * above use — `hsl(var(--border))` would be invalid CSS and get dropped,
+   * leaving the utility to fall through to the `*` border-color rule below by
+   * accident.
+   */
+  --color-border: var(--border);
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  /**
+   * v4 ships its palette in oklch, which renders visibly more saturated than
+   * v3's sRGB hex on a P3 display. These are the v3 values for every stock
+   * palette colour the app actually uses, recovered from a v3 build, so the
+   * upgrade changes no rendered colour. Adopting the wider-gamut palette is a
+   * design decision to make on its own, not a side effect of the upgrade.
+   */
+  --color-amber-50: #fffbeb;
+  --color-amber-200: #fde68a;
+  --color-amber-300: #fcd34d;
+  --color-amber-400: #fbbf24;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-amber-700: #b45309;
+  --color-amber-800: #92400e;
+  --color-amber-900: #78350f;
+  --color-amber-950: #451a03;
+  --color-blue-500: #3b82f6;
+  --color-emerald-400: #34d399;
+  --color-emerald-500: #10b981;
+  --color-green-500: #22c55e;
+  --color-orange-400: #fb923c;
+  --color-purple-500: #a855f7;
+  --color-red-50: #fef2f2;
+  --color-red-300: #fca5a5;
+  --color-red-400: #f87171;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+  --color-red-950: #450a0a;
+  --color-yellow-200: #fef08a;
+  --color-yellow-500: #eab308;
+
+  --color-gray-50: #fafafa;
+  --color-gray-100: #f5f5f5;
+  --color-gray-200: #e5e5e5;
+  --color-gray-300: #d4d4d4;
+  --color-gray-400: #a3a3a3;
+  --color-gray-500: #737373;
+  --color-gray-600: #525252;
+  --color-gray-700: #404040;
+  --color-gray-800: #262626;
+  --color-gray-900: #171717;
+  --color-gray-950: #0a0a0a;
+
+  --radius-xs: 2px;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  /**
+   * These names intentionally match the app's own `:root` custom properties, so
+   * the value below reads back as a self-reference. It resolves: Tailwind emits
+   * the theme copy inside `@layer theme`, and the app's later unlayered `:root`
+   * declaration outranks any layered one, so the real value always wins. The
+   * `inline` substitution then resolves it at the element, which is what lets
+   * `.dark` override each shadow.
+   */
+  --shadow-subtle: var(--shadow-subtle);
+  --shadow-medium: var(--shadow-medium);
+  --shadow-overlay: var(--shadow-overlay);
+  --shadow-kbd: var(--shadow-kbd);
+  --shadow-kbd-sm: var(--shadow-kbd-sm);
+  --shadow-card: var(--shadow-card);
+  --shadow-ambient: var(--shadow-ambient);
+
+  /**
+   * The home/chat reading column. The heading, input, suggested actions,
+   * transcript, and its skeleton must all share one value or the footer input
+   * visibly misaligns with the messages above it — so they read this key rather
+   * than repeating a literal.
+   */
+  --container-chat: 44rem;
+
+  --animate-caret-blink: caret-blink 1.25s ease-out infinite;
+  --animate-running-hatch-scroll: running-hatch-scroll 900ms linear infinite;
+  --animate-ring-pulse: ring-pulse 1.5s ease-in-out infinite;
+  --animate-stream-fade-in: stream-fade-in 300ms ease-out forwards;
+  --animate-slide-in-bottom: slide-in-bottom 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  /* Deliberately slower than tw-animate-css's own 200ms ease-out default. */
+  --animate-collapsible-down: collapsible-down 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --animate-collapsible-up: collapsible-up 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --animate-hero-cursor-press: hero-cursor-press 340ms cubic-bezier(0.23, 1, 0.32, 1);
+  --animate-hero-modal-in: hero-modal-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-hero-kb-content-morph: hero-kb-content-morph 420ms cubic-bezier(0.22, 1, 0.36, 1) 260ms
+    forwards;
+  --animate-hero-file-drop: hero-file-drop 480ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-hero-node-pop: hero-node-pop 440ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-hero-edge-draw: hero-edge-draw 520ms ease-out forwards;
+}
+
+/**
+ * One period of the running block's hatch (26px horizontal). Shifting by
+ * exactly one period is what makes the loop seamless.
+ *
+ * A transform, not `background-position`: shifting the position makes the
+ * browser re-rasterize the gradient every frame at a new subpixel offset, so
+ * each hard edge antialiases differently frame to frame and the gaps visibly
+ * shimmer. A transform rasterizes once and slides the layer.
+ */
+@keyframes running-hatch-scroll {
+  from {
+    transform: translateX(-26px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes dash-animation {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+@keyframes placeholder-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes ring-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1.5px var(--border-success);
+  }
+  50% {
+    box-shadow: 0 0 0 4px var(--border-success);
+  }
+}
+
+@keyframes stream-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-stage-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes hero-cursor-press {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(0.8);
+  }
+}
+
+@keyframes hero-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes hero-kb-content-morph {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes hero-file-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-44px) scale(0.96);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes hero-node-pop {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes hero-graph-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.22);
+  }
+}
+
+@keyframes hero-edge-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
 
 /**
  * CSS-based sidebar and panel widths to prevent SSR hydration mismatches.
@@ -306,7 +673,7 @@ html.sidebar-booting .sidebar-shell-inner {
 }
 
 /**
- * Landing loop animation styles (keyframes defined in tailwind.config.ts)
+ * Landing loop animation styles (keyframes defined in the `@keyframes` blocks above)
  */
 .landing-loop-animated-dash {
   animation: dash-animation 1.5s linear infinite;
@@ -801,6 +1168,69 @@ html.sidebar-booting .sidebar-shell-inner {
 }
 
 /**
+ * Preflight compatibility with Tailwind v3. Each rule restores exactly one v3
+ * behaviour, found by diffing computed styles of bare elements between a v3 and
+ * a v4 build rather than from the upgrade guide. In `base`, so utilities win.
+ */
+@layer base {
+  /**
+   * v4 Preflight dropped v3's button cursor rule. Reproduced verbatim from v3 —
+   * `[role="button"]` included, no `:disabled` exclusion — rather than the
+   * upgrade guide's `:not(:disabled)` form, which changes behaviour of its own.
+   */
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+
+  /* v3's companion rule: "Make sure disabled buttons don't get the pointer cursor." */
+  :disabled {
+    cursor: default;
+  }
+
+  /**
+   * v4 extends `background-color: transparent` from just buttons to every form
+   * control, so an unstyled input/select/textarea shows the surface behind it
+   * instead of the UA field colour. `revert` restores the UA value, which is
+   * what v3 left in place; buttons stay transparent as they were in v3.
+   */
+  input:not([type="button"], [type="reset"], [type="submit"]),
+  select,
+  optgroup,
+  textarea {
+    background-color: revert;
+  }
+
+  /* v4 uses `color-mix(currentcolor 50%)`; v3 used a fixed grey. */
+  ::placeholder {
+    color: var(--color-gray-400);
+  }
+
+  /* v4 adds `padding: 0` to the universal reset, zeroing UA table and option padding. */
+  th,
+  td {
+    padding: 1px;
+  }
+
+  option {
+    padding-block-end: 1px;
+    padding-inline: 2px;
+  }
+
+  /* v3 Preflight normalised the search field; v4 dropped the rule. */
+  [type="search"] {
+    -webkit-appearance: textfield;
+    appearance: textfield;
+    outline-offset: -2px;
+  }
+
+  /* v4's universal reset zeroes margins, which un-centres a native `<dialog>`. */
+  dialog {
+    margin: auto;
+  }
+}
+
+/**
  * Dark mode specific overrides
  */
 .dark .bg-red-500 {
@@ -825,7 +1255,7 @@ input[type="search"]::-ms-clear {
 
 /**
  * Utilities and special effects
- * Animation keyframes are defined in tailwind.config.ts
+ * Animation keyframes are defined in the `@keyframes` blocks above
  */
 @layer utilities {
   .scrollbar-none {

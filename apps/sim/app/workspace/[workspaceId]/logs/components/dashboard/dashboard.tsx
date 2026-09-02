@@ -398,13 +398,13 @@ function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps
 
   return (
     <div className='mt-6 flex min-h-0 flex-1 flex-col pb-6'>
-      <div className='mb-4 flex-shrink-0'>
+      <div className='mb-4 shrink-0'>
         <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
           <div className='flex flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
             <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 text-[var(--text-primary)] text-sm'>Runs</span>
               {globalDetails && (
-                <span className='flex-shrink-0 text-[var(--text-secondary)] text-sm'>
+                <span className='shrink-0 text-[var(--text-secondary)] text-sm'>
                   {globalDetails.totalRuns}
                 </span>
               )}
@@ -429,7 +429,7 @@ function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps
             <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 text-[var(--text-primary)] text-sm'>Errors</span>
               {globalDetails && (
-                <span className='flex-shrink-0 text-[var(--text-secondary)] text-sm'>
+                <span className='shrink-0 text-[var(--text-secondary)] text-sm'>
                   {globalDetails.totalErrors}
                 </span>
               )}
@@ -454,7 +454,7 @@ function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps
             <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 text-[var(--text-primary)] text-sm'>Latency</span>
               {globalDetails && (
-                <span className='flex-shrink-0 text-[var(--text-secondary)] text-sm'>
+                <span className='shrink-0 text-[var(--text-secondary)] text-sm'>
                   {formatLatency(globalDetails.avgLatency)}
                 </span>
               )}

@@ -67,7 +67,7 @@ describe('OverflowSpan code preview', () => {
     })
     const preview = document.querySelector('[data-code-hover-card]')
     expect(preview).toHaveTextContent('line 20')
-    expect(preview).toHaveClass('w-fit', 'max-w-[min(16rem,calc(100vw-2rem))]', 'shadow-sm')
+    expect(preview).toHaveClass('w-fit', 'max-w-[min(16rem,calc(100vw-2rem))]', 'shadow-xs')
     expect(preview).toHaveStyle({ maxWidth: 'min(480px, calc(100vw - 2rem))' })
     expect(preview?.querySelector('.overflow-x-hidden')).toHaveClass('overflow-y-auto')
     expect(preview?.querySelector('.tabular-nums')).toHaveTextContent('1')

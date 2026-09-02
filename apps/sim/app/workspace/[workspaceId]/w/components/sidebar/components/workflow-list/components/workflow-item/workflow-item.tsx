@@ -428,7 +428,7 @@ export const WorkflowItem = memo(function WorkflowItem({
                 onChange={(e) => setEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleInputBlur}
-                className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
                 maxLength={100}
                 disabled={isRenaming}
                 onClick={(e) => {
@@ -449,7 +449,7 @@ export const WorkflowItem = memo(function WorkflowItem({
           </div>
         </div>
         {!isEditing && (
-          <div className='relative size-[18px] flex-shrink-0'>
+          <div className='relative size-[18px] shrink-0'>
             {workflow.locked && (
               <span
                 role='img'

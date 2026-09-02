@@ -409,7 +409,7 @@ export function UsageMonitoring({
               void setState({ tab: value as UsageTab, workspace: null, expanded: null })
             }
           />
-          <div className='relative flex-shrink-0'>
+          <div className='relative shrink-0'>
             {/* ChipCombobox (Radix Popover, non-modal), not ChipSelect (Radix
               DropdownMenu, modal by default) — a modal trigger closing in the
               same tick that opens the Calendar popover below traps it behind

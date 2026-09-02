@@ -1228,7 +1228,7 @@ export const Terminal = memo(function Terminal() {
           >
             {/* Header */}
             <div
-              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-4'
+              className='group flex h-[30px] shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-4'
               onClick={handleHeaderClick}
             >
               {/* Left side - Logs label */}
@@ -1248,7 +1248,7 @@ export const Terminal = memo(function Terminal() {
                             toggleSort()
                           }}
                           aria-label='Sort by timestamp'
-                          className='!p-1.5 -m-1.5'
+                          className='-m-1.5 p-1.5!'
                         >
                           {sortDirection === 'desc' ? (
                             <ArrowDown className='size-[14px]' />
@@ -1270,7 +1270,7 @@ export const Terminal = memo(function Terminal() {
                           <Button
                             variant='ghost'
                             aria-label='Component Playground'
-                            className='!p-1.5 -m-1.5'
+                            className='-m-1.5 p-1.5!'
                           >
                             <Palette className='size-[14px]' />
                           </Button>
@@ -1290,7 +1290,7 @@ export const Terminal = memo(function Terminal() {
                             variant='ghost'
                             onClick={handleExportConsole}
                             aria-label='Export console CSV'
-                            className='!p-1.5 -m-1.5'
+                            className='-m-1.5 p-1.5!'
                           >
                             <Download className='size-[14px]' />
                           </Button>
@@ -1305,7 +1305,7 @@ export const Terminal = memo(function Terminal() {
                             variant='ghost'
                             onClick={handleClearConsole}
                             aria-label='Clear console'
-                            className='!p-1.5 -m-1.5'
+                            className='-m-1.5 p-1.5!'
                           >
                             <Trash className='size-[14px]' />
                           </Button>
@@ -1325,7 +1325,7 @@ export const Terminal = memo(function Terminal() {
                           e.stopPropagation()
                         }}
                         aria-label='Terminal options'
-                        className='!p-1.5 -m-1.5'
+                        className='-m-1.5 p-1.5!'
                       >
                         <MoreHorizontal className='size-[14px]' />
                       </Button>

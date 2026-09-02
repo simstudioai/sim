@@ -637,7 +637,7 @@ export function WorkflowSidebarBody({
               variant='ghost'
               size='sm'
               onClick={onBack}
-              className='!p-1 size-7 flex-none'
+              className='size-7 flex-none p-1!'
               aria-label='Back to enrichments'
             >
               <ArrowLeft className='size-[14px]' />
@@ -651,7 +651,7 @@ export function WorkflowSidebarBody({
           variant='ghost'
           size='sm'
           onClick={onClose}
-          className='!p-1 size-7 flex-none'
+          className='size-7 flex-none p-1!'
           aria-label='Close'
         >
           <X className='size-[14px]' />
@@ -702,7 +702,7 @@ export function WorkflowSidebarBody({
                   </div>
                 ) : workflowState.data ? (
                   <>
-                    <div className='[&_*:active]:!cursor-grabbing [&_*]:!cursor-grab [&_.react-flow__handle]:!hidden h-full w-full'>
+                    <div className='[&_.react-flow__handle]:hidden! h-full w-full [&_*:active]:cursor-grabbing! [&_*]:cursor-grab!'>
                       <PreviewWorkflow
                         workflowState={workflowState.data}
                         height={160}

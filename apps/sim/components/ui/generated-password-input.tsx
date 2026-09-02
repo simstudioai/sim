@@ -106,7 +106,7 @@ export function GeneratedPasswordInput({
                   onClick={handleGeneratePassword}
                   disabled={disabled}
                   aria-label='Generate password'
-                  className='!p-1.5'
+                  className='p-1.5!'
                 >
                   <RefreshCw className='size-3' />
                 </Button>
@@ -124,7 +124,7 @@ export function GeneratedPasswordInput({
                 onClick={() => copy(displayValue)}
                 disabled={!displayValue || disabled}
                 aria-label='Copy password'
-                className='!p-1.5'
+                className='p-1.5!'
               >
                 {copied ? <Check className='size-3' /> : <Clipboard className='size-3' />}
               </Button>
@@ -141,7 +141,7 @@ export function GeneratedPasswordInput({
                 onClick={toggleShowPassword}
                 disabled={disabled || isFetchingCurrent}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className='!p-1.5'
+                className='p-1.5!'
               >
                 {isFetchingCurrent ? (
                   <Loader className='size-3' animate />

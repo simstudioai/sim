@@ -782,7 +782,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
               onClick={() => openInternalLink(`/workspace/${workspaceId}/w/${w.id}`)}
               className='flex items-center gap-2 rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-4)]'
             >
-              <WorkflowIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              <WorkflowIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
               <OverflowText label={w.name} className='text-[var(--text-primary)] text-small' />
             </button>
           ))}

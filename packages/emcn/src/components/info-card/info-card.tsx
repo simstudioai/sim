@@ -85,7 +85,7 @@ export interface InfoCardItemProps extends React.LiHTMLAttributes<HTMLLIElement>
 const InfoCardItem = React.forwardRef<HTMLLIElement, InfoCardItemProps>(
   ({ className, children, icon: Icon = Check, ...props }, ref) => (
     <li ref={ref} className={cn('flex items-center gap-2', className)} {...props}>
-      {Icon ? <Icon className='size-[12px] flex-shrink-0 text-[var(--text-icon)]' /> : null}
+      {Icon ? <Icon className='size-[12px] shrink-0 text-[var(--text-icon)]' /> : null}
       <span className='text-[var(--text-body)] text-sm'>{children}</span>
     </li>
   )

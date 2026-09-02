@@ -121,7 +121,7 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
                 variant='primary'
                 disabled={isBusy}
                 onClick={() => void handleAccept(inv)}
-                className='flex-shrink-0'
+                className='shrink-0'
               >
                 Accept
               </Chip>
@@ -129,7 +129,7 @@ export function ViewInvitationsModal({ open, onOpenChange }: ViewInvitationsModa
                 disabled={isBusy}
                 onClick={() => void handleDecline(inv)}
                 aria-label={`Decline invitation to ${invitationLabel(inv)}`}
-                className='flex-shrink-0'
+                className='shrink-0'
               >
                 Decline
               </Chip>

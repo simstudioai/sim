@@ -424,7 +424,7 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
               reduceMotion={reduceMotion}
             />
           </div>
-          <div className='flex h-5 flex-shrink-0 items-center'>
+          <div className='flex h-5 shrink-0 items-center'>
             <Button
               variant='quiet'
               onClick={dismiss}

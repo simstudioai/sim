@@ -182,7 +182,7 @@ export function StandardsGraphic({
 
             <div
               className={cn(
-                'absolute top-[74px] left-[122px] flex size-[76px] items-center justify-center rounded-full bg-[var(--text-muted)] shadow-sm',
+                'absolute top-[74px] left-[122px] flex size-[76px] items-center justify-center rounded-full bg-[var(--text-muted)] shadow-xs',
                 styles.sealPulse
               )}
             >

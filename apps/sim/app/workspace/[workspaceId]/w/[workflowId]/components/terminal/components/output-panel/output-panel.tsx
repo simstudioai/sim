@@ -307,7 +307,7 @@ export const OutputPanel = React.memo(function OutputPanel({
 
         {/* Header */}
         <div
-          className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-2.5'
+          className='group flex h-[30px] shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-2.5'
           onClick={handleHeaderClick}
         >
           <div className='flex items-center'>
@@ -315,7 +315,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               variant='ghost'
               className={clsx(
                 'px-2 py-1.5 text-small',
-                !showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-icon)]'
+                !showInput ? 'text-[var(--text-primary)]!' : 'text-[var(--text-icon)]!'
               )}
               onClick={handleOutputButtonClick}
               aria-label='Show output'
@@ -327,7 +327,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 variant='ghost'
                 className={clsx(
                   'px-2 py-1.5 text-small',
-                  showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-icon)]'
+                  showInput ? 'text-[var(--text-primary)]!' : 'text-[var(--text-icon)]!'
                 )}
                 onClick={handleInputButtonClick}
                 aria-label='Show input'
@@ -336,7 +336,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               </Button>
             )}
           </div>
-          <div className='flex flex-shrink-0 items-center gap-2'>
+          <div className='flex shrink-0 items-center gap-2'>
             {isOutputSearchActive ? (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -344,7 +344,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     variant='ghost'
                     onClick={handleCloseSearchClick}
                     aria-label='Close search'
-                    className='!p-1.5 -m-1.5'
+                    className='-m-1.5 p-1.5!'
                   >
                     <X className='size-[14px]' />
                   </Button>
@@ -360,7 +360,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     variant='ghost'
                     onClick={handleSearchClick}
                     aria-label='Search in output'
-                    className='!p-1.5 -m-1.5'
+                    className='-m-1.5 p-1.5!'
                   >
                     <Search className='size-[14px]' />
                   </Button>
@@ -378,7 +378,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     <Button
                       variant='ghost'
                       aria-label='Component Playground'
-                      className='!p-1.5 -m-1.5'
+                      className='-m-1.5 p-1.5!'
                     >
                       <Palette className='size-[14px]' />
                     </Button>
@@ -396,7 +396,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   variant='ghost'
                   onClick={handleCopyClick}
                   aria-label='Copy output'
-                  className='!p-1.5 -m-1.5'
+                  className='-m-1.5 p-1.5!'
                 >
                   {showCopySuccess ? (
                     <Check className='size-[14px]' />
@@ -417,7 +417,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       variant='ghost'
                       onClick={handleExportConsole}
                       aria-label='Export console CSV'
-                      className='!p-1.5 -m-1.5'
+                      className='-m-1.5 p-1.5!'
                     >
                       <Download className='size-[14px]' />
                     </Button>
@@ -432,7 +432,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       variant='ghost'
                       onClick={handleClearConsole}
                       aria-label='Clear console'
-                      className='!p-1.5 -m-1.5'
+                      className='-m-1.5 p-1.5!'
                     >
                       <Trash className='size-[14px]' />
                     </Button>
@@ -449,7 +449,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   variant='ghost'
                   onClick={(e) => e.stopPropagation()}
                   aria-label='Terminal options'
-                  className='!p-1.5 -m-1.5'
+                  className='-m-1.5 p-1.5!'
                 >
                   <MoreHorizontal className='size-[14px]' />
                 </Button>
@@ -489,7 +489,7 @@ export const OutputPanel = React.memo(function OutputPanel({
         {/* Search Overlay */}
         {isOutputSearchActive && (
           <div
-            className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--bg)] px-1.5 shadow-sm'
+            className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--bg)] px-1.5 shadow-xs'
             onClick={(e) => e.stopPropagation()}
             data-toolbar-root
             data-search-active='true'
@@ -514,7 +514,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               variant='ghost'
               onClick={goToPreviousMatch}
               aria-label='Previous match'
-              className='!p-1.5 -m-1.5'
+              className='-m-1.5 p-1.5!'
               disabled={matchCount === 0}
             >
               <ArrowUp className='size-[14px]' />
@@ -523,7 +523,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               variant='ghost'
               onClick={goToNextMatch}
               aria-label='Next match'
-              className='!p-1.5 -m-1.5'
+              className='-m-1.5 p-1.5!'
               disabled={matchCount === 0}
             >
               <ArrowDown className='size-[14px]' />
@@ -532,7 +532,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               variant='ghost'
               onClick={closeOutputSearch}
               aria-label='Close search'
-              className='!p-1.5 -m-1.5'
+              className='-m-1.5 p-1.5!'
             >
               <X className='size-[14px]' />
             </Button>

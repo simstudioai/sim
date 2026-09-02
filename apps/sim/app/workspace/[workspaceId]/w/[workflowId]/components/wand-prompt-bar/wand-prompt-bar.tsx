@@ -99,7 +99,7 @@ export function WandPromptBar({
             autoCapitalize='off'
             spellCheck='false'
             className={cn(
-              'flex h-10 w-full rounded-xl bg-input-background px-3 py-2 text-foreground text-sm outline-none placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-50',
+              'flex h-10 w-full rounded-xl bg-input-background px-3 py-2 text-foreground text-sm outline-hidden placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-50',
               isStreaming && 'text-foreground/70',
               (isLoading || isStreaming) && 'loading-placeholder'
             )}

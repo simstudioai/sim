@@ -245,7 +245,7 @@ export function StageHome({
             // The chat input's aesthetic (rounded-2xl, border, soft shadow) is
             // kept THROUGHOUT - including once morphed into the workflow block -
             // so it stays the same white card, just resized.
-            'relative mx-auto overflow-hidden rounded-2xl border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm',
+            'relative mx-auto overflow-hidden rounded-2xl border border-[var(--border-1)] bg-[var(--surface-2)] shadow-xs',
             // While the height is held (the parent-driven send-bubble grow, and the
             // loader slide where the card keeps its size), do NOT CSS-transition
             // height - a transition would fight the per-frame camera/dock tracking

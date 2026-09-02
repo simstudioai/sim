@@ -319,7 +319,7 @@ export function SettingsSidebar({
           SIDEBAR_SECTION_GAP_CLASS,
           SIDEBAR_ITEM_GAP_CLASS,
           SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
-          'flex flex-shrink-0 flex-col px-2'
+          'flex shrink-0 flex-col px-2'
         )}
       >
         <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
@@ -361,7 +361,7 @@ export function SettingsSidebar({
                 key={key}
                 title={title}
                 railCollapsed={isCollapsed}
-                className={cn(index > 0 && SIDEBAR_SECTION_GAP_CLASS, 'flex-shrink-0')}
+                className={cn(index > 0 && SIDEBAR_SECTION_GAP_CLASS, 'shrink-0')}
               >
                 <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
                   {sectionItems.map((item) => {

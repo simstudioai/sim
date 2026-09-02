@@ -210,7 +210,7 @@ function TableCell({
           autoCorrect='off'
           autoCapitalize='off'
           spellCheck='false'
-          className='w-full bg-transparent px-2.5 py-2 text-sm text-transparent leading-[21px] caret-[var(--text-primary)] outline-none [letter-spacing:inherit] placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50'
+          className='w-full bg-transparent px-2.5 py-2 text-sm text-transparent leading-[21px] caret-[var(--text-primary)] outline-hidden [letter-spacing:inherit] placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50'
         />
         <div
           ref={(el) => {

@@ -1125,7 +1125,7 @@ export function KnowledgeBase({
               onClick={() => setShowConnectorsModal(true)}
               className={cn(chipVariants({ variant: 'filled' }), 'max-w-[180px]')}
             >
-              <span className='relative flex size-[14px] flex-shrink-0 items-center justify-center'>
+              <span className='relative flex size-[14px] shrink-0 items-center justify-center'>
                 {syncInFlight ? (
                   <Loader className='size-[14px]' animate />
                 ) : (
@@ -1649,7 +1649,7 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
             placeholder='From'
             fullWidth
           />
-          <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>to</span>
+          <span className='shrink-0 text-[var(--text-muted)] text-caption'>to</span>
           <ChipDatePicker
             value={entry.valueTo || undefined}
             onChange={(value) => onChange({ valueTo: value })}
@@ -1678,7 +1678,7 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
           onChange={(event) => onChange({ value: event.target.value })}
           placeholder='From'
         />
-        <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>to</span>
+        <span className='shrink-0 text-[var(--text-muted)] text-caption'>to</span>
         <ChipInput
           value={entry.valueTo}
           onChange={(event) => onChange({ valueTo: event.target.value })}

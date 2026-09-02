@@ -111,7 +111,7 @@ function MentionHighlight({ context }: { context: ChatMessageContext }) {
     <span className='inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px]'>
       <ContextMentionIcon
         context={context}
-        className='relative top-0.5 size-[12px] flex-shrink-0 text-[var(--text-icon)]'
+        className='relative top-0.5 size-[12px] shrink-0 text-[var(--text-icon)]'
       />
       {context.label}
     </span>

@@ -98,7 +98,7 @@ interface DetailRowProps {
 function DetailRow({ label, children }: DetailRowProps) {
   return (
     <div className='flex h-10 items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'>
-      <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption'>{label}</span>
+      <span className='shrink-0 text-[var(--text-tertiary)] text-caption'>{label}</span>
       <span className='min-w-0 truncate text-right text-[var(--text-secondary)] text-caption tabular-nums'>
         {children}
       </span>
@@ -251,7 +251,7 @@ function EnrichmentDetailsContent({
                 >
                   <div className='flex min-w-0 items-center gap-1.5 px-2 pt-1.5'>
                     <div
-                      className='flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                      className='flex size-[16px] shrink-0 items-center justify-center overflow-hidden rounded-sm'
                       style={{ background: bgColor }}
                     >
                       {ProviderIcon && (
@@ -263,16 +263,16 @@ function EnrichmentDetailsContent({
                     <span className='min-w-0 flex-1 truncate text-[var(--text-secondary)] text-caption'>
                       {outcome.label}
                     </span>
-                    <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
+                    <span className='shrink-0 text-[var(--text-tertiary)] text-caption'>
                       {PROVIDER_STATUS_LABEL[outcome.status]}
                     </span>
                     {outcome.cost > 0 && (
-                      <span className='flex-shrink-0 text-[var(--text-tertiary)] text-xs tabular-nums'>
+                      <span className='shrink-0 text-[var(--text-tertiary)] text-xs tabular-nums'>
                         {formatCost(outcome.cost)}
                       </span>
                     )}
                     {ran && (
-                      <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption tabular-nums'>
+                      <span className='shrink-0 text-[var(--text-tertiary)] text-caption tabular-nums'>
                         {formatDuration(outcome.durationMs, { precision: 2 }) || '—'}
                       </span>
                     )}
@@ -364,7 +364,7 @@ export function EnrichmentDetails({
           <div className='flex h-full flex-col px-3.5 pt-3'>
             <div className='flex items-center justify-between'>
               <h2 className='text-[var(--text-primary)] text-sm'>Enrichment Details</h2>
-              <Button variant='ghost' className='!p-1' onClick={onClose} aria-label='Close'>
+              <Button variant='ghost' className='p-1!' onClick={onClose} aria-label='Close'>
                 <X className='size-[14px]' />
               </Button>
             </div>

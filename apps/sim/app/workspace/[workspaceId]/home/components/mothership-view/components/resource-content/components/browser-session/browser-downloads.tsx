@@ -135,7 +135,7 @@ export function BrowserDownloads({ scopeId, open, requestOpen, onClose }: Browse
           aria-label={label}
           title={label}
           className={cn(
-            'relative size-[30px] flex-shrink-0 overflow-hidden p-0',
+            'relative size-[30px] shrink-0 overflow-hidden p-0',
             hasUnviewedCompletion && 'text-[var(--brand-primary)]'
           )}
           onClick={() => setHasUnviewedCompletion(false)}

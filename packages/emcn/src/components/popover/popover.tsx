@@ -601,7 +601,7 @@ const PopoverContent = React.forwardRef<
         {...restProps}
         data-native-surface-overlay=''
         className={cn(
-          'z-[var(--z-popover)] flex flex-col outline-none',
+          'z-[var(--z-popover)] flex flex-col outline-hidden',
           showArrow ? 'overflow-visible' : 'overflow-auto',
           STYLES.colorScheme[colorScheme].content,
           STYLES.content,
@@ -789,7 +789,7 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
           STYLES.colorScheme[colorScheme].text,
           STYLES.size[size].item,
           getItemStateClasses(colorScheme, !!isActive),
-          suppressHover && 'hover-hover:!bg-transparent',
+          suppressHover && 'hover-hover:bg-transparent!',
           disabled && 'pointer-events-none cursor-not-allowed opacity-50',
           className
         )}
@@ -985,7 +985,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
             STYLES.colorScheme[colorScheme].text,
             STYLES.size[size].item,
             getItemStateClasses(colorScheme, isActive || isHoverOpen),
-            suppressHover && 'hover-hover:!bg-transparent',
+            suppressHover && 'hover-hover:bg-transparent!',
             className
           )}
           role='menuitem'
@@ -1088,7 +1088,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
               STYLES.colorScheme[colorScheme].text,
               STYLES.size[size].item,
               getItemStateClasses(colorScheme, !!folderTitleActive),
-              'peer-hover:!bg-transparent'
+              'peer-hover:bg-transparent!'
             )}
             role='button'
             onClick={(e) => {
@@ -1160,7 +1160,7 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
         <input
           ref={inputRef}
           className={cn(
-            'w-full bg-transparent focus:outline-none',
+            'w-full bg-transparent focus:outline-hidden',
             STYLES.colorScheme[colorScheme].searchInput,
             size === 'sm' ? 'text-xs' : 'text-caption'
           )}

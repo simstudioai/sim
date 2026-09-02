@@ -7,6 +7,12 @@ minimumReleaseAge = 604800
 # dev builds, so every version is structurally younger than any age gate.
 minimumReleaseAgeExcludes = [
   "@typescript/native-preview",
+  # `cn` replaces clsx + tailwind-merge. The npm name was recycled in 2026 (the
+  # only releases older than the gate are an unrelated 2013 package), so every
+  # version of the package we actually want is younger than 7 days and the gate
+  # can never pass on its own. Pinned to an exact version below rather than a
+  # range, so a new release cannot enter the tree without an explicit bump.
+  "cn",
 ]
 
 [run]

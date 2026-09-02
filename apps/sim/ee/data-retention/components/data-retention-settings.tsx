@@ -528,7 +528,7 @@ function PolicyDetail({
                 value={draft.workspaceIds}
                 onChange={(workspaceIds) => onChange({ ...draft, workspaceIds })}
                 options={workspaceOptions}
-                className='flex-shrink-0'
+                className='shrink-0'
               />
             </div>
           </SettingsSection>

@@ -75,7 +75,7 @@ export function ResourceKindRow({
           />
           <ChevronDown
             className={cn(
-              'size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
+              'size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
               expanded && 'rotate-180'
             )}
           />
@@ -171,7 +171,7 @@ export function FileKindRow({
           />
           <ChevronDown
             className={cn(
-              'size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
+              'size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
               expanded && 'rotate-180'
             )}
           />

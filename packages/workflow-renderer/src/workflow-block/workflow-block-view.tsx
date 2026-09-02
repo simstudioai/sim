@@ -204,7 +204,7 @@ export function WorkflowTypeIcon({
     <ChipTag
       variant={typeAccent.variant}
       tone={typeAccent.tone}
-      className={cn('size-[16px] flex-shrink-0 justify-center p-0', className)}
+      className={cn('size-[16px] shrink-0 justify-center p-0', className)}
       data-workflow-type-icon={type}
       {...props}
     >
@@ -238,7 +238,7 @@ export function WorkflowTypeTag({
 }: WorkflowTypeTagProps) {
   const typeAccent = getWorkflowTypeAccent(type)
   const sharedClassName = cn(
-    'flex-shrink-0 justify-center transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
+    'shrink-0 justify-center transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
     !isEnabled && 'opacity-50'
   )
   /*
@@ -260,7 +260,7 @@ export function WorkflowTypeTag({
         data-workflow-type-accent={type}
         data-workflow-brand-tag=''
       >
-        <Icon className='size-[14px] flex-shrink-0' />
+        <Icon className='size-[14px] shrink-0' />
         {label}
       </ChipTag>
     )
@@ -273,7 +273,7 @@ export function WorkflowTypeTag({
       className={sharedClassName}
       data-workflow-type-accent={type}
     >
-      <Icon className='size-[14px] flex-shrink-0' />
+      <Icon className='size-[14px] shrink-0' />
       {label}
     </ChipTag>
   )
@@ -291,10 +291,10 @@ function BlockStateIndicator({ label, Icon }: BlockStateIndicatorProps) {
         <ChipTag
           variant='workflow'
           tone='neutral'
-          className='size-5 flex-shrink-0 justify-center p-0'
+          className='size-5 shrink-0 justify-center p-0'
           aria-label={label}
         >
-          <Icon className='size-[12px] flex-shrink-0' />
+          <Icon className='size-[12px] shrink-0' />
         </ChipTag>
       </Tooltip.Trigger>
       <Tooltip.Content side='top'>
@@ -316,13 +316,13 @@ const clampTabLength = (length: number) =>
  */
 const getInvisibleHandleClasses = (side: 'left' | 'right' | 'top' | 'bottom') => {
   const offsetClasses = {
-    right: '!right-[-7px]',
-    left: '!left-[-7px]',
-    top: '!top-[-7px]',
-    bottom: '!bottom-[-7px]',
+    right: 'right-[-7px]!',
+    left: 'left-[-7px]!',
+    top: 'top-[-7px]!',
+    bottom: 'bottom-[-7px]!',
   } as const
   return cn(
-    '!z-20 !cursor-crosshair !rounded-none !border-none !bg-transparent !opacity-0',
+    'z-20! cursor-crosshair! rounded-none! border-none! bg-transparent! opacity-0!',
     offsetClasses[side]
   )
 }
@@ -883,7 +883,7 @@ export function WorkflowBlockView({
             type='source'
             position={getCursorSourceHandlePosition(cursorSourceHandle.edgeSide)}
             id={cursorSourceHandle.handleId}
-            className='!z-50 !cursor-crosshair !rounded-none !border-none !bg-transparent !opacity-0'
+            className='z-50! cursor-crosshair! rounded-none! border-none! bg-transparent! opacity-0!'
             style={{
               right: 'auto',
               bottom: 'auto',
@@ -904,7 +904,7 @@ export function WorkflowBlockView({
           />
         )}
         {isPending && (
-          <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-amber-500 px-2 py-0.5 text-white text-xs'>
+          <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 rounded-t-md bg-amber-500 px-2 py-0.5 text-white text-xs'>
             Next Step
           </div>
         )}
@@ -956,7 +956,7 @@ export function WorkflowBlockView({
               )}
             />
           </div>
-          <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
+          <div className='relative z-10 flex shrink-0 items-center gap-1'>
             {!isEnabled && <BlockStateIndicator label='Disabled' Icon={Ban} />}
             {isLocked && <BlockStateIndicator label='Locked' Icon={Lock} />}
             <WorkflowTypeTag
@@ -1254,7 +1254,7 @@ export function WorkflowBlockView({
             type='source'
             position={ERROR_SOURCE_HANDLE_POSITION}
             id='error'
-            className='!z-20 !cursor-crosshair !rounded-none !border-none !bg-transparent !opacity-0'
+            className='z-20! cursor-crosshair! rounded-none! border-none! bg-transparent! opacity-0!'
             style={getErrorSourceHandleStyle()}
             data-nodeid={id}
             data-handleid='error'

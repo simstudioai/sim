@@ -27,7 +27,7 @@ export function DefaultZoomSelect({
   ariaLabel = 'Default zoom',
 }: DefaultZoomSelectProps) {
   return (
-    <div className='w-[240px] flex-shrink-0'>
+    <div className='w-[240px] shrink-0'>
       <ChipSelect
         aria-label={ariaLabel}
         align='start'

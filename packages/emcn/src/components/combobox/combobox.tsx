@@ -25,7 +25,7 @@ import { OverflowText } from '../overflow-text/overflow-text'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
 const comboboxVariants = cva(
-  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:cursor-not-allowed disabled:opacity-50',
+  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-hidden disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       variant: {
@@ -762,11 +762,11 @@ const Combobox = memo(
           >
             {option.iconElement
               ? option.iconElement
-              : OptionIcon && <OptionIcon className='size-[14px] flex-shrink-0' />}
+              : OptionIcon && <OptionIcon className='size-[14px] shrink-0' />}
             <OverflowText label={option.label} className='flex-1 text-[var(--text-primary)]' />
             {option.suffixElement}
             {multiSelect && isSelected && (
-              <Check className='ml-2 size-[12px] flex-shrink-0 text-[var(--text-primary)]' />
+              <Check className='ml-2 size-[12px] shrink-0 text-[var(--text-primary)]' />
             )}
           </div>
         )
@@ -813,7 +813,7 @@ const Combobox = memo(
                           overlayContent
                         ) : (
                           <>
-                            {SelectedIcon && <SelectedIcon className='mr-2 size-3 flex-shrink-0' />}
+                            {SelectedIcon && <SelectedIcon className='mr-2 size-3 shrink-0' />}
                             <OverflowText
                               label={selectedOption?.label ?? ''}
                               className='text-[var(--text-primary)]'
@@ -864,7 +864,7 @@ const Combobox = memo(
                     />
                     <ChevronDown
                       className={cn(
-                        'ml-2 size-4 flex-shrink-0 opacity-50 transition-transform',
+                        'ml-2 size-4 shrink-0 opacity-50 transition-transform',
                         open && 'rotate-180'
                       )}
                     />
@@ -917,7 +917,7 @@ const Combobox = memo(
                   <Search className='mr-[7px] ml-[1px] size-[13px] shrink-0 text-[var(--text-muted)]' />
                   <input
                     ref={searchInputRef}
-                    className='w-full bg-transparent text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
+                    className='w-full bg-transparent text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-hidden'
                     placeholder={searchPlaceholder}
                     value={searchQuery}
                     onChange={(e) => updateSearchQuery(e.target.value)}
@@ -945,7 +945,7 @@ const Combobox = memo(
               )}
               <PopoverScrollArea
                 ref={scrollAreaRef}
-                className='!flex-none p-1'
+                className='flex-none! p-1'
                 style={{ maxHeight: `${maxHeight}px` }}
                 onScroll={(event) => {
                   if (hasActiveSearch || !hasMore || isLoadingContinuation || !onLoadMore) return
@@ -1039,16 +1039,14 @@ const Combobox = memo(
                               >
                                 {option.iconElement
                                   ? option.iconElement
-                                  : OptionIcon && (
-                                      <OptionIcon className='size-[14px] flex-shrink-0' />
-                                    )}
+                                  : OptionIcon && <OptionIcon className='size-[14px] shrink-0' />}
                                 <OverflowText
                                   label={option.label}
                                   className='flex-1 text-[var(--text-primary)]'
                                 />
                                 {option.suffixElement}
                                 {multiSelect && isSelected && (
-                                  <Check className='ml-2 size-[12px] flex-shrink-0 text-[var(--text-primary)]' />
+                                  <Check className='ml-2 size-[12px] shrink-0 text-[var(--text-primary)]' />
                                 )}
                               </div>
                             )

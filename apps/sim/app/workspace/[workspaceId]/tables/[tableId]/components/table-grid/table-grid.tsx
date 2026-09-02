@@ -4685,7 +4685,7 @@ export function TableGrid({
           ref={scrollRef}
           tabIndex={-1}
           className={cn(
-            'min-h-0 flex-1 overflow-auto overscroll-none outline-none',
+            'min-h-0 flex-1 overflow-auto overscroll-none outline-hidden',
             resizingColumn && 'select-none'
           )}
           data-table-scroll

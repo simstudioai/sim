@@ -4,7 +4,7 @@ source: https://github.com/leonxlnx/taste-skill — skills/taste-skill/SKILL.md
 description: Anti-slop frontend skill for landing pages, portfolios, and redesigns. The agent reads the brief, infers the right design direction, and ships interfaces that do not look templated. Real design systems when applicable, audit-first on redesigns, strict pre-flight check.
 ---
 
-> **In this repo:** Tailwind 3.4 (`apps/sim/tailwind.config.ts`); animation via `import { motion } from 'framer-motion'` (not `motion/react` — rewrite every `motion/react` import in the samples below); icons from `@sim/emcn/icons`; colors through the CSS-variable tokens in `.claude/rules/sim-styling.md` (no hardcoded `text-gray-*`/hex/`zinc` utilities, no paired `dark:` utilities). This note overrides any conflicting guidance or code sample anywhere in this file.
+> **In this repo:** Tailwind 4 (CSS-first config in `apps/sim/app/_styles/globals.css`); animation via `import { motion } from 'framer-motion'` (not `motion/react` — rewrite every `motion/react` import in the samples below); icons from `@sim/emcn/icons`; colors through the CSS-variable tokens in `.claude/rules/sim-styling.md` (no hardcoded `text-gray-*`/hex/`zinc` utilities, no paired `dark:` utilities). This note overrides any conflicting guidance or code sample anywhere in this file.
 
 # tasteskill: Anti-Slop Frontend Skill
 

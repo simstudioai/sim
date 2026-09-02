@@ -1392,7 +1392,7 @@ function SearchModalContent({
                 placeholder={askMode ? 'Ask Sim anything...' : 'Search anything...'}
                 endAdornment={
                   isChatEnabled ? (
-                    <span className='flex-shrink-0 whitespace-nowrap text-[var(--text-subtle)] text-xs'>
+                    <span className='shrink-0 whitespace-nowrap text-[var(--text-subtle)] text-xs'>
                       {askMode ? '⇥ Search' : '⇥ Ask Sim'}
                     </span>
                   ) : undefined

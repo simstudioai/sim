@@ -96,13 +96,11 @@ export function FieldItem({
       >
         {field.name}
       </span>
-      <Badge className='flex-shrink-0 rounded-sm px-1.5 py-[1px] font-mono text-xs'>
-        {field.type}
-      </Badge>
+      <Badge className='shrink-0 rounded-sm px-1.5 py-[1px] font-mono text-xs'>{field.type}</Badge>
       {hasChildren && (
         <ChevronDown
           className={clsx(
-            'size-[14px] flex-shrink-0 transition-transform duration-100',
+            'size-[14px] shrink-0 transition-transform duration-100',
             'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
             isExpanded && 'rotate-180'
           )}

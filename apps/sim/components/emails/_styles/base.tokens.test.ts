@@ -1,7 +1,7 @@
 /**
  * Email styles cannot use CSS variables — clients strip them — so `base.ts`
  * hardcodes hex copies of the platform tokens. This suite fails when those
- * copies drift from `globals.css`, `tailwind.config.ts`, or the chip chrome.
+ * copies drift from `globals.css` or the chip chrome.
  *
  * @vitest-environment node
  */
@@ -9,7 +9,6 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { baseStyles, colors, typography } from '@/components/emails/_styles'
-import tailwindConfig from '@/tailwind.config'
 
 const APP_ROOT = join(__dirname, '../../..')
 
@@ -19,7 +18,18 @@ const chipChrome = readFileSync(
   'utf8'
 )
 
-const tailwindFontSize = tailwindConfig.theme?.extend?.fontSize as Record<string, string>
+/**
+ * The type scale moved into the `@theme` block when the v4 upgrade removed
+ * `tailwind.config.ts`. This scans the whole file rather than that block, so it
+ * also picks up the `--text-*` colour tokens — harmless because only the size
+ * keys are asserted below. Paired sub-keys such as `--text-xs--line-height` are
+ * not sizes, so the double dash is excluded.
+ */
+const tailwindFontSize: Record<string, string> = Object.fromEntries(
+  [...globalsCss.matchAll(/^\s*--text-([a-z0-9-]+):\s*([^;]+);/gm)]
+    .filter(([, name]) => !name.includes('--'))
+    .map(([, name, value]) => [name, value.trim()])
+)
 
 /**
  * Dark mode redefines the same names later in the file and emails are
@@ -65,7 +75,7 @@ describe('email color tokens mirror globals.css', () => {
   })
 })
 
-describe('email type scale mirrors tailwind.config.ts', () => {
+describe('email type scale mirrors the globals.css @theme scale', () => {
   it.each(['caption', 'small', 'base', 'md'])('fontSize.%s matches the Tailwind token', (name) => {
     expect(typography.fontSize[name as keyof typeof typography.fontSize]).toBe(
       tailwindFontSize[name]
