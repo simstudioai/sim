@@ -58,9 +58,6 @@ interface ColumnConfigSidebarProps {
   referenceColumnsEnabled: boolean
   workspaceId: string
   tableId: string
-  /** Notify parent of a rename so it can rewrite local `columnOrder` /
-   *  `columnWidths` keys that reference the old name. */
-  onColumnRename?: (oldName: string, newName: string) => void
 }
 
 /**
@@ -111,7 +108,6 @@ function ColumnConfigBody({
   referenceColumnsEnabled,
   workspaceId,
   tableId,
-  onColumnRename,
 }: ColumnConfigBodyProps) {
   const updateColumn = useUpdateColumn({ workspaceId, tableId })
   const addColumn = useAddTableColumn({ workspaceId, tableId })
@@ -178,7 +174,7 @@ function ColumnConfigBody({
   }
 
   async function handleSave() {
-    if (!trimmedName) {
+    if (config.mode === 'create' && !trimmedName) {
       setShowValidation(true)
       return
     }
@@ -210,7 +206,6 @@ function ColumnConfigBody({
         return
       }
 
-      const renamed = trimmedName !== (existingColumn?.name ?? config.columnName)
       const typeChanged = !!existingColumn && existingColumn.type !== typeInput
       const uniqueChanged =
         supportsUnique && !!existingColumn && !!existingColumn.unique !== uniqueInput
@@ -224,7 +219,6 @@ function ColumnConfigBody({
         wantsReference && existingColumn?.referenceTableId !== referenceTableInput
 
       const updates: {
-        name?: string
         type?: ColumnDefinition['type']
         unique?: boolean
         options?: SelectOption[]
@@ -232,7 +226,6 @@ function ColumnConfigBody({
         currencyCode?: string
         referenceTableId?: string
       } = {
-        ...(renamed ? { name: trimmedName } : {}),
         ...(typeChanged ? { type: typeInput } : {}),
         ...(uniqueChanged ? { unique: uniqueInput } : {}),
         ...(uniqueCleared ? { unique: false } : {}),
@@ -251,8 +244,7 @@ function ColumnConfigBody({
       }
 
       await updateColumn.mutateAsync({ columnName: config.columnName, updates })
-      if (renamed) onColumnRename?.(config.columnName, trimmedName)
-      toast.success(`Saved "${trimmedName}"`)
+      toast.success(`Saved "${existingColumn?.name ?? config.columnName}"`)
       onClose()
     } catch (err) {
       if (isValidationError(err)) {
@@ -285,23 +277,25 @@ function ColumnConfigBody({
       </div>
 
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
-        <div className='flex flex-col gap-[9.5px]'>
-          <RequiredLabel htmlFor='column-sidebar-name'>Column name</RequiredLabel>
-          <ChipInput
-            id='column-sidebar-name'
-            value={nameInput}
-            onChange={(e) => {
-              setNameInput(e.target.value)
-              if (nameError) setNameError(null)
-            }}
-            spellCheck={false}
-            autoComplete='off'
-            error={Boolean((showValidation && !trimmedName) || nameError)}
-            aria-invalid={(showValidation && !trimmedName) || nameError ? true : undefined}
-          />
-          {showValidation && !trimmedName && <FieldError message='Column name is required' />}
-          {nameError && !(showValidation && !trimmedName) && <FieldError message={nameError} />}
-        </div>
+        {config.mode === 'create' && (
+          <div className='flex flex-col gap-[9.5px]'>
+            <RequiredLabel htmlFor='column-sidebar-name'>Column name</RequiredLabel>
+            <ChipInput
+              id='column-sidebar-name'
+              value={nameInput}
+              onChange={(e) => {
+                setNameInput(e.target.value)
+                if (nameError) setNameError(null)
+              }}
+              spellCheck={false}
+              autoComplete='off'
+              error={Boolean((showValidation && !trimmedName) || nameError)}
+              aria-invalid={(showValidation && !trimmedName) || nameError ? true : undefined}
+            />
+            {showValidation && !trimmedName && <FieldError message='Column name is required' />}
+            {nameError && !(showValidation && !trimmedName) && <FieldError message={nameError} />}
+          </div>
+        )}
 
         {config.mode === 'edit' && (
           <>

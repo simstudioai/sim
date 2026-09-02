@@ -102,12 +102,6 @@ function findButton(label: string): HTMLButtonElement | undefined {
   )
 }
 
-function setInputValue(input: HTMLInputElement, value: string): void {
-  const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
-  valueSetter?.call(input, value)
-  input.dispatchEvent(new Event('input', { bubbles: true }))
-}
-
 beforeEach(() => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
@@ -190,8 +184,7 @@ describe('ColumnConfigSidebar', () => {
     expect(mockUpdateColumn).not.toHaveBeenCalled()
   })
 
-  it('edits a Reference column name and target table together', async () => {
-    const onColumnRename = vi.fn()
+  it('edits Reference configuration without exposing column renaming', async () => {
     await act(async () => {
       root.render(
         <ColumnConfigSidebar
@@ -205,27 +198,21 @@ describe('ColumnConfigSidebar', () => {
           }}
           workspaceId='workspace-1'
           tableId='table-current'
-          onColumnRename={onColumnRename}
           referenceColumnsEnabled
         />
       )
     })
 
-    const nameInput = container.querySelector<HTMLInputElement>('#column-sidebar-name')
-    expect(nameInput?.value).toBe('Related row')
+    expect(container).not.toHaveTextContent('Column name')
+    expect(container.querySelector('#column-sidebar-name')).toBeNull()
 
-    act(() => setInputValue(nameInput!, 'Renamed relation'))
     act(() => findCombobox('Select table')?.onChange?.('table-customers'))
     await act(async () => findButton('Save')?.click())
 
     expect(mockUpdateColumn).toHaveBeenCalledWith({
       columnName: 'col-reference',
-      updates: {
-        name: 'Renamed relation',
-        referenceTableId: 'table-customers',
-      },
+      updates: { referenceTableId: 'table-customers' },
     })
-    expect(onColumnRename).toHaveBeenCalledWith('col-reference', 'Renamed relation')
   })
 
   it('keeps an existing Reference column visible but not retargetable when disabled', async () => {
