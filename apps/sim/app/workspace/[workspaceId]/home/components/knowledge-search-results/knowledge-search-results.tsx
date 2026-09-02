@@ -231,7 +231,7 @@ export function KnowledgeSearchResults({
   if (!basesPending && knowledgeBaseIds.length === 0) {
     return (
       <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>
-        Nothing to search yet. Connect a source above to index what you can open.
+        Nothing to search yet. Clear the query and connect a source to index what you can open.
       </p>
     )
   }

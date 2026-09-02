@@ -96,6 +96,8 @@ export interface UserInputHandle {
    * names chip with brand icons. Focuses the input and places the caret at the
    * end. Does NOT submit. Safe to call with the same text twice in a row. */
   populatePrompt: (text: string) => void
+  /** Empties the composer and its draft, as a send does; for a question handed to the agent from outside the box. */
+  clear: () => void
 }
 
 /**
@@ -434,6 +436,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         currentEditor.setContexts(msg.contexts ?? [])
         currentEditor.focusAtEnd()
       },
+      clear: clearComposer,
       populatePrompt: (text: string) => {
         // `text` is a curated prompt, so opt its bare integration names into
         // `@`-mention form before chipification (the auto-mention pipeline only
@@ -551,6 +554,24 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     textareaRef.current?.focus()
   }
 
+  /** Empties the text, chips, attachments, transcript, and the saved draft in one step. */
+  const clearComposer = useCallback(() => {
+    editorRef.current.clear()
+    sttPrefixRef.current = ''
+    if (draftSaveTimerRef.current !== null) {
+      window.clearTimeout(draftSaveTimerRef.current)
+      draftSaveTimerRef.current = null
+    }
+    pendingDraftRef.current = null
+    if (draftScopeKeyRef.current) {
+      useMothershipDraftsStore.getState().clearDraft(draftScopeKeyRef.current)
+    }
+    /** The chips are gone with the text, and clearing is not a removal to report. */
+    prevSelectedContextsRef.current = []
+    resetTranscript()
+    filesRef.current.clearAttachedFiles()
+  }, [resetTranscript])
+
   const handleSubmit = useCallback(() => {
     const currentFiles = filesRef.current
     const currentEditor = editorRef.current
@@ -575,27 +596,13 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined,
       activeContexts.length > 0 ? activeContexts : undefined
     )
-    if (clearOnSubmitRef.current) {
-      currentEditor.clear()
-      sttPrefixRef.current = ''
-      if (draftSaveTimerRef.current !== null) {
-        window.clearTimeout(draftSaveTimerRef.current)
-        draftSaveTimerRef.current = null
-      }
-      pendingDraftRef.current = null
-      if (draftScopeKeyRef.current) {
-        useMothershipDraftsStore.getState().clearDraft(draftScopeKeyRef.current)
-      }
-      /**
-       * The chips are gone with the text, and clearing is not a removal to
-       * report. A composer that keeps its text (Search mode) keeps its chips
-       * too, so the diff base stays in step with what is still selected.
-       */
-      prevSelectedContextsRef.current = []
-    }
-    resetTranscript()
-    currentFiles.clearAttachedFiles()
-  }, [onSubmit, resetTranscript])
+    /**
+     * A composer that keeps its text (Search mode) keeps its attachments and
+     * chips too: the search took the query alone, and the person may hand the
+     * rest to the agent next.
+     */
+    if (clearOnSubmitRef.current) clearComposer()
+  }, [onSubmit, clearComposer])
 
   /**
    * Enter policy for the editor: mirror canSubmit's uploading guard (Enter

@@ -89,6 +89,7 @@ import type {
   FileAttachmentForApi,
   MothershipResource,
   MothershipResourceType,
+  QueuedMessage,
   WorkspaceResourceRef,
 } from './types'
 
@@ -193,7 +194,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
    * box and the results never show two different queries.
    */
   useEffect(() => {
-    if (searchQuery && composerMode === 'build') void setComposerMode('search')
+    if (searchQuery.trim() && composerMode === 'build') void setComposerMode('search')
   }, [searchQuery, composerMode, setComposerMode])
   /** The bases an Ask turn is grounded in; read through a ref so a list refresh never rebuilds the submit handler. */
   const { data: knowledgeBases = EMPTY_KNOWLEDGE_BASES } = useKnowledgeBasesQuery(workspaceId)
@@ -202,6 +203,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
   const initialViewUserInputRef = useRef<UserInputHandle>(null)
+  const chatViewUserInputRef = useRef<UserInputHandle>(null)
 
   const [isInputEntering, setIsInputEntering] = useState(false)
 
@@ -499,6 +501,8 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       const mode = modeOverride ?? composerMode
       const answering = mode === 'assistant'
       if (mode === 'search') {
+        /** A search sends nothing, so an edit in progress is released rather than left waiting. */
+        if (editingQueuedId) cancelQueueEdit()
         if (trimmed) setSearchQuery(trimmed)
         return
       }
@@ -525,23 +529,43 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       workspaceId,
       chatId,
       composerMode,
+      editingQueuedId,
+      cancelQueueEdit,
       prepareResourceViewForAgentTurn,
       sendMessage,
       setSearchQuery,
     ]
   )
 
-  /** An emptied search box returns to the sources; nothing else reads the cleared query. */
-  const clearSearch = useCallback(() => setSearchQuery(''), [setSearchQuery])
+  /**
+   * A queued message re-enters the composer in the mode it was written in: an
+   * Assistant question edits as an Assistant question, and never as a Search,
+   * which submits nothing and would leave the edit stranded.
+   */
+  const restoreQueuedMode = useCallback(
+    (requestMode: QueuedMessage['requestMode']) => {
+      void setComposerMode(requestMode === 'ask' ? 'assistant' : 'build')
+    },
+    [setComposerMode]
+  )
+
+  /** An emptied search box returns to the sources; a send in any other mode has no search to clear. */
+  const clearSearch = useCallback(() => {
+    if (searchQueryValue !== null) setSearchQuery('')
+  }, [searchQueryValue, setSearchQuery])
 
   /**
    * Summarize or Answer on a result: switch to Assistant and hand the question
    * to it. The submit reads the mode from this render, so it is sent as an
-   * Assistant turn directly rather than waiting for the URL to update.
+   * Assistant turn directly rather than waiting for the URL to update, and the
+   * box is emptied as a send empties it, so the query does not linger as a
+   * draft under the answer.
    */
   const handleSummarize = (prompt: string) => {
     void setComposerMode('assistant')
     setSearchQuery('')
+    initialViewUserInputRef.current?.clear()
+    chatViewUserInputRef.current?.clear()
     handleSubmit(prompt, undefined, undefined, 'assistant')
   }
   const showSearchResults = composerMode === 'search' && searchQuery.trim().length > 0
@@ -800,6 +824,9 @@ export function Home({ chatId, userName, userId }: HomeProps) {
             messages={messages}
             isSending={isSending}
             searchResults={searchResults}
+            searchQuery={searchQuery}
+            userInputRef={chatViewUserInputRef}
+            onRestoreQueuedMode={restoreQueuedMode}
             isReconnecting={isReconnecting}
             isLoading={showChatSkeleton}
             onSubmit={handleSubmit}
