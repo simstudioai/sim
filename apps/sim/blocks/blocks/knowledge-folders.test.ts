@@ -242,8 +242,27 @@ describe('the knowledge base picker is scoped by the folder beside it', () => {
 
     expect(picker?.folderScope).toEqual({
       fieldId: 'searchFolder',
+      manualFieldId: 'manualSearchFolder',
       recursiveFieldId: 'searchFolderIncludeSubfolders',
     })
+  })
+
+  /*
+   * Only one half of a canonical pair is ever filled. Naming just the basic id
+   * would read as "no folder" for an advanced-mode user and the picker would
+   * offer knowledge bases the folder excludes.
+   */
+  it('names both halves of the folder pair so advanced mode still narrows', () => {
+    const picker = KnowledgeBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'knowledgeBaseSelector'
+    )
+    const pair = KnowledgeBlock.subBlocks
+      .filter((subBlock) => subBlock.canonicalParamId === 'searchFolderRef')
+      .map((subBlock) => subBlock.id)
+      .sort()
+
+    expect(pair).toEqual(['manualSearchFolder', 'searchFolder'])
+    expect([picker?.folderScope?.fieldId, picker?.folderScope?.manualFieldId].sort()).toEqual(pair)
   })
 
   /*

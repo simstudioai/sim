@@ -297,9 +297,11 @@ export interface SubBlockConfig {
    * so offering files from anywhere else would let a user build a selection the
    * operation then ignores. `recursiveFieldId` names the switch deciding
    * whether the scope descends, so the picker and the run agree on how deep the
-   * folder reaches.
+   * folder reaches. `manualFieldId` names the advanced half of the same
+   * canonical pair, so a path typed in advanced mode narrows the picker exactly
+   * as a picked folder does.
    */
-  folderScope?: { fieldId: string; recursiveFieldId?: string }
+  folderScope?: { fieldId: string; manualFieldId?: string; recursiveFieldId?: string }
   /** Controls parameter visibility in agent/tool-input context */
   paramVisibility?: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'
   /**

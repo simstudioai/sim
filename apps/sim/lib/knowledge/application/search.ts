@@ -719,6 +719,12 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     }
   },
   afterSuccess: ({ context, result }) => {
+    /*
+     * An empty folder scope searched no knowledge base, so there is none to
+     * attribute the event to. Emitting it anyway files a search against the
+     * empty id and inflates the per-base counts with a base that was never read.
+     */
+    if (!result.knowledgeBaseId) return
     PlatformEvents.knowledgeBaseSearched({
       knowledgeBaseId: result.knowledgeBaseId,
       resultsCount: result.totalResults,

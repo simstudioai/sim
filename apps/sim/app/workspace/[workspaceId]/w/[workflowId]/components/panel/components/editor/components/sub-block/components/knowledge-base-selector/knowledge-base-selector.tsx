@@ -32,7 +32,7 @@ interface KnowledgeBaseSelectorProps {
    * A sibling folder field that narrows what this picker offers, and the switch
    * saying whether that scope descends. See `SubBlockConfig.folderScope`.
    */
-  folderScope?: { fieldId: string; recursiveFieldId?: string }
+  folderScope?: NonNullable<SubBlockConfig['folderScope']>
 }
 
 export function KnowledgeBaseSelector({
@@ -102,12 +102,23 @@ export function KnowledgeBaseSelector({
    */
   const resourceFolders = useResourceFolders(workspaceId, 'knowledge_base')
   const [folderScopeValue] = useSubBlockValue<unknown>(blockId, folderScope?.fieldId ?? subBlock.id)
+  /*
+   * The advanced half of the same canonical pair. Only one half is ever filled —
+   * whichever mode the field is in — so reading just the basic id would see an
+   * empty value for an advanced-mode user and drop the scope entirely.
+   */
+  const [manualFolderScopeValue] = useSubBlockValue<unknown>(
+    blockId,
+    folderScope?.manualFieldId ?? folderScope?.fieldId ?? subBlock.id
+  )
   const [folderScopeRecursive] = useSubBlockValue<unknown>(
     blockId,
     folderScope?.recursiveFieldId ?? subBlock.id
   )
-  const folderScopePath =
-    folderScope && typeof folderScopeValue === 'string' ? folderScopeValue.trim() : ''
+  const readScopeValue = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
+  const folderScopePath = folderScope
+    ? readScopeValue(folderScopeValue) || readScopeValue(manualFolderScopeValue)
+    : ''
   const folderScopeIncludesSubfolders =
     folderScopeRecursive === true || folderScopeRecursive === 'true'
 

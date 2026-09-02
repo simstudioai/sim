@@ -68,6 +68,12 @@ const FOLDER_OPERATIONS = [
  */
 const SEARCH_FOLDER_SCOPE = {
   fieldId: 'searchFolder',
+  /*
+   * The advanced half of the same canonical pair. Naming only the basic field
+   * would read as "no folder" for anyone typing a path in advanced mode, and the
+   * picker would then offer knowledge bases the folder excludes.
+   */
+  manualFieldId: 'manualSearchFolder',
   recursiveFieldId: 'searchFolderIncludeSubfolders',
 } as const
 
@@ -187,7 +193,7 @@ export const KnowledgeBlock: BlockConfig = {
           { text: 'Start a sync on connector', field: 'connectorId', core: true },
           { text: 'in', field: KNOWLEDGE_BASE_FIELD },
         ],
-        list_folders: [{ text: 'List', field: FOLDER_FIELD, core: true }],
+        list_folders: ['List folders', { text: 'in', field: FOLDER_FIELD }],
         create_folder: [
           { text: 'Create folder', field: 'folderName', core: true },
           { text: 'in', field: CREATE_PARENT_FIELD },
