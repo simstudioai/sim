@@ -192,6 +192,9 @@ describe('Slack block release', () => {
 
   it('maps bounded cursor pagination for list channels', () => {
     const values = { operation: 'list_channels' }
+    expect(SlackV2Block.outputs.hasMore.description).toBe(
+      'Whether more thread messages or provider pages remain beyond the fetched window'
+    )
     expect(isSlackV2SubBlockVisible('channelMaxPages', values)).toBe(true)
     expect(isSlackV2SubBlockVisible('paginationCursor', values)).toBe(true)
     expect(
