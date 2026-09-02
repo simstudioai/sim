@@ -47,6 +47,57 @@ const ORACLE_WHERE_MASKED_PATTERNS = [
   /^\s*(?:\d+(?:\.\d+)?|true|false)\s*$/i,
 ] as const
 
+const ORACLE_CONSTANT_ATOM = String.raw`(?:[+-]?(?:(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)[fFdD]?|NULL|TRUE|FALSE|(?:DATE|TIMESTAMP)\s+0)`
+const ORACLE_GROUPED_CONSTANT_ATOM = String.raw`[\s(]*${ORACLE_CONSTANT_ATOM}\s*\)*`
+const ORACLE_BOOLEAN_ARM_PREFIX = String.raw`(?:^|\b(?:OR|AND)\b)(?:[\s(]*NOT\b)*`
+const ORACLE_BOOLEAN_ARM_END = String.raw`(?=[\s)]*(?:$|\b(?:OR|AND)\b))`
+const MAX_ORACLE_WHERE_PARENTHESIS_DEPTH = 128
+
+/**
+ * Rejects common literal-only predicates at the start of a boolean arm. The
+ * scanner maps ordinary, national, and q-quoted Oracle strings to `0`, so the
+ * same expressions cover strings without reproducing Oracle's quoting grammar
+ * in a regular expression. This remains a targeted defense-in-depth check, not
+ * a general SQL expression evaluator. Quoted identifiers become `I` and remain
+ * distinguishable from constants.
+ */
+const ORACLE_CONSTANT_PREDICATE_PATTERNS = [
+  new RegExp(
+    `${ORACLE_BOOLEAN_ARM_PREFIX}${ORACLE_GROUPED_CONSTANT_ATOM}\\s*(?:=|==|<>|!=|<=|>=|<|>)${ORACLE_GROUPED_CONSTANT_ATOM}${ORACLE_BOOLEAN_ARM_END}`,
+    'i'
+  ),
+  new RegExp(
+    `${ORACLE_BOOLEAN_ARM_PREFIX}${ORACLE_GROUPED_CONSTANT_ATOM}\\s+(?:NOT\\s+)?IN\\s*\\(${ORACLE_GROUPED_CONSTANT_ATOM}(?:\\s*,${ORACLE_GROUPED_CONSTANT_ATOM})*\\s*\\)${ORACLE_BOOLEAN_ARM_END}`,
+    'i'
+  ),
+  new RegExp(
+    `${ORACLE_BOOLEAN_ARM_PREFIX}${ORACLE_GROUPED_CONSTANT_ATOM}\\s+(?:NOT\\s+)?BETWEEN${ORACLE_GROUPED_CONSTANT_ATOM}\\s+AND${ORACLE_GROUPED_CONSTANT_ATOM}${ORACLE_BOOLEAN_ARM_END}`,
+    'i'
+  ),
+  new RegExp(
+    `${ORACLE_BOOLEAN_ARM_PREFIX}${ORACLE_GROUPED_CONSTANT_ATOM}\\s+IS\\s+(?:NOT\\s+)?(?:NULL|TRUE|FALSE|UNKNOWN)${ORACLE_BOOLEAN_ARM_END}`,
+    'i'
+  ),
+] as const
+
+function validateOracleWhereParentheses(masked: string): ValidationResult {
+  let depth = 0
+  for (const character of masked) {
+    if (character === '(') {
+      depth += 1
+      if (depth > MAX_ORACLE_WHERE_PARENTHESIS_DEPTH) {
+        return invalid(
+          `WHERE clause cannot nest parentheses more than ${MAX_ORACLE_WHERE_PARENTHESIS_DEPTH} levels`
+        )
+      }
+    } else if (character === ')') {
+      if (depth === 0) return invalid('WHERE clause contains unbalanced parentheses')
+      depth -= 1
+    }
+  }
+  return depth === 0 ? { isValid: true } : invalid('WHERE clause contains unbalanced parentheses')
+}
+
 function ddlObjectType(tokens: string[]): string | undefined {
   const statement = tokens[0]
   if (statement !== 'CREATE' && statement !== 'ALTER' && statement !== 'DROP') return undefined
@@ -86,23 +137,35 @@ function scanOracleSql(sql: string): ScannedSql {
   for (let index = 0; index < sql.length; index += 1) {
     const character = sql[index]
     const next = sql[index + 1]
+    const isNationalQQuote =
+      index > 0 &&
+      (sql[index - 1] === 'n' || sql[index - 1] === 'N') &&
+      (index === 1 || !/[A-Za-z0-9_$#]/.test(sql[index - 2]))
 
     if (
       (character === 'q' || character === 'Q') &&
       next === "'" &&
       index + 2 < sql.length &&
-      (index === 0 || !/[A-Za-z0-9_$#]/.test(sql[index - 1]))
+      (index === 0 || !/[A-Za-z0-9_$#]/.test(sql[index - 1]) || isNationalQQuote)
     ) {
       const ending = `${closingDelimiter(sql[index + 2])}'`
       const endIndex = sql.indexOf(ending, index + 3)
       if (endIndex === -1)
         return { masked: '', hasComment, hasHint, error: 'Unterminated q-quoted string' }
-      for (let cursor = index; cursor < endIndex + 2; cursor += 1) masked[cursor] = ' '
+      const literalStart = isNationalQQuote ? index - 1 : index
+      for (let cursor = literalStart; cursor < endIndex + 2; cursor += 1) masked[cursor] = ' '
+      masked[literalStart] = '0'
       index = endIndex + 1
       continue
     }
 
     if (character === "'") {
+      const isNationalQuote =
+        index > 0 &&
+        (sql[index - 1] === 'n' || sql[index - 1] === 'N') &&
+        (index === 1 || !/[A-Za-z0-9_$#]/.test(sql[index - 2]))
+      const literalStart = isNationalQuote ? index - 1 : index
+      if (isNationalQuote) masked[literalStart] = ' '
       masked[index] = ' '
       let closed = false
       for (let cursor = index + 1; cursor < sql.length; cursor += 1) {
@@ -118,10 +181,12 @@ function scanOracleSql(sql: string): ScannedSql {
         break
       }
       if (!closed) return { masked: '', hasComment, hasHint, error: 'Unterminated string literal' }
+      masked[literalStart] = '0'
       continue
     }
 
     if (character === '"') {
+      const identifierStart = index
       masked[index] = ' '
       let closed = false
       for (let cursor = index + 1; cursor < sql.length; cursor += 1) {
@@ -138,6 +203,7 @@ function scanOracleSql(sql: string): ScannedSql {
       }
       if (!closed)
         return { masked: '', hasComment, hasHint, error: 'Unterminated quoted identifier' }
+      masked[identifierStart] = 'I'
       continue
     }
 
@@ -335,8 +401,13 @@ export function validateOracleWhere(where: string): ValidationResult {
       'Structured WHERE clauses cannot contain bind placeholders; use literal predicates or Execute with named binds'
     )
   }
+  const parentheses = validateOracleWhereParentheses(scan.masked)
+  if (!parentheses.isValid) return parentheses
   if (ORACLE_WHERE_MASKED_PATTERNS.some((pattern) => pattern.test(scan.masked))) {
     return invalid('WHERE clause contains a disallowed or always-true expression')
+  }
+  if (ORACLE_CONSTANT_PREDICATE_PATTERNS.some((pattern) => pattern.test(scan.masked))) {
+    return invalid('WHERE clause contains a disallowed constant-only predicate')
   }
   const forbidden = new Set([
     'INSERT',

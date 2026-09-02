@@ -9,6 +9,7 @@ import {
   normalizeOracleSql,
   validateOracleExecuteQuery,
   validateOracleReadOnlyQuery,
+  validateOracleWhere,
 } from '@/lib/internal/oracledb/query'
 
 describe('Oracle SQL validation and builders', () => {
@@ -134,6 +135,53 @@ describe('Oracle SQL validation and builders', () => {
       'bind placeholders'
     )
     expect(() => buildOracleDelete(undefined, 'Users', 'id = :id')).toThrow('bind placeholders')
+  })
+
+  it.each([
+    'id = 7 OR (1 IN (1))',
+    'id = 7 OR ((1 NOT IN (2, 3)))',
+    "id = 7 OR ('x' IN ('x'))",
+    "id = 7 OR (q'[x]' IN (q'[x]'))",
+    'id = 7 OR (1 BETWEEN 0 AND 2)',
+    'id = 7 OR (NULL IS NULL)',
+    'id = 7 OR NOT (1 IN (2))',
+    'id = 7 OR NOT NOT (1 IN (1))',
+    'id = 7 OR ((1) = (1))',
+    'id = 7 OR (1 IN (((1))))',
+    "id = 7 OR (N'x' IN (N'x'))",
+    "id = 7 OR (NQ'[x]' IN (NQ'[x]'))",
+    "id = 7 OR (DATE '2026-01-01' IN (DATE '2026-01-01'))",
+    "id = 7 OR (TIMESTAMP '2026-01-01 00:00:00' IN (TIMESTAMP '2026-01-01 00:00:00'))",
+  ])('rejects the constant-only predicate %s', (where) => {
+    expect(() => buildOracleDelete(undefined, 'Users', where)).toThrow('constant-only')
+    expect(() => buildOracleUpdate(undefined, 'Users', { active: 0 }, where)).toThrow(
+      'constant-only'
+    )
+  })
+
+  it.each([
+    "status IN ('active', 'pending')",
+    'priority + 1 IN (1, 2)',
+    'NVL(status, 1) IN (1, 2)',
+    'score BETWEEN 1 AND 10',
+    'deleted_at IS NULL',
+    '1 IN (allowed_value)',
+    "id IN (1, 2) OR role IN ('admin', 'owner')",
+    'id = 7 OR (1 BETWEEN 0 AND 2 + score)',
+  ])('accepts the row-dependent predicate %s', (where) => {
+    expect(() => buildOracleDelete(undefined, 'Users', where)).not.toThrow()
+    expect(() => buildOracleUpdate(undefined, 'Users', { active: 0 }, where)).not.toThrow()
+  })
+
+  it('handles a maximum-size whitespace-heavy predicate without pathological backtracking', () => {
+    const where = `id = 7 OR ${' '.repeat(60_000)}allowed_id = 8`
+    expect(validateOracleWhere(where)).toEqual({ isValid: true })
+
+    const deeplyNested = `id = 7 OR ${'('.repeat(30_000)}1 IN (1${')'.repeat(30_000)} + score`
+    expect(validateOracleWhere(deeplyNested)).toEqual({
+      isValid: false,
+      error: 'WHERE clause cannot nest parentheses more than 128 levels',
+    })
   })
 
   it('accepts ordinary function, range, quoted-colon, and q-quoted predicates', () => {
