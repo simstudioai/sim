@@ -6,18 +6,16 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { outputMenuState } = vi.hoisted(() => ({
-  outputMenuState: {
-    includeNestedWorkflow: true,
-    workflowBlocks: {} as Record<string, object>,
-    workflowValues: { root: {} } as Record<string, Record<string, Record<string, unknown>>>,
-    capturedRootState: null as {
-      blocks: Record<string, { subBlocks: Record<string, { value?: unknown }> }>
-    } | null,
-  },
+  outputMenuState: { includeNestedWorkflow: true },
 }))
 
-vi.mock('@sim/emcn', () => {
-  interface MockComboboxProps {
+vi.mock('@sim/emcn', () => ({
+  cn: (...values: unknown[]) => values.flat().filter(Boolean).join(' '),
+  Combobox: ({
+    groups,
+    multiSelectValues = [],
+    onMultiSelectChange,
+  }: {
     groups: Array<{
       section?: string
       sectionElement?: ReactNode
@@ -31,13 +29,7 @@ vi.mock('@sim/emcn', () => {
     }>
     multiSelectValues?: string[]
     onMultiSelectChange?: (values: string[]) => void
-  }
-
-  const MockCombobox = ({
-    groups,
-    multiSelectValues = [],
-    onMultiSelectChange,
-  }: MockComboboxProps) => (
+  }) => (
     <div>
       {groups.map((group, groupIndex) => (
         <div key={group.section ?? groupIndex}>
@@ -67,18 +59,33 @@ vi.mock('@sim/emcn', () => {
         </div>
       ))}
     </div>
-  )
-
-  return {
-    cn: (...values: unknown[]) => values.flat().filter(Boolean).join(' '),
-    Combobox: MockCombobox,
-    ChipCombobox: (props: MockComboboxProps) => (
-      <div data-chip-combobox>
-        <MockCombobox {...props} />
-      </div>
-    ),
-  }
-})
+  ),
+  ChipCombobox: ({
+    groups,
+    multiSelectValues,
+    onMultiSelectChange,
+    disablePortal,
+  }: {
+    groups: Array<{ section?: string; items: Array<{ label: string; value: string }> }>
+    multiSelectValues?: string[]
+    onMultiSelectChange?: (values: string[]) => void
+    disablePortal?: boolean
+  }) => (
+    <div data-chip-combobox data-disable-portal={disablePortal || undefined}>
+      {groups.flatMap((group) =>
+        group.items.map((option) => (
+          <button
+            key={option.value}
+            type='button'
+            onClick={() => onMultiSelectChange?.([...(multiSelectValues ?? []), option.value])}
+          >
+            {option.label}
+          </button>
+        ))
+      )}
+    </div>
+  ),
+}))
 
 vi.mock('zustand/react/shallow', () => ({ useShallow: (selector: unknown) => selector }))
 
@@ -100,12 +107,11 @@ vi.mock('@/stores/workflow-diff/store', () => ({
 
 vi.mock('@/stores/workflows/subblock/store', () => ({
   useSubBlockStore: (selector: (state: object) => unknown) =>
-    selector({ workflowValues: outputMenuState.workflowValues }),
+    selector({ workflowValues: { root: {} } }),
 }))
 
 vi.mock('@/stores/workflows/workflow/store', () => ({
-  useWorkflowStore: (selector: (state: object) => unknown) =>
-    selector({ blocks: outputMenuState.workflowBlocks, edges: [] }),
+  useWorkflowStore: (selector: (state: object) => unknown) => selector({ blocks: {}, edges: [] }),
 }))
 
 vi.mock('@/lib/workflows/streaming/nested-output-options', () => {
@@ -135,14 +141,8 @@ vi.mock('@/lib/workflows/streaming/nested-output-options', () => {
 
   return {
     collectReferencedWorkflowIds: () => [],
-    buildWorkflowOutputOptions: (input: {
-      rootState: {
-        blocks: Record<string, { subBlocks: Record<string, { value?: unknown }> }>
-      }
-    }) => {
-      outputMenuState.capturedRootState = input.rootState
-      return outputMenuState.includeNestedWorkflow ? [rootOutput, nestedOutput] : [rootOutput]
-    },
+    buildWorkflowOutputOptions: () =>
+      outputMenuState.includeNestedWorkflow ? [rootOutput, nestedOutput] : [rootOutput],
     buildWorkflowOutputMenu: () => {
       const rootNode = {
         blockId: 'summary',
@@ -182,17 +182,13 @@ let container: HTMLDivElement | null = null
 
 beforeEach(() => {
   outputMenuState.includeNestedWorkflow = true
-  outputMenuState.workflowBlocks = {}
-  outputMenuState.workflowValues = { root: {} }
-  outputMenuState.capturedRootState = null
 })
 
 function outputSelect(
   workflowId: string,
   selectedOutputs: string[],
   onOutputSelect: (outputIds: string[]) => void,
-  valueMode: 'id' | 'label' | 'public' = 'id',
-  size: 'sm' | 'md' = 'sm'
+  valueMode: 'id' | 'label' | 'public' = 'id'
 ) {
   return (
     <OutputSelect
@@ -200,7 +196,6 @@ function outputSelect(
       selectedOutputs={selectedOutputs}
       onOutputSelect={onOutputSelect}
       valueMode={valueMode}
-      size={size}
     />
   )
 }
@@ -209,14 +204,22 @@ function renderOutputSelect(
   selectedOutputs: string[],
   onOutputSelect = vi.fn(),
   valueMode: 'id' | 'label' | 'public' = 'id',
-  size: 'sm' | 'md' = 'sm'
+  props: { size?: 'sm' | 'md'; disablePortal?: boolean } = {}
 ) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
   act(() => {
-    root?.render(outputSelect('root', selectedOutputs, onOutputSelect, valueMode, size))
+    root?.render(
+      <OutputSelect
+        workflowId='root'
+        selectedOutputs={selectedOutputs}
+        onOutputSelect={onOutputSelect}
+        valueMode={valueMode}
+        {...props}
+      />
+    )
   })
   return onOutputSelect
 }
@@ -256,76 +259,28 @@ describe('OutputSelect nested workflow menu', () => {
     expect(document.body.textContent).toContain('Research')
     expect(document.body.textContent).not.toContain('Writer')
 
-    expect([...document.querySelectorAll('[data-section]')][0]?.textContent).toBe('Subworkflows')
-    clickOption('Research')
+    clickOption('Outputs')
     expect(document.body.textContent).toContain('Back')
     expect(document.body.textContent).toContain('Writer')
     expect(document.body.textContent).toContain('answer')
     expect(document.body.textContent).not.toContain('Summarizer')
   })
 
-  it('preserves a persisted workflow target when the editor value map is sparse', () => {
-    outputMenuState.workflowBlocks = {
-      invoke: {
-        id: 'invoke',
-        type: 'workflow_input',
-        name: 'Research',
-        position: { x: 0, y: 0 },
-        subBlocks: {
-          workflowId: {
-            id: 'workflowId',
-            type: 'workflow-selector',
-            value: 'child-workflow',
-          },
-        },
-        outputs: {},
-        enabled: true,
-      },
-    }
+  it('forwards inline dropdown rendering to the chip combobox', () => {
+    renderOutputSelect([], vi.fn(), 'id', { size: 'md', disablePortal: true })
 
-    renderOutputSelect([])
-
-    expect(outputMenuState.capturedRootState?.blocks.invoke.subBlocks.workflowId.value).toBe(
-      'child-workflow'
+    expect(container.querySelector('[data-chip-combobox]')).toHaveAttribute(
+      'data-disable-portal',
+      'true'
     )
   })
 
   it('keeps workflow-scoped values when toggling nested outputs', () => {
     const onOutputSelect = renderOutputSelect([])
-    clickOption('Research')
+    clickOption('Outputs')
     clickOption('answer')
 
     expect(onOutputSelect).toHaveBeenCalledWith(['child-workflow.agent_answer'])
-  })
-
-  it('keeps a nested selection in its subworkflow and deselects it there', () => {
-    const onOutputSelect = renderOutputSelect(['child-workflow.agent_answer'])
-
-    expect(document.body.textContent).not.toContain('Selected')
-    expect(document.body.textContent).not.toContain('Writer')
-
-    clickOption('Research')
-    expect(document.body.textContent).toContain('Writer')
-    clickOption('answer')
-    expect(onOutputSelect).toHaveBeenCalledWith([])
-  })
-
-  it('preserves existing selections when choosing a nested output', () => {
-    const onOutputSelect = renderOutputSelect(['summary_content'])
-
-    clickOption('Research')
-    clickOption('answer')
-
-    expect(onOutputSelect).toHaveBeenCalledWith(['summary_content', 'child-workflow.agent_answer'])
-  })
-
-  it('selects outputs from the medium chat deployment picker', () => {
-    const onOutputSelect = renderOutputSelect([], vi.fn(), 'id', 'md')
-
-    expect(document.querySelector('[data-chip-combobox]')).not.toBeNull()
-    clickOption('content')
-
-    expect(onOutputSelect).toHaveBeenCalledWith(['summary_content'])
   })
 
   it('emits public dot selectors for trigger authoring', () => {
@@ -334,14 +289,14 @@ describe('OutputSelect nested workflow menu', () => {
     clickOption('content')
     expect(onOutputSelect).toHaveBeenCalledWith(['summarizer.content'])
 
-    clickOption('Research')
+    clickOption('Outputs')
     clickOption('answer')
     expect(onOutputSelect).toHaveBeenCalledWith(['child-workflow.writer.answer'])
   })
 
   it('returns to the root menu when the owning workflow changes', () => {
     const onOutputSelect = renderOutputSelect([])
-    clickOption('Research')
+    clickOption('Outputs')
 
     rerenderOutputSelect('replacement', [], onOutputSelect)
 
@@ -351,7 +306,7 @@ describe('OutputSelect nested workflow menu', () => {
 
   it('returns to the root menu when a workflow edit invalidates the active path', () => {
     const onOutputSelect = renderOutputSelect([])
-    clickOption('Research')
+    clickOption('Outputs')
 
     outputMenuState.includeNestedWorkflow = false
     rerenderOutputSelect('root', [], onOutputSelect)

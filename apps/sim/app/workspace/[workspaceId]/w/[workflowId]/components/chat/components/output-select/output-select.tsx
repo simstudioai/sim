@@ -9,7 +9,6 @@ import {
   cn,
 } from '@sim/emcn'
 import { ArrowLeft, ChevronRight } from '@sim/emcn/icons'
-import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -49,6 +48,7 @@ interface OutputSelectProps {
   align?: 'start' | 'end' | 'center'
   /** Maximum height of the dropdown content in pixels */
   maxHeight?: number
+  disablePortal?: boolean
   /**
    * Trigger chrome. `'sm'` is the compact pill used in inline toolbars;
    * `'md'` is the 30px chip field, for stacking with `ChipInput` in a form.
@@ -69,6 +69,7 @@ interface OutputSelectMenuProps {
   valueMode: 'id' | 'label' | 'public'
   align: 'start' | 'end' | 'center'
   maxHeight: number
+  disablePortal: boolean
   size: 'sm' | 'md'
   className?: string
 }
@@ -126,6 +127,7 @@ function OutputSelectContent({
   valueMode = 'id',
   align = 'start',
   maxHeight = 200,
+  disablePortal = false,
   size = 'sm',
   className,
 }: OutputSelectProps) {
@@ -154,14 +156,30 @@ function OutputSelectContent({
     if (!workflowId || !workflowBlocks || typeof workflowBlocks !== 'object') {
       return { blocks: {}, edges: [] }
     }
-    const blockMap = workflowBlocks as Record<string, BlockState>
-    const mergedBlocks = mergeSubblockStateWithValues(
-      blockMap,
-      shouldUseBaseline ? {} : (subBlockValues ?? {})
-    )
+    const blockArray = Object.values(workflowBlocks) as BlockState[]
+
+    const mergedBlocks = blockArray.map((block): BlockState => {
+      const rawSubBlockValues =
+        shouldUseBaseline && baselineWorkflow
+          ? baselineWorkflow.blocks?.[block.id]?.subBlocks
+          : subBlockValues?.[block.id]
+      const subBlocks: Record<string, unknown> = {}
+      if (rawSubBlockValues && typeof rawSubBlockValues === 'object') {
+        for (const [key, val] of Object.entries(rawSubBlockValues)) {
+          subBlocks[key] =
+            val && typeof val === 'object' && 'value' in (val as object)
+              ? (val as { value: unknown })
+              : { value: val }
+        }
+      }
+      return {
+        ...block,
+        subBlocks,
+      } as BlockState
+    })
 
     return {
-      blocks: mergedBlocks,
+      blocks: Object.fromEntries(mergedBlocks.map((block) => [block.id, block])),
       edges: workflowEdges,
     }
   }, [
@@ -213,6 +231,7 @@ function OutputSelectContent({
       valueMode={valueMode}
       align={align}
       maxHeight={maxHeight}
+      disablePortal={disablePortal}
       size={size}
       className={className}
     />
@@ -229,23 +248,16 @@ function OutputSelectMenu({
   valueMode,
   align,
   maxHeight,
+  disablePortal,
   size,
   className,
 }: OutputSelectMenuProps) {
   const [menuPath, setMenuPath] = useState<string[]>([])
   const activeMenuNode = resolveOutputMenuNode(outputMenu, menuPath)
 
-  const selectedOutputOptions = selectedOutputs
-    .map((selectedValue) =>
-      workflowOutputs.find(
-        (output) =>
-          output.id === selectedValue ||
-          output.label === selectedValue ||
-          getOutputValue(output, valueMode) === selectedValue
-      )
-    )
-    .filter((output): output is WorkflowOutputOption => output !== undefined)
-  const validOutputCount = selectedOutputOptions.length
+  const validOutputCount = selectedOutputs.filter((val) =>
+    workflowOutputs.some((output) => output.id === val || output.label === val)
+  ).length
   let selectedDisplayText = placeholder
   if (validOutputCount === 1) {
     selectedDisplayText = '1 output'
@@ -253,30 +265,17 @@ function OutputSelectMenu({
     selectedDisplayText = `${validOutputCount} outputs`
   }
 
-  const normalizedSelectedValues = selectedOutputOptions.map((output) =>
-    getOutputValue(output, valueMode)
-  )
-  const selectedValueSet = new Set(normalizedSelectedValues)
+  const normalizedSelectedValues = selectedOutputs
+    .map((val) => {
+      const output = workflowOutputs.find((item) => item.id === val || item.label === val)
+      if (!output) return null
+      return getOutputValue(output, valueMode)
+    })
+    .filter((value): value is string => value !== null)
 
-  const outputOption = (output: WorkflowOutputOption, label = output.path): ComboboxOption => {
-    const value = getOutputValue(output, valueMode)
-    return {
-      label,
-      value,
-      onSelect: () => {
-        onOutputSelect(
-          selectedValueSet.has(value)
-            ? normalizedSelectedValues.filter((selectedValue) => selectedValue !== value)
-            : [...normalizedSelectedValues, value]
-        )
-      },
-      keepOpen: true,
-    }
-  }
-
-  const subworkflowOption = (node: WorkflowOutputMenuNode): ComboboxOption => ({
-    label: node.blockName,
-    value: `subworkflow:${node.blockId}`,
+  const folderOption = (node: WorkflowOutputMenuNode): ComboboxOption => ({
+    label: 'Outputs',
+    value: `folder:${node.blockId}`,
     suffixElement: <ChevronRight className='size-[12px] text-[var(--text-tertiary)]' />,
     onSelect: () => setMenuPath((currentPath) => [...currentPath, node.blockId]),
     keepOpen: true,
@@ -293,46 +292,39 @@ function OutputSelectMenu({
         <span className='text-small'>{node.blockName}</span>
       </div>
     ),
-    items: node.outputs.map((output) => outputOption(output)),
+    items: [
+      ...node.outputs.map((output) => ({
+        label: output.path,
+        value: getOutputValue(output, valueMode),
+      })),
+      ...(node.children.length > 0 ? [folderOption(node)] : []),
+    ],
   })
 
-  const menuNodes = activeMenuNode ? activeMenuNode.children : outputMenu
-  const subworkflowNodes = menuNodes.filter((node) => node.children.length > 0)
-  const outputNodes = menuNodes.filter((node) => node.outputs.length > 0)
-  const menuGroups: ComboboxOptionGroup[] = [
-    ...(activeMenuNode
-      ? [
-          {
-            section: activeMenuNode.blockName,
-            items: [
-              {
-                label: 'Back',
-                value: `back:${activeMenuNode.blockId}`,
-                iconElement: <ArrowLeft className='size-[14px] text-[var(--text-tertiary)]' />,
-                onSelect: () => setMenuPath((currentPath) => currentPath.slice(0, -1)),
-                keepOpen: true,
-              },
-            ],
-          },
-        ]
-      : []),
-    ...(subworkflowNodes.length > 0
-      ? [
-          {
-            section: 'Subworkflows',
-            items: subworkflowNodes.map(subworkflowOption),
-          },
-        ]
-      : []),
-    ...outputNodes.map(outputGroup),
-  ]
+  const comboboxGroups: ComboboxOptionGroup[] = activeMenuNode
+    ? [
+        {
+          section: activeMenuNode.blockName,
+          items: [
+            {
+              label: 'Back',
+              value: `back:${activeMenuNode.blockId}`,
+              iconElement: <ArrowLeft className='size-[14px] text-[var(--text-tertiary)]' />,
+              onSelect: () => setMenuPath((currentPath) => currentPath.slice(0, -1)),
+              keepOpen: true,
+            },
+          ],
+        },
+        ...activeMenuNode.children.map(outputGroup),
+      ]
+    : outputMenu.map(outputGroup)
   const Trigger = size === 'md' ? ChipCombobox : Combobox
 
   return (
     <Trigger
       size={size}
       className={cn('min-w-[100px]', size === 'sm' && '!py-0.5 w-fit rounded-md px-2.5', className)}
-      groups={menuGroups}
+      groups={comboboxGroups}
       options={[]}
       multiSelect
       multiSelectValues={normalizedSelectedValues}
@@ -350,6 +342,7 @@ function OutputSelectMenu({
       align={align}
       maxHeight={maxHeight}
       dropdownWidth={180}
+      disablePortal={disablePortal}
     />
   )
 }

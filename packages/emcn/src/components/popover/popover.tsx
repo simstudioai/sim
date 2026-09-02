@@ -601,7 +601,7 @@ const PopoverContent = React.forwardRef<
         {...restProps}
         data-native-surface-overlay=''
         className={cn(
-          'pointer-events-auto z-[var(--z-popover)] flex flex-col outline-none',
+          'z-[var(--z-popover)] flex flex-col outline-none',
           showArrow ? 'overflow-visible' : 'overflow-auto',
           STYLES.colorScheme[colorScheme].content,
           STYLES.content,

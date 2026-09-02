@@ -138,8 +138,8 @@ export async function generateInternalDelegationToken(
     ? requireNonEmptyDelegationClaim(input.subjectUserId, 'subjectUserId')
     : undefined
   const principalSubject = input.principal ? resolvePrincipalSubject(input.principal) : null
-  if (principalSubject?.kind === 'external_user' && suppliedSubjectUserId) {
-    throw new Error('External workflow subjects cannot be represented as Sim users')
+  if (principalSubject && principalSubject.kind !== 'sim_user' && suppliedSubjectUserId) {
+    throw new Error('Non-Sim workflow subjects cannot be represented as Sim users')
   }
   if (!principalSubject && input.principal && suppliedSubjectUserId) {
     throw new Error('Actorless workflow principals cannot be represented as Sim users')
@@ -247,7 +247,7 @@ export async function verifyInternalDelegationToken(
   if (
     (!principal && !subjectUserId) ||
     (principalSubject?.kind === 'sim_user' && principalSubject.userId !== subjectUserId) ||
-    (principalSubject?.kind === 'external_user' && subjectUserId) ||
+    (principalSubject && principalSubject.kind !== 'sim_user' && subjectUserId) ||
     (principal && !principalSubject && subjectUserId)
   ) {
     throw new InvalidInternalDelegationTokenError()

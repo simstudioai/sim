@@ -1355,6 +1355,7 @@ export const ToolInput = memo(function ToolInput({
       })
     }
 
+    // Workflows section - shows available workflows that can be executed as tools
     if (availableWorkflows.length > 0) {
       groups.push({
         section: 'Workflows',

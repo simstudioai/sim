@@ -159,7 +159,7 @@ export const POST = withRouteHandler(
         const response = createSuccessResponse(toChatConfigResponse(deployment))
 
         if (deployment.authType === 'password') {
-          setChatAuthCookie(response, deployment)
+          await setChatAuthCookie(response, deployment)
         }
 
         return response
@@ -328,6 +328,14 @@ export const POST = withRouteHandler(
                   serviceId: 'chat',
                   workspaceId,
                   workflowId: deployment.workflowId,
+                  ...(authResult.authenticatedEmail
+                    ? {
+                        subject: {
+                          kind: 'authenticated_email' as const,
+                          email: authResult.authenticatedEmail,
+                        },
+                      }
+                    : {}),
                 },
                 selectedOutputs,
                 isSecureMode: true,

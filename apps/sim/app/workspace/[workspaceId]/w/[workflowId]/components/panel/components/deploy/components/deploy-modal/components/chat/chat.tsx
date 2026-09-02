@@ -390,6 +390,7 @@ export function ChatDeploy({
               disabled={chatSubmitting}
               size='md'
               className='w-full'
+              disablePortal
             />
             {errors.outputBlocks && (
               <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>

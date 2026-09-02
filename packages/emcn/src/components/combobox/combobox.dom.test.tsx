@@ -64,6 +64,14 @@ afterEach(() => {
 })
 
 describe('Combobox onOpenChange', () => {
+  it('renders the dropdown inside the component subtree when portals are disabled', () => {
+    render(<Combobox options={OPTIONS} disablePortal />)
+
+    click(trigger())
+
+    expect(container?.querySelector('[role="listbox"]')).not.toBeNull()
+  })
+
   it('uses the overlay label for the interactive overflow layer', () => {
     render(
       <Combobox

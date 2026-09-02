@@ -3265,6 +3265,8 @@ const WorkflowContent = React.memo(
         const workflowChanges = changes.filter(
           (change) => !('id' in change) || change.id !== CONNECTION_BLOCK_SELECTOR_NODE_ID
         )
+        if (workflowChanges.length === 0) return
+
         const hasSelectionChange = workflowChanges.some((c) => c.type === 'select')
         setDisplayNodes((currentNodes) => {
           // Filter out cross-context selection changes before applying so that
@@ -4855,8 +4857,8 @@ const WorkflowContent = React.memo(
             pendingConnect,
             onClose: closeConnectionBlockSelector,
           },
-          width: CONNECTION_BLOCK_SELECTOR_DIMENSIONS.width,
-          height: CONNECTION_BLOCK_SELECTOR_DIMENSIONS.height,
+          initialWidth: CONNECTION_BLOCK_SELECTOR_DIMENSIONS.width,
+          initialHeight: CONNECTION_BLOCK_SELECTOR_DIMENSIONS.height,
           zIndex: CONNECTION_PICKER_Z,
           dragHandle: '.workflow-drag-handle',
           draggable: true,

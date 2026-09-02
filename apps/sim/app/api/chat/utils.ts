@@ -13,12 +13,12 @@ import {
   validateDeploymentAuth,
 } from '@/lib/core/security/deployment-auth'
 
-export function setChatAuthCookie(
+export async function setChatAuthCookie(
   response: NextResponse,
   deployment: DeploymentAuthResource,
   verifiedEmail?: string
-): void {
-  setDeploymentAuthCookie({
+): Promise<void> {
+  await setDeploymentAuthCookie({
     response,
     cookiePrefix: 'chat',
     resource: deployment,
