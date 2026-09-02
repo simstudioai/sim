@@ -129,6 +129,13 @@ export const MEMBER_SYNC_MAX_PAGES_PER_MEMBER = 200
 export const MEMBER_FULL_RECRAWL_MINUTES = 720
 
 /**
+ * The full-listing cadence for a member whose connector keeps a change feed.
+ * The feed reports what they gain, lose, and see modified between listings,
+ * so the full listing is only a periodic check that the feed missed nothing.
+ */
+export const MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES = 7 * 24 * 60
+
+/**
  * A member whose crawls have neither started nor completed for this long is
  * treated as gone: their observations are removed and the documents only they
  * observed go dark. Measured against the schedule, not the wall clock, so

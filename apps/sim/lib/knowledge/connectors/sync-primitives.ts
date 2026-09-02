@@ -35,7 +35,12 @@ import {
   QUEUED_DISPATCH_GRACE_MS,
 } from '@/lib/knowledge/documents/types'
 import { isRateLimitError } from '@/lib/knowledge/documents/utils'
-import type { ConnectorConfig, ExternalDocument, SyncResult } from '@/connectors/types'
+import type {
+  ConnectorConfig,
+  ExternalChange,
+  ExternalDocument,
+  SyncResult,
+} from '@/connectors/types'
 import { hasIndexablePayload } from '@/connectors/utils'
 
 const logger = createLogger('ConnectorSyncPrimitives')
@@ -130,7 +135,7 @@ const PROCESSING_QUEUE_CONCURRENCY = envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 
 export class ConnectorSyncCapacityError extends Error {}
 
 export class ConnectorSyncWorkingSetLimitError extends ConnectorSyncCapacityError {
-  constructor(connectorId: string, scope: 'source listing' | 'owned corpus') {
+  constructor(connectorId: string, scope: 'source listing' | 'change feed' | 'owned corpus') {
     super(
       `Connector ${connectorId} ${scope} exceeds the safe per-corpus limit of ${CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS.toLocaleString()} documents. Narrow the configured source scope or set a connector document limit before syncing again.`
     )
@@ -1067,6 +1072,86 @@ export function filterStillOwnedReconciliationIds(
     softDeleteIds: softDeleteIds.filter((id) => stillOwnedIds.has(id)),
     hardDeleteIds: hardDeleteIds.filter((id) => stillOwnedIds.has(id)),
   }
+}
+
+/** What a change-feed pass needs from the engine that runs it. */
+export interface ChangeFeedPassInput {
+  connectorId: string
+  connectorConfig: { listChanges: NonNullable<ConnectorConfig['listChanges']> }
+  sourceConfig: Record<string, unknown>
+  syncContext: Record<string, unknown>
+  /** Where the feed was last left. */
+  cursor: string
+  beforePage: () => Promise<void>
+  getAccessToken: (pageNum: number) => Promise<string>
+  deadlineAt?: number
+  maxPages?: number
+}
+
+export interface ChangeFeedPassResult {
+  /** The latest stub of every item the feed reported as present, in feed order. */
+  upserts: ExternalDocument[]
+  /** Items whose last word from the feed was a removal. */
+  removedExternalIds: string[]
+  /** Where the next read resumes: past every page this pass consumed. */
+  cursor: string
+  /** False when pagination stopped before the feed was drained. */
+  exhausted: boolean
+  budgetAborted: boolean
+}
+
+/**
+ * Reads a change feed to exhaustion, the page cap, or the deadline. Each item
+ * keeps only its last change, so something removed and re-shared inside one
+ * pass reads as present. The returned cursor sits past every page that was
+ * read, so an interrupted pass never replays what it already applied.
+ */
+export async function runChangeFeedPass(input: ChangeFeedPassInput): Promise<ChangeFeedPassResult> {
+  const { connectorId, connectorConfig, sourceConfig, syncContext } = input
+  const maxPages = input.maxPages ?? MAX_PAGES
+  const latest = new Map<string, ExternalChange>()
+  let retainedSourcePayloadBytes = 0
+  let cursor = input.cursor
+  let hasMore = true
+  let budgetAborted = false
+
+  for (let pageNum = 0; hasMore && pageNum < maxPages; pageNum++) {
+    await input.beforePage()
+
+    if (input.deadlineAt !== undefined && Date.now() >= input.deadlineAt) {
+      budgetAborted = true
+      break
+    }
+
+    const accessToken = await input.getAccessToken(pageNum)
+    const page = await connectorConfig.listChanges(accessToken, sourceConfig, cursor, syncContext)
+
+    const upserts: ExternalDocument[] = []
+    for (const change of page.changes) {
+      if (change.kind === 'upsert') upserts.push(change.document)
+    }
+    if (!sourcePageFitsSyncWorkingSet(latest.size, upserts.length)) {
+      throw new ConnectorSyncWorkingSetLimitError(connectorId, 'change feed')
+    }
+    retainedSourcePayloadBytes = addSourcePagePayloadBytes(retainedSourcePayloadBytes, upserts)
+    for (const change of page.changes) latest.set(change.externalId, change)
+
+    cursor = page.nextCursor
+    hasMore = page.hasMore
+  }
+
+  const result: ChangeFeedPassResult = {
+    upserts: [],
+    removedExternalIds: [],
+    cursor,
+    exhausted: !hasMore,
+    budgetAborted,
+  }
+  for (const change of latest.values()) {
+    if (change.kind === 'upsert') result.upserts.push(change.document)
+    else result.removedExternalIds.push(change.externalId)
+  }
+  return result
 }
 
 /** What a listing pass needs from the engine that runs it. */

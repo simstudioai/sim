@@ -302,7 +302,8 @@ export const confluenceConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     cursor?: string,
-    syncContext?: Record<string, unknown>
+    syncContext?: Record<string, unknown>,
+    lastSyncAt?: Date
   ): Promise<ExternalDocumentList> => {
     const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
     const spaceKeys = parseMultiValue(sourceConfig.spaceKey)
@@ -321,11 +322,13 @@ export const confluenceConnector: ConnectorConfig = {
     }
 
     /**
-     * Route through CQL when a label filter is set or when multiple spaces are
-     * selected — the v2 `/spaces/{spaceId}/pages` endpoint is single-space only,
-     * but CQL natively supports `space in (...)`.
+     * Route through CQL when a label filter is set, when multiple spaces are
+     * selected, or when only recently modified content is wanted — the v2
+     * `/spaces/{spaceId}/pages` endpoint is single-space only and cannot filter
+     * by modification time, but CQL natively supports `space in (...)` and
+     * `lastModified`.
      */
-    if (labelFilter.trim() || spaceKeys.length > 1) {
+    if (labelFilter.trim() || spaceKeys.length > 1 || lastSyncAt) {
       return listDocumentsViaCql(
         cloudId,
         accessToken,
@@ -335,7 +338,8 @@ export const confluenceConnector: ConnectorConfig = {
         labelFilter,
         maxPages,
         cursor,
-        syncContext
+        syncContext,
+        lastSyncAt
       )
     }
 
@@ -679,6 +683,17 @@ async function listAllContentTypes(
 }
 
 /**
+ * The CQL clause selecting content modified since a watermark. CQL's `now()`
+ * takes a relative offset and evaluates on the server, which sidesteps the
+ * timezone the endpoint would otherwise assume for an absolute timestamp; the
+ * offset rounds up to the next whole minute so nothing at the edge is missed.
+ */
+export function buildLastModifiedClause(lastSyncAt: Date, now: Date): string {
+  const minutes = Math.max(1, Math.ceil((now.getTime() - lastSyncAt.getTime()) / 60_000))
+  return `lastModified >= now("-${minutes}m")`
+}
+
+/**
  * Page size for CQL search. The endpoint defaults to 25 and documents no hard
  * maximum, so this stays conservatively below the fixed system limits it warns
  * about rather than mirroring the v2 endpoints' 250.
@@ -697,7 +712,8 @@ async function listDocumentsViaCql(
   labelFilter: string,
   maxPages: number,
   cursor?: string,
-  syncContext?: Record<string, unknown>
+  syncContext?: Record<string, unknown>,
+  lastSyncAt?: Date
 ): Promise<ExternalDocumentList> {
   const labels = labelFilter
     .split(',')
@@ -727,6 +743,8 @@ async function listDocumentsViaCql(
     const labelList = labels.map((l) => `"${escapeCql(l)}"`).join(',')
     cql += ` AND label in (${labelList})`
   }
+
+  if (lastSyncAt) cql += ` AND ${buildLastModifiedClause(lastSyncAt, new Date())}`
 
   const fetchedSoFar = (syncContext?.totalDocsFetched as number) ?? 0
   const remaining = maxPages > 0 ? maxPages - fetchedSoFar : Number.POSITIVE_INFINITY

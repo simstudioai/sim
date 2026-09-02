@@ -4799,6 +4799,14 @@ export const knowledgeConnectorMember = pgTable(
     lastError: text('last_error'),
     /** Incremental watermark; advances only on a complete, non-suspect full listing. */
     memberSyncedThrough: timestamp('member_synced_through'),
+    /**
+     * Where the member's change feed resumes. Opened just before a full listing
+     * and stored once that listing lands, so every later run reads the feed
+     * instead of relisting; NULL when the connector has no feed or the feed
+     * has to be reopened.
+     */
+    changeCursor: text('change_cursor'),
+    changeCursorAt: timestamp('change_cursor_at'),
     suspendedAt: timestamp('suspended_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

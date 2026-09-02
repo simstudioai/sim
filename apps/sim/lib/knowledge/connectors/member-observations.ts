@@ -120,6 +120,34 @@ export async function removeUnseenMemberObservations(
   return removed.map((row) => row.documentId)
 }
 
+/**
+ * Withdraws one member's observations of specific documents: what their
+ * change feed reported as deleted or no longer reachable. Returns the ids
+ * whose observation actually existed.
+ */
+export async function removeMemberObservationsForDocuments(
+  executor: DbOrTx,
+  memberId: string,
+  documentIds: readonly string[]
+): Promise<string[]> {
+  if (documentIds.length === 0) return []
+  const removed: string[] = []
+  for (let offset = 0; offset < documentIds.length; offset += OBSERVATION_BATCH_SIZE) {
+    const batch = documentIds.slice(offset, offset + OBSERVATION_BATCH_SIZE)
+    const rows = await executor
+      .delete(knowledgeDocumentObservation)
+      .where(
+        and(
+          eq(knowledgeDocumentObservation.memberId, memberId),
+          inArray(knowledgeDocumentObservation.documentId, batch)
+        )
+      )
+      .returning({ documentId: knowledgeDocumentObservation.documentId })
+    for (const row of rows) removed.push(row.documentId)
+  }
+  return removed
+}
+
 /** Every document the given members have observed, for rematerialisation after a membership change. */
 export async function listObservedDocumentIds(
   executor: DbOrTx,

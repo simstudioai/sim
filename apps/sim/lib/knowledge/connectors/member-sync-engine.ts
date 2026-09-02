@@ -32,6 +32,7 @@ import {
   listObservedDocumentIds,
   materializeDocumentAcls,
   recordMemberObservations,
+  removeMemberObservationsForDocuments,
   removeUnseenMemberObservations,
 } from '@/lib/knowledge/connectors/member-observations'
 import {
@@ -39,6 +40,7 @@ import {
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   connectorFailureBackoffMinutes,
   MAX_CONSECUTIVE_FAILURES,
+  MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES,
   MEMBER_FULL_RECRAWL_MINUTES,
   MEMBER_SUSPENDED_PURGE_DAYS,
   MEMBER_SYNC_MAX_PAGES_PER_MEMBER,
@@ -62,6 +64,7 @@ import {
   loadOwnedCorpus,
   processDocOps,
   RETRY_WINDOW_DAYS,
+  runChangeFeedPass,
   runListingPass,
   sourcePageFitsSyncWorkingSet,
   sweepStuckDocuments,
@@ -125,15 +128,26 @@ export interface MemberCredentialSnapshot {
   active: boolean
 }
 
+/**
+ * How a member's view of the source was read this run. A full listing is the
+ * only kind that can withdraw access by omission; the change feed withdraws it
+ * by an explicit removal; an incremental listing refreshes content only.
+ */
+type MemberListingMode = 'full' | 'changes' | 'incremental'
+
 /** What one member's listing established for this run. */
 interface MemberListingOutcome {
   member: MemberRow
+  mode: MemberListingMode
   listingStartedAt: Date
   seenExternalIds: Set<string>
+  /** Items the change feed reported as deleted or no longer reachable by the member. */
+  removedExternalIds: readonly string[]
   listedCount: number
-  full: boolean
   complete: boolean
   suspect: boolean
+  /** Cursor to store when this outcome lands; undefined leaves the member's cursor untouched. */
+  changeCursor: string | undefined
 }
 
 interface UnionEntry {
@@ -193,18 +207,34 @@ export function deriveMemberActive(
 }
 
 /**
- * Whether a member needs a full listing this run. Only a full listing grants
- * or removes access, so every member gets one at least every
- * {@link MEMBER_FULL_RECRAWL_MINUTES}; between them, an incremental listing
- * refreshes content only.
+ * Whether a member needs a full listing this run. Without a change feed only a
+ * full listing grants or removes access, so every member gets one at least
+ * every {@link MEMBER_FULL_RECRAWL_MINUTES} and an incremental listing
+ * refreshes content between them. A member whose feed is open needs one only
+ * every {@link MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES}, as a check that the
+ * feed missed nothing.
  */
 export function shouldListFully(
   memberSyncedThrough: Date | null,
   lastCompleteListingAt: Date | null,
-  now: Date
+  now: Date,
+  recrawlMinutes: number = MEMBER_FULL_RECRAWL_MINUTES
 ): boolean {
   if (!memberSyncedThrough || !lastCompleteListingAt) return true
-  return now.getTime() - lastCompleteListingAt.getTime() >= MEMBER_FULL_RECRAWL_MINUTES * 60 * 1000
+  return now.getTime() - lastCompleteListingAt.getTime() >= recrawlMinutes * 60 * 1000
+}
+
+/** Whether a connector can keep a per-member change feed at all. */
+function supportsChangeFeed(
+  connectorConfig: ConnectorConfig
+): connectorConfig is ConnectorConfig & {
+  listChanges: NonNullable<ConnectorConfig['listChanges']>
+  getChangeCursor: NonNullable<ConnectorConfig['getChangeCursor']>
+} {
+  return (
+    typeof connectorConfig.listChanges === 'function' &&
+    typeof connectorConfig.getChangeCursor === 'function'
+  )
 }
 
 /** The next attempt for a member whose listing threw: exponential on the connector's interval, capped at a day. */
@@ -636,6 +666,19 @@ function isScopeUnavailableError(connectorConfig: ConnectorConfig, error: unknow
   return connectorConfig.isListingScopeUnavailableError?.(error) === true
 }
 
+interface MemberListing {
+  kind: 'listed'
+  mode: MemberListingMode
+  documents: ExternalDocument[]
+  removedExternalIds: string[]
+  complete: boolean
+  /** The source itself said this member reaches nothing; not a listing shape to doubt. */
+  authoritative: boolean
+  startedAt: Date
+  /** Cursor to store once the listing lands; undefined leaves the member's cursor alone. */
+  changeCursor: string | undefined
+}
+
 async function listForMember(input: {
   run: MemberSyncRun
   member: MemberRow
@@ -644,27 +687,74 @@ async function listForMember(input: {
   tokens: MemberTokenCache
   syncContext: Record<string, unknown>
   syncIntervalMinutes: number
-}): Promise<
-  | {
-      kind: 'listed'
-      documents: ExternalDocument[]
-      full: boolean
-      complete: boolean
-      /** The source itself said this member reaches nothing; not a listing shape to doubt. */
-      authoritative: boolean
-      startedAt: Date
-    }
-  | { kind: 'failed' }
-> {
+  /** Relist fully even inside the recrawl window: the member's change feed could not be read. */
+  forceFull?: boolean
+}): Promise<MemberListing | { kind: 'failed' }> {
   const { run, member, connectorConfig, sourceConfig, syncContext } = input
   const startedAt = new Date()
-  const full = shouldListFully(member.memberSyncedThrough, member.lastCompleteListingAt, startedAt)
-  const lastSyncAt =
-    full || !member.memberSyncedThrough
-      ? undefined
-      : new Date(member.memberSyncedThrough.getTime() - INCREMENTAL_OVERLAP_MS)
+  const feed = supportsChangeFeed(connectorConfig)
+  const feedOpen = feed && Boolean(member.changeCursor)
+  const full =
+    input.forceFull === true ||
+    shouldListFully(
+      member.memberSyncedThrough,
+      member.lastCompleteListingAt,
+      startedAt,
+      feedOpen ? MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES : MEMBER_FULL_RECRAWL_MINUTES
+    )
 
   try {
+    if (!full && feed && member.changeCursor) {
+      let pass: Awaited<ReturnType<typeof runChangeFeedPass>>
+      try {
+        pass = await runChangeFeedPass({
+          connectorId: run.connectorId,
+          connectorConfig,
+          sourceConfig,
+          syncContext,
+          cursor: member.changeCursor,
+          beforePage: run.lease.beatIfDue,
+          getAccessToken: () => input.tokens.get(member.id),
+          deadlineAt: run.deadlineAt,
+          maxPages: MEMBER_SYNC_MAX_PAGES_PER_MEMBER,
+        })
+      } catch (error) {
+        if (connectorConfig.isChangeCursorInvalidError?.(error) !== true) throw error
+        logger.info('Member change feed cursor expired; reopening it from a full listing', {
+          connectorId: run.connectorId,
+          memberId: member.id,
+        })
+        return listForMember({ ...input, forceFull: true })
+      }
+      return {
+        kind: 'listed',
+        mode: 'changes',
+        documents: pass.upserts,
+        removedExternalIds: pass.removedExternalIds,
+        complete: pass.exhausted && !pass.budgetAborted,
+        authoritative: false,
+        startedAt,
+        changeCursor: pass.cursor,
+      }
+    }
+
+    /**
+     * The feed opens before the listing starts so a change that lands while
+     * the listing is running is reported by the first feed read instead of
+     * waiting for the next full listing.
+     */
+    const openedCursor =
+      full && feed
+        ? await connectorConfig.getChangeCursor(
+            await input.tokens.get(member.id),
+            sourceConfig,
+            syncContext
+          )
+        : undefined
+    const lastSyncAt =
+      full || !member.memberSyncedThrough
+        ? undefined
+        : new Date(member.memberSyncedThrough.getTime() - INCREMENTAL_OVERLAP_MS)
     const listing = await runListingPass({
       connectorId: run.connectorId,
       connectorConfig,
@@ -683,11 +773,13 @@ async function listForMember(input: {
       !syncContext.reconciliationUnsafe
     return {
       kind: 'listed',
+      mode: full ? 'full' : 'incremental',
       documents: listing.documents,
-      full,
+      removedExternalIds: [],
       complete,
       authoritative: false,
       startedAt,
+      changeCursor: full && complete ? openedCursor : undefined,
     }
   } catch (error) {
     if (error instanceof SyncLockLostException || error instanceof ConnectorSyncCapacityError) {
@@ -701,11 +793,13 @@ async function listForMember(input: {
       })
       return {
         kind: 'listed',
+        mode: 'full',
         documents: [],
-        full: true,
+        removedExternalIds: [],
         complete: true,
         authoritative: true,
         startedAt,
+        changeCursor: undefined,
       }
     }
     logger.warn('Member listing failed', {
@@ -721,8 +815,9 @@ async function listForMember(input: {
 
 /**
  * Writes what one member's listing established: observations for everything
- * they saw, removals only after a full, complete, non-suspect listing, and the
- * member's schedule and watermark. Returns the documents whose ACL changed.
+ * they saw, removals only after a full, complete, non-suspect listing or by
+ * the change feed's explicit word, and the member's schedule, watermark, and
+ * feed cursor. Returns the documents whose ACL changed.
  */
 async function applyMemberListing(
   run: MemberSyncRun,
@@ -736,7 +831,7 @@ async function applyMemberListing(
     const documentId = documentIdByExternalId.get(externalId)
     if (documentId) seenDocumentIds.push(documentId)
   }
-  const removesAllowed = outcome.full && outcome.complete && !outcome.suspect
+  const removesAllowed = outcome.mode === 'full' && outcome.complete && !outcome.suspect
   const now = new Date()
 
   await db.transaction(async (tx) => {
@@ -747,16 +842,35 @@ async function applyMemberListing(
       const removed = await removeUnseenMemberObservations(tx, outcome.member.id, run.runId)
       run.result.observationsRemoved += removed.length
       for (const documentId of removed) affected.add(documentId)
+    } else if (outcome.mode === 'changes') {
+      const removedDocumentIds: string[] = []
+      for (const externalId of outcome.removedExternalIds) {
+        const documentId = documentIdByExternalId.get(externalId)
+        if (documentId) removedDocumentIds.push(documentId)
+      }
+      const removed = await removeMemberObservationsForDocuments(
+        tx,
+        outcome.member.id,
+        removedDocumentIds
+      )
+      run.result.observationsRemoved += removed.length
+      for (const documentId of removed) affected.add(documentId)
     }
     await tx
       .update(knowledgeConnectorMember)
       .set({
         consecutiveFailures: 0,
         lastError: null,
-        lastListedCount: outcome.listedCount,
+        ...(outcome.mode === 'full' ? { lastListedCount: outcome.listedCount } : {}),
         nextAttemptAt: outcome.complete ? nextMemberSyncTime(now, syncIntervalMinutes, false) : now,
         ...(removesAllowed
           ? { lastCompleteListingAt: now, memberSyncedThrough: outcome.listingStartedAt }
+          : {}),
+        ...(outcome.mode === 'changes' && outcome.complete
+          ? { memberSyncedThrough: outcome.listingStartedAt }
+          : {}),
+        ...(outcome.changeCursor !== undefined
+          ? { changeCursor: outcome.changeCursor, changeCursorAt: now }
           : {}),
         updatedAt: now,
       })
@@ -1121,7 +1235,7 @@ export async function executeMemberSync(
        * outright the member reaches nothing is not a shape to doubt.
        */
       const suspect =
-        listed.full &&
+        listed.mode === 'full' &&
         !listed.authoritative &&
         classifySuspectListing(admitted.seenExternalIds.size, member.lastListedCount ?? 0) !== null
       if (suspect) {
@@ -1134,12 +1248,15 @@ export async function executeMemberSync(
       }
       outcomes.push({
         member,
+        mode: listed.mode,
         listingStartedAt: listed.startedAt,
         seenExternalIds: admitted.seenExternalIds,
+        removedExternalIds: listed.removedExternalIds,
         listedCount: admitted.seenExternalIds.size,
-        full: listed.full,
         complete: listed.complete,
         suspect,
+        /** A doubted listing does not open the feed either: the next full listing decides. */
+        changeCursor: suspect ? undefined : listed.changeCursor,
       })
     }
 

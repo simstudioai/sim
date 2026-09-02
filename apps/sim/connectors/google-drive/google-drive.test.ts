@@ -419,6 +419,21 @@ describe('Google Drive connector limits', () => {
     expect(syncContext.totalDocsFetched).toBe(1)
   })
 
+  it('asks only for files modified after an incremental watermark', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ files: [] }))
+
+    await googleDriveConnector.listDocuments(
+      'token',
+      {},
+      undefined,
+      {},
+      new Date('2026-08-20T12:00:00Z')
+    )
+
+    const url = new URL(String(mockFetch.mock.calls[0][0]))
+    expect(url.searchParams.get('q')).toContain("modifiedTime > '2026-08-20T12:00:00.000Z'")
+  })
+
   it('makes an incomplete cross-corpus search non-authoritative', async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({ files: [fileMetadata()], incompleteSearch: true })
@@ -500,4 +515,101 @@ describe('Google Drive connector limits', () => {
       expect(mockFetch).not.toHaveBeenCalled()
     }
   )
+})
+
+describe('Google Drive change feed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', mockFetch)
+  })
+
+  it("opens the feed at the account's current start token", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ startPageToken: '4821' }))
+
+    await expect(googleDriveConnector.getChangeCursor?.('token', {})).resolves.toBe('4821')
+    expect(String(mockFetch.mock.calls[0][0])).toContain('/changes/startPageToken')
+  })
+
+  it('reports lost access and trashed files as removals and in-scope files as upserts', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        changes: [
+          { changeType: 'file', fileId: 'gone', removed: true },
+          {
+            changeType: 'file',
+            fileId: 'binned',
+            file: fileMetadata({ id: 'binned', trashed: true }),
+          },
+          {
+            changeType: 'file',
+            fileId: 'kept',
+            file: fileMetadata({ id: 'kept', parents: ['f-1'] }),
+          },
+          {
+            changeType: 'file',
+            fileId: 'moved-out',
+            file: fileMetadata({ id: 'moved-out', parents: ['elsewhere'] }),
+          },
+          {
+            changeType: 'file',
+            fileId: 'video',
+            file: fileMetadata({ id: 'video', mimeType: 'video/mp4', parents: ['f-1'] }),
+          },
+          { changeType: 'drive', driveId: 'd-1' },
+        ],
+        newStartPageToken: '5000',
+      })
+    )
+
+    const result = await googleDriveConnector.listChanges!('token', { folderId: 'f-1' }, '4821')
+
+    expect(result.changes).toEqual([
+      { kind: 'removed', externalId: 'gone' },
+      { kind: 'removed', externalId: 'binned' },
+      {
+        kind: 'upsert',
+        externalId: 'kept',
+        document: expect.objectContaining({ externalId: 'kept' }),
+      },
+      { kind: 'removed', externalId: 'moved-out' },
+      { kind: 'removed', externalId: 'video' },
+    ])
+    expect(result.nextCursor).toBe('5000')
+    expect(result.hasMore).toBe(false)
+    const url = new URL(String(mockFetch.mock.calls[0][0]))
+    expect(url.searchParams.get('pageToken')).toBe('4821')
+    expect(url.searchParams.get('includeRemoved')).toBe('true')
+  })
+
+  it('continues on the next page token while the feed has more', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ changes: [], nextPageToken: '4900', newStartPageToken: '5000' })
+    )
+
+    const result = await googleDriveConnector.listChanges!('token', {}, '4821')
+
+    expect(result).toEqual({ changes: [], nextCursor: '4900', hasMore: true })
+  })
+
+  it('rejects a feed page without a cursor to continue from', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ changes: [] }))
+
+    await expect(googleDriveConnector.listChanges!('token', {}, '4821')).rejects.toThrow(
+      'malformed change-list metadata'
+    )
+  })
+
+  it.each([
+    [400, [], true],
+    [400, ['invalid'], true],
+    [404, ['notFound'], true],
+    [410, [], true],
+    [403, ['insufficientFilePermissions'], false],
+    [500, ['backendError'], false],
+  ])('classifies HTTP %s %j as cursor-invalid=%s', (status, reasons, expected) => {
+    expect(
+      googleDriveConnector.isChangeCursorInvalidError!(new GoogleDriveApiError(status, reasons))
+    ).toBe(expected)
+    expect(googleDriveConnector.isChangeCursorInvalidError!(new Error('other'))).toBe(false)
+  })
 })

@@ -95,6 +95,24 @@ export interface ExternalDocumentList {
   reconciliationSafe?: boolean
 }
 
+/**
+ * One entry of a connector's change feed. A removal is authoritative for the
+ * caller: the item was deleted, or their account can no longer reach it.
+ */
+export type ExternalChange =
+  | { kind: 'upsert'; externalId: string; document: ExternalDocument }
+  | { kind: 'removed'; externalId: string }
+
+export interface ExternalChangeList {
+  changes: ExternalChange[]
+  /**
+   * The cursor to continue from: the next page while `hasMore`, otherwise the
+   * point the drained feed should resume from on the next read.
+   */
+  nextCursor: string
+  hasMore: boolean
+}
+
 export const SYNC_SKIP_REASONS = [
   'connector_unavailable',
   'knowledge_base_deleted',
@@ -284,6 +302,37 @@ export interface ConnectorConfig extends ConnectorMeta {
    * retried forever. Only meaningful alongside {@link ConnectorMeta.permissionScopedListing}.
    */
   isListingScopeUnavailableError?: (error: unknown) => boolean
+
+  /**
+   * Opens a change feed over the caller's view of the source: the cursor from
+   * which {@link listChanges} later reports everything they gain, lose, or see
+   * modified. A members-mode crawl takes it before a full listing so nothing
+   * that changes during the listing is missed, and then reads the feed on
+   * every run instead of relisting. Only meaningful alongside
+   * {@link ConnectorMeta.permissionScopedListing}.
+   */
+  getChangeCursor?: (
+    accessToken: string,
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
+  ) => Promise<string>
+
+  /**
+   * Reads the change feed from a cursor. An upsert carries the same stub a
+   * listing would; a removal withdraws the caller's access to the item.
+   */
+  listChanges?: (
+    accessToken: string,
+    sourceConfig: Record<string, unknown>,
+    cursor: string,
+    syncContext?: Record<string, unknown>
+  ) => Promise<ExternalChangeList>
+
+  /**
+   * Whether a change-feed failure means the cursor has expired, so the feed
+   * must be reopened from a fresh full listing rather than retried.
+   */
+  isChangeCursorInvalidError?: (error: unknown) => boolean
 
   /** Map source metadata to semantic tag keys (translated to slots by the sync engine) */
   mapTags?: (metadata: Record<string, unknown>) => Record<string, unknown>

@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  buildLastModifiedClause,
   escapeCql,
   extractCursor,
   isCurrentContent,
@@ -34,6 +35,23 @@ describe('escapeCql', () => {
 
   it.concurrent('leaves other special chars unchanged', () => {
     expect(escapeCql("it's a test & <tag>")).toBe("it's a test & <tag>")
+  })
+})
+
+describe('buildLastModifiedClause', () => {
+  const now = new Date('2026-09-01T12:00:00Z')
+
+  it.concurrent('rounds the watermark up to whole minutes relative to the server clock', () => {
+    expect(buildLastModifiedClause(new Date('2026-09-01T11:30:30Z'), now)).toBe(
+      'lastModified >= now("-30m")'
+    )
+  })
+
+  it.concurrent('never asks for less than a minute', () => {
+    expect(buildLastModifiedClause(now, now)).toBe('lastModified >= now("-1m")')
+    expect(buildLastModifiedClause(new Date(now.getTime() + 60_000), now)).toBe(
+      'lastModified >= now("-1m")'
+    )
   })
 })
 

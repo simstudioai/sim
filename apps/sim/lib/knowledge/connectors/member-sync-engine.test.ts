@@ -30,10 +30,14 @@ import {
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   MAX_CONSECUTIVE_FAILURES,
+  MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES,
   MEMBER_FULL_RECRAWL_MINUTES,
 } from '@/lib/knowledge/connectors/sync-limits'
-import { CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS } from '@/lib/knowledge/connectors/sync-primitives'
-import type { ExternalDocument } from '@/connectors/types'
+import {
+  CONNECTOR_SYNC_MAX_CORPUS_DOCUMENTS,
+  runChangeFeedPass,
+} from '@/lib/knowledge/connectors/sync-primitives'
+import type { ExternalChangeList, ExternalDocument } from '@/connectors/types'
 
 function doc(externalId: string, content = 'x'): ExternalDocument {
   return { externalId, title: externalId, content, mimeType: 'text/plain', metadata: {} }
@@ -72,6 +76,107 @@ describe('member sync engine decisions', () => {
       const stale = new Date(now.getTime() - windowMs)
       expect(shouldListFully(recent, recent, now)).toBe(false)
       expect(shouldListFully(stale, stale, now)).toBe(true)
+    })
+
+    it('stretches the window for a member whose change feed is open', () => {
+      const feedWindowMs = MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES * 60 * 1000
+      const beyondPlainWindow = new Date(now.getTime() - MEMBER_FULL_RECRAWL_MINUTES * 60 * 1000)
+      expect(MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES).toBeGreaterThan(MEMBER_FULL_RECRAWL_MINUTES)
+      expect(
+        shouldListFully(
+          beyondPlainWindow,
+          beyondPlainWindow,
+          now,
+          MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES
+        )
+      ).toBe(false)
+      const stale = new Date(now.getTime() - feedWindowMs)
+      expect(shouldListFully(stale, stale, now, MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES)).toBe(true)
+    })
+  })
+
+  describe('runChangeFeedPass', () => {
+    function pass(
+      pages: ExternalChangeList[],
+      options: { deadlineAt?: number; maxPages?: number } = {}
+    ) {
+      const listChanges = vi.fn(async (_token: string, _config: unknown, cursor: string) => {
+        const page = pages[Number(cursor.replace('c', ''))]
+        if (!page) throw new Error(`no page for ${cursor}`)
+        return page
+      })
+      return {
+        listChanges,
+        run: () =>
+          runChangeFeedPass({
+            connectorId: 'c-1',
+            connectorConfig: { listChanges },
+            sourceConfig: {},
+            syncContext: {},
+            cursor: 'c0',
+            beforePage: async () => undefined,
+            getAccessToken: async () => 'token',
+            ...options,
+          }),
+      }
+    }
+
+    it('keeps the last word on each item and resumes past the drained feed', async () => {
+      const feed = pass([
+        {
+          changes: [
+            { kind: 'upsert', externalId: 'a', document: doc('a', 'v1') },
+            { kind: 'removed', externalId: 'b' },
+          ],
+          nextCursor: 'c1',
+          hasMore: true,
+        },
+        {
+          changes: [
+            { kind: 'removed', externalId: 'a' },
+            { kind: 'upsert', externalId: 'b', document: doc('b') },
+            { kind: 'upsert', externalId: 'c', document: doc('c') },
+          ],
+          nextCursor: 'resume',
+          hasMore: false,
+        },
+      ])
+      const result = await feed.run()
+
+      expect(result.upserts.map((d) => d.externalId)).toEqual(['b', 'c'])
+      expect(result.removedExternalIds).toEqual(['a'])
+      expect(result.cursor).toBe('resume')
+      expect(result.exhausted).toBe(true)
+      expect(result.budgetAborted).toBe(false)
+      expect(feed.listChanges).toHaveBeenCalledTimes(2)
+    })
+
+    it('stops at the page cap with the cursor past the pages it read', async () => {
+      const feed = pass(
+        [
+          { changes: [{ kind: 'removed', externalId: 'x' }], nextCursor: 'c1', hasMore: true },
+          { changes: [], nextCursor: 'c2', hasMore: true },
+        ],
+        { maxPages: 1 }
+      )
+      const result = await feed.run()
+
+      expect(result.removedExternalIds).toEqual(['x'])
+      expect(result.cursor).toBe('c1')
+      expect(result.exhausted).toBe(false)
+      expect(result.budgetAborted).toBe(false)
+    })
+
+    it('reads nothing past the deadline and leaves the cursor where it was', async () => {
+      const feed = pass([{ changes: [], nextCursor: 'c1', hasMore: false }], {
+        deadlineAt: Date.now() - 1,
+      })
+      const result = await feed.run()
+
+      expect(result.cursor).toBe('c0')
+      expect(result.budgetAborted).toBe(true)
+      expect(result.exhausted).toBe(false)
+      expect(feed.listChanges).not.toHaveBeenCalled()
     })
   })
 

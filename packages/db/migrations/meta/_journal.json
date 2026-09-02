@@ -2220,6 +2220,13 @@
       "when": 1788308819434,
       "tag": "0317_knowledge_document_acl",
       "breakpoints": true
+    },
+    {
+      "idx": 318,
+      "version": "7",
+      "when": 1788316050134,
+      "tag": "0318_knowledge_connector_member_change_cursor",
+      "breakpoints": true
     }
   ]
 }
