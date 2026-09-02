@@ -525,7 +525,7 @@ async function resolveWriteOverwriteTarget(options: {
       principal,
       workspaceId,
       folderPaths: [folderPath],
-      includeSubfolders: false,
+      includeSubfolders: true,
     })
     const match = scoped.find(
       (file) => file.name === leafName && (file.folderId ?? null) === folderId
