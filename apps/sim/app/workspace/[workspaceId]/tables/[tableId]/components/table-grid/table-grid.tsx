@@ -38,6 +38,10 @@ import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { FindBar } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
+  persistColumnRename,
+  tryStartColumnRename,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/column-rename'
+import {
   REFERENCE_ROW_PREVIEW_HEIGHT,
   ReferenceRowPreview,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/reference-row-preview'
@@ -1590,22 +1594,28 @@ export function TableGrid({
   const columnRename = useInlineRename({
     // `columnName` is the column id; record the prior display name + id so undo
     // restores the label (not the id) and targets the right column.
-    onSave: (columnName, newName) => {
+    onSave: async (columnName, newName) => {
       const oldName = columnsRef.current.find((c) => c.key === columnName)?.name ?? columnName
-      pushUndoRef.current({ type: 'rename-column', oldName, newName, columnId: columnName })
-      handleColumnRename(columnName, newName)
-      return updateColumnMutation
-        .mutateAsync({ columnName, updates: { name: newName } })
-        .catch((error: unknown) => {
-          if (isValidationError(error)) {
-            toast.error(extractValidationIssues(error)[0]?.message ?? getErrorMessage(error))
-          }
-          setRenameErrorColumnId(columnName)
-          throw error
+      try {
+        await persistColumnRename({
+          columnId: columnName,
+          oldName,
+          newName,
+          persist: () =>
+            updateColumnMutation.mutateAsync({ columnName, updates: { name: newName } }),
+          pushUndo: pushUndoRef.current,
+          onRenamed: () => handleColumnRename(columnName, newName),
         })
+      } catch (error) {
+        if (isValidationError(error)) {
+          toast.error(extractValidationIssues(error)[0]?.message ?? getErrorMessage(error))
+        }
+        setRenameErrorColumnId(columnName)
+        throw error
+      }
     },
   })
-  const columnRenameRef = useRef(columnRename)
+  const columnRenameRef = useRef<ReturnType<typeof useInlineRename>>(columnRename)
   columnRenameRef.current = columnRename
 
   const handleRenameValueChange = useCallback((value: string) => {
@@ -4171,14 +4181,13 @@ export function TableGrid({
     [onOpenColumnConfig, onOpenWorkflowConfig, workflowGroupById]
   )
 
-  const handleRenameColumn = useCallback(
-    (columnName: string) => {
-      setRenameErrorColumnId(null)
-      const column = columnsRef.current.find((candidate) => candidate.key === columnName)
-      columnRename.startRename(columnName, column?.name ?? columnName)
-    },
-    [columnRename.startRename]
-  )
+  const handleRenameColumn = useCallback((columnName: string) => {
+    const column = columnsRef.current.find((candidate) => candidate.key === columnName)
+    if (!tryStartColumnRename(columnRenameRef.current, columnName, column?.name ?? columnName)) {
+      return
+    }
+    setRenameErrorColumnId(null)
+  }, [])
 
   const handleConfigureWorkflowGroup = useCallback(
     (groupId: string) => {
