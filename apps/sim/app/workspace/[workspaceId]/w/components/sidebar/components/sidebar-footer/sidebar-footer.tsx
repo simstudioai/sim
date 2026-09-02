@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useEffect, useState } from 'react'
+import type { ComponentType } from 'react'
 import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import {
   Chip,
@@ -33,6 +33,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useUserProfile } from '@/hooks/queries/user-profile'
+import { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'
 import { useWorkspaceInvitePolicy } from '@/hooks/use-workspace-invite-policy'
 
 /**
@@ -65,13 +66,13 @@ function desktopUpdateActionLabel(state: DesktopUpdateState): string {
       ? 'Downloading update…'
       : `Downloading update ${state.percent}%`
   }
-  return 'Update'
+  return state.status === 'ready' ? 'Restart to update' : 'Update'
 }
 
 /** Compact primary update circle using the same footprint as the surrounding sidebar icons. */
 function DesktopUpdateIcon({ className }: { className?: string }) {
   return (
-    <span
+    <div
       className={cn(
         className,
         'flex size-[17px] flex-shrink-0 items-center justify-center rounded-full',
@@ -81,7 +82,7 @@ function DesktopUpdateIcon({ className }: { className?: string }) {
       {/* Download's default viewBox is asymmetric around its paths. Center the
           artwork itself, not merely its SVG box, inside the avatar-sized circle. */}
       <Download className='size-[11px]' viewBox='-1.75 -1.75 24 24' />
-    </span>
+    </div>
   )
 }
 
@@ -133,25 +134,7 @@ export function SidebarFooter({
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
   const { isInvitationsDisabled } = useWorkspaceInvitePolicy(workspaceId)
-  const [updateState, setUpdateState] = useState<DesktopUpdateState>({ status: 'idle' })
-
-  useEffect(() => {
-    const updates = getDesktopUpdates()
-    if (!updates) return
-
-    let stateEventReceived = false
-    const unsubscribe = updates.onState((state) => {
-      stateEventReceived = true
-      setUpdateState(state)
-    })
-    void updates
-      .getState()
-      .then((state) => {
-        if (!stateEventReceived) setUpdateState(state)
-      })
-      .catch(() => {})
-    return unsubscribe
-  }, [])
+  const updateState = useDesktopUpdateState()
 
   const name = profile ? profile.name?.trim() || profile.email : ''
   const updateAvailable = hasAvailableDesktopUpdate(updateState)
