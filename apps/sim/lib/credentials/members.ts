@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, ne } from 'drizzle-orm'
+import { and, eq, notInArray } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isSharedCredentialType, requireOrdinaryCredentialType } from '@/lib/credentials/access'
 import type { CredentialRow } from '@/lib/credentials/queries'
@@ -218,7 +218,12 @@ export async function listCredentialMembershipsForUser(userId: string) {
     })
     .from(credentialMember)
     .innerJoin(credential, eq(credentialMember.credentialId, credential.id))
-    .where(and(eq(credentialMember.userId, userId), ne(credential.type, 'managed_oauth')))
+    .where(
+      and(
+        eq(credentialMember.userId, userId),
+        notInArray(credential.type, ['managed_oauth', 'managed_mcp'])
+      )
+    )
   return rows.map((row) => ({ ...row, type: requireOrdinaryCredentialType(row.type) }))
 }
 

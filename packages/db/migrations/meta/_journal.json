@@ -2220,6 +2220,13 @@
       "when": 1788304042423,
       "tag": "0317_giant_kitty_pryde",
       "breakpoints": true
+    },
+    {
+      "idx": 318,
+      "version": "7",
+      "when": 1788313105264,
+      "tag": "0318_credential_group_managed_mcp",
+      "breakpoints": true
     }
   ]
 }

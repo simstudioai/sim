@@ -64,6 +64,14 @@ interface CredentialGroupBlockOutput {
       providerSubjectId: string
       providerTenantId: string | null
     }>
+    mcpConnections: Array<{
+      credentialId: string
+      email: string
+      displayName: string
+      mcpServerId: string
+      mcpServerName: string
+      toolNames: string[]
+    }>
     credentialGroups: Array<{
       id: string
       name: string
@@ -94,21 +102,32 @@ interface CredentialGroupBlockOutput {
 }
 
 const INVITE_OPERATIONS = ['send_invite', 'get_invite_link'] as const
-const GROUP_OPERATIONS = ['list_credentials', ...INVITE_OPERATIONS, 'list_people'] as const
-const LIST_OPERATIONS = ['list_credentials', 'list_people', 'list_groups'] as const
+const GROUP_OPERATIONS = [
+  'list_credentials',
+  'list_mcp_connections',
+  ...INVITE_OPERATIONS,
+  'list_people',
+] as const
+const LIST_OPERATIONS = [
+  'list_credentials',
+  'list_mcp_connections',
+  'list_people',
+  'list_groups',
+] as const
 
 export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
   type: 'credential_group',
   name: 'Credential Groups',
-  description: 'Invite people and use credentials collected by Credential Groups',
+  description: 'Invite people and use credentials or MCP connections from Credential Groups',
   longDescription:
-    'List usable managed credentials, inspect invited people, send or generate an account-connection invitation, or discover Credential Groups in the current workspace. The block returns credential IDs and account metadata without exposing OAuth tokens.',
+    'List usable managed credentials or MCP connections, inspect invited people, send or generate an account-connection invitation, or discover Credential Groups in the current workspace. The block returns credential IDs and account metadata without exposing OAuth tokens.',
   bestPractices: `
   - "List Credentials" returns every active credential. Filter by email to select one enrolled person, by provider to select one account type, or by both for an exact match.
   - Provider blocks can use the current actor's enrolled credential by default. Using another enrollment requires an explicit workflow access grant.
   - With a workflow access grant, use "List Credentials" with a ForEach loop to run a provider block once for every connected account.
   - Continue with nextCursor until hasMore is false when a list operation returns multiple pages.
   - "List Credentials" returns active, usable credentials only. Reconnect-needed and revoked credentials are excluded.
+  - "List MCP Connections" returns explicit managed MCP credential IDs and tool names. Pass one credentialId to an advanced MCP server tool.
   - Use "List People" to inspect invitation and connection progress without exposing credential secrets.
   - "Send Invite" sends one email. Use a loop when invitations should come from a dynamic list.
   - "Get Invite Link" issues a fresh seven-day bearer link without sending email. It invalidates the previous link for that email, so treat the output as a secret.
@@ -129,6 +148,16 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
           { text: ', for', field: 'email' },
           { text: ', from', field: ['providerFilter', 'manualProviderIds'] },
           { text: ', up to', field: 'limit', after: 'credentials' },
+        ],
+        list_mcp_connections: [
+          {
+            text: 'List MCP connections from',
+            field: ['credentialGroup', 'manualCredentialGroup'],
+            core: true,
+          },
+          { text: ', for', field: 'email' },
+          { text: ', on server', field: 'mcpServerId' },
+          { text: ', up to', field: 'limit', after: 'connections' },
         ],
         send_invite: [
           { text: 'Invite', field: 'email', core: true },
@@ -167,6 +196,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
       type: 'dropdown',
       options: [
         { label: 'List Credentials', id: 'list_credentials' },
+        { label: 'List MCP Connections', id: 'list_mcp_connections' },
         { label: 'Send Invite', id: 'send_invite' },
         { label: 'Get Invite Link', id: 'get_invite_link' },
         { label: 'List People', id: 'list_people' },
@@ -227,6 +257,15 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
       condition: { field: 'operation', value: 'list_credentials' },
     },
     {
+      id: 'mcpServerId',
+      title: 'MCP Server ID',
+      type: 'short-input',
+      required: false,
+      mode: 'advanced',
+      placeholder: 'mcp-... — leave empty for all MCP servers',
+      condition: { field: 'operation', value: 'list_mcp_connections' },
+    },
+    {
       id: 'peopleStatuses',
       title: 'Status',
       type: 'dropdown',
@@ -265,7 +304,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
     operation: {
       type: 'string',
       description:
-        "'list_credentials', 'send_invite', 'get_invite_link', 'list_people', or 'list_groups'",
+        "'list_credentials', 'list_mcp_connections', 'send_invite', 'get_invite_link', 'list_people', or 'list_groups'",
     },
     credentialGroupId: { type: 'string', description: 'Credential Group ID' },
     email: {
@@ -275,6 +314,10 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
     credentialProviderIds: {
       type: 'json',
       description: 'Optional OAuth provider IDs to include when listing credentials',
+    },
+    mcpServerId: {
+      type: 'string',
+      description: 'Optional root MCP server ID to include when listing MCP connections',
     },
     peopleStatuses: {
       type: 'json',
@@ -289,6 +332,12 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
       description:
         'Usable credential references (credentialId, email, displayName, providerId, providerSubjectId, providerTenantId)',
       condition: { field: 'operation', value: 'list_credentials' },
+    },
+    mcpConnections: {
+      type: 'json',
+      description:
+        'Usable MCP connection references (credentialId, email, displayName, mcpServerId, mcpServerName, toolNames)',
+      condition: { field: 'operation', value: 'list_mcp_connections' },
     },
     credentialGroups: {
       type: 'json',

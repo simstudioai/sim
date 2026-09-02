@@ -71,7 +71,7 @@ async function safeDecrypt<T>(
 
 export async function getOrCreateOauthRow(params: {
   mcpServerId: string
-  userId: string
+  userId?: string | null
   workspaceId: string
 }): Promise<McpOauthRow> {
   const existing = await loadOauthRow(params)
@@ -82,7 +82,7 @@ export async function getOrCreateOauthRow(params: {
     await db.insert(mcpServerOauth).values({
       id,
       mcpServerId: params.mcpServerId,
-      userId: params.userId,
+      userId: params.userId ?? null,
       workspaceId: params.workspaceId,
     })
   } catch (error) {
@@ -94,7 +94,7 @@ export async function getOrCreateOauthRow(params: {
   return {
     id,
     mcpServerId: params.mcpServerId,
-    userId: params.userId,
+    userId: params.userId ?? null,
     workspaceId: params.workspaceId,
     clientInformation: null,
     tokens: null,

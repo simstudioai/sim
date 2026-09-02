@@ -2659,8 +2659,8 @@ export const v2AgentIntegrationToolSchema = z
       .min(1, 'Agent integration tool type cannot be empty')
       .max(255, 'Agent integration tool type must be at most 255 characters')
       .regex(
-        /^(?!(?:custom-tool|mcp)$).+$/,
-        'Agent integration tool type must be a catalog block id, not `custom-tool` or `mcp`'
+        /^(?!(?:custom-tool|mcp|mcp-server-advanced)$).+$/,
+        'Agent integration tool type must be a catalog block id, not a reserved custom or MCP type'
       )
       .describe(
         'Catalog block id, such as `cloudwatch` or `slack`. Use the block id, never an underlying tool id.'
@@ -2820,9 +2820,49 @@ export const v2AgentMcpToolSchema = z
     ],
   })
 
+/** Every tool currently available through one workspace MCP server. */
+export const v2AgentMcpServerAdvancedSchema = z
+  .object({
+    type: z.literal('mcp-server-advanced').describe('Server-wide MCP binding discriminator.'),
+    params: z
+      .object({
+        serverId: z
+          .string()
+          .trim()
+          .min(1, 'Agent MCP serverId cannot be empty')
+          .max(MAX_ID_LENGTH, `Agent MCP serverId must be at most ${MAX_ID_LENGTH} characters`)
+          .describe(
+            'Workspace MCP server ID or explicit credential-group managed MCP connection ID.'
+          ),
+      })
+      .strict()
+      .describe('Server identity for discovering and invoking every available MCP tool.'),
+    usageControl: v2AgentToolUsageControlSchema.optional(),
+  })
+  .catchall(
+    z.unknown().describe('Forward-compatible MCP server metadata preserved by the workflow editor.')
+  )
+  .meta({
+    id: 'AgentMcpServerAdvanced',
+    title: 'Agent MCP server (advanced)',
+    description: 'All tools available to the executing subject from one MCP server.',
+    examples: [
+      {
+        type: 'mcp-server-advanced',
+        params: { serverId: 'mcp_01J9X2ABCDEF' },
+        usageControl: 'auto',
+      },
+    ],
+  })
+
 /** One callable tool attached directly to an Agent block. */
 export const v2AgentToolSchema = z
-  .xor([v2AgentIntegrationToolSchema, v2AgentCustomToolSchema, v2AgentMcpToolSchema])
+  .xor([
+    v2AgentIntegrationToolSchema,
+    v2AgentCustomToolSchema,
+    v2AgentMcpToolSchema,
+    v2AgentMcpServerAdvancedSchema,
+  ])
   .meta({
     id: 'AgentTool',
     title: 'Agent tool',

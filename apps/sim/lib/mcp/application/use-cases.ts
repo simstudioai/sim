@@ -118,6 +118,8 @@ export interface DiscoverMcpServerToolsInput {
   workspaceId: string
   serverId: string
   refresh?: boolean
+  signal?: AbortSignal
+  requireComplete?: boolean
 }
 
 /**
@@ -139,6 +141,7 @@ export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
     resolveMcpServerContext(input.workspaceId, input.serverId),
   authorizationOptions,
   async execute({ principal, input, context }) {
+    input.signal?.throwIfAborted()
     /**
      * `enabled: false` is a documented registration value, but discovery loads
      * its configuration through a query that filters on `enabled`, so a
@@ -152,18 +155,31 @@ export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
         'The MCP server is disabled; enable it before listing its tools'
       )
     }
+    if (context.server.credentialGroupId) {
+      throw new OrchestrationError(
+        'conflict',
+        'Credential Group MCP servers require an explicit managed connection ID'
+      )
+    }
 
-    const tools = await mcpService.discoverServerTools(
-      requireMcpCredentialUserId(principal),
-      context.server.id,
-      context.workspaceId,
-      /**
-       * A public `refresh` skips the positive cache but keeps the failure
-       * cooldown; only an explicit user action on their own server may bypass
-       * both. See {@link McpDiscoveryRefresh}.
-       */
-      input.refresh ? 'skip-cache' : 'cache-aside'
-    )
+    const userId = requireMcpCredentialUserId(principal)
+    const refresh = input.refresh ? 'skip-cache' : 'cache-aside'
+    const tools =
+      input.signal || input.requireComplete
+        ? await mcpService.discoverServerTools(
+            userId,
+            context.server.id,
+            context.workspaceId,
+            refresh,
+            undefined,
+            { signal: input.signal, requireComplete: input.requireComplete }
+          )
+        : await mcpService.discoverServerTools(
+            userId,
+            context.server.id,
+            context.workspaceId,
+            refresh
+          )
     return { tools }
   },
 })
@@ -337,6 +353,12 @@ async function updateMcpServer(args: {
   input: UpdateMcpServerInput
   context: McpServerContext
 }): Promise<PerformMcpServerResult & { server: McpServerRow }> {
+  if (args.context.server.managedConnectorId) {
+    throw new OrchestrationError(
+      'conflict',
+      'This MCP server is managed from its Credential Group settings'
+    )
+  }
   const attribution = resolvePrincipalAttribution(args.principal, {
     workspaceBillingOwnerUserId: args.context.billedAccountUserId,
   })
@@ -423,6 +445,12 @@ export const deleteMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
     resolveMcpServerContext(input.workspaceId, input.serverId),
   authorizationOptions,
   async execute({ principal, input, context }) {
+    if (context.server.managedConnectorId) {
+      throw new OrchestrationError(
+        'conflict',
+        'This MCP server is managed from its Credential Group settings'
+      )
+    }
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })

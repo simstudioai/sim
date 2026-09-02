@@ -20,6 +20,8 @@ import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
 } from '@/lib/execution/private-tool-metadata'
+import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
+import { assertValidMcpServerToolBindings, MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import {
   areModelSafeWorkspaceFileKeys,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
@@ -142,6 +144,64 @@ function selectIndexedMothershipMcpTools(tools: unknown): IndexedMothershipMcpTo
 
 function selectMothershipMcpTools(tools: unknown): MothershipMcpToolSelection[] {
   return selectIndexedMothershipMcpTools(tools).map(({ selection }) => selection)
+}
+
+async function expandMothershipMcpTools(
+  ctx: ExecutionContext,
+  tools: unknown
+): Promise<MothershipMcpToolSelection[]> {
+  if (!Array.isArray(tools)) return []
+  assertValidMcpServerToolBindings(tools)
+  const individual = selectMothershipMcpTools(tools)
+  const advanced: Array<{ serverId: string; usageControl: 'auto' | 'force' }> = tools.flatMap(
+    (candidate) => {
+      if (!isPlainRecord(candidate) || candidate.type !== MCP_SERVER_ADVANCED_TOOL_TYPE) return []
+      if (candidate.usageControl === 'none') return []
+      if (!isPlainRecord(candidate.params)) {
+        throw new Error('MCP Server (Advanced) requires params.serverId')
+      }
+      const serverId = candidate.params.serverId
+      if (typeof serverId !== 'string' || !serverId.trim()) {
+        throw new Error('MCP Server (Advanced) requires params.serverId')
+      }
+      const usageControl: 'auto' | 'force' = candidate.usageControl === 'force' ? 'force' : 'auto'
+      return [{ serverId, usageControl }]
+    }
+  )
+  if (advanced.length === 0) return individual
+  if (!ctx.workspaceId || !ctx.workflowId) {
+    throw new Error('Workspace and workflow context are required for MCP Server (Advanced)')
+  }
+  const workspaceId = ctx.workspaceId
+  const workflowId = ctx.workflowId
+
+  const expanded = await Promise.all(
+    advanced.map(async ({ serverId, usageControl }) => {
+      const discovered = await discoverMcpServerToolsAsExecutor({
+        workspaceId,
+        context: {
+          workflowId,
+          workspaceId,
+          executionId: ctx.executionId,
+          userId: ctx.userId,
+          executorDelegationOrigin: ctx.executorDelegationOrigin,
+        },
+        serverId,
+        signal: ctx.abortSignal,
+      })
+      return discovered.map((tool) => ({
+        type: 'mcp' as const,
+        usageControl,
+        schema: tool.inputSchema,
+        params: {
+          serverId,
+          toolName: tool.name,
+          serverName: tool.serverName,
+        },
+      }))
+    })
+  )
+  return [...individual, ...expanded.flat()]
 }
 
 function selectIndexedMothershipSkillContexts(
@@ -287,6 +347,12 @@ function selectMothershipMetadataModelInputPaths(
     if (selection.params.serverName !== undefined) {
       modelInputPaths.push([...root, 'params', 'serverName'])
     }
+  }
+  if (Array.isArray(tools)) {
+    tools.forEach((candidate, inputIndex) => {
+      if (!isPlainRecord(candidate) || candidate.type !== MCP_SERVER_ADVANCED_TOOL_TYPE) return
+      structuralInputPaths.push(['tools', String(inputIndex), 'params', 'serverId'])
+    })
   }
 
   for (const { inputIndex, hasExplicitLabel } of selectIndexedMothershipSkillContexts(skills)) {
@@ -827,7 +893,7 @@ export class MothershipBlockHandler implements BlockHandler {
       secretScope: inputs.secretScope,
       mountedSecrets: inputs.mountedSecrets,
     })
-    const mcpTools = selectMothershipMcpTools(modelInputProjection.value.tools)
+    const mcpTools = await expandMothershipMcpTools(ctx, modelInputProjection.value.tools)
     const skillContexts = selectMothershipSkillContexts(
       modelInputProjection.value.skills,
       privateSkillSelectors.inputIndexes

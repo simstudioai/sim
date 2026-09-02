@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Combobox } from '@sim/emcn'
 import { useParams } from 'next/navigation'
+import { McpIcon } from '@/components/icons'
+import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useMcpServers } from '@/hooks/queries/mcp'
+import { useMcpToolServers } from '@/hooks/queries/mcp'
 
 interface McpServerSelectorProps {
   blockId: string
@@ -30,7 +32,7 @@ export function McpServerSelector({
   const workspaceId = params.workspaceId as string
   const [inputValue, setInputValue] = useState('')
 
-  const { data: servers = [], isLoading, error } = useMcpServers(workspaceId)
+  const { data: servers = [], isLoading, error } = useMcpToolServers(workspaceId)
   const enabledServers = servers.filter((s) => s.enabled && !s.deletedAt)
 
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
@@ -47,6 +49,9 @@ export function McpServerSelector({
       enabledServers.map((server) => ({
         label: server.name,
         value: server.id,
+        icon: server.managedConnectorId
+          ? getManagedMcpConnectorIcon(server.managedConnectorId)
+          : McpIcon,
       })),
     [enabledServers]
   )

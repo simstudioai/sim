@@ -44,7 +44,7 @@ describe('CredentialGroupOAuthToast', () => {
     expect(mockSuccess).toHaveBeenCalledOnce()
     expect(mockSuccess).toHaveBeenCalledWith('Gmail connected successfully.')
     expect(mockSetOAuthStatus).toHaveBeenCalledWith(
-      { connected: null, oauth: null, submitted: null },
+      { connected: null, mcp: null, mcpServerId: null, oauth: null, submitted: null },
       { history: 'replace', scroll: false }
     )
     act(() => root.unmount())
@@ -55,7 +55,7 @@ describe('CredentialGroupOAuthToast', () => {
 
     expect(mockError).toHaveBeenCalledWith('Authorization was canceled.')
     expect(mockSetOAuthStatus).toHaveBeenCalledWith(
-      { connected: null, oauth: null, submitted: null },
+      { connected: null, mcp: null, mcpServerId: null, oauth: null, submitted: null },
       { history: 'replace', scroll: false }
     )
     act(() => root.unmount())
@@ -66,7 +66,7 @@ describe('CredentialGroupOAuthToast', () => {
 
     expect(mockSuccess).toHaveBeenCalledWith('Accounts submitted successfully.')
     expect(mockSetOAuthStatus).toHaveBeenCalledWith(
-      { connected: null, oauth: null, submitted: null },
+      { connected: null, mcp: null, mcpServerId: null, oauth: null, submitted: null },
       { history: 'replace', scroll: false }
     )
     act(() => root.unmount())

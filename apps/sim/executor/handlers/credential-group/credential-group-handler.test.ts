@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   enforceInviteRateLimit: vi.fn(),
   listCredentials: vi.fn(),
   listGroups: vi.fn(),
+  listMcpConnections: vi.fn(),
   listPeople: vi.fn(),
   sendInvite: vi.fn(),
 }))
@@ -27,6 +28,10 @@ vi.mock('@/lib/credential-groups/application/list-credentials', () => ({
 
 vi.mock('@/lib/credential-groups/application/list-groups', () => ({
   listCredentialGroupsForWorkflow: { execute: mocks.listGroups },
+}))
+
+vi.mock('@/lib/credential-groups/application/list-mcp-connections', () => ({
+  listCredentialGroupMcpConnections: { execute: mocks.listMcpConnections },
 }))
 
 vi.mock('@/lib/credential-groups/application/list-people', () => ({
@@ -199,6 +204,36 @@ describe('CredentialGroupBlockHandler', () => {
         credentialProviderIds: undefined,
       },
     })
+  })
+
+  it('lists explicit MCP connection references for an advanced MCP tool', async () => {
+    mocks.listMcpConnections.mockResolvedValue({
+      mcpConnections: [],
+      count: 0,
+      hasMore: false,
+      nextCursor: null,
+    })
+
+    const result = await new CredentialGroupBlockHandler().execute(context, block, {
+      operation: 'list_mcp_connections',
+      credentialGroupId: ' group-1 ',
+      email: ' person@example.com ',
+      mcpServerId: ' mcp-server-1 ',
+      limit: '25',
+      cursor: ' mcp-cg-connection-1 ',
+    })
+
+    expect(mocks.listMcpConnections).toHaveBeenCalledWith({
+      principal,
+      input: {
+        credentialGroupId: 'group-1',
+        email: 'person@example.com',
+        mcpServerId: 'mcp-server-1',
+        limit: 25,
+        cursor: 'mcp-cg-connection-1',
+      },
+    })
+    expect(result).toEqual({ mcpConnections: [], count: 0, hasMore: false, nextCursor: null })
   })
 
   it('lists groups under workspace-scoped delegation', async () => {

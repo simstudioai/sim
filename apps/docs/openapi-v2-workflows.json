@@ -6215,6 +6215,9 @@
           },
           {
             "$ref": "#/components/schemas/AgentMcpTool"
+          },
+          {
+            "$ref": "#/components/schemas/AgentMcpServerAdvanced"
           }
         ],
         "title": "Agent tool",
@@ -6227,7 +6230,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255,
-            "pattern": "^(?!(?:custom-tool|mcp)$).+$",
+            "pattern": "^(?!(?:custom-tool|mcp|mcp-server-advanced)$).+$",
             "description": "Catalog block id, such as `cloudwatch` or `slack`. Use the block id, never an underlying tool id."
           },
           "operation": {
@@ -6434,6 +6437,50 @@
             "params": {
               "serverId": "mcp_01J9X2ABCDEF",
               "toolName": "search_docs"
+            },
+            "usageControl": "auto"
+          }
+        ]
+      },
+      "AgentMcpServerAdvanced": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "mcp-server-advanced",
+            "description": "Server-wide MCP binding discriminator."
+          },
+          "params": {
+            "type": "object",
+            "properties": {
+              "serverId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "description": "Workspace MCP server ID or explicit credential-group managed MCP connection ID."
+              }
+            },
+            "required": ["serverId"],
+            "additionalProperties": false,
+            "description": "Server identity for discovering and invoking every available MCP tool."
+          },
+          "usageControl": {
+            "type": "string",
+            "enum": ["auto", "force", "none"],
+            "description": "When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`."
+          }
+        },
+        "required": ["type", "params"],
+        "additionalProperties": {
+          "description": "Forward-compatible MCP server metadata preserved by the workflow editor."
+        },
+        "title": "Agent MCP server (advanced)",
+        "description": "All tools available to the executing subject from one MCP server.",
+        "examples": [
+          {
+            "type": "mcp-server-advanced",
+            "params": {
+              "serverId": "mcp_01J9X2ABCDEF"
             },
             "usageControl": "auto"
           }

@@ -1,6 +1,6 @@
 import type { WorkflowExecutionAuthority } from '@sim/auth/principal'
 import { z } from 'zod'
-import { CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT } from '@/lib/credential-groups/workflow-access-limits'
+import { CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT } from '@/lib/credential-groups/limits'
 import { CREDENTIAL_GROUP_ACTOR_OWNS_CREDENTIAL_CONDITION_KEY } from '@/lib/resource-policies/conditions'
 import { WORKFLOW_MODE_RESOURCE_POLICY_CONDITION_KEY } from '@/lib/resource-policies/conditions/workflow-mode'
 import {

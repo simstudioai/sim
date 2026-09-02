@@ -10,11 +10,14 @@ describe('listCredentialMembershipsForUser', () => {
     resetDbChainMock()
   })
 
-  it('excludes managed OAuth credentials from ordinary memberships', async () => {
+  it('excludes managed credentials from ordinary memberships', async () => {
     dbChainMockFns.where.mockResolvedValue([])
 
     await listCredentialMembershipsForUser('user-1')
 
-    expect(drizzleOrmMock.ne).toHaveBeenCalledWith(schemaMock.credential.type, 'managed_oauth')
+    expect(drizzleOrmMock.notInArray).toHaveBeenCalledWith(schemaMock.credential.type, [
+      'managed_oauth',
+      'managed_mcp',
+    ])
   })
 })
