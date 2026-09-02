@@ -3,20 +3,21 @@
  */
 import { readFileSync } from 'node:fs'
 import { Command } from 'commander'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { CLI_CONTRACT } from '../contract/commands'
 import { V2_OPERATIONS } from '../generated/v2-api'
 import { SimApiError } from '../http/client'
 import { BULK_OUTCOME_CHECKS, executeOperation } from './execute'
 import type { OperationSpec } from './types'
 
-const { request } = vi.hoisted(() => ({ request: vi.fn() }))
+const { request, output } = vi.hoisted(() => ({ request: vi.fn(), output: { format: 'json' } }))
 
 vi.mock('../context', () => ({
   clientFrom: () => ({
     client: { request, requireWorkspace: () => 'ws_local' },
     profile: {
       workspaceId: 'ws_local',
-      output: 'json',
+      output: output.format,
       name: 'default',
       apiKey: 'k',
       endpoint: 'https://sim.example',
@@ -108,6 +109,108 @@ function invoke(
 
 beforeEach(() => {
   vi.clearAllMocks()
+  output.format = 'json'
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+const PUBLISH_CHAT: OperationSpec = {
+  method: 'PUT',
+  path: '/api/v2/workflows/[workflowId]/deployments/chat',
+  pathParams: ['workflowId'],
+  body: {},
+}
+
+const PUBLIC_NOTE =
+  'note: auth type is public — anyone with the link can chat; pass --auth-type password|email to restrict it.'
+
+/** Publishes a chat past its `--yes` gate with the required fields and the given extras. */
+function publishChat(flags: Record<string, unknown>) {
+  const host = new Command('leaf')
+  return executeOperation(
+    'replaceWorkflowChatDeployment',
+    CLI_CONTRACT.replaceWorkflowChatDeployment ?? {},
+    PUBLISH_CHAT,
+    ['wf_1', { yes: true, identifier: 'support', title: 'Support', ...flags }, host]
+  )
+}
+
+/** stdout and stderr as strings, captured separately so the note can be placed. */
+function streams() {
+  const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+  const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+  return {
+    get stderr() {
+      return stderr.mock.calls.map(([chunk]) => String(chunk)).join('')
+    },
+    get stdout() {
+      return stdout.mock.calls.map((call) => call.map(String).join(' ')).join('\n')
+    },
+  }
+}
+
+describe('a chat publish that lands on public auth', () => {
+  it('notes the exposure on stderr when the default chose public, and keeps stdout the record', async () => {
+    request.mockResolvedValue({
+      data: { id: 'chat_1', identifier: 'support', authType: 'public' },
+    })
+    const captured = streams()
+
+    await publishChat({})
+
+    expect(request.mock.calls[0][1].body).not.toHaveProperty('authType')
+    expect(captured.stderr).toContain(PUBLIC_NOTE)
+    expect(captured.stdout).not.toContain('note:')
+    expect(JSON.parse(captured.stdout)).toEqual({
+      id: 'chat_1',
+      identifier: 'support',
+      authType: 'public',
+    })
+  })
+
+  it('notes an explicit --auth-type public just the same', async () => {
+    request.mockResolvedValue({ data: { id: 'chat_1', authType: 'public' } })
+    const captured = streams()
+
+    await publishChat({ authType: 'public' })
+
+    expect(request.mock.calls[0][1].body).toMatchObject({ authType: 'public' })
+    expect(captured.stderr).toContain(PUBLIC_NOTE)
+  })
+
+  it('notes in the human format too, still on stderr', async () => {
+    output.format = 'table'
+    request.mockResolvedValue({ data: { id: 'chat_1', authType: 'public' } })
+    const captured = streams()
+
+    await publishChat({})
+
+    expect(captured.stderr).toContain(PUBLIC_NOTE)
+    expect(captured.stdout).toContain('chat_1')
+    expect(captured.stdout).not.toContain('note:')
+  })
+
+  it('stays quiet once the chat is restricted', async () => {
+    request.mockResolvedValue({ data: { id: 'chat_1', authType: 'password' } })
+    const captured = streams()
+
+    await publishChat({ authType: 'password', password: 'hunter2' })
+
+    expect(captured.stderr).not.toContain('note:')
+  })
+
+  it('falls back to what was sent when the response omits the gate', async () => {
+    request.mockResolvedValue({ data: { id: 'chat_1' } })
+    const captured = streams()
+
+    await publishChat({ authType: 'password', password: 'hunter2' })
+    expect(captured.stderr).not.toContain('note:')
+
+    await publishChat({})
+    expect(captured.stderr).toContain(PUBLIC_NOTE)
+  })
 })
 
 describe('an in-band run failure', () => {

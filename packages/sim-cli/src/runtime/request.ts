@@ -250,7 +250,7 @@ function isManifestNoise(line: string): boolean {
  * list drops blank and `#` comment lines read from a file, so a requirements
  * file can be passed as it is on disk.
  */
-function readListValues(raw: unknown, flagName: string, manifest = false): string[] {
+export function readListValues(raw: unknown, flagName: string, manifest = false): string[] {
   const arguments_ = Array.isArray(raw) ? raw : [raw]
   const values = arguments_.flatMap((argument) => {
     if (typeof argument !== 'string') {
