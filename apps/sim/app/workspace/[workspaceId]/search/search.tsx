@@ -17,6 +17,7 @@ import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/c
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
 import { CONNECTED_LABEL } from '@/app/workspace/[workspaceId]/integrations/search-params'
+import { MemberConnectorsSection } from '@/app/workspace/[workspaceId]/search/components/member-connectors-section/member-connectors-section'
 import { useSearchCredentials } from '@/app/workspace/[workspaceId]/search/hooks/use-search-credentials'
 import {
   connectorSearchParam,
@@ -150,6 +151,8 @@ export function Search() {
           />
 
           <div className='flex flex-col gap-7'>
+            <MemberConnectorsSection workspaceId={workspaceId} search={normalizedSearch} />
+
             {visibleCredentials.length > 0 && (
               <IntegrationSection label={CONNECTED_LABEL}>
                 {visibleCredentials.map((credential) => (

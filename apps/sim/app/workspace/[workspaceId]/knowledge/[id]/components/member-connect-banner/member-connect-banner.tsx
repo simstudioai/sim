@@ -1,21 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useMemo } from 'react'
 import { Button } from '@sim/emcn'
 import { Loader } from '@sim/emcn/icons'
-import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import {
   type ConnectorData,
   connectorKeys,
-  useStartConnectorMemberEnrollment,
+  type ViewerConnectorMembership,
 } from '@/hooks/queries/kb/connectors'
-
-const logger = createLogger('MemberConnectBanner')
-
-/** How often the connector list is refreshed while a member connects in another tab. */
-const AWAITING_CONNECTION_POLL_MS = 4_000
+import { useMemberEnrollment } from '@/hooks/use-member-enrollment'
 
 interface MemberConnectBannerProps {
   knowledgeBaseId: string
@@ -26,19 +20,18 @@ function connectorName(connector: ConnectorData): string {
   return CONNECTOR_META_REGISTRY[connector.connectorType]?.name ?? connector.connectorType
 }
 
+/** Memberships the viewer can act on themselves. */
+const CONNECTABLE: ReadonlySet<ViewerConnectorMembership> = new Set([
+  'needs_reauth',
+  'invited',
+  'not_enrolled',
+])
+
 /**
- * What the viewer must do for a per-member connector, if anything. Enrollment
- * opens in a new tab — the enrollment page ends by telling the person to close
- * it — and the list is polled meanwhile so the row updates on its own.
+ * What the viewer must do for each per-member connector, if anything, and
+ * what is happening for them once they have connected.
  */
 export function MemberConnectBanner({ knowledgeBaseId, connectors }: MemberConnectBannerProps) {
-  const queryClient = useQueryClient()
-  const { mutate: startEnrollment, isPending } = useStartConnectorMemberEnrollment()
-  const [awaitingConnectorIds, setAwaitingConnectorIds] = useState<ReadonlySet<string>>(
-    () => new Set()
-  )
-  const [error, setError] = useState<string | null>(null)
-
   const rows = connectors.filter(
     (connector) =>
       connector.accessMode === 'members' &&
@@ -47,44 +40,32 @@ export function MemberConnectBanner({ knowledgeBaseId, connectors }: MemberConne
         connector.memberSyncStatus === 'pending' ||
         connector.memberSyncStatus === 'running')
   )
-
-  const awaiting = rows.some(
-    (connector) =>
-      awaitingConnectorIds.has(connector.id) && connector.viewerMembership !== 'connected'
+  const connectedConnectorIds = useMemo(
+    () =>
+      new Set(
+        connectors
+          .filter((connector) => connector.viewerMembership === 'connected')
+          .map((connector) => connector.id)
+      ),
+    [connectors]
   )
-  useEffect(() => {
-    if (!awaiting) return
-    const timer = setInterval(() => {
-      void queryClient.invalidateQueries({ queryKey: connectorKeys.lists(knowledgeBaseId) })
-    }, AWAITING_CONNECTION_POLL_MS)
-    return () => clearInterval(timer)
-  }, [awaiting, knowledgeBaseId, queryClient])
+  const membershipQueryKeys = useMemo(
+    () => [connectorKeys.lists(knowledgeBaseId)],
+    [knowledgeBaseId]
+  )
+  const { connect, isAwaiting, isPending, error } = useMemberEnrollment({
+    membershipQueryKeys,
+    connectedConnectorIds,
+  })
 
   if (rows.length === 0) return null
-
-  const connect = (connectorId: string) => {
-    setError(null)
-    startEnrollment(
-      { knowledgeBaseId, connectorId },
-      {
-        onSuccess: ({ url }) => {
-          window.open(url, '_blank', 'noopener')
-          setAwaitingConnectorIds((current) => new Set([...current, connectorId]))
-        },
-        onError: (err) => {
-          logger.error('Failed to start member enrollment', { error: err.message })
-          setError(err.message)
-        },
-      }
-    )
-  }
 
   return (
     <div className='mx-6 mt-3 mb-1 flex flex-col gap-2'>
       {rows.map((connector) => {
         const name = connectorName(connector)
         const membership = connector.viewerMembership
-        const waiting = awaitingConnectorIds.has(connector.id) && membership !== 'connected'
+        const waiting = isAwaiting(connector.id)
         const text =
           membership === 'connected'
             ? `Syncing the ${name} documents shared with you. They appear when the sync completes.`
@@ -97,8 +78,6 @@ export function MemberConnectBanner({ knowledgeBaseId, connectors }: MemberConne
                   : waiting
                     ? `Finish connecting your ${name} account in the other tab.`
                     : `Connect your ${name} account to see the documents shared with you.`
-        const canConnect =
-          membership === 'needs_reauth' || membership === 'invited' || membership === 'not_enrolled'
         return (
           <div
             key={connector.id}
@@ -110,11 +89,11 @@ export function MemberConnectBanner({ knowledgeBaseId, connectors }: MemberConne
               )}
               <span>{text}</span>
             </p>
-            {canConnect && (
+            {membership && CONNECTABLE.has(membership) && (
               <Button
                 variant='primary'
                 size='sm'
-                onClick={() => connect(connector.id)}
+                onClick={() => connect(knowledgeBaseId, connector.id)}
                 disabled={isPending}
               >
                 {waiting ? 'Open again' : membership === 'needs_reauth' ? 'Reconnect' : 'Connect'}
