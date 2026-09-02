@@ -1,7 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act } from 'react'
+import type { RoomType } from '@sim/realtime-protocol/rooms'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,10 +22,9 @@ function fakeSocket() {
 let socket: ReturnType<typeof fakeSocket>
 const roots: Root[] = []
 
-function mount(workspaceId: string, roomType: string): Root {
+function mount(workspaceId: string, roomType: RoomType): Root {
   function Probe() {
-    // biome-ignore lint/suspicious/noExplicitAny: the room type union is not exported for tests
-    useWorkspaceInvalidationRoom(workspaceId, roomType as any, () => {})
+    useWorkspaceInvalidationRoom(workspaceId, roomType, () => {})
     return null
   }
   const container = document.createElement('div')
