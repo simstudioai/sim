@@ -25,3 +25,14 @@ export const resourceUrlKeys = {
   history: 'replace',
   clearOnDefault: true,
 } as const
+
+/**
+ * `q` is the composer's Search-mode query, so a search is a shareable,
+ * bookmarkable link the way a search page's is. Present only while a search
+ * is showing; the composer reads it once on mount to restore the query and
+ * the Search mode. Filter-like, so it replaces the history entry.
+ */
+export const searchQueryParam = {
+  key: 'q',
+  parser: parseAsString,
+} as const

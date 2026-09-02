@@ -49,7 +49,11 @@ import {
   resolveResourceEventPresentation,
   resolveResourceSelectionUpdate,
 } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
-import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
+import {
+  resourceParam,
+  resourceUrlKeys,
+  searchQueryParam,
+} from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -155,7 +159,21 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
   const [initialPrompt, setInitialPrompt] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
+  /** The search query lives in the URL so a search is a shareable link; null between searches. */
+  const [searchQueryValue, setSearchQueryParam] = useQueryState(searchQueryParam.key, {
+    ...searchQueryParam.parser,
+    ...resourceUrlKeys,
+  })
+  const searchQuery = searchQueryValue ?? ''
+  const setSearchQuery = useCallback(
+    (query: string) => void setSearchQueryParam(query || null),
+    [setSearchQueryParam]
+  )
+  /** A link that carries a query opens in Search mode with the query in the box. */
+  const [initialSearchQuery] = useState(searchQuery)
+  useEffect(() => {
+    if (initialSearchQuery) useMothershipModeStore.getState().setMode('search')
+  }, [initialSearchQuery])
   const composerMode = useMothershipModeStore((state) => state.mode)
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
@@ -705,7 +723,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
                 >
                   <UserInput
                     ref={initialViewUserInputRef}
-                    defaultValue={initialPrompt}
+                    defaultValue={initialPrompt || initialSearchQuery}
                     draftScopeKey={draftScopeKey}
                     onSubmit={handleSubmit}
                     clearOnSubmit={composerMode !== 'search'}
