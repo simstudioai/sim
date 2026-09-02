@@ -7,6 +7,18 @@ import { useSocket } from '@/app/workspace/providers/socket-provider'
 
 const logger = createLogger('WorkspaceInvalidationRoom')
 
+/**
+ * How many hooks currently want each `workspaceId|roomType` room.
+ *
+ * A room is shared: an editor can show several folder pickers, each calling
+ * this hook for the same workspace. Joining twice is harmless because a room is
+ * a set, but LEAVING is not — the first picker to unmount would emit `leave`
+ * and evict the socket while its siblings were still listening, so they simply
+ * stopped receiving updates. Counting subscribers means the room is left once
+ * the last one goes, which is the only point at which leaving is correct.
+ */
+const roomSubscribers = new Map<string, number>()
+
 /** Retry cap + base delay for a retryable join failure on an otherwise-live socket. */
 const MAX_JOIN_RETRIES = 3
 const JOIN_RETRY_BASE_MS = 1000
@@ -45,6 +57,10 @@ export function useWorkspaceInvalidationRoom(
     const errorEvent = `${joinEvent}-error`
     const leaveEvent = `leave-${roomType}`
     const changedEvent = `${roomType}-changed`
+
+    const subscriberKey = `${workspaceId}|${roomType}`
+    const subscribers = (roomSubscribers.get(subscriberKey) ?? 0) + 1
+    roomSubscribers.set(subscriberKey, subscribers)
 
     let retries = 0
     let retryTimer: ReturnType<typeof setTimeout> | null = null
@@ -101,6 +117,14 @@ export function useWorkspaceInvalidationRoom(
       socket.off(successEvent, handleJoinSuccess)
       socket.off(errorEvent, handleJoinError)
       socket.off(changedEvent, handleChanged)
+
+      // Leave only once the last subscriber to this room has gone; see `roomSubscribers`.
+      const remaining = (roomSubscribers.get(subscriberKey) ?? 1) - 1
+      if (remaining > 0) {
+        roomSubscribers.set(subscriberKey, remaining)
+        return
+      }
+      roomSubscribers.delete(subscriberKey)
 
       // Leave the room, scoped to THIS workspace: the server no-ops if the socket has already
       // switched to another workspace's room (so a workspace A→B switch, where B's join runs first
