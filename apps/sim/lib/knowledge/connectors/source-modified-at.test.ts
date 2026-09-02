@@ -51,6 +51,12 @@ describe('resolveSourceModifiedAt', () => {
     expect(resolveSourceModifiedAt({ modifiedTime: 1e20 })).toBeNull()
   })
 
+  it('reads the newest message time an email conversation reports', () => {
+    expect(
+      resolveSourceModifiedAt({ lastMessageDate: '2026-08-29T09:30:00Z' })?.toISOString()
+    ).toBe('2026-08-29T09:30:00.000Z')
+  })
+
   it('reads the last activity a chat space or channel reports', () => {
     expect(resolveSourceModifiedAt({ lastActivity: '2026-08-30T10:00:00Z' })?.toISOString()).toBe(
       '2026-08-30T10:00:00.000Z'

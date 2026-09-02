@@ -52,6 +52,7 @@ import {
   MEMBER_SYNC_SOFT_BUDGET_SECONDS,
 } from '@/lib/knowledge/connectors/sync-limits'
 import {
+  assertSyncLeaseHeldInTx,
   createMemberSyncLease,
   holdsMemberSyncLockToken,
   MEMBER_LOCKABLE_CONNECTOR_STATUSES,
@@ -660,15 +661,22 @@ async function reconcileMembership(
  * member be aborted at the deadline without touching the others.
  */
 async function claimNextMember(run: MemberSyncRun): Promise<MemberRow | null> {
-  const [claimed] = await db
-    .update(knowledgeConnectorMember)
-    .set({ lastStartedAt: new Date(), updatedAt: new Date() })
-    .where(
-      and(
-        eq(knowledgeConnectorMember.connectorId, run.connectorId),
-        eq(
-          knowledgeConnectorMember.id,
-          sql`(
+  /**
+   * Proved under the lease: a run reclaimed while it slept must not stamp
+   * `lastStartedAt`, which would hide the member from its replacement's
+   * selection and defer that member's access updates to a later run.
+   */
+  const [claimed] = await db.transaction(async (tx) => {
+    await assertSyncLeaseHeldInTx(tx, run.connectorId, run.lease)
+    return tx
+      .update(knowledgeConnectorMember)
+      .set({ lastStartedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(knowledgeConnectorMember.connectorId, run.connectorId),
+          eq(
+            knowledgeConnectorMember.id,
+            sql`(
             SELECT ${knowledgeConnectorMember.id} FROM ${knowledgeConnectorMember}
             WHERE ${knowledgeConnectorMember.connectorId} = ${run.connectorId}
               AND ${knowledgeConnectorMember.status} = 'active'
@@ -678,10 +686,11 @@ async function claimNextMember(run: MemberSyncRun): Promise<MemberRow | null> {
             LIMIT 1
             FOR UPDATE SKIP LOCKED
           )`
+          )
         )
       )
-    )
-    .returning()
+      .returning()
+  })
   return claimed ?? null
 }
 

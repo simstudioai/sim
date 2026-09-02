@@ -18,6 +18,8 @@ const SOURCE_MODIFIED_AT_KEYS = [
   'statusDate',
   /** Google Chat spaces and Teams channels: the latest message time, the listing's only change signal. */
   'lastActivity',
+  /** Gmail and Outlook conversations: the newest message's time. */
+  'lastMessageDate',
 ] as const
 
 /** Earlier than any plausible document; guards against epoch-zero placeholders. */
