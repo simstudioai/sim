@@ -826,6 +826,27 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'claude-fable-5-1',
+        pricing: {
+          input: 10.0,
+          cachedInput: 0.25,
+          output: 50.0,
+          updatedAt: '2026-09-01',
+        },
+        capabilities: {
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 512 },
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'high',
+            streamed: 'summary',
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-09-01',
+      },
+      {
         id: 'claude-fable-5',
         pricing: {
           input: 10.0,
@@ -836,6 +857,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 512 },
           thinking: {
             levels: ['low', 'medium', 'high', 'xhigh', 'max'],
             default: 'high',
@@ -877,6 +899,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 512 },
           thinking: {
             levels: ['low', 'medium', 'high', 'xhigh', 'max'],
             default: 'high',
@@ -918,6 +941,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 2048 },
           thinking: {
             levels: ['low', 'medium', 'high', 'xhigh', 'max'],
             default: 'high',
@@ -939,6 +963,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 4096 },
           thinking: {
             levels: ['low', 'medium', 'high', 'max'],
             default: 'high',
@@ -981,6 +1006,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: 64000,
+          promptCaching: { minimumCacheableTokens: 4096 },
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -1086,7 +1112,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: 64000,
-          promptCaching: { minimumCacheableTokens: 2048 },
+          promptCaching: { minimumCacheableTokens: 4096 },
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -1457,6 +1483,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 4096 },
           thinking: {
             levels: ['low', 'medium', 'high', 'max'],
             default: 'high',
@@ -1478,6 +1505,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: 64000,
+          promptCaching: { minimumCacheableTokens: 4096 },
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -1541,7 +1569,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: 64000,
-          promptCaching: { minimumCacheableTokens: 2048 },
+          promptCaching: { minimumCacheableTokens: 4096 },
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
