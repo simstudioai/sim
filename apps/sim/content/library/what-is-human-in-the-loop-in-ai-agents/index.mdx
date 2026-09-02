@@ -1,0 +1,82 @@
+---
+slug: what-is-human-in-the-loop-in-ai-agents
+title: 'What Is Human-in-the-Loop in AI Agents?'
+description: 'Learn how human-in-the-loop AI agents use approval gates, in-line review, exception escalation, and post-hoc audits to control consequential actions.'
+date: 2026-09-02
+updated: 2026-09-02
+authors:
+  - andrew
+readingTime: 7
+tags: [AI Agents, Human in the Loop, Workflow Automation, Sim]
+ogImage: /library/what-is-human-in-the-loop-in-ai-agents/cover.jpg
+canonical: https://www.sim.ai/library/what-is-human-in-the-loop-in-ai-agents
+draft: false
+faq:
+  - q: "How does agentic HITL differ from HITL in model training?"
+    a: "Agentic HITL governs runtime decisions, while training HITL uses human feedback during model development or evaluation. Sim places human review within workflow execution rather than model training. Runtime review can stop a questionable action before it affects another system."
+  - q: "Does HITL slow down AI agents?"
+    a: "Human review adds waiting time wherever a workflow pauses for a decision. In Sim, you can reserve the Human in the Loop block for actions that require judgment. Selective checkpoints preserve speed for low-risk work while protecting sensitive actions."
+  - q: "How should approval timeouts and escalations work?"
+    a: "In Sim, a Human in the Loop block has no default timeout. It pauses indefinitely until someone responds through the approval portal, the API, or a webhook. If a workflow needs a hard deadline, pair the block with a separate timeout mechanism and route expired requests to the safer outcome, such as rejecting the action or escalating to another reviewer."
+  - q: "Does every agent action need a human checkpoint?"
+    a: "A checkpoint controls a specific action, so an agent does not need one for every step. In Sim, you can place human review at selected points in a workflow rather than applying it to every action. Read-only retrieval and low-impact drafting may run autonomously, while irreversible or regulated actions should receive review."
+---
+
+## TL;DR
+
+- Human-in-the-loop AI places human approval, review, or intervention at selected points while an AI agent runs.
+- AI agents need more oversight than deterministic automation because probabilistic decisions can produce incorrect outputs or tool calls, even when the workflow runs as designed.
+- Four common HITL patterns are approval before execution, in-line review, exception-based escalation, and post-hoc audit.
+- Full autonomy generally suits low-risk, reversible work. Human checkpoints are better suited to consequential actions that are difficult to reverse or require regulatory review.
+
+## Why agentic workflows need human checkpoints
+
+AI agents need checkpoints during execution because language models can choose actions from uncertain or incorrect premises. An agent may misread a request or select the wrong tool based on an invented fact. Rule-based automation can also contain bugs, but the same input generally follows the same programmed path. Agent behavior can vary even when inputs look similar. This distinction is central to understanding [how agentic workflows differ from traditional automation](https://www.sim.ai/library/what-is-an-agentic-workflow).
+
+Small error rates become significant when an agent performs many actions. If an agent completes each action correctly 99 percent of the time, it has about a 63 percent chance of making at least one error across 100 independent actions. This calculation assumes that each action has the same error rate and that the outcomes are independent. Repeated execution gives individual errors more opportunities to affect a customer message or account record. Earlier mistakes may also affect later decisions when the agent treats a false output as reliable context.
+
+Human checkpoints let a reviewer inspect an agent's proposed decision before it affects an external system. An approval gate can stop a mistaken tool call before the agent sends an email, issues a refund, or changes a database record. Separating the proposal from execution gives the reviewer a chance to catch an invented claim or incorrect tool call before the agent changes the external system.
+
+You can place checkpoints around every sensitive action, trigger them only for exceptions, or audit low-risk actions afterward. Choose among these patterns based on reviewer capacity, the potential cost of an error, and whether the action can be reversed.
+
+## Four human-review patterns for agent workflows
+
+Four common HITL patterns place human judgment at different points in an agent's run. Earlier checkpoints can prevent an agent from completing a harmful action, but they add delay and reviewer workload. Selective or post-hoc review requires less immediate attention, although reviewers may not see an error until after it affects another system.
+
+**Approval-before-execution requires a decision before the agent acts.** The agent prepares a structured action, such as a refund or database update, and pauses while a person approves or rejects it. A propose-versus-commit design keeps preparation separate from execution. If the reviewer rejects the proposal, the agent does not create the side effect. This pattern fits infrequent actions with high cost or limited reversibility.
+
+**In-line review lets a person inspect and edit an output before release.** An agent might draft an email or report, then send the draft to a reviewer who can revise, approve, or reject it. The reviewer controls the final content while the agent produces the first draft. In-line review works well when judgment affects wording, factual accuracy, or policy compliance.
+
+**Exception-based escalation allows routine actions to proceed automatically.** The workflow pauses only when a defined trigger fires, such as low model confidence or a transaction above a set value. Rules can also require review whenever an action handles sensitive data. You must set escalation thresholds and assign a reviewer. You should also define what the workflow does when nobody responds. This pattern reduces approval volume, but poor trigger rules can let risky cases bypass review or send too many safe cases to humans.
+
+**Post-hoc audit reviews actions after the agent completes them.** A person may inspect sampled outputs or investigate flagged runs, then correct mistakes that remain reversible. Since the agent does not wait for approval, post-hoc audit suits high-volume actions whose failures have limited impact. The pattern provides less protection because reviewers encounter bad actions only after they occur.
+
+You can combine these patterns within one workflow. A payment agent might require approval above a value threshold and audit a sample of lower-value transactions. Separate exception rules can escalate unusual payments at any value. Assign each action a checkpoint based on the likely harm and whether that harm can be reversed. Reviewer workload should then determine whether eligible actions receive universal or sampled review.
+
+## When to let the agent run and when to stop it
+
+Choose the level of autonomy by comparing the evidence supporting an agent's proposed action with the consequences of an incorrect decision. Full autonomy generally fits routine actions with limited consequences and performance that you have validated through testing. Examples include read-only retrieval or internal logging. Record classification may also qualify when errors are easy to detect and correct.
+
+Irreversible actions need approval before execution because correction may be impossible or expensive. Examples include deleting records, changing production data, or sending payments. Refunds may also require approval when they are costly or difficult to reverse. Actions with serious or widespread consequences should require approval before execution even when the agent reports high confidence.
+
+High-stakes outputs that remain editable fit an in-line review checkpoint. A person can revise a customer email or public post before publication. The same review can apply to a report before distribution. Compliance-sensitive steps often need approval before execution and a post-hoc audit record that identifies the proposal, reviewer, decision, and final action.
+
+Low-confidence outputs fit exception-based escalation. You can set a confidence threshold and route uncertain cases to a reviewer while allowing routine cases to continue. Confidence scores may not correspond reliably to actual error rates, so do not use them as the sole escalation trigger. Add rules for sensitive data, unusually valuable transactions, or evidence that conflicts with the proposed action.
+
+A supervised rollout provides evidence for setting those thresholds. Start by reviewing every consequential action. Measure how often reviewers reject proposals and record the error types behind those rejections. Once observed performance supports narrower review, move reliable actions to exception-only escalation or sampled post-hoc audits. Keep approval gates when the consequences of a single incorrect action remain unacceptable regardless of past accuracy.
+
+## How Sim's workflow builder handles human review steps
+
+Sim exposes a dedicated [Human in the Loop block](https://docs.sim.ai/workflows/blocks/human-in-the-loop) within its workflow builder. Sim lists the Human in the Loop block alongside Guardrails and Evaluator blocks as separate core blocks, and a separate Wait block exists too, so a human review checkpoint is a distinct primitive from a generic delay.
+
+The block pauses a run and waits for a person before continuing. Configuration covers what the approver sees, drawn from earlier block outputs, how they get notified through Slack, Gmail, Microsoft Teams, SMS, or a custom webhook, and a resume form that captures their decision. By default the run stays paused with no timeout until someone responds through the approval portal, the API, or a webhook, and downstream blocks can read the approver's inputs directly. Workflows can chain multiple Human in the Loop blocks for staged approvals, such as a manager sign-off followed by a director sign-off.
+
+Sim's logs record every run block by block, so a reviewer can inspect the path a workflow took, see what each block produced, and confirm whether a review step ran. That record supports the post-hoc audit pattern even on workflows that never pause for approval, and it helps identify where future runs should add a checkpoint. For a broader treatment of logs and traces, see this guide to [AI agent observability](https://www.sim.ai/library/ai-agent-observability).
+
+## HITL as one piece of a larger agentic workflow
+
+Human review complements the other controls in an agent workflow, including retrieval and restricted tool access. An agent may use retrieved information to prepare a response or proposed tool call. The workflow can then pause for approval before the external tool changes another system. Each workflow step can use a different level of oversight.
+
+Retrieval-augmented generation, commonly called RAG, grounds an agent's response in fetched documents or data. Grounding a response in relevant sources can reduce unsupported claims when retrieval returns accurate material and the model uses it correctly. Retrieval does not prevent every mistaken interpretation or unsafe tool call. Evaluators and guardrails can flag conditions they are configured to detect. A person can review cases that require contextual or policy judgment. Read more about [how retrieval-augmented generation works](https://www.sim.ai/library/what-is-retrieval-augmented-generation).
+
+Match each action to the least restrictive control that keeps its consequences acceptable. Read-only retrieval may run autonomously, while a costly refund may require approval and reversible actions may receive sampled review after execution. Sim represents these checkpoints through its [Human in the Loop block](https://docs.sim.ai/workflows/blocks/human-in-the-loop). Review the block in Sim's workflow builder to determine where a human decision adds useful control without delaying routine work, then follow the practical guide to [creating an AI agent](https://www.sim.ai/library/how-to-create-an-ai-agent) when you are ready to build the workflow.

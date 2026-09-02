@@ -1,9 +1,15 @@
-import { db, workflowSchedule } from '@sim/db'
+import { db, workflow, workflowDeploymentVersion, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
+import {
+  type DeploymentOperationFence,
+  getProtectedDeploymentVersionId,
+  isDeploymentOperationCurrent,
+  setDeploymentTxTimeouts,
+} from '@/lib/workflows/persistence/deployment-operations'
 import type { BlockState } from '@/lib/workflows/schedules/utils'
 import { findScheduleBlocks, validateScheduleBlock } from '@/lib/workflows/schedules/validation'
 
@@ -202,4 +208,69 @@ export async function deleteSchedulesForWorkflow(
       ? `Deleted schedules for workflow ${workflowId} deployment ${deploymentVersionId}`
       : `Deleted all schedules for workflow ${workflowId}`
   )
+}
+
+export type InactiveDeploymentScheduleCleanupResult =
+  | { status: 'deleted'; count: number }
+  | { status: 'superseded' }
+
+/**
+ * Deletes every schedule still owned by an inactive deployment version of the
+ * workflow in one fenced statement. Keyed by schedule rows rather than by
+ * versions, so the cost follows what is stale instead of how many times the
+ * workflow has been deployed. The version an in-flight operation is preparing
+ * is left alone: it is inactive until cutover, but its schedules are live
+ * preparation state. The workflow row lock serializes this with activation so
+ * `isActive` cannot flip underneath the delete.
+ */
+export async function deleteInactiveDeploymentSchedules(params: {
+  workflowId: string
+  /** When set, nothing is deleted once a newer operation has taken over the workflow. */
+  operationFence?: DeploymentOperationFence
+}): Promise<InactiveDeploymentScheduleCleanupResult> {
+  return db.transaction(async (tx) => {
+    await setDeploymentTxTimeouts(tx)
+    await tx
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(eq(workflow.id, params.workflowId))
+      .for('update')
+    if (params.operationFence && !(await isDeploymentOperationCurrent(params.operationFence, tx))) {
+      return { status: 'superseded' }
+    }
+
+    const protectedDeploymentVersionId = await getProtectedDeploymentVersionId(
+      params.workflowId,
+      tx
+    )
+    const inactiveVersionIds = tx
+      .select({ id: workflowDeploymentVersion.id })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, params.workflowId),
+          eq(workflowDeploymentVersion.isActive, false)
+        )
+      )
+    const deleted = await tx
+      .delete(workflowSchedule)
+      .where(
+        and(
+          eq(workflowSchedule.workflowId, params.workflowId),
+          isNull(workflowSchedule.archivedAt),
+          inArray(workflowSchedule.deploymentVersionId, inactiveVersionIds),
+          protectedDeploymentVersionId
+            ? ne(workflowSchedule.deploymentVersionId, protectedDeploymentVersionId)
+            : undefined
+        )
+      )
+      .returning({ id: workflowSchedule.id })
+
+    if (deleted.length > 0) {
+      logger.info(
+        `Deleted ${deleted.length} schedule(s) owned by inactive deployments of workflow ${params.workflowId}`
+      )
+    }
+    return { status: 'deleted', count: deleted.length }
+  })
 }

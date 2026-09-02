@@ -279,6 +279,10 @@ describe('generated OpenAPI documents', () => {
     expect(tableProperties.ownerEmail).toMatchObject({ type: 'string', format: 'email' })
   })
 
+  it('omits feature-flagged table column types', () => {
+    expect(JSON.stringify(generatedDocument(tablesOpenApiDocument))).not.toContain('"ttl"')
+  })
+
   it('keeps billing as its own API reference group', () => {
     const spec = generatedDocument(billingOpenApiDocument)
     expect((spec.tags as JsonObject[]).map((tag) => tag.name)).toEqual(['Billing'])

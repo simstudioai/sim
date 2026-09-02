@@ -43,7 +43,7 @@ function richText(content: string): ReactNode {
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
-  lastUpdated: 'August 25, 2026',
+  lastUpdated: 'September 2, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -399,7 +399,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'Sim subjects all Personal Data received from the European Union, the United Kingdom and Gibraltar, and Switzerland in reliance on the applicable part of the DPF program to the relevant DPF Principles. Sim Studio, Inc. has no other U.S. entities or U.S. subsidiaries covered by its certification. This public policy covers non-human-resources Personal Data. Any human-resources data covered by the certification is addressed in the applicable employee privacy notice.'
+            "Sim subjects all Personal Data received from the European Union, the United Kingdom and Gibraltar, and Switzerland in reliance on the applicable part of the DPF program to the relevant DPF Principles. Sim Studio, Inc. has no other U.S. entities or U.S. subsidiaries covered by its certification. Sim's certification under the EU-U.S. DPF, the UK Extension to the EU-U.S. DPF, and the Swiss-U.S. DPF covers non-human-resources Personal Data only. Human-resources data is not covered by this certification."
           ),
         },
         { kind: 'subheading', text: 'Notice, Use, and Choice' },
