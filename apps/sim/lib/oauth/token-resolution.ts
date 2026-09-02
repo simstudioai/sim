@@ -1,8 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import {
-  resolvePrincipalSubject,
-  type WorkflowExecutionDelegatedPrincipal,
-} from '@sim/auth/principal'
+import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import {
   impersonateEmailSchema,
@@ -326,13 +323,13 @@ export interface ResolveCredentialAccessTokenInput
    */
   authenticate: () => AuthResult | Promise<AuthResult>
   /**
-   * Proves a workflow-execution delegation for one managed credential. The route
-   * verifies the delegation JWT header; the executor binds its delegation origin
-   * in-process. Absent, managed credentials are rejected with
-   * `MANAGED_CREDENTIAL_DELEGATION_REQUIRED`. Must throw
-   * {@link InvalidManagedOAuthDelegationError} on an invalid delegation.
+   * Proves a delegation for one managed credential: a workflow execution (the
+   * route verifies the delegation JWT header; the executor binds its delegation
+   * origin in-process) or a Chat turn acting as the signed-in user. Absent,
+   * managed credentials are rejected with `MANAGED_CREDENTIAL_DELEGATION_REQUIRED`.
+   * Must throw {@link InvalidManagedOAuthDelegationError} on an invalid delegation.
    */
-  resolveManagedPrincipal?: (credentialId: string) => Promise<WorkflowExecutionDelegatedPrincipal>
+  resolveManagedPrincipal?: (credentialId: string) => Promise<DelegatedPrincipal>
 }
 
 /**
@@ -376,7 +373,7 @@ export async function resolveCredentialAccessToken(
     }
   }
 
-  let principal: WorkflowExecutionDelegatedPrincipal
+  let principal: DelegatedPrincipal
   try {
     principal = await input.resolveManagedPrincipal(resolved.credentialId)
   } catch (error) {

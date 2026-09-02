@@ -34,6 +34,12 @@ export const bitbucketConnectorMeta: ConnectorMeta = {
     requiredScopes: ['pullrequest'],
   },
 
+  /**
+   * The listing is one configured repository's files and pull requests: a
+   * member with read access to the repository lists all of them, one without
+   * lists nothing.
+   */
+  permissionScopedListing: { capFieldIds: ['maxItems'] },
   configFields: [
     {
       id: 'workspaceSelector',

@@ -59,6 +59,7 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
   deleteAllTagDefinitions: mocks.deleteAllTags,
 }))
 
+import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import {
   createKnowledgeTag,
   deleteKnowledgeDocumentTagDefinitions,
@@ -70,7 +71,11 @@ import {
   updateKnowledgeTag,
 } from '@/lib/knowledge/application/tags'
 
+/** Every mocked context carries the workspace read scope the resolvers would attach. */
+const knowledgeAccess = { get: async () => WORKSPACE_ACCESS_SCOPE }
+
 const crossWorkspaceContext = {
+  access: knowledgeAccess,
   workspaceId: 'workspace-b',
   workspaceOrganizationId: null,
   allowPersonalApiKeys: true,
@@ -589,7 +594,8 @@ describe('knowledge tag application use cases', () => {
     })
 
     expect(mocks.resolveKnowledgeBase).toHaveBeenCalledWith(
-      expect.objectContaining({ knowledgeBaseId: 'knowledge-b' })
+      expect.objectContaining({ knowledgeBaseId: 'knowledge-b' }),
+      expect.objectContaining({ kind: 'session' })
     )
     expect(mocks.resolveDocument).not.toHaveBeenCalled()
     expect(mocks.recordAudit).toHaveBeenCalledWith(

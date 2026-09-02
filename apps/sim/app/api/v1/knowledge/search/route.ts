@@ -8,10 +8,10 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
-import { recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
+import { generateSearchEmbedding, recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
+import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import {
   executeKnowledgeSearch,
-  generateSearchEmbedding,
   getDocumentMetadataByIds,
   type SearchResult,
 } from '@/lib/knowledge/search/queries'
@@ -19,9 +19,10 @@ import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
-import { handleError } from '@/app/api/v1/knowledge/utils'
+import { handleError, resolveV1KnowledgeAccessScope } from '@/app/api/v1/knowledge/utils'
 import {
   authenticateRequest,
+  capabilityGovernedUserId,
   v1ValidationErrorResponse,
   validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
@@ -46,7 +47,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, topK, query, tagFilters, searchMode } = parsed.data.body
+    const {
+      workspaceId,
+      topK,
+      query,
+      tagFilters,
+      searchMode: requestedSearchMode,
+    } = parsed.data.body
 
     const accessError = await validateWorkspaceAccess(
       rateLimit,
@@ -190,12 +197,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     let results: SearchResult[]
     let queryEmbeddingIsBYOK: boolean | null = null
+    const [access, { searchMode, boostRecency }] = await Promise.all([
+      resolveV1KnowledgeAccessScope(userId, rateLimit, workspaceId),
+      resolveKnowledgeSearchDefaults({
+        workspaceId,
+        /** A personal key acts as its user; a workspace key has no person behind it. */
+        userId: capabilityGovernedUserId(rateLimit) ?? undefined,
+        requestedMode: requestedSearchMode,
+      }),
+    ])
 
     if (!hasQuery && hasFilters) {
       results = await executeKnowledgeSearch({
         knowledgeBaseIds: accessibleKbIds,
         topK,
+        access,
         searchMode,
+        boostRecency,
         structuredFilters,
       })
     } else if (hasQuery) {
@@ -209,7 +227,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       results = await executeKnowledgeSearch({
         knowledgeBaseIds: accessibleKbIds,
         topK,
+        access,
         searchMode,
+        boostRecency,
         query,
         queryVector,
         structuredFilters: hasFilters ? structuredFilters : undefined,
@@ -253,7 +273,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     const documentIds = results.map((r) => r.documentId)
-    const documentMetadataMap = await getDocumentMetadataByIds(documentIds)
+    const documentMetadataMap = await getDocumentMetadataByIds(documentIds, access)
 
     return NextResponse.json({
       success: true,

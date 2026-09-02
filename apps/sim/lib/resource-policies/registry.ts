@@ -17,8 +17,12 @@ interface ResourcePolicyResourceDefinition {
 export const RESOURCE_POLICY_DEFINITIONS = Object.freeze({
   credential_group: {
     actions: RESOURCE_POLICY_ACTIONS,
-    principalTypes: ['credential_group_actor', 'workflow'],
-    conditionKeys: ['credential_group:ActorOwnsCredential', 'execution:WorkflowMode'],
+    principalTypes: ['credential_group_actor', 'knowledge_connector', 'workflow'],
+    conditionKeys: [
+      'credential_group:ActorOwnsCredential',
+      'credential_group:OptionId',
+      'execution:WorkflowMode',
+    ],
   },
 } as const satisfies Record<ResourcePolicyResourceType, ResourcePolicyResourceDefinition>)
 

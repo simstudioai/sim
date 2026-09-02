@@ -24,6 +24,7 @@ export {
 export { DropOverlay } from './drop-overlay'
 export { MicButton } from './mic-button'
 export { MicrophonePermissionHelp } from './microphone-permission-help'
+export { ModeSwitcher } from './mode-switcher'
 export { PlusMenuDropdown } from './plus-menu-dropdown'
 export type {
   PromptEditorInstance,

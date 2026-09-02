@@ -13,6 +13,7 @@ export const clickupConnectorMeta: ConnectorMeta = {
     provider: 'clickup',
   },
 
+  permissionScopedListing: { capFieldIds: ['maxDocs'] },
   configFields: [
     {
       id: 'workspaceSelector',

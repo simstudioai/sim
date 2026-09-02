@@ -1,7 +1,10 @@
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { embedding } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
+import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import type {
   KnowledgeAuthorizationContext,
   LegacyPersonalKnowledgeAuthorizationContext,
@@ -35,15 +38,29 @@ export interface LegacyPersonalKnowledgeContext
 
 export type KnowledgeResourceContext = KnowledgeWorkspaceContext | LegacyPersonalKnowledgeContext
 
-export interface ActiveKnowledgeBaseContext extends KnowledgeWorkspaceContext {
+/**
+ * What the calling principal may read within this knowledge base, resolved
+ * lazily so a write-only operation never pays for it. Every document loader
+ * requires the resolved scope; the resolvers below await it before loading a
+ * document, so a document the caller may not read is reported as absent from
+ * the very first read.
+ */
+interface KnowledgeAccessBearingContext {
+  access: KnowledgeAccessProvider
+}
+
+export interface ActiveKnowledgeBaseContext
+  extends KnowledgeWorkspaceContext,
+    KnowledgeAccessBearingContext {
   knowledgeBaseId: string
   knowledgeBase: KnowledgeBaseWithCounts
 }
 
-export type ActiveKnowledgeResourceBaseContext = KnowledgeResourceContext & {
-  knowledgeBaseId: string
-  knowledgeBase: KnowledgeBaseWithCounts
-}
+export type ActiveKnowledgeResourceBaseContext = KnowledgeResourceContext &
+  KnowledgeAccessBearingContext & {
+    knowledgeBaseId: string
+    knowledgeBase: KnowledgeBaseWithCounts
+  }
 
 export type ActiveKnowledgeDocumentContext = ActiveKnowledgeResourceBaseContext & {
   documentId: string
@@ -116,10 +133,13 @@ async function requireKnowledgeBase(knowledgeBaseId: string, workspaceId: string
   return knowledgeBase as typeof knowledgeBase & { workspaceId: string }
 }
 
-export async function resolveActiveKnowledgeBaseContext(input: {
-  knowledgeBaseId: string
-  assertedWorkspaceId?: string
-}): Promise<ActiveKnowledgeBaseContext> {
+export async function resolveActiveKnowledgeBaseContext(
+  input: {
+    knowledgeBaseId: string
+    assertedWorkspaceId?: string
+  },
+  principal: Principal
+): Promise<ActiveKnowledgeBaseContext> {
   const knowledgeBase = await requireKnowledgeBase(input.knowledgeBaseId, input.assertedWorkspaceId)
   const workspaceContext = await loadKnowledgeWorkspaceContext(knowledgeBase.workspaceId)
   if (!workspaceContext) throw new OrchestrationError('not_found', 'Knowledge base not found')
@@ -127,6 +147,7 @@ export async function resolveActiveKnowledgeBaseContext(input: {
     ...workspaceContext,
     knowledgeBaseId: knowledgeBase.id,
     knowledgeBase,
+    access: createKnowledgeAccessProvider(principal, { workspaceId: knowledgeBase.workspaceId }),
   }
 }
 
@@ -139,10 +160,16 @@ export async function resolveActiveKnowledgeBaseContext(input: {
  */
 export async function resolveActiveKnowledgeBaseInWorkspace(
   knowledgeBaseId: string,
-  workspaceContext: KnowledgeWorkspaceContext
+  workspaceContext: KnowledgeWorkspaceContext,
+  principal: Principal
 ): Promise<ActiveKnowledgeBaseContext> {
   const knowledgeBase = await requireKnowledgeBase(knowledgeBaseId, workspaceContext.workspaceId)
-  return { ...workspaceContext, knowledgeBaseId: knowledgeBase.id, knowledgeBase }
+  return {
+    ...workspaceContext,
+    knowledgeBaseId: knowledgeBase.id,
+    knowledgeBase,
+    access: createKnowledgeAccessProvider(principal, { workspaceId: workspaceContext.workspaceId }),
+  }
 }
 
 /**
@@ -181,10 +208,13 @@ export async function resolveArchivedKnowledgeBaseContext(input: {
   }
 }
 
-export async function resolveActiveKnowledgeResourceContext(input: {
-  knowledgeBaseId: string
-  assertedWorkspaceId?: string
-}): Promise<ActiveKnowledgeResourceBaseContext> {
+export async function resolveActiveKnowledgeResourceContext(
+  input: {
+    knowledgeBaseId: string
+    assertedWorkspaceId?: string
+  },
+  principal: Principal
+): Promise<ActiveKnowledgeResourceBaseContext> {
   const knowledgeBase = await getKnowledgeBaseById(input.knowledgeBaseId)
   if (
     !knowledgeBase ||
@@ -199,6 +229,7 @@ export async function resolveActiveKnowledgeResourceContext(input: {
       legacyPersonalOwnerUserId: knowledgeBase.userId,
       knowledgeBaseId: knowledgeBase.id,
       knowledgeBase,
+      access: createKnowledgeAccessProvider(principal, {}),
     }
   }
   const workspaceContext = await loadKnowledgeWorkspaceContext(knowledgeBase.workspaceId)
@@ -207,16 +238,24 @@ export async function resolveActiveKnowledgeResourceContext(input: {
     ...workspaceContext,
     knowledgeBaseId: knowledgeBase.id,
     knowledgeBase,
+    access: createKnowledgeAccessProvider(principal, { workspaceId: knowledgeBase.workspaceId }),
   }
 }
 
-export async function resolveActiveKnowledgeDocumentContext(input: {
-  knowledgeBaseId: string
-  documentId: string
-  assertedWorkspaceId?: string
-}): Promise<ActiveKnowledgeDocumentContext> {
-  const context = await resolveActiveKnowledgeResourceContext(input)
-  const document = await getKnowledgeDocument(context.knowledgeBaseId, input.documentId)
+export async function resolveActiveKnowledgeDocumentContext(
+  input: {
+    knowledgeBaseId: string
+    documentId: string
+    assertedWorkspaceId?: string
+  },
+  principal: Principal
+): Promise<ActiveKnowledgeDocumentContext> {
+  const context = await resolveActiveKnowledgeResourceContext(input, principal)
+  const document = await getKnowledgeDocument(
+    context.knowledgeBaseId,
+    input.documentId,
+    await context.access.get()
+  )
   if (!document) throw new OrchestrationError('not_found', 'Document not found')
   return {
     ...context,
@@ -225,19 +264,26 @@ export async function resolveActiveKnowledgeDocumentContext(input: {
   }
 }
 
-export async function resolveCanonicalActiveKnowledgeDocumentContext(input: {
-  knowledgeBaseId: string
-  documentId: string
-  assertedWorkspaceId?: string
-}): Promise<ActiveKnowledgeDocumentContext> {
-  const document = await getKnowledgeDocumentById(input.documentId)
-  if (!document || document.knowledgeBaseId !== input.knowledgeBaseId) {
+/**
+ * Resolves a document by its canonical id and only then trusts the asserted
+ * parent. The access scope needs the workspace, which is only known once the
+ * asserted knowledge base is loaded, so the base is resolved first and the
+ * document is then required to belong to it — a mismatch is concealed as
+ * not-found exactly as before.
+ */
+export async function resolveCanonicalActiveKnowledgeDocumentContext(
+  input: {
+    knowledgeBaseId: string
+    documentId: string
+    assertedWorkspaceId?: string
+  },
+  principal: Principal
+): Promise<ActiveKnowledgeDocumentContext> {
+  const context = await resolveActiveKnowledgeResourceContext(input, principal)
+  const document = await getKnowledgeDocumentById(input.documentId, await context.access.get())
+  if (!document || document.knowledgeBaseId !== context.knowledgeBaseId) {
     throw new OrchestrationError('not_found', 'Document not found')
   }
-  const context = await resolveActiveKnowledgeResourceContext({
-    knowledgeBaseId: document.knowledgeBaseId,
-    assertedWorkspaceId: input.assertedWorkspaceId,
-  })
   return {
     ...context,
     documentId: document.id,
@@ -245,12 +291,15 @@ export async function resolveCanonicalActiveKnowledgeDocumentContext(input: {
   }
 }
 
-export async function resolveActiveKnowledgeChunkContext(input: {
-  knowledgeBaseId: string
-  documentId: string
-  chunkId: string
-  assertedWorkspaceId?: string
-}): Promise<ActiveKnowledgeChunkContext> {
+export async function resolveActiveKnowledgeChunkContext(
+  input: {
+    knowledgeBaseId: string
+    documentId: string
+    chunkId: string
+    assertedWorkspaceId?: string
+  },
+  principal: Principal
+): Promise<ActiveKnowledgeChunkContext> {
   const [chunk] = await db
     .select()
     .from(embedding)
@@ -259,7 +308,7 @@ export async function resolveActiveKnowledgeChunkContext(input: {
   if (!chunk || chunk.knowledgeBaseId !== input.knowledgeBaseId) {
     throw new OrchestrationError('not_found', 'Chunk not found')
   }
-  const context = await resolveCanonicalActiveKnowledgeDocumentContext(input)
+  const context = await resolveCanonicalActiveKnowledgeDocumentContext(input, principal)
   return {
     ...context,
     chunkId: chunk.id,
@@ -267,11 +316,14 @@ export async function resolveActiveKnowledgeChunkContext(input: {
   }
 }
 
-export async function resolveActiveKnowledgeTagContext(input: {
-  tagDefinitionId: string
-  knowledgeBaseId?: string
-  assertedWorkspaceId?: string
-}): Promise<ActiveKnowledgeTagContext> {
+export async function resolveActiveKnowledgeTagContext(
+  input: {
+    tagDefinitionId: string
+    knowledgeBaseId?: string
+    assertedWorkspaceId?: string
+  },
+  principal: Principal
+): Promise<ActiveKnowledgeTagContext> {
   const tagDefinition = await getTagDefinitionById(input.tagDefinitionId)
   if (
     !tagDefinition ||
@@ -279,10 +331,13 @@ export async function resolveActiveKnowledgeTagContext(input: {
   ) {
     throw new OrchestrationError('not_found', 'Tag definition not found')
   }
-  const context = await resolveActiveKnowledgeResourceContext({
-    knowledgeBaseId: tagDefinition.knowledgeBaseId,
-    assertedWorkspaceId: input.assertedWorkspaceId,
-  })
+  const context = await resolveActiveKnowledgeResourceContext(
+    {
+      knowledgeBaseId: tagDefinition.knowledgeBaseId,
+      assertedWorkspaceId: input.assertedWorkspaceId,
+    },
+    principal
+  )
   return {
     ...context,
     tagDefinitionId: tagDefinition.id,
@@ -290,11 +345,14 @@ export async function resolveActiveKnowledgeTagContext(input: {
   }
 }
 
-export async function resolveActiveKnowledgeConnectorContext(input: {
-  connectorId: string
-  knowledgeBaseId?: string
-  assertedWorkspaceId?: string
-}): Promise<ActiveKnowledgeConnectorContext> {
+export async function resolveActiveKnowledgeConnectorContext(
+  input: {
+    connectorId: string
+    knowledgeBaseId?: string
+    assertedWorkspaceId?: string
+  },
+  principal: Principal
+): Promise<ActiveKnowledgeConnectorContext> {
   const connector = await getActiveKnowledgeConnectorReference(input.connectorId)
   if (
     !connector ||
@@ -302,10 +360,13 @@ export async function resolveActiveKnowledgeConnectorContext(input: {
   ) {
     throw new OrchestrationError('not_found', 'Connector not found')
   }
-  const context = await resolveActiveKnowledgeResourceContext({
-    knowledgeBaseId: connector.knowledgeBaseId,
-    assertedWorkspaceId: input.assertedWorkspaceId,
-  })
+  const context = await resolveActiveKnowledgeResourceContext(
+    {
+      knowledgeBaseId: connector.knowledgeBaseId,
+      assertedWorkspaceId: input.assertedWorkspaceId,
+    },
+    principal
+  )
   return {
     ...context,
     connectorId: connector.id,

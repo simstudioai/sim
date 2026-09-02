@@ -684,11 +684,14 @@ export const PlatformEvents = {
     knowledgeBaseId: string
     resultsCount: number
     workspaceId?: string
+    /** Whether the search ran as a person (`user`) or as the workspace (`workspace`). */
+    accessScopeKind?: 'user' | 'workspace'
   }) => {
     trackPlatformEvent('platform.knowledge_base.searched', {
       'knowledge_base.id': attrs.knowledgeBaseId,
       'search.results_count': attrs.resultsCount,
       ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+      ...(attrs.accessScopeKind && { 'search.access_scope_kind': attrs.accessScopeKind }),
     })
   },
 

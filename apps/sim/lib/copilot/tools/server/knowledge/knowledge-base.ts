@@ -52,10 +52,21 @@ import {
   KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH,
   MAX_KNOWLEDGE_BATCH_ITEMS,
 } from '@/lib/knowledge/constants'
+import { sourceAuthor } from '@/lib/knowledge/search/author'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('KnowledgeBaseServerTool')
+
+/** Results a query returns unless the caller asks for a number. */
+const DEFAULT_QUERY_TOP_K = 5
+/**
+ * How the model cites a knowledge result in its reply. The `<source>` tag is
+ * what the chat renders as a link back to the document, so a result without
+ * a source URL is quoted by name instead.
+ */
+const KNOWLEDGE_CITATION_INSTRUCTION =
+  'Cite each result you use inline, right after the sentence it supports, as <source>{"url":"<sourceUrl>","title":"<documentName>","siteName":"<knowledgeBaseName>","connectorType":"<connectorType>","snippet":"<the sentence or two of content you relied on>","updatedAt":"<sourceModifiedAt>","author":"<author>"}</source> with every value JSON-escaped; leave out any optional field whose value is null or unknown, and omit the tag for a result whose sourceUrl is null and name the document instead.'
 
 /**
  * Resolves an environment-variable reference passed as a connector API key.
@@ -405,7 +416,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const topK = args.topK || 5
+          const topK = args.topK || DEFAULT_QUERY_TOP_K
           const queryProjection = projectResolvedSecretModelContent(
             args.query,
             context.resolvedSecretTraceRegistry
@@ -446,7 +457,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           return {
             success: true,
-            message: `Found ${results.length} result(s) for query "${truncate(args.query, 50)}"`,
+            message: `Found ${results.length} result(s) for query "${truncate(args.query, 50)}". ${KNOWLEDGE_CITATION_INSTRUCTION}`,
             data: {
               knowledgeBaseId: args.knowledgeBaseId,
               knowledgeBaseName: knowledgeBase.name,
@@ -455,6 +466,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               totalResults: results.length,
               results: results.map((result) => ({
                 documentId: result.documentId,
+                documentName: result.documentName,
+                sourceUrl: result.sourceUrl,
+                sourceModifiedAt: result.sourceModifiedAt?.toISOString() ?? null,
+                author: sourceAuthor(result.metadata),
+                connectorType: result.connectorType,
                 content: result.content,
                 chunkIndex: result.chunkIndex,
                 similarity: result.similarity,

@@ -3,7 +3,13 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_CONVERSATIONS, outlookConnectorMeta } from '@/connectors/outlook/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import {
+  htmlToPlainText,
+  isListingScopeUnavailableError,
+  listingRequestError,
+  parseDefaultedUnlimitedSafeInteger,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('OutlookConnector')
 
@@ -602,8 +608,22 @@ function formatConversation(
   }
 }
 
+/**
+ * The conversation cap. A blank field keeps the default; 0 lifts the cap so a
+ * per-member listing is complete.
+ */
+function parseMaxConversations(value: unknown): number {
+  return parseDefaultedUnlimitedSafeInteger(
+    value,
+    DEFAULT_MAX_CONVERSATIONS,
+    'Max conversations must be a positive safe integer, or 0 for unlimited'
+  )
+}
+
 export const outlookConnector: ConnectorConfig = {
   ...outlookConnectorMeta,
+
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
 
   listDocuments: async (
     accessToken: string,
@@ -611,10 +631,7 @@ export const outlookConnector: ConnectorConfig = {
     cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    /** `validateConfig` rejects a non-positive value, so anything else here is drift. */
-    const parsedMax = Number(sourceConfig.maxConversations)
-    const maxConversations =
-      Number.isFinite(parsedMax) && parsedMax > 0 ? parsedMax : DEFAULT_MAX_CONVERSATIONS
+    const maxConversations = parseMaxConversations(sourceConfig.maxConversations)
 
     // Initialize accumulator in syncContext
     if (syncContext && !syncContext._conversations) {
@@ -648,7 +665,7 @@ export const outlookConnector: ConnectorConfig = {
           status: response.status,
           error: errorText,
         })
-        throw new Error(`Failed to fetch Outlook messages: ${response.status}`)
+        throw listingRequestError('Failed to fetch Outlook messages', response.status)
       }
 
       const data = await response.json()
@@ -749,11 +766,12 @@ export const outlookConnector: ConnectorConfig = {
     })
 
     /**
-     * Limit to `maxConversations`. Dropping the overflow makes the listing an
-     * incomplete view of the mailbox, so it is flagged as capped — otherwise
-     * reconciliation would hard-delete every conversation past the cap.
+     * Limit to `maxConversations` when one is set. Dropping the overflow makes
+     * the listing an incomplete view of the mailbox, so it is flagged as capped —
+     * otherwise reconciliation would hard-delete every conversation past the cap.
      */
-    const limited = conversationEntries.slice(0, maxConversations)
+    const limited =
+      maxConversations > 0 ? conversationEntries.slice(0, maxConversations) : conversationEntries
     if (conversationEntries.length > limited.length && syncContext) {
       syncContext.listingCapped = true
     }
@@ -911,13 +929,10 @@ export const outlookConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const maxConversations = sourceConfig.maxConversations as string | undefined
-
-    if (
-      maxConversations &&
-      (Number.isNaN(Number(maxConversations)) || Number(maxConversations) <= 0)
-    ) {
-      return { valid: false, error: 'Max conversations must be a positive number' }
+    try {
+      parseMaxConversations(sourceConfig.maxConversations)
+    } catch (error) {
+      return { valid: false, error: toError(error).message }
     }
 
     try {

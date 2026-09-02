@@ -57,6 +57,7 @@ import type {
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
 import {
+  attachKnowledgeBaseConnectors,
   createAuthorizedKnowledgeBase,
   deleteKnowledgeBase,
   getKnowledgeBaseById,
@@ -345,7 +346,7 @@ async function executeReadKnowledgeBase(args: {
     { maxRows: MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE }
   )
   return {
-    knowledgeBase: args.context.knowledgeBase,
+    knowledgeBase: await attachKnowledgeBaseConnectors(args.context.knowledgeBase),
     folderPath: knowledgeFolderPathForId(index, args.context.knowledgeBase.folderId),
   }
 }
@@ -453,7 +454,13 @@ export const listKnowledgeBaseCatalog = defineAuthorizedKnowledgeUseCase({
  */
 export const restoreKnowledgeBase = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.restore,
-  resolveContext: ({ input }: { input: RestoreKnowledgeBaseInput }) =>
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: RestoreKnowledgeBaseInput
+  }) =>
     resolveArchivedKnowledgeBaseContext({
       knowledgeBaseId: input.knowledgeBaseId,
       assertedWorkspaceId: input.assertedWorkspaceId,
@@ -561,15 +568,20 @@ export const createKnowledgeBase = defineAuthorizedKnowledgeUseCase({
 
 export const readKnowledgeBase = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.read,
-  resolveContext: ({ input }: { input: ReadKnowledgeBaseInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+  resolveContext: ({ principal, input }: { principal: Principal; input: ReadKnowledgeBaseInput }) =>
+    resolveActiveKnowledgeBaseContext(input, principal),
   execute: executeReadKnowledgeBase,
 })
 
 export const updateKnowledgeBaseOperation = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.update,
-  resolveContext: ({ input }: { input: UpdateKnowledgeBaseInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: UpdateKnowledgeBaseInput
+  }) => resolveActiveKnowledgeBaseContext(input, principal),
   execute: executeUpdateKnowledgeBase,
   projectAudit: ({ input, result }) => ({
     action: AuditAction.KNOWLEDGE_BASE_UPDATED,
@@ -588,8 +600,13 @@ export const updateKnowledgeBaseOperation = defineAuthorizedKnowledgeUseCase({
 
 export const deleteKnowledgeBaseOperation = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.delete,
-  resolveContext: ({ input }: { input: DeleteKnowledgeBaseInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: DeleteKnowledgeBaseInput
+  }) => resolveActiveKnowledgeBaseContext(input, principal),
   execute: executeDeleteKnowledgeBase,
   projectAudit: ({ input, result }) => ({
     action: AuditAction.KNOWLEDGE_BASE_DELETED,
@@ -628,10 +645,13 @@ export const bulkDeleteKnowledgeBases = defineAuthorizedKnowledgeUseCase({
       if (input.cancellationSignal?.aborted) break
       let knowledgeBaseName = knowledgeBaseId
       try {
-        const canonical = await resolveActiveKnowledgeBaseContext({
-          knowledgeBaseId,
-          assertedWorkspaceId: context.workspaceId,
-        })
+        const canonical = await resolveActiveKnowledgeBaseContext(
+          {
+            knowledgeBaseId,
+            assertedWorkspaceId: context.workspaceId,
+          },
+          principal
+        )
         knowledgeBaseName = canonical.knowledgeBase.name
         await authorizeWorkspaceOperation(principal, knowledgeOperations.bulkDelete, canonical, {
           delegation: knowledgeDelegationPolicy,

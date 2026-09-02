@@ -19,6 +19,7 @@ export const zoomConnectorMeta: ConnectorMeta = {
 
   supportsIncrementalSync: true,
 
+  permissionScopedListing: { capFieldIds: ['maxRecordings'] },
   configFields: [
     {
       id: 'lookback',

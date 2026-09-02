@@ -45,6 +45,7 @@ vi.mock('@/lib/knowledge/model-input-provenance', () => ({
 vi.mock('@/providers/utils', () => ({ calculateCost: vi.fn() }))
 
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
+import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
 import { bulkUpdateKnowledgeChunks, listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 
@@ -57,6 +58,7 @@ describe('knowledge chunk application use cases', () => {
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
       billedAccountUserId: 'billing-owner-1',
+      access: { get: async () => WORKSPACE_ACCESS_SCOPE },
       knowledgeBaseId: 'knowledge-1',
       knowledgeBase: { id: 'knowledge-1' },
       documentId: 'document-1',
@@ -85,6 +87,7 @@ describe('knowledge chunk application use cases', () => {
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
       billedAccountUserId: 'billing-owner-1',
+      access: { get: async () => WORKSPACE_ACCESS_SCOPE },
       knowledgeBaseId: 'knowledge-1',
       knowledgeBase: { id: 'knowledge-1' },
       documentId: 'document-1',
@@ -108,7 +111,8 @@ describe('knowledge chunk application use cases', () => {
     expect(mocks.queryChunks).toHaveBeenCalledWith(
       'document-1',
       expect.objectContaining({ cursorKeys: [3, 'chunk-3'] }),
-      expect.any(String)
+      expect.any(String),
+      WORKSPACE_ACCESS_SCOPE
     )
     expect(result.nextCursorKeys).toBeNull()
   })
@@ -125,6 +129,7 @@ describe('knowledge chunk application use cases', () => {
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
       billedAccountUserId: 'billing-owner-1',
+      access: { get: async () => WORKSPACE_ACCESS_SCOPE },
       knowledgeBaseId: 'knowledge-1',
       knowledgeBase: { id: 'knowledge-1' },
       documentId: 'document-1',

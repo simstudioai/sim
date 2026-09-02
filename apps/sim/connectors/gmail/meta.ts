@@ -16,6 +16,7 @@ export const gmailConnectorMeta: ConnectorMeta = {
     requiredScopes: ['https://www.googleapis.com/auth/gmail.modify'],
   },
 
+  permissionScopedListing: { capFieldIds: ['maxThreads'] },
   configFields: [
     {
       id: 'labelSelector',

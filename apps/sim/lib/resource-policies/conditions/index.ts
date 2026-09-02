@@ -1,4 +1,5 @@
 export { CREDENTIAL_GROUP_ACTOR_OWNS_CREDENTIAL_CONDITION_KEY } from '@/lib/resource-policies/conditions/credential-group-actor-owns-credential'
+export { CREDENTIAL_GROUP_OPTION_ID_CONDITION_KEY } from '@/lib/resource-policies/conditions/credential-group-option'
 export {
   getResourcePolicyConditionDefinition,
   RESOURCE_POLICY_CONDITION_DEFINITIONS,

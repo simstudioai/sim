@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   validateConnectorConfig: vi.fn(),
   recordAudit: vi.fn(),
   getUserPermissionConfig: vi.fn(),
+  resolveMembersBinding: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -49,6 +50,10 @@ vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
   resolveActiveKnowledgeResourceContext: mocks.resolveKnowledgeBase,
   resolveActiveKnowledgeConnectorContext: mocks.resolveConnector,
+}))
+
+vi.mock('@/lib/knowledge/orchestration/connector-access', () => ({
+  resolveKnowledgeConnectorMembersBinding: mocks.resolveMembersBinding,
 }))
 
 vi.mock('@/lib/knowledge/orchestration/connectors', () => ({
@@ -103,6 +108,7 @@ const crossWorkspaceContext = {
 
 const connectorContext = {
   ...crossWorkspaceContext,
+  access: { get: async () => ({ kind: 'workspace' as const, tokens: ['ws', 'pub'] as const }) },
   connectorId: 'connector-b',
   connector: {
     id: 'connector-b',
@@ -830,5 +836,71 @@ describe('knowledge connector application use cases', () => {
         expect(mocks.deleteConnector).toHaveBeenCalledTimes(1)
       })
     })
+  })
+})
+
+describe('members-mode connector creation', () => {
+  const sessionPrincipal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+  const membersInput = {
+    knowledgeBaseId: 'knowledge-b',
+    connectorType: 'google_drive',
+    sourceConfig: { folderId: ['f-1'] },
+    syncIntervalMinutes: 1440,
+    accessMode: 'members' as const,
+    credentialGroupId: 'group-1',
+    credentialGroupOptionId: 'option-1',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveKnowledgeBase.mockResolvedValue(crossWorkspaceContext)
+    mocks.getUserPermissionConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
+    mocks.resolveMembersBinding.mockResolvedValue({
+      credentialGroupId: 'group-1',
+      credentialGroupOptionId: 'option-1',
+      workspaceId: 'workspace-b',
+    })
+    mocks.createConnector.mockResolvedValue({
+      success: true,
+      connector: {
+        id: 'connector-1',
+        connectorType: 'google_drive',
+        syncIntervalMinutes: 1440,
+        accessMode: 'members',
+        credentialId: null,
+      },
+    })
+  })
+
+  it('refuses members mode to a member below admin', async () => {
+    mocks.resolvePermission.mockResolvedValue('write')
+
+    await expect(
+      createKnowledgeConnector.execute({ principal: sessionPrincipal, input: membersInput })
+    ).rejects.toMatchObject({ name: 'InsufficientWorkspacePermissionsError' })
+    expect(mocks.createConnector).not.toHaveBeenCalled()
+  })
+
+  it('validates the binding and passes it through for an admin', async () => {
+    mocks.resolvePermission.mockResolvedValue('admin')
+
+    await createKnowledgeConnector.execute({ principal: sessionPrincipal, input: membersInput })
+
+    expect(mocks.resolveMembersBinding).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'workspace-b',
+        binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
+        sourceConfig: membersInput.sourceConfig,
+      })
+    )
+    expect(mocks.createConnector).toHaveBeenCalledWith(
+      expect.objectContaining({
+        membersBinding: expect.objectContaining({
+          credentialGroupId: 'group-1',
+          credentialGroupOptionId: 'option-1',
+        }),
+        credentialId: undefined,
+      })
+    )
   })
 })

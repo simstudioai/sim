@@ -1,5 +1,5 @@
 import { createLogger, runWithRequestContext } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { describeError, findCause, getErrorMessage, redactBoundParameters } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getRateLimitHeaders } from '@/lib/api/server/rate-limit-context'
@@ -88,6 +88,29 @@ function traceIdFromTraceparent(header: string | null | undefined): string | und
 }
 
 /**
+ * What a wrapped error hides: a query failure from the database client carries
+ * the driver's reason and the Postgres code on its cause, and only the outer
+ * message names the query. The shared describer reads the deepest cause and
+ * strips bound parameter values, so user data never reaches the log.
+ */
+function errorDetail(error: unknown): { cause?: string; code?: string; causeStack?: string } {
+  if (!(error instanceof Error) || error.cause === undefined) return {}
+  const described = describeError(error)
+  /** Outside production the deepest cause's stack says where a wrapped failure was raised. */
+  const deepest = findCause(
+    error,
+    (candidate): candidate is Error => candidate instanceof Error && candidate.cause === undefined
+  )
+  return {
+    cause: `${described.name}: ${described.message}`,
+    ...(described.code ? { code: described.code } : {}),
+    ...(process.env.NODE_ENV !== 'production' && deepest?.stack
+      ? { causeStack: redactBoundParameters(deepest.stack) }
+      : {}),
+  }
+}
+
+/**
  * Wraps a Next.js API route handler with centralized error reporting.
  *
  * - Generates a unique request ID and stores it in AsyncLocalStorage so every
@@ -118,7 +141,9 @@ export function withRouteHandler<T>(
         response = await withPermissionGroupScope(() => handler(request, context))
       } catch (error) {
         const duration = Date.now() - startTime
-        const message = getErrorMessage(error, 'Unknown error')
+        /** A query failure names its bound values in the message; they are user data. */
+        const message = redactBoundParameters(getErrorMessage(error, 'Unknown error'))
+        const detail = errorDetail(error)
         if (request.signal.aborted) {
           logger.info('Client closed request', { duration, status: 499 })
           response = options.clientAbortResponse
@@ -132,7 +157,12 @@ export function withRouteHandler<T>(
         if (typedError) {
           const typedStatus = typedError.statusCode
           if (typedStatus >= 500) {
-            logger.error('Unhandled route error', { duration, status: typedStatus, error: message })
+            logger.error('Unhandled route error', {
+              duration,
+              status: typedStatus,
+              error: message,
+              ...detail,
+            })
           } else {
             logger.warn('Typed route error', { duration, status: typedStatus, error: message })
           }
@@ -144,13 +174,13 @@ export function withRouteHandler<T>(
         }
 
         if (options.unhandledErrorResponse) {
-          logger.error('Unhandled route error', { duration, error: message })
+          logger.error('Unhandled route error', { duration, error: message, ...detail })
           response = options.unhandledErrorResponse({ error, requestId })
           applyResponseHeaders(response, request, requestId)
           return response
         }
 
-        logger.error('Unhandled route error', { duration, error: message })
+        logger.error('Unhandled route error', { duration, error: message, ...detail })
         response = NextResponse.json({ error: 'Internal server error', requestId }, { status: 500 })
         applyResponseHeaders(response, request, requestId)
         return response

@@ -31,6 +31,9 @@ export const confluenceConnectorMeta: ConnectorMeta = {
    */
   rehydrateOnFullSync: true,
 
+  /** CQL search under a member's token returns only content that member may view. */
+  permissionScopedListing: { capFieldIds: ['maxPages'] },
+
   configFields: [
     {
       id: 'domain',

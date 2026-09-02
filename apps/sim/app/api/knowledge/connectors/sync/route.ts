@@ -304,6 +304,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .where(
         and(
           inArray(knowledgeConnector.status, ['active', 'error']),
+          eq(knowledgeConnector.accessMode, 'workspace'),
           lte(knowledgeConnector.nextSyncAt, now),
           isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt),

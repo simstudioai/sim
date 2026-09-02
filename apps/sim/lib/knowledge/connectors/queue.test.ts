@@ -39,6 +39,9 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
   executeSync: mockExecuteSync,
   isConnectorRunnableStatus: (status: string) => status === 'active' || status === 'error',
+}))
+
+vi.mock('@/lib/knowledge/connectors/sync-lock', () => ({
   connectorIsLive: () => ({ type: 'connectorIsLive' }),
   LOCKABLE_CONNECTOR_STATUSES: ['active', 'error', 'pending'],
 }))
@@ -79,6 +82,7 @@ describe('connector sync queue', () => {
       {
         knowledgeBaseId: 'knowledge-base-1',
         connectorStatus: 'active',
+        connectorAccessMode: 'workspace',
         connectorArchivedAt: null,
         connectorDeletedAt: null,
         connectorNextSyncAt: NEXT_SYNC_AT,
@@ -194,6 +198,7 @@ describe('connector sync queue', () => {
       {
         knowledgeBaseId: 'knowledge-base-1',
         connectorStatus: 'paused',
+        connectorAccessMode: 'workspace',
         connectorArchivedAt: null,
         connectorDeletedAt: null,
         workspaceId: 'workspace-paid',
@@ -232,6 +237,7 @@ describe('connector sync queue', () => {
       {
         knowledgeBaseId: 'knowledge-base-1',
         connectorStatus: 'paused',
+        connectorAccessMode: 'workspace',
         connectorArchivedAt: null,
         connectorDeletedAt: null,
         connectorNextSyncAt: NEXT_SYNC_AT,
