@@ -142,9 +142,20 @@ export function hiddenParamKeys(block: BlockConfig): Set<string> {
   return hidden
 }
 
-/** Sub-blocks an authoring surface may configure: action fields, minus the hidden ones. */
+/**
+ * Sub-blocks an authoring surface may configure, minus the hidden ones.
+ *
+ * Action fields for an ordinary block. A `triggers`-category block has no
+ * action side — every field it declares is trigger-mode, and the serializer
+ * keeps those — so its trigger fields are the authorable ones, minus the
+ * system-managed display and lifecycle fields.
+ */
 function authorableSubBlocks(block: BlockConfig): SubBlockConfig[] {
-  return actionSubBlocks(block).filter((subBlock) => !subBlock.hideFromCopilot)
+  const fields =
+    block.category === 'triggers'
+      ? (block.subBlocks ?? []).filter((subBlock) => !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id))
+      : actionSubBlocks(block)
+  return fields.filter((subBlock) => !subBlock.hideFromCopilot)
 }
 
 /** Whether a condition gates its field on a specific operation being selected. */
@@ -227,7 +238,13 @@ export function computeBlockLevelInputs(
   return blockInputs
 }
 
-/** Input definitions scoped to one operation, keyed by operation id. */
+/**
+ * Input definitions scoped to one operation, keyed by operation id.
+ *
+ * Each input is published under the sub-block id — the field name an apply
+ * accepts — even when the block declares its definition under the field's
+ * `canonicalParamId`, which is the executor-side param and not a writable field.
+ */
 export function computeOperationLevelInputs(
   block: BlockConfig
 ): Record<string, Record<string, CatalogInputDefinition>> {
@@ -237,15 +254,13 @@ export function computeOperationLevelInputs(
   for (const subBlock of authorableSubBlocks(block)) {
     const gate = operationGate(subBlock)
     if (!gate) continue
-    const keys = [subBlock.canonicalParamId, subBlock.id].filter(
-      (key): key is string => typeof key === 'string'
-    )
-    for (const key of keys) {
-      if (!(key in inputs)) continue
-      for (const operationId of gate.values) {
-        operationInputs[operationId] ??= {}
-        operationInputs[operationId][key] = inputs[key]
-      }
+    const definition =
+      inputs[subBlock.id] ??
+      (subBlock.canonicalParamId !== undefined ? inputs[subBlock.canonicalParamId] : undefined)
+    if (!definition) continue
+    for (const operationId of gate.values) {
+      operationInputs[operationId] ??= {}
+      operationInputs[operationId][subBlock.id] = definition
     }
   }
 

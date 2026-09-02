@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { hasWorkflowLintIssues, lintEditedWorkflowState } from './lint'
+
+/** Overrides the global registry mock so a `schedule` block carries its real category. */
+vi.mock('@/blocks/registry', () => ({
+  getBlock: vi.fn((type: string) =>
+    type === 'schedule' ? { category: 'triggers', subBlocks: [], outputs: {} } : undefined
+  ),
+  getAllBlocks: vi.fn(() => []),
+  getBlockMeta: vi.fn(() => undefined),
+  getBlockRegistry: vi.fn(() => ({})),
+}))
 
 function baseBlock(id: string, type: string, name: string, subBlocks: Record<string, any> = {}) {
   return {
@@ -250,6 +260,32 @@ describe('lintEditedWorkflowState', () => {
     // 'note' is excluded from both even though it has no edges.
     expect(lint.sources.map((b) => b.blockId)).not.toContain('note')
     expect(lint.sinks.map((b) => b.blockId)).not.toContain('note')
+  })
+
+  it('treats a triggers-category block as an entry, so a wired schedule is a source and not an orphan', () => {
+    const workflowState = {
+      blocks: {
+        schedule: baseBlock('schedule', 'schedule', 'Schedule'),
+        agent: baseBlock('agent', 'agent', 'Agent'),
+      },
+      edges: [
+        {
+          id: 'e1',
+          source: 'schedule',
+          sourceHandle: 'source',
+          target: 'agent',
+          targetHandle: 'target',
+        },
+      ],
+    }
+
+    const lint = lintEditedWorkflowState(workflowState as any)
+
+    expect(lint.sources).toEqual([
+      { blockId: 'schedule', blockName: 'Schedule', blockType: 'schedule' },
+    ])
+    expect(lint.orphanBlocks).toEqual([])
+    expect(hasWorkflowLintIssues(lint)).toBe(false)
   })
 
   it('warns when loop/parallel start ports are empty', () => {
