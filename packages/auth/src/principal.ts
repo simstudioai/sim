@@ -31,11 +31,25 @@ export interface ExternalUserSubject {
   subjectId: string
 }
 
+/** Email address proven by a deployment's OTP or SSO authentication gate. */
+export interface AuthenticatedEmailSubject {
+  kind: 'authenticated_email'
+  email: string
+}
+
 interface ActorlessSystemPrincipal {
   kind: 'system'
-  serviceId: 'public_api' | 'schedule' | 'internal' | 'table' | 'chat'
+  serviceId: 'public_api' | 'schedule' | 'internal' | 'table'
   workspaceId: string
   workflowId: string
+}
+
+export interface ChatSystemPrincipal {
+  kind: 'system'
+  serviceId: 'chat'
+  workspaceId: string
+  workflowId: string
+  subject?: AuthenticatedEmailSubject
 }
 
 export interface WebhookSystemPrincipal {
@@ -48,7 +62,10 @@ export interface WebhookSystemPrincipal {
   subject?: ExternalUserSubject
 }
 
-export type SystemPrincipal = ActorlessSystemPrincipal | WebhookSystemPrincipal
+export type SystemPrincipal =
+  | ActorlessSystemPrincipal
+  | ChatSystemPrincipal
+  | WebhookSystemPrincipal
 
 interface DelegatedPrincipalBase {
   kind: 'delegated'
@@ -256,6 +273,18 @@ function parseExternalUserSubject(value: unknown): ExternalUserSubject {
   }
 }
 
+function parseAuthenticatedEmailSubject(value: unknown): AuthenticatedEmailSubject {
+  const subject = requireRecord(value, 'Serialized principal subject')
+  if (subject.kind !== 'authenticated_email') {
+    throw new Error(`Unsupported serialized principal subject kind ${String(subject.kind)}`)
+  }
+  requireExactKeys(subject, ['kind', 'email'])
+  return {
+    kind: 'authenticated_email',
+    email: requireString(subject.email, 'subject.email'),
+  }
+}
+
 /** Encodes a workflow caller without persisting bearer credentials or invitation proofs. */
 export function serializePrincipal(principal: WorkflowExecutionPrincipal): SerializedPrincipalV1 {
   switch (principal.kind) {
@@ -328,12 +357,12 @@ export function parsePrincipal(value: unknown): WorkflowExecutionPrincipal {
           : requireString(principal.webhookId, 'webhookId')
       const provider =
         principal.provider === undefined ? undefined : requireString(principal.provider, 'provider')
-      const subject =
-        principal.subject === undefined ? undefined : parseExternalUserSubject(principal.subject)
       if (serviceId === 'webhook') {
         if (!webhookId || !provider) {
           throw new Error('Webhook system principals require webhookId and provider')
         }
+        const subject =
+          principal.subject === undefined ? undefined : parseExternalUserSubject(principal.subject)
         if (subject && subject.provider !== provider) {
           throw new Error('Webhook system principal subject provider must match its provider')
         }
@@ -347,8 +376,26 @@ export function parsePrincipal(value: unknown): WorkflowExecutionPrincipal {
           ...(subject ? { subject } : {}),
         }
       }
-      if (webhookId || provider || subject) {
-        throw new Error(`System principal service ${serviceId} cannot carry webhook identity`)
+      if (serviceId === 'chat') {
+        if (webhookId || provider) {
+          throw new Error('Chat system principals cannot carry webhook identity')
+        }
+        const subject =
+          principal.subject === undefined
+            ? undefined
+            : parseAuthenticatedEmailSubject(principal.subject)
+        return {
+          kind,
+          serviceId,
+          workspaceId: requireString(principal.workspaceId, 'workspaceId'),
+          workflowId: requireString(principal.workflowId, 'workflowId'),
+          ...(subject ? { subject } : {}),
+        }
+      }
+      if (webhookId || provider || principal.subject !== undefined) {
+        throw new Error(
+          `System principal service ${serviceId} cannot carry a subject or webhook identity`
+        )
       }
       return {
         kind,
@@ -408,7 +455,7 @@ export type PrincipalActor =
       workflowId: string
       webhookId?: string
       provider?: string
-      subject?: ExternalUserSubject
+      subject?: ExternalUserSubject | AuthenticatedEmailSubject
     }
   | {
       kind: 'delegated'
@@ -447,7 +494,10 @@ export interface PrincipalAttributionContext {
   workspaceBillingOwnerUserId?: string
 }
 
-export type PrincipalSubject = { kind: 'sim_user'; userId: string } | ExternalUserSubject
+export type PrincipalSubject =
+  | { kind: 'sim_user'; userId: string }
+  | ExternalUserSubject
+  | AuthenticatedEmailSubject
 
 /** Resolves a stable human or provider subject without inventing one for actorless callers. */
 export function resolvePrincipalSubject(principal: Principal): PrincipalSubject | null {
@@ -464,7 +514,9 @@ export function resolvePrincipalSubject(principal: Principal): PrincipalSubject 
       }
       return principal.subjectUserId ? { kind: 'sim_user', userId: principal.subjectUserId } : null
     case 'system':
-      return principal.serviceId === 'webhook' ? (principal.subject ?? null) : null
+      return principal.serviceId === 'webhook' || principal.serviceId === 'chat'
+        ? (principal.subject ?? null)
+        : null
     case 'workspace_api_key':
     case 'credential_group_enrollment':
       return null
@@ -495,7 +547,9 @@ export function toPrincipalActor(principal: Principal): PrincipalActor {
               provider: principal.provider,
               ...(principal.subject ? { subject: principal.subject } : {}),
             }
-          : {}),
+          : principal.serviceId === 'chat' && principal.subject
+            ? { subject: principal.subject }
+            : {}),
       }
     case 'delegated':
       return {

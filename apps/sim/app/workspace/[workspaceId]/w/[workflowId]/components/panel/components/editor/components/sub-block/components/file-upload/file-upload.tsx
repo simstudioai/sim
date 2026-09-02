@@ -17,6 +17,7 @@ import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { isFileInFolderScope } from '@/lib/workspace-files/folder-path-selection'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { readFolderPath } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sim-folder-tree-selector/selection'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
@@ -341,8 +342,13 @@ export function FileUpload({
     blockId,
     folderScope?.recursiveFieldId ?? subBlockId
   )
-  const folderScopePath =
-    folderScope && typeof folderScopeValue === 'string' ? folderScopeValue.trim() : ''
+  /*
+   * Through `readFolderPath` rather than a `typeof === 'string'` check: a value
+   * saved by the multi-select tree that preceded this one is a JSON array, and
+   * its literal text passes a string check and then matches no folder, so every
+   * file is filtered out of a picker that looks correctly configured.
+   */
+  const folderScopePath = folderScope ? readFolderPath(folderScopeValue) : ''
   const folderScopeIncludesSubfolders =
     !folderScope?.recursiveFieldId ||
     folderScopeRecursive === undefined ||

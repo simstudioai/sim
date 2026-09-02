@@ -200,7 +200,7 @@ export const PUT = withRouteHandler(
       await deleteOTP('file', resolved.share.id, email)
 
       const response = NextResponse.json({ authType: resolved.share.authType })
-      setDeploymentAuthCookie({
+      await setDeploymentAuthCookie({
         response,
         cookiePrefix: 'file',
         resource: resolved.share,

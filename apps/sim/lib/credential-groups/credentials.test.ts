@@ -90,6 +90,16 @@ describe('listCredentialGroupCredentialReferences', () => {
     ).resolves.toEqual({ enrollmentId: 'enrollment-1', email: 'person@example.com' })
   })
 
+  it('does not treat a chat-authenticated email as Credential Group enrollment access', async () => {
+    await expect(
+      loadCredentialGroupEnrollmentAccessForSubject('group-1', {
+        kind: 'authenticated_email',
+        email: 'person@example.com',
+      })
+    ).resolves.toBeNull()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
   it('fails fast when one external subject resolves to multiple enrollments', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       { enrollmentId: 'enrollment-1', email: 'first@example.com' },

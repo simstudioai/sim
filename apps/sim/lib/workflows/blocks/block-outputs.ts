@@ -149,9 +149,27 @@ const START_RUN_METADATA_OUTPUT = {
   type: 'json',
   description: 'Trusted run metadata (server-injected)',
   properties: {
-    userEmail: {
-      type: 'string',
-      description: 'Email of the user who invoked the run (for custom blocks, the invoking user)',
+    subject: {
+      type: 'json',
+      description:
+        'Authenticated caller subject, or null for actorless runs such as workspace API keys and schedules',
+      properties: {
+        kind: {
+          type: 'string',
+          description: 'Subject kind: sim_user, authenticated_email, or external_user',
+        },
+        userId: { type: 'string', description: 'Sim user ID for a sim_user subject' },
+        email: {
+          type: 'string',
+          description: 'Email for a Sim user or email-authenticated chat subject',
+        },
+        provider: { type: 'string', description: 'Provider for an external_user subject' },
+        tenantId: {
+          type: 'string',
+          description: 'Provider tenant ID for an external_user subject',
+        },
+        subjectId: { type: 'string', description: 'Provider user ID for an external_user subject' },
+      },
     },
     workspaceId: {
       type: 'string',
