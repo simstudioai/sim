@@ -16,8 +16,10 @@ import {
   deleteMcpServerContract,
   discoverMcpToolsContract,
   getAllowedMcpDomainsContract,
+  listManagedMcpCatalogContract,
   listMcpServersContract,
   listStoredMcpToolsContract,
+  type ManagedMcpCatalog,
   type McpServer,
   type McpServerTestBody,
   type McpServerTestResult,
@@ -52,6 +54,9 @@ export const mcpKeys = {
   all: ['mcp'] as const,
   servers: () => [...mcpKeys.all, 'servers'] as const,
   serversList: (workspaceId?: string) => [...mcpKeys.servers(), workspaceId ?? ''] as const,
+  managedCatalog: () => [...mcpKeys.all, 'managedCatalog'] as const,
+  managedCatalogList: (workspaceId?: string) =>
+    [...mcpKeys.managedCatalog(), workspaceId ?? ''] as const,
   serverTools: () => [...mcpKeys.all, 'serverTools'] as const,
   serverToolsWorkspace: (workspaceId?: string) =>
     [...mcpKeys.serverTools(), workspaceId ?? ''] as const,
@@ -114,6 +119,42 @@ export function useMcpServers(workspaceId: string) {
   })
 }
 
+async function fetchManagedMcpCatalog(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<ManagedMcpCatalog> {
+  return requestJson(listManagedMcpCatalogContract, {
+    query: { workspaceId },
+    signal,
+  })
+}
+
+export function useManagedMcpCatalog(workspaceId: string) {
+  return useQuery({
+    queryKey: mcpKeys.managedCatalogList(workspaceId),
+    queryFn: ({ signal }) => fetchManagedMcpCatalog(workspaceId, signal),
+    enabled: Boolean(workspaceId),
+    retry: false,
+    staleTime: MCP_SERVER_LIST_STALE_TIME,
+  })
+}
+
+export function useMcpToolServers(workspaceId: string) {
+  const shared = useMcpServers(workspaceId)
+  const managed = useManagedMcpCatalog(workspaceId)
+  return useMemo(
+    () => ({
+      data: [
+        ...(shared.data ?? []).filter((server) => !server.credentialGroupId),
+        ...(managed.data?.servers ?? []),
+      ],
+      isLoading: shared.isLoading || managed.isLoading,
+      error: shared.error ?? managed.error,
+    }),
+    [shared.data, shared.error, shared.isLoading, managed.data, managed.error, managed.isLoading]
+  )
+}
+
 async function fetchMcpTools(
   workspaceId: string,
   forceRefresh = false,
@@ -142,6 +183,7 @@ function isServerEligibleForDiscovery(server: McpServer, workspaceId: string): b
   return (
     server.enabled &&
     server.workspaceId === workspaceId &&
+    !server.credentialGroupId &&
     (server.authType !== 'oauth' || server.connectionStatus === 'connected')
   )
 }
@@ -152,7 +194,12 @@ function isServerEligibleForDiscovery(server: McpServer, workspaceId: string): b
  */
 export function useMcpToolsQuery(workspaceId: string) {
   const queryClient = useQueryClient()
-  const { data: servers, isLoading: serversLoading } = useMcpServers(workspaceId)
+  const {
+    data: servers,
+    isLoading: serversLoading,
+    error: serversError,
+  } = useMcpServers(workspaceId)
+  const managedCatalog = useManagedMcpCatalog(workspaceId)
   // Push is intrinsic to consuming the tools query: every surface that reads tools (settings,
   // tool picker, dynamic args, tool selector, canvas block) gets real-time `list_changed`
   // refresh via the shared, reference-counted subscription — so the 5-min stale time is always
@@ -196,11 +243,21 @@ export function useMcpToolsQuery(workspaceId: string) {
   })
 
   return useMemo(() => {
-    const tools: McpTool[] = []
-    let hasData = false
+    const tools: McpTool[] = [...(managedCatalog.data?.tools ?? [])]
+    let hasData = Boolean(managedCatalog.data?.tools.length)
     let anyServerLoading = false
-    let firstError: Error | null = null
-    const statusById = new Map(servers?.map((s) => [s.id, s.connectionStatus]))
+    let firstError: Error | null =
+      managedCatalog.error instanceof Error
+        ? managedCatalog.error
+        : serversError instanceof Error
+          ? serversError
+          : null
+    const statusById = new Map(
+      [...(servers ?? []), ...(managedCatalog.data?.servers ?? [])].map((server) => [
+        server.id,
+        server.connectionStatus,
+      ])
+    )
     const toolsStateByServer = new Map<
       string,
       { isLoading: boolean; isFetching: boolean; error: Error | null }
@@ -231,13 +288,13 @@ export function useMcpToolsQuery(workspaceId: string) {
     }
     return {
       data: tools,
-      isLoading: (serversLoading || anyServerLoading) && !hasData,
-      isFetching: serversLoading || results.some((r) => r.isFetching),
+      isLoading: (serversLoading || managedCatalog.isLoading || anyServerLoading) && !hasData,
+      isFetching: serversLoading || managedCatalog.isFetching || results.some((r) => r.isFetching),
       // Suppress when any healthy server rendered; per-server errors live in `toolsStateByServer`.
       error: hasData ? null : firstError,
       toolsStateByServer,
     }
-  }, [results, serversLoading, serverIds, servers])
+  }, [results, serversLoading, serversError, serverIds, servers, managedCatalog])
 }
 
 export function useForceRefreshMcpTools() {
@@ -273,6 +330,7 @@ export function useForceRefreshMcpTools() {
     },
     onSettled: (_data, _error, workspaceId) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalogList(workspaceId) })
       queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
     },
   })
@@ -576,6 +634,7 @@ export function useMcpToolsEvents(workspaceId: string) {
         queryClient.invalidateQueries({ queryKey: mcpKeys.serverToolsWorkspace(workspaceId) })
       }
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalogList(workspaceId) })
       queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
       queryClient.invalidateQueries({ queryKey: workflowMcpServerKeys.all })
     }

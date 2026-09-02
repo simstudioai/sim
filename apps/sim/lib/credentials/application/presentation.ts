@@ -36,6 +36,7 @@ export function toWorkspaceCredential(
   access?: CredentialActorContext
 ): WorkspaceCredential {
   const type = requireOrdinaryCredentialType(row.type)
+  if (!row.createdBy) throw new Error(`Credential ${row.id} has no creator`)
   const role = access?.isAdmin
     ? 'admin'
     : (access?.member?.role ?? ('role' in row ? row.role : undefined))

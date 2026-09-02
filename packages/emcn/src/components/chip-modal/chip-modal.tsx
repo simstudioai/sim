@@ -414,7 +414,7 @@ const ChipModalBody = React.forwardRef<HTMLDivElement, ChipModalBodyProps>(
       ref={ref}
       className={cn(
         'flex min-h-0 flex-1 flex-col',
-        fullBleed ? 'overflow-hidden' : 'gap-4 overflow-y-auto px-2 pt-4 pb-4.5',
+        fullBleed ? 'overflow-hidden' : 'gap-4 overflow-y-auto overflow-x-hidden px-2 pt-4 pb-4.5',
         className
       )}
       {...props}

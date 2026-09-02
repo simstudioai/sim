@@ -854,15 +854,12 @@ export const Sidebar = memo(function Sidebar({
     files: { hover: filesHover, content: <FilesRailFlyout workspaceId={workspaceId} /> },
   }
 
-  const handleOpenSettings = useCallback(
-    (section: SettingsSection) => {
-      if (!isCollapsedRef.current) {
-        setSidebarWidth(SIDEBAR_WIDTH.MIN)
-      }
-      navigateToSettings({ section })
-    },
-    [navigateToSettings, setSidebarWidth]
-  )
+  const handleOpenSettings = (section: SettingsSection) => {
+    if (!isCollapsedRef.current) {
+      setSidebarWidth(SIDEBAR_WIDTH.MIN)
+    }
+    navigateToSettings({ section })
+  }
 
   const { data: fetchedChats = EMPTY_CHATS, isLoading: chatsLoading } = useMothershipChats(
     workspaceId,
@@ -1239,17 +1236,17 @@ export const Sidebar = memo(function Sidebar({
     [isCollapsed, toggleCollapsed]
   )
 
-  const handleOpenHelpFromMenu = useCallback(() => setIsHelpModalOpen(true), [])
+  const handleOpenHelpFromMenu = () => setIsHelpModalOpen(true)
 
-  const handleOpenDocs = useCallback(() => {
+  const handleOpenDocs = () => {
     window.open('https://docs.sim.ai', '_blank', 'noopener,noreferrer')
     captureEvent(posthog, 'docs_opened', { source: 'help_menu' })
-  }, [posthog])
+  }
 
-  const handleOpenSlackCommunity = useCallback(() => {
+  const handleOpenSlackCommunity = () => {
     window.open(SLACK_COMMUNITY_URL, '_blank', 'noopener,noreferrer')
     captureEvent(posthog, 'slack_community_opened', { source: 'help_menu' })
-  }, [posthog])
+  }
 
   const handleChatRenameBlur = useCallback(
     () => void chatFlyoutRename.saveRename(),

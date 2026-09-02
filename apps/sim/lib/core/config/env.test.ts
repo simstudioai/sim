@@ -12,4 +12,11 @@ describe('envNumber', () => {
     expect(envNumber('5.5', 1, { min: 1, integer: true })).toBe(1)
     expect(envNumber(5.5, 1, { min: 1, integer: true })).toBe(1)
   })
+
+  it('treats whitespace-only values as unset instead of coercing them to 0', () => {
+    expect(envNumber('   ', 1)).toBe(1)
+    expect(envNumber('', 1)).toBe(1)
+    expect(envNumber(' 1.1 ', 1)).toBe(1.1)
+    expect(envNumber('0', 1)).toBe(0)
+  })
 })

@@ -5,6 +5,7 @@ import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import { Chip, useNativeSurfaceOcclusionReady } from '@sim/emcn'
 import { getDesktopBridge, getDesktopShellVersion, getDesktopUpdates } from '@/lib/desktop'
 import { isShellOutdated } from '@/lib/desktop/min-version'
+import { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'
 
 /**
  * Resolves this deployment's channel to the newest release's installer, so a
@@ -70,21 +71,13 @@ function gateActionFor(state: DesktopUpdateState): GateAction {
  */
 export function DesktopUpdateGate() {
   const [outdated, setOutdated] = useState(false)
-  const [updateState, setUpdateState] = useState<DesktopUpdateState>({ status: 'idle' })
+  const updateState = useDesktopUpdateState()
 
   useEffect(() => {
     if (!getDesktopBridge() || !isShellOutdated(getDesktopShellVersion())) {
       return
     }
     setOutdated(true)
-    const updates = getDesktopUpdates()
-    if (!updates) return
-    const unsubscribe = updates.onState(setUpdateState)
-    void updates
-      .getState()
-      .then(setUpdateState)
-      .catch(() => {})
-    return unsubscribe
   }, [])
 
   const nativeSurfaceReady = useNativeSurfaceOcclusionReady(outdated, 'takeover')

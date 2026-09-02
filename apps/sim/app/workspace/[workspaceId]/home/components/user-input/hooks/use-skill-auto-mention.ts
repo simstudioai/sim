@@ -89,7 +89,12 @@ export function useSkillAutoMention({
     for (const server of mcpServers) {
       const key = server.name.toLowerCase()
       if (!byName.has(key)) {
-        byName.set(key, { kind: 'mcp', serverId: server.id, label: server.name })
+        byName.set(key, {
+          kind: 'mcp',
+          serverId: server.id,
+          label: server.name,
+          ...(server.managedConnectorId ? { managedConnectorId: server.managedConnectorId } : {}),
+        })
       }
     }
     const names = [...byName.values()]

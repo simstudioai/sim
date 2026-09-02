@@ -331,12 +331,14 @@ describe('deleteCredentialGroupEnrollment', () => {
   })
 
   it('deletes the enrollment and lets its foreign-key cascade remove managed credentials', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ email: ENROLLMENT.email }])
+    queueTableRows(schemaMock.credentialGroupEnrollment, [{ email: ENROLLMENT.email }])
+    queueTableRows(schemaMock.credential, [{ id: 'mcp-cg-connection-1' }])
     dbChainMockFns.returning.mockResolvedValueOnce([ENROLLMENT])
 
     const result = await deleteCredentialGroupEnrollment('workspace-1', 'group-1', ENROLLMENT.id)
 
-    expect(result.id).toBe(ENROLLMENT.id)
+    expect(result.credentialGroupEnrollment.id).toBe(ENROLLMENT.id)
+    expect(result.retiredMcpConnectionIds).toEqual(['mcp-cg-connection-1'])
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).toHaveBeenCalledOnce()
     expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment)

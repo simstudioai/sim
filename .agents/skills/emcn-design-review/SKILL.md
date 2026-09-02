@@ -27,9 +27,8 @@ This codebase uses **emcn**, a custom component library built on Radix UI primit
 
 ## Imports
 
-- Import from `@/components/emcn` barrel, never subpaths
+- Components, `cn`, and tokens from the `@sim/emcn` barrel, never component subpaths
 - Icons from `@sim/emcn/icons`
-- Use `cn` from `@/lib/core/utils/cn` for conditional classes
 
 ## Design Tokens
 
@@ -37,7 +36,7 @@ Use CSS variable pattern (`text-[var(--text-primary)]`), never Tailwind semantic
 
 **Text**: `--text-primary`, `--text-secondary`, `--text-tertiary`, `--text-muted`, `--text-body` (canonical value text), `--text-icon`, `--text-placeholder`, `--text-subtle`, `--text-inverse`, `--text-error`
 **Surfaces**: `--bg`, `--surface-1` through `--surface-7`, `--surface-hover`, `--surface-active`
-**Borders**: `--border`, `--border-1`, `--border-muted`
+**Borders**: `--border` (`--border-1`/`--border-muted` are legacy aliases resolving to it — flag new uses)
 **Brand/accent**: `--brand-secondary`, `--brand-accent`
 **Z-Index**: `--z-dropdown` (100), `--z-toast` (150), `--z-modal` (200), `--z-popover` (300), `--z-tooltip` (400), `--z-takeover` (500), `--z-shell-gate` (600)
 **Shadows**: `shadow-subtle`, `shadow-medium`, `shadow-overlay`, `shadow-card`
@@ -62,7 +61,7 @@ Intent-to-variant mapping (read the actual `buttonVariants` in `packages/emcn/sr
 
 ## Toast
 
-`toast.success()`, `toast.error()`, `toast()` from `@/components/emcn`. Never custom notification UI.
+`toast.success()`, `toast.error()`, `toast()` from `@sim/emcn`. Never custom notification UI.
 
 ## Badges
 

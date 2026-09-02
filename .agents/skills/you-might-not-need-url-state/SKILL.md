@@ -16,10 +16,6 @@ User arguments: $ARGUMENTS
 
 Shareable client view-state (active tab/panel, filters, search query, sort, pagination, selected-entity id, an open "view" modal/drawer that is a destination) lives in the URL via [`nuqs`](https://nuqs.dev) — driven by a co-located `search-params.ts`, never read via `useSearchParams().get(...)` and never mutated by hand-built query strings. Remote data stays in React Query; high-frequency / large / ephemeral / socket-synced state stays in Zustand; purely local UI stays in `useState`.
 
-Shared helpers own the two repeated wirings — never hand-roll them inline:
-- Sort: `createSortParams` from `@/lib/url-state` (in `search-params.ts`) + `useUrlSort` from `@/hooks/use-url-sort` (in the component) — defaulted mode for lists with a fixed default ordering, nullable mode when "no active sort" is distinct from the default column.
-- Debounced search: `useDebouncedSearchSetter` from `@/hooks/use-debounced-search-setter` (grouped or single-param); settings list search boxes use `useSettingsSearch()` from `settings/components/use-settings-search`. Never write a trimmed value to a param that controls the input — trim on read.
-
 `.claude/rules/sim-url-state.md` is the source of truth — read it first.
 
 ## References
@@ -32,7 +28,7 @@ Read these before analyzing:
 
 ## Anti-patterns to detect
 
-1. **Manual param reads for state**: `useSearchParams().get(...)` or `new URLSearchParams(window.location.search)` used to *read* view-state. Replace with `useQueryState`/`useQueryStates` bound to a `search-params.ts`. (Read-once auth/invite/redirect tokens — `token`, `callbackUrl`, `redirect`, `error`, `invite_flow`, `code` — are NOT view-state; leave them on `useSearchParams`.)
+1. **Manual param reads for state**: `useSearchParams().get(...)` or `new URLSearchParams(window.location.search)` used to *read* view-state. Replace with `useQueryState`/`useQueryStates` bound to a `search-params.ts`. (Read-once auth/invite/redirect signals are NOT view-state — the list and the per-surface `new` caveat are in `.claude/rules/sim-url-state.md` "Read-once auth / redirect signals"; leave those on `useSearchParams`.)
 2. **Hand-built query mutation**: constructing a query string + `router.replace`/`router.push` to change a param on the current path. Use a nuqs setter. (A `router.push` that changes the route *path* is fine; an outbound `new URLSearchParams` building an `href`/`window.open`/download/API URL is fine.)
 3. **`window.history.replaceState`/`pushState`** to mutate a param.
 4. **URL state duplicated into a store/useState + synced with an effect** (or a `popstate` listener). The URL is the single source of truth; derive from it, don't mirror it.

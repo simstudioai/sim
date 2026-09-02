@@ -9,6 +9,7 @@ import {
   dropdownMenuRowClass,
 } from '@sim/emcn'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
+import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import type { McpServer } from '@/hooks/queries/mcp'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 
@@ -201,6 +202,10 @@ export const SkillsMenuDropdown = React.memo(
             {filteredItems.length > 0 ? (
               filteredItems.map((target, index) => {
                 const isActive = index === activeIndex
+                const McpServerIcon =
+                  target.kind === 'mcp' && target.item.managedConnectorId
+                    ? getManagedMcpConnectorIcon(target.item.managedConnectorId)
+                    : McpIcon
                 return (
                   <button
                     key={`${target.kind}:${target.item.id}`}
@@ -216,7 +221,7 @@ export const SkillsMenuDropdown = React.memo(
                       isActive && 'bg-[var(--surface-hover)]'
                     )}
                   >
-                    {target.kind === 'skill' ? <AgentSkillsIcon /> : <McpIcon />}
+                    {target.kind === 'skill' ? <AgentSkillsIcon /> : <McpServerIcon />}
                     <span>{target.item.name}</span>
                   </button>
                 )

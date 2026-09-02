@@ -159,11 +159,11 @@ For each API endpoint the connector calls:
 - [ ] The connector does NOT hit known API pagination limits silently (e.g., HubSpot search 10k cap)
 
 ### Deletion-Reconciliation Safety (`listingCapped`) — CRITICAL
-The sync engine hard-deletes any stored document absent from a full listing. Audit every path where `listDocuments` can return less than the full source set:
+The sync engine tombstones, then hard-deletes, any stored document absent from a full listing. Audit every path where `listDocuments` can return less than the full source set:
 - [ ] `syncContext.listingCapped = true` is set when a `maxItems`-style cap truncates the listing while more documents exist
 - [ ] `listingCapped` is set when a transient per-item error drops a still-existing document from the listing
 - [ ] `listingCapped` is NOT set when the source is genuinely exhausted (deleted documents must reconcile) or for intentional scope filters (date cutoffs)
-This is the most common connector bug class — verify it explicitly against `sync-engine.ts`'s reconciliation gate.
+Verify it explicitly against `shouldReconcileDeletions` in `sync-engine.ts`.
 
 ### Pagination State Across Pages
 - [ ] `syncContext` is used to cache state across pages (user names, field maps, instance URLs, portal IDs, etc.)
@@ -311,7 +311,7 @@ Group findings by severity:
 - Incorrect response field mapping (accessing wrong path)
 - SOQL/query fields that don't exist on the target object
 - Pagination that silently hits undocumented API limits
-- Missing `syncContext.listingCapped = true` when a cap or transient error truncates the listing — the sync engine hard-deletes the documents absent from the partial listing
+- Missing `syncContext.listingCapped = true` when a cap or transient error truncates the listing — the sync engine tombstones and later hard-deletes the documents absent from the partial listing
 - Missing error handling that would crash the sync
 - `requiredScopes` not a subset of OAuth provider scopes
 - Query/filter injection: user-controlled values interpolated into OData `$filter`, SOQL, or query strings without escaping

@@ -5,13 +5,16 @@ description: Add a new Sim settings page, or audit existing settings pages for d
 
 # Settings Page (add / audit)
 
-Sim settings pages all render through the shared **`SettingsPanel`** primitive,
-which owns the page chrome and renders a nav-driven title + description. The full
+Settings page chrome (header bar, scroll region, content column, nav-driven
+title + description) is owned by the `settings/[section]/layout.tsx` shell. Each
+page renders through **`SettingsPanel`**, which registers the page's header data
+(actions, search, back) with that shell and renders only the body. The full
 convention lives in `.claude/rules/sim-settings-pages.md` — read it first; this
 skill is the procedure.
 
 Key paths:
-- Layout primitive: `apps/sim/app/workspace/[workspaceId]/settings/components/settings-panel/settings-panel.tsx`
+- Chrome shell: `apps/sim/app/workspace/[workspaceId]/settings/[section]/layout.tsx` (`SettingsHeaderShell`)
+- `SettingsPanel` registrar: `apps/sim/components/settings/settings-panel.tsx`
 - Nav metadata (titles + descriptions): `apps/sim/components/settings/navigation.ts`
 - Section switch + provider: `apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx`
 - Pages: `apps/sim/app/workspace/[workspaceId]/settings/components/<name>/<name>.tsx` and EE pages under `apps/sim/ee/<feature>/components/`
@@ -25,10 +28,8 @@ Key paths:
    `requiresEnterprise`, etc.).
 2. **Wire the switch.** Add the component to the `effectiveSection` render switch
    in `settings/[section]/settings.tsx` (lazy `dynamic(...)` like its siblings).
-3. **Build the body inside `SettingsPanel`.** Never hand-roll the shell, header
-   bar, scroll region, content column, or title block. Put header buttons in
-   `actions`, a standalone search in `search={{ value, onChange, placeholder }}`,
-   and the page content as `children`. Modals go beside the panel inside a `<>`.
+3. **Build the body inside `SettingsPanel`** per the rule's canonical page shape:
+   `actions`, `search`, `children`, modal siblings in a fragment.
 4. **If the page has editable state**, wire the shared save/discard stack — put
    `SaveDiscardActions` (dirty-gated Discard+Save chips) in `actions`, and call
    `useSettingsUnsavedGuard({ isDirty })` **before any early-return gate**.

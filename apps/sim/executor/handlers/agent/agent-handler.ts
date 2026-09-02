@@ -17,8 +17,13 @@ import {
   readWorkflowInputFieldsForTool,
   readWorkflowMetadataForTool,
 } from '@/lib/internal/workflows/read-tool-enrichment'
+import { assertValidMcpServerToolBindings, MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import type { McpToolSchema } from '@/lib/mcp/types'
-import { createMcpToolId } from '@/lib/mcp/utils'
+import {
+  createMcpToolId,
+  isManagedMcpConnectionId,
+  MANAGED_MCP_CONNECTION_PREFIX,
+} from '@/lib/mcp/utils'
 import {
   type AutoMediaKind,
   type AutoRoutingResult,
@@ -595,7 +600,9 @@ export class AgentBlockHandler implements BlockHandler {
   private async validateToolPermissions(ctx: ExecutionContext, tools: ToolInput[]): Promise<void> {
     if (!Array.isArray(tools) || tools.length === 0) return
 
-    const hasMcpTools = tools.some((t) => t.type === 'mcp')
+    const hasMcpTools = tools.some(
+      (t) => t.type === 'mcp' || t.type === MCP_SERVER_ADVANCED_TOOL_TYPE
+    )
     const hasCustomTools = tools.some((t) => t.type === 'custom-tool')
 
     if (hasMcpTools) {
@@ -635,21 +642,41 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     const availableServerIds = new Set<string>()
-    if (serverIds.length > 0) {
+    const sharedServerIds: string[] = []
+    for (const serverId of serverIds) {
+      if (serverId.startsWith(MANAGED_MCP_CONNECTION_PREFIX)) {
+        if (!isManagedMcpConnectionId(serverId)) {
+          throw new Error('Invalid managed MCP connection ID')
+        }
+        availableServerIds.add(serverId)
+      } else {
+        sharedServerIds.push(serverId)
+      }
+    }
+    if (sharedServerIds.length > 0) {
       try {
         const servers = await db
-          .select({ id: mcpServers.id, connectionStatus: mcpServers.connectionStatus })
+          .select({
+            id: mcpServers.id,
+            connectionStatus: mcpServers.connectionStatus,
+            credentialGroupId: mcpServers.credentialGroupId,
+            enabled: mcpServers.enabled,
+          })
           .from(mcpServers)
           .where(
             and(
               eq(mcpServers.workspaceId, ctx.workspaceId),
-              inArray(mcpServers.id, serverIds),
+              inArray(mcpServers.id, sharedServerIds),
               isNull(mcpServers.deletedAt)
             )
           )
 
         for (const server of servers) {
-          if (server.connectionStatus === 'connected') {
+          if (
+            server.enabled &&
+            !server.credentialGroupId &&
+            server.connectionStatus === 'connected'
+          ) {
             availableServerIds.add(server.id)
           }
         }
@@ -662,7 +689,7 @@ export class AgentBlockHandler implements BlockHandler {
             getErrorDiagnosticFallback(error)
           )
         )
-        for (const serverId of serverIds) {
+        for (const serverId of sharedServerIds) {
           availableServerIds.add(serverId)
         }
       }
@@ -723,8 +750,11 @@ export class AgentBlockHandler implements BlockHandler {
         const root = ['tools', String(toolIndex)] as const
         const paths: ResolvedSecretInputPath[] = [[...root, 'type']]
         if (tool.operation !== undefined) paths.push([...root, 'operation'])
+        if (tool.type === 'mcp' || tool.type === MCP_SERVER_ADVANCED_TOOL_TYPE) {
+          paths.push([...root, 'params', 'serverId'])
+        }
         if (tool.type === 'mcp') {
-          paths.push([...root, 'params', 'serverId'], [...root, 'params', 'toolName'])
+          paths.push([...root, 'params', 'toolName'])
         }
         if (tool.type === 'custom-tool' && !tool.customToolId) {
           paths.push([...root, 'title'], [...root, 'schema', 'function', 'name'])
@@ -735,6 +765,7 @@ export class AgentBlockHandler implements BlockHandler {
     )
 
     const mcpTools: IndexedToolInput[] = []
+    const advancedMcpServers: IndexedToolInput[] = []
     const otherTools: IndexedToolInput[] = []
     const inputProvenance = new Map<
       ProviderToolConfig,
@@ -767,9 +798,14 @@ export class AgentBlockHandler implements BlockHandler {
       return formattedTool
     }
 
+    assertValidMcpServerToolBindings(filtered.map(({ tool }) => tool))
     for (const entry of filtered) {
       if (entry.tool.type === 'mcp') {
         mcpTools.push(entry)
+      } else if (entry.tool.type === MCP_SERVER_ADVANCED_TOOL_TYPE) {
+        const serverId = entry.tool.params?.serverId
+        if (typeof serverId === 'string' && !serverId.trim()) continue
+        advancedMcpServers.push(entry)
       } else {
         otherTools.push(entry)
       }
@@ -820,8 +856,13 @@ export class AgentBlockHandler implements BlockHandler {
       trackInputProvenance,
       projectedToolInputs
     )
+    const advancedMcpResults = await this.processAdvancedMcpServers(
+      ctx,
+      advancedMcpServers,
+      trackInputProvenance
+    )
 
-    const allTools = [...otherResults, ...mcpResults]
+    const allTools = [...otherResults, ...mcpResults, ...advancedMcpResults]
     const tools = allTools.filter(
       (tool): tool is ProviderToolConfig => tool !== null && tool !== undefined
     )
@@ -880,7 +921,10 @@ export class AgentBlockHandler implements BlockHandler {
     // An MCP tool has no block, so its only structured keys are the ones its own
     // `paramsTransform` decodes. A custom tool has neither.
     const blockInputs =
-      tool.type && tool.type !== 'mcp' && tool.type !== 'custom-tool'
+      tool.type &&
+      tool.type !== 'mcp' &&
+      tool.type !== MCP_SERVER_ADVANCED_TOOL_TYPE &&
+      tool.type !== 'custom-tool'
         ? getBlock(tool.type)?.inputs
         : undefined
     return prepareResolvedSecretProjectedInputs(alignedParams, blockInputs, formattedParams, {
@@ -1145,6 +1189,37 @@ export class AgentBlockHandler implements BlockHandler {
     return results
   }
 
+  private async processAdvancedMcpServers(
+    ctx: ExecutionContext,
+    entries: IndexedToolInput[],
+    trackInputProvenance: (
+      formattedTool: ProviderToolConfig | null,
+      entry: IndexedToolInput
+    ) => ProviderToolConfig | null
+  ): Promise<Array<ProviderToolConfig | null>> {
+    const results = await Promise.all(
+      entries.map(async (entry) => {
+        const serverId = entry.tool.params?.serverId
+        if (!serverId) throw new Error('MCP Server (Advanced) requires params.serverId')
+        const tools = await this.discoverMcpToolsForServer(ctx, serverId)
+        return Promise.all(
+          tools.map(async (tool) => {
+            const created = await this.buildMcpTool({
+              serverId,
+              toolName: tool.name,
+              description: tool.description || `MCP tool ${tool.name} from ${tool.serverName}`,
+              schema: tool.inputSchema || { type: 'object', properties: {} },
+              userProvidedParams: {},
+              usageControl: entry.tool.usageControl,
+            })
+            return trackInputProvenance(created, entry)
+          })
+        )
+      })
+    )
+    return results.flat()
+  }
+
   /**
    * Create MCP tool from cached schema. No MCP server connection required.
    */
@@ -1296,9 +1371,6 @@ export class AgentBlockHandler implements BlockHandler {
 
   /** Discovers one server's tools through the authorized MCP operation. */
   private async discoverMcpToolsForServer(ctx: ExecutionContext, serverId: string): Promise<any[]> {
-    if (!ctx.userId) {
-      throw new Error('userId is required for MCP tool discovery')
-    }
     if (!ctx.workspaceId) {
       throw new Error('workspaceId is required for MCP tool discovery')
     }
@@ -1344,7 +1416,7 @@ export class AgentBlockHandler implements BlockHandler {
     schema: McpToolSchema
     userProvidedParams: Record<string, unknown>
     usageControl?: 'auto' | 'force' | 'none'
-  }) {
+  }): Promise<ProviderToolConfig> {
     const filteredSchema = filterSchemaForLLM(config.schema, config.userProvidedParams)
     const toolId = createMcpToolId(config.serverId, config.toolName)
 
@@ -1360,7 +1432,11 @@ export class AgentBlockHandler implements BlockHandler {
     return {
       id: toolId,
       description: config.description,
-      parameters: filteredSchema,
+      parameters: {
+        type: filteredSchema.type,
+        properties: filteredSchema.properties ?? {},
+        required: filteredSchema.required ?? [],
+      },
       params: config.userProvidedParams,
       usageControl: config.usageControl || 'auto',
       paramsTransform: (params: Record<string, unknown>) => decodeToolParams(params, paramShapes),

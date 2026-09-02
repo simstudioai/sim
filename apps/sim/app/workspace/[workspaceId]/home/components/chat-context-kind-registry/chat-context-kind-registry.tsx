@@ -11,6 +11,7 @@ import {
 } from '@sim/emcn/icons'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import type { ChatContextKind, ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { getBlockRegistry } from '@/blocks/registry'
@@ -118,6 +119,12 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
   },
   mcp: {
     label: 'MCP server',
-    renderIcon: ({ className }) => <McpIcon className={className} />,
+    renderIcon: ({ context, className }) => {
+      const McpServerIcon =
+        context.kind === 'mcp' && context.managedConnectorId
+          ? getManagedMcpConnectorIcon(context.managedConnectorId)
+          : McpIcon
+      return <McpServerIcon className={className} />
+    },
   },
 }

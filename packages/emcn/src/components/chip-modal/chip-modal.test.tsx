@@ -270,6 +270,16 @@ describe('ChipConfirmModal pending', () => {
   })
 })
 
+describe('ChipModalBody', () => {
+  it('scrolls vertically without exposing incidental horizontal overflow', () => {
+    mount(<ChipModalBody data-testid='modal-body'>Content</ChipModalBody>)
+
+    const body = document.querySelector<HTMLElement>('[data-testid="modal-body"]')
+    expect(body?.className).toContain('overflow-x-hidden')
+    expect(body?.className).toContain('overflow-y-auto')
+  })
+})
+
 describe('ChipModal default actions', () => {
   beforeEach(makeElementsVisible)
 

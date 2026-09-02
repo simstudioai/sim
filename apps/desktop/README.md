@@ -171,7 +171,7 @@ Raw local file bytes are never exposed through the preload bridge and cannot be 
 
 ## Auto-update, channels, rollout, rollback
 
-- `electron-updater` reads the deployment's `/api/desktop/update` feed; production resolves stable releases from `simstudioai/sim`, while dev/staging resolve prereleases from `simstudioai/sim-desktop-releases`. Artifact downloads go directly to GitHub and deltas use `.zip.blockmap`. Install is prompt-based (Restart Now / Later; Later installs on quit) — never forced mid-session.
+- `electron-updater` reads the deployment's `/api/desktop/update` feed; production resolves stable releases from `simstudioai/sim`, while dev/staging resolve prereleases from `simstudioai/sim-desktop-releases`. Artifact downloads go directly to GitHub and deltas use `.zip.blockmap`. Sim validates every candidate before starting its download. Developer ID builds installed under `/Applications` use a prompt (Restart and update / Later; Later installs on quit); other packaged builds offer a validated installer download — never forced mid-session.
 - Streams: production follows stable `X.Y.Z` releases, dev follows `-dev.N`, and staging follows `-staging.N`. The feed still recognizes legacy `-alpha.N`/`-beta.N` releases during migration.
 - Staged rollout: after publishing, edit `stagingPercentage: 10` into the release's `latest-mac.yml`, then raise as crash metrics stay clean.
 - Rollback: a pulled release must be superseded by a **higher** version — users on the broken build will not reinstall an equal one. (A blocked-versions kill-switch was removed as unwired dead code; reintroduce it in `updater.ts` if a remote config source ever exists to feed it.)

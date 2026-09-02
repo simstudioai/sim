@@ -136,7 +136,7 @@ export function envNumberImpl(
   ) {
     return value
   }
-  if (value === undefined || value === null || value === '') return fallback
+  if (value === undefined || value === null || String(value).trim() === '') return fallback
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed >= min && (!options.integer || Number.isInteger(parsed))
     ? parsed

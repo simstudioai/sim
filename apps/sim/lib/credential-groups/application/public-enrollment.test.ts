@@ -10,14 +10,22 @@ const mocks = vi.hoisted(() => ({
   completeOAuth: vi.fn(),
   fireTrigger: vi.fn(),
   getEnrollment: vi.fn(),
+  getMcpOAuthContext: vi.fn(),
   getOAuthContext: vi.fn(),
+  startMcpOAuth: vi.fn(),
   startOAuth: vi.fn(),
 }))
 
 vi.mock('@/lib/credential-groups/enrollments', () => ({
   completeAuthorizedCredentialGroupEnrollment: mocks.completeEnrollment,
+  getAuthorizedCredentialGroupMcpOAuthContext: mocks.getMcpOAuthContext,
   getAuthorizedCredentialGroupOAuthContext: mocks.getOAuthContext,
   getAuthorizedPublicCredentialGroupEnrollment: mocks.getEnrollment,
+}))
+
+vi.mock('@/lib/credential-groups/mcp-oauth', () => ({
+  completeCredentialGroupMcpOAuth: vi.fn(),
+  startCredentialGroupMcpOAuth: mocks.startMcpOAuth,
 }))
 
 vi.mock('@/lib/credential-groups/oauth', () => ({
@@ -33,6 +41,7 @@ import {
   completePublicCredentialGroupEnrollment,
   completePublicCredentialGroupOAuth,
   readPublicCredentialGroupEnrollment,
+  startPublicCredentialGroupMcpOAuth,
   startPublicCredentialGroupOAuth,
 } from '@/lib/credential-groups/application/public-enrollment'
 
@@ -90,7 +99,13 @@ describe('public Credential Group enrollment application operations', () => {
       displayName: 'person@example.com',
       enrollmentStatus: 'in_progress',
     })
+    mocks.getMcpOAuthContext.mockResolvedValue({
+      enrollmentId: 'enrollment-1',
+      credentialGroupId: 'group-1',
+      server: { id: 'mcp-server-1' },
+    })
     mocks.startOAuth.mockResolvedValue('https://accounts.example/authorize')
+    mocks.startMcpOAuth.mockResolvedValue('https://mcp.example/authorize')
   })
 
   it('rejects a workspace session before resolving invitation data', async () => {
@@ -145,6 +160,30 @@ describe('public Credential Group enrollment application operations', () => {
 
     expect(mocks.getOAuthContext).toHaveBeenCalledWith(identity, 'option-1')
     expect(result).toEqual({ authorizationUrl: 'https://accounts.example/authorize' })
+  })
+
+  it('rejects a substituted bearer before creating managed MCP state', async () => {
+    await expect(
+      startPublicCredentialGroupMcpOAuth.execute({
+        principal,
+        input: { invitationToken: 'different-token', mcpServerId: 'mcp-server-1' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.startMcpOAuth).not.toHaveBeenCalled()
+  })
+
+  it('starts managed MCP OAuth only for a server linked to the current invitation', async () => {
+    const result = await startPublicCredentialGroupMcpOAuth.execute({
+      principal,
+      input: { invitationToken, mcpServerId: 'mcp-server-1' },
+    })
+
+    expect(mocks.getMcpOAuthContext).toHaveBeenCalledWith(identity, 'mcp-server-1')
+    expect(mocks.startMcpOAuth).toHaveBeenCalledWith(
+      expect.objectContaining({ server: { id: 'mcp-server-1' } }),
+      invitationToken
+    )
+    expect(result).toEqual({ authorizationUrl: 'https://mcp.example/authorize' })
   })
 
   it('fires form submitted only for the first completion transition', async () => {

@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId, type SessionPrincipal } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { requireOrdinaryCredentialType } from '@/lib/credentials/access'
 import { defineAuthorizedCredentialUseCase } from '@/lib/credentials/application/authorized-credential-use-case'
 import { defineAuthorizedCredentialUserUseCase } from '@/lib/credentials/application/authorized-user-use-case'
 import { resolveCredentialApplicationContext } from '@/lib/credentials/application/credential-context'
@@ -86,7 +87,7 @@ export const upsertCredentialMemberUseCase = defineAuthorizedCredentialUseCase({
   afterSuccess: ({ principal, context, result }) => {
     if (!result.created) return
     captureServerEvent(requirePrincipalSubjectUserId(principal), 'credential_shared', {
-      credential_type: context.credential.type,
+      credential_type: requireOrdinaryCredentialType(context.credential.type),
       role: result.role,
       workspace_id: context.workspaceId,
     })
@@ -119,7 +120,7 @@ export const removeCredentialMemberUseCase = defineAuthorizedCredentialUseCase({
   }),
   afterSuccess: ({ principal, context }) => {
     captureServerEvent(requirePrincipalSubjectUserId(principal), 'credential_unshared', {
-      credential_type: context.credential.type,
+      credential_type: requireOrdinaryCredentialType(context.credential.type),
       workspace_id: context.workspaceId,
     })
   },

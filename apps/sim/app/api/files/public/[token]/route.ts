@@ -124,7 +124,7 @@ export const POST = withRouteHandler(
       }
 
       const response = NextResponse.json({ authType: resolved.share.authType })
-      setDeploymentAuthCookie({
+      await setDeploymentAuthCookie({
         response,
         cookiePrefix: 'file',
         resource: resolved.share,

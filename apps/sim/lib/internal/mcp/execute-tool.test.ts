@@ -93,6 +93,7 @@ describe('executeMcpTool', () => {
     expect(mocks.createPrincipal).toHaveBeenCalledWith({
       context: CONTEXT,
       audience: 'sim:mcp-servers',
+      resourceScope: { mcpServerId: 'mcp-server' },
     })
     expect(mocks.executeUseCase).toHaveBeenCalledWith({
       principal: PRINCIPAL,

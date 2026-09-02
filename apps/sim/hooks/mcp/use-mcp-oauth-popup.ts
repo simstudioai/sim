@@ -88,6 +88,7 @@ export function useMcpOauthPopup({ workspaceId }: UseMcpOauthPopupProps) {
   const invalidateServer = useCallback(
     (serverId: string) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalogList(workspaceId) })
       queryClient.invalidateQueries({ queryKey: mcpKeys.serverToolsList(workspaceId, serverId) })
       queryClient.invalidateQueries({ queryKey: mcpKeys.storedToolsList(workspaceId) })
     },

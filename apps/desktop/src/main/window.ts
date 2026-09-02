@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { Session, WebPreferences } from 'electron'
-import { app, BrowserWindow, dialog, nativeTheme, systemPreferences } from 'electron'
+import type { Event, Rectangle, Session, WebPreferences } from 'electron'
+import { app, BrowserWindow, dialog, nativeTheme, screen, systemPreferences } from 'electron'
 import { type ConfigStore, isSafeInternalPath, type WindowBounds } from '@/main/config'
 import { isAppOrigin, isAuthSurfacePath } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
@@ -52,12 +52,10 @@ export function createSecureWebPreferences(
 }
 
 /**
- * The permission matrix: clipboard and microphone access for the trusted app
- * origin, default-deny for everything else including unknown future
- * permissions (camera and screen capture stay denied).
+ * The permission matrix: sanitized clipboard writes and microphone access for
+ * the trusted app origin, default-deny for everything else including unknown
+ * future permissions (clipboard reads, camera, and screen capture stay denied).
  *
- * Clipboard reads are what the terminal's Paste action runs on — xterm has no
- * native paste target to fall back to, so a denied read is a Paste that fails.
  * `media` is what the composer's voice input runs on, and is narrowed to
  * audio-only requests so a `getUserMedia({ video: true })` still gets nothing.
  * Both grants are scoped to the app's own origin, which already reaches far
@@ -84,7 +82,7 @@ export function resolvePermission(
       mediaTypes.every((type) => type === 'audio')
     )
   }
-  return permission === 'clipboard-sanitized-write' || permission === 'clipboard-read'
+  return permission === 'clipboard-sanitized-write'
 }
 
 /**
@@ -190,6 +188,44 @@ export function sanitizeBounds(bounds: WindowBounds | undefined): WindowBounds |
   return bounds
 }
 
+/** Keeps restored bounds fully visible within the display Electron matched to them. */
+export function fitBoundsToWorkArea(bounds: WindowBounds, workArea: Rectangle): WindowBounds {
+  const width = Math.min(bounds.width, workArea.width)
+  const height = Math.min(bounds.height, workArea.height)
+  const x = Math.min(
+    Math.max(bounds.x ?? workArea.x, workArea.x),
+    workArea.x + workArea.width - width
+  )
+  const y = Math.min(
+    Math.max(bounds.y ?? workArea.y, workArea.y),
+    workArea.y + workArea.height - height
+  )
+  return { x, y, width, height }
+}
+
+/** Applies the shared renderer unload decision to main and child windows. */
+export function handleWillPreventUnload(
+  win: BrowserWindow,
+  event: Event,
+  committedRelaunchPending: boolean
+): void {
+  if (committedRelaunchPending) {
+    event.preventDefault()
+    return
+  }
+  const choice = dialog.showMessageBoxSync(win, {
+    type: 'question',
+    buttons: ['Stay', 'Leave'],
+    defaultId: 0,
+    cancelId: 0,
+    message: 'Leave Sim?',
+    detail: 'Changes you made may not be saved.',
+  })
+  if (choice === 1) {
+    event.preventDefault()
+  }
+}
+
 export interface CreateMainWindowDeps {
   config: ConfigStore
   events: EventRecorder
@@ -199,7 +235,7 @@ export interface CreateMainWindowDeps {
   isPackaged: boolean
   onClosed: () => void
   /** A committed process restart must not be cancelled by a renderer's beforeunload handler. */
-  isMandatoryRelaunchPending: () => boolean
+  isCommittedRelaunchPending: () => boolean
   onFullScreenChange?: (isFullScreen: boolean) => void
   /**
    * Restores the persisted screen position for the first window. Secondary
@@ -219,13 +255,18 @@ export interface CreateMainWindowDeps {
 export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
   const bounds = sanitizeBounds(deps.config.get('windowBounds'))
   const restorePosition = deps.restorePosition ?? true
+  let restoredBounds = bounds
+  if (restorePosition && bounds?.x !== undefined && bounds.y !== undefined) {
+    const savedRectangle = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
+    restoredBounds = fitBoundsToWorkArea(bounds, screen.getDisplayMatching(savedRectangle).workArea)
+  }
   const platform = deps.platform ?? process.platform
   const win = new BrowserWindow({
     title: WINDOW_TITLE,
-    width: bounds?.width ?? DEFAULT_WIDTH,
-    height: bounds?.height ?? DEFAULT_HEIGHT,
-    x: restorePosition ? bounds?.x : undefined,
-    y: restorePosition ? bounds?.y : undefined,
+    width: restoredBounds?.width ?? DEFAULT_WIDTH,
+    height: restoredBounds?.height ?? DEFAULT_HEIGHT,
+    x: restorePosition ? restoredBounds?.x : undefined,
+    y: restorePosition ? restoredBounds?.y : undefined,
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
     // No separate title bar: the page renders full-bleed to the window's top
@@ -285,21 +326,7 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
   })
 
   win.webContents.on('will-prevent-unload', (event) => {
-    if (deps.isMandatoryRelaunchPending()) {
-      event.preventDefault()
-      return
-    }
-    const choice = dialog.showMessageBoxSync(win, {
-      type: 'question',
-      buttons: ['Stay', 'Leave'],
-      defaultId: 0,
-      cancelId: 0,
-      message: 'Leave Sim?',
-      detail: 'Changes you made may not be saved.',
-    })
-    if (choice === 1) {
-      event.preventDefault()
-    }
+    handleWillPreventUnload(win, event, deps.isCommittedRelaunchPending())
   })
 
   let recoveryDialog: 'crash' | 'hang' | null = null

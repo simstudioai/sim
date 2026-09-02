@@ -291,6 +291,22 @@ describe('MCP server application use cases', () => {
     expect(mocks.discoverServerTools).not.toHaveBeenCalled()
   })
 
+  it('requires an explicit managed connection ID for a Credential Group server', async () => {
+    mocks.getServer.mockResolvedValueOnce({ ...server, credentialGroupId: 'group-1' })
+
+    await expect(
+      discoverMcpServerToolsUseCase.execute({
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        input: { workspaceId: workspace.workspaceId, serverId: server.id },
+      })
+    ).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'Credential Group MCP servers require an explicit managed connection ID',
+    })
+
+    expect(mocks.discoverServerTools).not.toHaveBeenCalled()
+  })
+
   it('discovers one server tools for the acting subject, honouring refresh', async () => {
     const tools = [
       {

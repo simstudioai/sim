@@ -228,7 +228,7 @@ export const PUT = withRouteHandler(
         includeThinking: deployment.includeThinking ?? false,
         includeToolCalls: deployment.includeToolCalls ?? false,
       })
-      setChatAuthCookie(response, deployment, email)
+      await setChatAuthCookie(response, deployment, email)
 
       return response
     } catch (error) {
