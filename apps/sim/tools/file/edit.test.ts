@@ -59,4 +59,15 @@ describe('fileEditTool', () => {
     expect(input).not.toHaveProperty('content')
     expect(fileManageEditBodySchema.safeParse(input).success).toBe(true)
   })
+
+  it('does not turn missing replacement content into a deletion', () => {
+    const input = fileEditTool.operation.input({
+      fileName: 'notes.md',
+      mode: 'search_replace',
+      search: 'keep me',
+    })
+
+    expect(input).toHaveProperty('content', undefined)
+    expect(fileManageEditBodySchema.safeParse(input).success).toBe(false)
+  })
 })

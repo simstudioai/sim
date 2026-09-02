@@ -58,6 +58,9 @@ export const PATCH = defineV2JsonRoute({
   operation: fileOperations.updateContent,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
+  parseOptions: {
+    maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
+  },
   beforeParse: async ({ principal, params }) => {
     if (typeof params.fileId === 'string') {
       await admitUpdateWorkspaceFileContent(principal, params.fileId)

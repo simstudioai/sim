@@ -145,7 +145,7 @@ export const fileEditTool: InternalToolConfig<FileEditParams, ToolResponse> = {
       ...(params.includeSubfolders === false ? { includeSubfolders: false } : {}),
       mode: params.mode,
       search: params.search,
-      ...(params.mode === 'delete_between' ? {} : { content: params.content ?? '' }),
+      ...(params.mode === 'delete_between' ? {} : { content: params.content }),
       replaceAll: params.replaceAll,
       beforeAnchor: params.beforeAnchor,
       afterAnchor: params.afterAnchor,

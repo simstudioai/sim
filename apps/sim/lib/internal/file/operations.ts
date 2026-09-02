@@ -214,18 +214,27 @@ const normalizeFileIdList = (value: unknown): string[] => {
     const trimmed = value.trim()
     if (!trimmed) return []
 
+    let parsed: unknown
     try {
-      return normalizeFileIdList(JSON.parse(trimmed))
+      parsed = JSON.parse(trimmed)
     } catch {
       return [trimmed]
     }
+    return normalizeFileIdList(parsed)
   }
 
   if (!Array.isArray(value)) return []
 
-  return value
+  const ids = value
     .map((item) => (typeof item === 'string' ? item.trim() : ''))
     .filter((id) => id.length > 0)
+  if (ids.length > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+    )
+  }
+  return ids
 }
 
 const fileInputs = (fileInput: unknown): unknown[] => {
@@ -246,7 +255,7 @@ const extractUserFilesFromInput = (fileInput: unknown) => {
 }
 
 const extractFileIdsFromInput = (fileInput: unknown): string[] => {
-  return fileInputs(fileInput)
+  const ids = fileInputs(fileInput)
     .flatMap((input) => {
       if (typeof input === 'string') return normalizeFileIdList(input)
       if (input && typeof input === 'object') {
@@ -257,6 +266,31 @@ const extractFileIdsFromInput = (fileInput: unknown): string[] => {
       return []
     })
     .filter((id) => id.length > 0)
+  if (ids.length > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+    )
+  }
+  return ids
+}
+
+function assertFileSelectionLimit(count: number, limit: number, message: string): void {
+  if (count > limit) throw new OrchestrationError('payload_too_large', message)
+}
+
+function resolveSelectedFileIds(fileId: unknown, fileInput: unknown): string[] {
+  const ids = Array.isArray(fileId)
+    ? fileId.map((id) => (typeof id === 'string' ? id.trim() : '')).filter(Boolean)
+    : fileId
+      ? normalizeFileIdList(fileId)
+      : extractFileIdsFromInput(fileInput)
+  assertFileSelectionLimit(
+    ids.length,
+    MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
+    `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+  )
+  return ids
 }
 
 /** Per-file download cap for the content operation. Aligned with the durable large-value ceiling. */
@@ -580,8 +614,8 @@ function resolveFileWriteSecretProvenance(options: {
 
 /**
  * Resolves the file an overwriting write should replace, or null when nothing exists at the
- * target path. The shared reference resolver falls back to a workspace-wide name match, so the
- * result is accepted only when it sits at exactly the folder and leaf name being written.
+ * target path. A picker path is already resolved to a canonical folder id, so its exact-name
+ * lookup stays inside that folder and never expands the folder's descendants.
  */
 async function resolveWriteOverwriteTarget(options: {
   principal: Principal
@@ -593,28 +627,7 @@ async function resolveWriteOverwriteTarget(options: {
   leafName: string
 }) {
   const { principal, workspaceId, folderId, folderPath, folderSegments, leafName } = options
-  /*
-   * A slash-delimited reference cannot express a folder whose own name contains
-   * a slash: `Q3/Q4` joins to two segments and re-reads as two levels, so the
-   * existing file is never found and the write lands as a duplicate. When the
-   * destination came from a picker it arrives as a canonical path, which is
-   * unambiguous, so the target is looked up inside that folder by name and
-   * resolved by the id — the same route a named append takes.
-   */
-  let reference = [...folderSegments, leafName].join('/')
-  if (folderPath) {
-    const scoped = await expandFolderPathsToFiles({
-      principal,
-      workspaceId,
-      folderPaths: [folderPath],
-      includeSubfolders: true,
-    })
-    const match = scoped.find(
-      (file) => file.name === leafName && (file.folderId ?? null) === folderId
-    )
-    if (!match) return null
-    reference = match.id
-  }
+  const reference = folderPath ? leafName : [...folderSegments, leafName].join('/')
 
   let existing: Awaited<ReturnType<typeof resolveWorkspaceFileReference>>
   try {
@@ -623,6 +636,7 @@ async function resolveWriteOverwriteTarget(options: {
       operation: fileOperations.updateContent,
       workspaceId,
       reference,
+      ...(folderPath ? { folderId } : {}),
     })
   } catch (error) {
     if (error instanceof OrchestrationError && error.code === 'not_found') return null
@@ -935,12 +949,14 @@ export async function executeFileManageOperation(
 
       case 'read': {
         const { fileId, fileInput, folderPaths, includeSubfolders } = body
-        const explicitFileIds = Array.isArray(fileId)
-          ? fileId.map((id) => id.trim()).filter(Boolean)
-          : fileId
-            ? normalizeFileIdList(fileId)
-            : extractFileIdsFromInput(fileInput)
+        const explicitFileIds = resolveSelectedFileIds(fileId, fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        assertFileSelectionLimit(
+          explicitFileIds.length + selectedInputFiles.length,
+          MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
+          `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+        )
 
         signal?.throwIfAborted()
         const files = await loadSelectedWorkspaceFileMetadata({
@@ -1006,12 +1022,14 @@ export async function executeFileManageOperation(
 
       case 'content': {
         const { fileId, fileInput, folderPaths, includeSubfolders } = body
-        const explicitFileIds = Array.isArray(fileId)
-          ? fileId.map((id) => id.trim()).filter(Boolean)
-          : fileId
-            ? normalizeFileIdList(fileId)
-            : extractFileIdsFromInput(fileInput)
+        const explicitFileIds = resolveSelectedFileIds(fileId, fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        assertFileSelectionLimit(
+          explicitFileIds.length + selectedInputFiles.length,
+          MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
+          `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+        )
 
         signal?.throwIfAborted()
         const workspaceFiles = await loadSelectedWorkspaceFileMetadata({
@@ -1617,12 +1635,14 @@ export async function executeFileManageOperation(
 
       case 'compress': {
         const { fileId, fileInput, archiveName, folderPaths, includeSubfolders } = body
-        const selectedFileIds = Array.isArray(fileId)
-          ? fileId.map((id) => id.trim()).filter(Boolean)
-          : fileId
-            ? normalizeFileIdList(fileId)
-            : extractFileIdsFromInput(fileInput)
+        const selectedFileIds = resolveSelectedFileIds(fileId, fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        assertFileSelectionLimit(
+          selectedFileIds.length + selectedInputFiles.length,
+          MAX_ZIP_DOWNLOAD_FILES,
+          `Compress accepts at most ${MAX_ZIP_DOWNLOAD_FILES} files`
+        )
 
         signal?.throwIfAborted()
         for (const id of await expandFolderPathsToFileIds({

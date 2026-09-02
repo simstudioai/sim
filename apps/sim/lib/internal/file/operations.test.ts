@@ -27,6 +27,7 @@ const {
   mockEditWorkspaceFileContent,
   mockResolveEffectiveWorkspacePermission,
   mockGetFileMetadataByKey,
+  mockGetWorkspaceFileByName,
   mockGetWorkspaceFile,
   mockVerifyFileAccess,
   mockResolveWorkspaceFileReference,
@@ -53,6 +54,7 @@ const {
   mockEditWorkspaceFileContent: vi.fn(),
   mockResolveEffectiveWorkspacePermission: vi.fn(),
   mockGetFileMetadataByKey: vi.fn(),
+  mockGetWorkspaceFileByName: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
   mockVerifyFileAccess: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
@@ -102,6 +104,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
+  getWorkspaceFileByName: (...args: unknown[]) => mockGetWorkspaceFileByName(...args),
   getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),
   loadActiveWorkspaceContext: (...args: unknown[]) => mockLoadActiveWorkspaceContext(...args),
   loadActiveWorkspaceFileContext: (...args: unknown[]) =>
@@ -122,6 +125,7 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   FileConflictError: class FileConflictError extends Error {},
   ContentVersionConflictError: class ContentVersionConflictError extends Error {},
   fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
+  getWorkspaceFileByName: (...args: unknown[]) => mockGetWorkspaceFileByName(...args),
   getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),
   loadActiveWorkspaceContext: (...args: unknown[]) => mockLoadActiveWorkspaceContext(...args),
   updateWorkspaceFileContent: (...args: unknown[]) => mockUpdateWorkspaceFileContent(...args),
@@ -335,6 +339,7 @@ describe('file manage folder wiring', () => {
     mockGetWorkspaceFile.mockImplementation(async (_ws: string, fileId: string) =>
       fileId.includes('.') ? null : workspaceFile(fileId)
     )
+    mockGetWorkspaceFileByName.mockResolvedValue(null)
     mockLoadActiveWorkspaceFileContext.mockImplementation(async (fileId: string) => ({
       fileId,
       workspaceId: 'workspace-1',
@@ -878,11 +883,10 @@ describe('file manage folder wiring', () => {
         },
       ],
     })
-    mockListWorkspaceFilesInFolderScope.mockResolvedValue({
-      files: [
-        { ...workspaceFile('existing-in-slashy'), name: 'notes.md', folderId: 'folder-slashy' },
-      ],
-      truncated: false,
+    mockGetWorkspaceFileByName.mockResolvedValue({
+      ...workspaceFile('existing-in-slashy'),
+      name: 'notes.md',
+      folderId: 'folder-slashy',
     })
     mockEnsureWorkspaceFileFolderPath.mockResolvedValue({
       folderId: 'folder-slashy',
@@ -900,10 +904,25 @@ describe('file manage folder wiring', () => {
       })
     )
 
-    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
-      'workspace-1',
-      'existing-in-slashy'
+    expect(mockGetWorkspaceFileByName).toHaveBeenCalledWith('workspace-1', 'notes.md', {
+      folderId: 'folder-slashy',
+    })
+    expect(mockListWorkspaceFilesInFolderScope).not.toHaveBeenCalled()
+  })
+
+  it('rejects a JSON-encoded file-id list before loading file metadata', async () => {
+    const fileIds = Array.from({ length: 5001 }, (_, index) => `file-${index}`)
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'read',
+        workspaceId: 'workspace-1',
+        fileId: JSON.stringify(fileIds),
+      })
     )
+
+    expect(response.status).toBe(413)
+    expect(mockGetWorkspaceFile).not.toHaveBeenCalled()
   })
 
   it('lists what a folder holds, folders and files together', async () => {

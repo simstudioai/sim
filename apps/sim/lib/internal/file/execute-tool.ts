@@ -74,11 +74,7 @@ const fileSearchInputSchema = z
       .max(FILE_SEARCH_MAX_RESULTS)
       .default(FILE_SEARCH_DEFAULT_MAX_RESULTS),
     /** Same spelling and bound as the folder scope on read, content and compress. */
-    folderPaths: z
-      .array(v2FolderPathInputSchema)
-      .min(1, 'At least one folder is required')
-      .max(64, 'Too many folders')
-      .optional(),
+    folderPaths: z.array(v2FolderPathInputSchema).max(64, 'Too many folders').optional(),
     includeSubfolders: z.boolean().optional(),
   })
   .strict()

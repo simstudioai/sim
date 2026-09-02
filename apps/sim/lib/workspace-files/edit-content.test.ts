@@ -83,6 +83,17 @@ describe('applyWorkspaceFileContentEdit', () => {
     ).toBe('before\nnew\nlines\nafter\n')
   })
 
+  it('clears the content between anchors without leaving a blank line', () => {
+    expect(
+      applyWorkspaceFileContentEdit('before\nold\nafter\n', {
+        mode: 'replace_between',
+        beforeAnchor: 'before',
+        afterAnchor: 'after',
+        content: '',
+      })
+    ).toBe('before\nafter\n')
+  })
+
   it('inserts after a complete trimmed anchor line', () => {
     expect(
       applyWorkspaceFileContentEdit('heading\r\n  anchor  \r\ntail\r\n', {
@@ -114,6 +125,29 @@ describe('applyWorkspaceFileContentEdit', () => {
     ).toBe('anchor\none\nanchor\ninserted\ntwo\nanchor')
   })
 
+  it('pairs the same occurrence of repeated boundary anchors', () => {
+    const text = ['start', 'first', 'end', 'middle', 'start', 'second', 'end'].join('\n')
+
+    expect(
+      applyWorkspaceFileContentEdit(text, {
+        mode: 'replace_between',
+        beforeAnchor: 'start',
+        afterAnchor: 'end',
+        occurrence: 2,
+        content: 'replacement',
+      })
+    ).toBe(['start', 'first', 'end', 'middle', 'start', 'replacement', 'end'].join('\n'))
+
+    expect(
+      applyWorkspaceFileContentEdit(text, {
+        mode: 'delete_between',
+        startAnchor: 'start',
+        endAnchor: 'end',
+        occurrence: 2,
+      })
+    ).toBe(['start', 'first', 'end', 'middle', 'end'].join('\n'))
+  })
+
   it('refuses missing anchors and invalid occurrences', () => {
     expect(() =>
       applyWorkspaceFileContentEdit('a\nb', {
@@ -130,6 +164,17 @@ describe('applyWorkspaceFileContentEdit', () => {
         content: 'x',
       })
     ).toThrow(/whole number/)
+  })
+
+  it('refuses a matching end-anchor occurrence that precedes the start anchor', () => {
+    expect(() =>
+      applyWorkspaceFileContentEdit('end\nstart', {
+        mode: 'replace_between',
+        beforeAnchor: 'start',
+        afterAnchor: 'end',
+        content: 'x',
+      })
+    ).toThrow(/end anchor must follow the start anchor/)
   })
 
   it('supports exact replacement through the shared protocol', () => {

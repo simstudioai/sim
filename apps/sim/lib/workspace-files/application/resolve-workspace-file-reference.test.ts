@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   fetchBuffer: vi.fn(),
+  getByName: vi.fn(),
   loadContext: vi.fn(),
   resolvePermission: vi.fn(),
   resolveStoredReference: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   fetchWorkspaceFileBuffer: mocks.fetchBuffer,
+  getWorkspaceFileByName: mocks.getByName,
   loadActiveWorkspaceFileContext: mocks.loadContext,
   resolveWorkspaceFileReference: mocks.resolveStoredReference,
 }))
@@ -48,6 +50,7 @@ describe('workspace file reference application service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolveStoredReference.mockResolvedValue(file)
+    mocks.getByName.mockResolvedValue(file)
     mocks.loadContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.fetchBuffer.mockResolvedValue(Buffer.from('source'))
@@ -82,6 +85,25 @@ describe('workspace file reference application service', () => {
     expect(mocks.loadContext).toHaveBeenCalledTimes(1)
     expect(mocks.resolvePermission).toHaveBeenCalledTimes(1)
     expect(mocks.fetchBuffer).toHaveBeenCalledWith(file, { maxBytes: 512 })
+  })
+
+  it('resolves an exact name directly inside a canonical folder id', async () => {
+    await expect(
+      resolveWorkspaceFileReference({
+        principal,
+        operation: fileOperations.updateContent,
+        workspaceId: 'workspace-1',
+        reference: 'source.txt',
+        folderId: 'folder-1',
+      })
+    ).resolves.toBe(file)
+
+    expect(mocks.getByName).toHaveBeenCalledWith('workspace-1', 'source.txt', {
+      folderId: 'folder-1',
+    })
+    expect(mocks.resolveStoredReference).not.toHaveBeenCalled()
+    expect(mocks.loadContext).toHaveBeenCalledTimes(1)
+    expect(mocks.resolvePermission).toHaveBeenCalledTimes(1)
   })
 
   it('fails before canonical loading for an unregistered operation object', async () => {

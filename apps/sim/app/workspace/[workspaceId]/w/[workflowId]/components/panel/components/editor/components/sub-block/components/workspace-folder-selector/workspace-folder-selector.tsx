@@ -43,16 +43,19 @@ export function WorkspaceFolderSelector({
   const value = isPreview ? previewValue : storeValue
   const selected = readFolderPath(value)
   const selectedPaths = readFolderPaths(value)
-  const { folders, isLoading, error, refetch } = useResourceFolders(workspaceId, resourceType)
+  const { folders, isLoading, isPlaceholderData, error, refetch } = useResourceFolders(
+    workspaceId,
+    resourceType
+  )
 
   const options = useMemo(() => {
-    const folderOptions = folders.map((folder) => ({
+    const folderOptions = (isPlaceholderData ? [] : folders).map((folder) => ({
       value: folder.path,
       label: parseFolderPath(folder.path).join(' / '),
     }))
     if (subBlock.multiSelect || required) return folderOptions
     return [{ value: '', label: subBlock.placeholder ?? 'Workspace root' }, ...folderOptions]
-  }, [folders, required, subBlock.multiSelect, subBlock.placeholder])
+  }, [folders, isPlaceholderData, required, subBlock.multiSelect, subBlock.placeholder])
 
   return (
     <ChipCombobox
@@ -69,8 +72,8 @@ export function WorkspaceFolderSelector({
       showAllOption={subBlock.multiSelect}
       allOptionLabel='Anywhere in the workspace'
       placeholder={subBlock.placeholder ?? 'Anywhere in the workspace'}
-      disabled={disabled || isPreview}
-      isLoading={isLoading}
+      disabled={disabled || isPreview || isPlaceholderData}
+      isLoading={isLoading || isPlaceholderData}
       error={error}
       onOpenChange={(open) => {
         if (open && error) refetch()

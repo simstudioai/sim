@@ -3,6 +3,7 @@ export type EditContentFailure =
   | { reason: 'not_found' }
   | { reason: 'ambiguous'; lineNumbers: number[] }
   | { reason: 'invalid_occurrence' }
+  | { reason: 'invalid_anchor_order' }
 
 export class EditContentError extends Error {
   constructor(
@@ -145,19 +146,14 @@ function validateOccurrence(occurrence: number | undefined): number {
   return value
 }
 
-function anchorLineIndex(
-  lines: string[],
-  anchor: string,
-  occurrence: number,
-  afterIndex = -1
-): number {
+function anchorLineIndex(lines: string[], anchor: string, occurrence: number): number {
   const normalizedAnchor = anchor.trim()
   if (!normalizedAnchor) {
     throw new EditContentError('Anchor cannot be empty', { reason: 'not_found' })
   }
 
   let matches = 0
-  for (let index = afterIndex + 1; index < lines.length; index++) {
+  for (let index = 0; index < lines.length; index++) {
     if (lines[index].trim() !== normalizedAnchor) continue
     matches++
     if (matches === occurrence) return index
@@ -169,13 +165,13 @@ function anchorLineIndex(
     })
   }
   throw new EditContentError(
-    `Anchor occurrence ${occurrence} not found; only ${matches} matching line${matches === 1 ? '' : 's'} follow the previous anchor`,
+    `Anchor occurrence ${occurrence} not found; only ${matches} matching line${matches === 1 ? '' : 's'} exist`,
     { reason: 'not_found' }
   )
 }
 
 function contentLines(content: string): string[] {
-  return splitLines(content)
+  return content.length === 0 ? [] : splitLines(content)
 }
 
 /**
@@ -212,7 +208,14 @@ export function applyWorkspaceFileContentEdit(
   const startAnchor = edit.mode === 'replace_between' ? edit.beforeAnchor : edit.startAnchor
   const endAnchor = edit.mode === 'replace_between' ? edit.afterAnchor : edit.endAnchor
   const startIndex = anchorLineIndex(lines, startAnchor, occurrence)
-  const endIndex = anchorLineIndex(lines, endAnchor, occurrence, startIndex)
+  const endIndex = anchorLineIndex(lines, endAnchor, occurrence)
+
+  if (endIndex <= startIndex) {
+    throw new EditContentError(
+      `Anchor occurrence ${occurrence} is not ordered: the end anchor must follow the start anchor`,
+      { reason: 'invalid_anchor_order' }
+    )
+  }
 
   if (edit.mode === 'replace_between') {
     return [
