@@ -80,9 +80,9 @@ export interface DesktopReleaseCandidate {
 
 /**
  * Lists releases of the channel's own kind, newest first. Channels never see
- * another channel's artifacts (see module docs). Releases without their
- * updater manifest asset are skipped — a release created before its build
- * finished (or whose build failed) must not take the channel down.
+ * another channel's artifacts (see module docs). Artifact validation happens
+ * in the candidate resolver so invalid releases remain distinguishable from
+ * a channel with no releases.
  */
 function releasesForChannel(
   releases: DesktopReleaseCandidate[],
@@ -96,9 +96,6 @@ function releasesForChannel(
     // Defense in depth: a bare vX.Y.Z tag manually marked "pre-release" on
     // GitHub must not reach stable clients.
     if (channel === 'latest' && release.prerelease) continue
-    if (!release.assets?.some((asset) => asset.name === MANIFEST_ASSET_NAME)) {
-      continue
-    }
     if (compareVersions(version, '0.0.0') === null) continue
     candidates.push({ release, version })
   }
@@ -106,7 +103,7 @@ function releasesForChannel(
   return candidates.map(({ release }) => release)
 }
 
-/** Picks the newest release that passes the channel and manifest-presence checks. */
+/** Picks the newest release that passes the channel and version checks. */
 export function selectReleaseForChannel(
   releases: DesktopReleaseCandidate[],
   channel: DesktopUpdateChannel

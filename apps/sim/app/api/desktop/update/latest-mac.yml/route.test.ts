@@ -167,6 +167,17 @@ describe('desktop update manifest route', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('reports an invalid feed when the release has no updater manifest', async () => {
+    const incomplete = release('v1.1.0')
+    incomplete.assets = incomplete.assets.filter((asset) => asset.name !== MANIFEST_ASSET_NAME)
+    fetchMock.mockResolvedValueOnce(Response.json([incomplete]))
+
+    const response = await getFeed('www.sim.ai')
+
+    expect(response.status).toBe(502)
+    expect(await response.json()).toMatchObject({ error: 'Release manifest unavailable' })
+  })
+
   it('walks past a page of unrelated releases to reach the newest desktop build', async () => {
     const filler = Array.from({ length: DESKTOP_RELEASES_PAGE_SIZE }, (_, index) => ({
       tag_name: `python-sdk-v0.${index}.0`,

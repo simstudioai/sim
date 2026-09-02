@@ -111,19 +111,17 @@ describe('selectReleaseForChannel', () => {
     expect(selectReleaseForChannel(flagged, 'latest')?.tag_name).toBe('v0.5.24')
   })
 
-  it('skips releases missing the updater manifest asset', () => {
-    // A release whose build failed (or is mid-upload) must not take the
-    // channel down; the previous good release keeps serving.
+  it('keeps releases missing the updater manifest eligible for candidate validation', () => {
     const withBrokenNewest = [
       release('v0.5.25-dev.413', { assets: [{ name: 'Sim-0.5.25-dev.413-universal.dmg' }] }),
       release('v0.5.25-dev.412'),
     ]
-    expect(selectReleaseForChannel(withBrokenNewest, 'dev')?.tag_name).toBe('v0.5.25-dev.412')
+    expect(selectReleaseForChannel(withBrokenNewest, 'dev')?.tag_name).toBe('v0.5.25-dev.413')
   })
 
-  it('skips release listings without asset data', () => {
+  it('keeps release listings without asset data eligible for candidate validation', () => {
     const bare = { tag_name: 'v0.5.25', draft: false, prerelease: false }
-    expect(selectReleaseForChannel([bare, release('v0.5.24')], 'latest')?.tag_name).toBe('v0.5.24')
+    expect(selectReleaseForChannel([bare, release('v0.5.24')], 'latest')?.tag_name).toBe('v0.5.25')
   })
 
   it('skips drafts and unparseable tags', () => {
