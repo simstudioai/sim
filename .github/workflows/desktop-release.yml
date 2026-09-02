@@ -187,12 +187,47 @@ jobs:
           printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/appstoreconnect/AuthKey.p8"
           chmod 600 "$RUNNER_TEMP/appstoreconnect/AuthKey.p8"
 
+      - name: Import Apple signing certificate
+        if: ${{ inputs.sign }}
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH="$RUNNER_TEMP/desktop-signing.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/desktop-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          printf '%s' "$CSC_LINK" | base64 --decode > "$CERTIFICATE_PATH"
+          chmod 600 "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -k "$KEYCHAIN_PATH" -P "$CSC_KEY_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple: -s \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" > /dev/null
+
+          EXISTING_KEYCHAINS=("$KEYCHAIN_PATH")
+          while IFS= read -r EXISTING_KEYCHAIN; do
+            EXISTING_KEYCHAIN="${EXISTING_KEYCHAIN#*\"}"
+            EXISTING_KEYCHAIN="${EXISTING_KEYCHAIN%\"}"
+            if [ "$EXISTING_KEYCHAIN" != "$KEYCHAIN_PATH" ]; then
+              EXISTING_KEYCHAINS+=("$EXISTING_KEYCHAIN")
+            fi
+          done < <(security list-keychains -d user)
+          security list-keychains -d user -s "${EXISTING_KEYCHAINS[@]}"
+
+          SIGNING_IDENTITIES="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH")"
+          if ! grep -q 'Developer ID Application' <<< "$SIGNING_IDENTITIES"; then
+            echo '::error::The signing certificate does not contain a valid Developer ID Application identity.'
+            exit 1
+          fi
+
       - name: Package, sign, and notarize
         if: ${{ inputs.sign }}
         working-directory: apps/desktop
         env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_KEYCHAIN: ${{ runner.temp }}/desktop-signing.keychain-db
           # Absolute path — @electron/notarize reads this via Node fs, which
           # does not expand a leading '~'.
           APPLE_API_KEY: ${{ runner.temp }}/appstoreconnect/AuthKey.p8
@@ -204,6 +239,13 @@ jobs:
         run: >
           bunx electron-builder --mac --publish never
           -c.productName="$PRODUCT_NAME" -c.appId="$APP_ID"
+
+      - name: Remove Apple signing credentials
+        if: ${{ always() && inputs.sign }}
+        run: |
+          security delete-keychain "$RUNNER_TEMP/desktop-signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/desktop-signing.p12"
+          rm -f "$RUNNER_TEMP/appstoreconnect/AuthKey.p8"
 
       # Unsigned artifact-only path: no Developer ID or notarization. The bundle
       # is ad-hoc signed with Hardened Runtime off for local workflow testing and

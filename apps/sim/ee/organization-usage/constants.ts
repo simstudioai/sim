@@ -1,5 +1,7 @@
 import type { ComboboxOption } from '@sim/emcn'
 import {
+  ORGANIZATION_USAGE_BREAKDOWN_DEFAULT_LIMIT,
+  ORGANIZATION_USAGE_BREAKDOWN_MAX_LIMIT,
   USAGE_WINDOW_PRESETS,
   type UsageBreakdownDimension,
   type UsageWindowPreset,
@@ -78,13 +80,12 @@ export const USAGE_TAB_EMPTY_COPY: Record<UsageBreakdownDimension, string> = {
 /**
  * Rows per breakdown before and after the `Other` row is expanded.
  *
- * The collapsed count keeps a tab to one screen; the expanded one is the contract's
- * own ceiling (`usageLimitSchema(50, 10)`), so asking for more would be refused. A
- * dimension with more than {@link EXPANDED_ROW_COUNT} distinct rows still shows an
- * `Other` row after expanding, which is the honest result rather than a bug.
+ * Each tab shows the contract default immediately, then can request the contract
+ * ceiling by expanding `Other`. A dimension with more than
+ * {@link EXPANDED_ROW_COUNT} distinct rows still shows a remainder after expanding.
  */
-export const COLLAPSED_ROW_COUNT = 10
-export const EXPANDED_ROW_COUNT = 50
+export const COLLAPSED_ROW_COUNT = ORGANIZATION_USAGE_BREAKDOWN_DEFAULT_LIMIT
+export const EXPANDED_ROW_COUNT = ORGANIZATION_USAGE_BREAKDOWN_MAX_LIMIT
 
 export const DEFAULT_USAGE_PRESET = 'current-period' as const
 export const DEFAULT_USAGE_TAB = USAGE_OVERVIEW_TAB
