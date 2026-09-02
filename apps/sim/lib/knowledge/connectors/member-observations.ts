@@ -254,6 +254,8 @@ export async function applyMemberDocumentLifecycle(input: {
   knowledgeBaseId: string
   runId: string
   lease: Pick<SyncRunLease, 'beatIfDue'>
+  /** Runs the tombstone and resurrection writes only while the run still holds its lease. */
+  withLease: <T>(fn: (tx: DbOrTx) => Promise<T>) => Promise<T>
   /** External ids whose refresh did not land this run; withheld from resurrection. */
   failedExternalIds: ReadonlySet<string>
   /**
@@ -266,51 +268,54 @@ export async function applyMemberDocumentLifecycle(input: {
   const { connectorId, knowledgeBaseId, runId } = input
   const now = new Date()
 
-  const tombstoned = !input.allowRemoval
-    ? []
-    : await db
-        .update(document)
-        .set({ deletedAt: now })
-        .where(
-          and(
-            eq(document.connectorId, connectorId),
-            eq(document.userExcluded, false),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt),
-            hasNoObservation()
-          )
-        )
-        .returning({ id: document.id })
-
-  const resurrectionCandidates = await db
-    .select({ id: document.id, externalId: document.externalId })
-    .from(document)
-    .where(
-      and(
-        eq(document.connectorId, connectorId),
-        isNull(document.archivedAt),
-        isNotNull(document.deletedAt),
-        hasObservation()
-      )
-    )
-  const resurrectIds = resurrectionCandidates
-    .filter((row) => !row.externalId || !input.failedExternalIds.has(row.externalId))
-    .map((row) => row.id)
-  const resurrected =
-    resurrectIds.length === 0
+  const { tombstoned, resurrected } = await input.withLease(async (tx) => {
+    const tombstoned = !input.allowRemoval
       ? []
-      : await db
+      : await tx
           .update(document)
-          .set({ deletedAt: null })
+          .set({ deletedAt: now })
           .where(
             and(
-              inArray(document.id, resurrectIds),
               eq(document.connectorId, connectorId),
+              eq(document.userExcluded, false),
               isNull(document.archivedAt),
-              isNotNull(document.deletedAt)
+              isNull(document.deletedAt),
+              hasNoObservation()
             )
           )
           .returning({ id: document.id })
+
+    const resurrectionCandidates = await tx
+      .select({ id: document.id, externalId: document.externalId })
+      .from(document)
+      .where(
+        and(
+          eq(document.connectorId, connectorId),
+          isNull(document.archivedAt),
+          isNotNull(document.deletedAt),
+          hasObservation()
+        )
+      )
+    const resurrectIds = resurrectionCandidates
+      .filter((row) => !row.externalId || !input.failedExternalIds.has(row.externalId))
+      .map((row) => row.id)
+    const resurrected =
+      resurrectIds.length === 0
+        ? []
+        : await tx
+            .update(document)
+            .set({ deletedAt: null })
+            .where(
+              and(
+                inArray(document.id, resurrectIds),
+                eq(document.connectorId, connectorId),
+                isNull(document.archivedAt),
+                isNotNull(document.deletedAt)
+              )
+            )
+            .returning({ id: document.id })
+    return { tombstoned, resurrected }
+  })
 
   const purgeCutoff = new Date(now.getTime() - MEMBER_TOMBSTONE_PURGE_DAYS * 24 * 60 * 60 * 1000)
   const purgeCandidates = input.allowRemoval

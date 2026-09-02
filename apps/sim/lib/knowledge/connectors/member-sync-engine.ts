@@ -1539,6 +1539,7 @@ export async function executeMemberSync(
       knowledgeBaseId: connector.knowledgeBaseId,
       runId,
       lease: run.lease,
+      withLease: (fn) => withMemberLease(run, fn),
       failedExternalIds: state.failedExternalIds,
       allowRemoval: (listed?.count ?? 0) > 0,
     })
@@ -1590,7 +1591,16 @@ export async function executeMemberSync(
       return skipped(result, 'connector_deleted_during_sync')
     }
     if (error instanceof MemberBindingGoneError) {
-      await disableMemberSync(run, error.message)
+      try {
+        await disableMemberSync(run, error.message)
+      } catch (disableError) {
+        if (!(disableError instanceof SyncLockLostException)) throw disableError
+        logger.warn('Member sync abandoned — lock was reclaimed before it could be disabled', {
+          connectorId,
+          runId,
+        })
+        return skipped(result, 'sync_superseded')
+      }
       return { ...skipped(result, 'connector_not_syncable'), error: error.message }
     }
 
