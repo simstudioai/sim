@@ -96,4 +96,27 @@ describe('universal grep', () => {
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('No matches for "zzz-nope" in blocks')
   })
+
+  it('names files by their VFS path, with no doubled slash at the root', async () => {
+    const result = await runEngine(
+      'grep',
+      ['runbook'],
+      runtimeWith({
+        '/api/v2/files': {
+          data: [
+            { id: 'file-root', name: 'xp-runbook.md', folderPath: '/' },
+            { id: 'file-ops', name: 'notes.md', folderPath: '/Ops' },
+          ],
+          nextCursor: null,
+        },
+        '/api/v2/files/file-root/text': { data: { text: 'root runbook', degraded: false } },
+        '/api/v2/files/file-ops/text': { data: { text: 'ops runbook', degraded: false } },
+      }),
+      { scope: 'files' }
+    )
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('files/xp-runbook.md (file-root):')
+    expect(result.stdout).toContain('files/Ops/notes.md (file-ops):')
+    expect(result.stdout).not.toContain('files//')
+  })
 })

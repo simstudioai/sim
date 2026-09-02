@@ -1,5 +1,11 @@
+import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import { getBlock } from '@/blocks'
-import { isTriggerBlockType, normalizeName, SPECIAL_REFERENCE_PREFIXES } from '@/executor/constants'
+import {
+  isTriggerBlockType,
+  normalizeName,
+  REFERENCE,
+  SPECIAL_REFERENCE_PREFIXES,
+} from '@/executor/constants'
 import { collectStringLeaves } from '@/executor/utils/reference-validation'
 import {
   collectBlockFieldIssues,
@@ -92,8 +98,14 @@ function blockRef(blockId: string, block: BlockState): WorkflowLintBlockRef {
   }
 }
 
+/**
+ * Whether a block starts a run and so is never an orphan: a block in trigger
+ * mode, one of the universal entry types, or any `triggers`-category block
+ * (schedule, webhooks) — the same rule the serializer applies.
+ */
 function isWorkflowEntryBlock(block: BlockState) {
-  return Boolean(block.triggerMode) || isTriggerBlockType(block.type)
+  if (Boolean(block.triggerMode) || isTriggerBlockType(block.type)) return true
+  return block.type !== undefined && getBlock(block.type)?.category === 'triggers'
 }
 
 function requiredSubflowStartPort(block: BlockState) {
@@ -382,12 +394,23 @@ export function formatWorkflowLintMessage(lint: WorkflowLintIssueView) {
  * behavior diverges by surface — function code fails loudly, but API bodies and
  * agent prompts pass the literal text through and the run reports completed —
  * so the dangling reference has to be caught at lint time, where every surface
- * gets the same finding. Code fields are skipped: comparisons and generics in
- * real JavaScript look like templates, and the runtime already fails those
- * loudly. Heads are matched with the executor's own name normalization.
+ * gets the same finding. Code fields are tokenized with the runtime's own
+ * reference scanner, so comparisons and generics in real JavaScript are not
+ * mistaken for templates. Heads are matched with the executor's own name
+ * normalization.
  */
 const BLOCK_REF_TOKEN = /<([^<>]+)>/g
 const REF_TOKEN_SHAPE = /^[A-Za-z_][\w-]*(?:[\w\s-]*[\w-])?\.[A-Za-z0-9_.[\]]+$/
+
+/** Candidate `block.path` bodies in one string leaf; code goes through the runtime scanner. */
+function referenceCandidates(leaf: string, isCode: boolean): string[] {
+  if (!isCode) {
+    return [...leaf.matchAll(BLOCK_REF_TOKEN)].map((match) => match[1] ?? '')
+  }
+  return findWorkflowReferenceTokens(leaf)
+    .filter((token) => token.kind === 'workflow')
+    .map((token) => token.value.slice(REFERENCE.START.length, -REFERENCE.END.length))
+}
 
 export function collectDanglingBlockOutputReferences(
   workflowState: Pick<WorkflowState, 'blocks'>
@@ -401,13 +424,11 @@ export function collectDanglingBlockOutputReferences(
   const findings: WorkflowLintUnresolvedReference[] = []
   for (const [blockId, block] of Object.entries(blocks)) {
     for (const [subBlockId, subBlock] of Object.entries(block.subBlocks ?? {})) {
-      if (subBlockId === 'code') continue
       const leaves: string[] = []
       collectStringLeaves((subBlock as { value?: unknown })?.value, leaves)
       const dangling = new Set<string>()
       for (const leaf of leaves) {
-        for (const match of leaf.matchAll(BLOCK_REF_TOKEN)) {
-          const token = match[1]
+        for (const token of referenceCandidates(leaf, subBlockId === 'code')) {
           if (!token || !REF_TOKEN_SHAPE.test(token)) continue
           const head = token.split('.')[0] ?? ''
           if ((SPECIAL_REFERENCE_PREFIXES as readonly string[]).includes(head)) continue
