@@ -179,8 +179,11 @@ describe('editWorkspaceFileContent', () => {
    * DOCX is a zip. Editing works on stored bytes, so anything that is not text
    * has no lines to edit.
    */
-  it('refuses a file that is not text', async () => {
-mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from([0x50, 0x4b, 0xff, 0xfe, 0x01]))
+  it.each([
+    ['a NUL byte', [0x50, 0x4b, 0x03, 0x04, 0x00]],
+    ['bytes that are not valid UTF-8', [0x50, 0x4b, 0xff, 0xfe, 0x01]],
+  ])('refuses a file containing %s', async (_label, bytes) => {
+    mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from(bytes))
 
     await expect(edit({ mode: 'replace_string', oldString: 'PK', newString: 'x' })).rejects.toThrow(
       /not a text file/
