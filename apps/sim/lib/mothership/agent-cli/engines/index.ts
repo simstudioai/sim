@@ -1,16 +1,9 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { workflowDepsCommand } from '@/lib/mothership/agent-cli/engines/deps'
 import { docsSearchCommand } from '@/lib/mothership/agent-cli/engines/docs-search'
-import { filesGrepCommand } from '@/lib/mothership/agent-cli/engines/files-grep'
-import { workflowGrepCommand, workflowsGrepCommand } from '@/lib/mothership/agent-cli/engines/grep'
 import { workflowLintCommand } from '@/lib/mothership/agent-cli/engines/lint'
 import { logsQueryCommand } from '@/lib/mothership/agent-cli/engines/query'
-import { workflowTraceCommand } from '@/lib/mothership/agent-cli/engines/trace'
 import { universalGrepCommand } from '@/lib/mothership/agent-cli/engines/universal-grep'
-import {
-  workflowBlocksCommand,
-  workflowEdgesCommand,
-} from '@/lib/mothership/agent-cli/engines/workflow-views'
 import {
   type AgentCliEngine,
   type AgentCliFlags,
@@ -20,22 +13,17 @@ import {
 } from '@/lib/mothership/agent-cli/types'
 
 /**
- * Every augmentation engine, keyed by the worker's canonical command name. The worker's
- * registry (grammar/augmentations.ts) and this map must agree exactly — the worker's
- * augmentation-drift check reads these keys.
+ * Every sim-executed augmentation engine, keyed by the worker's canonical command name.
+ * The worker's registry (grammar/augmentations.ts) and this map must agree exactly —
+ * the worker's augmentation-drift check reads these keys. Worker-answered commands
+ * (blocks tips, outputs get, integrations list) never reach this map.
  */
 export const AUGMENTATION_ENGINES: Readonly<Record<string, AgentCliEngine>> = {
   'docs search': docsSearchCommand,
-  'files grep': filesGrepCommand,
   grep: universalGrepCommand,
   'logs query': logsQueryCommand,
-  'workflow blocks': workflowBlocksCommand,
-  'workflow deps': workflowDepsCommand,
-  'workflow edges': workflowEdgesCommand,
-  'workflow grep': workflowGrepCommand,
-  'workflow lint': workflowLintCommand,
-  'workflow trace': workflowTraceCommand,
-  'workflows grep': workflowsGrepCommand,
+  'workflows deps': workflowDepsCommand,
+  'workflows lint': workflowLintCommand,
 }
 
 /** Runs one engine by the worker's name; an engine that throws yields a failed result, never a throw. */

@@ -38,7 +38,7 @@ export async function executeSimCli(
     logger.info('CLI invocation finished', {
       exitCode: result.exitCode,
       lane: parsed.data.invocation.kind,
-      pipeStages: parsed.data.pipeline.length,
+      sink: parsed.data.sink?.kind ?? 'none',
       stdoutBytes: result.stdout.length,
     })
     return {

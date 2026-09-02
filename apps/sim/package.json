@@ -189,7 +189,6 @@
     "ioredis": "^5.6.0",
     "isolated-vm": "6.2.0",
     "jose": "6.0.11",
-    "jq-wasm": "3.0.0-jq-1.8.2",
     "js-tiktoken": "1.0.21",
     "js-yaml": "4.3.1",
     "jsdom": "^26.0.0",
