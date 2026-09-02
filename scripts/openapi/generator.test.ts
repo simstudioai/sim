@@ -223,6 +223,45 @@ describe('OpenAPI generator', () => {
     expect(documentedColumnType).not.toHaveProperty('omitEnumValuesFromOpenApi')
   })
 
+  it('omits feature-flagged properties from generated schemas', () => {
+    const body = z
+      .object({
+        name: z.string().describe('Visible name.'),
+        unreleasedSetting: z.string().optional().describe('Unreleased setting.'),
+      })
+      .meta({
+        id: 'HiddenPropertyRequest',
+        title: 'Hidden property request',
+        description: 'Request body.',
+        omitPropertiesFromOpenApi: ['unreleasedSetting'],
+      })
+    const response = z.object({ ok: z.boolean().describe('Whether the request succeeded.') }).meta({
+      id: 'HiddenPropertyResponse',
+      title: 'Hidden property response',
+      description: 'Response.',
+    })
+    const contract = defineRouteContract({
+      method: 'POST',
+      path: '/hidden-property',
+      body,
+      response: { mode: 'json', schema: response },
+    })
+    const route = defineOpenApiRoute(
+      contract,
+      operation('hiddenProperty', { description: 'Response.' }),
+      { body, response }
+    )
+    const spec = generateOpenApiDocument(document([route]))
+    const schemas = (spec.components as JsonObject).schemas as JsonObject
+    const documentedBody = schemas.HiddenPropertyRequest as JsonObject
+    const requestProperties = documentedBody.properties as JsonObject
+
+    expect(body.safeParse({ name: 'Example', unreleasedSetting: 'enabled' }).success).toBe(true)
+    expect(requestProperties).toHaveProperty('name')
+    expect(requestProperties).not.toHaveProperty('unreleasedSetting')
+    expect(documentedBody).not.toHaveProperty('omitPropertiesFromOpenApi')
+  })
+
   it('handles every route response mode and media type', () => {
     const emptyContract = defineRouteContract({
       method: 'DELETE',

@@ -14,11 +14,16 @@ import type { TableSchema } from '@/lib/table/types'
 
 const mocks = vi.hoisted(() => ({
   assertColumnReferencesInWorkspace: vi.fn(),
+  assertTableReferenceColumnsEnabled: vi.fn(),
   assertTableRowTtlEnabled: vi.fn(),
 }))
 
 vi.mock('@/lib/table/column-types/registry.server', () => ({
   assertColumnReferencesInWorkspace: mocks.assertColumnReferencesInWorkspace,
+}))
+
+vi.mock('@/lib/table/reference-columns/availability', () => ({
+  assertTableReferenceColumnsEnabled: mocks.assertTableReferenceColumnsEnabled,
 }))
 
 vi.mock('@/lib/realtime/notify', () => ({
@@ -72,6 +77,7 @@ describe('createTable schema invariants', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mocks.assertColumnReferencesInWorkspace.mockResolvedValue(undefined)
+    mocks.assertTableReferenceColumnsEnabled.mockResolvedValue(undefined)
     mocks.assertTableRowTtlEnabled.mockResolvedValue(undefined)
   })
 
@@ -158,6 +164,24 @@ describe('createTable schema invariants', () => {
       WORKSPACE_ID,
       [expect.objectContaining({ referenceTableId: 'tbl_accounts' })]
     )
+  })
+
+  it('rejects a Reference schema before opening a transaction when the feature is disabled', async () => {
+    mocks.assertTableReferenceColumnsEnabled.mockRejectedValueOnce({ code: 'forbidden' })
+
+    await expect(
+      create({
+        columns: [
+          {
+            name: 'account',
+            type: 'reference',
+            referenceTableId: 'tbl_accounts',
+          },
+        ],
+      } as TableSchema)
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
   it('does not insert a table when a Reference target is unavailable', async () => {

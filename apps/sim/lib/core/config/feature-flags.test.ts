@@ -13,6 +13,7 @@ const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
     TABLES_V2_API: undefined as boolean | undefined,
     TABLE_ROW_TTL: undefined as boolean | undefined,
+    TABLE_REFERENCE_COLUMNS: undefined as boolean | undefined,
     CREDENTIAL_GROUPS: undefined as boolean | undefined,
     KNOWLEDGE_MEMBER_ACCESS: undefined as boolean | undefined,
   },
@@ -80,6 +81,7 @@ describe('getFeatureFlags', () => {
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
     expect(flags['tables-v2-api']).toEqual({ enabled: false })
     expect(flags['table-row-ttl']).toEqual({ enabled: false })
+    expect(flags['table-reference-columns']).toEqual({ enabled: false })
     expect(flags['credential-groups']).toEqual({ enabled: false })
     expect(mockFetch).not.toHaveBeenCalled()
   })
@@ -108,6 +110,7 @@ describe('getFeatureFlags', () => {
     expect(flags['trigger-eu-region']).toEqual({ enabled: false })
     expect(flags['tables-v2-api']).toEqual({ enabled: false })
     expect(flags['table-row-ttl']).toEqual({ enabled: false })
+    expect(flags['table-reference-columns']).toEqual({ enabled: false })
     expect(flags['credential-groups']).toEqual({ enabled: false })
   })
 
@@ -294,5 +297,25 @@ describe('table-row-ttl flag', () => {
   it('uses the global AppConfig clause', async () => {
     withAppConfig({ 'table-row-ttl': { enabled: true } })
     expect(await isFeatureEnabled('table-row-ttl')).toBe(true)
+  })
+})
+
+describe('table-reference-columns flag', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setEnvFlags({ isAppConfigEnabled: false })
+    envRef.TABLE_REFERENCE_COLUMNS = undefined
+  })
+
+  it('uses a global fallback switch off AppConfig', async () => {
+    expect(await isFeatureEnabled('table-reference-columns')).toBe(false)
+
+    envRef.TABLE_REFERENCE_COLUMNS = true
+    expect(await isFeatureEnabled('table-reference-columns')).toBe(true)
+  })
+
+  it('uses the global AppConfig clause', async () => {
+    withAppConfig({ 'table-reference-columns': { enabled: true } })
+    expect(await isFeatureEnabled('table-reference-columns')).toBe(true)
   })
 })

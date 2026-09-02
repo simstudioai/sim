@@ -40,6 +40,7 @@ import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presen
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   getTableViewRevision,
@@ -194,6 +195,8 @@ export function Table({
   const router = useRouter()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
+  const hostContext = useOptionalWorkspaceHostContext()
+  const referenceColumnsEnabled = hostContext?.features?.referenceColumns ?? false
 
   const posthog = usePostHog()
   const tableRowTtlEnabled = useFeatureFlag('table-row-ttl')
@@ -1379,6 +1382,7 @@ export function Table({
       tableRowTtlEnabled={tableRowTtlEnabled}
       trigger='header'
       disabled={false}
+      referenceColumnsEnabled={referenceColumnsEnabled}
       blocked={!canMutateSchema}
       onBlocked={() => showBlockedToast('add-column')}
       onPickType={handleAddColumnOfType}
@@ -1542,6 +1546,7 @@ export function Table({
       <TableGrid
         workspaceId={workspaceId}
         tableId={tableId}
+        referenceColumnsEnabled={referenceColumnsEnabled}
         embedded={embedded}
         tableRowTtlEnabled={tableRowTtlEnabled}
         locks={tableData?.locks}
@@ -1650,6 +1655,7 @@ export function Table({
       <ColumnConfigSidebar
         config={columnConfig}
         tableRowTtlEnabled={tableRowTtlEnabled}
+        referenceColumnsEnabled={referenceColumnsEnabled}
         onClose={onCloseSlideout}
         allColumns={columns}
         existingColumn={
