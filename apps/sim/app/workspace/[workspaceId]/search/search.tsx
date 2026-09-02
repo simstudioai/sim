@@ -6,7 +6,11 @@ import { Search as SearchIcon } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { resolveCredentialDisplay } from '@/lib/integrations'
-import { SEARCH_CONNECTORS, type SearchConnector } from '@/lib/sim-search/connectors'
+import {
+  isSearchConnectorAvailable,
+  SEARCH_CONNECTORS,
+  type SearchConnector,
+} from '@/lib/sim-search/connectors'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
@@ -160,25 +164,14 @@ export function Search() {
 
             {visibleConnectors.length > 0 && (
               <IntegrationSection label={CONNECTORS_LABEL}>
-                {visibleConnectors.map((connector) => {
-                  /**
-                   * The OAuth path specifically: an integration's `state` can
-                   * read `limited` on a service-account-only deployment, but a
-                   * connector authenticates with OAuth alone.
-                   */
-                  const availability = integrationAvailability.get(
-                    connector.blockType.toLowerCase()
-                  )
-                  const unavailable = availability ? !availability.oauthAvailable : false
-                  return (
-                    <ConnectorItem
-                      key={connector.type}
-                      connector={connector}
-                      unavailable={unavailable}
-                      onConnect={setConnectTarget}
-                    />
-                  )
-                })}
+                {visibleConnectors.map((connector) => (
+                  <ConnectorItem
+                    key={connector.type}
+                    connector={connector}
+                    unavailable={!isSearchConnectorAvailable(connector, integrationAvailability)}
+                    onConnect={setConnectTarget}
+                  />
+                ))}
               </IntegrationSection>
             )}
 

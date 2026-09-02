@@ -128,14 +128,19 @@ function nextInlineSegmentLabel(segment?: ContentSegment): string {
 
 /**
  * The `<source>` payloads of the segment being rendered, in emission order. An
- * inline citation is written into the markdown as `[label](#src-N)` so it flows
- * with its paragraph, and the link renderer resolves `N` back through this
- * context — the component map is static, so it is the one channel from segment
- * data into it.
+ * inline citation is written into the markdown as a link to a sentinel
+ * fragment carrying the payload's index, so it flows with its paragraph, and
+ * the link renderer resolves the index back through this context — the
+ * component map is static, so it is the one channel from segment data into it.
  */
 const SourceRefsContext = createContext<readonly SourceTagData[]>([])
 
-const SOURCE_LINK_PREFIX = '#src-'
+/**
+ * Fragment prefix of a generated citation link. Internal — never navigated —
+ * and deliberately not a name the model would write on its own; an index that
+ * resolves to no parsed source falls back to the link text.
+ */
+const SOURCE_LINK_PREFIX = '#sim-source-ref-'
 
 interface SourceReferenceProps {
   index: number

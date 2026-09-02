@@ -32,6 +32,11 @@ vi.mock('@/hooks/queries/kb/knowledge', () => ({
 vi.mock('@/app/workspace/[workspaceId]/search/hooks/use-search-credentials', () => ({
   useSearchCredentials: mockUseSearchCredentials,
 }))
+vi.mock('@/hooks/use-permission-config', () => ({
+  usePermissionConfig: () => ({
+    integrationAvailability: new Map([['notion', { state: 'unavailable', oauthAvailable: false }]]),
+  }),
+}))
 
 /** The Build-mode pool is built from the block catalog at module load; an empty catalog keeps it to the table starters. */
 vi.mock('@/blocks/registry', () => ({ getAllBlockMeta: () => ({}), getAllBlocks: () => [] }))
@@ -42,18 +47,28 @@ vi.mock('@/lib/sim-search/connectors', () => {
     type,
     meta: { id: type, name, description: `Sync ${name}`, icon },
     providerId,
+    providerIds: [providerId],
     requiredScopes: ['read'],
     serviceName: name,
     serviceIcon: icon,
     blockType: type,
   })
   return {
+    isSearchConnectorConnected: (
+      candidate: { providerIds: string[] },
+      connected: ReadonlySet<string>
+    ) => candidate.providerIds.some((providerId) => connected.has(providerId)),
+    isSearchConnectorAvailable: (
+      candidate: { blockType: string },
+      availability: ReadonlyMap<string, { oauthAvailable: boolean }>
+    ) => availability.get(candidate.blockType)?.oauthAvailable ?? true,
     SEARCH_CONNECTORS: [
       connector('airtable', 'Airtable', 'airtable'),
       connector('confluence', 'Confluence', 'confluence'),
       connector('jira', 'Jira', 'jira'),
       connector('jsm', 'Jira Service Management', 'jira'),
       connector('notion', 'Notion', 'notion'),
+      connector('slack', 'Slack', 'slack'),
     ],
   }
 })
@@ -117,7 +132,7 @@ describe('SuggestedActions', () => {
     expect(rows().map((row) => row.textContent)).toContain('Integrate with Slack')
   })
 
-  it('swaps to the connector list in Search mode, minus providers already connected', () => {
+  it('swaps to the connector list in Search mode, minus connected and unavailable connectors', () => {
     mount()
 
     act(() => useMothershipModeStore.getState().setMode('search'))
@@ -126,7 +141,7 @@ describe('SuggestedActions', () => {
     expect(rows().map((row) => row.textContent)).toEqual([
       'Connect Confluence',
       'Connect Airtable',
-      'Connect Notion',
+      'Connect Slack',
     ])
   })
 
@@ -144,7 +159,12 @@ describe('SuggestedActions', () => {
     expect(mockCaptureEvent).toHaveBeenCalledWith(
       null,
       'suggested_action_clicked',
-      expect.objectContaining({ kind: 'connector', action_id: 'connect-confluence', position: 0 })
+      expect.objectContaining({
+        kind: 'connector',
+        action_id: 'connect-confluence',
+        position: 0,
+        connected_provider_count: 1,
+      })
     )
   })
 })

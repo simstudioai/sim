@@ -50,6 +50,7 @@ vi.mock('@/lib/sim-search/connectors', () => {
     type,
     meta: { id: type, name, description, icon },
     providerId: type,
+    providerIds: [type],
     requiredScopes: [],
     serviceName: name,
     serviceIcon: icon,
@@ -57,6 +58,10 @@ vi.mock('@/lib/sim-search/connectors', () => {
   })
   const providers = new Set(['confluence', 'jira', 'slack'])
   return {
+    isSearchConnectorAvailable: (
+      candidate: { blockType: string },
+      availability: ReadonlyMap<string, { oauthAvailable: boolean }>
+    ) => availability.get(candidate.blockType)?.oauthAvailable ?? true,
     SEARCH_CONNECTORS: [
       connector('confluence', 'Confluence', 'Sync Confluence pages'),
       connector('jira', 'Jira', 'Sync Jira issues'),

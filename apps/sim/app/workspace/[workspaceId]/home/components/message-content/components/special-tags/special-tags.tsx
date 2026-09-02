@@ -556,9 +556,19 @@ function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagDa
   )
 }
 
-/** Only an absolute http(s) URL can be linked; anything else is not a source. */
+/**
+ * Only an absolute http(s) URL with a host can be linked; anything else is not
+ * a source. Parsed rather than pattern-matched so a malformed value such as
+ * `https://?` — which a prefix check would accept — never becomes a dead link.
+ */
 function isHttpUrl(value: unknown): value is string {
-  return typeof value === 'string' && /^https?:\/\/\S+$/i.test(value.trim())
+  if (typeof value !== 'string' || /\s/.test(value)) return false
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:') && url.hostname.length > 0
+  } catch {
+    return false
+  }
 }
 
 function isSourceTagData(value: unknown): value is SourceTagData {

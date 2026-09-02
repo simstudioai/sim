@@ -1407,12 +1407,14 @@ describe('source tag', () => {
   })
 
   it('rejects a source without an absolute http(s) url', () => {
-    const { segments } = parseSpecialTags(
-      'See <source>{"url":"docs/internal.md","siteName":"Docs"}</source>.',
-      false
-    )
+    for (const url of ['docs/internal.md', 'https://?', 'ftp://host/x', 'https://a b.example/x']) {
+      const { segments } = parseSpecialTags(
+        `See <source>{"url":"${url}","siteName":"Docs"}</source>.`,
+        false
+      )
 
-    expect(segments.some((segment) => segment.type === 'source')).toBe(false)
+      expect(segments.some((segment) => segment.type === 'source')).toBe(false)
+    }
   })
 
   it('hides a half-arrived source opener while streaming', () => {

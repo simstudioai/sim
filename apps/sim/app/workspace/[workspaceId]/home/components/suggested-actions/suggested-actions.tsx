@@ -13,6 +13,7 @@ import {
   resolveOAuthServiceForSlug,
 } from '@/lib/integrations'
 import { captureEvent } from '@/lib/posthog/client'
+import { isSearchConnectorAvailable } from '@/lib/sim-search/connectors'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { computeConnectorActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions/connector-actions'
 import type {
@@ -29,6 +30,7 @@ import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useOAuthConnections } from '@/hooks/queries/oauth/oauth-connections'
 import { useTablesList } from '@/hooks/queries/tables'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { type MothershipMode, useMothershipModeStore } from '@/stores/mothership-mode/store'
 
 /** Lookup integration slug by OAuth service display name (case-insensitive). */
@@ -245,6 +247,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const posthog = usePostHog()
   const mode = useMothershipModeStore((state) => state.mode)
+  const { integrationAvailability } = usePermissionConfig()
 
   const { data: credentials = EMPTY_CREDENTIALS } = useWorkspaceCredentials({
     workspaceId,
@@ -317,8 +320,13 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
    * shows the sampled Search list.
    */
   const searchActions = useMemo(
-    () => (searchCredentialsPending ? [] : computeConnectorActions(connectedSearchProviders)),
-    [searchCredentialsPending, connectedSearchProviders]
+    () =>
+      searchCredentialsPending
+        ? []
+        : computeConnectorActions(connectedSearchProviders, (connector) =>
+            isSearchConnectorAvailable(connector, integrationAvailability)
+          ),
+    [searchCredentialsPending, connectedSearchProviders, integrationAvailability]
   )
   const buildActions = useMemo(() => {
     const personalized = services.length > 0 && connectedProviders.size > 0
@@ -334,7 +342,8 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
       action_id: action.id,
       label: action.label,
       position,
-      connected_provider_count: connectedProviders.size,
+      connected_provider_count:
+        action.kind === 'connector' ? connectedSearchProviders.size : connectedProviders.size,
     })
     if (action.kind === 'prompt') {
       onSelectPrompt(action.prompt)

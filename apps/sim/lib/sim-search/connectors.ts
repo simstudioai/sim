@@ -21,6 +21,12 @@ export interface SearchConnector {
   /** Canonical OAuth provider id the connection is stored under. */
   providerId: string
   /**
+   * Every provider id a credential for this service may carry: the canonical
+   * id plus any additional authorization server (Salesforce sandbox). A
+   * credential under any of them counts as connected.
+   */
+  providerIds: readonly string[]
+  /**
    * Scopes listed in the connect modal — the provider's canonical set, which is
    * what the knowledge-base connector flow requests for the same provider.
    */
@@ -55,6 +61,7 @@ export const SEARCH_CONNECTORS: readonly SearchConnector[] = Object.entries(CONN
         type,
         meta,
         providerId: service.providerId,
+        providerIds: [service.providerId, ...(service.additionalProviderIds ?? [])],
         requiredScopes: getCanonicalScopesForProvider(service.providerId),
         serviceName: service.name,
         serviceIcon: service.icon as ComponentType<{ className?: string }>,
@@ -70,10 +77,32 @@ export const SEARCH_CONNECTORS: readonly SearchConnector[] = Object.entries(CONN
  * is matched to the surface by provider rather than to a single connector.
  */
 const SEARCH_PROVIDER_IDS: ReadonlySet<string> = new Set(
-  SEARCH_CONNECTORS.map((connector) => connector.providerId)
+  SEARCH_CONNECTORS.flatMap((connector) => connector.providerIds)
 )
 
 /** Whether a stored credential's provider powers a Sim Search connector. */
 export function isSearchConnectorProvider(providerId: string | null): boolean {
   return providerId !== null && SEARCH_PROVIDER_IDS.has(providerId)
+}
+
+/** Whether the viewer has connected this connector's service under any of its provider ids. */
+export function isSearchConnectorConnected(
+  connector: SearchConnector,
+  connectedProviderIds: ReadonlySet<string>
+): boolean {
+  return connector.providerIds.some((providerId) => connectedProviderIds.has(providerId))
+}
+
+/**
+ * Whether this deployment can connect the connector. The OAuth path
+ * specifically: an integration's `state` can read `limited` on a
+ * service-account-only deployment, but a connector authenticates with OAuth
+ * alone. A connector with no availability entry is assumed connectable.
+ */
+export function isSearchConnectorAvailable(
+  connector: SearchConnector,
+  integrationAvailability: ReadonlyMap<string, { oauthAvailable: boolean }>
+): boolean {
+  const availability = integrationAvailability.get(connector.blockType.toLowerCase())
+  return availability ? availability.oauthAvailable : true
 }

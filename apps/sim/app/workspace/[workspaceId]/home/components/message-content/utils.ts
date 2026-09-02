@@ -25,25 +25,19 @@ import {
   parseSpecialTags,
   type SourceTagData,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import {
-  type ContentBlock,
-  ContentBlockType,
-  type ToolCallStatus,
-} from '@/app/workspace/[workspaceId]/home/types'
+import type { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
 /**
- * Every distinct `<source>` cited in the message's own prose, in first-cited
- * order, for the footer strip. Only main-lane text counts: subagent lanes fold
- * into agent groups rather than the answer, and a tool's output is not a
- * citation.
+ * Every distinct `<source>` cited across the given prose, in first-cited order,
+ * for the footer strip. Callers pass the text segments the message actually
+ * renders as its answer.
  */
-export function collectMessageSources(blocks: ContentBlock[]): SourceTagData[] {
+export function collectMessageSources(texts: readonly string[]): SourceTagData[] {
   const byUrl = new Map<string, SourceTagData>()
-  for (const block of blocks) {
-    if (block.type !== ContentBlockType.text || !block.content) continue
-    for (const segment of parseSpecialTags(block.content, false).segments) {
+  for (const text of texts) {
+    for (const segment of parseSpecialTags(text, false).segments) {
       if (segment.type === 'source' && !byUrl.has(segment.data.url)) {
         byUrl.set(segment.data.url, segment.data)
       }

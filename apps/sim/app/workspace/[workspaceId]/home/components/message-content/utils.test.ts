@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { ContentBlockType } from '@/app/workspace/[workspaceId]/home/types'
 import { collectMessageSources, deriveMessagePhase, resolveToolDisplayState } from './utils'
 
 describe('deriveMessagePhase', () => {
@@ -41,33 +40,21 @@ describe('resolveToolDisplayState', () => {
 describe('collectMessageSources', () => {
   const source = (url: string, extra = '') => `<source>{"url":"${url}"${extra}}</source>`
 
-  it('collects every distinct source across the message text, in first-cited order', () => {
-    const blocks = [
-      {
-        type: ContentBlockType.text,
-        content: `First point. ${source('https://a.example/1', ',"siteName":"A"')} Second. ${source('https://b.example/2')}`,
-      },
-      { type: ContentBlockType.tool_call },
-      {
-        type: ContentBlockType.text,
-        content: `Again. ${source('https://a.example/1')} New. ${source('https://c.example/3')}`,
-      },
+  it('collects every distinct source across the given text, in first-cited order', () => {
+    const texts = [
+      `First point. ${source('https://a.example/1', ',"siteName":"A"')} Second. ${source('https://b.example/2')}`,
+      `Again. ${source('https://a.example/1')} New. ${source('https://c.example/3')}`,
     ]
 
-    expect(collectMessageSources(blocks).map((entry) => entry.url)).toEqual([
+    expect(collectMessageSources(texts).map((entry) => entry.url)).toEqual([
       'https://a.example/1',
       'https://b.example/2',
       'https://c.example/3',
     ])
-    expect(collectMessageSources(blocks)[0].siteName).toBe('A')
+    expect(collectMessageSources(texts)[0].siteName).toBe('A')
   })
 
-  it('ignores subagent lanes and text without sources', () => {
-    const blocks = [
-      { type: ContentBlockType.subagent_text, content: source('https://lane.example/x') },
-      { type: ContentBlockType.text, content: 'Plain prose.' },
-    ]
-
-    expect(collectMessageSources(blocks)).toEqual([])
+  it('returns nothing for prose without sources', () => {
+    expect(collectMessageSources(['Plain prose.', ''])).toEqual([])
   })
 })

@@ -1,4 +1,8 @@
-import { SEARCH_CONNECTORS, type SearchConnector } from '@/lib/sim-search/connectors'
+import {
+  isSearchConnectorConnected,
+  SEARCH_CONNECTORS,
+  type SearchConnector,
+} from '@/lib/sim-search/connectors'
 import type { Action } from '@/app/workspace/[workspaceId]/home/components/suggested-actions/types'
 import { weightedSample } from '@/app/workspace/[workspaceId]/home/components/suggested-actions/weighted-sample'
 
@@ -39,12 +43,17 @@ function toConnectorAction(connector: SearchConnector): Action {
  * sample of the rest to fill four slots. A connector whose provider the viewer
  * has already connected is dropped from both halves — so Jira and Jira Service
  * Management, which share one provider, leave together — and a pinned slot
- * freed that way is taken by the rotation.
+ * freed that way is taken by the rotation. Connectors this deployment cannot
+ * connect are dropped the same way, so a row never opens a modal that fails.
  */
-export function computeConnectorActions(connectedProviderIds: ReadonlySet<string>): Action[] {
-  const isConnected = (connector: SearchConnector) => connectedProviderIds.has(connector.providerId)
-  const pinned = PINNED.filter((connector) => !isConnected(connector))
-  const pool = ROTATING.filter((connector) => !isConnected(connector))
+export function computeConnectorActions(
+  connectedProviderIds: ReadonlySet<string>,
+  isAvailable: (connector: SearchConnector) => boolean
+): Action[] {
+  const offered = (connector: SearchConnector) =>
+    isAvailable(connector) && !isSearchConnectorConnected(connector, connectedProviderIds)
+  const pinned = PINNED.filter(offered)
+  const pool = ROTATING.filter(offered)
   const rotating = weightedSample(pool, CONNECTOR_ACTION_COUNT - pinned.length, () => 1)
   return [...pinned, ...rotating].map(toConnectorAction)
 }
