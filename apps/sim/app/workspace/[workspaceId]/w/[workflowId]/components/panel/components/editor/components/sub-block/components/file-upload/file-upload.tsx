@@ -344,7 +344,13 @@ export function FileUpload({
    * its literal text passes a string check and then matches no folder, so every
    * file is filtered out of a picker that looks correctly configured.
    */
-  const folderScopePath = folderScope ? readFolderPath(folderScopeValue) : ''
+  const [manualFolderScopeValue] = useSubBlockValue<unknown>(
+    blockId,
+    folderScope?.manualFieldId ?? folderScope?.fieldId ?? subBlockId
+  )
+  const folderScopePath = folderScope
+    ? readFolderPath(folderScopeValue) || readFolderPath(manualFolderScopeValue)
+    : ''
 
   const [folderScopeRecursive] = useSubBlockValue<unknown>(
     blockId,
