@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, omit } from '@sim/utils/object'
@@ -95,6 +96,8 @@ export interface StreamingResponseOptions {
   workspaceId?: string
   workflowId?: string
   userId?: string
+  /** The principal behind the run; knowledge-base files in the output are read as them. */
+  principal?: WorkflowExecutionPrincipal
   /** Incoming fetch/request abort — combined with the stream timeout. */
   requestSignal?: AbortSignal
   /** Used with the independent event policies to negotiate agent-events SSE. */
@@ -155,6 +158,7 @@ type OutputExtractionContext = Pick<
   | 'fileKeys'
   | 'allowLargeValueWorkflowScope'
   | 'userId'
+  | 'principal'
 > & { base64MaxBytes?: number }
 
 async function extractOutputValue(
@@ -174,6 +178,7 @@ async function extractOutputValue(
           fileKeys: context.fileKeys,
           allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
           userId: context.userId,
+          principal: context.principal,
           metadata: { requestId: context.requestId },
           base64MaxBytes: context.base64MaxBytes,
         },
@@ -225,6 +230,7 @@ function buildMaterializationContext(
     fileKeys: context.fileKeys,
     allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
     userId: context.userId,
+    principal: context.principal,
   }
 }
 
@@ -748,6 +754,7 @@ export async function createStreamingResponse(
               fileKeys: options.fileKeys,
               allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
               userId: options.userId,
+              principal: options.principal,
               base64MaxBytes: Math.min(
                 base64MaxBytes ?? MAX_INLINE_MATERIALIZATION_BYTES,
                 getBase64DecodedByteBudget(remainingBytes)

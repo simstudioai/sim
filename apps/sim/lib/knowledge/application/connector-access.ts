@@ -23,7 +23,9 @@ import {
 } from '@/lib/knowledge/orchestration/connector-access'
 import { getKnowledgeConnector } from '@/lib/knowledge/orchestration/connectors'
 import type { KnowledgeOperationSource } from '@/lib/knowledge/orchestration/shared'
+import { getServiceConfigByProviderId, getServiceConfigByServiceId } from '@/lib/oauth'
 import { getConnectorMeta } from '@/connectors/registry'
+import type { ConnectorMeta } from '@/connectors/types'
 
 export interface StartKnowledgeConnectorMemberEnrollmentInput {
   knowledgeBaseId: string
@@ -131,7 +133,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
             accessMode: 'workspace' as const,
             credentialId: await requireUsableCredential({
               credentialId: input.credentialId,
-              connectorAuthMode: connectorMeta.auth.mode,
+              connectorMeta,
               workspaceId,
               actingUserId,
               requestId,
@@ -178,28 +180,40 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
 })
 
 /**
- * Workspace mode needs a credential the caller may use, and one that yields a
- * token, since the connector syncs as it from then on. Only an OAuth connector
- * can change modes: an API-key connector has no account to sync per member.
+ * Workspace mode needs a credential the caller may use, of the connector's own
+ * provider, and one that yields a token, since the connector syncs as it from
+ * then on with no call to the source to catch a mismatch. Only an OAuth
+ * connector can change modes: an API-key connector has no account to sync per
+ * member.
  */
 async function requireUsableCredential(input: {
   credentialId: string | undefined
-  connectorAuthMode: 'oauth' | 'apiKey'
+  connectorMeta: Pick<ConnectorMeta, 'name' | 'auth'>
   workspaceId: string
   actingUserId: string
   requestId: string
 }): Promise<string> {
-  if (input.connectorAuthMode !== 'oauth') {
+  const { auth } = input.connectorMeta
+  if (auth.mode !== 'oauth') {
     throw new OrchestrationError('validation', 'Only OAuth connectors can change access mode')
   }
   if (!input.credentialId) {
     throw new OrchestrationError('validation', 'credentialId is required for workspace mode')
+  }
+  const service =
+    getServiceConfigByServiceId(auth.provider) ?? getServiceConfigByProviderId(auth.provider)
+  if (!service) {
+    throw new OrchestrationError(
+      'validation',
+      `${input.connectorMeta.name} has no OAuth service to validate the credential against`
+    )
   }
   const token = await resolveConnectorCredentialAccessToken({
     credentialId: input.credentialId,
     workspaceId: input.workspaceId,
     actingUserId: input.actingUserId,
     requestId: input.requestId,
+    service,
   })
   if (!token) {
     throw new OrchestrationError(

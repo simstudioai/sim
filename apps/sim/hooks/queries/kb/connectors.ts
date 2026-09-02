@@ -392,7 +392,8 @@ export function useStartConnectorMemberEnrollment() {
  * Moves a connector between workspace and members mode. The switch rewrites
  * document access, so everything under the base is refetched: the connector
  * list and detail for the new mode and member state, and the document lists
- * whose rows may have become hidden or visible.
+ * and per-document caches whose rows and chunks may have become hidden or
+ * visible.
  */
 export function useUpdateConnectorAccess() {
   const queryClient = useQueryClient()
@@ -402,6 +403,7 @@ export function useUpdateConnectorAccess() {
     onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentLists(knowledgeBaseId) })
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentDetails(knowledgeBaseId) })
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
         exact: true,

@@ -5,13 +5,17 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { mockConnect, mockConnectSource } = vi.hoisted(() => ({
+const { mockConnect, mockConnectSource, mockFeatures } = vi.hoisted(() => ({
   mockConnect: vi.fn(),
   mockConnectSource: vi.fn(),
+  mockFeatures: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
+}))
+vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
+  useWorkspaceHostContext: () => ({ features: mockFeatures() }),
 }))
 vi.mock('nuqs', () => ({
   useQueryState: () => ['', vi.fn()],
@@ -127,7 +131,8 @@ import { Search } from '@/app/workspace/[workspaceId]/search/search'
 let root: Root | null = null
 let container: HTMLDivElement | null = null
 
-function mount() {
+function mount(features: { knowledgeMemberAccess?: boolean } = { knowledgeMemberAccess: true }) {
+  mockFeatures.mockReturnValue({ credentialGroups: true, ...features })
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -177,5 +182,17 @@ describe('Search', () => {
 
     expect(mockConnect).toHaveBeenCalledWith('kb-sales', 'conn-sales-drive')
     expect(mockConnectSource).not.toHaveBeenCalled()
+  })
+
+  it('offers no connection while per-member access is unavailable in the workspace', () => {
+    mount({ knowledgeMemberAccess: false })
+
+    expect(sectionLabels()).toEqual(['Sim Search Connectors'])
+    const text = container?.textContent ?? ''
+    expect(text).toContain(
+      'Per-member access is not available in this workspace. Contact your administrator.'
+    )
+    expect(text).not.toContain('Connected · 12 documents')
+    expect(buttons().find((button) => button.textContent === 'Connect')).toBeUndefined()
   })
 })

@@ -70,6 +70,10 @@ interface MothershipChatProps {
     fileAttachments?: FileAttachmentForApi[],
     contexts?: ChatContext[]
   ) => void
+  /** Off in Search mode, where the query stays put so the person can refine it. */
+  clearOnSubmit?: boolean
+  /** Fires when the composer's text goes from something to nothing. */
+  onCleared?: () => void
   onStopGeneration: () => void
   messageQueue: QueuedMessage[]
   editingQueuedId: string | null
@@ -320,6 +324,8 @@ export function MothershipChat({
   isReconnecting = false,
   isLoading = false,
   onSubmit,
+  clearOnSubmit,
+  onCleared,
   onStopGeneration,
   messageQueue,
   editingQueuedId,
@@ -838,6 +844,8 @@ export function MothershipChat({
               key={draftScopeKey}
               ref={userInputRef}
               onSubmit={onSubmit}
+              clearOnSubmit={clearOnSubmit}
+              onCleared={onCleared}
               isSending={isStreamActive}
               onStopGeneration={onStopGeneration}
               isInitialView={false}

@@ -523,6 +523,7 @@ export async function executeWorkflowService(
         workspaceId,
         workflowId,
         userId: actorUserId,
+        principal,
         allowLargeValueWorkflowScope: false,
         requestSignal: abortSignal,
         requestHeaders: headers,
@@ -695,6 +696,7 @@ export async function executeWorkflowService(
               fileKeys: result.metadata?.fileKeys ?? [],
               allowLargeValueWorkflowScope: false,
               userId: actorUserId,
+              principal,
               maxBytes: base64MaxBytes,
               preserveLargeValueMetadata: true,
             })) as NormalizedBlockOutput)

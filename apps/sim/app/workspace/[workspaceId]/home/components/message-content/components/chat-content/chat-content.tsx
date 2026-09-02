@@ -154,6 +154,15 @@ function SourceReference({ index, children }: SourceReferenceProps) {
   return <SourceChip source={source} />
 }
 
+/**
+ * A source's name as a Markdown link label. A site name or knowledge-base
+ * name is free text: an unescaped `]` would end the label early and a `*` or
+ * `_` would style it, so the delimiters are backslash-escaped.
+ */
+function escapeLinkLabel(label: string): string {
+  return label.replace(/[\\[\]*_`<>]/g, '\\$&')
+}
+
 function appendInlineReferenceMarkdown(
   currentMarkdown: string,
   referenceMarkdown: string,
@@ -659,7 +668,7 @@ function ChatContentInner({
       if (pendingMarkdown && !/\s$/.test(pendingMarkdown)) pendingMarkdown += ' '
       pendingMarkdown = appendInlineReferenceMarkdown(
         pendingMarkdown,
-        `[${sourceLabel(s.data)}](<${SOURCE_LINK_PREFIX}${sourceIndex++}>)`,
+        `[${escapeLinkLabel(sourceLabel(s.data))}](<${SOURCE_LINK_PREFIX}${sourceIndex++}>)`,
         nextSegment
       )
     } else if (s.type === 'thinking') {
