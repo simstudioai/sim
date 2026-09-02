@@ -25,7 +25,7 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { columnTypeOf, typeMetadataOf } from '@/lib/table/column-types'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { cellValueFilterConditions } from '@/lib/table/query-builder/cell-filter'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -4124,7 +4124,14 @@ export function TableGrid({
             columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
             columnUnique: entry.def?.unique ?? false,
             columnRequired: entry.def?.required ?? false,
-            columnTypeMetadata: entry.def ? typeMetadataOf(entry.def) : {},
+            // Without these a deleted select column can't be re-created — it is
+            // invalid with no options, and the saved cell data is option ids.
+            ...(entry.def?.options ? { columnOptions: entry.def.options } : {}),
+            ...(entry.def?.multiple ? { columnMultiple: true } : {}),
+            ...(entry.def?.currencyCode ? { columnCurrencyCode: entry.def.currencyCode } : {}),
+            ...(entry.def?.referenceTableId
+              ? { columnReferenceTableId: entry.def.referenceTableId }
+              : {}),
             cellData,
             previousOrder: orderSnapshot,
             previousWidth,
