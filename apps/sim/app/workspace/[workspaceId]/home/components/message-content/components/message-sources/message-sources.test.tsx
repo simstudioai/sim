@@ -26,8 +26,22 @@ function mount(ui: React.ReactNode) {
   act(() => root?.render(ui))
 }
 
-function chips(): HTMLAnchorElement[] {
-  return Array.from(container?.querySelectorAll('a') ?? [])
+function trigger(): HTMLButtonElement {
+  const node = container?.querySelector('button')
+  if (!node) throw new Error('Sources button did not render')
+  return node
+}
+
+/** Opens the popover the way a pointer does — Radix opens on `pointerdown` then `click`. */
+function open() {
+  act(() => {
+    trigger().dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    trigger().dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
+  })
+}
+
+function links(): HTMLAnchorElement[] {
+  return Array.from(document.querySelectorAll<HTMLAnchorElement>('a[data-source-link]'))
 }
 
 afterEach(() => {
@@ -38,44 +52,51 @@ afterEach(() => {
 })
 
 describe('MessageSources', () => {
-  it('renders one chip per source with the site name or hostname as its label', () => {
+  it('renders one counted button and lists every source once opened', () => {
     mount(
       <MessageSources
         sources={[
-          { url: 'https://docs.github.com/en/a', siteName: 'GitHub Docs' },
+          { url: 'https://docs.github.com/en/a', siteName: 'GitHub Docs', title: 'Docs A' },
           { url: 'https://www.example.com/page' },
         ]}
       />
     )
 
-    expect(chips().map((chip) => chip.textContent)).toEqual(['GitHub Docs', 'example.com'])
-    expect(chips().map((chip) => chip.getAttribute('href'))).toEqual([
+    expect(trigger().getAttribute('aria-label')).toBe('2 sources')
+    expect(trigger().textContent).toBe('2')
+    expect(links()).toHaveLength(0)
+
+    open()
+
+    expect(links().map((link) => link.textContent)).toEqual(['Docs A', 'example.com'])
+    expect(links().map((link) => link.getAttribute('href'))).toEqual([
       'https://docs.github.com/en/a',
       'https://www.example.com/page',
     ])
-    expect(chips()[0].getAttribute('target')).toBe('_blank')
-    expect(chips()[0].className).toContain('rounded-full')
+    expect(links()[0].getAttribute('target')).toBe('_blank')
   })
 
   it('shows the connector brand mark when the source names a connector, else the favicon', () => {
     mount(
       <MessageSources
         sources={[
-          { url: 'https://wiki.example.com/p', connectorType: 'confluence', title: 'Page' },
-          { url: 'https://docs.github.com/en/a', siteName: 'GitHub Docs' },
+          { url: 'https://x.atlassian.net/wiki/p', connectorType: 'confluence', title: 'Wiki' },
+          { url: 'https://docs.github.com/en/a', title: 'Docs' },
         ]}
       />
     )
+    open()
 
-    const [connector, favicon] = chips()
-    expect(connector.querySelector('svg[data-brand="confluence"]')).not.toBeNull()
-    expect(connector.querySelector('img')).toBeNull()
-    expect(favicon.querySelector('img')?.getAttribute('src')).toContain('docs.github.com')
+    const rows = Array.from(document.querySelectorAll('[data-source-link]')).map(
+      (link) => link.parentElement as HTMLElement
+    )
+    expect(rows[0].querySelector('svg[data-brand="confluence"]')).not.toBeNull()
+    expect(rows[0].querySelector('img')).toBeNull()
+    expect(rows[1].querySelector('img')?.getAttribute('src')).toContain('docs.github.com')
   })
 
   it('renders nothing without sources', () => {
     mount(<MessageSources sources={[]} />)
-
-    expect(container?.childElementCount).toBe(0)
+    expect(container?.querySelector('button')).toBeNull()
   })
 })

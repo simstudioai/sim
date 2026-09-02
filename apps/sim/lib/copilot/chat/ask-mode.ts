@@ -25,6 +25,7 @@ export const ASK_MODE_AGENT_CONTEXT: AskModeAgentContext = {
     "- Do not use integrations, workflows, tables, files, or the browser. Integration tools are unavailable on this turn. When the question needs live data that is not indexed (today's inbox, a calendar), say that Ask answers from indexed content and suggest Build.",
     '- Cite every claim with a `<source>` tag exactly as the knowledge tool describes. When nothing relevant is found, say so plainly instead of guessing.',
     '- Keep the answer short: lead with the answer, then the supporting points.',
+    '- Suggested follow-ups, when you offer them, are questions the attached sources can answer. Never suggest building, running, or automating anything.',
   ].join('\n'),
 }
 

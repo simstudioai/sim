@@ -1,53 +1,53 @@
 'use client'
 
-import { cn } from '@sim/emcn'
+import { Popover, PopoverContent, PopoverTrigger, Tooltip } from '@sim/emcn'
+import { BookOpen } from '@sim/emcn/icons'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
-import { SourceChip } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
-/**
- * Right-edge fade so an overflowing strip reads as scrollable rather than cut.
- * The strip's trailing padding matches the fade width, so the last chip scrolls
- * fully clear of it.
- */
-const STRIP_FADE_CLASSES =
-  'pr-10 [-webkit-mask-image:linear-gradient(to_right,black_calc(100%_-_40px),transparent)] [mask-image:linear-gradient(to_right,black_calc(100%_-_40px),transparent)]'
+/** The action-row button, matching the copy and vote buttons beside it with room for a count. */
+const BUTTON_CLASSES =
+  'flex h-[26px] items-center gap-1 rounded-[6px] px-1.5 text-[var(--text-icon)] text-caption transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none data-[state=open]:bg-[var(--surface-hover)]'
 
 interface MessageSourcesProps {
   sources: readonly SourceTagData[]
 }
 
 /**
- * Footer listing every document a reply cited, once each. Sources that carry
- * a title — a search answer — are laid out as one dense row per document, the
- * prose above having already cited each claim inline; otherwise one
- * horizontally scrolling row of {@link SourceChip}s that fades out at the
- * right edge instead of wrapping, so a long list stays a single quiet line
- * under the answer.
+ * The documents a reply cited, once each, behind one button in the reply's
+ * action row: the prose already cites each claim inline, so the full list is
+ * there for whoever wants it without a second block under the answer. Opens a
+ * popover of one dense row per document.
  */
 export function MessageSources({ sources }: MessageSourcesProps) {
   if (sources.length === 0) return null
-
-  if (sources.some((source) => source.snippet)) {
-    return (
-      <div className='flex flex-col'>
-        {sources.map((source) => (
-          <SourceCard key={source.url} source={source} dense />
-        ))}
-      </div>
-    )
-  }
+  const label = `${sources.length} ${sources.length === 1 ? 'source' : 'sources'}`
 
   return (
-    <div
-      className={cn(
-        'flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-        STRIP_FADE_CLASSES
-      )}
-    >
-      {sources.map((source) => (
-        <SourceChip key={source.url} source={source} />
-      ))}
-    </div>
+    <Popover>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <PopoverTrigger asChild>
+            <button type='button' aria-label={label} className={BUTTON_CLASSES}>
+              <BookOpen className='size-[14px]' />
+              <span>{sources.length}</span>
+            </button>
+          </PopoverTrigger>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='top'>{label}</Tooltip.Content>
+      </Tooltip.Root>
+      <PopoverContent
+        align='start'
+        side='top'
+        sideOffset={4}
+        className='w-[420px] max-w-[90vw] p-0'
+      >
+        <div className='flex flex-col py-1'>
+          {sources.map((source) => (
+            <SourceCard key={source.url} source={source} dense />
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }

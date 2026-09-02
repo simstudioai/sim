@@ -958,6 +958,14 @@ function MessageContentInner({
       trailingPendingTag ||
       (isStreamIdle && !trailingStreamActivity && !hasExecutingTool))
 
+  /** The action buttons and, when the reply cited documents, the sources button beside them. */
+  const actionsRow = (
+    <div className='flex items-center gap-0.5'>
+      {actions}
+      {sources.length > 0 && <MessageSources sources={sources} />}
+    </div>
+  )
+
   return (
     <div>
       <div className='space-y-[10px]'>
@@ -1027,11 +1035,6 @@ function MessageContentInner({
               return null
           }
         })}
-        {sources.length > 0 && (
-          <div className={isStreaming ? 'animate-stream-fade-in' : undefined}>
-            <MessageSources sources={sources} />
-          </div>
-        )}
       </div>
       {thinkingExpanded && isLast ? (
         // Fixed-height placeholder for the NEXT piece of output: the shimmer
@@ -1060,10 +1063,10 @@ function MessageContentInner({
             <CircleStop className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
             <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
           </div>
-          {actions && <div className='mt-[10px]'>{actions}</div>}
+          {actions && <div className='mt-[10px]'>{actionsRow}</div>}
         </>
       ) : (
-        actions && <div className={TAIL_REGION_CLASSES}>{actions}</div>
+        actions && <div className={TAIL_REGION_CLASSES}>{actionsRow}</div>
       )}
     </div>
   )
