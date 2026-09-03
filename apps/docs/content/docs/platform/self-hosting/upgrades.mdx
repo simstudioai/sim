@@ -179,9 +179,10 @@ kubectl logs -n simstudio deploy/sim-app -c migrations --tail=100
 
 ```bash
 npx sim-setup update
-# The file that started your install — docker-compose.local.yml for a
-# source-built stack, docker-compose.ollama.yml for the Ollama one.
+# The file that started your install. The Ollama stack is not managed by
+# the CLI at all — see below.
 COMPOSE_FILE=docker-compose.prod.yml
+# COMPOSE_FILE=docker-compose.local.yml
 docker compose -f "$COMPOSE_FILE" logs migrations
 ```
 
@@ -199,10 +200,13 @@ Inspect the result with `npx sim-setup logs`, which targets whichever Compose fi
 The CLI detects only those two files. An install started from `docker-compose.ollama.yml` is invisible to it — `update`, `logs`, and `status` all report no install — so upgrade that stack directly:
 
 ```bash
-# The Ollama service is profile-scoped, so an unprofiled command silently
-# skips it. Use the profile you installed with.
+# That file builds the app, realtime server, and migrator from source, so the
+# upgrade is a checkout plus a rebuild — pulling only refreshes Ollama and
+# Postgres. The Ollama service is profile-scoped, so pass the profile you
+# installed with or Compose silently skips it.
 PROFILE=gpu  # or cpu
-docker compose -f docker-compose.ollama.yml --profile "$PROFILE" pull
+git pull
+docker compose -f docker-compose.ollama.yml --profile "$PROFILE" build --pull
 docker compose -f docker-compose.ollama.yml --profile "$PROFILE" up -d
 ```
 
@@ -275,7 +279,12 @@ The local and Ollama stacks build the app from source and ignore `SIM_VERSION`, 
 
 ```bash
 git checkout <previous-release-tag>
+
+# Local stack
 docker compose -f docker-compose.local.yml up -d --build
+
+# Ollama stack — same profile you installed with
+docker compose -f docker-compose.ollama.yml --profile gpu up -d --build
 ```
 
 **Rollback after a schema change** requires restoring the database to the pre-upgrade backup, because migrations are forward-only:
