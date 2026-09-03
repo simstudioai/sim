@@ -117,6 +117,64 @@ describe('universal grep', () => {
     expect(listed()).toBe(1)
   })
 
+  it('shares one build between greps that fan out at the same time', async () => {
+    // Eight concurrent world-wide greps in one dev turn each rebuilt every world and
+    // timed out; concurrent callers now await the build already in flight.
+    const requested: string[] = []
+    const runtime = runtimeWith(CATALOG, requested)
+    await Promise.all([
+      runEngine('grep', ['id'], runtime, { scope: 'blocks' }),
+      runEngine('grep', ['name'], runtime, { scope: 'blocks' }),
+      runEngine('grep', ['type'], runtime, { scope: 'blocks' }),
+    ])
+    expect(requested.filter((path) => path === '/api/v2/blocks')).toHaveLength(1)
+    expect(requested.filter((path) => path === '/api/v2/blocks/agent')).toHaveLength(1)
+  })
+
+  it('bounds the nested requests in flight across the whole process', async () => {
+    const ids = Array.from({ length: 24 }, (_, i) => `block_${i}`)
+    const responses: Record<string, unknown> = {
+      '/api/v2/blocks': { data: ids.map((id) => ({ id })), nextCursor: null },
+    }
+    for (const id of ids) responses[`/api/v2/blocks/${id}`] = { data: { id, inputSchema: [] } }
+    let inFlight = 0
+    let peak = 0
+    const runtime: AgentCliRuntime = {
+      workspaceId: `ws-${Math.random().toString(36).slice(2)}`,
+      userId: 'user-1',
+      client: {
+        request: async <T>(path: string): Promise<T> => {
+          inFlight += 1
+          peak = Math.max(peak, inFlight)
+          await new Promise((resolve) => setTimeout(resolve, 2))
+          inFlight -= 1
+          return responses[path] as T
+        },
+      },
+    }
+    await Promise.all([
+      runEngine('grep', ['id'], runtime, { scope: 'blocks' }),
+      runEngine('grep', ['id'], runtime, { scope: 'blocks' }),
+    ])
+    expect(peak).toBeLessThanOrEqual(8)
+  })
+
+  it('re-reads a file only when its version changes', async () => {
+    const requested: string[] = []
+    const file = { id: 'wf_1', name: 'notes.md', folderPath: '/', updatedAt: 't1', size: 12 }
+    const responses: Record<string, unknown> = {
+      '/api/v2/files': { data: [file], nextCursor: null },
+      '/api/v2/files/wf_1/text': { data: { text: 'alpha beta', degraded: false } },
+    }
+    const runtime = runtimeWith(responses, requested)
+    await runEngine('grep', ['alpha'], runtime, { scope: 'files' })
+    await runEngine('grep', ['beta'], runtime, { scope: 'files' })
+    expect(requested.filter((path) => path === '/api/v2/files/wf_1/text')).toHaveLength(1)
+    responses['/api/v2/files'] = { data: [{ ...file, updatedAt: 't2' }], nextCursor: null }
+    await runEngine('grep', ['beta'], runtime, { scope: 'files' })
+    expect(requested.filter((path) => path === '/api/v2/files/wf_1/text')).toHaveLength(2)
+  })
+
   it('accepts the world/resource path a match line prints as --in', async () => {
     const byPath = await runEngine('grep', ['id'], runtimeWith(CATALOG), { in: 'blocks/agent' })
     expect(byPath.exitCode).toBe(0)
