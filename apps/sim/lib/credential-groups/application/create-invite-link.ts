@@ -10,8 +10,8 @@ import {
 } from '@/lib/credential-groups/application/context'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 import {
-  CredentialGroupEnrollmentError,
   createCredentialGroupInvitationLink,
+  rethrowEnrollmentErrorAsOrchestrationError,
 } from '@/lib/credential-groups/enrollments'
 
 export interface CreateCredentialGroupInviteLinkInput {
@@ -45,13 +45,7 @@ export const createCredentialGroupInviteLink = defineAuthorizedWorkspaceUseCase(
         email
       )
     } catch (error) {
-      if (error instanceof CredentialGroupEnrollmentError) {
-        throw new OrchestrationError(
-          error.status === 404 ? 'not_found' : error.status === 409 ? 'conflict' : 'internal',
-          error.message
-        )
-      }
-      throw error
+      rethrowEnrollmentErrorAsOrchestrationError(error)
     }
   },
   projectAudit: ({ context, result }) => ({

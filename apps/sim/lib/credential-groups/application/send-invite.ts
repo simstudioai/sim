@@ -13,9 +13,9 @@ import {
 } from '@/lib/credential-groups/application/context'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 import {
-  CredentialGroupEnrollmentError,
   inviteCredentialGroupEnrollment,
   loadCredentialGroupInviterIdentity,
+  rethrowEnrollmentErrorAsOrchestrationError,
 } from '@/lib/credential-groups/enrollments'
 
 export interface SendCredentialGroupInviteInput {
@@ -57,13 +57,7 @@ export const sendCredentialGroupInvite = defineAuthorizedWorkspaceUseCase({
       )
       return { enrollment }
     } catch (error) {
-      if (error instanceof CredentialGroupEnrollmentError) {
-        throw new OrchestrationError(
-          error.status === 404 ? 'not_found' : error.status === 409 ? 'conflict' : 'internal',
-          error.message
-        )
-      }
-      throw error
+      rethrowEnrollmentErrorAsOrchestrationError(error)
     }
   },
   projectAudit: ({ input, context, result }) => ({

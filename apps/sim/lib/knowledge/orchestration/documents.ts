@@ -5,12 +5,13 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import { dispatchDocumentProcessing } from '@/lib/knowledge/documents/processing-dispatch'
 import {
   createDocumentRecords,
   createSingleDocument,
   type DocumentData,
-  deleteDocument,
+  deleteKnowledgeDocumentInKnowledgeBase,
   getDocumentByUploadId,
   markDocumentAsFailedTimeout,
   type ProcessingOptions,
@@ -440,6 +441,13 @@ export async function performUpdateKnowledgeDocument(
 export interface PerformDeleteKnowledgeDocumentParams extends KnowledgeOperationContext {
   knowledgeBase: KnowledgeBaseTarget
   document: { id: string; filename: string; fileSize?: number; mimeType?: string }
+  /**
+   * The caller's read access, re-applied at the delete itself. Required rather
+   * than optional: the lookup that found the document is a separate statement,
+   * and access can be withdrawn between the two, so a delete that trusted only
+   * the lookup would still remove a document the caller may no longer read.
+   */
+  access: KnowledgeAccessScope
 }
 
 export type PerformDeleteKnowledgeDocumentResult = KnowledgeOrchestrationResult
@@ -448,11 +456,11 @@ export type PerformDeleteKnowledgeDocumentResult = KnowledgeOrchestrationResult
 export async function performDeleteKnowledgeDocument(
   params: PerformDeleteKnowledgeDocumentParams
 ): Promise<PerformDeleteKnowledgeDocumentResult> {
-  const { knowledgeBase, document, request, source } = params
+  const { knowledgeBase, document, request, source, access } = params
   const requestId = params.requestId ?? generateRequestId()
 
   try {
-    await deleteDocument(document.id, requestId)
+    await deleteKnowledgeDocumentInKnowledgeBase(knowledgeBase.id, document.id, requestId, access)
   } catch (error) {
     return classifyKnowledgeFailure(error, requestId, `Delete document ${document.id}`)
   }

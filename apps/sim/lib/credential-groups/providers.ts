@@ -262,6 +262,39 @@ export function getCredentialGroupProviderId(provider: CredentialGroupProvider):
   return getCredentialGroupProviderService(provider).providerId
 }
 
+/**
+ * The credential-group provider collecting accounts for a service, or null when
+ * none does. The throwing form below stays for callers that have already
+ * established the provider exists; this one is for asking the question.
+ */
+export function findCredentialGroupProviderByProviderId(
+  providerId: string
+): CredentialGroupProvider | null {
+  return (
+    CREDENTIAL_GROUP_PROVIDER_IDS.find(
+      (candidate) => getCredentialGroupProviderId(candidate) === providerId
+    ) ?? null
+  )
+}
+
+/**
+ * Whether an option is one a connector may actually sync through: live, and —
+ * for a provider configured per group, such as Slack through the workspace's
+ * own app — configured. Shared so the settings UI offers exactly the options
+ * the server would go on to pick, rather than one it will refuse.
+ */
+export function isSelectableCredentialGroupOption(
+  option: { provider: string; status: string; configurationStatus: string },
+  providerId: string
+): boolean {
+  return (
+    option.status === 'active' &&
+    option.configurationStatus === 'ready' &&
+    isCredentialGroupProvider(option.provider) &&
+    getCredentialGroupProviderId(option.provider) === providerId
+  )
+}
+
 export function getCredentialGroupProviderFromProviderId(
   providerId: string
 ): CredentialGroupProvider {

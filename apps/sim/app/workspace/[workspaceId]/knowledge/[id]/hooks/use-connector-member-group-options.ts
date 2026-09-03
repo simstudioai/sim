@@ -3,10 +3,10 @@
 import { useMemo } from 'react'
 import type { ComboboxOption } from '@sim/emcn'
 import {
-  type CredentialGroupStandardOAuthProvider,
+  type CredentialGroupProvider,
+  findCredentialGroupProviderByProviderId,
   getCredentialGroupProviderId,
-  getCredentialGroupStandardOAuthProviderFromProviderId,
-  isCredentialGroupProvider,
+  isSelectableCredentialGroupOption,
 } from '@/lib/credential-groups/providers'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useCredentialGroups } from '@/hooks/queries/credential-groups'
@@ -30,16 +30,18 @@ export function decodeConnectorMemberGroupOption(
   }
 }
 
-/** The credential-group provider that collects accounts for this connector, if any. */
-function connectorMemberGroupProvider(
+/**
+ * The credential-group provider that collects accounts for this connector, if
+ * any. Every provider counts, not only those Sim authorizes with its own OAuth
+ * client: Slack collects accounts through the workspace's own app, and asking
+ * only about the standard ones leaves a Slack connector with no Access control
+ * at all.
+ */
+export function connectorMemberGroupProvider(
   connectorConfig: ConnectorMeta
-): CredentialGroupStandardOAuthProvider | null {
+): CredentialGroupProvider | null {
   if (connectorConfig.auth.mode !== 'oauth' || !connectorConfig.permissionScopedListing) return null
-  try {
-    return getCredentialGroupStandardOAuthProviderFromProviderId(connectorConfig.auth.provider)
-  } catch {
-    return null
-  }
+  return findCredentialGroupProviderByProviderId(connectorConfig.auth.provider)
 }
 
 /** The config fields a per-member connector hides: its listing caps, which the server clears. */
@@ -94,9 +96,8 @@ export function useConnectorMemberGroupOptions({
     for (const group of settings.credentialGroups) {
       if (group.status !== 'active') continue
       for (const option of group.options) {
-        if (option.status !== 'active') continue
-        if (!isCredentialGroupProvider(option.provider)) continue
-        if (getCredentialGroupProviderId(option.provider) !== providerId) continue
+        /** The server's own rule, so the picker never offers an option it would refuse. */
+        if (!isSelectableCredentialGroupOption(option, providerId)) continue
         entries.push({
           label: `${group.name} · ${option.label}`,
           value: encodeConnectorMemberGroupOption(group.id, option.id),

@@ -15,13 +15,13 @@ import {
   CredentialGroupEnrollmentError,
   createCredentialGroupInvitationLink,
   inviteCredentialGroupEnrollment,
+  rethrowEnrollmentErrorAsOrchestrationError,
 } from '@/lib/credential-groups/enrollments'
 import {
   type CredentialGroupProvider,
-  getCredentialGroupProviderFromProviderId,
-  getCredentialGroupProviderId,
-  isCredentialGroupProvider,
+  findCredentialGroupProviderByProviderId,
   isCredentialGroupStandardOAuthProvider,
+  isSelectableCredentialGroupOption,
 } from '@/lib/credential-groups/providers'
 import { createCredentialGroup, listCredentialGroups } from '@/lib/credential-groups/service'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
@@ -115,10 +115,9 @@ export async function provisionKnowledgeConnectorMembersBinding(input: {
     throw new OrchestrationError('validation', 'Only an OAuth connector can sync per member')
   }
   const providerId = connectorMeta.auth.provider
-  let provider: CredentialGroupProvider
-  try {
-    provider = getCredentialGroupProviderFromProviderId(providerId)
-  } catch {
+  const provider: CredentialGroupProvider | null =
+    findCredentialGroupProviderByProviderId(providerId)
+  if (!provider) {
     throw new OrchestrationError(
       'validation',
       `${connectorMeta.name} accounts cannot be collected through a Credential Group yet`
@@ -130,9 +129,7 @@ export async function provisionKnowledgeConnectorMembersBinding(input: {
   for (const group of groups) {
     if (group.status !== 'active') continue
     for (const option of group.options) {
-      if (option.status !== 'active' || option.configurationStatus !== 'ready') continue
-      if (!isCredentialGroupProvider(option.provider)) continue
-      if (getCredentialGroupProviderId(option.provider) !== providerId) continue
+      if (!isSelectableCredentialGroupOption(option, providerId)) continue
       candidates.push({ credentialGroupId: group.id, credentialGroupOptionId: option.id })
     }
   }
@@ -393,7 +390,12 @@ export async function createViewerConnectorEnrollmentLink(input: {
     ) {
       throw revoked
     }
-    throw error
+    /**
+     * Everything else the issue refuses is a state of the group the person can
+     * be told about — it is gone, disabled, or collects no accounts yet — so it
+     * carries its own status out rather than surfacing as an internal error.
+     */
+    rethrowEnrollmentErrorAsOrchestrationError(error)
   }
 }
 

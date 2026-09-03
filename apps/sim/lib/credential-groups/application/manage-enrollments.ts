@@ -8,25 +8,17 @@ import {
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 import { validateCredentialGroupInvitationEmails } from '@/lib/credential-groups/application/validation'
 import {
-  CredentialGroupEnrollmentError,
   deleteCredentialGroupEnrollment,
   inviteCredentialGroupEnrollments,
   loadCredentialGroupInviterIdentity,
   resendCredentialGroupEnrollment,
+  rethrowEnrollmentErrorAsOrchestrationError,
 } from '@/lib/credential-groups/enrollments'
 import { mcpService } from '@/lib/mcp/service'
 
 interface CredentialGroupEnrollmentSettingsInput {
   assertedWorkspaceId: string
   credentialGroupId: string
-}
-
-function normalizeEnrollmentError(error: unknown): never {
-  if (error instanceof CredentialGroupEnrollmentError) {
-    if (error.status === 404) throw new OrchestrationError('not_found', error.message)
-    if (error.status === 409) throw new OrchestrationError('conflict', error.message)
-  }
-  throw error
 }
 
 async function requireInviterIdentity(userId: string): Promise<string> {
@@ -61,7 +53,7 @@ export const inviteCredentialGroupEnrollmentsSettings = defineAuthorizedWorkspac
         { emails }
       )
     } catch (error) {
-      normalizeEnrollmentError(error)
+      rethrowEnrollmentErrorAsOrchestrationError(error)
     }
   },
   projectAudit: ({ context, result }) => ({
@@ -97,7 +89,7 @@ export const resendCredentialGroupEnrollmentSettings = defineAuthorizedWorkspace
       )
       return { credentialGroupEnrollment }
     } catch (error) {
-      normalizeEnrollmentError(error)
+      rethrowEnrollmentErrorAsOrchestrationError(error)
     }
   },
   projectAudit: ({ context, result }) => ({
@@ -129,7 +121,7 @@ export const deleteCredentialGroupEnrollmentSettings = defineAuthorizedWorkspace
         input.enrollmentId
       )
     } catch (error) {
-      normalizeEnrollmentError(error)
+      rethrowEnrollmentErrorAsOrchestrationError(error)
     }
   },
   projectAudit: ({ context, result }) => ({

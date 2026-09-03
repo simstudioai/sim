@@ -16,6 +16,7 @@ import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle
 import { renderCredentialGroupInvitationEmail } from '@/components/emails/credential-groups/render'
 import { getCredentialGroupInvitationSubject } from '@/components/emails/subjects'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
@@ -180,6 +181,23 @@ export class CredentialGroupEnrollmentError extends Error {
     super(message)
     this.name = 'CredentialGroupEnrollmentError'
   }
+}
+
+/**
+ * Rethrows an enrollment failure as the orchestration error its status already
+ * implies. The mapping belongs to the error rather than to each caller: every
+ * surface that issues an invitation reports a missing group, a disabled one, or
+ * one collecting no accounts the same way, and a status added here reaches all
+ * of them at once. Anything that is not an enrollment failure passes through
+ * untouched.
+ */
+export function rethrowEnrollmentErrorAsOrchestrationError(error: unknown): never {
+  if (error instanceof CredentialGroupEnrollmentError) {
+    if (error.status === 404) throw new OrchestrationError('not_found', error.message)
+    if (error.status === 409) throw new OrchestrationError('conflict', error.message)
+    if (error.status === 400) throw new OrchestrationError('validation', error.message)
+  }
+  throw error
 }
 
 interface CredentialGroupEnrollmentCursor {

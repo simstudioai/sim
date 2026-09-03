@@ -84,6 +84,8 @@ export const internalKnowledgeErrorPolicies = {
    */
   bulkMove: internalKnowledgeErrorPolicy('Failed to move knowledge bases'),
   bulkDelete: internalKnowledgeErrorPolicy('Failed to delete knowledge bases'),
+  /** Workspace-scoped, so unconcealed for the same reason as the bulk routes above. */
+  memberConnectors: internalKnowledgeErrorPolicy('Failed to fetch member connectors'),
   default: internalKnowledgeErrorPolicy('Internal server error'),
   documents: concealKnowledgeBase(
     internalKnowledgeErrorPolicy('Failed to process knowledge document request')
