@@ -256,7 +256,7 @@ beforeEach(() => {
   mockCollectBlockers.mockResolvedValue({ blockers: [], appliedDrops: [] })
   mockLoadBlockMap.mockResolvedValue(new Map())
   mockBuildBlockIdResolver.mockReturnValue((_wf: string, blockId: string) => blockId)
-  mockResolveFolderMapping.mockResolvedValue(new Map())
+  mockResolveFolderMapping.mockResolvedValue({ folderIdMap: new Map(), folderPathMap: new Map() })
   mockUpsertPromoteRun.mockResolvedValue('run-1')
   mockGetMcpServerMeta.mockResolvedValue(new Map())
   mockCreateTransform.mockReturnValue((subBlocks: unknown) => subBlocks)

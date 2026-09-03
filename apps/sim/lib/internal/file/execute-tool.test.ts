@@ -216,6 +216,18 @@ describe('executeFileTool', () => {
     )
   })
 
+  it('treats an explicit empty folder scope as matching no files', async () => {
+    await executeFileTool(
+      request('file_search', { query: 'needle', folderPaths: [], includeSubfolders: false })
+    )
+
+    expect(mocks.searchContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ folderPaths: [], includeSubfolders: false }),
+      })
+    )
+  })
+
   it('does not expose unexpected search infrastructure errors', async () => {
     mocks.searchContent.mockRejectedValueOnce(new Error('database host and query details'))
 

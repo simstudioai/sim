@@ -164,6 +164,7 @@ describe('workflow and table application folder caps', () => {
           principal,
           input: {
             workspaceId: context.workspaceId,
+            folderPath: '/Folder',
             sortBy: 'name',
             sortOrder: 'asc',
             limit: 25,

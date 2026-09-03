@@ -1662,4 +1662,37 @@ describe('BoundedLines', () => {
     expect(lines.push('éé')).toBe(true)
     expect(lines.push('é')).toBe(false)
   })
+
+  describe('keeping the last records', () => {
+    it('lets the oldest records go so the newest fit, under a header that stays', () => {
+      const lines = new BoundedLines(24, 'last')
+      lines.pin('# room')
+      expect(lines.push('one')).toBe(true)
+      expect(lines.push('two')).toBe(true)
+      expect(lines.push('three')).toBe(true)
+      expect(lines.push('four')).toBe(true)
+      expect(lines.count).toBe(3)
+      expect(lines.join()).toBe(
+        '# room\n[Truncated: earlier text was left out to fit the size limit]\ntwo\nthree\nfour'
+      )
+    })
+
+    it('refuses only a record that cannot fit on its own and carries on', () => {
+      const lines = new BoundedLines(12, 'last')
+      expect(lines.push('a very long record')).toBe(false)
+      expect(lines.push('short')).toBe(true)
+      expect(lines.push('next')).toBe(true)
+      expect(lines.count).toBe(2)
+      expect(lines.join()).toBe(
+        '[Truncated: earlier text was left out to fit the size limit]\nshort\nnext'
+      )
+    })
+
+    it('joins the header and records plainly when everything fits', () => {
+      const lines = new BoundedLines(64, 'last')
+      lines.pin('# room', '')
+      lines.push('hello')
+      expect(lines.join()).toBe('# room\n\nhello')
+    })
+  })
 })

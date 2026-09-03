@@ -12,6 +12,7 @@ export const forkRemapKindSchema = z.enum([
   'knowledge-document',
   'table',
   'file',
+  'file-folder',
   'mcp-server',
   'custom-tool',
   /**
@@ -31,6 +32,7 @@ export const forkResourceTypeSchema = z.enum([
   'knowledge_base',
   'knowledge_document',
   'file',
+  'file_folder',
   'mcp_server',
   /**
    * Workflow-publishing MCP server identity (parent shell <-> fork copy), seeded at fork so a

@@ -42,6 +42,10 @@ describe('listForkResourceCandidates', () => {
         { id: 'workspace/WS/report.pdf', label: 'report.pdf' },
         { id: 'workspace/WS/notes.md', label: 'notes.md' },
       ])
+      .mockResolvedValueOnce([
+        { id: 'folder-reports', name: 'Reports', parentId: null },
+        { id: 'folder-q3', name: 'Q3 Results', parentId: 'folder-reports' },
+      ])
 
     const result = await listForkResourceCandidates(executor, 'ws-1')
 
@@ -53,6 +57,11 @@ describe('listForkResourceCandidates', () => {
     ])
     // Documents are not a standalone mappable kind - they ride their KB via the reconfigure flow.
     expect(result['knowledge-document']).toEqual([])
+    expect(result['file-folder']).toEqual([
+      { id: '/', label: 'Workspace root' },
+      { id: '/Reports', label: 'Reports' },
+      { id: '/Reports/Q3%20Results', label: 'Reports / Q3 Results' },
+    ])
     expect(result['env-var']).toEqual([{ id: 'API_KEY', label: 'API_KEY' }])
   })
 })

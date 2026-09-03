@@ -416,6 +416,9 @@ export const env = createEnv({
     EXECUTION_TIMEOUT_ASYNC_TEAM:          z.string().optional().default('5400'),  // 90 minutes
     EXECUTION_TIMEOUT_ASYNC_ENTERPRISE:    z.string().optional().default('5400'),  // 90 minutes
 
+    // Agent Tool-Call Loop
+    MAX_TOOL_ITERATIONS:                   z.string().optional(),                  // Max model round trips per Agent block tool-call loop (default 20)
+
     // Isolated-VM Worker Pool Configuration
     IVM_POOL_SIZE:                         z.string().optional().default('4'),      // Max worker processes in pool
     IVM_MAX_CONCURRENT:                    z.string().optional().default('10000'),  // Max concurrent executions globally

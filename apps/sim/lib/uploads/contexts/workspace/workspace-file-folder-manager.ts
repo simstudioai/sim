@@ -1538,11 +1538,18 @@ export async function relocateWorkspaceFileFolderByPath(params: {
 }
 
 /** Deletes a file-folder subtree, or only an empty folder when `recursive` is false. */
+/**
+ * Deletes a folder addressed by path, reporting the id it resolved to.
+ *
+ * The id is returned rather than kept internal because the caller's audit event
+ * identifies the folder by id: without it a path-based delete records
+ * `FOLDER_DELETED` with no `resourceId`, and the path survives only in metadata.
+ */
 export async function deleteWorkspaceFileFolderByPath(params: {
   workspaceId: string
   path: string
   recursive: boolean
-}): Promise<WorkspaceFileArchiveResult> {
+}): Promise<WorkspaceFileArchiveResult & { folderId: string }> {
   requireNonRootFolderPath(params.path)
   const now = new Date()
 
@@ -1602,7 +1609,7 @@ export async function deleteWorkspaceFileFolderByPath(params: {
       )
       .returning({ id: folderTable.id })
 
-    return { folders: archivedFolders.length, files: archivedFiles.length }
+    return { folders: archivedFolders.length, files: archivedFiles.length, folderId }
   })
 }
 

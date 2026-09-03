@@ -337,6 +337,104 @@ const blockWith = (subBlocks: SubBlockConfig[]): BlockConfig =>
 
 const entry = (id: string, type: string, value: unknown) => ({ id, type, value })
 
+describe('workspace file-folder fork remap', () => {
+  const fileBlock = () =>
+    blockWith([
+      {
+        id: 'folderSelection',
+        title: 'Folder',
+        type: 'folder-selector',
+        resourceType: 'file',
+        multiSelect: true,
+      },
+    ])
+
+  it('remaps each selected path and records an unresolved path as required', () => {
+    vi.mocked(getBlock).mockReturnValue(fileBlock())
+    const result = remapForkSubBlocks(
+      {
+        folderSelection: entry('folderSelection', 'folder-selector', ['/Reports', '/Archive']),
+      },
+      (kind, sourceId) =>
+        kind === 'file-folder' && sourceId === '/Reports' ? '/Production' : null,
+      'promote',
+      { blockType: 'file' }
+    )
+
+    expect(result.subBlocks.folderSelection.value).toEqual(['/Production'])
+    expect(
+      result.references.map(({ kind, sourceId, required }) => ({
+        kind,
+        sourceId,
+        required,
+      }))
+    ).toEqual([
+      { kind: 'file-folder', sourceId: '/Reports', required: true },
+      { kind: 'file-folder', sourceId: '/Archive', required: true },
+    ])
+    expect(result.unmapped.map((reference) => reference.sourceId)).toEqual(['/Archive'])
+  })
+
+  it('preserves serialized multi-select storage while remapping paths', () => {
+    vi.mocked(getBlock).mockReturnValue(fileBlock())
+    const result = remapForkSubBlocks(
+      {
+        folderSelection: entry('folderSelection', 'folder-selector', '["/Reports","/Archive"]'),
+      },
+      (kind, sourceId) =>
+        kind === 'file-folder' && sourceId === '/Reports' ? '/Production' : null,
+      'create',
+      { blockType: 'file' }
+    )
+
+    expect(result.subBlocks.folderSelection.value).toBe('["/Production"]')
+  })
+
+  it('leaves provider folder selectors unchanged', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([{ id: 'folder', title: 'Folder', type: 'folder-selector', serviceId: 'gmail' }])
+    )
+    const result = remapForkSubBlocks(
+      { folder: entry('folder', 'folder-selector', 'INBOX') },
+      () => null,
+      'promote',
+      { blockType: 'gmail' }
+    )
+
+    expect(result.subBlocks.folder.value).toBe('INBOX')
+    expect(result.references).toEqual([])
+  })
+
+  it('remaps a workspace folder nested in a tool-input param', () => {
+    const tool = {
+      type: 'filetool',
+      toolId: 'filetool_run',
+      params: { folderSelection: ['/Reports', '/Archive'] },
+    }
+    const result = remapToolBlockResources(tool, {
+      resolve: (kind, sourceId) =>
+        kind === 'file-folder' && sourceId === '/Reports' ? '/Production' : null,
+      resolveFileKey: () => null,
+      clearUnresolved: true,
+      blockConfigs: {
+        filetool: {
+          subBlocks: [
+            {
+              id: 'folderSelection',
+              title: 'Folder',
+              type: 'folder-selector',
+              resourceType: 'file',
+              multiSelect: true,
+            },
+          ],
+        },
+      },
+    })
+
+    expect(result.params).toEqual({ folderSelection: ['/Production'] })
+  })
+})
+
 describe('createForkBootstrapTransform document-selector remap', () => {
   const docBlock = () =>
     blockWith([

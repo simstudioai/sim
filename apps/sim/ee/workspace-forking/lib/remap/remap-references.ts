@@ -4,6 +4,7 @@ import { isRecordLike, omit } from '@sim/utils/object'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import type { z } from 'zod'
 import type { forkRemapKindSchema } from '@/lib/api/contracts/workspace-fork'
+import { readFolderPaths, replaceFolderPath } from '@/lib/folders/selection'
 import { createMcpToolId, MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import {
   coerceObjectArray,
@@ -65,7 +66,7 @@ const logger = createLogger('WorkspaceForkRemapReferences')
  * mapping), as opposed to optional kinds that silently clear. Exported so the cleared-ref preview
  * can exclude them - a required ref is a blocker, never a silent "will be cleared" item.
  */
-export const REQUIRED_KINDS = new Set<ForkRemapKind>(['credential', 'env-var'])
+export const REQUIRED_KINDS = new Set<ForkRemapKind>(['credential', 'env-var', 'file-folder'])
 
 /**
  * Id-based override kind for a TOOL param's credential, resolved by subblock id so a
@@ -89,6 +90,30 @@ export const REGISTRY_KIND_TO_FORK_KIND: Partial<
   'knowledge-document': 'knowledge-document',
   table: 'table',
   'mcp-server': 'mcp-server',
+}
+
+type ForkResourceConfig = Pick<
+  SubBlockConfig,
+  | 'type'
+  | 'resourceType'
+  | 'serviceId'
+  | 'selectorKey'
+  | 'requiredScopes'
+  | 'multiSelect'
+  | 'multiple'
+>
+
+/** Sim workspace file folders are path references; provider folder selectors are not. */
+function isWorkspaceFileFolderConfig(config: ForkResourceConfig | undefined): boolean {
+  return config?.type === 'folder-selector' && config.resourceType === 'file'
+}
+
+function getForkKindForConfig(
+  config: ForkResourceConfig | undefined,
+  registryKind: StructuredWorkflowSearchResourceKind
+): ForkRemapKind | undefined {
+  if (isWorkspaceFileFolderConfig(config)) return 'file-folder'
+  return REGISTRY_KIND_TO_FORK_KIND[registryKind]
 }
 // `file` is intentionally excluded from the generic registry path: `file-upload`
 // (workspace files) is remapped by storage key via `remapForkFileUploadValue`, and
@@ -776,10 +801,13 @@ export function remapToolBlockResources(
         continue
       }
 
-      const forkKind = REGISTRY_KIND_TO_FORK_KIND[definition.kind]
+      const forkKind = getForkKindForConfig(config, definition.kind)
       if (!forkKind) continue
 
-      const refs = parseWorkflowSearchSubBlockResources(currentValue, config)
+      const refs =
+        forkKind === 'file-folder'
+          ? readFolderPaths(currentValue).map((rawValue) => ({ rawValue }))
+          : parseWorkflowSearchSubBlockResources(currentValue, config)
       if (refs.length === 0) continue
 
       let value: unknown = currentValue
@@ -796,19 +824,30 @@ export function remapToolBlockResources(
         opts.record?.(forkKind, ref.rawValue, mapped)
         if (mapped) {
           if (target !== ref.rawValue) {
-            const replaced = definition.codec.replace(value, ref.rawValue, target)
-            if (replaced.success) {
-              value = replaced.nextValue
+            if (forkKind === 'file-folder') {
+              value = replaceFolderPath(value, ref.rawValue, target)
               if (opts.isCopiedTarget?.(forkKind, ref.rawValue)) {
                 copyRemappedSubBlockIds.add(paramId)
+              }
+            } else {
+              const replaced = definition.codec.replace(value, ref.rawValue, target)
+              if (replaced.success) {
+                value = replaced.nextValue
+                if (opts.isCopiedTarget?.(forkKind, ref.rawValue)) {
+                  copyRemappedSubBlockIds.add(paramId)
+                }
               }
             }
           }
         } else if (opts.clearUnresolved) {
           // Drop only this unresolved entry (blank it - empties are filtered at parse
           // time), so a mixed copied/uncopied multi-value field keeps its copied refs.
-          const replaced = definition.codec.replace(value, ref.rawValue, '')
-          if (replaced.success) value = replaced.nextValue
+          if (forkKind === 'file-folder') {
+            value = replaceFolderPath(value, ref.rawValue, '')
+          } else {
+            const replaced = definition.codec.replace(value, ref.rawValue, '')
+            if (replaced.success) value = replaced.nextValue
+          }
         }
       }
 
@@ -1090,8 +1129,12 @@ export function remapForkSubBlocks(
   // subblock is still rewritten but not detected. Needs `blockType` for the config; an unknown
   // block type gets no gating (everything detected, nothing passed through - the conservative
   // default).
+  const blockSubBlocks = context?.blockType ? getBlock(context.blockType)?.subBlocks : undefined
+  const configByBaseKey = new Map(
+    (blockSubBlocks ?? []).filter((config) => config.id).map((config) => [config.id, config])
+  )
   const gates = createCanonicalModeGates(
-    context?.blockType ? getBlock(context.blockType)?.subBlocks : undefined,
+    blockSubBlocks,
     buildSubBlockValues(subBlocks),
     context?.canonicalModes,
     context?.triggerMode === true
@@ -1107,10 +1150,11 @@ export function remapForkSubBlocks(
     const valueBeforeResource = value
     const subBlockType = typeof subBlock.type === 'string' ? subBlock.type : undefined
 
-    const definition = getWorkflowSearchSubBlockResourceDefinition(
-      subBlockType ? { type: subBlockType as SubBlockType } : undefined
-    )
-    const forkKind = definition ? REGISTRY_KIND_TO_FORK_KIND[definition.kind] : undefined
+    const config: ForkResourceConfig | undefined =
+      configByBaseKey.get(subBlockKey.replace(/_\d+$/, '')) ??
+      (subBlockType ? { type: subBlockType as SubBlockType } : undefined)
+    const definition = getWorkflowSearchSubBlockResourceDefinition(config)
+    const forkKind = definition ? getForkKindForConfig(config, definition.kind) : undefined
 
     // Mode policy per key: a DORMANT canonical member's value is cleared outright (only the
     // active mode matters - a stale inactive value must not survive the copy); a dependent
@@ -1141,13 +1185,15 @@ export function remapForkSubBlocks(
     }
 
     if (definition && forkKind && subBlockType && !verbatimManual) {
-      const parsed = parseWorkflowSearchSubBlockResources(value, {
-        type: subBlockType as SubBlockType,
-      })
+      const parsed =
+        forkKind === 'file-folder'
+          ? readFolderPaths(value).map((rawValue) => ({ rawValue }))
+          : parseWorkflowSearchSubBlockResources(value, config)
       const seen = new Set<string>()
       for (const ref of parsed) {
         if (seen.has(ref.rawValue)) continue
         seen.add(ref.rawValue)
+        if (isReference(ref.rawValue) || isEnvVarReference(ref.rawValue)) continue
         const required = REQUIRED_KINDS.has(forkKind)
         const reference: ForkReference = {
           kind: forkKind,
@@ -1163,19 +1209,30 @@ export function remapForkSubBlocks(
         if (mapped) {
           if (target !== ref.rawValue) {
             if (forkKind === 'mcp-server') mcpServerRemaps.set(ref.rawValue, target)
-            const replaceResult = definition.codec.replace(value, ref.rawValue, target)
-            if (replaceResult.success) {
-              value = replaceResult.nextValue
+            if (forkKind === 'file-folder') {
+              value = replaceFolderPath(value, ref.rawValue, target)
               if (context?.isCopiedTarget?.(forkKind, ref.rawValue)) {
                 copyRemappedKeys.add(subBlockKey)
+              }
+            } else {
+              const replaceResult = definition.codec.replace(value, ref.rawValue, target)
+              if (replaceResult.success) {
+                value = replaceResult.nextValue
+                if (context?.isCopiedTarget?.(forkKind, ref.rawValue)) {
+                  copyRemappedKeys.add(subBlockKey)
+                }
               }
             }
           }
         } else if (clearUnresolved) {
           // Drop only this unresolved entry (blank it - empties are filtered at
           // parse time) so a mixed copied/uncopied multi-value field keeps its rest.
-          const replaceResult = definition.codec.replace(value, ref.rawValue, '')
-          if (replaceResult.success) value = replaceResult.nextValue
+          if (forkKind === 'file-folder') {
+            value = replaceFolderPath(value, ref.rawValue, '')
+          } else {
+            const replaceResult = definition.codec.replace(value, ref.rawValue, '')
+            if (replaceResult.success) value = replaceResult.nextValue
+          }
         }
       }
     }

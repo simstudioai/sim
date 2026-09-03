@@ -90,6 +90,8 @@ export interface PlanForkFileCopiesResult {
    * content-ref maps so `sim:folder/<id>` mentions inside copied bodies resolve to the copy.
    */
   folderIdMap: Map<string, string>
+  /** Canonical folder-scope paths mirrored solely because a workflow references them. */
+  folderPathMap: Map<string, string>
 }
 
 async function getFinalizedFileCopies(
@@ -147,8 +149,9 @@ async function resolveTargetOriginalName(task: BlobCopyTask): Promise<string> {
  * the target workspace payer increment in {@link executeForkFileBlobCopies}.
  *
  * Files are selected EITHER by `workspace_files.id` (the fork modal's picker lists files
- * by id) OR by storage `key` (sync references key files by their storage key, not id). At
- * least one of the two must be non-empty; both may be supplied (their matched rows union).
+ * by id) OR by storage `key` (sync references key files by their storage key, not id). Folder
+ * paths may additionally be supplied without files so an empty, referenced scope is
+ * mirrored without implicitly copying the files it contains.
  */
 export async function planForkFileCopies(params: {
   tx: DbOrTx
@@ -157,17 +160,21 @@ export async function planForkFileCopies(params: {
   userId: string
   fileIds?: string[]
   fileKeys?: string[]
+  folderPaths?: string[]
   now: Date
 }): Promise<PlanForkFileCopiesResult> {
   const { tx, sourceWorkspaceId, childWorkspaceId, userId } = params
   const fileIds = params.fileIds ?? []
   const fileKeys = params.fileKeys ?? []
+  const folderPaths = params.folderPaths ?? []
   const keyMap = new Map<string, string>()
   const idMap = new Map<string, string>()
   const blobTasks: BlobCopyTask[] = []
   let folderIdMap = new Map<string, string>()
-  if (fileIds.length === 0 && fileKeys.length === 0)
-    return { keyMap, idMap, blobTasks, folderIdMap }
+  let folderPathMap = new Map<string, string>()
+  if (fileIds.length === 0 && fileKeys.length === 0 && folderPaths.length === 0) {
+    return { keyMap, idMap, blobTasks, folderIdMap, folderPathMap }
+  }
 
   // Match by id and/or storage key (OR'd) so either selection shape resolves to the same
   // source rows. Batch the metadata read (one query for all selected files): non-deleted,
@@ -179,22 +186,25 @@ export async function planForkFileCopies(params: {
     fileIds.length > 0 ? inArray(workspaceFiles.id, fileIds) : undefined,
     fileKeys.length > 0 ? inArray(workspaceFiles.key, fileKeys) : undefined,
   ].filter((clause): clause is NonNullable<typeof clause> => clause !== undefined)
-  const metas = await tx
-    .select(workspaceFileColumns)
-    .from(workspaceFiles)
-    .where(
-      and(
-        selectors.length === 1 ? selectors[0] : or(...selectors),
-        eq(workspaceFiles.workspaceId, sourceWorkspaceId),
-        eq(workspaceFiles.context, 'workspace'),
-        isNull(workspaceFiles.deletedAt)
-      )
-    )
+  const metas =
+    selectors.length === 0
+      ? []
+      : await tx
+          .select(workspaceFileColumns)
+          .from(workspaceFiles)
+          .where(
+            and(
+              selectors.length === 1 ? selectors[0] : or(...selectors),
+              eq(workspaceFiles.workspaceId, sourceWorkspaceId),
+              eq(workspaceFiles.context, 'workspace'),
+              isNull(workspaceFiles.deletedAt)
+            )
+          )
 
   // Mirror the file-folder subtree holding the selected files (plus ancestors) into the target
   // and place each copy inside it. Scoped to `resourceType: 'file'`: file folders are a tree of
   // their own, disjoint from the workflow folders the workflow copy mirrors.
-  folderIdMap = await resolveForkFolderMapping({
+  const folderMapping = await resolveForkFolderMapping({
     tx,
     sourceWorkspaceId,
     targetWorkspaceId: childWorkspaceId,
@@ -202,7 +212,10 @@ export async function planForkFileCopies(params: {
     now: params.now,
     resourceType: 'file',
     contentFolderIds: metas.map((meta) => meta.folderId),
+    contentFolderPaths: folderPaths,
   })
+  folderIdMap = folderMapping.folderIdMap
+  folderPathMap = folderMapping.folderPathMap
 
   for (const meta of metas) {
     const childFileId = generateId()
@@ -230,7 +243,7 @@ export async function planForkFileCopies(params: {
     })
   }
 
-  return { keyMap, idMap, blobTasks, folderIdMap }
+  return { keyMap, idMap, blobTasks, folderIdMap, folderPathMap }
 }
 
 /**

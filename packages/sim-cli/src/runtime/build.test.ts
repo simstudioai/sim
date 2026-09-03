@@ -855,6 +855,14 @@ describe('commands parsed through commander', () => {
     )
   })
 
+  it('documents every exact and anchor-based file edit mode', () => {
+    const help = commandAt('files', 'edit').helpInformation()
+
+    expect(help).toMatch(/--edit.*search_replace.*replace_between.*insert_after.*delete_between/s)
+    expect(help).toContain('replaceAll')
+    expect(help).toContain('occurrence')
+  })
+
   it('offers expanded trace output without changing the default summary', () => {
     expect(commandAt('logs', 'get').description()).toBe('Show run diagnostics')
     expect(commandAt('logs', 'get').helpInformation()).toMatch(

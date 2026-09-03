@@ -3,6 +3,7 @@ import type { OperationUseCase, WorkspaceOperation } from '@/lib/core/applicatio
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   fetchWorkspaceFileBuffer,
+  getWorkspaceFileByName,
   loadActiveWorkspaceFileContext,
   resolveWorkspaceFileReference as resolveStoredWorkspaceFileReference,
   type WorkspaceFileRecord,
@@ -15,11 +16,14 @@ export interface ResolveWorkspaceFileReferenceInput {
   operation: WorkspaceOperation
   workspaceId: string
   reference: string
+  /** Resolve `reference` as an exact file name in this folder instead of as a path or id. */
+  folderId?: string | null
 }
 
 interface WorkspaceFileReferenceInput {
   workspaceId: string
   reference: string
+  folderId?: string | null
 }
 
 interface WorkspaceFileReferenceResult {
@@ -35,7 +39,12 @@ async function resolveWorkspaceFileReferenceContext({
 }: {
   input: WorkspaceFileReferenceInput
 }) {
-  const file = await resolveStoredWorkspaceFileReference(input.workspaceId, input.reference)
+  const file =
+    input.folderId === undefined
+      ? await resolveStoredWorkspaceFileReference(input.workspaceId, input.reference)
+      : await getWorkspaceFileByName(input.workspaceId, input.reference, {
+          folderId: input.folderId,
+        })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
   const canonical = await loadActiveWorkspaceFileContext(file.id)
   if (!canonical || canonical.workspaceId !== input.workspaceId) {
@@ -88,9 +97,13 @@ export async function resolveWorkspaceFileReference({
   operation,
   workspaceId,
   reference,
+  folderId,
 }: ResolveWorkspaceFileReferenceInput): Promise<WorkspaceFileRecord> {
   const useCase = getWorkspaceFileReferenceUseCase(operation)
-  const result = await useCase.execute({ principal, input: { workspaceId, reference } })
+  const result = await useCase.execute({
+    principal,
+    input: { workspaceId, reference, ...(folderId === undefined ? {} : { folderId }) },
+  })
   return result.file
 }
 
@@ -116,10 +129,16 @@ export async function readWorkspaceFileReference({
   principal,
   workspaceId,
   reference,
+  folderId,
   maxBytes,
 }: ReadWorkspaceFileReferenceInput): Promise<{ file: WorkspaceFileRecord; content: Buffer }> {
   return readWorkspaceFileReferenceUseCase.execute({
     principal,
-    input: { workspaceId, reference, maxBytes },
+    input: {
+      workspaceId,
+      reference,
+      maxBytes,
+      ...(folderId === undefined ? {} : { folderId }),
+    },
   })
 }
