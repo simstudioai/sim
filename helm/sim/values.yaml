@@ -602,7 +602,8 @@ redis:
   # keys, so a restart costs in-flight live updates, not committed data. It also
   # drops webhook idempotency markers, so a provider redelivery after a
   # restart can re-run an already-completed workflow — use a persistent managed
-  # instance if that matters. Billing and checkout idempotency is on PostgreSQL.
+  # instance if that matters. Billing, checkout, and Chat-send idempotency are
+  # pinned to PostgreSQL and are unaffected.
   maxmemory: "512mb"
   maxmemoryPolicy: "noeviction"
 
