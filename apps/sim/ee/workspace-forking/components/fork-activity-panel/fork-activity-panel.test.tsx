@@ -169,3 +169,72 @@ describe('ForkActivityPanel event badge tooltip', () => {
     expect(row?.getAttribute('aria-expanded')).toBe('false')
   })
 })
+
+describe('ForkActivityPanel sync report', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  const syncMetadata = {
+    actorName: 'Brandon Tarr',
+    direction: 'push' as const,
+    otherWorkspaceId: PARTNER_ID,
+    otherWorkspaceName: 'another workspace',
+    updatedNames: ['Flow A'],
+    tables: 2,
+    files: 1,
+  }
+
+  function expandRow() {
+    const row = container.querySelector<HTMLButtonElement>('button[aria-expanded]')
+    if (!row) throw new Error('row is not expandable')
+    act(() => row.click())
+  }
+
+  /**
+   * The reported bug: a push that copied resources showed a second row, badged "Fork", for the
+   * background fill. The fill belongs to the push, so it reads inside the push's own row.
+   */
+  it('shows the background copy inside the push row while it is still running', () => {
+    renderJobs([
+      makeJob({
+        kind: 'fork_sync',
+        workspaceId: WORKSPACE_ID,
+        status: 'processing',
+        metadata: syncMetadata,
+      }),
+    ])
+
+    expect(container.querySelectorAll('button[aria-expanded]')).toHaveLength(1)
+    expect(badgeElement().textContent).toBe('Push')
+    expandRow()
+    expect(container.textContent).toContain('Copying')
+    expect(container.textContent).toContain('2 tables, 1 file')
+  })
+
+  it('reports the finished copy and what it lost on the same row', () => {
+    renderJobs([
+      makeJob({
+        kind: 'fork_sync',
+        workspaceId: WORKSPACE_ID,
+        status: 'completed_with_warnings',
+        message: 'Copied 2 items; 1 could not be copied',
+        metadata: { ...syncMetadata, copied: 2, failed: 1 },
+      }),
+    ])
+
+    expandRow()
+    expect(container.textContent).toContain('Copied')
+    expect(container.textContent).not.toContain('Copying')
+    expect(container.textContent).toContain('2 tables, 1 file')
+    expect(container.textContent).toContain('1 resource failed to copy')
+  })
+})

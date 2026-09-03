@@ -68,6 +68,13 @@ export interface ForkContentCopyPayload {
    */
   statusId?: string
   /**
+   * Status to finish the tracked row with when every item copies; `completed` when omitted. A
+   * sync whose in-request phase completed with warnings passes `completed_with_warnings`, so a
+   * clean fill does not clear them. A fill that loses items always finishes with warnings, and
+   * a crash finishes `failed`.
+   */
+  completionStatus?: 'completed' | 'completed_with_warnings'
+  /**
    * Target workflow ids this sync deployed (promote's deploy loop). When a copied resource's
    * fill fails, its dropped placeholder must be cleared from these workflows' DEPLOYED version
    * states too - a deployed version can reference the placeholder even when the draft no longer
@@ -150,7 +157,7 @@ export async function runForkContentCopy(payload: ForkContentCopyPayload): Promi
     const failed = resourceCounts.failed + fileCounts.failed
     if (statusId) {
       await finishBackgroundWork(db, statusId, {
-        status: failed > 0 ? 'completed_with_warnings' : 'completed',
+        status: failed > 0 ? 'completed_with_warnings' : (payload.completionStatus ?? 'completed'),
         message:
           failed > 0
             ? `Copied ${copied} item${copied === 1 ? '' : 's'}; ${failed} could not be copied`

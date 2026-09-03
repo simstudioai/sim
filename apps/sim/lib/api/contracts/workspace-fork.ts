@@ -777,7 +777,8 @@ export const backgroundWorkMetadataSchema = z
   .object({
     /** Display name of the user who performed the action (denormalized at write time). */
     actorName: z.string().optional(),
-    // Fork content copy
+    // Fork content copy. The per-kind counts and copied/failed also describe the background
+    // fill of the resources a sync copied, which reports on the sync's own row.
     childWorkspaceId: z.string().optional(),
     childWorkspaceName: z.string().optional(),
     workflowsCopied: z.number().int().optional(),

@@ -1,7 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { promoteForkContract } from '@/lib/api/contracts/workspace-fork'
 import { parseRequest } from '@/lib/api/server'
@@ -9,7 +7,6 @@ import { getSession } from '@/lib/auth'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { recordBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
 import { assertCanPromote } from '@/ee/workspace-forking/lib/lineage/authz'
 import { promoteFork } from '@/ee/workspace-forking/lib/promote/promote'
 
@@ -36,6 +33,8 @@ export const POST = withRouteHandler(
     } = parsed.data.body
 
     const auth = await assertCanPromote(id, otherWorkspaceId, direction, session.user.id)
+    const otherName =
+      otherWorkspaceId === auth.sourceWorkspaceId ? auth.source.name : auth.target.name
 
     let result: Awaited<ReturnType<typeof promoteFork>>
     try {
@@ -46,6 +45,7 @@ export const POST = withRouteHandler(
         direction,
         userId: session.user.id,
         actorName: session.user.name ?? undefined,
+        otherWorkspaceName: otherName,
         dependentValues,
         copyResources,
         dropReferences,
@@ -113,44 +113,6 @@ export const POST = withRouteHandler(
       },
       request: req,
     })
-
-    const otherName =
-      otherWorkspaceId === auth.sourceWorkspaceId ? auth.source.name : auth.target.name
-    await recordBackgroundWork(db, {
-      workspaceId: id,
-      kind: 'fork_sync',
-      status:
-        result.deployFailed > 0 ||
-        result.needsConfiguration.length > 0 ||
-        result.clearedOptional.length > 0 ||
-        result.droppedReferences.length > 0 ||
-        result.triggerUrlChanges.length > 0
-          ? 'completed_with_warnings'
-          : 'completed',
-      message: direction === 'pull' ? `Pulled from "${otherName}"` : `Pushed to "${otherName}"`,
-      metadata: {
-        actorName: session.user.name ?? undefined,
-        otherWorkspaceId,
-        otherWorkspaceName: otherName,
-        direction,
-        updated: result.updated,
-        created: result.created,
-        archived: result.archived,
-        redeployed: result.redeployed,
-        deployFailed: result.deployFailed,
-        updatedNames: result.updatedNames,
-        createdNames: result.createdNames,
-        archivedNames: result.archivedNames,
-        needsConfiguration: result.needsConfiguration,
-        clearedOptional: result.clearedOptional,
-        droppedReferences: result.droppedReferences.length,
-        triggerUrlChanges: result.triggerUrlChanges.length,
-      },
-    }).catch((error) =>
-      logger.error(`[${requestId}] Failed to record sync activity`, {
-        error: getErrorMessage(error),
-      })
-    )
 
     return NextResponse.json(body)
   }
