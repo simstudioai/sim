@@ -323,6 +323,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
    * landing prompt panel as well as curated CTAs. Curated producers opt their
    * bare names in at the store seam (`storeCuratedPrompt`), so prose seeded here
    * is never bare-chipped (the scunthorpe constraint).
+   * An empty seed must not erase a queued message loaded in the same event
+   * that clears the search URL. The mode menu clears its query explicitly.
    */
   useEffect(() => {
     if (defaultValue === prevDefaultValueRef.current) return
@@ -572,6 +574,13 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     filesRef.current.clearAttachedFiles()
   }, [resetTranscript])
 
+  /** Discards the search query while keeping files available for the next agent turn. */
+  const handleLeaveSearch = useCallback(() => {
+    editorRef.current.setValue('')
+    sttPrefixRef.current = ''
+    resetTranscript()
+  }, [resetTranscript])
+
   const handleSubmit = useCallback(() => {
     const currentFiles = filesRef.current
     const currentEditor = editorRef.current
@@ -726,7 +735,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
           </Tooltip.Root>
         </div>
         <div className='flex items-center gap-1.5'>
-          {canSearch && <ModeSwitcher />}
+          {canSearch && <ModeSwitcher onLeaveSearch={handleLeaveSearch} />}
           {isSttSupported && (
             <MicButton
               audioLevelsRef={audioLevelsRef}

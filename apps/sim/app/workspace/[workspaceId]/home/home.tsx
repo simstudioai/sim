@@ -569,7 +569,6 @@ export function Home({ chatId, userName, userId }: HomeProps) {
    */
   const handleSummarize = (prompt: string) => {
     void setComposerMode('assistant')
-    setSearchQuery('')
     initialViewUserInputRef.current?.clear()
     chatViewUserInputRef.current?.clear()
     void handleSubmit(prompt, undefined, undefined, 'assistant')

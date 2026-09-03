@@ -1,65 +1,66 @@
 const HIDDEN_INLINE_REFERENCE_PATTERN =
   /`[^`\n]*(?:internal\/tool-results\/|internal\/blocktips\/|components\/integrations\/[^`\n]*README)[^`\n]*`/g
 
-/**
- * A complete inline-chip tag — `<workspace_resource>` or `<source>` — as
- * opener, payload, closer. Both are JSON-bodied tags the model places inside a
- * sentence, so both attract the same stray backticks.
- *
- * Two constraints on the payload, both load-bearing:
- *
- * - **No backtick.** A payload is JSON and carries none, so this is what tells a
- *   real tag from prose MENTIONING the tag name — a message explaining the
- *   syntax writes the opener and the closer as two separately backticked spans.
- * - **No nested opener**, via the negative lookahead. A cost bound rather than a
- *   correctness rule: a lazy scan allowed to cross an opener restarts from every
- *   opener, so a message repeating the tag name is quadratic — on the main
- *   thread, for every streamed chunk.
- *
- * Accepted trade: a resource whose title or path itself contains a backtick is
- * not matched, so it renders as text rather than a chip. That costs one chip and
- * is rare; the failure it replaces corrupts a whole message and is common.
- */
-const COMPLETE_TAG_SOURCE =
-  '<(?<chipTag>workspace_resource|source)>(?:(?!<\\k<chipTag>>)[^`])*?<\\/\\k<chipTag>>'
-
-/** Non-global so {@link RegExp.test} has no `lastIndex` to carry between calls. */
-const COMPLETE_INLINE_CHIP_TAG = new RegExp(COMPLETE_TAG_SOURCE)
+/** JSON strings own their escaped quotes, backticks, and any quoted tag markers. */
+const JSON_STRING_SOURCE = String.raw`"(?:[^"\\\r\n]|\\[^\r\n])*"`
 
 /**
- * One left-to-right pass over the two things that can own a backtick: an inline
- * code span, and a tag with a stray backtick pressed against it.
- *
- * ONE pass is the design. Two separate passes each have to guess which backticks
- * belong together, and every previous arrangement of this file got a different
- * case wrong — a span two words away, a code fence, then a span sitting flush
- * against the tag. Here a span consumes its own delimiters as the scan reaches
- * them, so `` `config.json`<tag> `` keeps its pair without a special case.
- *
- * The trailing backtick is only taken when no further backtick follows on the
- * line; otherwise it is not a stray at all but the opener of the next span, and
- * `` <tag>`config.json` `` would lose that span's delimiter. A LEADING backtick
- * needs no such guard, because a backtick that closes a span is consumed as part
- * of that span. Of the two, only the trailing lookahead is pinned by a test —
- * swapping the alternatives changes behaviour only for a span that both opens
- * flush against a tag and closes elsewhere, which no fixture covers.
+ * Complete chip tags consume JSON strings atomically. Outside strings, a new
+ * opener or backtick ends the candidate, so prose mentions cannot join into a
+ * tag and repeated unclosed openers cannot repeatedly scan the same suffix.
  */
-const CODE_SPAN_OR_FLANKED_TAG = new RegExp(
-  `\`[^\`\\n]*\`|\`?(${COMPLETE_TAG_SOURCE})(?:\`(?![^\`\\n]*\`))?`,
-  'g'
-)
+const COMPLETE_TAG_SOURCE = `<(?<chipTag>workspace_resource|source)>\\s*\\{(?:${JSON_STRING_SOURCE}|[^"\`<])*?\\}\\s*</\\k<chipTag>>`
 
+const CHIP_OR_CODE_DELIMITER = new RegExp(`${COMPLETE_TAG_SOURCE}|\`|\n`, 'g')
+
+/**
+ * Pair Markdown delimiters outside chip payloads in one forward pass. A pair
+ * containing a chip is unwrapped; a lone delimiter is removed only when flush
+ * against a chip. Neighbouring code spans and multiline fences keep their pairs.
+ */
 export function sanitizeChatDisplayContent(content: string): string {
-  return content
-    .replace(CODE_SPAN_OR_FLANKED_TAG, (match, tag?: string) => {
-      // A tag with stray backticks against it: keep the tag, drop the strays.
-      if (tag !== undefined) return tag
+  const removedDelimiters: number[] = []
+  let openingTick = -1
+  let containsChip = false
+  let adjacentToChip = false
+  let lastChipEnd = -1
 
-      // A code span. Unwrap it only when it genuinely holds a tag — the parser
-      // lifts the tag out either way, so leaving the delimiters would strand a
-      // pair of backticks around a hole. Anything else is someone else's span.
-      const inner = match.slice(1, -1)
-      return COMPLETE_INLINE_CHIP_TAG.test(inner) ? inner : match
-    })
-    .replace(HIDDEN_INLINE_REFERENCE_PATTERN, '')
+  for (const match of content.matchAll(CHIP_OR_CODE_DELIMITER)) {
+    const index = match.index
+    if (match.groups?.chipTag) {
+      if (openingTick !== -1) {
+        containsChip = true
+        adjacentToChip ||= index === openingTick + 1
+      }
+      lastChipEnd = index + match[0].length
+      continue
+    }
+
+    if (match[0] === '\n') {
+      if (openingTick !== -1 && adjacentToChip) removedDelimiters.push(openingTick)
+      openingTick = -1
+      lastChipEnd = -1
+      continue
+    }
+
+    if (openingTick === -1) {
+      openingTick = index
+      containsChip = false
+      adjacentToChip = lastChipEnd === index
+    } else {
+      if (containsChip) removedDelimiters.push(openingTick, index)
+      openingTick = -1
+    }
+  }
+
+  if (openingTick !== -1 && adjacentToChip) removedDelimiters.push(openingTick)
+
+  const parts: string[] = []
+  let start = 0
+  for (const index of removedDelimiters) {
+    parts.push(content.slice(start, index))
+    start = index + 1
+  }
+  parts.push(content.slice(start))
+  return parts.join('').replace(HIDDEN_INLINE_REFERENCE_PATTERN, '')
 }

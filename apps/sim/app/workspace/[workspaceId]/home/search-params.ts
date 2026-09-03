@@ -76,3 +76,10 @@ export const searchFilterParsers = {
 
 /** Every search param at its default: what leaving a search writes. */
 export const CLEARED_SEARCH_FILTERS = { source: null, updated: null } as const
+
+/** A mode transition clears its search query and filters in the same URL update. */
+export const composerModeParsers = {
+  [modeParam.key]: modeParam.parser,
+  [searchQueryParam.key]: searchQueryParam.parser,
+  ...searchFilterParsers,
+} as const

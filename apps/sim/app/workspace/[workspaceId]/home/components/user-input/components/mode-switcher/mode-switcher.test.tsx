@@ -2,34 +2,19 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { NuqsTestingAdapter, type UrlUpdateEvent } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCaptureEvent, mockSetSearchQuery, mockSetSearchFilters, modeState } = vi.hoisted(
-  () => ({
-    mockCaptureEvent: vi.fn(),
-    mockSetSearchQuery: vi.fn(),
-    mockSetSearchFilters: vi.fn(),
-    /** The URL `mode` param as the nuqs mock serves it; `set` is the live setter once mounted. */
-    modeState: { initial: 'build', set: (_next: string) => {} },
-  })
-)
+const { mockCaptureEvent, mockLeaveSearch } = vi.hoisted(() => ({
+  mockCaptureEvent: vi.fn(),
+  mockLeaveSearch: vi.fn(),
+}))
+const mockUrlUpdate = vi.fn<(event: UrlUpdateEvent) => void>()
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
 }))
-vi.mock('nuqs', async () => {
-  const { useState } = await import('react')
-  return {
-    useQueryState: (key: string) => {
-      const [mode, setMode] = useState(modeState.initial)
-      if (key !== 'mode') return [null, mockSetSearchQuery]
-      modeState.set = setMode
-      return [mode, setMode]
-    },
-    useQueryStates: () => [{}, mockSetSearchFilters],
-  }
-})
 vi.mock('posthog-js/react', () => ({ usePostHog: () => null }))
 vi.mock('@/lib/posthog/client', () => ({ captureEvent: mockCaptureEvent }))
 
@@ -38,12 +23,18 @@ import { ModeSwitcher } from '@/app/workspace/[workspaceId]/home/components/user
 let root: Root | null = null
 let container: HTMLDivElement | null = null
 
-function mount() {
+function mount(searchParams = '') {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  act(() => root?.render(<ModeSwitcher />))
+  act(() =>
+    root?.render(
+      <NuqsTestingAdapter hasMemory searchParams={searchParams} onUrlUpdate={mockUrlUpdate}>
+        <ModeSwitcher onLeaveSearch={mockLeaveSearch} />
+      </NuqsTestingAdapter>
+    )
+  )
 }
 
 function trigger(): HTMLButtonElement {
@@ -63,17 +54,18 @@ function items(): HTMLElement[] {
   return Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
 }
 
-function select(index: number) {
-  act(() => {
+async function select(index: number) {
+  await act(async () => {
     items()[index].dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
+    await vi.advanceTimersByTimeAsync(1)
   })
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   mockCaptureEvent.mockClear()
-  mockSetSearchQuery.mockClear()
-  mockSetSearchFilters.mockClear()
-  modeState.initial = 'build'
+  mockLeaveSearch.mockClear()
+  mockUrlUpdate.mockClear()
 })
 
 afterEach(() => {
@@ -81,6 +73,7 @@ afterEach(() => {
   container?.remove()
   root = null
   container = null
+  vi.useRealTimers()
 })
 
 describe('ModeSwitcher', () => {
@@ -108,47 +101,52 @@ describe('ModeSwitcher', () => {
     expect(rows[2].querySelector('svg')).toBeNull()
   })
 
-  it('writes the chosen mode to the URL and reports the change', () => {
+  it('writes the chosen mode to the URL and reports the change', async () => {
     mount()
     openMenu()
-    select(1)
+    await select(1)
 
     expect(trigger().textContent).toBe('Search')
     expect(mockCaptureEvent).toHaveBeenCalledWith(null, 'chat_mode_changed', {
       workspace_id: 'workspace-1',
       mode: 'search',
     })
-    expect(mockSetSearchQuery).not.toHaveBeenCalled()
+    expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.get('mode')).toBe('search')
+    expect(mockLeaveSearch).not.toHaveBeenCalled()
   })
 
   it('reads the mode from the URL on mount', () => {
-    modeState.initial = 'assistant'
-    mount()
+    mount('?mode=assistant')
 
     expect(trigger().textContent).toBe('Assistant')
     expect(trigger().getAttribute('aria-label')).toBe('Mode: Assistant')
   })
 
-  it('drops the search query from the URL when leaving Search', () => {
-    modeState.initial = 'search'
-    mount()
+  it('clears the composer and search parameters together when leaving Search', async () => {
+    mount('?mode=search&q=budget&source=upload&updated=7d&resource=report')
     openMenu()
-    select(0)
+    await select(0)
 
     expect(trigger().textContent).toBe('Build')
-    expect(mockSetSearchQuery).toHaveBeenCalledWith(null, { history: 'replace', scroll: false })
-    expect(mockSetSearchFilters).toHaveBeenCalledWith(
-      { source: null, updated: null },
-      { history: 'replace', scroll: false }
+    expect(mockLeaveSearch).toHaveBeenCalledOnce()
+    expect(mockUrlUpdate).toHaveBeenCalledOnce()
+    expect(mockUrlUpdate.mock.lastCall?.[0].searchParams.toString()).toBe('resource=report')
+    expect(mockUrlUpdate.mock.lastCall?.[0].options).toMatchObject({
+      history: 'replace',
+      scroll: false,
+    })
+    expect(mockLeaveSearch.mock.invocationCallOrder[0]).toBeLessThan(
+      mockUrlUpdate.mock.invocationCallOrder[0]
     )
   })
 
-  it('does not report re-selecting the active mode', () => {
+  it('does not report re-selecting the active mode', async () => {
     mount()
     openMenu()
-    select(0)
+    await select(0)
 
     expect(trigger().textContent).toBe('Build')
     expect(mockCaptureEvent).not.toHaveBeenCalled()
+    expect(mockLeaveSearch).not.toHaveBeenCalled()
   })
 })
