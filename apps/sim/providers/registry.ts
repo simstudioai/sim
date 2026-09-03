@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { anthropicProvider } from '@/providers/anthropic'
+import { avianProvider } from '@/providers/avian'
 import { azureAnthropicProvider } from '@/providers/azure-anthropic'
 import { azureOpenAIProvider } from '@/providers/azure-openai'
 import { basetenProvider } from '@/providers/baseten'
@@ -54,6 +55,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   ollama: ollamaProvider,
   'ollama-cloud': ollamaCloudProvider,
   bedrock: bedrockProvider,
+  avian: avianProvider,
 }
 
 export async function getProviderExecutor(
