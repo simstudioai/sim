@@ -784,6 +784,15 @@ describe('deleteFolder', () => {
       error: 'Table deletion is locked',
       errorCode: 'locked',
     })
+    const archiveTimestamp = mockArchiveFolderCascade.mock.calls[0][4]
+    expect(mockRestoreFolderRows).toHaveBeenCalledWith(
+      dbChainMock.db,
+      resourceConfig.current,
+      'ws-1',
+      ['folder-1'],
+      archiveTimestamp,
+      expect.any(Date)
+    )
   })
 
   it('hands the guard the whole resolved subtree, not just the root', async () => {

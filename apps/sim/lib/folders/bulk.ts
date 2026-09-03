@@ -244,6 +244,10 @@ export async function bulkMoveFolders(params: {
  * notification replaces a per-folder storm of identical invalidations, and it
  * fires from a `finally` so a batch cut short by an internal fault still
  * announces the folders it did archive.
+ *
+ * A reference conflict is retried only after another folder succeeds. This
+ * resolves cross-folder dependency chains without relying on request order,
+ * while a cycle makes no progress and terminates after one wave.
  */
 export async function bulkDeleteFolders(params: {
   workspaceId: string
@@ -260,30 +264,55 @@ export async function bulkDeleteFolders(params: {
   let resourceCount = 0
 
   try {
-    for (const folder of params.folders) {
-      const result = await deleteFolder(
-        {
-          resourceType: params.resourceType,
-          folderId: folder.id,
-          workspaceId: params.workspaceId,
-          userId: params.userId,
-          folderName: folder.name,
-        },
-        {
-          projectAudit: false,
-          notify: false,
-          referenceCheckCompleted: params.referenceCheckCompleted,
+    let pending = [...params.folders]
+    while (pending.length > 0) {
+      const retryable: BulkFolderAffected[] = []
+      const retryReasons = new Map<string, string>()
+      let completedInWave = 0
+
+      for (const folder of pending) {
+        const result = await deleteFolder(
+          {
+            resourceType: params.resourceType,
+            folderId: folder.id,
+            workspaceId: params.workspaceId,
+            userId: params.userId,
+            folderName: folder.name,
+          },
+          {
+            projectAudit: false,
+            notify: false,
+            referenceCheckCompleted: params.referenceCheckCompleted,
+          }
+        )
+        if (result.success) {
+          succeeded.push(folder)
+          folderCount += result.deletedItems?.folders ?? 0
+          resourceCount += result.deletedItems?.[params.countKey] ?? 0
+          completedInWave += 1
+          continue
         }
-      )
-      if (result.success) {
-        succeeded.push(folder)
-        folderCount += result.deletedItems?.folders ?? 0
-        resourceCount += result.deletedItems?.[params.countKey] ?? 0
-        continue
+        if (result.errorCode === 'internal') {
+          throw new Error(result.error ?? 'Failed to delete folder')
+        }
+        if (result.errorCode === 'conflict') {
+          retryable.push(folder)
+          retryReasons.set(folder.id, result.error ?? 'Failed to delete folder')
+          continue
+        }
+        failed.push({ ...folder, reason: result.error ?? 'Failed to delete folder' })
       }
-      if (result.errorCode === 'internal')
-        throw new Error(result.error ?? 'Failed to delete folder')
-      failed.push({ ...folder, reason: result.error ?? 'Failed to delete folder' })
+
+      if (completedInWave === 0) {
+        for (const folder of retryable) {
+          failed.push({
+            ...folder,
+            reason: retryReasons.get(folder.id) ?? 'Failed to delete folder',
+          })
+        }
+        break
+      }
+      pending = retryable
     }
   } finally {
     if (succeeded.length > 0) {

@@ -863,6 +863,7 @@ async function deleteFolderWithoutTreeLock(
   } catch (error) {
     const classified = asOrchestrationError(error)
     if (classified?.code === 'locked' || classified?.code === 'conflict') {
+      await restoreFolderRows(db, config, workspaceId, folderIds, timestamp, new Date())
       return { success: false, error: classified.message, errorCode: classified.code }
     }
     throw error

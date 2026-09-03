@@ -9,7 +9,7 @@ export function areTableReferenceColumnsEnabled(): Promise<boolean> {
   return isFeatureEnabled('table-reference-columns')
 }
 
-/** Rejects mutations that introduce or reconfigure a Reference column. */
+/** Rejects operations that expose or mutate Reference-column behavior. */
 export async function assertTableReferenceColumnsEnabled(): Promise<void> {
   if (!(await areTableReferenceColumnsEnabled())) {
     throw new OrchestrationError('forbidden', TABLE_REFERENCE_COLUMNS_DISABLED_MESSAGE)
