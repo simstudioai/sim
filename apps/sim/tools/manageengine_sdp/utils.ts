@@ -205,9 +205,32 @@ export async function parseSdpResponse(
   response: Response,
   fallbackMessage: string
 ): Promise<Record<string, unknown>> {
-  const data = (await response.json().catch(() => ({}))) as Record<string, unknown>
+  const text = await response.text().catch(() => '')
+  let data: Record<string, unknown> = {}
+  let malformed = false
+  if (text.trim()) {
+    try {
+      const parsed = JSON.parse(text)
+      data = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {}
+      malformed = data !== parsed
+    } catch {
+      malformed = true
+    }
+  }
+
   if (!response.ok) {
     throw new Error(getSdpErrorMessage(data, `${fallbackMessage} (HTTP ${response.status})`))
+  }
+
+  // A 2xx whose body is present but is not a JSON object did not come from the
+  // v3 API — a proxy or a captive login page answering 200 with HTML is the
+  // realistic case. Swallowing it would report a read as empty, and worse,
+  // report a delete as having succeeded. An empty body is tolerated, since a
+  // success carries no field this layer requires.
+  if (malformed) {
+    throw new Error(
+      `${fallbackMessage}: ServiceDesk Plus returned a non-JSON response (HTTP ${response.status}). Check the data center and portal settings.`
+    )
   }
   const failed = toResponseStatusEntries(data).some((entry) => entry.status === 'failed')
   if (failed) {

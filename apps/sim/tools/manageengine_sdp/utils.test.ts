@@ -21,11 +21,27 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe('resolveSdpBase', () => {
+  /**
+   * All ten hosts are asserted literally, not derived from the map under test —
+   * these are transcribed from the docs' "API endpoints by data center" table,
+   * and the apex changes with the region (US/EU/IN sit under
+   * `sdpondemand.manageengine.*`, the rest under their own `servicedeskplus.*`),
+   * so a typo in any one of them would otherwise ship silently.
+   */
   it('maps every data center code to its documented host', () => {
     expect(resolveSdpBase('US')).toBe('https://sdpondemand.manageengine.com')
     expect(resolveSdpBase('EU')).toBe('https://sdpondemand.manageengine.eu')
+    expect(resolveSdpBase('IN')).toBe('https://sdpondemand.manageengine.in')
     expect(resolveSdpBase('AU')).toBe('https://servicedeskplus.net.au')
     expect(resolveSdpBase('JP')).toBe('https://servicedeskplus.jp')
+    expect(resolveSdpBase('CA')).toBe('https://servicedeskplus.ca')
+    expect(resolveSdpBase('SA')).toBe('https://servicedeskplus.sa')
+    expect(resolveSdpBase('UK')).toBe('https://servicedeskplus.uk')
+    expect(resolveSdpBase('CN')).toBe('https://servicedeskplus.cn')
+    expect(resolveSdpBase('AE')).toBe('https://servicedeskplus.ae')
+    // Guards the test itself: if a code is added to the map, this fails until
+    // an assertion for it is added above.
+    expect(Object.keys(SDP_DATA_CENTER_BASES)).toHaveLength(10)
   })
 
   it('accepts a lower-case code, since the value round-trips through workflow JSON', () => {
@@ -223,6 +239,32 @@ describe('parseSdpResponse', () => {
     await expect(parseSdpResponse(jsonResponse({}, 500), 'Failed to get request')).rejects.toThrow(
       'Failed to get request (HTTP 500)'
     )
+  })
+
+  it('throws on a 2xx whose body is not JSON, rather than reporting success', async () => {
+    // A proxy or captive login page answering 200 with HTML. Swallowing this
+    // would report a read as empty and a delete as having succeeded.
+    const html = new Response('<html><body>Sign in</body></html>', {
+      status: 200,
+      headers: { 'Content-Type': 'text/html' },
+    })
+    await expect(parseSdpResponse(html, 'Failed to delete request')).rejects.toThrow(/non-JSON/)
+  })
+
+  it('throws on a 2xx whose body is valid JSON but not an object', async () => {
+    const scalar = new Response('"ok"', {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+    await expect(parseSdpResponse(scalar, 'Failed to get request')).rejects.toThrow(/non-JSON/)
+  })
+
+  it('tolerates an empty 2xx body, which carries nothing this layer needs', async () => {
+    // `null` rather than `''`: the Response constructor rejects a 204 with a body.
+    const noContent = new Response(null, { status: 204 })
+    await expect(parseSdpResponse(noContent, 'Failed to delete request')).resolves.toEqual({})
+    const blank = new Response('   ', { status: 200 })
+    await expect(parseSdpResponse(blank, 'Failed to delete request')).resolves.toEqual({})
   })
 
   it('throws on a 200 whose response_status reports a failure', async () => {

@@ -106,7 +106,7 @@ export const ManageEngineSdpBlock: BlockConfig<SdpResponse> = {
     'Manage ServiceDesk Plus Cloud requests, problems, changes, assets, and knowledge base solutions',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Full read and write access to ManageEngine ServiceDesk Plus Cloud: create, search, update and delete requests, problems, changes, assets and knowledge base solutions, and add notes to any ITSM record. Supports multi-portal accounts. Connecting requires a Zoho account in the US data center.',
+    'Full read and write access to ManageEngine ServiceDesk Plus Cloud: create, search, update and delete requests, problems, changes, assets and knowledge base solutions, and add notes to requests, problems and changes. Supports multi-portal accounts. Connecting requires a Zoho account in the US data center.',
   docsLink: 'https://docs.sim.ai/integrations/manageengine_sdp',
   category: 'tools',
   integrationType: IntegrationType.Support,

@@ -255,6 +255,25 @@ const TIME_PROPERTIES: Record<string, ToolOutputProperty> = {
   value: { type: 'string', description: 'Epoch milliseconds as a string', optional: true },
 }
 
+/**
+ * Problems, changes and solutions carry `display_id` as a `{ display_value,
+ * value }` pair — the same *shape* as a timestamp but not the same meaning:
+ * `display_value` is the prefixed record number shown in the UI ("PB-140",
+ * "CH 44", "SOL-1") and `value` is its bare sequence number ("140"). Declared
+ * separately from {@link TIME_PROPERTIES} so the generated tool metadata never
+ * tells a consumer that `140` is epoch milliseconds.
+ *
+ * Requests differ again: their `display_id` is a plain string.
+ */
+const DISPLAY_ID_PROPERTIES: Record<string, ToolOutputProperty> = {
+  display_value: {
+    type: 'string',
+    description: 'Record number as shown in the UI, e.g. PB-140',
+    optional: true,
+  },
+  value: { type: 'string', description: 'Bare sequence number, e.g. 140', optional: true },
+}
+
 const USER_PROPERTIES: Record<string, ToolOutputProperty> = {
   id: { type: 'string', description: 'User ID', optional: true },
   name: { type: 'string', description: 'User name', optional: true },
@@ -494,7 +513,7 @@ export const SDP_PROBLEM_PROPERTIES: Record<string, ToolOutputProperty> = {
     description: 'Problem number shown in the SDP UI',
     optional: true,
     nullable: true,
-    properties: TIME_PROPERTIES,
+    properties: DISPLAY_ID_PROPERTIES,
   },
   title: { type: 'string', description: 'Problem title', optional: true },
   description: {
@@ -632,7 +651,7 @@ export const SDP_CHANGE_PROPERTIES: Record<string, ToolOutputProperty> = {
     description: 'Change number shown in the SDP UI',
     optional: true,
     nullable: true,
-    properties: TIME_PROPERTIES,
+    properties: DISPLAY_ID_PROPERTIES,
   },
   title: { type: 'string', description: 'Change title', optional: true },
   description: {
@@ -901,7 +920,7 @@ export const SDP_SOLUTION_PROPERTIES: Record<string, ToolOutputProperty> = {
     description: 'Solution number shown in the SDP UI',
     optional: true,
     nullable: true,
-    properties: TIME_PROPERTIES,
+    properties: DISPLAY_ID_PROPERTIES,
   },
   title: { type: 'string', description: 'Solution title', optional: true },
   description: {
