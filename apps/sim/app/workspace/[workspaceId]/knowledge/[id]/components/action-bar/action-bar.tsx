@@ -6,7 +6,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 /** One source of truth for the button chrome, so the three actions read as one control strip. */
 const ACTION_BUTTON_CLASS = cn(
   chipFilledFillTokens,
-  'hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+  'hover-hover:text-[var(--text-inverse)]! size-[28px] rounded-lg p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
 )
 
 interface ActionBarProps {
@@ -57,10 +57,7 @@ export function ActionBar({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 10 }}
         transition={{ duration: 0.2 }}
-        className={cn(
-          '-translate-x-1/2 fixed bottom-6 left-1/2 z-[var(--z-dropdown)] transform',
-          className
-        )}
+        className={cn('-translate-x-1/2 fixed bottom-6 left-1/2 z-[var(--z-dropdown)]', className)}
       >
         <div className='flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
           <span className='px-1 text-[var(--text-secondary)] text-small'>

@@ -173,9 +173,9 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
         </a>
         <OverflowText
           label={meta.join(' · ')}
-          className='max-w-[40%] flex-shrink-0 text-[var(--text-muted)] text-caption'
+          className='max-w-[40%] shrink-0 text-[var(--text-muted)] text-caption'
         />
-        <div className='flex flex-shrink-0 items-center opacity-0 transition-opacity group-focus-within/source:opacity-100 group-hover/source:opacity-100 [@media(hover:none)]:opacity-100'>
+        <div className='flex shrink-0 items-center opacity-0 transition-opacity group-focus-within/source:opacity-100 group-hover/source:opacity-100 [@media(hover:none)]:opacity-100'>
           <CopyLinkAction url={source.url} />
         </div>
       </div>
@@ -206,7 +206,7 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
           </p>
         )}
       </div>
-      <div className='flex flex-shrink-0 items-center gap-1 self-start opacity-0 transition-opacity group-focus-within/source:opacity-100 group-hover/source:opacity-100 [@media(hover:none)]:opacity-100'>
+      <div className='flex shrink-0 items-center gap-1 self-start opacity-0 transition-opacity group-focus-within/source:opacity-100 group-hover/source:opacity-100 [@media(hover:none)]:opacity-100'>
         <CopyLinkAction url={source.url} />
         {onSummarize && (
           <Button variant='ghost' size='sm' onClick={() => onSummarize(source)}>

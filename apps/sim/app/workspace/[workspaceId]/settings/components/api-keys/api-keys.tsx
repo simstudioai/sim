@@ -62,7 +62,7 @@ interface ApiKeyRowMenuProps {
  */
 function ApiKeyRowMenu({ keyName, onDelete, canDelete = true }: ApiKeyRowMenuProps) {
   return (
-    <div className='flex-shrink-0'>
+    <div className='shrink-0'>
       <RowActionsMenu
         label='API key actions'
         actions={[

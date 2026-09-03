@@ -6,7 +6,7 @@ import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/compo
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 const ROW_CLASSES = 'flex items-center gap-2.5 p-2'
-const ROW_STATUS_CLASSES = 'flex-shrink-0 text-[var(--text-muted)] text-caption'
+const ROW_STATUS_CLASSES = 'shrink-0 text-[var(--text-muted)] text-caption'
 
 interface MemberAvatarProps {
   name: string
@@ -24,13 +24,13 @@ export function MemberAvatar({ name, image }: MemberAvatarProps) {
         src={image}
         alt={name}
         referrerPolicy='no-referrer'
-        className='size-[14px] flex-shrink-0 rounded-full border border-[var(--border)] object-cover'
+        className='size-[14px] shrink-0 rounded-full border border-[var(--border)] object-cover'
       />
     )
   }
 
   return (
-    <span className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+    <span className='flex size-[14px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
       {name.charAt(0).toUpperCase()}
     </span>
   )

@@ -112,7 +112,7 @@ function SourceChip({
       onClick={actionable ? onConnect : undefined}
       className={cn(!actionable && !unavailable && 'cursor-default')}
       title={title}
-      leftAdornment={<BrandIcon icon={connector.meta.icon} className='size-[14px] flex-shrink-0' />}
+      leftAdornment={<BrandIcon icon={connector.meta.icon} className='size-[14px] shrink-0' />}
       rightIcon={!busy && actionable ? Plus : undefined}
       rightAdornment={
         busy ? <Loader className='size-[14px] text-[var(--text-icon)]' animate /> : undefined

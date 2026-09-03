@@ -100,7 +100,7 @@ function ButtonGroup({
 }
 
 const buttonGroupItemVariants = cva(
-  'inline-flex items-center justify-center transition-colors outline-none focus:outline-none focus-visible:outline-none disabled:pointer-events-none disabled:opacity-70 px-2 py-1 text-caption border',
+  'inline-flex items-center justify-center transition-colors outline-hidden focus:outline-hidden focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-70 px-2 py-1 text-caption border',
   {
     variants: {
       active: {

@@ -54,7 +54,7 @@ export const SIDEBAR_RAIL_CHIP_CLASS = [
   'transition-[width]',
   '![transition-duration:175ms]',
   '[transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]',
-  'motion-reduce:!transition-none',
+  'motion-reduce:transition-none!',
   'group-data-[collapsed]/rail:w-[32px]',
 ].join(' ')
 

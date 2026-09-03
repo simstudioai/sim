@@ -625,7 +625,7 @@ export function MessagesInput({
                         {!isPreview && !disabled && (
                           <ChevronDown
                             className={cn(
-                              'size-3 flex-shrink-0 transition-transform duration-100',
+                              'size-3 shrink-0 transition-transform duration-100',
                               openPopoverIndex === index && 'rotate-180'
                             )}
                           />
@@ -714,7 +714,7 @@ export function MessagesInput({
                     ref={(el) => {
                       textareaRefs.current[fieldId] = el
                     }}
-                    className='relative z-[2] m-0 box-border h-auto min-h-[80px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-sans text-sm text-transparent leading-[1.5] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [letter-spacing:inherit] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
+                    className='relative z-[2] m-0 box-border h-auto min-h-[80px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-sans text-sm text-transparent leading-[1.5] caret-[var(--text-primary)] outline-hidden [-ms-overflow-style:none] [letter-spacing:inherit] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus:outline-hidden focus-visible:outline-hidden disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
                     placeholder='Enter message content...'
                     value={message.content}
                     onChange={fieldHandlers.onChange}

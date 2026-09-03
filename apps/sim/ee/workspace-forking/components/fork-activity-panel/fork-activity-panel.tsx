@@ -279,7 +279,7 @@ function jobDetails(job: BackgroundWorkItem, report: JobReport) {
     <>
       {report.groups.map((group) => (
         <div key={group.label} className='flex gap-2'>
-          <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>{group.label}</span>
+          <span className='w-[100px] shrink-0 text-[var(--text-muted)]'>{group.label}</span>
           <span className='min-w-0 flex-1 text-[var(--text-primary)]'>
             {group.names.join(', ')}
           </span>

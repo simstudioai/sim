@@ -27,7 +27,7 @@ const checkboxVariants = cva(
     'relative peer flex shrink-0 cursor-pointer items-center justify-center rounded-sm border transition-colors',
     'border-[var(--border-1)] bg-transparent',
     'before:absolute before:inset-[-12px] before:content-[""]',
-    'focus-visible:outline-none',
+    'focus-visible:outline-hidden',
     'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50',
     'data-[state=checked]:border-[var(--text-primary)] data-[state=checked]:bg-[var(--text-primary)]',
     'data-[state=indeterminate]:border-[var(--text-primary)] data-[state=indeterminate]:bg-[var(--text-primary)]',

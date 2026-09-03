@@ -28,13 +28,13 @@ function WorkflowsListInner({
   return (
     <div className='flex h-full flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-1)]'>
       {/* Table header */}
-      <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-6 py-2.5 dark:bg-[var(--surface-3)]'>
+      <div className='shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-6 py-2.5 dark:bg-[var(--surface-3)]'>
         <div className='flex items-center gap-4'>
-          <span className='w-[160px] flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
+          <span className='w-[160px] shrink-0 text-[var(--text-tertiary)] text-caption'>
             Workflow
           </span>
           <span className='flex-1 text-[var(--text-tertiary)] text-caption'>Logs</span>
-          <span className='w-[100px] flex-shrink-0 pl-4 text-[var(--text-tertiary)] text-caption'>
+          <span className='w-[100px] shrink-0 pl-4 text-[var(--text-tertiary)] text-caption'>
             Success Rate
           </span>
         </div>
@@ -77,8 +77,8 @@ function WorkflowsListInner({
                   }}
                 >
                   {/* Workflow name with icon */}
-                  <div className='flex w-[160px] flex-shrink-0 items-center gap-2 pr-2'>
-                    <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                  <div className='flex w-[160px] shrink-0 items-center gap-2 pr-2'>
+                    <Workflow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
                     <FloatingOverflowText
                       label={workflow.workflowName}
                       className='block truncate text-[var(--text-primary)] text-caption'
@@ -95,7 +95,7 @@ function WorkflowsListInner({
                   </div>
 
                   {/* Success rate */}
-                  <span className='w-[100px] flex-shrink-0 pl-4 text-[var(--text-primary)] text-caption'>
+                  <span className='w-[100px] shrink-0 pl-4 text-[var(--text-primary)] text-caption'>
                     {workflow.overallSuccessRate.toFixed(1)}%
                   </span>
                 </div>

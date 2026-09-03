@@ -96,7 +96,7 @@ const NEW_TRIGGER_URL_VALUE = '__new_trigger_url__'
  * General). Wide enough to hold a full-length secret key - these are the longest labels the
  * picker shows, and clipping them is what makes two same-prefixed keys indistinguishable.
  */
-const MAPPING_TARGET_TRIGGER_CLASS = 'w-[380px] flex-shrink-0'
+const MAPPING_TARGET_TRIGGER_CLASS = 'w-[380px] shrink-0'
 
 interface DependentBlock {
   targetBlockId: string
@@ -1056,7 +1056,7 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
                       {uses > 1 ? `Drop from ${uses} fields` : 'Drop'}
                     </Chip>
                   ) : (
-                    <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
+                    <span className='shrink-0 text-[var(--text-muted)] text-caption'>
                       same reference
                     </span>
                   )}

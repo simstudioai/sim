@@ -107,8 +107,8 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
   activeItem = 'New chat',
 }: EnterpriseSidebarProps = {}) {
   return (
-    <div className='isolate flex h-full w-[238px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3 will-change-transform'>
-      <div className='flex flex-shrink-0 items-center justify-between px-2'>
+    <div className='isolate flex h-full w-[238px] shrink-0 flex-col bg-[var(--surface-1)] pt-3 will-change-transform'>
+      <div className='flex shrink-0 items-center justify-between px-2'>
         <div className={cn(chipVariants(), 'min-w-0 flex-1')}>
           {/* The exact Brightwave mark the homepage capture seeds
               (`readme-tour-capture` sets `logoUrl: '/landing/rivian-logo.svg'`),
@@ -118,12 +118,12 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
             alt=''
             width={16}
             height={16}
-            className='size-[16px] flex-shrink-0 rounded-sm'
+            className='size-[16px] shrink-0 rounded-sm'
           />
           <span className={chipContentLabelClass}>{workspaceName}</span>
           <ChipChevronDown />
         </div>
-        <div className='flex h-[30px] w-[65px] flex-shrink-0 items-center gap-[1px]'>
+        <div className='flex h-[30px] w-[65px] shrink-0 items-center gap-[1px]'>
           <span className={chipVariants()}>
             <Search className={chipContentIconClass} />
           </span>
@@ -133,12 +133,12 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
         </div>
       </div>
 
-      <div className='mt-4 flex flex-shrink-0 flex-col gap-[1px] px-2'>
+      <div className='mt-4 flex shrink-0 flex-col gap-[1px] px-2'>
         <IconRow icon={Home} label='New chat' active={activeItem === 'New chat'} />
         <IconRow icon={Integration} label='Integrations' active={activeItem === 'Integrations'} />
       </div>
 
-      <div className='mt-4 flex flex-shrink-0 flex-col'>
+      <div className='mt-4 flex shrink-0 flex-col'>
         <SectionLabel label='Chats' />
         <div className='flex flex-col gap-[1px] px-2'>
           {chats.map((chat) => (
@@ -147,7 +147,7 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
         </div>
       </div>
 
-      <div className='mt-4 flex flex-shrink-0 flex-col'>
+      <div className='mt-4 flex shrink-0 flex-col'>
         <SectionLabel label='Workspace' />
         <div className='flex flex-col gap-[1px] px-2'>
           {WORKSPACE_NAV.map((item) => (
@@ -170,16 +170,16 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
         </div>
       </div>
 
-      <div className='flex flex-shrink-0 items-center border-t px-2 pt-[9px] pb-2'>
+      <div className='flex shrink-0 items-center border-t px-2 pt-[9px] pb-2'>
         <div className='flex min-w-0 flex-1'>
           <div className={cn(chipVariants(), 'min-w-0 max-w-full')}>
-            <span className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-4)] text-[var(--text-body)] text-micro leading-none'>
+            <span className='flex size-[16px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-4)] text-[var(--text-body)] text-micro leading-none'>
               {profileName.charAt(0).toUpperCase()}
             </span>
             <span className={chipContentLabelClass}>{profileName}</span>
           </div>
         </div>
-        <span className={cn(chipVariants(), 'flex-shrink-0')}>
+        <span className={cn(chipVariants(), 'shrink-0')}>
           <HelpCircle className={chipContentIconClass} />
         </span>
       </div>

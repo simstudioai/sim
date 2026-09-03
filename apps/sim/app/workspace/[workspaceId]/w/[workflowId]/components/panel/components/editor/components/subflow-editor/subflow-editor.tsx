@@ -250,7 +250,7 @@ export function SubflowEditor({
       {hasIncomingConnections && (
         <div
           className={
-            'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
+            'connections-section flex shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
             (!isResizing ? ' transition-[height] duration-100 ease-out' : '')
           }
           style={{ height: `${connectionsHeight}px` }}
@@ -265,7 +265,7 @@ export function SubflowEditor({
           </div>
 
           <div
-            className='flex flex-shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
+            className='flex shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
             onClick={toggleConnectionsCollapsed}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {

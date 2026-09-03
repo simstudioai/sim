@@ -401,11 +401,11 @@ export function DocumentTagsModal({
                   <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
                     {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
                   </span>
-                  <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
+                  <div className='mb-[-1.5px] h-[14px] w-[1.25px] shrink-0 rounded-full bg-[var(--border-1)]' />
                   <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-caption'>
                     {formatValueForDisplay(tag.value, tag.fieldType)}
                   </span>
-                  <div className='flex flex-shrink-0 items-center gap-1'>
+                  <div className='flex shrink-0 items-center gap-1'>
                     <Button
                       variant='ghost'
                       onClick={(e) => {

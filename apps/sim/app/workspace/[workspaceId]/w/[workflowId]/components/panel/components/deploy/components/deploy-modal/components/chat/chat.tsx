@@ -343,7 +343,7 @@ export function ChatDeploy({
       >
         {errors.general && (
           <div className='flex items-center gap-2 rounded-md border border-[color-mix(in_srgb,var(--text-error)_20%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] px-3 py-2 text-[var(--text-error)] text-small'>
-            <TriangleAlert className='size-4 flex-shrink-0' />
+            <TriangleAlert className='size-4 shrink-0' />
             <span>{errors.general}</span>
           </div>
         )}

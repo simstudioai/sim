@@ -44,7 +44,7 @@ const ROW_STEP_CLASSES = [styles.row0, styles.row1, styles.row2, styles.row3, st
  * The Tables grid told inside a cropped product window: the window keeps
  * the dark tiles' slot geometry (`top-5`, `left-0`, bleeding off the right
  * and bottom edges, `rounded-tl-xl`) but wears the light tiles' card
- * chrome - `--white` fill, 1px `--border-1` hairline, `shadow-sm` - so the
+ * chrome - `--white` fill, 1px `--border-1` hairline, `shadow-xs` - so the
  * grid reads as the workspace's own editor. Its `h-12` title bar pairs the
  * `Table` icon (in a hairline `size-6` icon box, the lifecycle header's
  * treatment) with the `Leads` table name over a hairline rule, and the
@@ -62,7 +62,7 @@ export function TableGridGraphic() {
     <FeatureGraphicShell>
       <div
         aria-hidden='true'
-        className='absolute top-5 right-0 bottom-0 left-0 overflow-hidden rounded-tl-xl border-[var(--border-1)] border-t border-l bg-[var(--white)] shadow-sm'
+        className='absolute top-5 right-0 bottom-0 left-0 overflow-hidden rounded-tl-xl border-[var(--border-1)] border-t border-l bg-[var(--white)] shadow-xs'
       >
         <div className='flex h-12 items-center gap-2 border-[var(--border-1)] border-b px-4'>
           <span className='flex size-6 items-center justify-center rounded-md border border-[var(--border-1)]'>

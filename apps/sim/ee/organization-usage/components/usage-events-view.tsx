@@ -27,16 +27,16 @@ function eventLabel(event: OrganizationUsageEvent): string {
 function UsageEventRow({ event }: { event: OrganizationUsageEvent }) {
   return (
     <div className='flex items-center gap-2.5 rounded-lg p-2 text-left'>
-      <span className='w-[150px] flex-shrink-0 text-[var(--text-muted)] text-caption'>
+      <span className='w-[150px] shrink-0 text-[var(--text-muted)] text-caption'>
         {formatDateTime(new Date(event.createdAt))}
       </span>
       <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
         {eventLabel(event)}
       </span>
-      <span className='min-w-0 max-w-[180px] flex-shrink truncate text-[var(--text-muted)] text-caption'>
+      <span className='min-w-0 max-w-[180px] shrink truncate text-[var(--text-muted)] text-caption'>
         {event.description}
       </span>
-      <span className='w-[92px] flex-shrink-0 text-right text-[var(--text-muted)] text-caption tabular-nums'>
+      <span className='w-[92px] shrink-0 text-right text-[var(--text-muted)] text-caption tabular-nums'>
         {formatApportionedCreditCost(event.credits, event.hasCost)}
       </span>
     </div>

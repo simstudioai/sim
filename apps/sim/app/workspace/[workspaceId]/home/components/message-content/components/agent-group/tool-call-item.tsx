@@ -239,7 +239,7 @@ export function ToolCallItem({
 
   return (
     <div className='flex min-w-0 items-center gap-[6px] pl-6'>
-      {BlockIcon && <BrandIcon icon={BlockIcon} className='size-[14px] flex-shrink-0' />}
+      {BlockIcon && <BrandIcon icon={BlockIcon} className='size-[14px] shrink-0' />}
       {isExecuting ? (
         <ShimmerText className='min-w-0 truncate text-[13px] leading-[18px] [--shimmer-rest:var(--text-secondary)]'>
           {title}

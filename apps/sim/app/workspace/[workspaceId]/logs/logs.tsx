@@ -195,7 +195,7 @@ function getColorIcon(color: string): React.ComponentType<{ className?: string }
 
   const ColorIcon = ({ className }: { className?: string }) => (
     <div
-      className={cn(className, 'flex-shrink-0 rounded-[3px]')}
+      className={cn(className, 'shrink-0 rounded-[3px]')}
       style={{
         backgroundColor: color,
         width: 10,
@@ -209,7 +209,7 @@ function getColorIcon(color: string): React.ComponentType<{ className?: string }
 }
 
 function WorkflowOptionIcon({ className }: { className?: string }) {
-  return <Workflow className={cn(className, 'flex-shrink-0 text-[var(--text-icon)]')} />
+  return <Workflow className={cn(className, 'shrink-0 text-[var(--text-icon)]')} />
 }
 
 function getTriggerIcon(
@@ -220,7 +220,7 @@ function getTriggerIcon(
   if (!block?.icon) return undefined
   const BlockIcon = block.icon
   const TriggerIcon = ({ className }: { className?: string }) => (
-    <BlockIcon className={cn(className, 'flex-shrink-0')} style={{ width: 12, height: 12 }} />
+    <BlockIcon className={cn(className, 'shrink-0')} style={{ width: 12, height: 12 }} />
   )
   TriggerIcon.displayName = `TriggerIcon(${triggerType})`
   return TriggerIcon
@@ -1469,7 +1469,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             <span className='flex w-full min-w-0 items-center gap-1.5 text-[var(--text-primary)]'>
               {selectedStatusColor && (
                 <div
-                  className='flex-shrink-0 rounded-[3px]'
+                  className='shrink-0 rounded-[3px]'
                   style={{ backgroundColor: selectedStatusColor, width: 8, height: 8 }}
                 />
               )}
@@ -1494,7 +1494,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           overlayContent={
             <span className='flex w-full min-w-0 items-center gap-1.5 text-[var(--text-primary)]'>
               {selectedWorkflow && (
-                <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                <Workflow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
               )}
               <span className='min-w-0 flex-1'>{workflowDisplayLabel}</span>
             </span>

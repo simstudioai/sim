@@ -118,12 +118,12 @@ export function GroupedCheckboxList({
         disabled={disabled}
         onClick={() => setOpen(true)}
         className={cn(
-          'flex w-full cursor-pointer items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-sans text-[var(--text-primary)] text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-[var(--surface-5)]',
+          'flex w-full cursor-pointer items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-sans text-[var(--text-primary)] text-sm outline-hidden focus:outline-hidden focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-[var(--surface-5)]',
           'hover-hover:bg-[var(--surface-active)]'
         )}
       >
         <span className='flex flex-1 items-center gap-2 truncate text-[var(--text-muted)]'>
-          <ManageWorkspace className='size-4 flex-shrink-0 opacity-50' />
+          <ManageWorkspace className='size-4 shrink-0 opacity-50' />
           <span className='truncate'>Configure PII Types</span>
         </span>
         <SelectedCountDisplay

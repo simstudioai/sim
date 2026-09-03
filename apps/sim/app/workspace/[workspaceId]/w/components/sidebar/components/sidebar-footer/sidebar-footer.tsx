@@ -75,7 +75,7 @@ function DesktopUpdateIcon({ className }: { className?: string }) {
     <div
       className={cn(
         className,
-        'flex size-[17px] flex-shrink-0 items-center justify-center rounded-full',
+        'flex size-[17px] shrink-0 items-center justify-center rounded-full',
         chipPrimaryFillTokens
       )}
     >
@@ -181,17 +181,17 @@ export function SidebarFooter({
    * left to see. The workspace header's logo sidesteps the same rule the same way.
    */
   const avatar = !profile ? (
-    <Skeleton className='size-[16px] flex-shrink-0 rounded-full' />
+    <Skeleton className='size-[16px] shrink-0 rounded-full' />
   ) : profile.image ? (
     <img
       src={profile.image}
       alt=''
       referrerPolicy='no-referrer'
-      className='size-[16px] flex-shrink-0 rounded-full object-cover'
+      className='size-[16px] shrink-0 rounded-full object-cover'
     />
   ) : (
     <div
-      className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-full text-[9px] text-white leading-none'
+      className='flex size-[16px] shrink-0 items-center justify-center rounded-full text-[9px] text-white leading-none'
       style={{ backgroundColor: getUserColor(profile.id) }}
     >
       {name.charAt(0).toUpperCase()}
@@ -308,7 +308,7 @@ export function SidebarFooter({
                than the rail, and a shrinking chip would be squeezed onto the avatar.
                Holding its size pushes it past the edge, where the aside's clip hides
                it until there is room. */
-            className={cn('flex-shrink-0', SIDEBAR_RAIL_CHIP_CLASS)}
+            className={cn('shrink-0', SIDEBAR_RAIL_CHIP_CLASS)}
           />
         </DropdownMenuTrigger>
       </SidebarTooltip>
@@ -345,7 +345,7 @@ export function SidebarFooter({
   return (
     <div
       className={cn(
-        'flex flex-shrink-0 border-t px-2 pt-[9px] pb-2',
+        'flex shrink-0 border-t px-2 pt-[9px] pb-2',
         isCollapsed ? cn(SIDEBAR_ITEM_GAP_CLASS, 'flex-col-reverse') : 'items-center'
       )}
     >

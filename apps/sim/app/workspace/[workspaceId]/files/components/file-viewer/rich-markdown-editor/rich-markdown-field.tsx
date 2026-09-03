@@ -512,7 +512,7 @@ function RawMarkdownField({
         readOnly={isStreaming || lockedView}
         tabIndex={lockedView ? -1 : undefined}
         className={cn(
-          'w-full resize-none border-none bg-transparent p-0 text-current caret-current outline-none focus-visible:outline-none',
+          'w-full resize-none border-none bg-transparent p-0 text-current caret-current outline-hidden focus-visible:outline-hidden',
           'scrollbar-none placeholder:text-current placeholder:opacity-55',
           lockedView && 'select-none opacity-50',
           autoGrow && 'overflow-hidden',

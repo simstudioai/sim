@@ -62,12 +62,12 @@ export function SourceChip({ source }: SourceChipProps) {
           )}
         >
           {ConnectorIcon ? (
-            <BrandIcon icon={ConnectorIcon} className='size-[12px] flex-shrink-0' />
+            <BrandIcon icon={ConnectorIcon} className='size-[12px] shrink-0' />
           ) : hostname ? (
             <img
               src={faviconUrl(hostname, 32)}
               alt=''
-              className='size-[12px] flex-shrink-0 rounded-[3px]'
+              className='size-[12px] shrink-0 rounded-[3px]'
               onError={hideBrokenFavicon}
             />
           ) : null}

@@ -237,7 +237,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
     }
     const isPlaceholder = !isMultiple && selectedValues.length === 0
 
-    const iconClass = cn('size-[16px] flex-shrink-0', !isInverse && 'text-[var(--text-icon)]')
+    const iconClass = cn('size-[16px] shrink-0', !isInverse && 'text-[var(--text-icon)]')
     /**
      * The chevron glyph stays at its conventional subtle size, but is rendered
      * inside a `size-[16px]` slot so its bounding box matches `leftIcon`'s. The
@@ -249,9 +249,9 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
     /**
      * `flex-1` is always applied so the chevron is pushed flush against the
      * trailing edge whenever the trigger gets stretched — by `fullWidth`, by a
-     * flex parent with `flex-grow`, or by a CSS grid cell with a fixed track.
+     * flex parent with `grow`, or by a CSS grid cell with a fixed track.
      * On intrinsic-width triggers (`inline-flex` with no parent constraint) the
-     * container is sized to max-content, so `flex-grow` has no leftover space to
+     * container is sized to max-content, so `grow` has no leftover space to
      * consume and the layout collapses to the natural `gap-2` between items.
      */
     const labelClass = cn('flex-1 text-sm', !isInverse && 'text-[var(--text-body)]')
@@ -299,7 +299,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
           ) : (
             <span className={cn(overflowTextClipClass, 'flex-1')}>{option.label}</span>
           )}
-          {showSelectedCheck && isSelected ? <Check className='!ml-auto !size-[16px]' /> : null}
+          {showSelectedCheck && isSelected ? <Check className='ml-auto! size-[16px]!' /> : null}
         </DropdownMenuItem>
       )
     }
@@ -364,7 +364,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
               }}
             >
               <DropdownMenuItemLabel label={allLabel} />
-              {selectedValues.length === 0 ? <Check className='!ml-auto !size-[16px]' /> : null}
+              {selectedValues.length === 0 ? <Check className='ml-auto! size-[16px]!' /> : null}
             </DropdownMenuItem>
           )}
           {filteredOptions.map(renderItem)}

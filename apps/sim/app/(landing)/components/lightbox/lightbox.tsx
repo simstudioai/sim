@@ -45,7 +45,7 @@ export function Lightbox({ isOpen, onClose, src, alt }: LightboxProps) {
   return (
     <div
       ref={overlayRef}
-      className='fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-12 backdrop-blur-sm'
+      className='fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-12 backdrop-blur-xs'
       role='dialog'
       aria-modal='true'
       aria-label='Image viewer'

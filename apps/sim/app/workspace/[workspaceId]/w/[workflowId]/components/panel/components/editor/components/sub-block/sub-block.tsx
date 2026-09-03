@@ -264,7 +264,7 @@ const renderLabel = (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <span className='inline-flex'>
-                  <TriangleAlert className='size-3 flex-shrink-0 cursor-pointer text-destructive' />
+                  <TriangleAlert className='size-3 shrink-0 cursor-pointer text-destructive' />
                 </span>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>
@@ -348,7 +348,7 @@ const renderLabel = (
                     e.stopPropagation()
                     wandState.onSearchSubmit()
                   }}
-                  className='size-[20px] flex-shrink-0 p-0'
+                  className='size-[20px] shrink-0 p-0'
                 >
                   <ArrowUp className='size-[12px]' />
                 </Button>
@@ -361,11 +361,11 @@ const renderLabel = (
             <Tooltip.Trigger asChild>
               <button
                 type='button'
-                className='flex size-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0'
+                className='flex size-[12px] shrink-0 items-center justify-center bg-transparent p-0'
                 onClick={externalLink?.onClick}
                 aria-label={externalLink?.tooltip}
               >
-                <SquareArrowUpRight className='!h-[12px] !w-[12px] text-[var(--text-secondary)]' />
+                <SquareArrowUpRight className='h-[12px]! w-[12px]! text-[var(--text-secondary)]' />
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
@@ -378,7 +378,7 @@ const renderLabel = (
             <Tooltip.Trigger asChild>
               <button
                 type='button'
-                className='flex size-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
+                className='flex size-[12px] shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
                 onClick={canonicalToggle?.onToggle}
                 disabled={canonicalToggleDisabledResolved}
                 aria-label={
@@ -389,7 +389,7 @@ const renderLabel = (
               >
                 <ArrowLeftRight
                   className={cn(
-                    '!h-[12px] !w-[12px]',
+                    'h-[12px]! w-[12px]!',
                     canonicalToggle?.mode === 'advanced'
                       ? 'text-[var(--text-primary)]'
                       : 'text-[var(--text-secondary)]'

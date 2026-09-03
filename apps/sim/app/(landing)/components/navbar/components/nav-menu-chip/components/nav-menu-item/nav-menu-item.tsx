@@ -22,11 +22,11 @@ interface NavMenuItemProps {
 }
 
 const ROW_CLASS =
-  'group/item flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)] focus-visible:bg-[var(--surface-active)] focus-visible:outline-none'
+  'group/item flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)] focus-visible:bg-[var(--surface-active)] focus-visible:outline-hidden'
 const TITLE_CLASS = 'truncate text-[14px] text-[var(--text-body)]'
 const DESC_CLASS = 'text-[12px] text-[var(--text-muted)] leading-snug'
 const ARROW_CLASS =
-  'size-4 flex-shrink-0 -translate-x-1 text-[var(--text-icon)] opacity-0 transition-[opacity,transform] group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-visible/item:translate-x-0 group-focus-visible/item:opacity-100 motion-reduce:transition-none'
+  'size-4 shrink-0 -translate-x-1 text-[var(--text-icon)] opacity-0 transition-[opacity,transform] group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-visible/item:translate-x-0 group-focus-visible/item:opacity-100 motion-reduce:transition-none'
 
 export function NavMenuItem({ item, onSelect }: NavMenuItemProps) {
   const { title, description, href, external } = item

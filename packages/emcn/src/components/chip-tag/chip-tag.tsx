@@ -192,7 +192,7 @@ export function ChipTag({
      `--text-icon` gray is tuned for this component's light surfaces and would
      all but disappear on a tone's deep fill. */
   const iconClass = cn(
-    'size-[14px] flex-shrink-0',
+    'size-[14px] shrink-0',
     !invalid && variant !== 'workflow' && variant !== 'brand' && 'text-[var(--text-icon)]'
   )
   const interactive = RightIcon != null && onRightIconClick != null
@@ -213,7 +213,7 @@ export function ChipTag({
             onClick={onRightIconClick}
             disabled={rightIconDisabled}
             aria-label={rightIconLabel}
-            className='relative flex flex-shrink-0 items-center opacity-80 transition-opacity before:absolute before:inset-[-8px] before:content-[""] hover-hover:opacity-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50'
+            className='relative flex shrink-0 items-center opacity-80 transition-opacity before:absolute before:inset-[-8px] before:content-[""] hover-hover:opacity-100 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50'
           >
             <RightIcon className={iconClass} />
           </button>

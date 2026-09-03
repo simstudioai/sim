@@ -13,7 +13,7 @@ interface StageBlockCardProps {
  */
 export function StageBlockCard({ block }: StageBlockCardProps) {
   return (
-    <div className='relative rounded-[13px] border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm'>
+    <div className='relative rounded-[13px] border border-[var(--border-1)] bg-[var(--surface-2)] shadow-xs'>
       <WorkflowBlockContent block={block} />
       {!block.isTrigger && (
         <span

@@ -29,7 +29,7 @@ const ROW_STEP_CLASSES = [styles.row0, styles.row1, styles.row2] as const
  * hairline-ruled rows, each a passing circle-check, the transaction
  * label, and a right-aligned mono amount. The tile's highlight is the
  * one exception: a white card in the audit tile's exact chrome
- * (`--white` fill, 1px `--border-1` hairline, `rounded-xl`, `shadow-sm`)
+ * (`--white` fill, 1px `--border-1` hairline, `rounded-xl`, `shadow-xs`)
  * pairing the unmatched transaction and its routed-for-review line with
  * a `Flagged` tag that carries the tile's one repeating motion, the
  * family's shared quiet 6s ring pulse.
@@ -85,7 +85,7 @@ export function ReconcileGraphic() {
 
           <div
             className={cn(
-              'mt-2 flex items-center gap-3 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm',
+              'mt-2 flex items-center gap-3 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs',
               styles.exceptionIn
             )}
           >

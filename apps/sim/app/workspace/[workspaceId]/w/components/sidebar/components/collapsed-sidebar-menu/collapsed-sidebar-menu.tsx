@@ -310,7 +310,7 @@ export function CollapsedChatFlyoutItem({
           onChange={(e) => onEditValueChange?.(e.target.value)}
           onKeyDown={onEditKeyDown}
           onBlur={onEditBlur}
-          className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-small outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+          className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-small outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
           maxLength={100}
           disabled={isRenaming}
           onClick={(e) => {
@@ -389,7 +389,7 @@ export function CollapsedWorkflowFlyoutItem({
           onChange={(e) => onEditValueChange?.(e.target.value)}
           onKeyDown={onEditKeyDown}
           onBlur={onEditBlur}
-          className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-small outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+          className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-small outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
           maxLength={100}
           disabled={isRenaming}
           onClick={(e) => {

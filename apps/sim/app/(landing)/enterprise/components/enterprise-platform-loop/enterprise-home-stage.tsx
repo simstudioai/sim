@@ -235,7 +235,7 @@ export function EnterpriseHomeStage({
                       i > 0 && 'border-t'
                     )}
                   >
-                    <Icon className='size-[16px] flex-shrink-0 text-[var(--text-muted)]' />
+                    <Icon className='size-[16px] shrink-0 text-[var(--text-muted)]' />
                     <span className='flex-1 truncate text-[var(--text-primary)] text-sm'>
                       {action}
                     </span>

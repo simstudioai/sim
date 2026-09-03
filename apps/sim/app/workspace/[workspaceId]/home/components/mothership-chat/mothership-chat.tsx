@@ -152,7 +152,7 @@ const LAYOUT_STYLES = {
     attachmentWidth: 'max-w-[70%]',
     userBubble: 'max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2',
     assistantRow: 'group/msg',
-    footer: 'flex-shrink-0 px-[24px] pb-[16px]',
+    footer: 'shrink-0 px-[24px] pb-[16px]',
     footerInner: 'mx-auto max-w-chat',
   },
   'copilot-view': {
@@ -164,7 +164,7 @@ const LAYOUT_STYLES = {
     attachmentWidth: 'max-w-[85%]',
     userBubble: 'max-w-[85%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3 py-2',
     assistantRow: 'group/msg',
-    footer: 'flex-shrink-0 px-3 pb-3',
+    footer: 'shrink-0 px-3 pb-3',
     footerInner: '',
   },
 } as const

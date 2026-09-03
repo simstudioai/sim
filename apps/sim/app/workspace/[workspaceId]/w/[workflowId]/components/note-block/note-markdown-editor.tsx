@@ -16,7 +16,7 @@ export const NOTE_EDITOR_PROSE_CLASS_NAME = [
      two together. Without it the editor falls back to the per-element margins
      and every block after the first sits ~12px higher than when viewing. */
   '[&_.ProseMirror]:space-y-4 [&_.ProseMirror>*:first-child]:mt-0 [&_.ProseMirror>*:last-child]:mb-0',
-  '[&_.ProseMirror]:min-h-full [&_.ProseMirror]:break-words [&_.ProseMirror]:pt-0.5 [&_.ProseMirror]:pb-2 [&_.ProseMirror]:outline-none',
+  '[&_.ProseMirror]:min-h-full [&_.ProseMirror]:break-words [&_.ProseMirror]:pt-0.5 [&_.ProseMirror]:pb-2 [&_.ProseMirror]:outline-hidden',
   '[&_.ProseMirror_p]:mb-1 [&_.ProseMirror_p]:text-sm [&_.ProseMirror_p]:leading-[1.25rem] [&_.ProseMirror_p:last-child]:mb-0',
   '[&_.ProseMirror_h1]:mt-3 [&_.ProseMirror_h1]:mb-3 [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h1]:text-lg [&_.ProseMirror_h1:first-child]:mt-0',
   '[&_.ProseMirror_h2]:mt-2.5 [&_.ProseMirror_h2]:mb-2.5 [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h2]:text-base [&_.ProseMirror_h2:first-child]:mt-0',

@@ -54,7 +54,7 @@ export function MemberRow<TRole extends string = MemberRole>({
       )}
     >
       <div className='flex min-w-0 items-center gap-2.5'>
-        <Avatar className='size-9 flex-shrink-0'>
+        <Avatar className='size-9 shrink-0'>
           <AvatarFallback
             style={{ background: getUserColor(member.userId || member.userEmail || '') }}
             className='border border-[var(--border-1)] text-small text-white'

@@ -107,11 +107,11 @@ const getCursorHandleSize = (side: WorkflowBorderCursorHandle['edgeSide']) =>
 /** Invisible React Flow handles aligned with the painted connection knobs. */
 const getHandleClasses = (position: 'left' | 'right') => {
   const baseClasses =
-    '!z-20 !h-[38px] !w-[14px] !cursor-crosshair !rounded-none !border-none !bg-transparent !opacity-0'
+    'z-20! h-[38px]! w-[14px]! cursor-crosshair! rounded-none! border-none! bg-transparent! opacity-0!'
 
   const positionClasses = {
-    left: '!left-[-7px]',
-    right: '!right-[-7px]',
+    left: 'left-[-7px]!',
+    right: 'right-[-7px]!',
   }
 
   return cn(baseClasses, positionClasses[position])
@@ -130,10 +130,10 @@ function SubflowStateIndicator({ label, Icon }: SubflowStateIndicatorProps) {
         <ChipTag
           variant='workflow'
           tone='neutral'
-          className='size-5 flex-shrink-0 justify-center p-0'
+          className='size-5 shrink-0 justify-center p-0'
           aria-label={label}
         >
-          <Icon className='size-[12px] flex-shrink-0' />
+          <Icon className='size-[12px] shrink-0' />
         </ChipTag>
       </Tooltip.Trigger>
       <Tooltip.Content side='top'>
@@ -291,7 +291,7 @@ export function SubflowStartView({
           type='source'
           position={getCursorSourceHandlePosition(cursorSourceHandle.edgeSide)}
           id={cursorHandleId}
-          className='!z-50 !cursor-crosshair !rounded-none !border-none !bg-transparent !opacity-0'
+          className='z-50! cursor-crosshair! rounded-none! border-none! bg-transparent! opacity-0!'
           style={{
             right: 'auto',
             bottom: 'auto',
@@ -585,7 +585,7 @@ export function SubflowNodeView({
             type='source'
             position={getCursorSourceHandlePosition(cursorSourceHandle.edgeSide)}
             id={cursorSourceHandle.handleId}
-            className='!z-50 !cursor-crosshair !rounded-none !border-none !bg-transparent !opacity-0'
+            className='z-50! cursor-crosshair! rounded-none! border-none! bg-transparent! opacity-0!'
             style={{
               right: 'auto',
               bottom: 'auto',
@@ -624,19 +624,19 @@ export function SubflowNodeView({
               className={cn('text-[17px]', !isEnabled && 'text-[var(--text-muted)]')}
             />
           </div>
-          <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
+          <div className='relative z-10 flex shrink-0 items-center gap-1'>
             {!isEnabled && <SubflowStateIndicator label='Disabled' Icon={Ban} />}
             {isLocked && <SubflowStateIndicator label='Locked' Icon={Lock} />}
             <ChipTag
               variant={blockTypeAccent.variant}
               tone={blockTypeAccent.tone}
               className={cn(
-                'flex-shrink-0 justify-center transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
+                'shrink-0 justify-center transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
                 !isEnabled && 'opacity-50'
               )}
               data-subflow-type-tag={data.kind}
             >
-              <BlockIcon className='size-[14px] flex-shrink-0' />
+              <BlockIcon className='size-[14px] shrink-0' />
               {blockTypeLabel}
             </ChipTag>
           </div>

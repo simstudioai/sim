@@ -85,7 +85,7 @@ export function BrowserFindBar({ inputRef, onClose, scopeId }: BrowserFindBarPro
   )
 
   return (
-    <div className='w-[clamp(170px,33%,280px)] min-w-0 flex-shrink'>
+    <div className='w-[clamp(170px,33%,280px)] min-w-0 shrink'>
       <ChipInput
         ref={inputRef}
         type='text'
@@ -98,7 +98,7 @@ export function BrowserFindBar({ inputRef, onClose, scopeId }: BrowserFindBarPro
         value={query}
         inputClassName='min-w-0'
         endAdornment={
-          <div className='-mr-1 flex flex-shrink-0 items-center gap-0.5'>
+          <div className='-mr-1 flex shrink-0 items-center gap-0.5'>
             <FindCount query={query} result={result} />
             <Button
               type='button'
@@ -106,7 +106,7 @@ export function BrowserFindBar({ inputRef, onClose, scopeId }: BrowserFindBarPro
               size='sm'
               aria-label='Previous match'
               disabled={!result?.matches}
-              className='size-[24px] flex-shrink-0 p-0'
+              className='size-[24px] shrink-0 p-0'
               onClick={() => step('back')}
             >
               <ArrowUp className='size-[13px]' />
@@ -117,7 +117,7 @@ export function BrowserFindBar({ inputRef, onClose, scopeId }: BrowserFindBarPro
               size='sm'
               aria-label='Next match'
               disabled={!result?.matches}
-              className='size-[24px] flex-shrink-0 p-0'
+              className='size-[24px] shrink-0 p-0'
               onClick={() => step('forward')}
             >
               <ArrowDown className='size-[13px]' />
@@ -127,7 +127,7 @@ export function BrowserFindBar({ inputRef, onClose, scopeId }: BrowserFindBarPro
               variant='ghost-secondary'
               size='sm'
               aria-label='Close find bar'
-              className='size-[24px] flex-shrink-0 p-0'
+              className='size-[24px] shrink-0 p-0'
               onClick={dismiss}
             >
               <X className='size-[13px]' />
@@ -165,7 +165,7 @@ function FindCount({ query, result }: { query: string; result: BrowserFindResult
   if (result.matches === 0) {
     if (!result.final) return null
     return (
-      <span aria-live='polite' className='flex-shrink-0 px-1 text-[var(--text-muted)] text-caption'>
+      <span aria-live='polite' className='shrink-0 px-1 text-[var(--text-muted)] text-caption'>
         No results
       </span>
     )
@@ -173,7 +173,7 @@ function FindCount({ query, result }: { query: string; result: BrowserFindResult
   return (
     <span
       aria-live='polite'
-      className='flex-shrink-0 px-1 text-[var(--text-muted)] text-caption tabular-nums'
+      className='shrink-0 px-1 text-[var(--text-muted)] text-caption tabular-nums'
     >
       {result.activeMatchOrdinal}/{result.matches}
     </span>

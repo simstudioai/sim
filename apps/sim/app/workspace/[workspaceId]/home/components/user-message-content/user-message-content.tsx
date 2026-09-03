@@ -7,7 +7,7 @@ import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/type
 import { getIntegrationMatcher } from '@/blocks/integration-matcher'
 
 const USER_MESSAGE_CLASSES =
-  'whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-[family-name:var(--font-inter)] text-base text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
+  'whitespace-pre-wrap [overflow-wrap:anywhere] font-[family-name:var(--font-inter)] text-base text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
 
 const COMPACT_CLASSES =
   'truncate text-small leading-[20px] font-[family-name:var(--font-inter)] text-[var(--text-primary)] tracking-[0] antialiased'
@@ -111,7 +111,7 @@ function MentionHighlight({ context }: { context: ChatMessageContext }) {
     <span className='inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px]'>
       <ContextMentionIcon
         context={context}
-        className='relative top-0.5 size-[12px] flex-shrink-0 text-[var(--text-icon)]'
+        className='relative top-0.5 size-[12px] shrink-0 text-[var(--text-icon)]'
       />
       {context.label}
     </span>

@@ -157,7 +157,7 @@ function StatusFilterChip({ value, onChange }: StatusFilterChipProps) {
       onChange={(next) => onChange(next as StatusFilter)}
       options={STATUS_FILTER_OPTIONS}
       matchTriggerWidth={false}
-      className='w-[140px] flex-shrink-0'
+      className='w-[140px] shrink-0'
     />
   )
 }
@@ -546,8 +546,8 @@ function ProviderRow({
           checked={isProviderAllowed}
           onCheckedChange={() => onToggleProvider()}
         />
-        <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
-          {ProviderIcon && <ProviderIcon className='!size-[16px]' />}
+        <div className='relative flex size-[16px] shrink-0 items-center justify-center'>
+          {ProviderIcon && <ProviderIcon className='size-[16px]!' />}
         </div>
         <button
           type='button'
@@ -560,14 +560,14 @@ function ProviderRow({
         >
           <OverflowText label={providerName} className='text-sm' />
           {isProviderAllowed && deniedCount > 0 && (
-            <ChipTag variant='gray' className='flex-shrink-0'>
+            <ChipTag variant='gray' className='shrink-0'>
               {deniedCount} blocked
             </ChipTag>
           )}
           {isProviderAllowed && (
             <ChevronDown
               className={cn(
-                'ml-auto size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
+                'ml-auto size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
                 expanded && 'rotate-180'
               )}
             />
@@ -630,10 +630,10 @@ function BlockToolRow({
           onCheckedChange={() => onToggleBlock()}
         />
         <div
-          className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+          className='relative flex size-[16px] shrink-0 items-center justify-center overflow-hidden rounded-sm'
           style={{ background: block.bgColor }}
         >
-          {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
+          {BlockIcon && <BlockIcon className='size-[9px]! text-white' />}
         </div>
         <button
           type='button'
@@ -651,19 +651,19 @@ function BlockToolRow({
               is the only thing that tells them apart, so an allowlist decision made without
               it is a guess. */}
           {block.sourceWorkspaceName && (
-            <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
+            <span className='shrink-0 text-[var(--text-muted)] text-caption'>
               {block.sourceWorkspaceName}
             </span>
           )}
           {isBlockAllowed && deniedCount > 0 && (
-            <ChipTag variant='gray' className='flex-shrink-0'>
+            <ChipTag variant='gray' className='shrink-0'>
               {deniedCount} blocked
             </ChipTag>
           )}
           {isBlockAllowed && isExpandable && (
             <ChevronDown
               className={cn(
-                'ml-auto size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform',
+                'ml-auto size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
                 expanded && 'rotate-180'
               )}
             />
@@ -671,7 +671,7 @@ function BlockToolRow({
         </button>
         {/* Outside the button: an Info trigger is itself a button and cannot nest. */}
         {block.description && (
-          <Info side='top' className={cn('flex-shrink-0', !isBlockAllowed && 'opacity-60')}>
+          <Info side='top' className={cn('shrink-0', !isBlockAllowed && 'opacity-60')}>
             {block.description}
           </Info>
         )}
@@ -1546,7 +1546,7 @@ export function GroupDetail({
                       options={workspaceOptions}
                       isLoading={workspacesLoading}
                       allowAllWorkspaces={false}
-                      className='flex-shrink-0'
+                      className='shrink-0'
                     />
                   </div>
                   {viewingGroup.workspaces.length > 0 && (
@@ -1579,7 +1579,7 @@ export function GroupDetail({
                       variant='primary'
                       leftIcon={Plus}
                       onClick={handleOpenAddMembersModal}
-                      className='flex-shrink-0'
+                      className='shrink-0'
                     >
                       Add
                     </Chip>
@@ -1588,7 +1588,7 @@ export function GroupDetail({
                     <div className='-mx-2 flex flex-col gap-y-0.5'>
                       {[1, 2].map((i) => (
                         <div key={i} className='flex items-center gap-2.5 p-2'>
-                          <Skeleton className='size-[14px] flex-shrink-0 rounded-full' />
+                          <Skeleton className='size-[14px] shrink-0 rounded-full' />
                           <Skeleton className='h-[14px] w-[180px]' />
                         </div>
                       ))}
@@ -1719,20 +1719,20 @@ export function GroupDetail({
                             onCheckedChange={() => toggleIntegration(block.type)}
                           />
                           <div
-                            className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                            className='relative flex size-[16px] shrink-0 items-center justify-center overflow-hidden rounded-sm'
                             style={{ background: block.bgColor }}
                           >
-                            {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
+                            {BlockIcon && <BlockIcon className='size-[9px]! text-white' />}
                           </div>
                           <OverflowText label={block.name} className='text-sm' />
                           {block.sourceWorkspaceName && (
-                            <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
+                            <span className='shrink-0 text-[var(--text-muted)] text-caption'>
                               {block.sourceWorkspaceName}
                             </span>
                           )}
                         </label>
                         {block.description && (
-                          <Info side='top' className='flex-shrink-0'>
+                          <Info side='top' className='shrink-0'>
                             {block.description}
                           </Info>
                         )}
@@ -1837,12 +1837,12 @@ export function GroupDetail({
                             />
                             <span className='font-normal text-sm'>{feature.label}</span>
                             {inert && (
-                              <ChipTag variant='gray' className='flex-shrink-0'>
+                              <ChipTag variant='gray' className='shrink-0'>
                                 Organization
                               </ChipTag>
                             )}
                           </label>
-                          <Info side='top' className='flex-shrink-0'>
+                          <Info side='top' className='shrink-0'>
                             {inert
                               ? `${feature.hint} ${ORGANIZATION_SCOPED_FEATURE_NOTE}`
                               : feature.hint}

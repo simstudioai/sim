@@ -105,7 +105,7 @@ export function ColumnDropdown({
     ) : (
       <button
         type='button'
-        className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
+        className='flex h-[20px] cursor-pointer items-center gap-2 outline-hidden'
         disabled={disabled}
         onClick={blocked ? onBlocked : undefined}
       >

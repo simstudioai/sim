@@ -540,8 +540,8 @@ function BreadcrumbLocationPopover({
             )}
           >
             <span className='relative inline-grid size-[16px] shrink-0 place-items-center'>
-              <Icon className='col-start-1 row-start-1 size-[16px] text-[var(--text-icon)] opacity-100 blur-0 transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
-              <ArrowUpLeft className='col-start-1 row-start-1 size-[16px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none' />
+              <Icon className='col-start-1 row-start-1 size-[16px] text-[var(--text-icon)] opacity-100 blur-none transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
+              <ArrowUpLeft className='col-start-1 row-start-1 size-[16px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-none group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-none motion-reduce:transition-none' />
             </span>
             {rootBreadcrumb?.label && (
               <OverflowText
@@ -562,7 +562,7 @@ function BreadcrumbLocationPopover({
           border
           className={cn(
             POPOVER_ANIMATION_CLASSES,
-            'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
+            'bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-xs'
           )}
           onMouseEnter={openPopover}
           onMouseLeave={scheduleClose}

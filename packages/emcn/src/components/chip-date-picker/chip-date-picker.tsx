@@ -135,7 +135,7 @@ const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(
             data-native-surface-overlay=''
             className={cn(
               POPOVER_ANIMATION_CLASSES,
-              'z-[var(--z-popover)] origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border-1)] bg-[var(--bg)] shadow-sm'
+              'z-[var(--z-popover)] origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border-1)] bg-[var(--bg)] shadow-xs'
             )}
           >
             {props.mode === 'range' ? (

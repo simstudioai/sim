@@ -169,7 +169,7 @@ const MENU_MAX_HEIGHT_CLASS = 'max-h-[min(420px,var(--radix-popper-available-hei
  * and gave the menu a wider gutter than its own 8px row padding; two consumers had
  * already overridden it back down to 4px by hand.
  */
-const CONTENT_BASE_CLASSES = `z-[var(--z-popover)] ${MENU_MAX_HEIGHT_CLASS} min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden overscroll-none rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1 text-[var(--text-body)] shadow-sm`
+const CONTENT_BASE_CLASSES = `z-[var(--z-popover)] ${MENU_MAX_HEIGHT_CLASS} min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden overscroll-none rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1 text-[var(--text-body)] shadow-xs`
 
 /**
  * Menu root. Inside a `ModalContent` (Radix modal dialog) the menu is forced
@@ -225,7 +225,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
         /* An open submenu keeps its trigger on the selected surface — including while
            the pointer is on it, so walking into the submenu doesn't drop the trigger
            back to the hover fill. */
-        `flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${chipContentGap} ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[state=open]:bg-[var(--surface-active)] data-[state=open]:focus:bg-[var(--surface-active)] ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`,
+        `flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${chipContentGap} ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-hidden ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[state=open]:bg-[var(--surface-active)] data-[state=open]:focus:bg-[var(--surface-active)] ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`,
         inset && 'pl-7',
         className
       )}
@@ -298,7 +298,7 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
  * is how the `@`-mention list drifted to its own gap, radius, height and text size.
  * Compose this instead of restating the literals.
  */
-export const dropdownMenuRowClass = `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-pointer select-none items-center ${chipContentGap} ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none ${MENU_ROW_TRANSITION_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`
+export const dropdownMenuRowClass = `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-pointer select-none items-center ${chipContentGap} ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-hidden ${MENU_ROW_TRANSITION_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`
 
 const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
@@ -382,7 +382,7 @@ const DropdownMenuItemAction = React.forwardRef<
       onPointerDown?.(e)
     }}
     className={cn(
-      'flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm outline-none [&_svg]:pointer-events-none [&_svg]:size-[16px] [&_svg]:text-[var(--text-icon)]',
+      'flex size-[18px] shrink-0 items-center justify-center rounded-sm outline-hidden [&_svg]:pointer-events-none [&_svg]:size-[16px] [&_svg]:text-[var(--text-icon)]',
       className
     )}
     {...props}
@@ -397,7 +397,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-none ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
+      `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-hidden ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
       className
     )}
     checked={checked}
@@ -420,7 +420,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-none ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
+      `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-hidden ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
       className
     )}
     {...props}
@@ -522,7 +522,7 @@ const DropdownMenuSearchInput = React.forwardRef<
           onKeyDown?.(e)
         }}
         className={cn(
-          'h-full w-full bg-transparent text-[var(--text-body)] text-small outline-none placeholder:text-[var(--text-muted)] focus:outline-none',
+          'h-full w-full bg-transparent text-[var(--text-body)] text-small outline-hidden placeholder:text-[var(--text-muted)] focus:outline-hidden',
           className
         )}
         {...props}

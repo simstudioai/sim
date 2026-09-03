@@ -542,10 +542,10 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                       >
                         {file.name}
                       </span>
-                      <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
+                      <span className='shrink-0 text-[var(--text-muted)] text-xs'>
                         {formatFileSize(file.size)}
                       </span>
-                      <div className='flex flex-shrink-0 items-center gap-1'>
+                      <div className='flex shrink-0 items-center gap-1'>
                         {isProcessing ? (
                           <Loader className='size-4 text-[var(--text-muted)]' animate />
                         ) : (

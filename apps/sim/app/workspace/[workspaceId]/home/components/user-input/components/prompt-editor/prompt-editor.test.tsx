@@ -258,7 +258,7 @@ describe('PromptEditor autosize', () => {
     const initialValue = `${'x'.repeat(PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS)} ${SKILL_CHIP_TRIGGER}summarize`
     const { textarea, unmount } = mountEditor({ initialValue, initialContexts: [context] })
 
-    expect(textarea.className).not.toContain('!text-[var(--text-primary)]')
+    expect(textarea.className).not.toContain('text-[var(--text-primary)]!')
     expect(textarea.parentElement?.querySelector('[aria-hidden="true"]')).not.toBeNull()
 
     unmount()

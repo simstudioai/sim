@@ -128,7 +128,7 @@ export function ContentIndexPage({
                         timeZone: 'UTC',
                       })}
                     </span>
-                    <h3 className='text-[var(--text-primary)] text-base leading-tight tracking-[-0.01em] lg:text-lg'>
+                    <h3 className='text-[var(--text-primary)] text-base leading-tight tracking-[-0.01em] lg:text-lg lg:leading-7'>
                       {p.title}
                     </h3>
                     <p className='line-clamp-2 text-[var(--text-muted)] text-sm leading-[150%]'>

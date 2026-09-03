@@ -357,7 +357,7 @@ const MARKDOWN_COMPONENTS = {
           {kind && ref && (
             <ContextMentionIcon
               context={{ kind, label: kind === 'file' ? fileIconLabel(ref, label) : label }}
-              className='relative top-0.5 size-[12px] flex-shrink-0 text-[var(--text-icon)]'
+              className='relative top-0.5 size-[12px] shrink-0 text-[var(--text-icon)]'
             />
           )}
           {children}

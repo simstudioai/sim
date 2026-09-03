@@ -733,7 +733,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                           href={doc.sourceUrl}
                           target='_blank'
                           rel='noopener noreferrer'
-                          className='flex size-5 flex-shrink-0 items-center justify-center rounded-md text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
+                          className='flex size-5 shrink-0 items-center justify-center rounded-md text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
                         >
                           <SquareArrowUpRight className='size-3' />
                         </a>
@@ -745,7 +745,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                 <Button
                   variant='ghost-secondary'
                   size='sm'
-                  className='flex-shrink-0'
+                  className='shrink-0'
                   disabled={doc.userExcluded ? isRestoring : isExcluding}
                   onClick={() =>
                     doc.userExcluded

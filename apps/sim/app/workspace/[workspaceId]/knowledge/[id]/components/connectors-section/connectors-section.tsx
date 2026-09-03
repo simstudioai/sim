@@ -412,7 +412,7 @@ function ConnectorCard({
         <div className='flex min-w-0 items-center gap-2.5'>
           <div
             className={cn(
-              'flex size-9 flex-shrink-0 items-center justify-center rounded-xl border',
+              'flex size-9 shrink-0 items-center justify-center rounded-xl border',
               brandBg
                 ? 'border-[var(--border-1)]'
                 : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
@@ -434,11 +434,11 @@ function ConnectorCard({
                 <OverflowText label={connectorDef?.name || connector.connectorType} />
                 {syncInFlight && <Loader className='size-3 text-[var(--text-muted)]' animate />}
               </span>
-              <Badge variant={statusConfig.variant} size='sm' dot className='flex-shrink-0'>
+              <Badge variant={statusConfig.variant} size='sm' dot className='shrink-0'>
                 {statusConfig.label}
               </Badge>
               {syncsPerMember && (
-                <Badge variant='gray' size='sm' icon={Users} className='flex-shrink-0'>
+                <Badge variant='gray' size='sm' icon={Users} className='shrink-0'>
                   Per member
                 </Badge>
               )}
@@ -485,7 +485,7 @@ function ConnectorCard({
           </div>
         </div>
 
-        <div className='flex flex-shrink-0 items-center gap-0.5'>
+        <div className='flex shrink-0 items-center gap-0.5'>
           {canEdit && (
             <>
               {canFullResync ? (
@@ -604,7 +604,7 @@ function ConnectorCard({
         <div className='border-[var(--border-muted)] border-t px-2 py-2'>
           <div className='flex flex-col gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-3)] px-2.5 py-2'>
             <div className='flex items-center gap-1.5 text-[var(--text-primary)] text-caption'>
-              <TriangleAlert className='size-3 flex-shrink-0 text-[var(--caution)]' />
+              <TriangleAlert className='size-3 shrink-0 text-[var(--caution)]' />
               Per-member sync is disabled
             </div>
             <p className='text-[var(--text-muted)] text-caption leading-snug'>
@@ -620,7 +620,7 @@ function ConnectorCard({
         <div className='border-[var(--border-muted)] border-t px-2 py-2'>
           <div className='flex flex-col gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-3)] px-2.5 py-2'>
             <div className='flex items-center gap-1.5 text-[var(--text-primary)] text-caption'>
-              <TriangleAlert className='size-3 flex-shrink-0 text-[var(--caution)]' />
+              <TriangleAlert className='size-3 shrink-0 text-[var(--caution)]' />
               Connector disabled after repeated sync failures
             </div>
             <p className='text-[var(--text-muted)] text-caption leading-snug'>
@@ -827,7 +827,7 @@ export function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
 
         return (
           <div key={log.id} className='flex items-start gap-2 rounded-md px-2 py-1.5 text-xs'>
-            <div className='mt-[1px] flex-shrink-0'>
+            <div className='mt-[1px] shrink-0'>
               {state === 'running' ? (
                 <Loader className='size-3 text-[var(--text-muted)]' animate />
               ) : state === 'interrupted' ? (
@@ -968,7 +968,7 @@ function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistoryProps)
             const changes = log.docsAdded + log.docsUpdated + log.docsTombstoned + log.docsPurged
             return (
               <div key={log.id} className='flex items-start gap-2 rounded-md px-2 py-1.5 text-xs'>
-                <div className='mt-[1px] flex-shrink-0'>
+                <div className='mt-[1px] shrink-0'>
                   {state === 'running' ? (
                     <Loader className='size-3 text-[var(--text-muted)]' animate />
                   ) : state === 'interrupted' ? (

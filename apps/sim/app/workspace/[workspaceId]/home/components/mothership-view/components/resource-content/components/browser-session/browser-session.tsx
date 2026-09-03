@@ -1259,7 +1259,7 @@ export function BrowserSession({
             size='sm'
             aria-label='Back'
             disabled={!pageState?.canGoBack}
-            className='size-[30px] flex-shrink-0 p-0'
+            className='size-[30px] shrink-0 p-0'
             onClick={() => sendBrowserPanelAction('back', {}, scopeId)}
           >
             <ArrowLeft className='size-[14px]' />
@@ -1270,7 +1270,7 @@ export function BrowserSession({
             size='sm'
             aria-label='Forward'
             disabled={!pageState?.canGoForward}
-            className='size-[30px] flex-shrink-0 p-0'
+            className='size-[30px] shrink-0 p-0'
             onClick={() => sendBrowserPanelAction('forward', {}, scopeId)}
           >
             <ArrowRight className='size-[14px]' />
@@ -1280,7 +1280,7 @@ export function BrowserSession({
             variant='ghost-secondary'
             size='sm'
             aria-label='Reload page'
-            className='size-[30px] flex-shrink-0 p-0'
+            className='size-[30px] shrink-0 p-0'
             onClick={() => sendBrowserPanelAction('reload', {}, scopeId)}
           >
             <RefreshCw className='size-[14px]' />
@@ -1486,7 +1486,7 @@ export function BrowserSession({
                   size='sm'
                   aria-label='Fill a saved password'
                   title='Fill a saved password'
-                  className='size-[30px] flex-shrink-0 p-0'
+                  className='size-[30px] shrink-0 p-0'
                 >
                   <Key className='size-[14px]' />
                 </Button>
@@ -1525,9 +1525,9 @@ export function BrowserSession({
                 type='button'
                 aria-label='Browser menu'
                 title='Browser menu'
-                className={cn(chipVariants(), 'flex-shrink-0')}
+                className={cn(chipVariants(), 'shrink-0')}
               >
-                <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                <MoreHorizontal className='size-[14px] shrink-0 text-[var(--text-icon)]' />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent

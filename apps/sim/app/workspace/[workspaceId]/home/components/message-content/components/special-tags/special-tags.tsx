@@ -1849,7 +1849,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
                     i > 0 && 'border-t'
                   )}
                 >
-                  <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
+                  <div className='flex size-[16px] shrink-0 items-center justify-center'>
                     <span className='text-[var(--text-icon)] text-sm'>{i + 1}</span>
                   </div>
                   <span className='flex-1 text-[var(--text-body)] text-sm'>{title}</span>
@@ -1936,7 +1936,7 @@ export function WorkspaceResourceDisplay({
     <>
       <ContextMentionIcon
         context={context}
-        className='relative top-0.5 size-[12px] flex-shrink-0 text-[var(--text-icon)]'
+        className='relative top-0.5 size-[12px] shrink-0 text-[var(--text-icon)]'
       />
       {resource.title}
     </>

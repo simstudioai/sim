@@ -171,7 +171,7 @@ export function FieldFormat({
         <Tooltip.Trigger asChild>
           <button
             type='button'
-            className='flex size-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
+            className='flex size-[12px] shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
             onClick={() =>
               setFileFieldModes((prev) => ({
                 ...prev,
@@ -183,7 +183,7 @@ export function FieldFormat({
           >
             <ArrowLeftRight
               className={cn(
-                '!h-[12px] !w-[12px]',
+                'h-[12px]! w-[12px]!',
                 mode === 'json' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
               )}
             />

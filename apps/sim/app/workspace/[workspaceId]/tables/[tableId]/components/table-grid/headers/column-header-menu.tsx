@@ -295,7 +295,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               if (e.key === 'Escape') onRenameCancel()
             }}
             onBlur={onRenameSubmit}
-            className='ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-primary)] text-small outline-none focus:outline-none focus:ring-0'
+            className='ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-primary)] text-small outline-hidden focus:outline-hidden focus:ring-0'
           />
         </div>
       ) : readOnly ? (
@@ -315,7 +315,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         <div className='flex h-full w-full min-w-0 items-center'>
           <button
             type='button'
-            className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-none'
+            className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-hidden'
             onClick={handleHeaderClick}
             draggable={false}
           >

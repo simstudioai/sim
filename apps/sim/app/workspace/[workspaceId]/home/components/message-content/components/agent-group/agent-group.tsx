@@ -203,7 +203,7 @@ export function AgentGroup({
           onClick={toggleExpanded}
           className='group/agent flex w-full min-w-0 cursor-pointer items-center gap-2 text-left'
         >
-          <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
+          <div className='flex size-[16px] shrink-0 items-center justify-center'>
             <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
           </div>
           {isWorking ? (
@@ -213,14 +213,14 @@ export function AgentGroup({
           )}
           <ChevronDown
             className={cn(
-              'size-[14px] flex-shrink-0 text-[var(--text-icon)] opacity-0 transition-[transform,opacity] duration-150 group-hover/agent:opacity-100 group-focus-visible/agent:opacity-100',
+              'size-[14px] shrink-0 text-[var(--text-icon)] opacity-0 transition-[transform,opacity] duration-150 group-hover/agent:opacity-100 group-focus-visible/agent:opacity-100',
               !expanded && '-rotate-90'
             )}
           />
         </button>
       ) : (
         <div className='flex min-w-0 items-center gap-2'>
-          <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
+          <div className='flex size-[16px] shrink-0 items-center justify-center'>
             <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
           </div>
           {isWorking ? (
@@ -407,8 +407,8 @@ function BoundedViewport({ children, isStreaming, unbounded = false }: BoundedVi
       </div>
       {!unbounded && hasOverflow && (
         <>
-          <div className='pointer-events-none absolute top-0 right-2 left-0 h-3 bg-gradient-to-b from-[var(--bg)] to-transparent' />
-          <div className='pointer-events-none absolute right-2 bottom-0 left-0 h-3 bg-gradient-to-t from-[var(--bg)] to-transparent' />
+          <div className='pointer-events-none absolute top-0 right-2 left-0 h-3 bg-linear-to-b from-[var(--bg)] to-transparent' />
+          <div className='pointer-events-none absolute right-2 bottom-0 left-0 h-3 bg-linear-to-t from-[var(--bg)] to-transparent' />
         </>
       )}
     </div>

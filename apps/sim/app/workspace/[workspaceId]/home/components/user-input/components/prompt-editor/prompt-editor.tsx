@@ -263,7 +263,7 @@ export function PromptEditor({
           rows={1}
           className={cn(
             TEXTAREA_BASE_CLASSES,
-            usePlainTextMode && '!text-[var(--text-primary)]',
+            usePlainTextMode && 'text-[var(--text-primary)]!',
             readOnly && 'cursor-default caret-transparent'
           )}
         />

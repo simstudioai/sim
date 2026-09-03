@@ -82,7 +82,7 @@ function OwnerBadge({ row }: { row: LibraryRow }) {
  * claim. The newest record - an agent's report, written seconds ago - is
  * the selected row: it sits on a solid white card wearing the family's
  * highlight chrome exactly (`--white` fill, 1px `--border-1` hairline,
- * `rounded-xl`, `shadow-sm`), while older rows rest directly on the tile
+ * `rounded-xl`, `shadow-xs`), while older rows rest directly on the tile
  * and quieten with age until a mask gradient dissolves the oldest.
  *
  * Motion (from `file-library-graphic.module.css`): the rows stamp in top
@@ -121,7 +121,7 @@ export function FileLibraryGraphic() {
                     'flex items-center gap-3 px-3 py-2.5',
                     ROW_STEP_CLASSES[index],
                     newest &&
-                      'rounded-xl border border-[var(--border-1)] bg-[var(--white)] shadow-sm'
+                      'rounded-xl border border-[var(--border-1)] bg-[var(--white)] shadow-xs'
                   )}
                 >
                   <OwnerBadge row={row} />

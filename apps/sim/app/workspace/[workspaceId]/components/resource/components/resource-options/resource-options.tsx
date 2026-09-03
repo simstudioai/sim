@@ -201,7 +201,7 @@ export const ResourceOptions = memo(function ResourceOptions({
                     sideOffset={6}
                     className={cn(
                       POPOVER_ANIMATION_CLASSES,
-                      'z-[var(--z-popover)] w-fit origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+                      'z-[var(--z-popover)] w-fit origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-xs'
                     )}
                   >
                     {popoverFilter.content}
@@ -262,7 +262,7 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
       {search.dropdown && (
         <div
           ref={search.dropdownRef}
-          className='absolute top-full left-0 z-[var(--z-dropdown)] mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+          className='absolute top-full left-0 z-[var(--z-dropdown)] mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-xs'
         >
           {search.dropdown}
         </div>

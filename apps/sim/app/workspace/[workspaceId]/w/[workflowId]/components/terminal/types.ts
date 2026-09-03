@@ -48,10 +48,10 @@ export const ROW_STYLES = {
   content: `flex min-w-0 flex-1 items-center ${chipContentGap}`,
   label: chipContentLabelClass,
   labelError: cn(chipContentLabelClass, 'text-[var(--text-error)]'),
-  status: 'flex-shrink-0 text-sm',
+  status: 'shrink-0 text-sm',
   statusIdle: 'text-[var(--text-muted)]',
   nested: 'mt-0.5 ml-[3px] flex min-w-0 flex-col gap-0.5 border-[var(--border)] border-l pl-[9px]',
-  iconButton: '!p-1.5 -m-1.5',
+  iconButton: 'p-1.5! -m-1.5',
 } as const
 
 /**

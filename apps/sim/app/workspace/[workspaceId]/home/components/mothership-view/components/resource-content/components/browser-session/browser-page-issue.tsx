@@ -148,7 +148,7 @@ export function BrowserPageIssueView({ issue, onReload, focusRecovery }: Browser
         <h2
           ref={headingRef}
           id='browser-page-issue-heading'
-          className='rounded-[4px] font-medium text-[var(--text-primary)] text-base outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--border-1)]'
+          className='rounded-[4px] font-medium text-[var(--text-primary)] text-base outline-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--border-1)]'
           tabIndex={-1}
         >
           {copy.headline}

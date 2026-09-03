@@ -113,7 +113,7 @@ Adding a new settings page:
 ## Text-scale tokens (no literal pixel sizes)
 
 Settings pages never use a literal `text-[Npx]` class — always the named Tailwind
-scale token from `apps/sim/tailwind.config.ts`'s `fontSize` extension (`text-micro`
+scale token from the `@theme` block in `apps/sim/app/_styles/globals.css` (`text-micro`
 10px, `text-xs` 11px, `text-caption` 12px, `text-small` 13px, `text-sm` 14px
 [Tailwind default, unmodified], `text-base` 15px, `text-md` 16px, `text-lg` 18px
 [Tailwind default]). A literal size is either a straight rename to the equivalent

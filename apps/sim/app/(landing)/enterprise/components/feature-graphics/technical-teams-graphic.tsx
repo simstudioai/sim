@@ -44,7 +44,7 @@ const MARKER_TONES: Record<DiffLine['marker'], string> = {
  * thing read. The review's
  * verdict is the tile's one highlight: a white card in the audit tile's
  * exact chrome (`--white` fill, 1px `--border-1` hairline, `rounded-xl`,
- * `shadow-sm`) pairing the reviewer — gradient avatar (shared with the
+ * `shadow-xs`) pairing the reviewer — gradient avatar (shared with the
  * access, audit, and staging tiles), name, and an "Approved these
  * changes" attribution line — with an `Approved` tag that carries the
  * tile's only motion, the family's shared quiet 6s ring pulse (from
@@ -114,8 +114,8 @@ export function TechnicalTeamsGraphic({
             ))}
           </div>
 
-          <div className='mt-3 flex items-center gap-3 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm'>
-            <span className='relative size-7 shrink-0 overflow-hidden rounded-full shadow-sm'>
+          <div className='mt-3 flex items-center gap-3 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs'>
+            <span className='relative size-7 shrink-0 overflow-hidden rounded-full shadow-xs'>
               <Image
                 src='/landing/team-avatar-2.jpg'
                 alt=''

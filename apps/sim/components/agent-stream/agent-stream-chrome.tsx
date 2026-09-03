@@ -178,7 +178,7 @@ export function AgentStreamThinkingChrome({
             {open && isStreaming && overflowing && (
               <div
                 aria-hidden
-                className='pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-[var(--bg)] to-transparent'
+                className='pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-[var(--bg)] to-transparent'
               />
             )}
           </div>

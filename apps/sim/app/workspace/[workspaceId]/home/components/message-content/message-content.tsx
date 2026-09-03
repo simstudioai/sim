@@ -1059,7 +1059,7 @@ function MessageContentInner({
       lastSegment?.type === 'stopped' ? (
         <>
           <div className='mt-[10px] flex items-center gap-[8px]'>
-            <CircleStop className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+            <CircleStop className='size-[16px] shrink-0 text-[var(--text-icon)]' />
             <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
           </div>
           {actions && <div className='mt-[10px]'>{actionsRow}</div>}

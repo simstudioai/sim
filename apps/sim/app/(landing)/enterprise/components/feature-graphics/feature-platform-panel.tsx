@@ -25,7 +25,7 @@ export function FeaturePlatformPanel({
     <div
       aria-hidden='true'
       className={cn(
-        'absolute right-0 bottom-0 left-0 overflow-hidden rounded-tl-xl border-[var(--border-1)] border-t border-l bg-[var(--surface-2)] shadow-sm',
+        'absolute right-0 bottom-0 left-0 overflow-hidden rounded-tl-xl border-[var(--border-1)] border-t border-l bg-[var(--surface-2)] shadow-xs',
         className
       )}
     >

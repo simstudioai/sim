@@ -19,7 +19,7 @@ import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/fold
 /** Shared chrome for every action button, so the bar reads as one control strip. */
 const ACTION_BUTTON_CLASS = cn(
   chipFilledFillTokens,
-  'hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+  'hover-hover:text-[var(--text-inverse)]! size-[28px] rounded-lg p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
 )
 
 interface ActionButtonProps {
@@ -98,7 +98,7 @@ export function ResourceActionBar({
   return (
     <div
       className={cn(
-        '-translate-x-1/2 fixed bottom-6 left-1/2 z-[var(--z-dropdown)] transform',
+        '-translate-x-1/2 fixed bottom-6 left-1/2 z-[var(--z-dropdown)]',
         'fade-in-0 slide-in-from-bottom-2 animate-in duration-200 ease-out motion-reduce:animate-none',
         className
       )}

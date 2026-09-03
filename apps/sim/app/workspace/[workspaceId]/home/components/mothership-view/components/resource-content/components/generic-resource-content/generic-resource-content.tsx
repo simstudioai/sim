@@ -35,10 +35,7 @@ export function GenericResourceContent({ data }: GenericResourceContentProps) {
         <div key={entry.toolCallId} className='flex flex-col gap-2 px-4 py-3'>
           <div className='flex items-center gap-2'>
             {entry.status === 'executing' && (
-              <PillsRing
-                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                animate
-              />
+              <PillsRing className='size-[14px] shrink-0 text-[var(--text-tertiary)]' animate />
             )}
             <span className='text-[13px] text-[var(--text-primary)]'>
               {getToolStatusDisplayTitle(entry.displayTitle, entry.status, entry.toolName)}

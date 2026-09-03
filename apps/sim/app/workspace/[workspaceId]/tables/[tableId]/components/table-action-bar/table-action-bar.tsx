@@ -85,7 +85,7 @@ export function TableActionBar({
             exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.2 }}
             className={cn(
-              '-translate-x-1/2 pointer-events-none absolute bottom-6 left-1/2 z-50 transform',
+              '-translate-x-1/2 pointer-events-none absolute bottom-6 left-1/2 z-50',
               className
             )}
           >
@@ -157,7 +157,7 @@ function ActionIconButton({ label, onClick, disabled, children }: ActionIconButt
           variant='ghost'
           onClick={onClick}
           disabled={disabled}
-          className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+          className='size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)] hover-hover:text-[var(--text-inverse)]!'
           aria-label={label}
         >
           {children}

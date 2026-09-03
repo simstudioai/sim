@@ -62,7 +62,7 @@ interface DetailRowProps {
 function DetailRow({ label, children }: DetailRowProps) {
   return (
     <div className='flex items-center justify-between gap-3'>
-      <span className='flex-shrink-0 text-[var(--text-muted)] text-small'>{label}</span>
+      <span className='shrink-0 text-[var(--text-muted)] text-small'>{label}</span>
       <span className='min-w-0 break-words text-right text-[var(--text-body)] text-sm'>
         {children}
       </span>
@@ -269,7 +269,7 @@ function RunRow({ run }: { run: DataDrainRun }) {
         </div>
         {run.error && <div className='break-words text-[var(--text-error)]'>{run.error}</div>}
       </div>
-      <div className='flex-shrink-0 text-right text-[var(--text-muted)]'>
+      <div className='shrink-0 text-right text-[var(--text-muted)]'>
         <div className='tabular-nums'>{run.rowsExported.toLocaleString()} rows</div>
         <div className='tabular-nums'>
           {formatFileSize(run.bytesWritten, { includeBytes: true })}
