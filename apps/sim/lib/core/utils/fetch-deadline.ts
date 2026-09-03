@@ -42,6 +42,10 @@ import { Agent, type Dispatcher } from 'undici'
  *   timeout: false -> RESOLVED 310031ms               <- disarmed
  *   timeout: 1000  -> RESOLVED 3008ms on a 3s request <- numeric ignored
  *
+ * Re-checked on Bun 1.4.0: `timeout: 1000` against a 3s-delayed response still
+ * resolves at ~3s rather than throwing at 1s — the numeric form is still
+ * ignored, so nothing below changed with that bump.
+ *
  * So a positive numeric `timeout` silently changes nothing on this version; the
  * numeric idle-deadline form and `BUN_CONFIG_HTTP_IDLE_TIMEOUT` both exist only
  * on Bun's `main`. Do not "improve" this into a numeric pass-through until the
