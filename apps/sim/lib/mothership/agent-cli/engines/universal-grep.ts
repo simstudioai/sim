@@ -11,7 +11,7 @@ import {
 import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
 
 /**
- * `grep <pattern> [--scope a,b] [--in <world|id|name|world/id>] [-i] [-C n] [--count] [--limit n]` —
+ * `grep <pattern> [--scope a,b] [--in <world|id|name|world/id>] [-i] [-C n] [-A n] [-B n] [--count] [--limit n]` —
  * ONE search over the materialized text of every world the agent can see (18-agent-
  * surface.md A2). Each resource is rendered to pretty-printed JSON exactly as its
  * `get` command returns it, so a hit names the same path the model would read next:
@@ -438,12 +438,31 @@ function parseLimit(flags: AgentCliFlags): number | string {
   return Math.min(n, MAX_MATCH_LIMIT)
 }
 
-function parseContext(flags: AgentCliFlags): number | string {
-  const raw = flags.C
-  if (raw === undefined || raw === true) return 0
-  const n = Number.parseInt(raw, 10)
-  if (!Number.isFinite(n) || n < 0) return '-C needs a non-negative number'
+interface ContextWindow {
+  before: number
+  after: number
+}
+
+function parseContextFlag(raw: unknown, flag: string): number | string | undefined {
+  if (raw === undefined || raw === true) return undefined
+  const n = Number.parseInt(String(raw), 10)
+  if (!Number.isFinite(n) || n < 0) return `-${flag} needs a non-negative number`
   return n
+}
+
+/**
+ * `-C n` around each hit, `-B n` before, `-A n` after — the grep spelling the model
+ * already knows. `-A`/`-B` used to be ignored silently, so `-A 40` returned the bare
+ * match line and read as "context flags are non-deterministic".
+ */
+function parseContext(flags: AgentCliFlags): ContextWindow | string {
+  const around = parseContextFlag(flags.C, 'C')
+  if (typeof around === 'string') return around
+  const before = parseContextFlag(flags.B, 'B')
+  if (typeof before === 'string') return before
+  const after = parseContextFlag(flags.A, 'A')
+  if (typeof after === 'string') return after
+  return { before: before ?? around ?? 0, after: after ?? around ?? 0 }
 }
 
 export const universalGrepCommand: AgentCliEngine = {
@@ -451,7 +470,7 @@ export const universalGrepCommand: AgentCliEngine = {
     const pattern = positionals[0]
     if (!pattern) {
       return agentCliFail(
-        'Usage: sim grep <pattern> [--scope workflows,blocks,...] [--in <world|id|name|world/id>] [-i] [-C n] [--count] [--limit n]'
+        'Usage: sim grep <pattern> [--scope workflows,blocks,...] [--in <world|id|name|world/id>] [-i] [-C n] [-A n] [-B n] [--count] [--limit n]'
       )
     }
     const scopes = parseScopes(flags)
@@ -505,7 +524,11 @@ export const universalGrepCommand: AgentCliEngine = {
         total++
         perScope.set(resource.scope, (perScope.get(resource.scope) ?? 0) + 1)
         if (countOnly) continue
-        for (let j = Math.max(0, i - context); j <= Math.min(lines.length - 1, i + context); j++) {
+        for (
+          let j = Math.max(0, i - context.before);
+          j <= Math.min(lines.length - 1, i + context.after);
+          j++
+        ) {
           selected.add(j)
         }
       }
