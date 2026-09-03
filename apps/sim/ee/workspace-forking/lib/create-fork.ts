@@ -560,6 +560,8 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         tables: contentPlan.tables.length,
         knowledgeBases: contentPlan.knowledgeBases.length,
         files: blobTasks.length,
+        skills: contentPlan.skills.length,
+        documents: contentPlan.documents.length,
         workflowNames: forkedWorkflowNames,
         tableNames: forkedResourceNames.tables,
         knowledgeBaseNames: forkedResourceNames.knowledgeBases,

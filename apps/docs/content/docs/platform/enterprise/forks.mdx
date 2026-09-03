@@ -136,7 +136,7 @@ The setting belongs to **this workspace's copy** only. Excluding a workflow here
 
 <Image src="/static/enterprise/forks-activity.png" alt="Activity view showing Fork and Push events with expandable detail rows" width={900} height={614} />
 
-Expand a row for names of workflows and resources that were created, updated, or archived, and any warnings (for example failed background copies or deploy failures).
+Expand a row for names of workflows and resources that were created, updated, or archived, and any warnings (for example failed background copies or deploy failures). A push or pull that copies resources fills their content in the background, and that progress and outcome show in the same row.
 
 ---
 
@@ -330,6 +330,8 @@ Servers that **publish workflows as MCP tools**.
 |---|----------|
 | **Fork** | **Values never leave the source.** Workflow text still contains `{{KEY}}` names. Create matching secrets (or the names you will map to) under the child’s **Secrets**. |
 | **Sync** | Map source key names to target key names. Values stay in each workspace. Unmapped required secrets block Sync. |
+
+Notes are documentation: a `{{KEY}}` that appears only inside a Note block never needs mapping and never blocks Sync.
 
 **Example:** Workflows use `{{OPENAI_API_KEY}}`. After fork, add that secret in the child (or map `OPENAI_API_KEY` to whatever name the child uses) before runs and syncs succeed.
 

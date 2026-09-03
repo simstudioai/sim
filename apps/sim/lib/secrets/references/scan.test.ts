@@ -115,6 +115,65 @@ describe('scanSecretReferences', () => {
   })
 
   /**
+   * A Note is documentation on the canvas: its text never resolves at run time, so a `{{KEY}}`
+   * in it is prose about the secret, not a use of it. The remapper drops it for the same reason
+   * it drops a condition-hidden field, and the tab has to agree — rotating a key does not mean
+   * editing every note that mentions it.
+   */
+  it('drops a Note block that mentions the secret', async () => {
+    queueTableRows(schemaMock.workflowBlocks, [
+      blockRow({
+        blockId: 'block-1',
+        blockName: 'Setup notes',
+        blockType: 'note',
+        workflowId: 'workflow-1',
+        workflowName: 'Nightly sync',
+        subBlocks: {
+          content: { id: 'content', type: 'long-input', value: 'Uses {{API_KEY}} for auth.' },
+        },
+      }),
+    ])
+
+    const scan = await scanSecretReferences({ workspaceId: 'workspace-1', name: 'API_KEY' })
+
+    expect(scan.workflows).toEqual([])
+  })
+
+  it('lists only the executing block when a Note and a block both name the secret', async () => {
+    queueTableRows(schemaMock.workflowBlocks, [
+      blockRow({
+        blockId: 'block-1',
+        blockName: 'Setup notes',
+        blockType: 'note',
+        workflowId: 'workflow-1',
+        workflowName: 'Nightly sync',
+        subBlocks: {
+          content: { id: 'content', type: 'long-input', value: 'Uses {{API_KEY}} for auth.' },
+        },
+      }),
+      blockRow({
+        blockId: 'block-2',
+        blockName: 'Fetch orders',
+        workflowId: 'workflow-1',
+        workflowName: 'Nightly sync',
+        subBlocks: shortInput('apiKey', '{{API_KEY}}'),
+      }),
+    ])
+
+    const scan = await scanSecretReferences({ workspaceId: 'workspace-1', name: 'API_KEY' })
+
+    expect(scan.workflows).toEqual([
+      {
+        workflowId: 'workflow-1',
+        workflowName: 'Nightly sync',
+        blocks: [
+          { blockId: 'block-2', blockName: 'Fetch orders', blockType: 'agent', field: 'apiKey' },
+        ],
+      },
+    ])
+  })
+
+  /**
    * The fork remapper collapses a block's references to one per `(kind, sourceId)`, so a block
    * naming the secret twice yields one entry, not two. Pinned here because the panel renders
    * `field` as the row's whole description — if this ever became a list, the row would need to

@@ -57,6 +57,7 @@ import {
   replaceKnowledgeDocumentSecretProvenanceInTx,
 } from '@/lib/knowledge/secret-provenance'
 import { DEFAULT_TABLE_VIEW_NAME } from '@/lib/table/constants'
+import { generateTableId } from '@/lib/table/ids'
 import { nKeysBetween } from '@/lib/table/order-key'
 import {
   classifyTableRowSecretProvenanceForCopy,
@@ -673,7 +674,7 @@ export async function copyForkResourceContainers(
     const inserts: (typeof userTableDefinitions.$inferInsert)[] = []
     const viewInserts: (typeof tableViews.$inferInsert)[] = []
     for (const definition of definitions) {
-      const childTableId = generateId()
+      const childTableId = generateTableId()
       const remappedSchema = remapForkTableWorkflowGroups(
         definition.schema as TableSchema,
         workflowIdMap,
