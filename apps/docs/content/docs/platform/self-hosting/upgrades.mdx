@@ -284,8 +284,9 @@ git checkout <previous-release-tag>
 # Local stack
 docker compose -f docker-compose.local.yml up -d --build
 
-# Ollama stack — same profile you installed with
-docker compose -f docker-compose.ollama.yml --profile gpu up -d --build
+# Ollama stack — the profile you installed with
+PROFILE=gpu  # or cpu
+docker compose -f docker-compose.ollama.yml --profile "$PROFILE" up -d --build
 ```
 
 **Rollback after a schema change** requires restoring the database to the pre-upgrade backup, because migrations are forward-only:
