@@ -77,6 +77,16 @@ function stringOrNumberArg(args: ToolArgs, key: string): string {
 }
 
 /**
+ * The verb tokens of a table operation id. Ids are verb_noun compounds —
+ * `insert_row`, `batch_update_rows`, `delete_rows_by_filter`, `list_views` —
+ * so a title matches the verb as a token; whole-id equality never fired in
+ * production and every row write rendered as the generic "Editing rows".
+ */
+function operationVerbs(op: string): Set<string> {
+  return new Set(op.split('_'))
+}
+
+/**
  * Titles for the split table tools: each names its own action, refined by the
  * operation and the named target when the args carry one — a card full of
  * table work should read as adds, updates, and wiring, never a wall of
@@ -84,6 +94,8 @@ function stringOrNumberArg(args: ToolArgs, key: string): string {
  */
 function splitTableTitle(name: string, args: ToolArgs): string {
   const op = stringArg(args, 'operation')
+  const verbs = operationVerbs(op)
+  const is = (...candidates: string[]) => candidates.some((verb) => verbs.has(verb))
   const target = firstStringArg(args, 'columnName', 'viewName', 'name', 'title')
   const suffix = target ? ` ${target}` : ''
   // "in Runtimes" / "of Runtimes" — enrichment resolves the nested tableId.
@@ -92,36 +104,34 @@ function splitTableTitle(name: string, args: ToolArgs): string {
   const ofTable = table ? ` of ${table}` : ''
   switch (name) {
     case 'table_manage':
-      if (op === 'create') return `Creating table${suffix || (table ? ` ${table}` : '')}`
-      if (op === 'delete') return `Deleting table${table ? ` ${table}` : suffix}`
-      if (op === 'read' || op === 'get' || op === 'list')
-        return `Reading${table ? ` ${table}` : ' table'}`
+      if (is('create')) return `Creating table${suffix || (table ? ` ${table}` : '')}`
+      if (is('delete')) return `Deleting table${table ? ` ${table}` : suffix}`
+      if (is('read', 'get', 'list')) return `Reading${table ? ` ${table}` : ' table'}`
       return `Updating${table ? ` ${table}` : ' table'}`
     case 'table_rows':
-      if (op === 'insert' || op === 'add' || op === 'create')
-        return `Adding rows${inTable ? ` to ${table}` : ''}`
-      if (op === 'update') return `Updating rows${inTable}`
-      if (op === 'delete') return `Deleting rows${inTable}`
-      if (op === 'read' || op === 'list' || op === 'query') return `Reading rows${ofTable}`
+      if (is('insert', 'add', 'create')) return `Adding rows${inTable ? ` to ${table}` : ''}`
+      if (is('update')) return `Updating rows${inTable}`
+      if (is('delete')) return `Deleting rows${inTable}`
+      if (is('read', 'get', 'list', 'query')) return `Reading rows${ofTable}`
       return `Editing rows${ofTable}`
     case 'table_columns':
-      if (op === 'add' || op === 'create') return `Adding column${suffix}${inTable}`
-      if (op === 'update') return `Updating column${suffix}${inTable}`
-      if (op === 'delete') return `Deleting column${suffix}${inTable}`
-      if (op === 'read' || op === 'list') return `Reading columns${ofTable}`
+      if (is('add', 'create')) return `Adding column${suffix}${inTable}`
+      if (is('update')) return `Updating column${suffix}${inTable}`
+      if (is('delete')) return `Deleting column${suffix}${inTable}`
+      if (is('read', 'get', 'list')) return `Reading columns${ofTable}`
       return `Editing columns${ofTable}`
     case 'table_automations':
-      if (op === 'read' || op === 'list') return `Reading automations${ofTable}`
-      if (op === 'delete') return `Removing automation${inTable}`
+      if (is('read', 'get', 'list')) return `Reading automations${ofTable}`
+      if (is('delete')) return `Removing automation${inTable}`
       return `Wiring automation${inTable}`
     case 'table_enrichments':
-      if (op === 'read' || op === 'list') return `Reading enrichments${ofTable}`
-      if (op === 'delete') return `Removing enrichment${inTable}`
+      if (is('read', 'get', 'list')) return `Reading enrichments${ofTable}`
+      if (is('delete')) return `Removing enrichment${inTable}`
       return `Configuring enrichment${suffix}${inTable}`
     case 'table_views':
-      if (op === 'create') return `Creating view${suffix}${inTable}`
-      if (op === 'delete') return `Deleting view${suffix}${inTable}`
-      if (op === 'read' || op === 'list') return `Reading views${ofTable}`
+      if (is('create')) return `Creating view${suffix}${inTable}`
+      if (is('delete')) return `Deleting view${suffix}${inTable}`
+      if (is('read', 'get', 'list')) return `Reading views${ofTable}`
       return `Editing views${ofTable}`
     default:
       return `Updating${table ? ` ${table}` : ' table'}`

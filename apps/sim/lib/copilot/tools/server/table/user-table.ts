@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { executeCopilotTableUseCase } from '@/lib/copilot/application/execute-table-use-case'
 import { executeCopilotResolveWorkflowOutputs } from '@/lib/copilot/application/execute-workflow-use-case'
 import {
@@ -129,6 +130,32 @@ function resolveAuthorizedWorkflowOutputs(
     workflowId,
     assertedWorkspaceId: workspaceId,
   })
+}
+
+/** Names a malformed argument's kind the way the model reads it ("a string", "an array", "null"). */
+function describeValueKind(value: unknown): string {
+  if (value === null) return 'null'
+  if (value === undefined) return 'undefined'
+  if (Array.isArray(value)) return 'an array'
+  const type = typeof value
+  return type === 'object' ? 'an object' : `a ${type}`
+}
+
+/**
+ * Why a batch_update_rows `updates` element is not the `{ rowId, data }` patch
+ * the catalog's item schema declares, or `null` when it is. The router's Ajv
+ * input validation rejects most of these first; this is the last line for a
+ * payload that reaches the executor, where a string element used to surface
+ * as an opaque "Table operation failed" after `Object.entries(undefined)`
+ * threw deep inside the use case.
+ */
+function rowUpdateProblem(value: unknown): string | null {
+  if (!isRecordLike(value)) return `is ${describeValueKind(value)}, not a { rowId, data } object`
+  if (typeof value.rowId !== 'string' || value.rowId.length === 0) {
+    return 'is missing a string rowId'
+  }
+  if (!isRecordLike(value.data)) return 'is missing a data object of column → value pairs'
+  return null
 }
 
 /** Validates an optional row limit against the policy for the requested surface operation. */
@@ -356,8 +383,15 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!args.tableId) {
             return { success: false, message: 'Table ID is required' }
           }
-          if (!args.rows || args.rows.length === 0) {
+          if (!Array.isArray(args.rows) || args.rows.length === 0) {
             return { success: false, message: 'Rows array is required and must not be empty' }
+          }
+          const malformedRow = args.rows.findIndex((row: unknown) => !isRecordLike(row))
+          if (malformedRow !== -1) {
+            return {
+              success: false,
+              message: `rows[${malformedRow}] is ${describeValueKind(args.rows[malformedRow])}, not a row data object. Expected rows: [{ col: val }]`,
+            }
           }
           if (!workspaceId) {
             return { success: false, message: 'Workspace ID is required' }
@@ -699,19 +733,24 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const rawUpdates = (args as Record<string, unknown>).updates as
-            | Array<{ rowId: string; data: Record<string, unknown> }>
-            | undefined
-          const columnName = (args as Record<string, unknown>).columnName as string | undefined
-          const valuesMap = (args as Record<string, unknown>).values as
-            | Record<string, unknown>
-            | undefined
+          const rawUpdates: unknown = (args as Record<string, unknown>).updates
+          const columnName: unknown = (args as Record<string, unknown>).columnName
+          const valuesMap: unknown = (args as Record<string, unknown>).values
 
           let updates: Array<{ rowId: string; data: Record<string, unknown> }>
 
-          if (rawUpdates && rawUpdates.length > 0) {
+          if (Array.isArray(rawUpdates) && rawUpdates.length > 0) {
+            for (let index = 0; index < rawUpdates.length; index += 1) {
+              const problem = rowUpdateProblem(rawUpdates[index])
+              if (problem) {
+                return {
+                  success: false,
+                  message: `updates[${index}] ${problem}. Expected updates: [{ rowId, data: { col: val } }]`,
+                }
+              }
+            }
             updates = rawUpdates
-          } else if (columnName && valuesMap) {
+          } else if (typeof columnName === 'string' && columnName && isRecordLike(valuesMap)) {
             updates = Object.entries(valuesMap).map(([rowId, value]) => ({
               rowId,
               data: { [columnName]: value },
@@ -719,7 +758,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           } else {
             return {
               success: false,
-              message: 'Provide either "updates" array or "columnName" + "values" map',
+              message:
+                'Provide either a non-empty "updates" array of { rowId, data } objects or "columnName" + "values" map',
             }
           }
 
