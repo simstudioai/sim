@@ -8,6 +8,7 @@ import {
   isImmutableE2BTemplateRef,
   isValidSandboxReleaseGeneration,
 } from '@sim/utils/sandbox-references'
+import { resolveCostMultiplier } from './cost-multiplier'
 import {
   ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
   type EnterpriseFeature,
@@ -697,5 +698,5 @@ export function getAllowedMcpDomainsFromEnv(): string[] | null {
  * fall back to 1.
  */
 export function getCostMultiplier(): number {
-  return isProd ? envNumber(env.COST_MULTIPLIER, 1) : 1
+  return resolveCostMultiplier(env.COST_MULTIPLIER, isProd)
 }
