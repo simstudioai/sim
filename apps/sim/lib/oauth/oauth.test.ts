@@ -178,6 +178,7 @@ describe('Monday OAuth connector', () => {
       pkce: true,
       authentication: 'post',
       redirectURI: 'http://localhost:3000/api/auth/oauth2/callback/monday',
+      authorizationUrlParams: { force_install_if_needed: 'true' },
     })
     const authorizationUrl = await createAuthorizationURL({
       id: connector.providerId,
@@ -192,12 +193,14 @@ describe('Monday OAuth connector', () => {
       scopes: connector.scopes,
       redirectURI: connector.redirectURI!,
       responseType: connector.responseType,
+      additionalParams: connector.authorizationUrlParams,
     })
 
     expect(authorizationUrl.searchParams.get('redirect_uri')).toBe(
       'http://localhost:3000/api/auth/oauth2/callback/monday'
     )
     expect(authorizationUrl.searchParams.get('scope')).toBe(connector.scopes?.join(' '))
+    expect(authorizationUrl.searchParams.get('force_install_if_needed')).toBe('true')
     expect(authorizationUrl.searchParams.get('code_challenge_method')).toBe('S256')
     expect(authorizationUrl.searchParams.get('code_challenge')).toBeTruthy()
   })
