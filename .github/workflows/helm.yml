@@ -43,6 +43,13 @@ jobs:
       - name: Scheduler parity (docker/crontab vs helm cronjobs)
         run: bun run scripts/check-cron-parity.ts
 
+      # helm/sim/images.yaml is what an operator mirrors into a disconnected
+      # registry, so a chart change that adds an image has to update it. Lives
+      # here rather than in `check:audits` because it renders the chart, and the
+      # audits job has no Helm. The script imports only node builtins.
+      - name: Image inventory is current
+        run: bun run images:check
+
       - name: Helm lint
         run: helm lint helm/sim --values helm/sim/ci/default-values.yaml
 
