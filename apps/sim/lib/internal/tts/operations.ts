@@ -8,6 +8,7 @@ import {
   synthesizeCartesia,
   synthesizeDeepgram,
   synthesizeElevenLabs,
+  synthesizeGandr,
   synthesizeGoogle,
   synthesizeLegacyElevenLabs,
   synthesizeOpenAi,
@@ -21,6 +22,7 @@ import type { ElevenLabsTtsParams } from '@/tools/elevenlabs/types'
 import type {
   DeepgramTtsParams,
   ElevenLabsTtsUnifiedParams,
+  GandrTtsParams,
   GoogleTtsParams,
   PlayHtTtsParams,
   TtsProvider,
@@ -219,6 +221,18 @@ export async function executePlayHtTts(
     'playht',
     input.text,
     await synthesizePlayHt(input, context.signal),
+    context
+  )
+}
+
+export async function executeGandrTts(
+  input: GandrTtsParams,
+  context: TtsOperationContext
+): Promise<TtsResponse> {
+  return storeUnifiedAudio(
+    'gandr',
+    input.text,
+    await synthesizeGandr(input, context.signal),
     context
   )
 }
