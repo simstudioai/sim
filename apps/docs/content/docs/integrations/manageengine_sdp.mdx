@@ -1,0 +1,1396 @@
+---
+title: ManageEngine ServiceDesk Plus
+description: Manage ServiceDesk Plus Cloud requests, problems, changes, assets, and knowledge base solutions
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="manageengine_sdp"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ManageEngine ServiceDesk Plus Cloud](https://www.manageengine.com/products/service-desk/) is ManageEngine's ITSM suite — the service desk that IT teams run requests, problems, changes, assets, and a knowledge base on. Sim talks to its v3 REST API, which exposes the same operations available in the web client.
+
+**Why ServiceDesk Plus?**
+- **The whole ITIL spine in one product:** incidents and service requests, problem records, change workflow with stages and approvals, a CMDB-backed asset inventory, and a requester-facing knowledge base — all cross-referenceable by ID.
+- **Portal-defined everything:** statuses, priorities, categories, groups, and change stages are configured per portal. The API resolves them by name, so a workflow written against one portal's vocabulary reads naturally rather than hardcoding opaque IDs.
+- **A real query language on every list:** `search_criteria` supports `is`, `is not`, `contains`, `starts with`, `between`, and numeric and date comparisons, so filtering happens server-side instead of by pulling the queue and sifting it in a workflow.
+- **User-defined fields:** every module carries `udf_*` custom fields, which these operations read and write alongside the built-ins.
+
+**Using ServiceDesk Plus in Sim**
+
+This integration covers 31 operations across five modules — full create, read, list, update, and delete on requests, problems, changes, assets, and knowledge base solutions, plus notes on requests, problems, and changes. Lookup fields (status, priority, category, technician, group, topic, product) are addressed by name or email rather than by internal ID, so an agent can act on a ticket without first resolving five reference tables.
+
+**Key benefits of using ServiceDesk Plus in Sim:**
+- **Triage and routing:** read an incoming request, classify it from its content, then set category, priority, and support group in one update.
+- **SLA watch:** list open requests sorted on `due_by_time`, compare against now, and escalate or reassign what is breaching.
+- **Ticket deflection:** search solutions for an answer, then post it as a requester-visible note instead of queueing the ticket for a human.
+- **Knowledge capture:** turn a resolved request and its notes into a new solution filed under an existing topic.
+- **Problem management:** cluster recurring requests by category and open a problem record that links them.
+- **Change calendars and asset inventory:** page scheduled changes into a weekly summary, or mirror the asset list into a Sim table for querying and charting.
+
+**Before you start**
+
+Register a client in the [Zoho API console](https://api-console.zoho.com/) and configure it as Sim's Zoho OAuth client. The same client serves Zoho Desk and ServiceDesk Plus — Zoho scopes are chosen per authorization request, not per registered client, so no second app is needed.
+
+Three things shape what will work:
+
+- **Data center.** Connecting requires a Zoho account in the **US** data center. Sim's authorize and token-exchange legs are pinned to `accounts.zoho.com`, and a Zoho access token is only valid in the data center that issued it. The **Data Center** field lists every documented host (US, EU, IN, AU, JP, CA, SA, UK, CN, AE) because that mapping is stable, but only US is reachable with a credential connected through Sim today.
+- **Portal.** Accounts with more than one portal must set the **Portal** field to the portal's URL name — found under *ESM Directory → Service Desk Instances*. Leaving it empty addresses the account's default portal.
+- **Scopes.** The connection requests `SDPOnDemand.{requests,problems,changes,assets,solutions}` at the exact verbs these operations use, plus `aaaserver.profile.READ` to label the credential. Nothing broader is requested, so an operation whose module your Zoho user cannot access will fail at ServiceDesk Plus rather than being silently skipped.
+
+**Things worth knowing**
+
+- **Required fields differ per module.** Requests need a subject; problems a title; changes a title, stage, and status; assets a name and an existing product; solutions a title, content, and an existing topic.
+- **Editing a change's status requires a comment.** ServiceDesk Plus rejects the update otherwise, so the **Status Comment** field sits alongside the status on Update Change.
+- **Updates only send what you fill in.** Fields left empty are omitted from the request rather than sent as null, so changing a status never clears the technician or category. The two flags that cannot express this with a toggle — **Emergency Change** and **Visible to Requesters** — become *Leave unchanged / Yes / No* dropdowns on their update operations for the same reason.
+- **A solution only becomes requester-visible once approved.** ServiceDesk Plus ignores `is_public` until the article's approval status is Approved.
+- **Lists cap at 100 rows.** `Row Count` is clamped to the documented maximum; page with `Start Index` and watch `has_more_rows` in the returned `listInfo`. Set **Include Total Count** when you need the true size of a queue rather than the page size.
+- **The standalone Tasks module is not covered.** Its endpoints are documented but the ServiceDesk Plus scope table publishes no `tasks` entry, so requesting one would put an unverified scope on the consent screen.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Full read and write access to ManageEngine ServiceDesk Plus Cloud: create, search, update and delete requests, problems, changes, assets and knowledge base solutions, and add notes to any ITSM record. Supports multi-portal accounts. Connecting requires a Zoho account in the US data center.
+
+
+
+## Actions
+
+### ManageEngine SDP Create Request
+
+Create a request (ticket) in ManageEngine ServiceDesk Plus Cloud with a subject, description, requester and classification.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `subject` | string | Yes | Request subject \(maximum 250 characters\) |
+| `description` | string | No | Request description. HTML is supported |
+| `requesterEmail` | string | No | Email address of the requester. Defaults to the authenticated user |
+| `priority` | string | No | Priority name, e.g. High |
+| `status` | string | No | Status name, e.g. Open |
+| `category` | string | No | Category name |
+| `subcategory` | string | No | Subcategory name |
+| `group` | string | No | Support group name |
+| `technicianEmail` | string | No | Email address of the technician to assign |
+| `urgency` | string | No | Urgency name |
+| `impact` | string | No | Impact name |
+| `requestType` | string | No | Request type name, e.g. Incident or Service Request |
+| `udfFields` | json | No | Portal-defined custom fields, e.g. \{"udf_char1":"value"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `request` | object | The created request |
+|   ↳ `id` | string | Request ID |
+|   ↳ `display_id` | string | Request number shown in the SDP UI |
+|   ↳ `subject` | string | Request subject |
+|   ↳ `description` | string | Request description \(HTML\) |
+|   ↳ `status` | json | Current status |
+|     ↳ `color` | string | Status colour |
+|     ↳ `in_progress` | boolean | Whether the status is in progress |
+|     ↳ `internal_name` | string | Internal status name |
+|     ↳ `stop_timer` | boolean | Whether the SLA timer stops |
+|   ↳ `priority` | json | Priority |
+|     ↳ `color` | string | Priority colour |
+|   ↳ `requester` | json | Requester |
+|   ↳ `technician` | json | Assigned technician |
+|   ↳ `group` | json | Support group |
+|     ↳ `site` | string | Site the group belongs to |
+|     ↳ `deleted` | boolean | Whether the group is deleted |
+|   ↳ `category` | json | Category |
+|   ↳ `subcategory` | json | Subcategory |
+|   ↳ `urgency` | json | Urgency |
+|   ↳ `impact` | json | Impact |
+|   ↳ `template` | json | Request template |
+|   ↳ `site` | json | Site |
+|   ↳ `created_time` | json | Creation time |
+|   ↳ `due_by_time` | json | SLA due time |
+|   ↳ `resolved_time` | json | Resolution time |
+|   ↳ `completed_time` | json | Completion time |
+|   ↳ `is_service_request` | boolean | Whether this is a service request rather than an incident |
+|   ↳ `has_notes` | boolean | Whether the request has notes |
+|   ↳ `udf_fields` | json | Portal-defined custom fields |
+
+### ManageEngine SDP Get Request
+
+Retrieve a single ManageEngine ServiceDesk Plus Cloud request by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `requestId` | string | Yes | ID of the request to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `request` | object | The request |
+|   ↳ `id` | string | Request ID |
+|   ↳ `display_id` | string | Request number shown in the SDP UI |
+|   ↳ `subject` | string | Request subject |
+|   ↳ `description` | string | Request description \(HTML\) |
+|   ↳ `status` | json | Current status |
+|     ↳ `color` | string | Status colour |
+|     ↳ `in_progress` | boolean | Whether the status is in progress |
+|     ↳ `internal_name` | string | Internal status name |
+|     ↳ `stop_timer` | boolean | Whether the SLA timer stops |
+|   ↳ `priority` | json | Priority |
+|     ↳ `color` | string | Priority colour |
+|   ↳ `requester` | json | Requester |
+|   ↳ `technician` | json | Assigned technician |
+|   ↳ `group` | json | Support group |
+|     ↳ `site` | string | Site the group belongs to |
+|     ↳ `deleted` | boolean | Whether the group is deleted |
+|   ↳ `category` | json | Category |
+|   ↳ `subcategory` | json | Subcategory |
+|   ↳ `urgency` | json | Urgency |
+|   ↳ `impact` | json | Impact |
+|   ↳ `template` | json | Request template |
+|   ↳ `site` | json | Site |
+|   ↳ `created_time` | json | Creation time |
+|   ↳ `due_by_time` | json | SLA due time |
+|   ↳ `resolved_time` | json | Resolution time |
+|   ↳ `completed_time` | json | Completion time |
+|   ↳ `is_service_request` | boolean | Whether this is a service request rather than an incident |
+|   ↳ `has_notes` | boolean | Whether the request has notes |
+|   ↳ `udf_fields` | json | Portal-defined custom fields |
+
+### ManageEngine SDP List Requests
+
+List ManageEngine ServiceDesk Plus Cloud requests, with optional search criteria, sorting and paging.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `rowCount` | number | No | Rows to return \(maximum 100\) |
+| `startIndex` | number | No | One-based index of the first row to return |
+| `sortField` | string | No | Field to sort on, e.g. created_time |
+| `sortOrder` | string | No | Sort direction: asc or desc |
+| `searchCriteria` | json | No | Search criteria object or array, e.g. \{"field":"status.name","condition":"is","value":"Open"\} |
+| `fieldsRequired` | json | No | Array of field names to return, e.g. \["subject","status"\] |
+| `getTotalCount` | boolean | No | Include the total matching row count in list_info |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requests` | array | Matching requests |
+|   ↳ `id` | string | Request ID |
+|   ↳ `display_id` | string | Request number shown in the SDP UI |
+|   ↳ `subject` | string | Request subject |
+|   ↳ `description` | string | Request description \(HTML\) |
+|   ↳ `status` | json | Current status |
+|     ↳ `color` | string | Status colour |
+|     ↳ `in_progress` | boolean | Whether the status is in progress |
+|     ↳ `internal_name` | string | Internal status name |
+|     ↳ `stop_timer` | boolean | Whether the SLA timer stops |
+|   ↳ `priority` | json | Priority |
+|     ↳ `color` | string | Priority colour |
+|   ↳ `requester` | json | Requester |
+|   ↳ `technician` | json | Assigned technician |
+|   ↳ `group` | json | Support group |
+|     ↳ `site` | string | Site the group belongs to |
+|     ↳ `deleted` | boolean | Whether the group is deleted |
+|   ↳ `category` | json | Category |
+|   ↳ `subcategory` | json | Subcategory |
+|   ↳ `urgency` | json | Urgency |
+|   ↳ `impact` | json | Impact |
+|   ↳ `template` | json | Request template |
+|   ↳ `site` | json | Site |
+|   ↳ `created_time` | json | Creation time |
+|   ↳ `due_by_time` | json | SLA due time |
+|   ↳ `resolved_time` | json | Resolution time |
+|   ↳ `completed_time` | json | Completion time |
+|   ↳ `is_service_request` | boolean | Whether this is a service request rather than an incident |
+|   ↳ `has_notes` | boolean | Whether the request has notes |
+|   ↳ `udf_fields` | json | Portal-defined custom fields |
+| `count` | number | Number of requests returned in this page |
+| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+|   ↳ `row_count` | number | Rows returned |
+|   ↳ `start_index` | number | Index the page started at |
+|   ↳ `page` | number | Page number |
+|   ↳ `has_more_rows` | boolean | Whether more rows are available after this page |
+|   ↳ `sort_field` | string | Field the results were sorted on |
+|   ↳ `sort_order` | string | Sort direction |
+|   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
+
+### ManageEngine SDP Update Request
+
+Update a ManageEngine ServiceDesk Plus Cloud request: change its status, priority, assignment, classification or description.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `requestId` | string | Yes | ID of the request to update |
+| `subject` | string | No | New subject \(maximum 250 characters\) |
+| `description` | string | No | New description. HTML is supported |
+| `priority` | string | No | Priority name to set, e.g. High |
+| `status` | string | No | Status name to set, e.g. Resolved |
+| `category` | string | No | Category name to set |
+| `subcategory` | string | No | Subcategory name to set |
+| `group` | string | No | Support group name to set |
+| `technicianEmail` | string | No | Email address of the technician to assign |
+| `urgency` | string | No | Urgency name to set |
+| `impact` | string | No | Impact name to set |
+| `udfFields` | json | No | Portal-defined custom fields to set, e.g. \{"udf_char1":"value"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `request` | object | The updated request |
+|   ↳ `id` | string | Request ID |
+|   ↳ `display_id` | string | Request number shown in the SDP UI |
+|   ↳ `subject` | string | Request subject |
+|   ↳ `description` | string | Request description \(HTML\) |
+|   ↳ `status` | json | Current status |
+|     ↳ `color` | string | Status colour |
+|     ↳ `in_progress` | boolean | Whether the status is in progress |
+|     ↳ `internal_name` | string | Internal status name |
+|     ↳ `stop_timer` | boolean | Whether the SLA timer stops |
+|   ↳ `priority` | json | Priority |
+|     ↳ `color` | string | Priority colour |
+|   ↳ `requester` | json | Requester |
+|   ↳ `technician` | json | Assigned technician |
+|   ↳ `group` | json | Support group |
+|     ↳ `site` | string | Site the group belongs to |
+|     ↳ `deleted` | boolean | Whether the group is deleted |
+|   ↳ `category` | json | Category |
+|   ↳ `subcategory` | json | Subcategory |
+|   ↳ `urgency` | json | Urgency |
+|   ↳ `impact` | json | Impact |
+|   ↳ `template` | json | Request template |
+|   ↳ `site` | json | Site |
+|   ↳ `created_time` | json | Creation time |
+|   ↳ `due_by_time` | json | SLA due time |
+|   ↳ `resolved_time` | json | Resolution time |
+|   ↳ `completed_time` | json | Completion time |
+|   ↳ `is_service_request` | boolean | Whether this is a service request rather than an incident |
+|   ↳ `has_notes` | boolean | Whether the request has notes |
+|   ↳ `udf_fields` | json | Portal-defined custom fields |
+
+### ManageEngine SDP Delete Request
+
+Move a ManageEngine ServiceDesk Plus Cloud request to the trash. Deleting a request also removes its notes, tasks and worklogs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `requestId` | string | Yes | ID of the request to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the request was deleted |
+
+### ManageEngine SDP Add Request Note
+
+Add a note to a ManageEngine ServiceDesk Plus Cloud request, optionally making it visible to the requester.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `requestId` | string | Yes | ID of the request to add the note to |
+| `description` | string | Yes | Note body. HTML is supported |
+| `showToRequester` | boolean | No | Whether the requester can see this note |
+| `notifyTechnician` | boolean | No | Whether to notify the assigned technician |
+| `markFirstResponse` | boolean | No | Whether this note counts as the first response for SLA purposes |
+| `addToLinkedRequests` | boolean | No | Whether to copy the note to linked requests |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `note` | object | The created note |
+|   ↳ `id` | string | Note ID |
+|   ↳ `description` | string | Note body \(HTML\) |
+|   ↳ `show_to_requester` | boolean | Whether the note is visible to the requester |
+|   ↳ `notify_technician` | boolean | Whether the technician was notified |
+|   ↳ `mark_first_response` | boolean | Whether the note counts as the first response |
+|   ↳ `add_to_linked_requests` | boolean | Whether the note was copied to linked requests |
+|   ↳ `created_time` | json | Creation time |
+|   ↳ `created_by` | json | Note author |
+|   ↳ `request` | json | The request the note belongs to |
+|     ↳ `id` | string | Request ID |
+|     ↳ `display_id` | string | Request number |
+|     ↳ `subject` | string | Request subject |
+
+### ManageEngine SDP List Request Notes
+
+List the notes on a ManageEngine ServiceDesk Plus Cloud request.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `requestId` | string | Yes | ID of the request whose notes to list |
+| `rowCount` | number | No | Rows to return \(maximum 100\) |
+| `startIndex` | number | No | One-based index of the first row to return |
+| `sortField` | string | No | Field to sort on, e.g. created_time |
+| `sortOrder` | string | No | Sort direction: asc or desc |
+| `searchCriteria` | json | No | Search criteria object or array, e.g. \{"field":"status.name","condition":"is","value":"Open"\} |
+| `fieldsRequired` | json | No | Array of field names to return, e.g. \["subject","status"\] |
+| `getTotalCount` | boolean | No | Include the total matching row count in list_info |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notes` | array | Notes on the request |
+|   ↳ `id` | string | Note ID |
+|   ↳ `description` | string | Note body \(HTML\) |
+|   ↳ `show_to_requester` | boolean | Whether the note is visible to the requester |
+|   ↳ `notify_technician` | boolean | Whether the technician was notified |
+|   ↳ `mark_first_response` | boolean | Whether the note counts as the first response |
+|   ↳ `add_to_linked_requests` | boolean | Whether the note was copied to linked requests |
+|   ↳ `created_time` | json | Creation time |
+|   ↳ `created_by` | json | Note author |
+|   ↳ `request` | json | The request the note belongs to |
+|     ↳ `id` | string | Request ID |
+|     ↳ `display_id` | string | Request number |
+|     ↳ `subject` | string | Request subject |
+| `count` | number | Number of notes returned in this page |
+| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+|   ↳ `row_count` | number | Rows returned |
+|   ↳ `start_index` | number | Index the page started at |
+|   ↳ `page` | number | Page number |
+|   ↳ `has_more_rows` | boolean | Whether more rows are available after this page |
+|   ↳ `sort_field` | string | Field the results were sorted on |
+|   ↳ `sort_order` | string | Sort direction |
+|   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
+
+### ManageEngine SDP Create Problem
+
+Create a problem record in ManageEngine ServiceDesk Plus Cloud with a title, description and classification.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `title` | string | Yes | Problem title |
+| `description` | string | No | Problem description. HTML is supported |
+| `reportedByEmail` | string | No | Email address of the user reporting the problem |
+| `technicianEmail` | string | No | Email address of the technician to assign |
+| `priority` | string | No | Priority name, e.g. High |
+| `status` | string | No | Status name, e.g. Open |
+| `urgency` | string | No | Urgency name |
+| `impact` | string | No | Impact name |
+| `category` | string | No | Category name |
+| `subcategory` | string | No | Subcategory name |
+| `group` | string | No | Support group name |
+| `site` | string | No | Site name |
+| `udfFields` | json | No | Portal-defined custom fields, e.g. \{"udf_char1":"value"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `problem` | object | The created problem |
+|   ↳ `id` | string | Problem ID |
+|   ↳ `display_id` | json | Problem number shown in the SDP UI |
+|   ↳ `title` | string | Problem title |
+|   ↳ `description` | string | Problem description \(HTML\) |
+|   ↳ `status` | json | Current status |
+|   ↳ `priority` | json | Priority |
+|   ↳ `urgency` | json | Urgency |
+|   ↳ `impact` | json | Impact |
+|   ↳ `category` | json | Category |
+|   ↳ `subcategory` | json | Subcategory |
+|   ↳ `group` | json | Support group |
+|   ↳ `site` | json | Site |
+|   ↳ `reported_by` | json | User who reported the problem |
+|   ↳ `technician` | json | Assigned technician |
+|   ↳ `reported_time` | json | Time the problem was reported |
+|   ↳ `due_by_time` | json | Due time |
+|   ↳ `closed_time` | json | Time the problem was closed |
+|   ↳ `root_cause` | json | Root cause analysis |
+|   ↳ `workaround_details` | json | Documented workaround |
+|   ↳ `resolution_details` | json | Documented resolution |
+|   ↳ `known_error_details` | json | Known-error record details |
+|   ↳ `notes_present` | boolean | Whether the problem has notes |
+
+### ManageEngine SDP Get Problem
+
+Retrieve a single ManageEngine ServiceDesk Plus Cloud problem by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `problemId` | string | Yes | ID of the problem to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `problem` | object | The problem |
+|   ↳ `id` | string | Problem ID |
+|   ↳ `display_id` | json | Problem number shown in the SDP UI |
+|   ↳ `title` | string | Problem title |
+|   ↳ `description` | string | Problem description \(HTML\) |
+|   ↳ `status` | json | Current status |
+|   ↳ `priority` | json | Priority |
+|   ↳ `urgency` | json | Urgency |
+|   ↳ `impact` | json | Impact |
+|   ↳ `category` | json | Category |
+|   ↳ `subcategory` | json | Subcategory |
+|   ↳ `group` | json | Support group |
+|   ↳ `site` | json | Site |
+|   ↳ `reported_by` | json | User who reported the problem |
+|   ↳ `technician` | json | Assigned technician |
+|   ↳ `reported_time` | json | Time the problem was reported |
+|   ↳ `due_by_time` | json | Due time |
+|   ↳ `closed_time` | json | Time the problem was closed |
+|   ↳ `root_cause` | json | Root cause analysis |
+|   ↳ `workaround_details` | json | Documented workaround |
+|   ↳ `resolution_details` | json | Documented resolution |
+|   ↳ `known_error_details` | json | Known-error record details |
+|   ↳ `notes_present` | boolean | Whether the problem has notes |
+
+### ManageEngine SDP List Problems
+
+List ManageEngine ServiceDesk Plus Cloud problems, with optional search criteria, sorting and paging.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `rowCount` | number | No | Rows to return \(maximum 100\) |
+| `startIndex` | number | No | One-based index of the first row to return |
+| `sortField` | string | No | Field to sort on, e.g. created_time |
+| `sortOrder` | string | No | Sort direction: asc or desc |
+| `searchCriteria` | json | No | Search criteria object or array, e.g. \{"field":"status.name","condition":"is","value":"Open"\} |
+| `fieldsRequired` | json | No | Array of field names to return, e.g. \["subject","status"\] |
+| `getTotalCount` | boolean | No | Include the total matching row count in list_info |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `problems` | array | Matching problems |
+|   ↳ `id` | string | Problem ID |
+|   ↳ `display_id` | json | Problem number shown in the SDP UI |
+|   ↳ `title` | string | Problem title |
+|   ↳ `description` | string | Problem description \(HTML\) |
+|   ↳ `status` | json | Current status |
+|   ↳ `priority` | json | Priority |
+|   ↳ `urgency` | json | Urgency |
+|   ↳ `impact` | json | Impact |
+|   ↳ `category` | json | Category |
+|   ↳ `subcategory` | json | Subcategory |
+|   ↳ `group` | json | Support group |
+|   ↳ `site` | json | Site |
+|   ↳ `reported_by` | json | User who reported the problem |
+|   ↳ `technician` | json | Assigned technician |
+|   ↳ `reported_time` | json | Time the problem was reported |
+|   ↳ `due_by_time` | json | Due time |
+|   ↳ `closed_time` | json | Time the problem was closed |
+|   ↳ `root_cause` | json | Root cause analysis |
+|   ↳ `workaround_details` | json | Documented workaround |
+|   ↳ `resolution_details` | json | Documented resolution |
+|   ↳ `known_error_details` | json | Known-error record details |
+|   ↳ `notes_present` | boolean | Whether the problem has notes |
+| `count` | number | Number of problems returned in this page |
+| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+|   ↳ `row_count` | number | Rows returned |
+|   ↳ `start_index` | number | Index the page started at |
+|   ↳ `page` | number | Page number |
+|   ↳ `has_more_rows` | boolean | Whether more rows are available after this page |
+|   ↳ `sort_field` | string | Field the results were sorted on |
+|   ↳ `sort_order` | string | Sort direction |
+|   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
+
+### ManageEngine SDP Update Problem
+
+Update a ManageEngine ServiceDesk Plus Cloud problem: change its title, status, assignment or classification.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `problemId` | string | Yes | ID of the problem to update |
+| `title` | string | No | New problem title |
+| `description` | string | No | Problem description. HTML is supported |
+| `reportedByEmail` | string | No | Email address of the user reporting the problem |
+| `technicianEmail` | string | No | Email address of the technician to assign |
+| `priority` | string | No | Priority name, e.g. High |
+| `status` | string | No | Status name, e.g. Open |
+| `urgency` | string | No | Urgency name |
+| `impact` | string | No | Impact name |
+| `category` | string | No | Category name |
+| `subcategory` | string | No | Subcategory name |
+| `group` | string | No | Support group name |
+| `site` | string | No | Site name |
+| `udfFields` | json | No | Portal-defined custom fields, e.g. \{"udf_char1":"value"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `problem` | object | The updated problem |
+|   ↳ `id` | string | Problem ID |
+|   ↳ `display_id` | json | Problem number shown in the SDP UI |
+|   ↳ `title` | string | Problem title |
+|   ↳ `description` | string | Problem description \(HTML\) |
+|   ↳ `status` | json | Current status |
+|   ↳ `priority` | json | Priority |
+|   ↳ `urgency` | json | Urgency |
+|   ↳ `impact` | json | Impact |
+|   ↳ `category` | json | Category |
+|   ↳ `subcategory` | json | Subcategory |
+|   ↳ `group` | json | Support group |
+|   ↳ `site` | json | Site |
+|   ↳ `reported_by` | json | User who reported the problem |
+|   ↳ `technician` | json | Assigned technician |
+|   ↳ `reported_time` | json | Time the problem was reported |
+|   ↳ `due_by_time` | json | Due time |
+|   ↳ `closed_time` | json | Time the problem was closed |
+|   ↳ `root_cause` | json | Root cause analysis |
+|   ↳ `workaround_details` | json | Documented workaround |
+|   ↳ `resolution_details` | json | Documented resolution |
+|   ↳ `known_error_details` | json | Known-error record details |
+|   ↳ `notes_present` | boolean | Whether the problem has notes |
+
+### ManageEngine SDP Delete Problem
+
+Delete a ManageEngine ServiceDesk Plus Cloud problem and its associated notes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `problemId` | string | Yes | ID of the problem to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the problem was deleted |
+
+### ManageEngine SDP Add Problem Note
+
+Add a note to a ManageEngine ServiceDesk Plus Cloud problem.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `problemId` | string | Yes | ID of the problem to add the note to |
+| `description` | string | Yes | Note body. HTML is supported |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `note` | object | The created note |
+|   ↳ `id` | string | Note ID |
+|   ↳ `description` | string | Note body \(HTML\) |
+|   ↳ `performed_by` | json | Note author |
+|   ↳ `performed_time` | json | Time the note was added |
+
+### ManageEngine SDP List Problem Notes
+
+List the notes on a ManageEngine ServiceDesk Plus Cloud problem.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `problemId` | string | Yes | ID of the problem whose notes to list |
+| `rowCount` | number | No | Rows to return \(maximum 100\) |
+| `startIndex` | number | No | One-based index of the first row to return |
+| `sortField` | string | No | Field to sort on, e.g. created_time |
+| `sortOrder` | string | No | Sort direction: asc or desc |
+| `searchCriteria` | json | No | Search criteria object or array, e.g. \{"field":"status.name","condition":"is","value":"Open"\} |
+| `fieldsRequired` | json | No | Array of field names to return, e.g. \["subject","status"\] |
+| `getTotalCount` | boolean | No | Include the total matching row count in list_info |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notes` | array | Notes on the problem |
+|   ↳ `id` | string | Note ID |
+|   ↳ `description` | string | Note body \(HTML\) |
+|   ↳ `performed_by` | json | Note author |
+|   ↳ `performed_time` | json | Time the note was added |
+| `count` | number | Number of notes returned in this page |
+| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+|   ↳ `row_count` | number | Rows returned |
+|   ↳ `start_index` | number | Index the page started at |
+|   ↳ `page` | number | Page number |
+|   ↳ `has_more_rows` | boolean | Whether more rows are available after this page |
+|   ↳ `sort_field` | string | Field the results were sorted on |
+|   ↳ `sort_order` | string | Sort direction |
+|   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
+
+### ManageEngine SDP Create Change
+
+Create a change record in ManageEngine ServiceDesk Plus Cloud with a title, stage, status and schedule.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `title` | string | Yes | Change title |
+| `stage` | string | Yes | Change stage name, e.g. Submission |
+| `status` | string | Yes | Change status name, e.g. Open |
+| `description` | string | No | Change description. HTML is supported |
+| `changeTypeName` | string | No | Change type name, e.g. Standard |
+| `reasonForChange` | string | No | Reason-for-change name |
+| `priority` | string | No | Priority name |
+| `urgency` | string | No | Urgency name |
+| `impact` | string | No | Impact name |
+| `group` | string | No | Support group name |
+| `changeRequesterEmail` | string | No | Email address of the change requester |
+| `changeOwnerEmail` | string | No | Email address of the change owner |
+| `changeManagerEmail` | string | No | Email address of the change manager |
+| `scheduledStartTime` | string | No | Scheduled start, as an ISO 8601 timestamp or epoch milliseconds |
+| `scheduledEndTime` | string | No | Scheduled end, as an ISO 8601 timestamp or epoch milliseconds |
+| `emergency` | boolean | No | Whether this is an emergency change |
+| `comment` | string | No | Reason for the status update. ServiceDesk Plus requires this when status changes |
+| `udfFields` | json | No | Portal-defined custom fields, e.g. \{"udf_char1":"value"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `change` | object | The created change |
+|   ↳ `id` | string | Change ID |
+|   ↳ `display_id` | json | Change number shown in the SDP UI |
+|   ↳ `title` | string | Change title |
+|   ↳ `description` | string | Change description \(HTML\) |
+|   ↳ `status` | json | Current status |
+|     ↳ `internal_name` | string | Internal status name |
+|     ↳ `stage` | json | Change stage |
+|   ↳ `change_type` | json | Change type |
+|     ↳ `color` | string | Type colour |
+|     ↳ `pre_approved` | boolean | Whether the type is pre-approved |
+|   ↳ `priority` | json | Priority |
+|   ↳ `urgency` | json | Urgency |
+|   ↳ `impact` | json | Impact |
+|   ↳ `approval_status` | json | Approval status |
+|   ↳ `reason_for_change` | json | Reason for the change |
+|   ↳ `change_requester` | json | User who requested the change |
+|   ↳ `change_owner` | json | Change owner |
+|   ↳ `change_manager` | json | Change manager |
+|   ↳ `group` | json | Support group |
+|   ↳ `emergency` | boolean | Whether the change is an emergency |
+|   ↳ `created_time` | json | Creation time |
+|   ↳ `scheduled_start_time` | json | Scheduled start |
+|   ↳ `scheduled_end_time` | json | Scheduled end |
+|   ↳ `roll_out_plan` | json | Roll-out plan |
+|   ↳ `close_details` | json | Closure details |
+
+### ManageEngine SDP Get Change
+
+Retrieve a single ManageEngine ServiceDesk Plus Cloud change by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `changeId` | string | Yes | ID of the change to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `change` | object | The change |
+|   ↳ `id` | string | Change ID |
+|   ↳ `display_id` | json | Change number shown in the SDP UI |
+|   ↳ `title` | string | Change title |
+|   ↳ `description` | string | Change description \(HTML\) |
+|   ↳ `status` | json | Current status |
+|     ↳ `internal_name` | string | Internal status name |
+|     ↳ `stage` | json | Change stage |
+|   ↳ `change_type` | json | Change type |
+|     ↳ `color` | string | Type colour |
+|     ↳ `pre_approved` | boolean | Whether the type is pre-approved |
+|   ↳ `priority` | json | Priority |
+|   ↳ `urgency` | json | Urgency |
+|   ↳ `impact` | json | Impact |
+|   ↳ `approval_status` | json | Approval status |
+|   ↳ `reason_for_change` | json | Reason for the change |
+|   ↳ `change_requester` | json | User who requested the change |
+|   ↳ `change_owner` | json | Change owner |
+|   ↳ `change_manager` | json | Change manager |
+|   ↳ `group` | json | Support group |
+|   ↳ `emergency` | boolean | Whether the change is an emergency |
+|   ↳ `created_time` | json | Creation time |
+|   ↳ `scheduled_start_time` | json | Scheduled start |
+|   ↳ `scheduled_end_time` | json | Scheduled end |
+|   ↳ `roll_out_plan` | json | Roll-out plan |
+|   ↳ `close_details` | json | Closure details |
+
+### ManageEngine SDP List Changes
+
+List ManageEngine ServiceDesk Plus Cloud changes, with optional search criteria, sorting and paging.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `rowCount` | number | No | Rows to return \(maximum 100\) |
+| `startIndex` | number | No | One-based index of the first row to return |
+| `sortField` | string | No | Field to sort on, e.g. created_time |
+| `sortOrder` | string | No | Sort direction: asc or desc |
+| `searchCriteria` | json | No | Search criteria object or array, e.g. \{"field":"status.name","condition":"is","value":"Open"\} |
+| `fieldsRequired` | json | No | Array of field names to return, e.g. \["subject","status"\] |
+| `getTotalCount` | boolean | No | Include the total matching row count in list_info |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `changes` | array | Matching changes |
+|   ↳ `id` | string | Change ID |
+|   ↳ `display_id` | json | Change number shown in the SDP UI |
+|   ↳ `title` | string | Change title |
+|   ↳ `description` | string | Change description \(HTML\) |
+|   ↳ `status` | json | Current status |
+|     ↳ `internal_name` | string | Internal status name |
+|     ↳ `stage` | json | Change stage |
+|   ↳ `change_type` | json | Change type |
+|     ↳ `color` | string | Type colour |
+|     ↳ `pre_approved` | boolean | Whether the type is pre-approved |
+|   ↳ `priority` | json | Priority |
+|   ↳ `urgency` | json | Urgency |
+|   ↳ `impact` | json | Impact |
+|   ↳ `approval_status` | json | Approval status |
+|   ↳ `reason_for_change` | json | Reason for the change |
+|   ↳ `change_requester` | json | User who requested the change |
+|   ↳ `change_owner` | json | Change owner |
+|   ↳ `change_manager` | json | Change manager |
+|   ↳ `group` | json | Support group |
+|   ↳ `emergency` | boolean | Whether the change is an emergency |
+|   ↳ `created_time` | json | Creation time |
+|   ↳ `scheduled_start_time` | json | Scheduled start |
+|   ↳ `scheduled_end_time` | json | Scheduled end |
+|   ↳ `roll_out_plan` | json | Roll-out plan |
+|   ↳ `close_details` | json | Closure details |
+| `count` | number | Number of changes returned in this page |
+| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+|   ↳ `row_count` | number | Rows returned |
+|   ↳ `start_index` | number | Index the page started at |
+|   ↳ `page` | number | Page number |
+|   ↳ `has_more_rows` | boolean | Whether more rows are available after this page |
+|   ↳ `sort_field` | string | Field the results were sorted on |
+|   ↳ `sort_order` | string | Sort direction |
+|   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
+
+### ManageEngine SDP Update Change
+
+Update a ManageEngine ServiceDesk Plus Cloud change: move its stage or status, reschedule it, or change its assignment. ServiceDesk Plus requires a comment whenever the status changes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `changeId` | string | Yes | ID of the change to update |
+| `title` | string | No | New change title |
+| `stage` | string | No | Change stage name to set |
+| `status` | string | No | Change status name to set. Requires a comment |
+| `description` | string | No | Change description. HTML is supported |
+| `changeTypeName` | string | No | Change type name, e.g. Standard |
+| `reasonForChange` | string | No | Reason-for-change name |
+| `priority` | string | No | Priority name |
+| `urgency` | string | No | Urgency name |
+| `impact` | string | No | Impact name |
+| `group` | string | No | Support group name |
+| `changeRequesterEmail` | string | No | Email address of the change requester |
+| `changeOwnerEmail` | string | No | Email address of the change owner |
+| `changeManagerEmail` | string | No | Email address of the change manager |
+| `scheduledStartTime` | string | No | Scheduled start, as an ISO 8601 timestamp or epoch milliseconds |
+| `scheduledEndTime` | string | No | Scheduled end, as an ISO 8601 timestamp or epoch milliseconds |
+| `emergency` | boolean | No | Whether this is an emergency change |
+| `comment` | string | No | Reason for the status update. ServiceDesk Plus requires this when status changes |
+| `udfFields` | json | No | Portal-defined custom fields, e.g. \{"udf_char1":"value"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `change` | object | The updated change |
+|   ↳ `id` | string | Change ID |
+|   ↳ `display_id` | json | Change number shown in the SDP UI |
+|   ↳ `title` | string | Change title |
+|   ↳ `description` | string | Change description \(HTML\) |
+|   ↳ `status` | json | Current status |
+|     ↳ `internal_name` | string | Internal status name |
+|     ↳ `stage` | json | Change stage |
+|   ↳ `change_type` | json | Change type |
+|     ↳ `color` | string | Type colour |
+|     ↳ `pre_approved` | boolean | Whether the type is pre-approved |
+|   ↳ `priority` | json | Priority |
+|   ↳ `urgency` | json | Urgency |
+|   ↳ `impact` | json | Impact |
+|   ↳ `approval_status` | json | Approval status |
+|   ↳ `reason_for_change` | json | Reason for the change |
+|   ↳ `change_requester` | json | User who requested the change |
+|   ↳ `change_owner` | json | Change owner |
+|   ↳ `change_manager` | json | Change manager |
+|   ↳ `group` | json | Support group |
+|   ↳ `emergency` | boolean | Whether the change is an emergency |
+|   ↳ `created_time` | json | Creation time |
+|   ↳ `scheduled_start_time` | json | Scheduled start |
+|   ↳ `scheduled_end_time` | json | Scheduled end |
+|   ↳ `roll_out_plan` | json | Roll-out plan |
+|   ↳ `close_details` | json | Closure details |
+
+### ManageEngine SDP Delete Change
+
+Delete a ManageEngine ServiceDesk Plus Cloud change and its associated notes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `changeId` | string | Yes | ID of the change to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the change was deleted |
+
+### ManageEngine SDP Add Change Note
+
+Add a note to a ManageEngine ServiceDesk Plus Cloud change.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `changeId` | string | Yes | ID of the change to add the note to |
+| `description` | string | Yes | Note body. HTML is supported |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `note` | object | The created note |
+|   ↳ `id` | string | Note ID |
+|   ↳ `description` | string | Note body \(HTML\) |
+|   ↳ `performed_by` | json | Note author |
+|   ↳ `performed_time` | json | Time the note was added |
+
+### ManageEngine SDP List Change Notes
+
+List the notes on a ManageEngine ServiceDesk Plus Cloud change.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `changeId` | string | Yes | ID of the change whose notes to list |
+| `rowCount` | number | No | Rows to return \(maximum 100\) |
+| `startIndex` | number | No | One-based index of the first row to return |
+| `sortField` | string | No | Field to sort on, e.g. created_time |
+| `sortOrder` | string | No | Sort direction: asc or desc |
+| `searchCriteria` | json | No | Search criteria object or array, e.g. \{"field":"status.name","condition":"is","value":"Open"\} |
+| `fieldsRequired` | json | No | Array of field names to return, e.g. \["subject","status"\] |
+| `getTotalCount` | boolean | No | Include the total matching row count in list_info |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notes` | array | Notes on the change |
+|   ↳ `id` | string | Note ID |
+|   ↳ `description` | string | Note body \(HTML\) |
+|   ↳ `performed_by` | json | Note author |
+|   ↳ `performed_time` | json | Time the note was added |
+| `count` | number | Number of notes returned in this page |
+| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+|   ↳ `row_count` | number | Rows returned |
+|   ↳ `start_index` | number | Index the page started at |
+|   ↳ `page` | number | Page number |
+|   ↳ `has_more_rows` | boolean | Whether more rows are available after this page |
+|   ↳ `sort_field` | string | Field the results were sorted on |
+|   ↳ `sort_order` | string | Sort direction |
+|   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
+
+### ManageEngine SDP Create Asset
+
+Create an asset in the ManageEngine ServiceDesk Plus Cloud inventory. Requires a name and an existing product.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `name` | string | Yes | Asset name |
+| `product` | string | Yes | Name of an existing product this asset is an instance of |
+| `productType` | string | No | Product type name, e.g. Laptop |
+| `assetTag` | string | No | Asset tag |
+| `serialNumber` | string | No | Serial number |
+| `barcode` | string | No | Barcode |
+| `ipAddress` | string | No | IP address |
+| `macAddress` | string | No | MAC address |
+| `location` | string | No | Location |
+| `state` | string | No | Asset state name, e.g. In Use |
+| `vendor` | string | No | Vendor name |
+| `department` | string | No | Department name |
+| `site` | string | No | Site name |
+| `userEmail` | string | No | Email address of the user the asset is assigned to |
+| `stateHistoryComments` | string | No | Comment recorded against a state change |
+| `udfFields` | json | No | Portal-defined custom fields, e.g. \{"udf_char1":"value"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `asset` | object | The created asset |
+|   ↳ `id` | string | Asset ID |
+|   ↳ `name` | string | Asset name |
+|   ↳ `asset_tag` | string | Asset tag |
+|   ↳ `barcode` | string | Barcode |
+|   ↳ `serial_number` | string | Serial number |
+|   ↳ `ip_address` | string | IP address |
+|   ↳ `mac_address` | string | MAC address |
+|   ↳ `location` | string | Location |
+|   ↳ `state` | json | Asset state \(In Use, In Store, ...\) |
+|     ↳ `description` | string | State description |
+|   ↳ `product` | json | Product this asset is an instance of |
+|     ↳ `manufacturer` | string | Manufacturer |
+|     ↳ `part_no` | string | Part number |
+|   ↳ `product_type` | json | Product type |
+|   ↳ `vendor` | json | Vendor |
+|   ↳ `department` | json | Owning department |
+|   ↳ `site` | json | Site |
+|   ↳ `user` | json | User the asset is assigned to |
+|   ↳ `purchase_cost` | number | Purchase cost |
+|   ↳ `total_cost` | number | Total cost |
+|   ↳ `acquisition_date` | json | Acquisition date |
+|   ↳ `expiry_date` | json | Expiry date |
+|   ↳ `warranty_expiry` | json | Warranty expiry date |
+|   ↳ `is_loaned` | boolean | Whether the asset is on loan |
+|   ↳ `is_in_contract` | boolean | Whether the asset is covered by a contract |
+
+### ManageEngine SDP Get Asset
+
+Retrieve a single ManageEngine ServiceDesk Plus Cloud asset by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `assetId` | string | Yes | ID of the asset to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `asset` | object | The asset |
+|   ↳ `id` | string | Asset ID |
+|   ↳ `name` | string | Asset name |
+|   ↳ `asset_tag` | string | Asset tag |
+|   ↳ `barcode` | string | Barcode |
+|   ↳ `serial_number` | string | Serial number |
+|   ↳ `ip_address` | string | IP address |
+|   ↳ `mac_address` | string | MAC address |
+|   ↳ `location` | string | Location |
+|   ↳ `state` | json | Asset state \(In Use, In Store, ...\) |
+|     ↳ `description` | string | State description |
+|   ↳ `product` | json | Product this asset is an instance of |
+|     ↳ `manufacturer` | string | Manufacturer |
+|     ↳ `part_no` | string | Part number |
+|   ↳ `product_type` | json | Product type |
+|   ↳ `vendor` | json | Vendor |
+|   ↳ `department` | json | Owning department |
+|   ↳ `site` | json | Site |
+|   ↳ `user` | json | User the asset is assigned to |
+|   ↳ `purchase_cost` | number | Purchase cost |
+|   ↳ `total_cost` | number | Total cost |
+|   ↳ `acquisition_date` | json | Acquisition date |
+|   ↳ `expiry_date` | json | Expiry date |
+|   ↳ `warranty_expiry` | json | Warranty expiry date |
+|   ↳ `is_loaned` | boolean | Whether the asset is on loan |
+|   ↳ `is_in_contract` | boolean | Whether the asset is covered by a contract |
+
+### ManageEngine SDP List Assets
+
+List ManageEngine ServiceDesk Plus Cloud assets, with optional search criteria, sorting and paging.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `rowCount` | number | No | Rows to return \(maximum 100\) |
+| `startIndex` | number | No | One-based index of the first row to return |
+| `sortField` | string | No | Field to sort on, e.g. created_time |
+| `sortOrder` | string | No | Sort direction: asc or desc |
+| `searchCriteria` | json | No | Search criteria object or array, e.g. \{"field":"status.name","condition":"is","value":"Open"\} |
+| `fieldsRequired` | json | No | Array of field names to return, e.g. \["subject","status"\] |
+| `getTotalCount` | boolean | No | Include the total matching row count in list_info |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assets` | array | Matching assets |
+|   ↳ `id` | string | Asset ID |
+|   ↳ `name` | string | Asset name |
+|   ↳ `asset_tag` | string | Asset tag |
+|   ↳ `barcode` | string | Barcode |
+|   ↳ `serial_number` | string | Serial number |
+|   ↳ `ip_address` | string | IP address |
+|   ↳ `mac_address` | string | MAC address |
+|   ↳ `location` | string | Location |
+|   ↳ `state` | json | Asset state \(In Use, In Store, ...\) |
+|     ↳ `description` | string | State description |
+|   ↳ `product` | json | Product this asset is an instance of |
+|     ↳ `manufacturer` | string | Manufacturer |
+|     ↳ `part_no` | string | Part number |
+|   ↳ `product_type` | json | Product type |
+|   ↳ `vendor` | json | Vendor |
+|   ↳ `department` | json | Owning department |
+|   ↳ `site` | json | Site |
+|   ↳ `user` | json | User the asset is assigned to |
+|   ↳ `purchase_cost` | number | Purchase cost |
+|   ↳ `total_cost` | number | Total cost |
+|   ↳ `acquisition_date` | json | Acquisition date |
+|   ↳ `expiry_date` | json | Expiry date |
+|   ↳ `warranty_expiry` | json | Warranty expiry date |
+|   ↳ `is_loaned` | boolean | Whether the asset is on loan |
+|   ↳ `is_in_contract` | boolean | Whether the asset is covered by a contract |
+| `count` | number | Number of assets returned in this page |
+| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+|   ↳ `row_count` | number | Rows returned |
+|   ↳ `start_index` | number | Index the page started at |
+|   ↳ `page` | number | Page number |
+|   ↳ `has_more_rows` | boolean | Whether more rows are available after this page |
+|   ↳ `sort_field` | string | Field the results were sorted on |
+|   ↳ `sort_order` | string | Sort direction |
+|   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
+
+### ManageEngine SDP Update Asset
+
+Update a ManageEngine ServiceDesk Plus Cloud asset: reassign it, change its state, or correct its inventory details.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `assetId` | string | Yes | ID of the asset to update |
+| `name` | string | No | New asset name |
+| `product` | string | No | Name of an existing product to reassign the asset to |
+| `productType` | string | No | Product type name, e.g. Laptop |
+| `assetTag` | string | No | Asset tag |
+| `serialNumber` | string | No | Serial number |
+| `barcode` | string | No | Barcode |
+| `ipAddress` | string | No | IP address |
+| `macAddress` | string | No | MAC address |
+| `location` | string | No | Location |
+| `state` | string | No | Asset state name, e.g. In Use |
+| `vendor` | string | No | Vendor name |
+| `department` | string | No | Department name |
+| `site` | string | No | Site name |
+| `userEmail` | string | No | Email address of the user the asset is assigned to |
+| `stateHistoryComments` | string | No | Comment recorded against a state change |
+| `udfFields` | json | No | Portal-defined custom fields, e.g. \{"udf_char1":"value"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `asset` | object | The updated asset |
+|   ↳ `id` | string | Asset ID |
+|   ↳ `name` | string | Asset name |
+|   ↳ `asset_tag` | string | Asset tag |
+|   ↳ `barcode` | string | Barcode |
+|   ↳ `serial_number` | string | Serial number |
+|   ↳ `ip_address` | string | IP address |
+|   ↳ `mac_address` | string | MAC address |
+|   ↳ `location` | string | Location |
+|   ↳ `state` | json | Asset state \(In Use, In Store, ...\) |
+|     ↳ `description` | string | State description |
+|   ↳ `product` | json | Product this asset is an instance of |
+|     ↳ `manufacturer` | string | Manufacturer |
+|     ↳ `part_no` | string | Part number |
+|   ↳ `product_type` | json | Product type |
+|   ↳ `vendor` | json | Vendor |
+|   ↳ `department` | json | Owning department |
+|   ↳ `site` | json | Site |
+|   ↳ `user` | json | User the asset is assigned to |
+|   ↳ `purchase_cost` | number | Purchase cost |
+|   ↳ `total_cost` | number | Total cost |
+|   ↳ `acquisition_date` | json | Acquisition date |
+|   ↳ `expiry_date` | json | Expiry date |
+|   ↳ `warranty_expiry` | json | Warranty expiry date |
+|   ↳ `is_loaned` | boolean | Whether the asset is on loan |
+|   ↳ `is_in_contract` | boolean | Whether the asset is covered by a contract |
+
+### ManageEngine SDP Delete Asset
+
+Delete an asset from the ManageEngine ServiceDesk Plus Cloud inventory.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `assetId` | string | Yes | ID of the asset to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the asset was deleted |
+
+### ManageEngine SDP Create Solution
+
+Add an article to the ManageEngine ServiceDesk Plus Cloud knowledge base under an existing topic.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `title` | string | Yes | Solution title |
+| `description` | string | Yes | Solution body. HTML is supported |
+| `topic` | string | Yes | Name of an existing knowledge base topic to file the solution under |
+| `keywords` | string | No | Search keywords for the solution |
+| `isPublic` | boolean | No | Whether requesters can see the solution. Only takes effect once the solution is Approved |
+| `udfFields` | json | No | Portal-defined custom fields, e.g. \{"udf_char1":"value"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `solution` | object | The created solution |
+|   ↳ `id` | string | Solution ID |
+|   ↳ `display_id` | json | Solution number shown in the SDP UI |
+|   ↳ `title` | string | Solution title |
+|   ↳ `description` | string | Solution body \(HTML\) |
+|   ↳ `topic` | json | Topic the solution is filed under |
+|     ↳ `parent_topic` | json | Parent topic |
+|   ↳ `approval_status` | json | Approval status |
+|   ↳ `keywords` | string | Search keywords |
+|   ↳ `is_public` | boolean | Whether requesters can see the solution |
+|   ↳ `likes` | number | Like count |
+|   ↳ `dislikes` | number | Dislike count |
+|   ↳ `no_of_hits` | number | View count |
+|   ↳ `created_time` | json | Creation time |
+|   ↳ `last_updated_time` | json | Last update time |
+|   ↳ `review_date` | json | Date the solution is due for review |
+|   ↳ `expiry_date` | json | Date the solution expires |
+|   ↳ `created_by` | json | Author |
+|   ↳ `last_updated_by` | json | User who last updated the solution |
+|   ↳ `udf_fields` | json | Portal-defined custom fields |
+
+### ManageEngine SDP Get Solution
+
+Retrieve a single ManageEngine ServiceDesk Plus Cloud knowledge base solution by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `solutionId` | string | Yes | ID of the solution to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `solution` | object | The solution |
+|   ↳ `id` | string | Solution ID |
+|   ↳ `display_id` | json | Solution number shown in the SDP UI |
+|   ↳ `title` | string | Solution title |
+|   ↳ `description` | string | Solution body \(HTML\) |
+|   ↳ `topic` | json | Topic the solution is filed under |
+|     ↳ `parent_topic` | json | Parent topic |
+|   ↳ `approval_status` | json | Approval status |
+|   ↳ `keywords` | string | Search keywords |
+|   ↳ `is_public` | boolean | Whether requesters can see the solution |
+|   ↳ `likes` | number | Like count |
+|   ↳ `dislikes` | number | Dislike count |
+|   ↳ `no_of_hits` | number | View count |
+|   ↳ `created_time` | json | Creation time |
+|   ↳ `last_updated_time` | json | Last update time |
+|   ↳ `review_date` | json | Date the solution is due for review |
+|   ↳ `expiry_date` | json | Date the solution expires |
+|   ↳ `created_by` | json | Author |
+|   ↳ `last_updated_by` | json | User who last updated the solution |
+|   ↳ `udf_fields` | json | Portal-defined custom fields |
+
+### ManageEngine SDP List Solutions
+
+Search the ManageEngine ServiceDesk Plus Cloud knowledge base, with optional search criteria, sorting and paging.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `rowCount` | number | No | Rows to return \(maximum 100\) |
+| `startIndex` | number | No | One-based index of the first row to return |
+| `sortField` | string | No | Field to sort on, e.g. created_time |
+| `sortOrder` | string | No | Sort direction: asc or desc |
+| `searchCriteria` | json | No | Search criteria object or array, e.g. \{"field":"status.name","condition":"is","value":"Open"\} |
+| `fieldsRequired` | json | No | Array of field names to return, e.g. \["subject","status"\] |
+| `getTotalCount` | boolean | No | Include the total matching row count in list_info |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `solutions` | array | Matching solutions |
+|   ↳ `id` | string | Solution ID |
+|   ↳ `display_id` | json | Solution number shown in the SDP UI |
+|   ↳ `title` | string | Solution title |
+|   ↳ `description` | string | Solution body \(HTML\) |
+|   ↳ `topic` | json | Topic the solution is filed under |
+|     ↳ `parent_topic` | json | Parent topic |
+|   ↳ `approval_status` | json | Approval status |
+|   ↳ `keywords` | string | Search keywords |
+|   ↳ `is_public` | boolean | Whether requesters can see the solution |
+|   ↳ `likes` | number | Like count |
+|   ↳ `dislikes` | number | Dislike count |
+|   ↳ `no_of_hits` | number | View count |
+|   ↳ `created_time` | json | Creation time |
+|   ↳ `last_updated_time` | json | Last update time |
+|   ↳ `review_date` | json | Date the solution is due for review |
+|   ↳ `expiry_date` | json | Date the solution expires |
+|   ↳ `created_by` | json | Author |
+|   ↳ `last_updated_by` | json | User who last updated the solution |
+|   ↳ `udf_fields` | json | Portal-defined custom fields |
+| `count` | number | Number of solutions returned in this page |
+| `listInfo` | object | Paging metadata echoed by ServiceDesk Plus |
+|   ↳ `row_count` | number | Rows returned |
+|   ↳ `start_index` | number | Index the page started at |
+|   ↳ `page` | number | Page number |
+|   ↳ `has_more_rows` | boolean | Whether more rows are available after this page |
+|   ↳ `sort_field` | string | Field the results were sorted on |
+|   ↳ `sort_order` | string | Sort direction |
+|   ↳ `total_count` | number | Total matching rows, present only when get_total_count was requested |
+
+### ManageEngine SDP Update Solution
+
+Update a ManageEngine ServiceDesk Plus Cloud knowledge base solution: revise its body, retitle it, or move it to another topic.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `solutionId` | string | Yes | ID of the solution to update |
+| `title` | string | No | New solution title |
+| `description` | string | No | New solution body. HTML is supported |
+| `topic` | string | No | Name of an existing topic to move the solution to |
+| `keywords` | string | No | Search keywords for the solution |
+| `isPublic` | boolean | No | Whether requesters can see the solution. Only takes effect once the solution is Approved |
+| `udfFields` | json | No | Portal-defined custom fields, e.g. \{"udf_char1":"value"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `solution` | object | The updated solution |
+|   ↳ `id` | string | Solution ID |
+|   ↳ `display_id` | json | Solution number shown in the SDP UI |
+|   ↳ `title` | string | Solution title |
+|   ↳ `description` | string | Solution body \(HTML\) |
+|   ↳ `topic` | json | Topic the solution is filed under |
+|     ↳ `parent_topic` | json | Parent topic |
+|   ↳ `approval_status` | json | Approval status |
+|   ↳ `keywords` | string | Search keywords |
+|   ↳ `is_public` | boolean | Whether requesters can see the solution |
+|   ↳ `likes` | number | Like count |
+|   ↳ `dislikes` | number | Dislike count |
+|   ↳ `no_of_hits` | number | View count |
+|   ↳ `created_time` | json | Creation time |
+|   ↳ `last_updated_time` | json | Last update time |
+|   ↳ `review_date` | json | Date the solution is due for review |
+|   ↳ `expiry_date` | json | Date the solution expires |
+|   ↳ `created_by` | json | Author |
+|   ↳ `last_updated_by` | json | User who last updated the solution |
+|   ↳ `udf_fields` | json | Portal-defined custom fields |
+
+### ManageEngine SDP Delete Solution
+
+Delete an article from the ManageEngine ServiceDesk Plus Cloud knowledge base, along with its comments and versions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dataCenter` | string | No | Zoho data center hosting the portal \(US, EU, IN, AU, JP, CA, SA, UK, CN, AE\). Credentials connected through Sim are issued by the US accounts server and are only valid against US. |
+| `portal` | string | No | Portal URL name. Leave empty to use the account default portal |
+| `solutionId` | string | Yes | ID of the solution to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the solution was deleted |
+
+

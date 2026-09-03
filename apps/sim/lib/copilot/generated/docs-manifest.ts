@@ -213,6 +213,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/mailchimp.mdx',
   'integrations/mailgun.mdx',
   'integrations/managed_agent.mdx',
+  'integrations/manageengine_sdp.mdx',
   'integrations/mem0.mdx',
   'integrations/memory.mdx',
   'integrations/microsoft_ad.mdx',

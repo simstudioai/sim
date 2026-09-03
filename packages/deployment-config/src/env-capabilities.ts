@@ -1401,6 +1401,11 @@ export function resolveOAuthClientCapabilityId(serviceId: string): OAuthClientCa
   if (GOOGLE_OAUTH_SERVICES.has(normalized)) return 'google'
   if (MICROSOFT_OAUTH_SERVICES.has(normalized)) return 'microsoft'
   if (normalized === 'zoho') return 'zoho-desk'
+  // ServiceDesk Plus Cloud authenticates through Zoho. Scopes are chosen per
+  // authorization request rather than per API-console client, so the same
+  // registered Zoho client serves both products and is configured by the same
+  // env pair — without this alias the integration is silently dropped.
+  if (normalized === 'manageengine-sdp') return 'zoho-desk'
   // One consumer key serves both Salesforce login hosts, so the sandbox provider
   // is configured by the same env pair — without this alias it is silently dropped.
   if (normalized === 'salesforce-sandbox') return 'salesforce'

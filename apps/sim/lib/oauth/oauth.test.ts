@@ -733,6 +733,41 @@ describe('OAuth Token Refresh', () => {
       expect(mockFetch).not.toHaveBeenCalled()
     })
 
+    it.concurrent(
+      'should refresh manageengine-sdp against the shared Zoho OAuth client',
+      async () => {
+        const mockFetch = createMockFetch(defaultOAuthResponse)
+
+        const result = await withMockFetch(mockFetch, () =>
+          refreshOAuthToken('manageengine-sdp', 'test_refresh_token')
+        )
+
+        /**
+         * ServiceDesk Plus Cloud authenticates through Zoho, so it deliberately
+         * has no OAuth client of its own — its `getProviderAuthConfig` case
+         * reads the `zoho-desk` capability's ZOHO_* pair.
+         *
+         * Asserting the partial-configuration error rather than a successful
+         * refresh is deliberate: this mock env sets ZOHO_CLIENT_ID but leaves
+         * ZOHO_CLIENT_SECRET undefined, so a successful refresh is impossible
+         * here and the error text is what names the client actually consulted.
+         * A provider that had been given its own capability would report
+         * `manageengine-sdp` and a MANAGEENGINE_* field; an unregistered one
+         * would report an unsupported provider.
+         *
+         * This covers the refresh path only. The separate deployment-availability
+         * alias (`resolveOAuthClientCapabilityId('manageengine-sdp')`) is what
+         * lib/integrations/availability.server.test.ts covers.
+         */
+        expect(result).toEqual({
+          ok: false,
+          message:
+            'OAuth client zoho-desk is partially configured — missing ZOHO_CLIENT_SECRET. Run npx sim-setup add integration zoho-desk.',
+        })
+        expect(mockFetch).not.toHaveBeenCalled()
+      }
+    )
+
     it.concurrent('should return failure for unsupported provider', async () => {
       const mockFetch = createMockFetch(defaultOAuthResponse)
       const refreshToken = 'test_refresh_token'
