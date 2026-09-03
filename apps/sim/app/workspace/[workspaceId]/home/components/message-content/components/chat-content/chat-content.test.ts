@@ -35,6 +35,31 @@ describe('sanitizeChatDisplayContent', () => {
     expect(sanitizeChatDisplayContent(`${prefix}\`${tag}\``)).toBe(`${prefix}${tag}`)
   })
 
+  it.each(['\n\n', '\r\n\r\n', '\n \t\n'])(
+    'does not pair prose runs across paragraph break %j',
+    (separator) => {
+      const tag = '<source>{"url":"https://example.com"}</source>'
+      const before = `Use \`\` as a delimiter.${separator}`
+      const after = `${separator}Another \`\` marker.`
+
+      expect(sanitizeChatDisplayContent(`${before}\`${tag}\`${after}`)).toBe(
+        `${before}${tag}${after}`
+      )
+    }
+  )
+
+  it('preserves matched multi-backtick spans across a soft line break', () => {
+    const content = '``Literal\n`<source>{"url":"https://example.com"}</source>`\nexample``'
+
+    expect(sanitizeChatDisplayContent(content)).toBe(content)
+  })
+
+  it('does not treat blank lines inside chip JSON as paragraph breaks', () => {
+    const tag = '<source>{\n\n"url":"https://example.com",\n\n"title":"Use `code`"\n}</source>'
+
+    expect(sanitizeChatDisplayContent(`\`${tag}\``)).toBe(tag)
+  })
+
   it('preserves fences closed by a longer run and unwraps citations after them', () => {
     const tag = '<source>{"url":"https://example.com"}</source>'
     const block = `\`\`\`json\n\`${tag}\`\n\`\`\`\`\n`

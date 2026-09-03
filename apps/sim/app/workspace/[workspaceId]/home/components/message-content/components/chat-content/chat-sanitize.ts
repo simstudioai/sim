@@ -8,6 +8,7 @@ const JSON_STRING_SOURCE = '"(?:\\\\(?:["\\\\/bfnrt]|u[0-9a-fA-F]{4})|[^"\\\\\\r
 const COMPLETE_TAG_SOURCE = `<(?<chipTag>workspace_resource|source)>\\s*\\{(?:${JSON_STRING_SOURCE}|[^"\`<\\\\])*?\\}\\s*</\\k<chipTag>>`
 
 const INLINE_CHIP_OR_DELIMITER = new RegExp(`${COMPLETE_TAG_SOURCE}|\`+|\\n`, 'g')
+const CHIP_OR_PARAGRAPH_BREAK = new RegExp(`${COMPLETE_TAG_SOURCE}|\\n[\\t \\r]*\\n`, 'g')
 
 interface OpenCodeSpan {
   index: number
@@ -16,7 +17,7 @@ interface OpenCodeSpan {
 }
 
 /** Only matched multi-backtick runs are code; an unmatched run remains ordinary prose. */
-function unwrapInlineChips(content: string): string {
+function unwrapInlineParagraph(content: string): string {
   const remainingRuns = new Map<number, number>()
   for (const [value] of content.matchAll(INLINE_CHIP_OR_DELIMITER)) {
     if (value.startsWith('`') && value.length > 1) {
@@ -74,6 +75,20 @@ function unwrapInlineChips(content: string): string {
     cursor = index + 1
   }
   parts.push(content.slice(cursor))
+  return parts.join('')
+}
+
+/** Paragraph breaks end inline spans, but blank lines inside chip JSON belong to the payload. */
+function unwrapInlineChips(content: string): string {
+  const parts: string[] = []
+  let cursor = 0
+
+  for (const match of content.matchAll(CHIP_OR_PARAGRAPH_BREAK)) {
+    if (!match[0].startsWith('\n')) continue
+    parts.push(unwrapInlineParagraph(content.slice(cursor, match.index)), match[0])
+    cursor = match.index + match[0].length
+  }
+  parts.push(unwrapInlineParagraph(content.slice(cursor)))
   return parts.join('')
 }
 
