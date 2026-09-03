@@ -147,20 +147,22 @@ async function resolveSafeSourceFile(
   workspaceId: string,
   reference: string
 ): Promise<WorkspaceFileRecord> {
-  const file = await resolveWorkspaceFileReference(workspaceId, reference)
+  const file = await resolveWorkspaceFileReference(workspaceId, reference, {
+    includeChatUploads: true,
+  })
   if (!file) {
     if (reference.replace(/^\/+/, '').startsWith('uploads/')) {
       throw new OrchestrationError(
-        'validation',
-        `Cannot import "${reference}": chat uploads are not workspace files. Use save_upload to save it to a files/... path first, then pass that canonical path.`
+        'not_found',
+        `Cannot import "${reference}": no chat upload by that name in this workspace. Use the exact uploads/<name> path from the upload notice.`
       )
     }
     throw new OrchestrationError(
       'not_found',
-      `File not found: "${reference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
+      `File not found: "${reference}". Use \`files ls\` or \`files list --search <name>\` to find the path.`
     )
   }
-  const canonical = await loadActiveWorkspaceFileContext(file.id)
+  const canonical = await loadActiveWorkspaceFileContext(file.id, { includeChatUploads: true })
   if (!canonical || canonical.workspaceId !== workspaceId || file.workspaceId !== workspaceId) {
     throw new OrchestrationError('not_found', 'Workspace file not found')
   }

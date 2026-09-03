@@ -296,7 +296,7 @@ export function isArchiveFileName(filename: string): boolean {
  * `files/`, so this points at the explicit one-time extract step.
  */
 export function buildArchiveExtractGuidance(name: string): string {
-  return `"${name}" is a .zip archive — its contents can't be read directly. Extract it once with \`sim --output json files unzip "uploads/${name}"\`, then list and read the unpacked files (\`files ls\` / \`files read\`).`
+  return `"${name}" is a .zip archive — its contents can't be read directly. Mount it into the chat sandbox with run_code (inputs.files: [{"path": "uploads/${name}", "sandboxPath": "/tmp/${name}"}]) and unzip it there; persist anything worth keeping with \`files upload @<path>\`.`
 }
 
 const EXTENSION_TO_MIME: Record<string, string> = {

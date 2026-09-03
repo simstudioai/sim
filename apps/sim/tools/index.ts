@@ -501,7 +501,7 @@ function enforceCopilotCredentialSelection(
 
   const toolLabel = tool.name || toolId
   throw new Error(
-    `Copilot must pass credentialId for ${toolLabel}. Read environment/credentials.json and pass the exact credentialId for provider "${tool.oauth.provider}".`
+    `Copilot must pass credentialId for ${toolLabel}. Run \`credentials list\` and pass the exact credentialId for provider "${tool.oauth.provider}".`
   )
 }
 

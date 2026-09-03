@@ -115,7 +115,7 @@ export const workflowDepsCommand: AgentCliEngine = {
   async execute(rest, runtime) {
     const [workflowId, blockId] = rest
     if (!workflowId || !blockId)
-      return agentCliFail('Usage: sim workflow deps <workflowId> <blockId>')
+      return agentCliFail('Usage: sim workflows deps <workflowId> <blockId>')
     const state = await fetchWorkflowState(runtime, workflowId)
     const blocks = (state.blocks ?? {}) as Record<string, Record<string, unknown>>
     const block = blocks[blockId]

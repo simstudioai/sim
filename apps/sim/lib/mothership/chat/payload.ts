@@ -338,8 +338,8 @@ export async function buildCopilotRequestPayload(
           userMessageId
         )
         // Encode the read path per the percent-encoded VFS convention (matches
-        // files/ and the uploads glob output). The save_upload `fileName`
-        // arg stays the raw display name — the upload resolver accepts both.
+        // files/ and `files ls uploads` output); the resolver also accepts the raw
+        // display name.
         let encodedUploadName = displayName
         try {
           encodedUploadName = encodeVfsSegment(displayName)
@@ -356,13 +356,13 @@ export async function buildCopilotRequestPayload(
           ]
         } else {
           lines = [
-            `File "${displayName}" (${mediaType}, ${f.size} bytes) uploaded to workspace files.`,
+            `File "${displayName}" (${mediaType}, ${f.size} bytes) uploaded to this chat as "uploads/${encodedUploadName}" (a chat upload: readable here, not listed under workspace files/).`,
             `Read it with: sim --output json files read "uploads/${encodedUploadName}"`,
             `Pass the same path "uploads/${encodedUploadName}" as inputs.files[].path to mount it in run_code or use it as a reference image in generate_image.`,
           ]
           if (displayName.endsWith('.json')) {
             lines.push(
-              `If it is a workflow export, import it with: sim --output json workflows import --file "uploads/${encodedUploadName}"`
+              `If it is a workflow export: read it with files read, then import the JSON with: sim --output json workflows import --workflow '<the JSON>'`
             )
           }
         }

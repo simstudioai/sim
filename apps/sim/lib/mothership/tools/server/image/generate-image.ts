@@ -77,7 +77,7 @@ async function loadReferenceImage(
   } catch (error) {
     if (error instanceof OrchestrationError && error.code === 'not_found') {
       throw new Error(
-        `Reference image "${filePath}" was not found. Pass the exact canonical VFS path copied from glob/read (e.g. "files/photo.png"), or the "uploads/<name>" path from the upload notice.`
+        `Reference image "${filePath}" was not found. Pass the exact path as \`files ls\` prints it (e.g. "files/photo.png"), or the "uploads/<name>" path from the upload notice.`
       )
     }
     throw error

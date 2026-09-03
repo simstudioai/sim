@@ -208,10 +208,10 @@ export async function processContextsServer(
             type: 'browser_tab',
             tag: ctx.label ? `@${ctx.label}` : '@Browser',
             content:
-              'The user tagged the Browser resource as a whole, not a specific tab. Inspect the live tabs with browser_list_tabs and choose the relevant one from their request. If no browser tab is open yet, open or navigate one as needed.',
+              'The user tagged the Browser resource as a whole, not a specific tab. You cannot read or drive browser tabs here: ask which page they mean, and work from a URL or pasted content.',
           }
         }
-        const pointer = `The user pointed at an open browser tab: "${ctx.label}" (tabId ${ctx.tabId}). Act on THIS tab — switch to it with browser_switch_tab and read it with browser_snapshot rather than assuming which tab they meant.`
+        const pointer = `The user pointed at an open browser tab: "${ctx.label}" (tabId ${ctx.tabId}). You cannot read or drive browser tabs here: work from the tab's title and any URL or content the user shares rather than assuming what it shows.`
         return {
           type: 'browser_tab',
           tag: ctx.label ? `@${ctx.label}` : '@',
@@ -229,7 +229,7 @@ export async function processContextsServer(
               'The user tagged the Terminal resource as a whole, not a specific shell. Inspect the live terminals with the terminal list operation and choose the relevant one from their request. If no terminal is open yet, create one as needed.',
           }
         }
-        const pointer = `The user pointed at an open terminal: "${ctx.label}" (terminalId ${ctx.terminalId}). Act on THIS terminal — pass that terminalId to the terminal tool, and read its screen before assuming what is in it.`
+        const pointer = `The user pointed at an open terminal: "${ctx.label}" (terminalId ${ctx.terminalId}). You cannot read or drive terminals here: ask the user to paste the relevant output rather than assuming what is in it.`
         return {
           type: 'terminal_tab',
           tag: ctx.label ? `@${ctx.label}` : '@',
@@ -343,7 +343,7 @@ export async function processContextsServer(
             tag: ctx.label ? `@${ctx.label}` : '@',
             content: JSON.stringify({
               results: [],
-              note: 'Documentation search is temporarily unavailable. Do not infer that the docs lack this topic; retry search_docs or browse docs/** later.',
+              note: 'Documentation search is temporarily unavailable. Do not infer that the docs lack this topic; retry `docs search` later.',
             }),
           }
         }
