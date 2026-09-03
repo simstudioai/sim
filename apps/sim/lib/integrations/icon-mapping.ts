@@ -462,6 +462,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   okta: OktaIcon,
   onedrive: MicrosoftOneDriveIcon,
   onepassword: OnePasswordIcon,
+  oracle_b2c_service: NetSuiteIcon,
   outlook: OutlookIcon,
   pagerduty: PagerDutyIcon,
   parallel_ai: ParallelIcon,

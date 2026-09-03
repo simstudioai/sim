@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-03",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,109 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "oracle_b2c_service",
+      "slug": "oracle-b2c-service",
+      "name": "Oracle B2C Service",
+      "description": "Manage Oracle B2C Service incidents, contacts, organizations, and answers",
+      "longDescription": "Create, retrieve, update, delete, filter, sort, and page through Oracle B2C Service incidents, contacts, organizations, and Classic Answers using the Connect REST API.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_b2c_service",
+      "operations": [
+        {
+          "name": "List Incidents",
+          "description": "Return one bounded page of Oracle B2C Service incident summaries."
+        },
+        {
+          "name": "Get Incident",
+          "description": "Retrieve an Oracle B2C Service incident by ID, optionally including its threads."
+        },
+        {
+          "name": "Create Incident",
+          "description": "Create an Oracle B2C Service incident with a subject and primary contact."
+        },
+        {
+          "name": "Update Incident",
+          "description": "Update named fields on an Oracle B2C Service incident."
+        },
+        {
+          "name": "Delete Incident",
+          "description": "Delete an Oracle B2C Service incident by ID."
+        },
+        {
+          "name": "Create Incident Response",
+          "description": "Send a customer-facing email response through an Oracle B2C Service incident."
+        },
+        {
+          "name": "List Contacts",
+          "description": "Return one bounded page of Oracle B2C Service contact summaries."
+        },
+        {
+          "name": "Get Contact",
+          "description": "Retrieve an Oracle B2C Service contact by ID, including email addresses and phone numbers."
+        },
+        {
+          "name": "Create Contact",
+          "description": "Create an Oracle B2C Service contact with the supplied fields."
+        },
+        {
+          "name": "Update Contact",
+          "description": "Update named fields on an Oracle B2C Service contact."
+        },
+        {
+          "name": "Delete Contact",
+          "description": "Delete an Oracle B2C Service contact by ID."
+        },
+        {
+          "name": "List Organizations",
+          "description": "Return one bounded page of Oracle B2C Service organization summaries."
+        },
+        {
+          "name": "Get Organization",
+          "description": "Retrieve an Oracle B2C Service organization by ID."
+        },
+        {
+          "name": "Create Organization",
+          "description": "Create an Oracle B2C Service organization."
+        },
+        {
+          "name": "Update Organization",
+          "description": "Update named fields on an Oracle B2C Service organization."
+        },
+        {
+          "name": "Delete Organization",
+          "description": "Delete an Oracle B2C Service organization by ID."
+        },
+        {
+          "name": "List Classic Answers",
+          "description": "Return one bounded page of Oracle B2C Service Classic Answer summaries."
+        },
+        {
+          "name": "Get Classic Answer",
+          "description": "Retrieve an Oracle B2C Service Classic Answer by ID."
+        },
+        {
+          "name": "Create Classic Answer",
+          "description": "Create an Oracle B2C Service Classic Answer."
+        },
+        {
+          "name": "Update Classic Answer",
+          "description": "Update named fields on an Oracle B2C Service Classic Answer."
+        },
+        {
+          "name": "Delete Classic Answer",
+          "description": "Delete an Oracle B2C Service Classic Answer by ID."
+        }
+      ],
+      "operationCount": 21,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "support",
+      "tags": ["customer-support", "ticketing", "knowledge-base", "automation"]
     },
     {
       "type": "netsuite",
