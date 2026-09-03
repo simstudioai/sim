@@ -350,7 +350,7 @@ export async function processContextsServer(
             tag: ctx.label ? `@${ctx.label}` : '@',
             content: JSON.stringify({
               results: [],
-              note: 'Documentation search is temporarily unavailable. Do not infer that the docs lack this topic; retry search_docs or browse docs/** later.',
+              note: 'Documentation search is temporarily unavailable. Do not infer that the docs lack this topic; retry `docs search` later.',
             }),
           }
         }
