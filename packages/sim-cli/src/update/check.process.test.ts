@@ -81,8 +81,13 @@ function runChild(
     {
       env: {
         ...process.env,
+        BUILDKITE: '0',
+        CI: '0',
+        GITHUB_ACTIONS: '0',
+        JENKINS_URL: '0',
         NODE_USE_ENV_PROXY: '0',
         NO_PROXY: '127.0.0.1,localhost',
+        TEAMCITY_VERSION: '0',
         ...options.env,
         SIM_CONFIG_DIR: configDir,
         ...(options.useProcessEnv ? { npm_config_registry: registry } : {}),
