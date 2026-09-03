@@ -45,6 +45,37 @@ import { CSV_DURABLE_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 
 describe('v2 table column contracts', () => {
+  it('preserves reference table metadata on every public column write', () => {
+    expect(
+      v2CreateTableBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        name: 'contacts',
+        schema: {
+          columns: [{ name: 'account', type: 'reference', referenceTableId: 'tbl_accounts' }],
+        },
+      })
+    ).toMatchObject({
+      success: true,
+      data: { schema: { columns: [{ referenceTableId: 'tbl_accounts' }] } },
+    })
+    expect(
+      v2CreateTableColumnBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        column: { name: 'account', type: 'reference', referenceTableId: 'tbl_accounts' },
+      })
+    ).toMatchObject({
+      success: true,
+      data: { column: { referenceTableId: 'tbl_accounts' } },
+    })
+    expect(
+      v2UpdateTableColumnBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        columnName: 'account',
+        updates: { referenceTableId: 'tbl_other' },
+      })
+    ).toMatchObject({ success: true, data: { updates: { referenceTableId: 'tbl_other' } } })
+  })
+
   it('accepts required on every public column write so a column round-trips', () => {
     expect(
       v2CreateTableBodySchema.safeParse({

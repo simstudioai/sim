@@ -17,8 +17,9 @@ import {
   insertTableRowBodyBaseSchema,
   predicateInputSchema,
   predicateSchema,
+  referenceTableIdSchema,
   refineCancelTableRunsScope,
-  refineColumnOptions,
+  refineColumnTypeMetadata,
   rowAnchorMutexRefine,
   runColumnBodyBaseSchema,
   runColumnExcludeMutexRefine,
@@ -472,6 +473,9 @@ const v2TableColumnInputShape = {
   options: selectOptionsSchema.optional().describe('Select options for select-type columns.'),
   multiple: z.boolean().optional().describe('Whether a select column accepts multiple values.'),
   currencyCode: currencyCodeSchema.optional().describe('ISO 4217 code for currency columns.'),
+  referenceTableId: referenceTableIdSchema
+    .optional()
+    .describe('Target table for reference columns.'),
 }
 
 /**
@@ -489,7 +493,8 @@ const v2TableColumnInputShape = {
 export const v2TableColumnInputSchema = z
   .object(v2TableColumnInputShape)
   .strict()
-  .superRefine(refineColumnOptions)
+  .superRefine(refineColumnTypeMetadata)
+  .meta({ omitPropertiesFromOpenApi: ['referenceTableId'] as const })
 
 /**
  * Initial columns take the same shape as every other v2 column input.
@@ -740,8 +745,9 @@ export const v2CreateTableColumnBodySchema = z
           .describe('Zero-based insertion position for the column.'),
       })
       .strict()
-      .superRefine(refineColumnOptions)
-      .describe('Column definition to add.'),
+      .superRefine(refineColumnTypeMetadata)
+      .describe('Column definition to add.')
+      .meta({ omitPropertiesFromOpenApi: ['referenceTableId'] as const }),
   })
   .strict()
 
@@ -770,10 +776,14 @@ export const v2UpdateTableColumnBodySchema = z
         currencyCode: currencyCodeSchema
           .optional()
           .describe('Replacement ISO 4217 code for a currency column.'),
+        referenceTableId: referenceTableIdSchema
+          .optional()
+          .describe('Replacement target table for a reference column.'),
       })
       .strict()
-      .superRefine(refineColumnOptions)
-      .describe('Mutable column fields.'),
+      .superRefine(refineColumnTypeMetadata)
+      .describe('Mutable column fields.')
+      .meta({ omitPropertiesFromOpenApi: ['referenceTableId'] as const }),
   })
   .strict()
 

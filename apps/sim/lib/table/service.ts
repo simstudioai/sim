@@ -36,6 +36,7 @@ import { resolveRestoredFolderId } from '@/lib/folders/queries'
 import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
+import { assertColumnReferencesInWorkspace } from '@/lib/table/column-types/registry.server'
 import {
   COLUMN_TYPES,
   DEFAULT_TABLE_VIEW_NAME,
@@ -52,6 +53,7 @@ import {
 import { assertSchemaMutable, TableLockedError } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import type { DbTransaction } from '@/lib/table/planner'
+import { assertTableReferenceColumnsEnabled } from '@/lib/table/reference-columns/availability'
 import {
   createExactEmptyTableRowSecretProvenance,
   mutateTableRowsWithSecretProvenance,
@@ -564,6 +566,9 @@ export async function createTable(
   if (data.schema.columns.some((column) => column.type === 'ttl')) {
     await assertTableRowTtlEnabled()
   }
+  if (data.schema.columns.some((column) => column.type === 'reference')) {
+    await assertTableReferenceColumnsEnabled()
+  }
 
   const tableId = `tbl_${generateId().replace(/-/g, '')}`
   const now = new Date()
@@ -628,6 +633,7 @@ export async function createTable(
       await trx.execute(
         sql`SELECT 1 FROM workspace WHERE id = ${data.workspaceId} FOR NO KEY UPDATE`
       )
+      await assertColumnReferencesInWorkspace(trx, data.workspaceId, schema.columns)
 
       const [{ count: existingCount }] = await trx
         .select({ count: count() })

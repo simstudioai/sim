@@ -6,6 +6,7 @@ import { X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'
+import { columnTypeById } from '@/lib/table/column-types'
 import {
   DEFAULT_CURRENCY_CODE,
   getCurrencyOptions,
@@ -15,7 +16,7 @@ import {
   FieldError,
   RequiredLabel,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
-import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
+import { useAddTableColumn, useTablesList, useUpdateColumn } from '@/hooks/queries/tables'
 import { SelectOptionsEditor } from '../select-field'
 import { columnTypeOptionsForTable } from './column-types'
 
@@ -54,6 +55,7 @@ interface ColumnConfigSidebarProps {
   existingColumn: ColumnDefinition | null
   allColumns: readonly ColumnDefinition[]
   tableRowTtlEnabled: boolean
+  referenceColumnsEnabled: boolean
   workspaceId: string
   tableId: string
   /** Notify parent of a rename so it can rewrite local `columnOrder` /
@@ -106,6 +108,7 @@ function ColumnConfigBody({
   existingColumn,
   allColumns,
   tableRowTtlEnabled,
+  referenceColumnsEnabled,
   workspaceId,
   tableId,
   onColumnRename,
@@ -133,14 +136,39 @@ function ColumnConfigBody({
       ? resolveCurrencyCode(existingColumn?.currencyCode)
       : DEFAULT_CURRENCY_CODE
   )
+  const [referenceTableInput, setReferenceTableInput] = useState<string>(() =>
+    config.mode === 'edit' ? (existingColumn?.referenceTableId ?? '') : ''
+  )
   const [showValidation, setShowValidation] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
+  const [referenceTableError, setReferenceTableError] = useState<string | null>(null)
 
-  const saveDisabled = updateColumn.isPending || addColumn.isPending
   const trimmedName = nameInput.trim()
   const wantsOptions = isSelectType(typeInput)
   const wantsCurrency = typeInput === 'currency'
+  const wantsReference = typeInput === 'reference'
+  const referenceMutationBlocked =
+    !referenceColumnsEnabled &&
+    wantsReference &&
+    (config.mode === 'create' ||
+      existingColumn?.type !== 'reference' ||
+      existingColumn.referenceTableId !== referenceTableInput)
+  const saveDisabled = updateColumn.isPending || addColumn.isPending || referenceMutationBlocked
+  const supportsUnique = columnTypeById(typeInput).supportsUnique
+  const shouldLoadReferenceTables =
+    wantsReference && (referenceColumnsEnabled || existingColumn?.type === 'reference')
+  const { data: workspaceTables = [], isPending: workspaceTablesPending } = useTablesList(
+    workspaceId,
+    'active',
+    { enabled: shouldLoadReferenceTables }
+  )
+  const tableOptions = [
+    ...workspaceTables.map((table) => ({ value: table.id, label: table.name })),
+    ...(referenceTableInput && !workspaceTables.some((table) => table.id === referenceTableInput)
+      ? [{ value: referenceTableInput, label: referenceTableInput }]
+      : []),
+  ]
   const trimmedOptions = optionsInput.map((o) => ({ ...o, name: o.name.trim() }))
 
   /** Client-side option validation mirroring the server rules; returns an error message or null. */
@@ -151,6 +179,11 @@ function ColumnConfigBody({
     const names = trimmedOptions.map((o) => o.name.toLowerCase())
     if (new Set(names).size !== names.length) return 'Option names must be unique'
     return null
+  }
+
+  function validateReferenceTable(): string | null {
+    if (!wantsReference || referenceTableInput) return null
+    return 'Select a table'
   }
 
   async function handleSave() {
@@ -164,37 +197,40 @@ function ColumnConfigBody({
       setOptionsError(optionsIssue)
       return
     }
+    const referenceTableIssue = validateReferenceTable()
+    if (referenceTableIssue) {
+      setReferenceTableError(referenceTableIssue)
+      return
+    }
 
     try {
       if (config.mode === 'create') {
         await addColumn.mutateAsync({
           name: trimmedName,
           type: typeInput,
-          // Select columns don't expose a unique constraint.
-          ...(!wantsOptions && uniqueInput ? { unique: true } : {}),
+          ...(supportsUnique && uniqueInput ? { unique: true } : {}),
           ...(wantsOptions ? { options: trimmedOptions } : {}),
           ...(wantsOptions && multipleInput ? { multiple: true } : {}),
           ...(wantsCurrency ? { currencyCode: currencyInput } : {}),
+          ...(wantsReference ? { referenceTableId: referenceTableInput } : {}),
         })
         toast.success(`Added "${trimmedName}"`)
         onClose()
         return
       }
 
-      // `config.columnName` is the column id; compare against the current display
-      // name to detect an actual rename.
       const renamed = trimmedName !== (existingColumn?.name ?? config.columnName)
       const typeChanged = !!existingColumn && existingColumn.type !== typeInput
       const uniqueChanged =
-        !wantsOptions && !!existingColumn && !!existingColumn.unique !== uniqueInput
-      // Select columns don't offer a Unique control, so converting a unique
-      // column to select would strand the constraint with no way to clear it.
-      const uniqueCleared = wantsOptions && !!existingColumn?.unique
+        supportsUnique && !!existingColumn && !!existingColumn.unique !== uniqueInput
+      const uniqueCleared = !supportsUnique && !!existingColumn?.unique
       const optionsChanged =
         wantsOptions && !optionsEqual(existingColumn?.options ?? [], trimmedOptions)
       const multipleChanged = wantsOptions && !!existingColumn?.multiple !== multipleInput
       const currencyChanged =
         wantsCurrency && resolveCurrencyCode(existingColumn?.currencyCode) !== currencyInput
+      const referenceTableChanged =
+        wantsReference && existingColumn?.referenceTableId !== referenceTableInput
 
       const updates: {
         name?: string
@@ -203,6 +239,7 @@ function ColumnConfigBody({
         options?: SelectOption[]
         multiple?: boolean
         currencyCode?: string
+        referenceTableId?: string
       } = {
         ...(renamed ? { name: trimmedName } : {}),
         ...(typeChanged ? { type: typeInput } : {}),
@@ -212,6 +249,9 @@ function ColumnConfigBody({
         ...(wantsOptions && (typeChanged || multipleChanged) ? { multiple: multipleInput } : {}),
         ...(wantsCurrency && (typeChanged || currencyChanged)
           ? { currencyCode: currencyInput }
+          : {}),
+        ...(wantsReference && (typeChanged || referenceTableChanged)
+          ? { referenceTableId: referenceTableInput }
           : {}),
       }
       if (Object.keys(updates).length === 0) {
@@ -281,12 +321,20 @@ function ColumnConfigBody({
                 options={columnTypeOptionsForTable(allColumns, existingColumn, {
                   tableRowTtlEnabled,
                 })
-                  .filter((option) => option.type !== 'workflow')
+                  .filter(
+                    (option) =>
+                      option.type !== 'workflow' &&
+                      (referenceColumnsEnabled ||
+                        option.type !== 'reference' ||
+                        existingColumn?.type === 'reference')
+                  )
                   .map((option) => ({
                     label: option.label,
                     value: option.type,
                     icon: option.icon,
-                    disabled: option.disabledReason !== undefined,
+                    disabled:
+                      option.disabledReason !== undefined ||
+                      (!referenceColumnsEnabled && option.type === 'reference'),
                   }))}
                 value={typeInput}
                 onChange={(v) => setTypeInput(v as ColumnDefinition['type'])}
@@ -341,8 +389,31 @@ function ColumnConfigBody({
           </>
         )}
 
-        {/* Select columns don't expose a unique constraint. */}
-        {!wantsOptions && (
+        {wantsReference && (
+          <>
+            <FieldDivider />
+            <div className='flex flex-col gap-[9.5px]'>
+              <RequiredLabel>Table</RequiredLabel>
+              <ChipCombobox
+                options={tableOptions}
+                value={referenceTableInput}
+                disabled={!referenceColumnsEnabled}
+                onChange={(value) => {
+                  setReferenceTableInput(value)
+                  if (referenceTableError) setReferenceTableError(null)
+                }}
+                placeholder='Select table'
+                searchable
+                searchPlaceholder='Search tables'
+                isLoading={shouldLoadReferenceTables && workspaceTablesPending}
+                maxHeight={260}
+              />
+              {referenceTableError && <FieldError message={referenceTableError} />}
+            </div>
+          </>
+        )}
+
+        {supportsUnique && (
           <>
             <FieldDivider />
             <div className='flex flex-col gap-[9.5px]'>

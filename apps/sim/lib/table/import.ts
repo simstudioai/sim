@@ -512,6 +512,10 @@ export function coerceValue(
         return String(value)
       }
     }
+    case 'reference':
+      return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+        ? String(value)
+        : null
     default:
       return String(value)
   }

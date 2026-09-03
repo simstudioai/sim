@@ -967,6 +967,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 options?: unknown
                 multiple?: boolean
                 currencyCode?: string
+                referenceTableId?: string
               }
             | undefined
           if (!col?.name || !col?.type) {
@@ -1090,17 +1091,21 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const rawOptions = (args as Record<string, unknown>).options
           const multiple = (args as Record<string, unknown>).multiple as boolean | undefined
           const currencyCode = (args as Record<string, unknown>).currencyCode as string | undefined
+          const referenceTableId = (args as Record<string, unknown>).referenceTableId as
+            | string
+            | undefined
           if (
             newType === undefined &&
             uniqFlag === undefined &&
             rawOptions === undefined &&
             multiple === undefined &&
-            currencyCode === undefined
+            currencyCode === undefined &&
+            referenceTableId === undefined
           ) {
             return {
               success: false,
               message:
-                'At least one of newType, unique, options, multiple, or currencyCode must be provided',
+                'At least one of newType, unique, options, multiple, currencyCode, or referenceTableId must be provided',
             }
           }
           if (currencyCode !== undefined && !isSupportedCurrencyCode(currencyCode)) {
@@ -1131,6 +1136,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 ...(rawOptions !== undefined ? { options: rawOptions } : {}),
                 ...(multiple !== undefined ? { multiple } : {}),
                 ...(currencyCode !== undefined ? { currencyCode } : {}),
+                ...(referenceTableId !== undefined ? { referenceTableId } : {}),
               },
             },
             { tableId: args.tableId }

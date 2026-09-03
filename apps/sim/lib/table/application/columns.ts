@@ -36,6 +36,7 @@ export interface AddTableColumnInput extends TableColumnInput {
     options?: SelectOption[]
     multiple?: boolean
     currencyCode?: string
+    referenceTableId?: string
   }
 }
 
@@ -77,6 +78,7 @@ export interface UpdateTableColumnInput extends TableColumnInput {
     options?: unknown
     multiple?: boolean
     currencyCode?: string
+    referenceTableId?: string
   }
 }
 

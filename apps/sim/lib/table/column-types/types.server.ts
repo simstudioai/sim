@@ -1,9 +1,9 @@
 /**
- * The server-only half of a column type: rewriting stored cells when a column
- * is converted into or out of this type.
+ * The server-only half of a column type: database-backed definition checks and
+ * stored-cell rewrites for conversion into or out of the type.
  *
  * Separate from `types.ts` so the client-safe definition never references a
- * drizzle transaction type. Mirrors `connectors/`'s `ConnectorMeta` /
+ * Drizzle transaction type. Mirrors `connectors/`'s `ConnectorMeta` /
  * `ConnectorConfig` split.
  */
 
@@ -31,6 +31,12 @@ export interface ColumnCellMigrationContext {
 export type ColumnCellMigration = (context: ColumnCellMigrationContext) => Promise<void>
 
 export interface ColumnTypeServerDefinition {
+  /**
+   * Table IDs named by this column's type-specific metadata. The server
+   * registry uses this to validate cross-table references in one batch before
+   * a schema is persisted. Omitted by types that do not reference tables.
+   */
+  readonly referencedTableIds?: (column: ColumnDefinition) => readonly string[]
   /**
    * Rewrites cells into this type's canonical storage shape when a column is
    * converted **to** it. Omitted when the stored bytes are already correct.

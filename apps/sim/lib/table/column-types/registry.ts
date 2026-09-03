@@ -24,6 +24,7 @@ import { currencyColumnType } from '@/lib/table/column-types/currency'
 import { dateColumnType } from '@/lib/table/column-types/date'
 import { jsonColumnType } from '@/lib/table/column-types/json'
 import { numberColumnType } from '@/lib/table/column-types/number'
+import { referenceColumnType } from '@/lib/table/column-types/reference'
 import {
   MULTI_SELECT_OPERATORS,
   MULTI_SELECT_OPS,
@@ -52,6 +53,7 @@ export const COLUMN_TYPE_REGISTRY: Record<ColumnType, ColumnTypeDefinition> = {
   ttl: ttlColumnType,
   json: jsonColumnType,
   select: selectColumnType,
+  reference: referenceColumnType,
   currency: currencyColumnType,
 }
 
@@ -113,9 +115,8 @@ export function validateTypeMetadata(column: ColumnDefinition): string[] {
  * A column's type-specific metadata, as a spreadable object.
  *
  * Callers that copy a column — the API response serializer, the undo snapshot —
- * used to name `options`/`multiple`/`currencyCode` by hand, so a new type's
- * metadata was stored but silently dropped on the way out. Reading the key list
- * keeps them zero-edit.
+ * used to name type-specific keys by hand, so a new type's metadata was stored
+ * but silently dropped on the way out. Reading the key list keeps them zero-edit.
  */
 export function typeMetadataOf(column: ColumnDefinition): Partial<ColumnDefinition> {
   const metadata: Partial<ColumnDefinition> = {}

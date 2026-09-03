@@ -11,8 +11,9 @@
  * under any other type. `currency` needs only the inbound one.
  */
 
-import { userTableRows } from '@sim/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { userTableDefinitions, userTableRows } from '@sim/db/schema'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { COLUMN_TYPE_REGISTRY } from '@/lib/table/column-types/registry'
 import type { ColumnType } from '@/lib/table/column-types/types'
 import type {
@@ -21,7 +22,7 @@ import type {
 } from '@/lib/table/column-types/types.server'
 import type { DbTransaction } from '@/lib/table/planner'
 import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
-import type { JsonValue, SelectOption } from '@/lib/table/types'
+import type { ColumnDefinition, JsonValue, SelectOption } from '@/lib/table/types'
 
 /**
  * Rewrites a column's cells from stored option **ids** to option **names**, for
@@ -290,6 +291,51 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
       migrateSelectCellsToNames(trx, tableId, workspaceId, columnKey, previous.options ?? []),
   },
   currency: COLUMN_TYPE_REGISTRY.currency,
+  reference: {
+    ...COLUMN_TYPE_REGISTRY.reference,
+    referencedTableIds: (column) =>
+      typeof column.referenceTableId === 'string' ? [column.referenceTableId] : [],
+  },
+}
+
+/**
+ * Validates every table ID referenced by column metadata in one query.
+ *
+ * This intentionally validates only the target table. Cell values remain
+ * opaque row-ID strings and are never checked for existence.
+ */
+export async function assertColumnReferencesInWorkspace(
+  trx: DbTransaction,
+  workspaceId: string,
+  columns: readonly ColumnDefinition[]
+): Promise<void> {
+  const referencedTableIds = [
+    ...new Set(
+      columns.flatMap(
+        (column) => COLUMN_TYPE_SERVER_REGISTRY[column.type].referencedTableIds?.(column) ?? []
+      )
+    ),
+  ]
+  if (referencedTableIds.length === 0) return
+
+  const targets = await trx
+    .select({ id: userTableDefinitions.id })
+    .from(userTableDefinitions)
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        inArray(userTableDefinitions.id, referencedTableIds),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
+  const foundIds = new Set(targets.map((target) => target.id))
+  const missingId = referencedTableIds.find((id) => !foundIds.has(id))
+  if (missingId) {
+    throw new OrchestrationError(
+      'not_found',
+      `Reference table "${missingId}" not found in this workspace`
+    )
+  }
 }
 
 /** The inbound migration for a target type, if it has one. */

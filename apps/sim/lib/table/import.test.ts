@@ -164,6 +164,14 @@ describe('import', () => {
       expect(coerceValue('yes', 'boolean')).toBeNull()
     })
 
+    it('keeps imported reference values as row-id strings', () => {
+      expect(coerceValue('row_external_123', 'reference')).toBe('row_external_123')
+      expect(coerceValue(97, 'reference')).toBe('97')
+      expect(coerceValue(true, 'reference')).toBe('true')
+      expect(coerceValue(['row_1', 'row_2'], 'reference')).toBeNull()
+      expect(coerceValue({ id: 'row_1' }, 'reference')).toBeNull()
+    })
+
     it('keeps date-only values as calendar dates, preserves datetime wall times with their offset, and falls back to the original string', () => {
       expect(coerceValue('2024-01-01', 'date')).toBe('2024-01-01')
       expect(coerceValue('2024-01-01T12:30:00-07:00', 'date')).toBe('2024-01-01T12:30:00-07:00')

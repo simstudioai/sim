@@ -7,10 +7,12 @@ const {
   mockCheckWorkspaceAccess,
   mockGetWorkspaceOwnerSubscriptionAccess,
   mockGetOrganizationSettingsAccess,
+  mockAreTableReferenceColumnsEnabled,
 } = vi.hoisted(() => ({
   mockCheckWorkspaceAccess: vi.fn(),
   mockGetWorkspaceOwnerSubscriptionAccess: vi.fn(),
   mockGetOrganizationSettingsAccess: vi.fn(),
+  mockAreTableReferenceColumnsEnabled: vi.fn(),
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -23,6 +25,10 @@ vi.mock('@/lib/organizations/settings-access', () => ({
 
 vi.mock('@/lib/billing/core/workspace-access', () => ({
   getWorkspaceOwnerSubscriptionAccess: mockGetWorkspaceOwnerSubscriptionAccess,
+}))
+
+vi.mock('@/lib/table/reference-columns/availability', () => ({
+  areTableReferenceColumnsEnabled: mockAreTableReferenceColumnsEnabled,
 }))
 
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
@@ -67,6 +73,7 @@ describe('getWorkspaceHostContextForViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetWorkspaceOwnerSubscriptionAccess.mockResolvedValue(OWNER_BILLING)
+    mockAreTableReferenceColumnsEnabled.mockResolvedValue(true)
   })
 
   it('returns host membership and route permission for an internal member', async () => {
@@ -83,6 +90,7 @@ describe('getWorkspaceHostContextForViewer', () => {
       expect.objectContaining({
         workspace: expect.objectContaining({ allowPersonalApiKeys: false }),
         hostOrganizationId: 'org-host',
+        features: expect.objectContaining({ referenceColumns: true }),
         viewer: {
           permission: 'write',
           isHostOrganizationMember: true,

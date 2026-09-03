@@ -9,7 +9,7 @@ import type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
 import { getErrorMessage } from '@sim/utils/errors'
 import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-clipboard'
@@ -172,6 +172,7 @@ export interface SelectionSnapshot {
 interface TableGridProps {
   workspaceId?: string
   tableId?: string
+  referenceColumnsEnabled: boolean
   embedded?: boolean
   tableRowTtlEnabled: boolean
   /** Remote collaborators' cell selections, rendered as presence overlays. */
@@ -436,6 +437,7 @@ async function chunkBatchUpdates(
 export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
+  referenceColumnsEnabled,
   embedded,
   tableRowTtlEnabled,
   remoteSelections,
@@ -478,6 +480,7 @@ export function TableGrid({
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
+  const router = useRouter()
   const workspaceIdRef = useRef(workspaceId)
   workspaceIdRef.current = workspaceId
   const tableIdRef = useRef(tableId)
@@ -1718,6 +1721,22 @@ export function TableGrid({
       }
     )
   }
+
+  function handleCopyRowId() {
+    const rowId = contextMenu.row?.id
+    if (!rowId) return
+    void navigator.clipboard.writeText(rowId).catch((error) => {
+      logger.error('Failed to copy row ID', { error })
+      toast.error('Failed to copy row ID')
+    })
+  }
+
+  const handleGoToReferenceTable = useCallback(
+    (referenceTableId: string) => {
+      router.push(`/workspace/${workspaceId}/tables/${referenceTableId}`)
+    },
+    [router, workspaceId]
+  )
 
   const handleAppendRow = useCallback(async () => {
     if (isAppendingRowRef.current) return
@@ -4115,6 +4134,9 @@ export function TableGrid({
             ...(entry.def?.options ? { columnOptions: entry.def.options } : {}),
             ...(entry.def?.multiple ? { columnMultiple: true } : {}),
             ...(entry.def?.currencyCode ? { columnCurrencyCode: entry.def.currencyCode } : {}),
+            ...(entry.def?.referenceTableId
+              ? { columnReferenceTableId: entry.def.referenceTableId }
+              : {}),
             cellData,
             previousOrder: orderSnapshot,
             previousWidth,
@@ -4887,6 +4909,9 @@ export function TableGrid({
                             workflowGroups={tableWorkflowGroups}
                             sourceInfo={columnSourceInfo.get(column.key)}
                             onOpenConfig={handleConfigureColumn}
+                            onGoToReferenceTable={
+                              referenceColumnsEnabled ? handleGoToReferenceTable : undefined
+                            }
                             onViewWorkflow={handleViewWorkflow}
                             onSortColumn={onSortColumn}
                             onClearSort={onClearSort}
@@ -4906,6 +4931,7 @@ export function TableGrid({
                           tableRowTtlEnabled={tableRowTtlEnabled}
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}
+                          referenceColumnsEnabled={referenceColumnsEnabled}
                           blocked={!canMutateSchema}
                           onBlocked={() => onBlockedAction('add-column')}
                           onPickType={handleAddColumnOfType}
@@ -5064,6 +5090,7 @@ export function TableGrid({
         onInsertAbove={handleInsertRowAbove}
         onInsertBelow={handleInsertRowBelow}
         onDuplicate={handleDuplicateRow}
+        onCopyRowId={contextMenu.row ? handleCopyRowId : undefined}
         onViewExecution={handleViewExecution}
         canViewExecution={
           (Boolean(contextMenuExecutionId) && contextMenuHasStartedRun) ||

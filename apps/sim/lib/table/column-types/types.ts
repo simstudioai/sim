@@ -12,8 +12,8 @@
  *   `scripts/check-client-boundary-imports.ts` only forbids calling a
  *   `'use client'` export from a server surface). It must NOT reach `@sim/db`,
  *   `drizzle-orm`, or `next/server` — the tables grid imports it directly.
- * - `ColumnTypeServerDefinition` (in `types.server.ts`) adds the one genuinely
- *   server-only concern: rewriting stored cells inside a transaction.
+ * - `ColumnTypeServerDefinition` (in `types.server.ts`) adds database-backed
+ *   definition checks and stored-cell rewrites inside a transaction.
  *
  * This mirrors `connectors/types.ts`'s `ConnectorMeta` / `ConnectorConfig`
  * split and its `registry.ts` / `registry.server.ts` pair.
@@ -40,6 +40,7 @@ export const COLUMN_TYPES = [
   'ttl',
   'json',
   'select',
+  'reference',
 ] as const
 
 export type ColumnType = (typeof COLUMN_TYPES)[number]
@@ -62,7 +63,12 @@ export type ColumnCellEditor =
  * means extending this list and that type's `ownedMetadata` — not editing the
  * validator.
  */
-export const TYPE_SPECIFIC_COLUMN_KEYS = ['options', 'multiple', 'currencyCode'] as const
+export const TYPE_SPECIFIC_COLUMN_KEYS = [
+  'options',
+  'multiple',
+  'currencyCode',
+  'referenceTableId',
+] as const
 
 export type TypeSpecificColumnKey = (typeof TYPE_SPECIFIC_COLUMN_KEYS)[number]
 

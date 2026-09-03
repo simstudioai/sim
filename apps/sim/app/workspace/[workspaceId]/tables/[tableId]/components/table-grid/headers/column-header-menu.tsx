@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
-import { ChevronDown } from '@sim/emcn/icons'
+import { Button, cn } from '@sim/emcn'
+import { ChevronDown, SquareArrowUpRight } from '@sim/emcn/icons'
 import type { SortDirection, WorkflowGroup } from '@/lib/table'
 import { HeaderLabel } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/header-label'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -24,6 +24,8 @@ interface ColumnHeaderMenuProps {
   onColumnSelect: (colIndex: number, shiftKey: boolean) => void
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
+  /** Opens the table targeted by a Reference column. */
+  onGoToReferenceTable?: (tableId: string) => void
   onDeleteColumn: (columnName: string) => void
   onResizeStart: (columnKey: string) => void
   onResize: (columnKey: string, width: number) => void
@@ -74,6 +76,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onColumnSelect,
   onInsertLeft,
   onInsertRight,
+  onGoToReferenceTable,
   onDeleteColumn,
   onResizeStart,
   onResize,
@@ -249,6 +252,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   // Column whose workflow source block was deleted — the header icon swaps to
   // `WorkflowX` with an explanatory tooltip.
   const blockMissing = Boolean(sourceInfo?.blockMissing)
+  const referenceTableId = column.type === 'reference' ? column.referenceTableId : undefined
 
   return (
     <th
@@ -310,6 +314,18 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             label={column.workflowGroupId ? column.headerLabel : column.name}
             className='ml-1.5 text-[var(--text-primary)] text-small'
           />
+          {referenceTableId && onGoToReferenceTable && (
+            <Button
+              type='button'
+              variant='ghost'
+              size='icon'
+              className='ml-auto shrink-0'
+              onClick={() => onGoToReferenceTable(referenceTableId)}
+              aria-label='Go to Reference Table'
+            >
+              <SquareArrowUpRight className='size-[14px]' />
+            </Button>
+          )}
         </div>
       ) : (
         <div className='flex h-full w-full min-w-0 items-center'>
@@ -346,6 +362,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             column={column}
             deleteLabel={deleteLabel}
             onOpenConfig={onOpenConfig}
+            onGoToReferenceTable={onGoToReferenceTable}
             onInsertLeft={onInsertLeft}
             onInsertRight={onInsertRight}
             onDeleteColumn={onDeleteColumn}

@@ -851,6 +851,14 @@ function diffSchemaFields(
   const zodNames = docPropertyNames(zodObj, zodRoot)
   const docNames = docPropertyNames(docObj, docRoot)
   if (!zodNames || !docNames) return
+  const omittedProperties = Array.isArray((zodObj as Json).omitPropertiesFromOpenApi)
+    ? new Set(
+        ((zodObj as Json).omitPropertiesFromOpenApi as unknown[]).filter(
+          (property): property is string => typeof property === 'string'
+        )
+      )
+    : new Set<string>()
+  const visibleZodNames = new Set([...zodNames].filter((name) => !omittedProperties.has(name)))
   const fieldPath = (n: string) => (prefix ? `${prefix}.${n}` : n)
   /**
    * A `.passthrough()` contract deliberately under-declares its fields, so the
@@ -859,7 +867,7 @@ function diffSchemaFields(
   const extra = (zodObj as Json).additionalProperties
   const zodIsPassthrough =
     extra === true || (!!extra && typeof extra === 'object' && Object.keys(extra).length === 0)
-  for (const n of zodNames) {
+  for (const n of visibleZodNames) {
     if (!docNames.has(n)) {
       fail(
         ctx.specFile,
@@ -868,14 +876,14 @@ function diffSchemaFields(
     }
   }
   for (const n of docNames) {
-    if (!zodNames.has(n) && !zodIsPassthrough) {
+    if (!visibleZodNames.has(n) && !zodIsPassthrough) {
       fail(
         ctx.specFile,
         `${ctx.label}: documented ${ctx.where} field "${fieldPath(n)}" does not exist on ${ctx.name}`
       )
     }
   }
-  for (const n of zodNames) {
+  for (const n of visibleZodNames) {
     if (!docNames.has(n)) continue
     diffSchemaFields(
       propertyNode(zodObj, zodRoot, n),

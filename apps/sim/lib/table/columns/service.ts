@@ -30,6 +30,7 @@ import {
   valueForTypeConversion,
 } from '@/lib/table/column-types'
 import {
+  assertColumnReferencesInWorkspace,
   migrationFrom,
   migrationTo,
   writeBackCoercedCells,
@@ -38,6 +39,7 @@ import { COLUMN_TYPES, getMaxRowSizeBytes, NAME_PATTERN, TABLE_LIMITS } from '@/
 import { resolveCurrencyCode } from '@/lib/table/currency'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
+import { assertTableReferenceColumnsEnabled } from '@/lib/table/reference-columns/availability'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { assertValidSchema } from '@/lib/table/schema-invariants'
@@ -57,6 +59,7 @@ import type {
   UpdateColumnConstraintsData,
   UpdateColumnCurrencyData,
   UpdateColumnOptionsData,
+  UpdateColumnReferenceData,
   UpdateColumnTypeData,
 } from '@/lib/table/types'
 import { validateColumnDefinition } from '@/lib/table/validation'
@@ -128,11 +131,13 @@ export async function addTableColumn(
     options?: SelectOption[]
     multiple?: boolean
     currencyCode?: string
+    referenceTableId?: string
   },
   requestId: string,
   options?: ColumnMutationOptions
 ): Promise<TableDefinition> {
   if (column.type === 'ttl') await assertTableRowTtlEnabled()
+  if (column.type === 'reference') await assertTableReferenceColumnsEnabled()
 
   return withLockedTable(
     tableId,
@@ -181,6 +186,9 @@ export async function addTableColumn(
         unique: column.unique ?? false,
         ...(column.options ? { options: column.options } : {}),
         ...(column.multiple ? { multiple: true } : {}),
+        ...(column.referenceTableId !== undefined
+          ? { referenceTableId: column.referenceTableId }
+          : {}),
         ...columnTypeById(column.type).defaultMetadata?.(column as ColumnDefinition),
       }
 
@@ -191,6 +199,7 @@ export async function addTableColumn(
           `Invalid column: ${columnValidation.errors.join('; ')}`
         )
       }
+      await assertColumnReferencesInWorkspace(trx, table.workspaceId, [newColumn])
 
       const newColumnId = getColumnId(newColumn)
 
@@ -861,6 +870,7 @@ export async function updateColumnType(
   options?: ColumnMutationOptions
 ): Promise<TableDefinition> {
   if (data.newType === 'ttl') await assertTableRowTtlEnabled()
+  if (data.newType === 'reference') await assertTableReferenceColumnsEnabled()
 
   return withLockedTable(
     data.tableId,
@@ -904,7 +914,8 @@ export async function updateColumnType(
           data.unique !== undefined ||
           data.options !== undefined ||
           data.multiple !== undefined ||
-          data.currencyCode !== undefined
+          data.currencyCode !== undefined ||
+          data.referenceTableId !== undefined
         if (carriesOtherWork) {
           throw new OrchestrationError(
             'validation',
@@ -958,6 +969,7 @@ export async function updateColumnType(
         isSelectType,
         targetMultiple: !!targetMultiple,
       })
+      await assertColumnReferencesInWorkspace(trx, table.workspaceId, [convertedColumn])
       const renamedColumns = schema.columns.map((c, i) => (i === columnIndex ? convertedColumn : c))
       const updatedColumns = renamedColumns.map((c, i) =>
         i === columnIndex ? applyPendingRename(renamedColumns, columnIndex, data.newName) : c
@@ -1465,6 +1477,92 @@ export async function updateColumnCurrency(
       )
 
       return { ...table, schema: updatedSchema, updatedAt: now }
+    },
+    { expectedWorkspaceId: options?.expectedWorkspaceId }
+  )
+}
+
+/**
+ * Changes the table targeted by a `reference` column.
+ *
+ * Cells already store plain row-ID strings, so changing the target updates only
+ * the column schema. The target must be an active table in the same workspace;
+ * stored row IDs remain opaque strings and are not checked for existence.
+ */
+export async function updateColumnReference(
+  data: UpdateColumnReferenceData,
+  requestId: string,
+  options?: ColumnMutationOptions
+): Promise<TableDefinition> {
+  await assertTableReferenceColumnsEnabled()
+
+  return withLockedTable(
+    data.tableId,
+    async (table, trx) => {
+      assertSchemaMutable(table)
+
+      const schema = table.schema
+      const columnIndex = schema.columns.findIndex((column) =>
+        columnMatchesRef(column, data.columnName)
+      )
+      if (columnIndex === -1) {
+        throw new OrchestrationError('not_found', `Column "${data.columnName}" not found`)
+      }
+
+      const column = schema.columns[columnIndex]
+      if (column.type !== 'reference') {
+        throw new OrchestrationError(
+          'validation',
+          `Cannot set a reference table on column "${column.name}" of type "${column.type}"`
+        )
+      }
+
+      const updatedColumn: ColumnDefinition = {
+        ...column,
+        referenceTableId: data.referenceTableId,
+      }
+      const columnValidation = validateColumnDefinition(updatedColumn)
+      if (!columnValidation.valid) {
+        throw new OrchestrationError(
+          'validation',
+          `Invalid column: ${columnValidation.errors.join('; ')}`
+        )
+      }
+      await assertColumnReferencesInWorkspace(trx, table.workspaceId, [updatedColumn])
+
+      const constrained = await applyConstraints(
+        trx,
+        data.tableId,
+        table.workspaceId,
+        updatedColumn,
+        getColumnId(column),
+        data
+      )
+      const renamePending = data.newName !== undefined && data.newName !== column.name
+      if (
+        constrained.required === column.required &&
+        constrained.unique === column.unique &&
+        updatedColumn.referenceTableId === column.referenceTableId &&
+        !renamePending
+      ) {
+        return table
+      }
+
+      const withReference = schema.columns.map((existing, index) =>
+        index === columnIndex ? constrained : existing
+      )
+      const updatedColumns = withReference.map((existing, index) =>
+        index === columnIndex
+          ? applyPendingRename(withReference, columnIndex, data.newName)
+          : existing
+      )
+      const updated = await persistColumns(trx, table, updatedColumns)
+
+      logger.info(
+        `[${requestId}] Set reference table for column "${column.name}" to "${data.referenceTableId}" in table ${data.tableId}`
+      )
+
+      return updated
     },
     { expectedWorkspaceId: options?.expectedWorkspaceId }
   )

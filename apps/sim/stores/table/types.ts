@@ -63,6 +63,7 @@ export type TableUndoAction =
       // Likewise for a `currency` column: without its code the restore would
       // silently re-denominate every cell to the default currency.
       columnCurrencyCode?: string
+      columnReferenceTableId?: string
       cellData: Array<{ rowId: string; value: unknown }>
       previousOrder: string[] | null
       previousWidth: number | null
