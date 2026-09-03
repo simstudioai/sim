@@ -1,5 +1,7 @@
 import { createMockFetch, resetEnvMock, setEnv } from '@sim/testing'
-import { createAuthorizationURL, getOAuth2Tokens } from 'better-auth/oauth2'
+import { getOAuth2Tokens } from 'better-auth/oauth2'
+import { genericOAuth } from 'better-auth/plugins'
+import { getTestInstance } from 'better-auth/test'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
@@ -180,21 +182,19 @@ describe('Monday OAuth connector', () => {
       redirectURI: 'http://localhost:3000/api/auth/oauth2/callback/monday',
       authorizationUrlParams: { force_install_if_needed: 'true' },
     })
-    const authorizationUrl = await createAuthorizationURL({
-      id: connector.providerId,
-      options: {
-        clientId: connector.clientId,
-        clientSecret: connector.clientSecret,
-        redirectURI: connector.redirectURI,
-      },
-      authorizationEndpoint: connector.authorizationUrl!,
-      state: 'state-1',
-      codeVerifier: 'a'.repeat(128),
-      scopes: connector.scopes,
-      redirectURI: connector.redirectURI!,
-      responseType: connector.responseType,
-      additionalParams: connector.authorizationUrlParams,
+    const { auth, signInWithTestUser } = await getTestInstance({
+      baseURL: 'http://localhost:3000',
+      plugins: [genericOAuth({ config: [connector] })],
     })
+    const { headers } = await signInWithTestUser()
+    const { url } = await auth.api.oAuth2LinkAccount({
+      body: {
+        providerId: connector.providerId,
+        callbackURL: 'http://localhost:3000/workspace',
+      },
+      headers,
+    })
+    const authorizationUrl = new URL(url)
 
     expect(authorizationUrl.searchParams.get('redirect_uri')).toBe(
       'http://localhost:3000/api/auth/oauth2/callback/monday'
