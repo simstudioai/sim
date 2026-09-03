@@ -1,6 +1,8 @@
 import { z } from 'zod'
-import { normalizeEloquaInstanceUrl } from '@/lib/oauth/eloqua'
+import { getCredential } from '@/lib/oauth/credential-service'
+import { extractEloquaInstanceUrl, normalizeEloquaInstanceUrl } from '@/lib/oauth/eloqua'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
+import { waitForSelectorCredentialResolution } from '@/lib/selectors/server/credentials'
 import {
   SelectorConnectionUnavailableError,
   SelectorContextUnavailableError,
@@ -93,17 +95,34 @@ function selectorOption(item: z.infer<typeof eloquaSelectorItemSchema>): SafeSel
 async function prepareEloquaDestination(
   args: ExecuteServerSelectorArgs
 ): Promise<EloquaSelectorDestination> {
-  if (!args.credential) throw new SelectorConnectionUnavailableError()
+  const selectorCredential = args.credential
+  const access = selectorCredential?.access
+  if (!selectorCredential || !access?.credentialOwnerUserId || !access.resolvedCredentialId) {
+    throw new SelectorConnectionUnavailableError()
+  }
   try {
+    selectorCredential.signal?.throwIfAborted()
+    const credential = await waitForSelectorCredentialResolution(
+      getCredential(
+        'selector-execution',
+        access.resolvedCredentialId,
+        access.credentialOwnerUserId
+      ),
+      selectorCredential.signal
+    )
+    if (!credential || credential.providerId !== 'eloqua') {
+      throw new SelectorConnectionUnavailableError()
+    }
+    selectorCredential.signal?.throwIfAborted()
+    const instanceUrl = normalizeEloquaInstanceUrl(extractEloquaInstanceUrl(credential.scope))
     const bundle = await resolveSelectorCredentialBundle({
-      credential: args.credential,
+      credential: { ...selectorCredential, suppliedId: access.resolvedCredentialId },
       protectedValues: args.protectedValues,
     })
-    if (!bundle.instanceUrl) throw new SelectorConnectionUnavailableError()
-    const instanceUrl = normalizeEloquaInstanceUrl(bundle.instanceUrl)
     args.protectedValues.add(instanceUrl, 'reference')
     return { accessToken: bundle.accessToken, instanceUrl }
   } catch (error) {
+    if (selectorCredential.signal?.aborted) throw error
     if (error instanceof SelectorConnectionUnavailableError) throw error
     throw new SelectorConnectionUnavailableError()
   }

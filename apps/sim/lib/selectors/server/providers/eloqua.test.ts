@@ -3,9 +3,14 @@
  */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockResolveSelectorCredentialBundle } = vi.hoisted(() => ({
+const { mockFetch, mockGetCredential, mockResolveSelectorCredentialBundle } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
+  mockGetCredential: vi.fn(),
   mockResolveSelectorCredentialBundle: vi.fn(),
+}))
+
+vi.mock('@/lib/oauth/credential-service', () => ({
+  getCredential: mockGetCredential,
 }))
 
 vi.mock('@/lib/selectors/server/providers/credential-bundle', () => ({
@@ -30,7 +35,18 @@ function args(
     workspaceId: 'workspace-1',
     principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
     requesterUserId: 'user-1',
-    credential: { suppliedId: 'credential-1' },
+    credential: {
+      suppliedId: 'credential-1',
+      providerId: 'eloqua',
+      access: {
+        ok: true,
+        credentialOwnerUserId: 'owner-1',
+        workspaceId: 'workspace-1',
+        resolvedCredentialId: 'account-1',
+        credentialType: 'oauth',
+      },
+      signal,
+    },
     references: new Map(),
     protectedValues: createSelectorProtectedValues(),
     signal,
@@ -41,9 +57,12 @@ describe('Oracle Eloqua server selector adapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
+    mockGetCredential.mockResolvedValue({
+      providerId: 'eloqua',
+      scope: '__eloqua_instance__:https://secure.p03.eloqua.com,full',
+    })
     mockResolveSelectorCredentialBundle.mockResolvedValue({
       accessToken: 'server-only-token',
-      instanceUrl: 'https://secure.p03.eloqua.com',
     })
   })
 
@@ -99,7 +118,14 @@ describe('Oracle Eloqua server selector adapter', () => {
     expect(firstUrl.searchParams.get('count')).toBe('100')
     expect(firstUrl.searchParams.get('page')).toBe('1')
     expect(secondUrl.searchParams.get('page')).toBe('2')
+    expect(mockGetCredential).toHaveBeenCalledTimes(2)
+    expect(mockGetCredential).toHaveBeenCalledWith('selector-execution', 'account-1', 'owner-1')
     expect(mockResolveSelectorCredentialBundle).toHaveBeenCalledTimes(2)
+    expect(mockResolveSelectorCredentialBundle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credential: expect.objectContaining({ providerId: 'eloqua', suppliedId: 'account-1' }),
+      })
+    )
   })
 
   it.each([
@@ -125,14 +151,55 @@ describe('Oracle Eloqua server selector adapter', () => {
   })
 
   it('rejects a credential with an unsafe destination before fetching', async () => {
-    mockResolveSelectorCredentialBundle.mockResolvedValue({
-      accessToken: 'server-only-token',
-      instanceUrl: 'https://evil.example',
+    mockGetCredential.mockResolvedValue({
+      providerId: 'eloqua',
+      scope: '__eloqua_instance__:https://evil.example,full',
     })
 
     await expect(
       eloquaSelectorAttachments['eloqua.forms'].execute(args({ kind: 'list' }, 'eloqua.forms'))
     ).rejects.toBeInstanceOf(SelectorConnectionUnavailableError)
+    expect(mockResolveSelectorCredentialBundle).not.toHaveBeenCalled()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the stored credential scope does not contain a pod', async () => {
+    mockGetCredential.mockResolvedValue({
+      providerId: 'eloqua',
+      scope: 'full',
+    })
+
+    await expect(
+      eloquaSelectorAttachments['eloqua.forms'].execute(args({ kind: 'list' }, 'eloqua.forms'))
+    ).rejects.toBeInstanceOf(SelectorConnectionUnavailableError)
+    expect(mockResolveSelectorCredentialBundle).not.toHaveBeenCalled()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the stored credential provider does not match Eloqua', async () => {
+    mockGetCredential.mockResolvedValue({
+      providerId: 'salesforce',
+      scope: '__eloqua_instance__:https://secure.p03.eloqua.com,full',
+    })
+
+    await expect(
+      eloquaSelectorAttachments['eloqua.forms'].execute(args({ kind: 'list' }, 'eloqua.forms'))
+    ).rejects.toBeInstanceOf(SelectorConnectionUnavailableError)
+    expect(mockResolveSelectorCredentialBundle).not.toHaveBeenCalled()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('does not begin token resolution when credential loading is cancelled', async () => {
+    const controller = new AbortController()
+    mockGetCredential.mockReturnValue(new Promise(() => undefined))
+
+    const pending = eloquaSelectorAttachments['eloqua.forms'].execute(
+      args({ kind: 'list' }, 'eloqua.forms', controller.signal)
+    )
+    controller.abort()
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(mockResolveSelectorCredentialBundle).not.toHaveBeenCalled()
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
