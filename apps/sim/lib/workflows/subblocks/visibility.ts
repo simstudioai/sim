@@ -298,6 +298,29 @@ export function resolveActiveCanonicalValue(
   return mode === 'advanced' ? advancedValue : basicValue
 }
 
+/**
+ * {@link resolveActiveCanonicalValue} addressed by a canonical id or by a member's subblock id,
+ * for a control that reads a SIBLING field without knowing whether that field is half of a pair.
+ *
+ * Strict like its namesake: a pair answers with its active member only, honoring an explicit
+ * toggle, so a dormant half's stale value never scopes a control the run will not scope. A key
+ * outside any group reads its own stored value. Contrast {@link resolveDependencyValue}, whose
+ * cross-mode fallback exists for `dependsOn` gating and is wrong here.
+ */
+export function resolveActiveDependencyValue(
+  dependencyKey: string,
+  values: Record<string, unknown>,
+  canonicalIndex: CanonicalIndex,
+  overrides?: CanonicalModeOverrides
+): unknown {
+  const canonicalId =
+    canonicalIndex.groupsById[dependencyKey]?.canonicalId ||
+    canonicalIndex.canonicalIdBySubBlockId[dependencyKey]
+  const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+  if (!group) return values[dependencyKey]
+  return resolveActiveCanonicalValue(group, values, overrides)
+}
+
 /** Extract override entries matching a `${prefix}` key into a bare-`canonicalId`-keyed object. */
 function extractPrefixedModes(
   overrides: CanonicalModeOverrides,

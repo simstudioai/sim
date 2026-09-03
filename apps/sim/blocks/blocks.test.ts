@@ -196,7 +196,7 @@ describe.concurrent('Blocks Module', () => {
         recursiveFieldId: 'folderIncludeSubfolders',
       })
       expect(block?.subBlocks.find((subBlock) => subBlock.id === 'folderSelection')?.mode).toBe(
-        'both'
+        'basic'
       )
       expect(block?.tools.config?.tool({ operation: 'file_read' })).toBe('file_read')
       expect(block?.tools.config?.tool({ operation: 'file_get_content' })).toBe('file_get_content')
