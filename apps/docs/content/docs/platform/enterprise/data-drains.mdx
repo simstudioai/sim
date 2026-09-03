@@ -255,7 +255,7 @@ openssl rand -hex 32
 
 Set the same value as `CRON_SECRET` on both the app and whatever invokes the endpoint. Generating it in your shell does not configure either one.
 
-The Helm chart schedules this endpoint hourly for you (`cronjobs.jobs.runDataDrains`). Outside Helm, schedule it yourself:
+Both shipped deployments schedule this endpoint hourly for you — Helm through `cronjobs.jobs.runDataDrains`, Docker Compose through its `cron` service. A deployment that runs neither schedules it itself:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" \

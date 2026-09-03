@@ -91,7 +91,7 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
   https://sim.example.com/api/logs/cleanup
 ```
 
-Both features also fan work out as background jobs, so the deployment needs `TRIGGER_DEV_ENABLED` and a configured Trigger.dev project. Without it the dispatcher still claims the work and enqueues it to the database, but nothing drains that queue for this job type, so the runs stay pending and never execute. See [background jobs](/platform/self-hosting/background-jobs).
+The two features differ in what they need to run the work. Retention's cleanup dispatcher executes inline when Trigger.dev is not configured, so it completes on a default self-host. Data drains have no inline path: without `TRIGGER_DEV_ENABLED` and a configured Trigger.dev project, each due drain is claimed and enqueued to the database, and nothing drains that queue for this job type. See [background jobs](/platform/self-hosting/background-jobs).
 
 ## Choose an organization model
 
