@@ -259,6 +259,24 @@ describe('parseSdpResponse', () => {
     await expect(parseSdpResponse(scalar, 'Failed to get request')).rejects.toThrow(/non-JSON/)
   })
 
+  it('throws on a 2xx JSON array, which is typeof object but not a v3 envelope', async () => {
+    // An array carries no `response_status`, so accepting it would read as a
+    // successful empty list and as a successful delete.
+    const array = new Response('[]', {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+    await expect(parseSdpResponse(array, 'Failed to list requests')).rejects.toThrow(/non-JSON/)
+  })
+
+  it('throws on a 2xx `null` body', async () => {
+    const nul = new Response('null', {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+    await expect(parseSdpResponse(nul, 'Failed to get request')).rejects.toThrow(/non-JSON/)
+  })
+
   it('tolerates an empty 2xx body, which carries nothing this layer needs', async () => {
     // `null` rather than `''`: the Response constructor rejects a 204 with a body.
     const noContent = new Response(null, { status: 204 })

@@ -210,9 +210,15 @@ export async function parseSdpResponse(
   let malformed = false
   if (text.trim()) {
     try {
-      const parsed = JSON.parse(text)
-      data = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {}
-      malformed = data !== parsed
+      const parsed: unknown = JSON.parse(text)
+      // An array is `typeof 'object'` but is not a v3 envelope: it carries no
+      // `response_status`, so it would read as a successful empty result. Scalars
+      // and null are rejected for the same reason.
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        data = parsed as Record<string, unknown>
+      } else {
+        malformed = true
+      }
     } catch {
       malformed = true
     }

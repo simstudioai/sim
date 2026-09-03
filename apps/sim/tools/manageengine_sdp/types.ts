@@ -510,7 +510,7 @@ export const SDP_PROBLEM_PROPERTIES: Record<string, ToolOutputProperty> = {
   id: { type: 'string', description: 'Problem ID' },
   display_id: {
     type: 'json',
-    description: 'Problem number shown in the SDP UI',
+    description: 'Problem number shown in the SDP UI (display_value, value)',
     optional: true,
     nullable: true,
     properties: DISPLAY_ID_PROPERTIES,
@@ -648,7 +648,7 @@ export const SDP_CHANGE_PROPERTIES: Record<string, ToolOutputProperty> = {
   id: { type: 'string', description: 'Change ID' },
   display_id: {
     type: 'json',
-    description: 'Change number shown in the SDP UI',
+    description: 'Change number shown in the SDP UI (display_value, value)',
     optional: true,
     nullable: true,
     properties: DISPLAY_ID_PROPERTIES,
@@ -917,7 +917,7 @@ export const SDP_SOLUTION_PROPERTIES: Record<string, ToolOutputProperty> = {
   id: { type: 'string', description: 'Solution ID' },
   display_id: {
     type: 'json',
-    description: 'Solution number shown in the SDP UI',
+    description: 'Solution number shown in the SDP UI (display_value, value)',
     optional: true,
     nullable: true,
     properties: DISPLAY_ID_PROPERTIES,

@@ -415,7 +415,7 @@ Create a problem record in ManageEngine ServiceDesk Plus Cloud with a title, des
 | --------- | ---- | ----------- |
 | `problem` | object | The created problem |
 |   ↳ `id` | string | Problem ID |
-|   ↳ `display_id` | json | Problem number shown in the SDP UI |
+|   ↳ `display_id` | json | Problem number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Problem title |
 |   ↳ `description` | string | Problem description \(HTML\) |
 |   ↳ `status` | json | Current status |
@@ -455,7 +455,7 @@ Retrieve a single ManageEngine ServiceDesk Plus Cloud problem by ID.
 | --------- | ---- | ----------- |
 | `problem` | object | The problem |
 |   ↳ `id` | string | Problem ID |
-|   ↳ `display_id` | json | Problem number shown in the SDP UI |
+|   ↳ `display_id` | json | Problem number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Problem title |
 |   ↳ `description` | string | Problem description \(HTML\) |
 |   ↳ `status` | json | Current status |
@@ -501,7 +501,7 @@ List ManageEngine ServiceDesk Plus Cloud problems, with optional search criteria
 | --------- | ---- | ----------- |
 | `problems` | array | Matching problems |
 |   ↳ `id` | string | Problem ID |
-|   ↳ `display_id` | json | Problem number shown in the SDP UI |
+|   ↳ `display_id` | json | Problem number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Problem title |
 |   ↳ `description` | string | Problem description \(HTML\) |
 |   ↳ `status` | json | Current status |
@@ -563,7 +563,7 @@ Update a ManageEngine ServiceDesk Plus Cloud problem: change its title, status, 
 | --------- | ---- | ----------- |
 | `problem` | object | The updated problem |
 |   ↳ `id` | string | Problem ID |
-|   ↳ `display_id` | json | Problem number shown in the SDP UI |
+|   ↳ `display_id` | json | Problem number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Problem title |
 |   ↳ `description` | string | Problem description \(HTML\) |
 |   ↳ `status` | json | Current status |
@@ -699,7 +699,7 @@ Create a change record in ManageEngine ServiceDesk Plus Cloud with a title, stag
 | --------- | ---- | ----------- |
 | `change` | object | The created change |
 |   ↳ `id` | string | Change ID |
-|   ↳ `display_id` | json | Change number shown in the SDP UI |
+|   ↳ `display_id` | json | Change number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Change title |
 |   ↳ `description` | string | Change description \(HTML\) |
 |   ↳ `status` | json | Current status |
@@ -742,7 +742,7 @@ Retrieve a single ManageEngine ServiceDesk Plus Cloud change by ID.
 | --------- | ---- | ----------- |
 | `change` | object | The change |
 |   ↳ `id` | string | Change ID |
-|   ↳ `display_id` | json | Change number shown in the SDP UI |
+|   ↳ `display_id` | json | Change number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Change title |
 |   ↳ `description` | string | Change description \(HTML\) |
 |   ↳ `status` | json | Current status |
@@ -791,7 +791,7 @@ List ManageEngine ServiceDesk Plus Cloud changes, with optional search criteria,
 | --------- | ---- | ----------- |
 | `changes` | array | Matching changes |
 |   ↳ `id` | string | Change ID |
-|   ↳ `display_id` | json | Change number shown in the SDP UI |
+|   ↳ `display_id` | json | Change number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Change title |
 |   ↳ `description` | string | Change description \(HTML\) |
 |   ↳ `status` | json | Current status |
@@ -861,7 +861,7 @@ Update a ManageEngine ServiceDesk Plus Cloud change: move its stage or status, r
 | --------- | ---- | ----------- |
 | `change` | object | The updated change |
 |   ↳ `id` | string | Change ID |
-|   ↳ `display_id` | json | Change number shown in the SDP UI |
+|   ↳ `display_id` | json | Change number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Change title |
 |   ↳ `description` | string | Change description \(HTML\) |
 |   ↳ `status` | json | Current status |
@@ -1224,7 +1224,7 @@ Add an article to the ManageEngine ServiceDesk Plus Cloud knowledge base under a
 | --------- | ---- | ----------- |
 | `solution` | object | The created solution |
 |   ↳ `id` | string | Solution ID |
-|   ↳ `display_id` | json | Solution number shown in the SDP UI |
+|   ↳ `display_id` | json | Solution number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Solution title |
 |   ↳ `description` | string | Solution body \(HTML\) |
 |   ↳ `topic` | json | Topic the solution is filed under |
@@ -1261,7 +1261,7 @@ Retrieve a single ManageEngine ServiceDesk Plus Cloud knowledge base solution by
 | --------- | ---- | ----------- |
 | `solution` | object | The solution |
 |   ↳ `id` | string | Solution ID |
-|   ↳ `display_id` | json | Solution number shown in the SDP UI |
+|   ↳ `display_id` | json | Solution number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Solution title |
 |   ↳ `description` | string | Solution body \(HTML\) |
 |   ↳ `topic` | json | Topic the solution is filed under |
@@ -1304,7 +1304,7 @@ Search the ManageEngine ServiceDesk Plus Cloud knowledge base, with optional sea
 | --------- | ---- | ----------- |
 | `solutions` | array | Matching solutions |
 |   ↳ `id` | string | Solution ID |
-|   ↳ `display_id` | json | Solution number shown in the SDP UI |
+|   ↳ `display_id` | json | Solution number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Solution title |
 |   ↳ `description` | string | Solution body \(HTML\) |
 |   ↳ `topic` | json | Topic the solution is filed under |
@@ -1356,7 +1356,7 @@ Update a ManageEngine ServiceDesk Plus Cloud knowledge base solution: revise its
 | --------- | ---- | ----------- |
 | `solution` | object | The updated solution |
 |   ↳ `id` | string | Solution ID |
-|   ↳ `display_id` | json | Solution number shown in the SDP UI |
+|   ↳ `display_id` | json | Solution number shown in the SDP UI \(display_value, value\) |
 |   ↳ `title` | string | Solution title |
 |   ↳ `description` | string | Solution body \(HTML\) |
 |   ↳ `topic` | json | Topic the solution is filed under |
