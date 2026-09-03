@@ -139,12 +139,34 @@ export const OAUTH_SCOPES = {
     'https://dynamics.microsoft.com/user_impersonation',
     'offline_access',
   ],
+  /**
+   * Workbooks are ordinary drive items, so the integration reads and writes them
+   * through the Files permissions rather than an Excel-specific scope. Microsoft
+   * Graph exposes no Excel permission of its own.
+   *
+   * The `.All` variants and `Sites.Read.All` are what make the block's SharePoint
+   * file picker work. `Files.ReadWrite` alone covers only the signed-in user's own
+   * OneDrive, so a workbook in a document library is rejected for insufficient
+   * privileges, and the drive picker's `GET /sites/{id}/drives` call needs the
+   * Sites read. All four are user-consentable, so this does not push the
+   * integration behind admin consent, and none of them grants access to anything
+   * the signed-in account could not already open.
+   *
+   * Microsoft only grants newly-added scopes on a fresh authorization, so accounts
+   * connected before these existed must reconnect before a SharePoint-hosted
+   * workbook will open.
+   *
+   * @see https://learn.microsoft.com/en-us/graph/permissions-reference
+   */
   'microsoft-excel': [
     'openid',
     'profile',
     'email',
     'Files.Read',
     'Files.ReadWrite',
+    'Files.Read.All',
+    'Files.ReadWrite.All',
+    'Sites.Read.All',
     'offline_access',
   ],
   'microsoft-planner': [
@@ -1031,11 +1053,19 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
 /** Scope labels that cannot be keyed by scope alone because providers reuse names. */
 const PROVIDER_SCOPE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   /**
-   * Word documents are ordinary drive items, so the integration asks for the
-   * generic Files permissions. The shared labels name OneDrive specifically,
-   * which reads as the wrong product on the Word consent screen and omits the
-   * SharePoint libraries the same scopes cover.
+   * Workbooks and Word documents are ordinary drive items, so both integrations
+   * ask for the generic Files permissions. The shared labels name OneDrive
+   * specifically, which reads as the wrong product on either consent screen and
+   * omits the SharePoint libraries the same scopes cover.
    */
+  'microsoft-excel': {
+    'Files.Read': 'Read your workbooks in OneDrive',
+    'Files.ReadWrite': 'Read, create, and edit your workbooks in OneDrive',
+    'Files.Read.All': 'Read workbooks shared with you, including SharePoint libraries',
+    'Files.ReadWrite.All':
+      'Read, create, and edit workbooks you have access to, including SharePoint libraries',
+    'Sites.Read.All': 'List the SharePoint sites and document libraries you can open',
+  },
   'microsoft-word': {
     'Files.Read': 'Read your Word documents in OneDrive',
     'Files.ReadWrite': 'Read, create, and edit your Word documents in OneDrive',
