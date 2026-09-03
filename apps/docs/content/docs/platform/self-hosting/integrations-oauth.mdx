@@ -316,6 +316,8 @@ Every connector below also requests `openid`, `profile`, `email`, `offline_acces
 | --- | --- | --- |
 | Slack | `slack` | `channels:read`, `channels:history`, `channels:manage`, `groups:read`, `groups:history`, `groups:write`, `chat:write`, `chat:write.public`, `im:write`, `im:read`, `users:read`, `files:write`, `files:read`, `canvases:read`, `canvases:write`, `reactions:write`, `reactions:read` |
 
+With `SLACK_EXTENDED_SCOPES` set, Sim also requests `assistant:write`, `app_mentions:read`, `im:history`. Add them to the app as well, or leave the flag unset.
+
 ### Spotify
 
 `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`

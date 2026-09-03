@@ -85,8 +85,8 @@ import {
   SALESFORCE_LOGIN_HOSTS,
   SALESFORCE_PROVIDER_ID_LABELS,
 } from '@/lib/oauth/salesforce'
+import { ENV_GATED_SCOPES, OAUTH_SCOPES } from '@/lib/oauth/scopes'
 import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
-import { OAUTH_SCOPES } from './scopes'
 import type { OAuthProviderConfig } from './types'
 
 const logger = createLogger('OAuth')
@@ -98,7 +98,7 @@ const logger = createLogger('OAuth')
  * app's approved list, so these stay out of the default grant.
  */
 export function getSlackApprovalGatedScopes(enabled: boolean): readonly string[] {
-  return enabled ? ['assistant:write', 'app_mentions:read', 'im:history'] : []
+  return enabled ? ENV_GATED_SCOPES.slack.scopes : []
 }
 
 const SLACK_APPROVAL_GATED_SCOPES = getSlackApprovalGatedScopes(isSlackExtendedScopesEnabled)

@@ -42,7 +42,7 @@ Connecting Shopify requests these scopes.
 | `read_locations` | View store locations |
 | `write_merchant_managed_fulfillment_orders` | Create fulfillments for orders |
 
-Shopify also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+Shopify also accepts a credential you create yourself. Sim cannot request scopes on one, so its access is whatever the credential carries: some providers let you select these permissions when you create the token, others give it the creating user's access.
 
 
 ## Actions

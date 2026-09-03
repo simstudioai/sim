@@ -44,7 +44,7 @@ Connecting Google Sheets requests these scopes.
 | `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files |
 | `https://www.googleapis.com/auth/drive` | Access all Google Drive files |
 
-Google Sheets also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+Google Sheets also accepts a credential you create yourself. Sim cannot request scopes on one, so its access is whatever the credential carries: some providers let you select these permissions when you create the token, others give it the creating user's access.
 
 
 ## Actions

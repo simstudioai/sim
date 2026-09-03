@@ -578,6 +578,24 @@ export const OAUTH_SCOPES = {
 export type OAuthScopedService = keyof typeof OAUTH_SCOPES
 
 /**
+ * Scopes a service requests only where the deployment has opted in, keyed by
+ * service id.
+ *
+ * Held apart from {@link OAUTH_SCOPES} because a generated page must not vary
+ * by deployment, and published separately because a self-hoster who sets the
+ * flag still has to add these to the app before anyone can connect. Slack is
+ * the sharp case: it rejects the entire authorization with "unapproved
+ * permissions requested" if the app is not approved for one of them, so a
+ * reader who enables the flag without adding them loses Slack altogether.
+ */
+export const ENV_GATED_SCOPES = {
+  slack: {
+    envVar: 'SLACK_EXTENDED_SCOPES',
+    scopes: ['assistant:write', 'app_mentions:read', 'im:history'],
+  },
+} as const satisfies Record<string, { envVar: string; scopes: readonly string[] }>
+
+/**
  * Centralized human-readable descriptions for OAuth scopes.
  * Used by the OAuth Required Modal and available for any UI that needs to display scope info.
  */
@@ -811,7 +829,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // Microsoft scopes
   'User.Read': 'Read Microsoft user',
   'Chat.Read': 'Read Microsoft chats',
-  'Chat.ReadWrite': 'Write to Microsoft chats',
+  'Chat.ReadWrite': 'Read and write Microsoft chats',
   'Chat.ReadBasic': 'Read Microsoft chats',
   'ChatMessage.Send': 'Send chat messages',
   'Channel.ReadBasic.All': 'Read Microsoft channels',
@@ -823,7 +841,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Group.ReadWrite.All': 'Read and write all groups',
   'Team.ReadBasic.All': 'Read Microsoft teams',
   'TeamMember.Read.All': 'Read team members',
-  'Mail.ReadWrite': 'Write to Microsoft emails',
+  'Mail.ReadWrite': 'Read and write Microsoft emails',
   'Mail.ReadBasic': 'Read Microsoft emails',
   'Mail.Read': 'Read Microsoft emails',
   'Mail.Send': 'Send emails',

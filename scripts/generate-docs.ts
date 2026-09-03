@@ -7,7 +7,7 @@ import { isVersionedType, stripVersionSuffix } from '@sim/utils/string'
 import { glob } from 'glob'
 import type { BlockCategory } from '../apps/sim/blocks/types'
 import { IntegrationType } from '../apps/sim/blocks/types'
-import { getScopeDescription, OAUTH_SCOPES } from '../apps/sim/lib/oauth/scopes'
+import { ENV_GATED_SCOPES, getScopeDescription, OAUTH_SCOPES } from '../apps/sim/lib/oauth/scopes'
 import type { ToolOutputProperty } from '../apps/sim/tools/types'
 
 /**
@@ -1466,15 +1466,25 @@ export function buildScopesSection(serviceId: string | undefined, name: string):
     })
     .join('\n')
 
+  // Only some self-issued credentials have permissions to pick: an Airtable PAT
+  // and a Slack custom bot do, while a Wealthbox or Monday token simply carries
+  // its creating user's access and a Google service account uses domain-wide
+  // delegation over a filtered set. Telling every reader to "grant the same
+  // scopes" sends most of them looking for a picker that does not exist.
   const selfIssued = connectInfo.acceptsSelfIssuedCredential
-    ? `\n${name} also accepts a credential you create yourself. Grant it the same access, ` +
-      `since Sim can only request scopes on a connection it opens.\n`
+    ? `\n${name} also accepts a credential you create yourself. Sim cannot request scopes on ` +
+      `one, so its access is whatever the credential carries: some providers let you select ` +
+      `these permissions when you create the token, others give it the creating user's access.\n`
     : ''
+
+  const gatedNote = renderEnvGatedScopeNote(serviceId)
 
   return (
     `## Scopes\n\n` +
     `Connecting ${name} requests these scopes.\n\n` +
-    `| Scope | Description |\n| ----- | ----------- |\n${rows}\n${selfIssued}\n`
+    `| Scope | Description |\n| ----- | ----------- |\n${rows}\n` +
+    (gatedNote ? `\n${gatedNote}\n` : '') +
+    `${selfIssued}\n`
   )
 }
 
@@ -1505,6 +1515,22 @@ const SELF_HOSTING_GENERATED_END = '{/* GENERATED-END:oauth-apps */}'
  * directory-write permissions `microsoft-ad` needs, which is worse advice than
  * no advice.
  */
+/**
+ * Sentence naming the scopes a deployment only requests once it sets a flag.
+ *
+ * These are deliberately absent from the tables so a generated page cannot vary
+ * by deployment, which would leave everyone else failing `docs:check`. Saying so
+ * in prose keeps the page honest for the reader who does set the flag.
+ */
+function renderEnvGatedScopeNote(serviceId: string): string {
+  const gated = ENV_GATED_SCOPES[serviceId as keyof typeof ENV_GATED_SCOPES]
+  if (!gated) return ''
+  return (
+    `With \`${gated.envVar}\` set, Sim also requests ${renderScopeList(gated.scopes)}. ` +
+    `Add them to the app as well, or leave the flag unset.`
+  )
+}
+
 const renderScopeList = (scopes: readonly string[]): string =>
   scopes.map((scope) => `\`${scope}\``).join(', ')
 
@@ -1573,6 +1599,11 @@ function buildSelfHostingOAuthReference(): string {
       })
       .join('\n')
 
+    const gatedNotes = connectors
+      .map(({ service }) => renderEnvGatedScopeNote(service.serviceId))
+      .filter(Boolean)
+      .join(' ')
+
     const callbackNote = NON_STANDARD_OAUTH_CALLBACKS[capabilityId]
 
     return (
@@ -1580,6 +1611,7 @@ function buildSelfHostingOAuthReference(): string {
       `${envVars}\n\n` +
       sharedLine +
       `| Connector | Provider ID | Scopes to grant |\n| --- | --- | --- |\n${rows}\n` +
+      (gatedNotes ? `\n${gatedNotes}\n` : '') +
       (callbackNote ? `\n${callbackNote}\n` : '')
     )
   })

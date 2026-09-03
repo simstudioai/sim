@@ -964,15 +964,39 @@ describe('the generated Scopes section', () => {
    * including them would make the published page depend on which deployment
    * ran the generator and break `docs:check` for everyone else.
    */
-  it('omits scopes that are only requested under an environment flag', () => {
+  it('keeps scopes that are only requested under an environment flag out of the table', () => {
     const section = buildScopesSection('slack', 'Slack')
 
-    expect(section).toContain('`chat:write`')
-    expect(section).not.toContain('assistant:write')
+    expect(section).toContain('| `chat:write` |')
+    expect(section).not.toMatch(/\| `assistant:write` \|/)
   })
 
-  it('tells the reader a self-issued credential needs the same access', () => {
-    expect(buildScopesSection('slack', 'Slack')).toContain('credential you create yourself')
+  /**
+   * The gated scopes stay out of the table so generated output cannot vary by
+   * deployment, but a self-hoster who sets the flag still has to add them to the
+   * app: Slack rejects the whole authorization when the app is not approved for
+   * one, so omitting them entirely costs that reader the integration.
+   */
+  it('names the opt-in scopes in prose even though the table omits them', () => {
+    const section = buildScopesSection('slack', 'Slack')
+
+    expect(section).toContain('SLACK_EXTENDED_SCOPES')
+    expect(section).toContain('`assistant:write`')
+    expect(section).not.toMatch(/\| `assistant:write` \|/)
+    expect(buildScopesSection('sharepoint', 'SharePoint')).not.toContain('SLACK_EXTENDED_SCOPES')
+  })
+
+  /**
+   * Only some self-issued credentials have permissions to pick. A Wealthbox or
+   * Monday token carries its creating user's access with no scope picker at all,
+   * so an instruction to "grant the same scopes" sends the reader hunting for a
+   * setting that does not exist.
+   */
+  it('does not tell the reader to grant scopes on a self-issued credential', () => {
+    const section = buildScopesSection('slack', 'Slack')
+
+    expect(section).toContain('credential you create yourself')
+    expect(section).not.toMatch(/grant it the same/i)
     expect(buildScopesSection('sharepoint', 'SharePoint')).not.toContain(
       'credential you create yourself'
     )
