@@ -6,6 +6,7 @@ import {
   getOciRegion,
   isObjectStorageOciHostname,
   OCI_REGION_IDS,
+  type OciServiceHostnamePredicate,
   objectStorageOciDestination,
   objectStorageOciHostname,
   resolveEffectiveOciRegion,
@@ -27,6 +28,7 @@ describe('OCI region registry', () => {
   it('normalizes known regions and fails closed for unknown regions', () => {
     expect(getOciRegion('  US-ASHBURN-1 ').id).toBe('us-ashburn-1')
     expect(() => getOciRegion('moon-base-1')).toThrow('not recognized')
+    expect(() => getOciRegion('constructor')).toThrow('not recognized')
   })
 
   it('allows only same-realm effective-region overrides', () => {
@@ -103,6 +105,19 @@ describe('validateOciDestination', () => {
         isServiceHostname: isObjectStorageOciHostname,
       })
     ).toThrow('not owned')
+  })
+
+  it('rejects a bracketed IPv6 literal before applying the service predicate', () => {
+    const acceptsEveryHostname = (() => true) as OciServiceHostnamePredicate
+    expect(() =>
+      validateOciDestination({
+        origin: 'https://[2606:4700::1111]',
+        service: 'objectstorage',
+        region,
+        provenance: 'static',
+        isServiceHostname: acceptsEveryHostname,
+      })
+    ).toThrow('exact HTTPS origin')
   })
 
   it('rejects a forged region-to-realm association', () => {

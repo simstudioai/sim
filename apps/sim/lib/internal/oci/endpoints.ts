@@ -1,4 +1,4 @@
-import { isIpLiteral } from '@sim/security/ssrf'
+import { isIpLiteral, unwrapIpv6Brackets } from '@sim/security/ssrf'
 
 export type OciDestinationProvenance = 'static' | 'authenticated-discovery'
 
@@ -160,7 +160,9 @@ function normalizeRegionId(regionId: string): string {
 
 export function getOciRegion(regionId: string): OciRegion {
   const normalized = normalizeRegionId(regionId)
-  const realmId = REGION_REALMS[normalized as keyof typeof REGION_REALMS]
+  const realmId = Object.hasOwn(REGION_REALMS, normalized)
+    ? REGION_REALMS[normalized as keyof typeof REGION_REALMS]
+    : undefined
   if (!realmId) throw new Error('OCI region is not recognized')
   return {
     id: normalized,
@@ -211,7 +213,7 @@ export function validateOciDestination(params: {
     url.pathname !== '/' ||
     url.search !== '' ||
     url.hash !== '' ||
-    isIpLiteral(url.hostname) ||
+    isIpLiteral(unwrapIpv6Brackets(url.hostname)) ||
     url.origin !== params.origin
   ) {
     throw new Error('OCI destination must be an exact HTTPS origin with the default port')
