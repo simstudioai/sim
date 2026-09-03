@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, omit } from '@sim/utils/object'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
+import { isWorkflowAnnotationOnlyBlockType } from '@sim/workflow-types/workflow'
 import type { z } from 'zod'
 import type { forkRemapKindSchema } from '@/lib/api/contracts/workspace-fork'
 import { readFolderPaths, replaceFolderPath } from '@/lib/folders/selection'
@@ -580,7 +581,10 @@ export function createCanonicalModeGates(
 export interface RemapForkContext {
   blockId?: string
   blockName?: string
-  /** Block type, to build the canonical index for active-member DETECTION gating (rewrite unaffected). */
+  /**
+   * Block type, to build the canonical index for active-member DETECTION gating and to recognise
+   * an annotation-only block, whose values are never detected. Rewrite is unaffected by either.
+   */
   blockType?: string
   /** Canonical-mode overrides (`block.data.canonicalModes`), picking the active member per pair. */
   canonicalModes?: CanonicalModeOverrides
@@ -1126,9 +1130,9 @@ export function remapForkSubBlocks(
   // active ADVANCED (manual) member - and every dependent scoped to it - passes through VERBATIM
   // (user-owned, never remapped, never a mapping requirement); a DORMANT member's value is
   // CLEARED outright (below) so no stale id ever survives in an inactive slot. A condition-hidden
-  // subblock is still rewritten but not detected. Needs `blockType` for the config; an unknown
-  // block type gets no gating (everything detected, nothing passed through - the conservative
-  // default).
+  // subblock is still rewritten but not detected, and so is every field of an annotation-only
+  // block (see `annotationOnly` below). Needs `blockType` for the config; an unknown block type
+  // gets no gating (everything detected, nothing passed through - the conservative default).
   const blockSubBlocks = context?.blockType ? getBlock(context.blockType)?.subBlocks : undefined
   const configByBaseKey = new Map(
     (blockSubBlocks ?? []).filter((config) => config.id).map((config) => [config.id, config])
@@ -1139,6 +1143,15 @@ export function remapForkSubBlocks(
     context?.canonicalModes,
     context?.triggerMode === true
   )
+
+  /**
+   * An annotation-only block (a Note) never executes, so nothing in it is a reference. Its
+   * `{{KEY}}` is prose about a secret, not a use of one: it must not become a mapping entry or a
+   * sync blocker, and the References tab — which walks blocks through this same policy — must not
+   * send someone rotating a key to edit a note. The rewrite side is unchanged, exactly like a
+   * condition-hidden field's: a mapped key is still renamed so the note names the target's key.
+   */
+  const annotationOnly = isWorkflowAnnotationOnlyBlockType(context?.blockType)
 
   for (const [subBlockKey, subBlock] of Object.entries(subBlocks)) {
     if (!subBlock || typeof subBlock !== 'object') {
@@ -1169,7 +1182,8 @@ export function remapForkSubBlocks(
     const verbatimManual =
       !dormant &&
       (gates.isActiveManualMember(subBlockKey) || gates.isManualParentDependent(subBlockKey))
-    const detectionSkipped = dormant || verbatimManual || gates.isConditionHidden(subBlockKey)
+    const detectionSkipped =
+      annotationOnly || dormant || verbatimManual || gates.isConditionHidden(subBlockKey)
     // `{{ENV}}` detection is gated on EXECUTION, not on ownership. A dormant member and a
     // condition-hidden field never execute, so their refs must not become sync blockers - but an
     // ACTIVE MANUAL member is exactly the value that DOES execute, and its `{{KEY}}` is a live
@@ -1179,7 +1193,7 @@ export function remapForkSubBlocks(
     // missing that secret silently passed the required-env gate instead of blocking the sync.
     // Resource-id detection keeps `verbatimManual` (a hand-typed id stays a user-owned escape
     // hatch); only env refs, which are never workspace-scoped ids, are detected here.
-    const envDetectionSkipped = dormant || gates.isConditionHidden(subBlockKey)
+    const envDetectionSkipped = annotationOnly || dormant || gates.isConditionHidden(subBlockKey)
     if (dormant && isNonEmptyValue(value)) {
       value = ''
     }

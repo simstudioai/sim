@@ -331,6 +331,8 @@ Servers that **publish workflows as MCP tools**.
 | **Fork** | **Values never leave the source.** Workflow text still contains `{{KEY}}` names. Create matching secrets (or the names you will map to) under the child’s **Secrets**. |
 | **Sync** | Map source key names to target key names. Values stay in each workspace. Unmapped required secrets block Sync. |
 
+Notes are documentation: a `{{KEY}}` inside a Note block never needs mapping and never blocks Sync.
+
 **Example:** Workflows use `{{OPENAI_API_KEY}}`. After fork, add that secret in the child (or map `OPENAI_API_KEY` to whatever name the child uses) before runs and syncs succeed.
 
 ---

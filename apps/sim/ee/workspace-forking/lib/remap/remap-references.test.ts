@@ -1835,6 +1835,75 @@ describe('canonical mode policy (fork/promote)', () => {
     expect(scan.references).toEqual([])
   })
 
+  it('does NOT detect {{ENV}} in a Note block (an annotation never executes)', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([{ id: 'content', title: 'Content', type: 'long-input' }])
+    )
+    const scan = scanWorkflowReferences(
+      [
+        {
+          id: 'b1',
+          name: 'Setup notes',
+          type: 'note',
+          subBlocks: {
+            content: entry('content', 'long-input', 'Set {{OPENAI_API_KEY}} before running.'),
+          },
+        },
+      ],
+      () => null
+    )
+    expect(scan.references).toEqual([])
+    expect(scan.unmapped).toEqual([])
+  })
+
+  it('still detects {{ENV}} named by both a Note and an executing block, attributed to the executing block', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        { id: 'content', title: 'Content', type: 'long-input' },
+        { id: 'apiKey', title: 'API Key', type: 'short-input' },
+      ])
+    )
+    const scan = scanWorkflowReferences(
+      [
+        {
+          id: 'b1',
+          name: 'Setup notes',
+          type: 'note',
+          subBlocks: {
+            content: entry('content', 'long-input', 'Set {{OPENAI_API_KEY}} before running.'),
+          },
+        },
+        {
+          id: 'b2',
+          name: 'Agent',
+          type: 'agent',
+          subBlocks: { apiKey: entry('apiKey', 'short-input', '{{OPENAI_API_KEY}}') },
+        },
+      ],
+      () => null
+    )
+    expect(
+      scan.references.map((ref) => [ref.kind, ref.sourceId, ref.blockId, ref.subBlockKey])
+    ).toEqual([['env-var', 'OPENAI_API_KEY', 'b2', 'apiKey']])
+    expect(scan.unmapped.map((ref) => ref.sourceId)).toEqual(['OPENAI_API_KEY'])
+  })
+
+  it('still rewrites a mapped {{ENV}} inside a Note on promote, so the note names the target key', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([{ id: 'content', title: 'Content', type: 'long-input' }])
+    )
+    const result = remapForkSubBlocks(
+      { content: entry('content', 'long-input', 'Set {{OPENAI_API_KEY}} before running.') },
+      (kind, sourceId) =>
+        kind === 'env-var' && sourceId === 'OPENAI_API_KEY' ? 'OPENAI_KEY_PROD' : null,
+      'promote',
+      { blockType: 'note' }
+    )
+    expect(result.subBlocks.content.value).toBe('Set {{OPENAI_KEY_PROD}} before running.')
+    expect(result.references).toEqual([])
+    expect(result.unmapped).toEqual([])
+  })
+
   it('an active manual member keeps its RESOURCE-id escape hatch while its {{ENV}} is detected', () => {
     vi.mocked(getBlock).mockReturnValue(
       blockWith([
