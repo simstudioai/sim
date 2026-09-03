@@ -392,6 +392,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'platform/self-hosting/observability.mdx',
   'platform/self-hosting/platforms.mdx',
   'platform/self-hosting/redis.mdx',
+  'platform/self-hosting/reference-architectures.mdx',
   'platform/self-hosting/scaling.mdx',
   'platform/self-hosting/security.mdx',
   'platform/self-hosting/troubleshooting.mdx',
