@@ -12,6 +12,7 @@ import {
 } from '@/lib/internal/oci/signing.server'
 
 const MAX_OCI_TIMEOUT_MS = 5 * 60 * 1000
+const MAX_OCI_REDACTABLE_BODY_LENGTH = 65_536
 
 export interface OciRequestResult {
   readonly response: SecureFetchResponse
@@ -43,6 +44,9 @@ export function buildOciRequestUrl(
   ) {
     throw new Error('OCI request path must be a single encoded absolute path')
   }
+  if (new URL(`${destination.origin}${encodedPath}`).pathname !== encodedPath) {
+    throw new Error('OCI request path must be a single encoded absolute path')
+  }
   const query = serializeOciQueryPairs(queryPairs)
   return `${destination.origin}${encodedPath}${query ? `?${query}` : ''}`
 }
@@ -63,7 +67,8 @@ function validateRequestLimits(timeout: number, maxResponseBytes: number): void 
 function sensitiveRequestValues(
   credentials: OciSigningCredentials,
   authorization: string | undefined,
-  requestUrl: string
+  requestUrl: string,
+  requestBody: string | undefined
 ): string[] {
   return [
     credentials.tenancyId,
@@ -74,6 +79,7 @@ function sensitiveRequestValues(
     credentials.passphrase ?? '',
     authorization ?? '',
     requestUrl,
+    requestBody ?? '',
   ].filter(Boolean)
 }
 
@@ -119,18 +125,21 @@ export async function sendOciRequest(params: {
   const opcRequestId = response.headers.get('opc-request-id') ?? undefined
   if (response.ok) return { response, opcRequestId }
 
+  const requestBodyIsRedactable =
+    signed.body === undefined || signed.body.length <= MAX_OCI_REDACTABLE_BODY_LENGTH
   const sensitiveValues = sensitiveRequestValues(
     params.credentials,
     signed.headers.authorization,
-    signed.url
+    signed.url,
+    requestBodyIsRedactable ? signed.body : undefined
   )
   const body = await response.text()
-  const error = parseOciErrorBody(body, sensitiveValues)
+  const error = requestBodyIsRedactable ? parseOciErrorBody(body, sensitiveValues) : {}
   throw new OciRequestError({
     status: response.status,
     code: error.code,
     message: error.message,
-    opcRequestId,
+    opcRequestId: requestBodyIsRedactable ? opcRequestId : undefined,
     sensitiveValues,
   })
 }

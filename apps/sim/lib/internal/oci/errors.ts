@@ -93,6 +93,7 @@ function sanitizeOciErrorField(
   if (typeof value !== 'string') return undefined
   if (value.length > MAX_OCI_ERROR_INPUT_LENGTH) return undefined
   if (/%[0-9a-f]{2}/i.test(value)) return undefined
+  if (/\\(?:u[0-9a-f]{4}|x[0-9a-f]{2})/i.test(value)) return undefined
   if (/\(request-target\)|x-content-sha256/i.test(value)) return undefined
   const decoded = decodeNestedJsonDiagnostic(value)
   if (decoded === undefined) return undefined
