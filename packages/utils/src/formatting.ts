@@ -100,10 +100,16 @@ export function formatDate(date: Date): string {
 /**
  * Formats a date string to absolute format for tooltip display
  * @param dateString - ISO date string to format
- * @returns A formatted date string (e.g., "Jan 22, 2026, 01:30 PM")
+ * @returns A formatted date string (e.g., "Jan 22, 2026, 01:30 PM"), or the
+ * original `dateString` unchanged when it cannot be parsed into a valid date
  */
 export function formatAbsoluteDate(dateString: string): string {
   const date = new Date(dateString)
+  // An unparseable string yields an Invalid Date whose formatters return
+  // "Invalid Date"; fall back to the original input instead.
+  if (Number.isNaN(date.getTime())) {
+    return dateString
+  }
   return date.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -145,11 +151,17 @@ export function formatTimeWithSeconds(date: Date, includeTimezone = true): strin
 /**
  * Format an ISO timestamp into a compact format for UI display
  * @param iso - ISO timestamp string
- * @returns A formatted string in "MM-DD HH:mm" format
+ * @returns A formatted string in "MM-DD HH:mm" format, or the original `iso`
+ * string unchanged when it cannot be parsed into a valid date
  */
 export function formatCompactTimestamp(iso: string): string {
   try {
     const d = new Date(iso)
+    // Invalid dates do not throw; their getters return NaN, so the catch
+    // below never fires. Guard explicitly and fall back to the input string.
+    if (Number.isNaN(d.getTime())) {
+      return iso
+    }
     const mm = String(d.getMonth() + 1).padStart(2, '0')
     const dd = String(d.getDate()).padStart(2, '0')
     const hh = String(d.getHours()).padStart(2, '0')
