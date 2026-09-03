@@ -110,7 +110,7 @@ continues to run in the local isolated VM when all Sandbox flags are off. Python
 Shell, JavaScript with external imports, and selected custom Sandboxes fail with
 an explicit configuration error until the remote Function base is ready.
 
-Mothership's `function_execute` and `run_code` tools use Mothership's separate
+Chat's `run_function` and `run_code` tools use Mothership's separate
 shell image, including for JavaScript without imports. If the deployment uses
 Mothership code tools, also configure the image produced by the Mothership
 release process for the selected provider:

@@ -31,7 +31,7 @@ The content to score. Usually an earlier output like `<agent.content>`. Structur
 
 ### Model
 
-The model that does the scoring, defaulting to `claude-sonnet-4-6`. Stronger reasoning models give more consistent scores. Type or pick any supported model. **Temperature** and a **System Prompt** are available under advanced, and on hosted Sim the API key is supplied for you.
+The model that does the scoring, defaulting to `claude-sonnet-5`. Stronger reasoning models give more consistent scores. Type or pick any supported model. **Temperature** and a **System Prompt** are available under advanced, and on hosted Sim the API key is supplied for you.
 
 ## Outputs
 
@@ -66,7 +66,7 @@ The same shape covers other quality work: score several [parallel](/workflows/bl
 
 <FAQ items={[
   { question: "What format does the Evaluator return scores in?", answer: "A JSON object where each key is the lowercase metric name and the value is the numeric score within the range you defined. A metric named 'Accuracy' with range 1-5 appears as { \"accuracy\": 4 }, read downstream as <evaluator.accuracy>." },
-  { question: "Which models work best for evaluation?", answer: "Models with strong reasoning give the most consistent scores. The default is claude-sonnet-4-6; for simple, clearly distinct metrics a faster model is fine." },
+  { question: "Which models work best for evaluation?", answer: "Models with strong reasoning give the most consistent scores. The default is claude-sonnet-5; for simple, clearly distinct metrics a faster model is fine." },
   { question: "Can I evaluate non-text content?", answer: "The content field takes any string. JSON or structured data is detected and formatted before scoring, but the evaluation is text-based, so it can't directly score images or audio." },
   { question: "What happens if a metric is incomplete?", answer: "Metrics missing a name or a range are skipped. The Evaluator only scores metrics that have both a name and a defined min/max range." },
   { question: "Does the Evaluator use structured output?", answer: "Yes. It builds a JSON Schema from your metrics and enforces strict mode, so the model returns only the expected metric scores as numbers, with no extra text." },

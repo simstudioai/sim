@@ -11,9 +11,10 @@ Every `sim` command follows the same shape:
 sim <resource> [sub-resource] <verb> [arguments] [options]
 ```
 
-Resource groups are plural, and each one also accepts its singular spelling —
-`sim workflow get` and `sim workflows get` are the same command. `knowledge`
-additionally answers to `kb`.
+Most resource groups also accept a singular spelling (`sim workflow get` =
+`sim workflows get`); `knowledge` answers to `kb`. `blocks`, `tools`,
+`chat-deployments`, `connector-types`, `meta`, `billing`, and
+`workflow-mcp-servers` have no alias.
 
 ## Global options
 

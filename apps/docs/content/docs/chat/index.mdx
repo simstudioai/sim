@@ -24,7 +24,7 @@ Describe what you want and Sim handles it. Build a workflow, run research, gener
 
 ## How It Works
 
-Sim receives a snapshot of your entire workspace with every message — all workflows, tables, knowledge bases, files, credentials, jobs, and integrations. This is why you can refer to things by name without specifying IDs or paths:
+Sim can reach everything in your workspace on demand, so you can usually refer to things by name instead of by ID. Attaching a resource with `@` or **+** puts it directly in context:
 
 - "Run the invoice workflow"
 - "Add a row to the leads table"
@@ -66,7 +66,7 @@ Chat has two panes. On the left: the chat thread, where your messages and Sim's 
 
 <FAQ items={[
   { question: "How is Chat different from working inside a single workflow?", answer: "Inside a workflow, Sim is scoped to that workflow — it helps you build and edit that one thing. In Chat, Sim has access to your entire workspace and can build workflows, manage data, run research, schedule jobs, take actions across integrations, and more." },
-  { question: "What model does Sim use?", answer: "Sim always uses Claude Opus 4.6. There is no model selector." },
+  { question: "What model does Sim use?", answer: "Chat runs on Claude Opus 4.8. There is no model selector." },
   { question: "How do I reference an existing workflow or table?", answer: "Type @ followed by the name in the input, use the + menu, or drag the item from the sidebar into the chat." },
   { question: "How long can a Chat task run?", answer: "Up to one hour. For tasks that exceed that, set up a scheduled job or break the work into steps." },
   { question: "Can Sim work on multiple things at once?", answer: "Sim processes one message at a time. You can queue messages — they will be processed in order." },

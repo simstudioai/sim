@@ -4296,7 +4296,7 @@
               "type": "string",
               "minLength": 1
             },
-            "description": "File identifiers to update."
+            "description": "File identifiers to delete."
           }
         },
         "required": ["workspaceId", "fileIds"],

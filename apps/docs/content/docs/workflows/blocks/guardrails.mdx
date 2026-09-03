@@ -40,7 +40,7 @@ Checks the content against a regular expression — an email, a phone number, a 
 Scores how well AI output is grounded in a knowledge base. The block retrieves relevant context, sends it to a model with the output, and the model returns a confidence score from **0** (completely ungrounded) to **10** (fully supported). Validation passes when the score meets the threshold.
 
 - **Knowledge Base** — the knowledge base to check against
-- **Model** — the model that scores grounding. Use a strong reasoning model; the default is `claude-sonnet-4-6`. The API key is supplied for you on hosted Sim
+- **Model** — the model that scores grounding. There is no default; pick a strong reasoning model. The API key is supplied for you on hosted Sim
 - **Confidence** — the minimum score to pass, from 0 to 10 (default 3)
 - **Top K** (advanced) — how many knowledge base chunks to retrieve (default 5)
 

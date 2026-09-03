@@ -26,7 +26,7 @@ Click **Deploy** to publish your workflow for the first time, or **Update** to p
 Once deployed, your workflow is available at:
 
 ```
-POST https://sim.ai/api/v2/workflows/{workflow-id}/execute
+POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute
 ```
 
 <Callout type="info">
@@ -62,17 +62,17 @@ Everything above can also be done programmatically. The v1 API exposes deploy, u
 
 ```bash
 # Deploy the current draft as a new version (body is optional)
-curl -X POST https://sim.ai/api/v1/workflows/{workflow-id}/deploy \
+curl -X POST https://www.sim.ai/api/v1/workflows/{workflow-id}/deploy \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SIM_API_KEY" \
   -d '{ "name": "Release 4", "description": "Fixes the agent prompt" }'
 
 # Undeploy — take the workflow offline
-curl -X DELETE https://sim.ai/api/v1/workflows/{workflow-id}/deploy \
+curl -X DELETE https://www.sim.ai/api/v1/workflows/{workflow-id}/deploy \
   -H "x-api-key: $SIM_API_KEY"
 
 # Roll back to the previous version (or pass { "version": N } for a specific one)
-curl -X POST https://sim.ai/api/v1/workflows/{workflow-id}/rollback \
+curl -X POST https://www.sim.ai/api/v1/workflows/{workflow-id}/rollback \
   -H "x-api-key: $SIM_API_KEY"
 ```
 
@@ -96,7 +96,7 @@ At the bottom of the tab, two buttons give you quick access to key settings:
 By default, API endpoints require an API key passed in the `x-api-key` header. Generate keys in **Settings → Sim Keys** or via the **Generate API Key** button in the API tab.
 
 ```bash
-curl -X POST https://sim.ai/api/v2/workflows/{workflow-id}/execute \
+curl -X POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SIM_API_KEY" \
   -d '{ "input": { "message": "Hello" } }'
@@ -128,7 +128,7 @@ The default mode. Send a request and wait for the complete response:
 <Tabs items={['cURL', 'Python', 'TypeScript']}>
   <Tab value="cURL">
 ```bash
-curl -X POST https://sim.ai/api/v2/workflows/{workflow-id}/execute \
+curl -X POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SIM_API_KEY" \
   -d '{ "input": { "message": "Summarize this article" } }'
@@ -139,7 +139,7 @@ curl -X POST https://sim.ai/api/v2/workflows/{workflow-id}/execute \
 import requests, os
 
 response = requests.post(
-    "https://sim.ai/api/v2/workflows/{workflow-id}/execute",
+    "https://www.sim.ai/api/v2/workflows/{workflow-id}/execute",
     headers={
         "Content-Type": "application/json",
         "x-api-key": os.environ["SIM_API_KEY"]
@@ -151,7 +151,7 @@ print(response.json())
   </Tab>
   <Tab value="TypeScript">
 ```typescript
-const response = await fetch('https://sim.ai/api/v2/workflows/{workflow-id}/execute', {
+const response = await fetch('https://www.sim.ai/api/v2/workflows/{workflow-id}/execute', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -179,7 +179,7 @@ The `selectedOutputs` values in the request body follow the format `blockName.fi
 <Tabs items={['cURL', 'Python', 'TypeScript']}>
   <Tab value="cURL">
 ```bash
-curl -X POST https://sim.ai/api/v2/workflows/{workflow-id}/execute \
+curl -X POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SIM_API_KEY" \
   -d '{
@@ -194,7 +194,7 @@ curl -X POST https://sim.ai/api/v2/workflows/{workflow-id}/execute \
 import requests, os
 
 response = requests.post(
-    "https://sim.ai/api/v2/workflows/{workflow-id}/execute",
+    "https://www.sim.ai/api/v2/workflows/{workflow-id}/execute",
     headers={
         "Content-Type": "application/json",
         "x-api-key": os.environ["SIM_API_KEY"]
@@ -213,7 +213,7 @@ for line in response.iter_lines():
   </Tab>
   <Tab value="TypeScript">
 ```typescript
-const response = await fetch('https://sim.ai/api/v2/workflows/{workflow-id}/execute', {
+const response = await fetch('https://www.sim.ai/api/v2/workflows/{workflow-id}/execute', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -242,7 +242,7 @@ while (true) {
 By default a streaming run carries answer text only. To also receive the Agent block's reasoning and its tool-call lifecycle, set `includeThinking` / `includeToolCalls`:
 
 ```bash
-curl -N -X POST https://sim.ai/api/v2/workflows/{workflow-id}/execute \
+curl -N -X POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SIM_API_KEY" \
   -H "X-Sim-Stream-Protocol: agent-events-v1" \
@@ -290,7 +290,7 @@ is rejected unless `async` is `true`; your HTTP client's timeout remains separat
 <Tabs items={['Start Execution', 'Check Status']}>
   <Tab value="Start Execution">
 ```bash
-curl -X POST https://sim.ai/api/v2/workflows/{workflow-id}/execute \
+curl -X POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute \
   -H "Content-Type: application/json" \
   -H "x-api-key: $SIM_API_KEY" \
   -d '{ "input": { "task": "Process this large dataset" }, "async": true, "executionTimeoutSeconds": 3600 }'
@@ -301,14 +301,14 @@ curl -X POST https://sim.ai/api/v2/workflows/{workflow-id}/execute \
 {
   "data": {
     "runId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
-    "statusUrl": "https://sim.ai/api/v2/workflows/{workflow-id}/runs/c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74"
+    "statusUrl": "https://www.sim.ai/api/v2/workflows/{workflow-id}/runs/c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74"
   }
 }
 ```
   </Tab>
   <Tab value="Check Status">
 ```bash
-curl "https://sim.ai/api/v2/workflows/{workflow-id}/runs/{runId}?includeOutput=true" \
+curl "https://www.sim.ai/api/v2/workflows/{workflow-id}/runs/{runId}?includeOutput=true" \
   -H "x-api-key: $SIM_API_KEY"
 ```
 

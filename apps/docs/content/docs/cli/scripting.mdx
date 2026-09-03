@@ -12,6 +12,9 @@ Everything below applies to every command.
 Any flag that takes JSON or a list also accepts `@path` to read a file, or `@-`
 to read stdin.
 
+When Sim runs a command for you, `@path` reads from the chat's sandbox, not from
+workspace Files. Use `sim files read` for a workspace path.
+
 ```bash
 sim workflows import --workflow @wf.json
 sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --filter @filter.json
@@ -39,7 +42,7 @@ accepts the escape:
 
 ```bash
 sim files share set wf_3Qm8ZtLpR2yVnKd7BsXwC --allowed-emails @@example.org
-sim secrets set API_HOST --value @@internal
+sim secrets set API_HOST --scope workspace --value @@internal
 ```
 
 Without it, `--allowed-emails @example.org` can only be read as a request to
@@ -133,19 +136,18 @@ esac
 
 ## Selecting workflow output
 
-`--select-output` shapes a streamed result, so it requires `--follow`. It takes
-`blockName.field` selectors; fields that a run did not produce are simply
-omitted:
+`--select-output` returns the named values in `blockOutputs` on a sync run, or
+from the streamed result with `--follow`. It cannot be combined with `--async`.
+It takes `blockName.field` selectors; fields that a run did not produce are
+simply omitted:
 
 ```bash
 sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --follow --select-output agent_1.content --output json
 ```
 
-Without `--follow` the CLI refuses the pair rather than spending a request on a
-response that carries no outputs, and `--async` cannot be combined with it
-either — there is no stream to shape. To narrow a run that has already finished,
-read it back with `workflows runs get`, which matches block **ids** rather than
-the block names `workflows run` takes:
+To narrow a run that has already finished, read it back with
+`workflows runs get`, which takes the same `blockName.path` or `blockId.path`
+selectors; names resolve against the workflow's current blocks:
 
 ```bash
 sim workflows runs get "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 \

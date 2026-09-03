@@ -437,12 +437,10 @@ export type V2RestoreFileBody = z.input<typeof v2RestoreFileBodySchema>
 
 export type V2RenameFileBody = z.input<typeof v2RenameFileBodySchema>
 
+const fileIdsSchema = z.array(z.string().min(1, 'fileIds entries cannot be empty')).min(1).max(1000)
+
 const fileSelectionSchema = {
-  fileIds: z
-    .array(z.string().min(1, 'fileIds entries cannot be empty'))
-    .min(1)
-    .max(1000)
-    .describe('File identifiers to update.'),
+  fileIds: fileIdsSchema.describe('File identifiers to update.'),
 }
 
 export const v2MoveFileItemsBodySchema = z
@@ -477,7 +475,7 @@ export type V2MoveFileItemsResult = z.output<typeof v2MoveFileItemsResultSchema>
 export const v2BulkDeleteFilesBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace containing the files.'),
-    ...fileSelectionSchema,
+    fileIds: fileIdsSchema.describe('File identifiers to delete.'),
   })
   .strict()
 

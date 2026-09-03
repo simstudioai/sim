@@ -90,8 +90,9 @@ b8c0d247-9e13-4a86-97f5-2ad4e1638c09  Weekly digest  /Reporting no        18    
 sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --input '{"ticketId":"T-4821"}'
 ```
 
-A workflow must be deployed before it can be run. Deploy from the editor, or
-with `sim workflows deploy <id>`.
+By default `workflows run` executes the active deployment. Add `--manual` to run
+the current saved state instead. Deploy from the editor, or with
+`sim workflows deploy <id>`.
 </Step>
 
 </Steps>
@@ -110,9 +111,10 @@ sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --limit 50
 sim knowledge documents upload 4c1b7f60-2d55-4a3e-9c18-70b6ea2f9d31 ./handbook.pdf
 ```
 
-Resource groups are plural, and each also accepts its singular spelling —
-`sim workflow get` and `sim workflows get` are the same command. `knowledge`
-also answers to `kb`.
+Most resource groups also accept a singular spelling (`sim workflow get` =
+`sim workflows get`); `knowledge` answers to `kb`. `blocks`, `tools`,
+`chat-deployments`, `connector-types`, `meta`, `billing`, and
+`workflow-mcp-servers` have no alias.
 
 Every command accepts `--help`, at any depth:
 

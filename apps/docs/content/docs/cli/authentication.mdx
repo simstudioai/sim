@@ -5,6 +5,12 @@ description: Sign in from the terminal, authenticate CI with an API key, and kee
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
+<Callout>
+These settings apply to the CLI you install locally. When Sim runs a `sim`
+command for you inside Chat, it uses your session identity — there is no profile,
+no `sim login`, and no config file.
+</Callout>
+
 The CLI authenticates with a Sim API key. `sim login` mints and stores one; in CI
 you supply one through the environment instead.
 
@@ -98,7 +104,7 @@ removed, so it cannot leave dangling references.
 
 <Callout type="warn">
 `sim logout` removes the key from disk but does **not** revoke it. Revoke keys in
-Sim under **Settings → API keys**.
+Sim under **Settings → Sim API keys**.
 </Callout>
 
 ## Authenticating CI
@@ -113,7 +119,7 @@ export SIM_WORKSPACE="2f6d0b1c-8a34-4d92-b7e5-31c8a0f45d67"
 sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --input '{"source":"nightly"}' --output json
 ```
 
-Create the key in Sim under **Settings → API keys**. Store it as a secret in your
+Create the key in Sim under **Settings → Sim API keys**. Store it as a secret in your
 CI provider — never commit it.
 
 `SIM_CONFIG_DIR` relocates both files if you need them somewhere other than

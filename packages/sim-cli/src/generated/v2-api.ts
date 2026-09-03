@@ -9370,7 +9370,7 @@ export const V2_OPERATIONS = {
     summary: 'Delete Files',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the files.' },
-      fileIds: { kind: 'array', required: true, describe: 'File identifiers to update.' },
+      fileIds: { kind: 'array', required: true, describe: 'File identifiers to delete.' },
     },
   },
   bulkDeleteTables: {

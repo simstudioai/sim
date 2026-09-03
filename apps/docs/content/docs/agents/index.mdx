@@ -17,7 +17,7 @@ The example throughout is an agent that scores inbound sales leads.
 
 ## The Agent block
 
-You set up the reasoning step by giving the Agent block a **model** and a **prompt**. The model is the LLM that powers it; you pick one from the available providers, and the default is `claude-sonnet-4-6`. The prompt is a system message that defines who the agent is and how it should behave, plus a user message that carries the input, usually a reference like `<start.input>`.
+You set up the reasoning step by giving the Agent block a **model** and a **prompt**. The model is the LLM that powers it; you pick one from the available providers, and the default is `claude-sonnet-5`. The prompt is a system message that defines who the agent is and how it should behave, plus a user message that carries the input, usually a reference like `<start.input>`.
 
 When it runs, the Agent block reasons, calls any tools it needs, and stores its result under its own name. By default that result is free text in `content`, read by a later block as `<agent.content>`, alongside run details like the model used, token counts, tool calls, and cost. Every setting and output field is in the [Agent block reference](/workflows/blocks/agent).
 

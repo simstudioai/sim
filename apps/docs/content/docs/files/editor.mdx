@@ -46,7 +46,7 @@ Type `/` anywhere to insert any block — heading, list, table, code block, imag
 The editor round-trips your markdown exactly — it saves what you wrote, with no reformatting churn.
 
 <Callout type="info">
-A few constructs can't be represented visually without losing information on save — footnotes, raw HTML, and HTML comments. When a file contains one of these, it opens **read-only** so the original source is preserved untouched. Everything is still rendered faithfully; you just can't edit that file inline.
+A few constructs still can't round-trip: a `<br>` inside a table cell, a hard line break inside a heading, and non-canonical HTML entities such as `&copy;`. Files over 256 KB also open read-only. Footnotes, HTML comments, and raw HTML are preserved byte-for-byte and stay editable.
 </Callout>
 
 <Cards>

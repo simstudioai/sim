@@ -3,6 +3,10 @@ title: Configuration
 description: Profiles, config files, environment variables, and how each setting is resolved
 ---
 
+These settings apply to the CLI you install locally. When Sim runs a `sim`
+command for you inside Chat, it uses your session identity — there is no profile,
+no `sim login`, and no config file.
+
 The CLI has four settings: **endpoint**, **API key**, **workspace**, and **output
 format**. Each resolves independently, so a saved default can still be overridden
 for a single command.
