@@ -1269,7 +1269,12 @@ export async function deleteTable(
 
 export interface DeleteTablesResult {
   archived: { id: string; name: string; workspaceId: string }[]
-  failed: { id: string; name: string; reason: string }[]
+  failed: {
+    id: string
+    name: string
+    reason: string
+    code: 'locked' | 'reference' | 'reference_cycle'
+  }[]
   notFound: string[]
   terminalError?: unknown
 }
@@ -1410,6 +1415,7 @@ export async function deleteTables(
           id: table.id,
           name: table.name,
           reason: new TableLockedError('delete').message,
+          code: 'locked',
         })
         continue
       }
@@ -1445,6 +1451,7 @@ export async function deleteTables(
             table.name,
             blockers.map((blocker) => blocker.referencingTableName)
           ),
+          code: 'reference',
         })
         continue
       }
@@ -1453,12 +1460,14 @@ export async function deleteTables(
           id: table.id,
           name: table.name,
           reason: tableReferenceCycleMessage(table.name),
+          code: 'reference_cycle',
         })
       }
     }
 
     const archived: DeleteTablesResult['archived'] = []
     if (options.archiveAsCohort) {
+      if (failed.length > 0) return { archived, failed, notFound }
       const cohort = [...archivePlan.ordered, ...archivePlan.blockedByCycle]
       if (cohort.length > 0) {
         archived.push(
@@ -1598,6 +1607,9 @@ export async function restoreTable(
     try {
       await db.transaction(async (tx) => {
         await setTableTxTimeouts(tx)
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${tableId}`}, 0))`
+        )
         const [currentTable] = await tx
           .select({
             workspaceId: userTableDefinitions.workspaceId,

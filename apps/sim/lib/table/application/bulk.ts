@@ -529,7 +529,9 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
       for (const table of tableResult.archived) {
         deleted.push({ kind: 'table', id: table.id, name: table.name })
       }
+      const referenceFailures = tableResult.failed.filter((table) => table.code === 'reference')
       for (const table of tableResult.failed) {
+        if (table.code === 'reference') continue
         outcome.failed.push({ kind: 'table', id: table.id, name: table.name, reason: table.reason })
       }
       for (const tableId of tableResult.notFound) {
@@ -567,6 +569,7 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
               })
             )
       const deletedItems = { tables: deleted.length, folders: 0 }
+      let deletedFolder = false
       if (terminalError === undefined && plan.selected.length > 0) {
         const deletableFolders = plan.selected.filter((folder) => {
           const blocker = blockedFolderIds.get(folder.id)
@@ -589,11 +592,49 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
             }).attributedUserId,
             folders: deletableFolders,
             countKey: 'tables',
+            referenceCheckCompleted: true,
           })
           for (const folder of folders.succeeded) deleted.push({ kind: 'folder', ...folder })
           for (const folder of folders.failed) outcome.failed.push({ kind: 'folder', ...folder })
           deletedItems.folders = folders.folderCount
           deletedItems.tables += folders.resourceCount
+          deletedFolder = folders.succeeded.length > 0
+        }
+      }
+
+      if (terminalError === undefined && deletedFolder && referenceFailures.length > 0) {
+        const retryResult = await deleteTables(
+          referenceFailures.map((table) => table.id),
+          generateRequestId(),
+          {
+            expectedWorkspaceId: context.workspaceId,
+            skipNotify: true,
+          }
+        )
+        for (const table of retryResult.archived) {
+          deleted.push({ kind: 'table', id: table.id, name: table.name })
+          deletedItems.tables += 1
+        }
+        for (const table of retryResult.failed) {
+          outcome.failed.push({
+            kind: 'table',
+            id: table.id,
+            name: table.name,
+            reason: table.reason,
+          })
+        }
+        for (const tableId of retryResult.notFound) {
+          outcome.notFound.push({ kind: 'table', id: tableId })
+        }
+        terminalError = retryResult.terminalError
+      } else {
+        for (const table of referenceFailures) {
+          outcome.failed.push({
+            kind: 'table',
+            id: table.id,
+            name: table.name,
+            reason: table.reason,
+          })
         }
       }
 

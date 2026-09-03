@@ -147,6 +147,8 @@ export interface FolderResourceConfig {
   guardDelete?: (context: {
     workspaceId: string
     folderIds: string[]
+    /** The caller already checked active references for this exact folder selection. */
+    referenceCheckCompleted?: boolean
   }) => Promise<FolderDeleteRejection | null>
 }
 
@@ -322,7 +324,10 @@ async function archiveTableChildren(context: CascadeChildrenContext): Promise<nu
   })
   if (result.terminalError) throw result.terminalError
   if (result.failed[0]) {
-    throw new OrchestrationError('conflict', result.failed[0].reason)
+    throw new OrchestrationError(
+      result.failed[0].code === 'locked' ? 'locked' : 'conflict',
+      result.failed[0].reason
+    )
   }
 
   return result.archived.length
@@ -361,9 +366,11 @@ async function restoreTableChildren(context: CascadeChildrenContext): Promise<nu
 async function guardTableDeletion({
   workspaceId,
   folderIds,
+  referenceCheckCompleted,
 }: {
   workspaceId: string
   folderIds: string[]
+  referenceCheckCompleted?: boolean
 }): Promise<FolderDeleteRejection | null> {
   const [
     { db },
@@ -394,6 +401,8 @@ async function guardTableDeletion({
       errorCode: 'locked',
     }
   }
+
+  if (referenceCheckCompleted) return null
 
   const [blocker] = await findActiveTableReferenceBlockers(db, workspaceId, {
     folderIds: new Set(folderIds),

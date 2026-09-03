@@ -251,6 +251,8 @@ export async function bulkDeleteFolders(params: {
   userId: string
   folders: readonly BulkFolderAffected[]
   countKey: 'tables' | 'knowledgeBases'
+  /** Reuse a reference scan completed for this batch while retaining each folder's lock guard. */
+  referenceCheckCompleted?: boolean
 }): Promise<BulkFolderDeleteOutcome> {
   const succeeded: BulkFolderAffected[] = []
   const failed: BulkFolderFailure[] = []
@@ -267,7 +269,11 @@ export async function bulkDeleteFolders(params: {
           userId: params.userId,
           folderName: folder.name,
         },
-        { projectAudit: false, notify: false }
+        {
+          projectAudit: false,
+          notify: false,
+          referenceCheckCompleted: params.referenceCheckCompleted,
+        }
       )
       if (result.success) {
         succeeded.push(folder)

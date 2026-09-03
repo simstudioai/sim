@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import {
+  dbChainMockFns,
   flattenMockConditions,
   hasMockCondition,
   queueTableRows,
@@ -588,6 +589,31 @@ describe('knowledge_base and table folder resources', () => {
       }
     )
   })
+
+  it('preserves a concurrent table lock as a locked folder failure', async () => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.userTableDefinitions, [{ id: 'tbl_accounts' }])
+    tableServiceMocks.deleteTables.mockResolvedValueOnce({
+      archived: [],
+      failed: [
+        {
+          id: 'tbl_accounts',
+          name: 'Accounts',
+          reason: 'Table deletion is locked',
+          code: 'locked',
+        },
+      ],
+      notFound: [],
+    })
+
+    await expect(
+      tableConfig.archiveChildren?.({
+        workspaceId: 'ws-1',
+        folderIds: ['folder-1'],
+        timestamp: TIMESTAMP,
+      })
+    ).rejects.toMatchObject({ code: 'locked', message: 'Table deletion is locked' })
+  })
 })
 
 describe('table folder deletion guard', () => {
@@ -632,5 +658,19 @@ describe('table folder deletion guard', () => {
         'Cannot delete table "Customers" because it is referenced by table "Orders". Remove the reference column first.',
       errorCode: 'conflict',
     })
+  })
+
+  it('reuses a completed bulk reference check while still checking table locks', async () => {
+    queueTableRows(schemaMock.userTableDefinitions, [])
+
+    await expect(
+      FOLDER_RESOURCES.table.guardDelete?.({
+        workspaceId: 'ws-1',
+        folderIds: ['folder-root'],
+        referenceCheckCompleted: true,
+      })
+    ).resolves.toBeNull()
+
+    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
   })
 })
