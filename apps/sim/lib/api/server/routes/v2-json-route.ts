@@ -7,6 +7,7 @@ import {
   methodMatchesContract,
   requireJsonRouteDefinition,
 } from '@/lib/api/server/routes/definition'
+import { isInternalRequest } from '@/lib/api/server/routes/internal-request'
 import type {
   JsonApiRouteContract,
   JsonNextRouteHandler,
@@ -355,7 +356,12 @@ async function admitAuthenticatedV2Request(
     throw error
   }
 
-  const limited = await rateLimitPolicy.enforce(request, auth, operation)
+  // The server's own requests (embedded CLI, agent-cli engines) are authenticated like
+  // any other but never rate limited: the buckets exist for callers on the wire, and a
+  // chat turn's tool calls all land on one key. See `internal-request.ts`.
+  const limited = isInternalRequest(request)
+    ? null
+    : await rateLimitPolicy.enforce(request, auth, operation)
   return limited ? { success: false, response: limited } : { success: true, auth }
 }
 
@@ -367,7 +373,7 @@ async function admitRateLimitedV2Request(
 ): Promise<
   { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
-  const preAuthResponse = await enforceV2PreAuthIpLimit(request)
+  const preAuthResponse = isInternalRequest(request) ? null : await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
   return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
 }
@@ -392,7 +398,7 @@ export async function admitOptionalV2Request(
 ): Promise<
   { success: true; auth?: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
-  const preAuthResponse = await enforceV2PreAuthIpLimit(request)
+  const preAuthResponse = isInternalRequest(request) ? null : await enforceV2PreAuthIpLimit(request)
   if (preAuthResponse) return { success: false, response: preAuthResponse }
   if (!hasV2Credential(request.headers)) return { success: true }
   return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
