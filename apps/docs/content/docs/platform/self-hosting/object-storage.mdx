@@ -311,8 +311,7 @@ cat > /tmp/cors.json <<'EOF'
       "x-goog-meta-knowledgebaseid",
       "x-goog-meta-folderid",
       "x-goog-meta-workflowid",
-      "x-goog-meta-executionid",
-      "x-goog-meta-simuploadid"
+      "x-goog-meta-executionid"
     ],
     "maxAgeSeconds": 3600
   }
@@ -325,7 +324,7 @@ done
 ```
 
 <Callout type="info">
-  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. `ETag` is required because large-file multipart uploads read each part's `ETag` from the browser, and CORS hides the header otherwise. `x-goog-if-generation-match` is required by Sim's create-only signed uploads, which prevent a reused upload URL from replacing existing bytes. `x-goog-meta-simuploadid` carries the opaque receipt used to verify an upload after an ambiguous network response.
+  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. `ETag` is required because large-file multipart uploads read each part's `ETag` from the browser, and CORS hides the header otherwise. `x-goog-if-generation-match` is required by Sim's create-only signed uploads, which prevent a reused upload URL from replacing existing bytes.
 </Callout>
 
 </Step>

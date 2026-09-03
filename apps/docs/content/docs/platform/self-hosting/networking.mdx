@@ -237,7 +237,7 @@ TLS on GKE typically uses a **ManagedCertificate**, which the chart references b
 apiVersion: networking.gke.io/v1
 kind: ManagedCertificate
 metadata:
-  name: sim-ssl-cert
+  name: simstudio-ssl-cert
   namespace: simstudio
 spec:
   domains:
@@ -250,7 +250,7 @@ ingress:
   className: gce
   annotations:
     kubernetes.io/ingress.global-static-ip-name: "sim-ip"
-    networking.gke.io/managed-certificates: "sim-ssl-cert"
+    networking.gke.io/managed-certificates: "simstudio-ssl-cert"
     kubernetes.io/ingress.allow-http: "false"
   # TLS comes from the ManagedCertificate — leaving the chart's secret-based
   # TLS on makes the ingress reference a Secret that does not exist.
@@ -307,8 +307,8 @@ The server runs on Bun, and Bun's native `fetch` honors `$HTTP_PROXY`, `$HTTPS_P
 
 | Outbound path | Honors `HTTP_PROXY` / `HTTPS_PROXY` |
 |---|---|
-| Model providers reached over the default `fetch` — Anthropic, OpenAI, Groq, Cerebras, xAI, Vertex, Ollama, LiteLLM | Yes |
-| Email via Resend, and Gmail sending | Yes |
+| Model providers reached over the default `fetch` — every provider except the three below: Anthropic, OpenAI, Google/Gemini, Vertex, Groq, Cerebras, xAI, Mistral, DeepSeek, OpenRouter, Together, Fireworks, Ollama, LiteLLM, and the other OpenAI-compatible providers | Yes |
+| Email via Resend, Azure Communication Services, and Gmail sending | Yes |
 | The desktop update feed's calls to GitHub | Yes |
 | Object storage — Azure Blob and GCS | Yes — their SDK pipelines read the proxy variables |
 | Everything through the SSRF guard — the HTTP block, tools, connectors, outbound webhooks, content fetches, MCP servers | No |
@@ -322,7 +322,14 @@ The server runs on Bun, and Bun's native `fetch` honors `$HTTP_PROXY`, `$HTTPS_P
 The practical consequence: a mandatory-egress-proxy environment can route most LLM traffic, Resend mail, and Azure/GCS storage through the proxy, but guarded integration calls, S3, Bedrock, SMTP, telemetry, and datastore traffic still need a transparent proxy or NAT-based egress.
 
 <Callout type="info">
-  Set `NO_PROXY` for any on-premises model endpoint. Self-hosted Ollama, LiteLLM, and vLLM are dialed over the default `fetch`, so a proxy that cannot reach your internal network will otherwise break them.
+  Set `NO_PROXY` for every destination that is not on the public internet, not just model endpoints. The app reaches the realtime server (`SOCKET_SERVER_URL`), the Presidio PII service (`PII_URL`), and itself (`INTERNAL_API_BASE_URL`) over the same default `fetch`, alongside self-hosted Ollama, LiteLLM, and vLLM — so a proxy that cannot reach your internal network breaks live updates and PII redaction, not only inference.
+
+  ```bash
+  # Kubernetes
+  NO_PROXY=localhost,127.0.0.1,.svc.cluster.local,sim-app,sim-realtime,sim-pii
+  # Docker Compose
+  NO_PROXY=localhost,127.0.0.1,simstudio,realtime
+  ```
 </Callout>
 
 ### The per-request escape hatch

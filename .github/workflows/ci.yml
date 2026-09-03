@@ -646,6 +646,7 @@ jobs:
       packages: read
     outputs:
       subjects: ${{ steps.resolve.outputs.subjects }}
+      count: ${{ steps.resolve.outputs.count }}
     steps:
       - name: Login to GHCR
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
@@ -687,7 +688,9 @@ jobs:
                 *"not found"*|*MANIFEST_UNKNOWN*|*"no such manifest"*|*"NAME_UNKNOWN"*) absent=1 ;;
                 *) absent=0 ;;
               esac
-              sleep "$((attempt * 3))"
+              if [ "$attempt" -lt 3 ]; then
+                sleep "$((attempt * 3))"
+              fi
             done
             # Only call it absent if the registry said so on the final attempt.
             if [ "$absent" -eq 1 ]; then
@@ -729,8 +732,9 @@ jobs:
               emit "$image" "$digest" "$platform"
             done
 
-            # A moving alias is only ours if it resolves to the index this run
-            # published. create-ghcr-manifests holds the latest tags back when
+            # A moving alias is only taken when it resolves to the same index
+            # digest this run published — content identity, which is what a
+            # digest can prove. create-ghcr-manifests holds the latest tags back when
             # its monotonic guard sees a newer commit, and they then still point
             # at an older build — attesting those would put this run's signature
             # and provenance on an image it did not produce. The per-arch
@@ -781,6 +785,7 @@ jobs:
           echo "Resolved $(wc -l < /tmp/subjects.jsonl) distinct subjects:"
           cat /tmp/subjects.jsonl
           echo "subjects=$(jq -sc . /tmp/subjects.jsonl)" >> "$GITHUB_OUTPUT"
+          echo "count=$(wc -l < /tmp/subjects.jsonl | tr -d ' ')" >> "$GITHUB_OUTPUT"
 
   # One leg per distinct published digest. Attesting each subject separately is
   # also what makes the SBOMs truthful: the amd64 and arm64 images contain
@@ -816,11 +821,19 @@ jobs:
       # the SBOM it produces would describe amd64 while the index also serves
       # arm64. The per-arch subjects below carry an accurate SBOM each, and the
       # index still gets a signature and provenance.
+      #
+      # Scanned by the `<sha>-<arch>` tag rather than by `matrix.digest`. Half
+      # the per-arch subjects are single-entry INDEXES (`imagetools create`
+      # writes an index even from one manifest), and Syft resolves an index
+      # against the RUNNER's platform — so an arm64-only index fails outright on
+      # an amd64 runner with "no child with platform linux/arm64". The sha tag is
+      # the plain manifest that index wraps: identical content, no platform
+      # resolution, and one pull shared by both subjects instead of two.
       - name: Generate SBOM
         if: matrix.platform != 'index'
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
-          image: ${{ matrix.image }}@${{ matrix.digest }}
+          image: ${{ matrix.image }}:${{ github.sha }}-${{ matrix.platform }}
           format: spdx-json
           output-file: sbom.spdx.json
           # The action's own release upload is for workflows triggered by a
@@ -896,13 +909,21 @@ jobs:
     name: Create GitHub Release
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
-    needs: [create-ghcr-manifests, attest-images, detect-version]
+    needs: [create-ghcr-manifests, attest-subjects, attest-images, detect-version]
     # Explicit results: see migrate's comment. attest-images is a gate, not just
     # an ordering edge — a release must not advertise images whose signature or
-    # attestation failed to publish.
+    # attestation failed to publish. The count check is not redundant: a matrix
+    # built from an empty include list produces no legs and still reports
+    # success, so without it an empty subject set would open the gate.
+    #
+    # Note this gates the GitHub release, not the production deploy: CodePipeline
+    # fires from the ECR tags moved by promote-images, upstream of this job, and
+    # only the GHCR mirrors are attested.
     if: >-
       !cancelled() &&
       needs.create-ghcr-manifests.result == 'success' &&
+      needs.attest-subjects.result == 'success' &&
+      needs.attest-subjects.outputs.count != '0' &&
       needs.attest-images.result == 'success' &&
       needs.detect-version.result == 'success' &&
       needs.detect-version.outputs.is_release == 'true'

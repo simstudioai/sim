@@ -195,7 +195,7 @@ Once enabled, retention settings are configurable through **Settings → Organiz
 | Chats and Chat runs | `GET /api/cron/cleanup-tasks` |
 
 <Callout type="warn">
-The Helm chart does **not** schedule these three endpoints. An operator who sets `DATA_RETENTION_ENABLED=true` on the chart alone still deletes nothing. Add them to `cronjobs.jobs`, or call them daily from an external scheduler.
+Neither shipped deployment schedules these three endpoints — not the Helm chart, not Docker Compose's `cron` service. An operator who sets `DATA_RETENTION_ENABLED=true` alone still deletes nothing. Add them to `cronjobs.jobs`, or call them daily from an external scheduler.
 </Callout>
 
 ```bash

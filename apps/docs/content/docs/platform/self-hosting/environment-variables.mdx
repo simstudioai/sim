@@ -15,9 +15,8 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `ENCRYPTION_KEY` | Encryption key, exactly 64 hex characters (32 bytes): `openssl rand -hex 32` |
 | `INTERNAL_API_SECRET` | Internal API secret, at least 32 characters: `openssl rand -hex 32` |
 | `NEXT_PUBLIC_APP_URL` | Public app URL |
-| `CRON_SECRET` | Bearer token for the background job endpoints: `openssl rand -hex 32`. **Required whenever background jobs are enabled** — the Helm chart's default, and the chart will not render without it. See [Background Jobs](/platform/self-hosting/background-jobs) |
 
-`openssl rand -hex 32` prints 64 hex characters. `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` must be exactly that — a value of any other shape throws the first time Sim encrypts or decrypts, not at startup. The rest are secrets of no fixed shape and only need 32 characters or more.
+`openssl rand -hex 32` prints 64 hex characters. `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` must be exactly that — a value of any other shape throws the first time Sim encrypts or decrypts, not at startup. The rest are secrets of no fixed shape and only need 32 characters or more — a floor nothing enforces at runtime, so meeting it is on you.
 
 <Callout type="error">
   `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` cannot be rotated or recovered. Losing either makes the data it protects permanently unreadable — workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets in the first case, user-generated Sim API keys in the second. Back them up separately from the database.
@@ -28,6 +27,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | Variable | Description |
 |----------|-------------|
 | `API_ENCRYPTION_KEY` | Encrypts user-generated Sim API keys at rest, exactly 64 hex characters (32 bytes): `openssl rand -hex 32`. **When unset, API keys are stored in plain text** — the app logs one warning and keeps working |
+| `CRON_SECRET` | Bearer token for the background job endpoints: `openssl rand -hex 32`. **Required whenever background jobs are enabled** — the Helm chart's default, and the chart will not render without it. See [Background Jobs](/platform/self-hosting/background-jobs) |
 | `REDIS_URL` | Redis connection string. Optional on a single replica; **required** past one app or realtime replica — see [Redis](/platform/self-hosting/redis) |
 | `REDIS_TLS_SERVERNAME` | TLS SNI override. Required when `REDIS_URL` uses `rediss://` with a bare IP, or the app throws the first time it opens a Redis connection |
 | `NEXT_PUBLIC_SOCKET_URL` | WebSocket URL — defaults to the page origin; set only if realtime is on a separate host |

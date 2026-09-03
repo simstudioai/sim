@@ -6,7 +6,7 @@ description: Configure the remote execution provider and Function base image tha
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Callout } from 'fumadocs-ui/components/callout'
 
-Function blocks run in one of two places. JavaScript with no `import` or `require` runs in a local isolated VM and needs nothing configured. Python, Shell, JavaScript that imports, and custom workspace sandboxes run on a remote provider, and that provider needs both credentials and a dedicated Function base image.
+Function blocks run in one of two places. JavaScript with no `import` or `require` runs in a local isolated VM and needs nothing configured — unless the block selects a sandbox or references a file path from another block or a sandbox output path. Those need the sandbox filesystem and are refused with a 422 when no provider is configured. Python, Shell, JavaScript that imports, and custom workspace sandboxes run on a remote provider, and that provider needs both credentials and a dedicated Function base image.
 
 Until the base image is configured, those languages fail with an explicit configuration error rather than falling back. A saved Python block is never silently serialized or executed as JavaScript.
 
