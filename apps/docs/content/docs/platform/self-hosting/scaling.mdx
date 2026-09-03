@@ -41,7 +41,7 @@ The `resources` block above is the chart's default — it is shown so the number
 
 **Memory is the constraint, not CPU.** Workflow executions run inside the app process in isolated-vm sandboxes, and file parsing happens in memory. Production telemetry shows 4–8 GB steady with peaks to 12 GB under heavy execution load. Under-provision memory and you get OOMKills that terminate in-flight workflow runs — so raise `limits.memory` above the 8 Gi default if your workload shows those peaks.
 
-A PodDisruptionBudget is created automatically once `replicaCount > 1`, or once `autoscaling.enabled` with `minReplicas > 1` — for the app and realtime independently (`maxUnavailable: 25%`). Tighten it with `podDisruptionBudget.minAvailable` if you need to.
+A PodDisruptionBudget is created automatically once `replicaCount > 1`, or once `autoscaling.enabled` with `minReplicas > 1` (`maxUnavailable: 25%`). The app and realtime each consider their own `replicaCount`, but the autoscaling term is shared: `minReplicas > 1` creates both PDBs, including realtime's when `autoscaling.realtime.enabled` is false and no realtime HPA exists. Tighten it with `podDisruptionBudget.minAvailable` if you need to.
 
 ### Autoscaling
 
