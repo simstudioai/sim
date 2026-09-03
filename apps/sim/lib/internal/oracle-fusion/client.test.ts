@@ -170,7 +170,7 @@ describe('requestOracleFusionJson', () => {
     mockSecureFetch.mockResolvedValueOnce(
       response(
         200,
-        '{"id":9007199254740993,"negative":-9007199254740993,"safe":9007199254740991,"decimal":9007199254740993.5}'
+        '{"id":9007199254740993,"negative":-9007199254740993,"zeroFraction":9007199254740993.0,"exponent":9.007199254740993e15,"hugeExponent":1e999,"safe":9007199254740991,"decimal":9007199254740993.5}'
       )
     )
     await expect(
@@ -178,6 +178,9 @@ describe('requestOracleFusionJson', () => {
     ).resolves.toEqual({
       id: '9007199254740993',
       negative: '-9007199254740993',
+      zeroFraction: '9007199254740993.0',
+      exponent: '9.007199254740993e15',
+      hugeExponent: '1e999',
       safe: 9007199254740991,
       decimal: 9007199254740994,
     })

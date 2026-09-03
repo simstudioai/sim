@@ -140,6 +140,9 @@ describe('normalizeOracleFusionApplicationOrigin', () => {
   it.each([
     'http://vision.fa.us2.oraclecloud.com',
     'https://vision.fa.us2.oraclecloud.com/path',
+    'https://vision.fa.us2.oraclecloud.com/path/..',
+    'https://vision.fa.us2.oraclecloud.com/./',
+    'https://vision.fa.us2.oraclecloud.com/%2e%2e/',
     'https://vision.fa.us2.oraclecloud.com:443',
     'https://vision.fa.us2.oraclecloud.com:8443',
     'https://user@vision.fa.us2.oraclecloud.com',

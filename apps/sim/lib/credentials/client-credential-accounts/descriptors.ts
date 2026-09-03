@@ -159,6 +159,8 @@ export function normalizeNetSuiteSuiteTalkOrigin(rawUrl: string): string | undef
 /** Canonical Oracle-assigned Fusion Applications origin used by product REST APIs. */
 export const ORACLE_FUSION_APPLICATION_ORIGIN_REGEX =
   /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.fa\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.oraclecloud\.com$/
+const ORACLE_FUSION_APPLICATION_INPUT_REGEX =
+  /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.fa\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.oraclecloud\.com\/?$/i
 
 /**
  * Normalizes a Fusion Applications URL to its authoritative HTTPS origin.
@@ -168,8 +170,7 @@ export const ORACLE_FUSION_APPLICATION_ORIGIN_REGEX =
 export function normalizeOracleFusionApplicationOrigin(rawUrl: string): string | undefined {
   try {
     const trimmed = rawUrl.trim()
-    const authority = /^https:\/\/([^/?#]+)/i.exec(trimmed)?.[1]
-    if (!authority || authority.includes(':')) return undefined
+    if (!ORACLE_FUSION_APPLICATION_INPUT_REGEX.test(trimmed)) return undefined
     const parsed = new URL(trimmed)
     if (
       parsed.protocol !== 'https:' ||

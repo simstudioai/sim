@@ -49,6 +49,8 @@ describe('mintOracleFusionServiceAccountToken', () => {
   it.each([
     'http://vision.fa.us2.oraclecloud.com',
     'https://vision.fa.us2.oraclecloud.com/path',
+    'https://vision.fa.us2.oraclecloud.com/path/..',
+    'https://vision.fa.us2.oraclecloud.com/%2e%2e/',
     'https://vision.fa.us2.oraclecloud.com:443',
     'https://user:password@vision.fa.us2.oraclecloud.com',
     'https://vision.fa.us2.oraclecloud.com?tenant=other',

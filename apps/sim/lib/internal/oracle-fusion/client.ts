@@ -21,7 +21,7 @@ const API_ROOTS = {
 const UNSAFE_PATH_ENCODING = /%(?:2e|2f|5c|3f|23)/i
 const ABSOLUTE_PATH = /^[a-z][a-z0-9+.-]*:/i
 const CANONICAL_BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
-const DECIMAL_INTEGER_TOKEN = /^-?\d+$/
+const JSON_NUMBER_TOKEN = /^-?(0|[1-9]\d*)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/
 
 interface JsonParseContext {
   source?: string
@@ -97,13 +97,31 @@ function buildRequestUrl(origin: string, request: OracleFusionRequest): string {
   return url.toString()
 }
 
+function isIntegralJsonNumberToken(source: string): boolean {
+  const match = JSON_NUMBER_TOKEN.exec(source)
+  if (!match) return false
+  const coefficient = `${match[1]}${match[2] ?? ''}`
+  if (/^0+$/.test(coefficient)) return true
+
+  const fractionDigits = match[2]?.length ?? 0
+  const exponentSource = match[3] ?? '0'
+  const exponentDigits = exponentSource.replace(/^[+-]/, '').replace(/^0+/, '') || '0'
+  if (exponentDigits.length > 6) return !exponentSource.startsWith('-')
+  const exponent = Number(exponentSource)
+  const remainingFractionDigits = fractionDigits - exponent
+  if (remainingFractionDigits <= 0) return true
+  if (remainingFractionDigits > coefficient.length) return false
+  return coefficient
+    .slice(-remainingFractionDigits)
+    .split('')
+    .every((digit) => digit === '0')
+}
+
 function parseOracleFusionJson(body: string): unknown {
   return jsonParseWithSource(body, (_key, value, context) => {
-    if (typeof value !== 'number' || !Number.isInteger(value) || Number.isSafeInteger(value)) {
-      return value
-    }
+    if (typeof value !== 'number' || Number.isSafeInteger(value)) return value
     const source = context?.source
-    return source && DECIMAL_INTEGER_TOKEN.test(source) ? source : value
+    return source && isIntegralJsonNumberToken(source) ? source : value
   })
 }
 
