@@ -100,7 +100,7 @@ sim --version
 Then upgrade with the package manager you installed it with — using a different
 one installs a second copy instead of replacing the executable on your `PATH`:
 
-<Tabs items={['npm', 'pnpm', 'bun']}>
+<Tabs items={['npm', 'pnpm', 'bun', 'yarn']}>
   <Tab value="npm">
     ```bash
     npm install -g sim@latest
@@ -114,6 +114,11 @@ one installs a second copy instead of replacing the executable on your `PATH`:
   <Tab value="bun">
     ```bash
     bun add -g sim@latest
+    ```
+  </Tab>
+  <Tab value="yarn">
+    ```bash
+    yarn global add sim@latest
     ```
   </Tab>
 </Tabs>

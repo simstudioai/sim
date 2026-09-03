@@ -3,9 +3,9 @@
 import { useMemo } from 'react'
 import type { ComboboxOption } from '@sim/emcn'
 import {
-  type CredentialGroupStandardOAuthProvider,
+  type CredentialGroupProvider,
+  findCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderId,
-  getCredentialGroupStandardOAuthProviderFromProviderId,
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'
 import type { ConnectorMeta } from '@/connectors/types'
@@ -31,15 +31,11 @@ export function decodeConnectorMemberGroupOption(
 }
 
 /** The credential-group provider that collects accounts for this connector, if any. */
-function connectorMemberGroupProvider(
+export function connectorMemberGroupProvider(
   connectorConfig: ConnectorMeta
-): CredentialGroupStandardOAuthProvider | null {
+): CredentialGroupProvider | null {
   if (connectorConfig.auth.mode !== 'oauth' || !connectorConfig.permissionScopedListing) return null
-  try {
-    return getCredentialGroupStandardOAuthProviderFromProviderId(connectorConfig.auth.provider)
-  } catch {
-    return null
-  }
+  return findCredentialGroupProviderFromProviderId(connectorConfig.auth.provider)
 }
 
 /** The config fields a per-member connector hides: its listing caps, which the server clears. */
