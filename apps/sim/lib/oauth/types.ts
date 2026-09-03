@@ -14,6 +14,12 @@ export const ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID = 'atlassian-service-account'
  */
 export const GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID = 'google-service-account' as const
 
+/** Stable identifier for an OCI API-key user-principal credential. */
+export const OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID = 'oci-api-key-service-account' as const
+
+/** Discriminator stored inside the encrypted OCI API signing-key secret blob. */
+export const OCI_API_KEY_SERVICE_ACCOUNT_SECRET_TYPE = 'oci_api_signing_key_v1' as const
+
 /**
  * Discriminator stored inside the encrypted Atlassian service account secret blob.
  */
