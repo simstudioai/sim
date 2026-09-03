@@ -114,15 +114,80 @@ shared profile cannot also set its own endpoint or API key.
 | `SIM_API_KEY` | API key — skips `sim login` entirely |
 | `SIM_WORKSPACE` | Workspace to target |
 | `SIM_OUTPUT` | Output format |
-| `SIM_CONFIG_DIR` | Relocate both files away from `~/.sim` |
+| `SIM_CONFIG_DIR` | Relocate the config directory and update cache; file-specific overrides below still win |
 | `SIM_CONFIG_FILE` | Relocate only the config file |
 | `SIM_CREDENTIALS_FILE` | Relocate only the credentials file |
 | `SIM_TIMEOUT_SECONDS` | Per-request timeout; `0` waits indefinitely. Defaults to `3600`, above every timeout the server itself applies |
 | `SIM_DEBUG` | Trace each request's method, URL, status and duration to stderr |
+| `SIM_NO_UPDATE_CHECK` | Turn off update checks |
 
-Node ignores `HTTPS_PROXY` unless you also set `NODE_USE_ENV_PROXY=1`, and only
-from Node 22.21 and 24.5. The CLI warns when a proxy is configured but will not
-be used.
+## Update notices
+
+On eligible invocations, the CLI uses a daily cache before asking
+`registry.npmjs.org` what is published under the `latest` tag. Prerelease
+installs are skipped entirely, so a `-preview` or `-dev` build is never told to
+upgrade. When a newer one exists, it prints a single line on stderr naming both
+versions and the command that upgrades:
+
+```
+Update available: sim 2.1.2 → 2.1.5. Run: npm install -g sim@latest
+```
+
+Apart from the configured registry URL, the request identifies only the CLI
+version — no Sim API key, workspace, or command — and it never follows a
+redirect away from the registry it asked.
+
+One caveat worth stating plainly: if you point `npm_config_registry` at a
+private mirror, the check goes to that mirror instead of npm. Query-string
+credentials (an Artifactory or Nexus `?token=…`, for example) are preserved and
+sent as part of the configured registry request — they have to be, or the
+mirror would reject it. As with other registry traffic, configured proxies or
+TLS inspection can observe what that network setup permits. A registry URL
+containing username/password userinfo, such as
+`https://user:password@registry.example`, is rejected and no update check is
+made.
+
+An empty or whitespace-only `npm_config_registry` is treated as unset, so the
+public registry remains the default. Non-empty malformed and non-HTTP(S) values
+disable the update check rather than making an unexpected public request.
+
+The notice is skipped entirely when:
+
+- `SIM_NO_UPDATE_CHECK` is set to anything but `0` or `false`
+- stderr is not a terminal, so redirected and piped output is never affected
+- a CI environment variable is present (`CI`, `GITHUB_ACTIONS`, `JENKINS_URL`,
+  `TEAMCITY_VERSION`, `BUILDKITE`)
+- the CLI is running under `npm exec` or `npx`, which may use a project-local or
+  ephemeral package where global-install advice is inappropriate
+- the CLI is running from a checkout of the sim repository, whose version
+  deliberately trails the published one
+- the installed version is a prerelease
+
+The daily pace comes from a timestamp in the config directory's
+`update-check.json`: `~/.sim/update-check.json` by default, or under
+`SIM_CONFIG_DIR` when that is set. `SIM_CONFIG_FILE` and
+`SIM_CREDENTIALS_FILE` do not move the cache, so it may not sit beside a file
+relocated with either of those variables.
+
+This throttle is best-effort across processes. Two commands that start together
+can both see a stale cache and check. Cache replacement is atomic, so either
+complete write can win without leaving a partially interleaved file. If the
+cache cannot be written — for example, because the config directory is
+read-only — every eligible invocation attempts a check because there is no
+timestamp to reuse.
+
+The registry check has a one-second deadline. On expiry, the CLI terminates its
+short-lived request process so stalled DNS, connection, or response work cannot
+remain active and delay the command. `SIM_NO_UPDATE_CHECK=1` still turns the
+check off.
+
+The command the notice prints matches how Sim was installed — `npm install -g`,
+`pnpm add -g`, `bun add -g`, or `yarn global add` — so running it updates the
+executable already on your `PATH` rather than installing a second copy under a
+different package manager.
+
+Node's `fetch` uses `HTTP(S)_PROXY` when opted in with `NODE_USE_ENV_PROXY=1`
+(Node 22.21+ or 24.0+) or `--use-env-proxy` (Node 22.21+ or 24.5+).
 
 For CI, set `SIM_API_KEY` and `SIM_WORKSPACE` and nothing needs to touch the
 filesystem at all.
