@@ -3346,6 +3346,7 @@ export const ManageKnowledgeBase: ToolCatalogEntry = {
             type: 'array',
             description:
               'Tag definition IDs to opt out of (optional for add_connector). See tagDefinitions in the connector schema.',
+            items: { type: 'string' },
           },
           documentId: { type: 'string', description: 'Document ID (required for update_document)' },
           documentIds: {
@@ -4224,6 +4225,14 @@ export const QueryUserTable: ToolCatalogEntry = {
             type: 'array',
             description:
               'Sort spec for query_rows (optional). Ordered list of {field, direction} where direction is asc or desc, e.g. [{"field":"wins","direction":"desc"},{"field":"name","direction":"asc"}].',
+            items: {
+              type: 'object',
+              properties: {
+                direction: { type: 'string', enum: ['asc', 'desc'] },
+                field: { type: 'string' },
+              },
+              required: ['field', 'direction'],
+            },
           },
           rowId: { type: 'string', description: 'Row ID (required for get_row)' },
           tableId: { type: 'string', description: 'Table ID (required for all operations)' },
@@ -5484,6 +5493,7 @@ export const TableColumns: ToolCatalogEntry = {
             type: 'array',
             description:
               'Array of column names to delete at once (preferred for multi-column delete_column)',
+            items: { type: 'string' },
           },
           multiple: {
             type: 'boolean',
@@ -5751,12 +5761,18 @@ export const TableRows: ToolCatalogEntry = {
             type: 'array',
             description:
               'Array of row data objects (required for batch_insert_rows). TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds; a missing or null TTL means no expiration.',
+            items: { type: 'object' },
           },
           tableId: { type: 'string', description: 'Table ID (required for every operation)' },
           updates: {
             type: 'array',
             description:
               "Array of per-row updates: [{ rowId, data: { col: val } }] (batch_update_rows format a). TTL values are absolute whole Unix epoch seconds, never JavaScript milliseconds; omit a row's TTL key to preserve it or set it to null to clear the expiration.",
+            items: {
+              type: 'object',
+              properties: { data: { type: 'object' }, rowId: { type: 'string' } },
+              required: ['rowId', 'data'],
+            },
           },
           values: {
             type: 'object',
@@ -6098,6 +6114,7 @@ export const UserTable: ToolCatalogEntry = {
             type: 'array',
             description:
               'Array of column names to delete at once (for delete_column). Preferred over columnName when deleting multiple columns.',
+            items: { type: 'string' },
           },
           cursor: {
             type: 'string',
@@ -6237,6 +6254,14 @@ export const UserTable: ToolCatalogEntry = {
             type: 'array',
             description:
               'Sort spec for query_rows (optional). Ordered list of {field, direction} where direction is asc or desc, e.g. [{"field":"wins","direction":"desc"},{"field":"name","direction":"asc"}].',
+            items: {
+              type: 'object',
+              properties: {
+                direction: { type: 'string', enum: ['asc', 'desc'] },
+                field: { type: 'string' },
+              },
+              required: ['field', 'direction'],
+            },
           },
           outputColumnNames: {
             type: 'object',
@@ -6305,6 +6330,7 @@ export const UserTable: ToolCatalogEntry = {
             type: 'array',
             description:
               'Array of row data objects (required for batch_insert_rows). TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds; a missing or null TTL means no expiration.',
+            items: { type: 'object' },
           },
           runMode: {
             type: 'string',
@@ -6341,6 +6367,11 @@ export const UserTable: ToolCatalogEntry = {
             type: 'array',
             description:
               "Array of per-row updates: [{ rowId, data: { col: val } }] (for batch_update_rows). TTL values are absolute whole Unix epoch seconds, never JavaScript milliseconds; omit a row's TTL key to preserve it or set it to null to clear the expiration.",
+            items: {
+              type: 'object',
+              properties: { data: { type: 'object' }, rowId: { type: 'string' } },
+              required: ['rowId', 'data'],
+            },
           },
           values: {
             type: 'object',
