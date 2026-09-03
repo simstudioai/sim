@@ -54,6 +54,7 @@ import {
   type WorkspaceKnowledgeSearchBody,
   type WorkspaceKnowledgeSearchResult,
 } from '@/lib/api/contracts/knowledge'
+import { useSession } from '@/lib/auth/auth-client'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
@@ -1212,11 +1213,14 @@ async function searchSlack(body: SearchSimSearchSlackBody, signal?: AbortSignal)
  */
 export function useSimSearchSlack(workspaceId: string | undefined, query: string) {
   const trimmed = query.trim()
+  const { data: session } = useSession()
+  const viewerId = session?.user?.id
   return useQuery({
-    queryKey: knowledgeKeys.slackSearch(workspaceId, trimmed),
+    queryKey: knowledgeKeys.slackSearch(workspaceId, viewerId, trimmed),
     queryFn: ({ signal }) =>
       searchSlack({ workspaceId: workspaceId as string, query: trimmed }, signal),
-    enabled: Boolean(workspaceId) && trimmed.length > 0,
+    /** Held until the viewer is known, so no answer is ever cached under an empty identity. */
+    enabled: Boolean(workspaceId) && Boolean(viewerId) && trimmed.length > 0,
     staleTime: SIM_SEARCH_SLACK_STALE_TIME,
     placeholderData: keepPreviousData,
   })

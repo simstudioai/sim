@@ -153,6 +153,8 @@ export async function searchSlack({
   })
 
   if (!response.ok) {
+    /** Nothing here reads the body, and an uncancelled one holds the connection open. */
+    await response.body?.cancel().catch(() => {})
     throw new SlackSearchError(`http_${response.status}`)
   }
 

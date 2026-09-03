@@ -32,8 +32,13 @@ export const knowledgeKeys = {
     [...knowledgeKeys.details(), knowledgeBaseId ?? ''] as const,
   searches: () => [...knowledgeKeys.all, 'search'] as const,
   slackSearches: () => [...knowledgeKeys.all, 'slackSearch'] as const,
-  slackSearch: (workspaceId: string | undefined, query: string) =>
-    [...knowledgeKeys.slackSearches(), workspaceId ?? '', query] as const,
+  /**
+   * Keyed by viewer as well as workspace: the answer is one person's own Slack,
+   * including their direct messages, so a session change in an open tab must
+   * never be served another person's cached results.
+   */
+  slackSearch: (workspaceId: string | undefined, userId: string | undefined, query: string) =>
+    [...knowledgeKeys.slackSearches(), workspaceId ?? '', userId ?? '', query] as const,
   search: (workspaceId: string | undefined, knowledgeBaseIds: readonly string[], query: string) =>
     [
       ...knowledgeKeys.searches(),

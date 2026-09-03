@@ -133,8 +133,12 @@ describe('searchSlack', () => {
     )
   })
 
-  it('raises for a transport failure', async () => {
-    fetchMock.mockResolvedValue(new Response('nope', { status: 429 }))
+  it('raises for a transport failure, releasing the unread body', async () => {
+    const response = new Response('nope', { status: 429 })
+    const cancel = vi.spyOn(response.body as ReadableStream, 'cancel')
+    fetchMock.mockResolvedValue(response)
+
     await expect(searchSlack({ accessToken: 'token', query: 'deploy' })).rejects.toThrow('http_429')
+    expect(cancel).toHaveBeenCalled()
   })
 })

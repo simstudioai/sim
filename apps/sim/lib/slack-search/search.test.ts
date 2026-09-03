@@ -95,4 +95,10 @@ describe('searchSlackForViewer', () => {
     mocks.resolveManagedOAuthToken.mockRejectedValue(new Error('pool exhausted'))
     await expect(searchSlackForViewer(params)).resolves.toEqual({ status: 'unavailable' })
   })
+
+  it('absorbs a failure looking the credential up at all', async () => {
+    mocks.findViewerSlackCredentialId.mockRejectedValue(new Error('connection terminated'))
+    await expect(searchSlackForViewer(params)).resolves.toEqual({ status: 'unavailable' })
+    expect(mocks.searchSlack).not.toHaveBeenCalled()
+  })
 })

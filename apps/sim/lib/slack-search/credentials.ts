@@ -8,11 +8,17 @@ import { getCredentialGroupProviderId } from '@/lib/credential-groups/providers'
  * The Slack account a federated search runs as: the asking person's own,
  * enrolled through a Credential Group in this workspace.
  *
- * The joins mirror the knowledge access scope exactly — verified email, live
- * enrollment, active group, active managed credential, active option — because
- * both answer the same question about the same rows, and a search that used a
- * looser rule than the one governing document access would be the odd one out.
- * Nothing is cached: revoking a credential takes effect on the next search.
+ * Deliberately does not filter on `managedOauthStatus`. A credential that needs
+ * authorizing again is still a connection the person made, and the difference
+ * between "you never connected Slack" and "reconnect Slack" is the whole of
+ * what the surface can tell them to do. Excluding it here would collapse the
+ * second into the first — which is exactly what a scope-policy change does to
+ * every enrolled credential at once. `resolveManagedOAuthToken` classifies it,
+ * and an active credential is preferred when a person somehow holds several.
+ *
+ * The group must belong to this workspace as well as the credential: the two
+ * are set together today, and requiring both keeps a workspace's search inside
+ * its own groups even if they ever diverge.
  */
 export async function findViewerSlackCredentialId(params: {
   workspaceId: string
@@ -35,6 +41,7 @@ export async function findViewerSlackCredentialId(params: {
       credentialGroup,
       and(
         eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId),
+        eq(credentialGroup.workspaceId, params.workspaceId),
         eq(credentialGroup.status, 'active')
       )
     )
@@ -44,7 +51,6 @@ export async function findViewerSlackCredentialId(params: {
         eq(credential.credentialGroupEnrollmentId, credentialGroupEnrollment.id),
         eq(credential.workspaceId, params.workspaceId),
         eq(credential.type, 'managed_oauth'),
-        eq(credential.managedOauthStatus, 'active'),
         eq(credential.providerId, getCredentialGroupProviderId('slack')),
         sql`EXISTS (
           SELECT 1 FROM jsonb_array_elements(${credentialGroup.options}) AS option
@@ -54,6 +60,7 @@ export async function findViewerSlackCredentialId(params: {
       )
     )
     .where(and(eq(user.id, params.userId), eq(user.emailVerified, true)))
+    .orderBy(sql`CASE WHEN ${credential.managedOauthStatus} = 'active' THEN 0 ELSE 1 END`)
     .limit(1)
 
   return row?.credentialId ?? null

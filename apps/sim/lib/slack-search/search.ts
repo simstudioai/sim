@@ -69,10 +69,18 @@ export interface SearchSlackForViewerParams {
 export async function searchSlackForViewer(
   params: SearchSlackForViewerParams
 ): Promise<SlackSearchOutcome> {
-  const credentialId = await findViewerSlackCredentialId({
-    workspaceId: params.workspaceId,
-    userId: params.userId,
-  })
+  let credentialId: string | null
+  try {
+    credentialId = await findViewerSlackCredentialId({
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+    })
+  } catch (error) {
+    logger.error('Failed to look up a Slack search credential', {
+      error: getErrorMessage(error),
+    })
+    return { status: 'unavailable' }
+  }
   if (!credentialId) return { status: 'not_connected' }
 
   let accessToken: string
