@@ -11,23 +11,22 @@ import {
 } from '@sim/emcn'
 import { Check } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
-import { useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
 import { useMothershipMode } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode'
 import {
-  CLEARED_SEARCH_FILTERS,
   MOTHERSHIP_MODES,
   type MothershipMode,
-  resourceUrlKeys,
-  searchFilterParsers,
-  searchQueryParam,
 } from '@/app/workspace/[workspaceId]/home/search-params'
 
 const MODE_LABELS: Record<MothershipMode, string> = {
   build: 'Build',
   search: 'Search',
   assistant: 'Assistant',
+}
+
+interface ModeSwitcherProps {
+  onLeaveSearch?: () => void
 }
 
 /**
@@ -37,22 +36,15 @@ const MODE_LABELS: Record<MothershipMode, string> = {
  * round controls — opening a menu that checks the active mode, as
  * `ChipDropdown` does.
  */
-export const ModeSwitcher = memo(function ModeSwitcher() {
+export const ModeSwitcher = memo(function ModeSwitcher({ onLeaveSearch }: ModeSwitcherProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const posthog = usePostHog()
   const [mode, setMode] = useMothershipMode()
 
-  const [, setSearchQueryParam] = useQueryState(searchQueryParam.key, searchQueryParam.parser)
-  const [, setSearchFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
-
-  /** Leaving Search drops the query from the URL, so a clean URL always means no search is showing. */
   const handleSelect = (next: MothershipMode) => {
     if (next === mode) return
+    if (mode === 'search' && next !== 'search') onLeaveSearch?.()
     void setMode(next)
-    if (next !== 'search') {
-      void setSearchQueryParam(null, { history: 'replace', scroll: false })
-      void setSearchFilters(CLEARED_SEARCH_FILTERS, { history: 'replace', scroll: false })
-    }
     captureEvent(posthog, 'chat_mode_changed', { workspace_id: workspaceId, mode: next })
   }
 

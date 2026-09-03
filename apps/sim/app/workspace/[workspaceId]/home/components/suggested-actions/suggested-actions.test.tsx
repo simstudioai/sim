@@ -7,14 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCaptureEvent, modeState } = vi.hoisted(() => ({
   mockCaptureEvent: vi.fn(),
-  /** The URL `mode` param as the nuqs mock serves it; `set` is the live setter once mounted. */
   modeState: { initial: 'build', set: (_next: string) => {} },
 }))
 
-vi.mock('nuqs', async () => {
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode', async () => {
   const { useState } = await import('react')
   return {
-    useQueryState: () => {
+    useMothershipMode: () => {
       const [mode, setMode] = useState(modeState.initial)
       modeState.set = setMode
       return [mode, setMode]
