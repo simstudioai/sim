@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-03",
   "integrations": [
     {
       "type": "onepassword",
@@ -14579,6 +14579,150 @@
       "category": "tools",
       "integrationType": "email",
       "tags": ["messaging", "email-marketing"]
+    },
+    {
+      "type": "manageengine_sdp",
+      "slug": "manageengine-servicedesk-plus",
+      "name": "ManageEngine ServiceDesk Plus",
+      "description": "Manage ServiceDesk Plus Cloud requests, problems, changes, assets, and knowledge base solutions",
+      "longDescription": "Full read and write access to ManageEngine ServiceDesk Plus Cloud: create, search, update and delete requests, problems, changes, assets and knowledge base solutions, and add notes to requests, problems and changes. Supports multi-portal accounts. Connecting requires a Zoho account in the US data center.",
+      "bgColor": "#FFFFFF",
+      "iconName": "ManageEngineIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/manageengine_sdp",
+      "operations": [
+        {
+          "name": "Create Request",
+          "description": "Create a request (ticket) in ManageEngine ServiceDesk Plus Cloud with a subject, description, requester and classification."
+        },
+        {
+          "name": "Get Request",
+          "description": "Retrieve a single ManageEngine ServiceDesk Plus Cloud request by ID."
+        },
+        {
+          "name": "List Requests",
+          "description": "List ManageEngine ServiceDesk Plus Cloud requests, with optional search criteria, sorting and paging."
+        },
+        {
+          "name": "Update Request",
+          "description": "Update a ManageEngine ServiceDesk Plus Cloud request: change its status, priority, assignment, classification or description."
+        },
+        {
+          "name": "Delete Request",
+          "description": "Move a ManageEngine ServiceDesk Plus Cloud request to the trash. Deleting a request also removes its notes, tasks and worklogs."
+        },
+        {
+          "name": "Add Request Note",
+          "description": "Add a note to a ManageEngine ServiceDesk Plus Cloud request, optionally making it visible to the requester."
+        },
+        {
+          "name": "List Request Notes",
+          "description": "List the notes on a ManageEngine ServiceDesk Plus Cloud request."
+        },
+        {
+          "name": "Create Problem",
+          "description": "Create a problem record in ManageEngine ServiceDesk Plus Cloud with a title, description and classification."
+        },
+        {
+          "name": "Get Problem",
+          "description": "Retrieve a single ManageEngine ServiceDesk Plus Cloud problem by ID."
+        },
+        {
+          "name": "List Problems",
+          "description": "List ManageEngine ServiceDesk Plus Cloud problems, with optional search criteria, sorting and paging."
+        },
+        {
+          "name": "Update Problem",
+          "description": "Update a ManageEngine ServiceDesk Plus Cloud problem: change its title, status, assignment or classification."
+        },
+        {
+          "name": "Delete Problem",
+          "description": "Delete a ManageEngine ServiceDesk Plus Cloud problem and its associated notes."
+        },
+        {
+          "name": "Add Problem Note",
+          "description": "Add a note to a ManageEngine ServiceDesk Plus Cloud problem."
+        },
+        {
+          "name": "List Problem Notes",
+          "description": "List the notes on a ManageEngine ServiceDesk Plus Cloud problem."
+        },
+        {
+          "name": "Create Change",
+          "description": "Create a change record in ManageEngine ServiceDesk Plus Cloud with a title, stage, status and schedule."
+        },
+        {
+          "name": "Get Change",
+          "description": "Retrieve a single ManageEngine ServiceDesk Plus Cloud change by ID."
+        },
+        {
+          "name": "List Changes",
+          "description": "List ManageEngine ServiceDesk Plus Cloud changes, with optional search criteria, sorting and paging."
+        },
+        {
+          "name": "Update Change",
+          "description": "Update a ManageEngine ServiceDesk Plus Cloud change: move its stage or status, reschedule it, or change its assignment. ServiceDesk Plus requires a comment whenever the status changes."
+        },
+        {
+          "name": "Delete Change",
+          "description": "Delete a ManageEngine ServiceDesk Plus Cloud change and its associated notes."
+        },
+        {
+          "name": "Add Change Note",
+          "description": "Add a note to a ManageEngine ServiceDesk Plus Cloud change."
+        },
+        {
+          "name": "List Change Notes",
+          "description": "List the notes on a ManageEngine ServiceDesk Plus Cloud change."
+        },
+        {
+          "name": "Create Asset",
+          "description": "Create an asset in the ManageEngine ServiceDesk Plus Cloud inventory. Requires a name and an existing product."
+        },
+        {
+          "name": "Get Asset",
+          "description": "Retrieve a single ManageEngine ServiceDesk Plus Cloud asset by ID."
+        },
+        {
+          "name": "List Assets",
+          "description": "List ManageEngine ServiceDesk Plus Cloud assets, with optional search criteria, sorting and paging."
+        },
+        {
+          "name": "Update Asset",
+          "description": "Update a ManageEngine ServiceDesk Plus Cloud asset: reassign it, change its state, or correct its inventory details."
+        },
+        {
+          "name": "Delete Asset",
+          "description": "Delete an asset from the ManageEngine ServiceDesk Plus Cloud inventory."
+        },
+        {
+          "name": "Create Solution",
+          "description": "Add an article to the ManageEngine ServiceDesk Plus Cloud knowledge base under an existing topic."
+        },
+        {
+          "name": "Get Solution",
+          "description": "Retrieve a single ManageEngine ServiceDesk Plus Cloud knowledge base solution by ID."
+        },
+        {
+          "name": "List Solutions",
+          "description": "Search the ManageEngine ServiceDesk Plus Cloud knowledge base, with optional search criteria, sorting and paging."
+        },
+        {
+          "name": "Update Solution",
+          "description": "Update a ManageEngine ServiceDesk Plus Cloud knowledge base solution: revise its body, retitle it, or move it to another topic."
+        },
+        {
+          "name": "Delete Solution",
+          "description": "Delete an article from the ManageEngine ServiceDesk Plus Cloud knowledge base, along with its comments and versions."
+        }
+      ],
+      "operationCount": 31,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "manageengine-sdp",
+      "category": "tools",
+      "integrationType": "support",
+      "tags": ["ticketing", "customer-support", "incident-management", "automation"]
     },
     {
       "type": "mem0",

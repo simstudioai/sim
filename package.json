@@ -79,6 +79,8 @@
     "tool-metadata:check": "bun run scripts/sync-tool-metadata.ts --check",
     "deployment-config:generate": "bun run scripts/generate-deployment-config.ts",
     "deployment-config:check": "bun run scripts/generate-deployment-config.ts --check",
+    "images:generate": "bun run scripts/generate-image-manifest.ts",
+    "images:check": "bun run scripts/generate-image-manifest.ts --check",
     "integration-catalog:check": "bun run scripts/check-integration-catalog.ts",
     "docs:check": "bun run scripts/generate-docs.ts --check",
     "mship-tools:generate": "bun run scripts/sync-tool-catalog.ts",

@@ -194,7 +194,7 @@ export function SidebarTooltip({
 function SidebarItemSkeleton() {
   return (
     <div className='sidebar-collapse-hide flex h-[30px] items-center gap-2 rounded-lg px-2'>
-      <Skeleton className='h-[16px] w-[16px] flex-shrink-0 rounded-sm' />
+      <Skeleton className='h-[16px] w-[16px] shrink-0 rounded-sm' />
     </div>
   )
 }
@@ -280,7 +280,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
       >
         <OverflowText label={chat.name} className='flex-1 text-[var(--text-body)]' />
         {chat.id !== 'new' && (
-          <div className='relative flex size-[18px] flex-shrink-0 items-center justify-center'>
+          <div className='relative flex size-[18px] shrink-0 items-center justify-center'>
             {showStatusDot && (
               <span
                 aria-hidden='true'
@@ -793,9 +793,12 @@ export const Sidebar = memo(function Sidebar({
           label: 'Integrations',
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
-          /* Skills is a tab of this surface, not its own nav item — keep the entry
-             lit while the user is on it. */
-          additionalActivePaths: [`/workspace/${workspaceId}/skills`],
+          /* Skills and Search are tabs of this surface, not their own nav items —
+             keep the entry lit while the user is on either. */
+          additionalActivePaths: [
+            `/workspace/${workspaceId}/skills`,
+            `/workspace/${workspaceId}/search`,
+          ],
           hidden: permissionConfig.hideIntegrationsTab,
         },
       ].filter((item) => !item.hidden),
@@ -1210,10 +1213,10 @@ export const Sidebar = memo(function Sidebar({
     [workspaces, handleLeaveWorkspace]
   )
 
-  const chatsCollapsedIcon = <Task className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+  const chatsCollapsedIcon = <Task className='size-[16px] shrink-0 text-[var(--text-icon)]' />
 
   const workflowsCollapsedIcon = (
-    <Workflow className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+    <Workflow className='size-[16px] shrink-0 text-[var(--text-icon)]' />
   )
 
   const workflowsPrimaryAction = {
@@ -1359,7 +1362,7 @@ export const Sidebar = memo(function Sidebar({
             )}
             <div
               className={cn(
-                'relative flex flex-shrink-0 items-center px-2 pt-3',
+                'relative flex shrink-0 items-center px-2 pt-3',
                 !isPeeking &&
                   '[[data-sim-desktop-title-bar=inset]_&]:pt-[var(--desktop-title-bar-height)]'
               )}
@@ -1465,7 +1468,7 @@ export const Sidebar = memo(function Sidebar({
                     SIDEBAR_SECTION_GAP_CLASS,
                     SIDEBAR_ITEM_GAP_CLASS,
                     SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
-                    'flex flex-shrink-0 flex-col px-2'
+                    'flex shrink-0 flex-col px-2'
                   )}
                 >
                   {topNavItems.map((item) => (
@@ -1492,7 +1495,7 @@ export const Sidebar = memo(function Sidebar({
                       <SidebarSection
                         title='Chats'
                         railCollapsed={isCollapsed}
-                        className='chats-section flex-shrink-0'
+                        className='chats-section shrink-0'
                       >
                         {isCollapsed ? (
                           <div className='px-2'>
@@ -1568,7 +1571,7 @@ export const Sidebar = memo(function Sidebar({
                                           }
                                           onKeyDown={chatFlyoutRename.handleKeyDown}
                                           onBlur={handleChatRenameBlur}
-                                          className='min-w-0 flex-1 border-none bg-transparent text-[14px] text-[var(--text-body)] outline-none'
+                                          className='min-w-0 flex-1 border-none bg-transparent text-[14px] text-[var(--text-body)] outline-hidden'
                                         />
                                       </div>
                                     )
@@ -1618,7 +1621,7 @@ export const Sidebar = memo(function Sidebar({
                     <SidebarSection
                       title='Workspace'
                       railCollapsed={isCollapsed}
-                      className={cn(SIDEBAR_SECTION_GAP_CLASS, 'flex-shrink-0')}
+                      className={cn(SIDEBAR_SECTION_GAP_CLASS, 'shrink-0')}
                     >
                       <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
                         {workspaceNavItems.map((item) => {
@@ -1812,7 +1815,7 @@ export const Sidebar = memo(function Sidebar({
                 </div>
 
                 {(isHosted || isStatusNoticePreviewEnabled) && !isCollapsed ? (
-                  <div className='flex-shrink-0 px-2 py-2'>
+                  <div className='shrink-0 px-2 py-2'>
                     <StatusNotice preview={isStatusNoticePreviewEnabled} />
                   </div>
                 ) : null}

@@ -58,7 +58,7 @@ export function LifecycleGraphic() {
               />
             </span>
             <span className='flex min-w-0 flex-1 items-center gap-2'>
-              <span className='flex items-center gap-1.5 rounded-[12px] bg-[var(--white)] py-1.5 pr-1.5 pl-2.5 shadow-sm'>
+              <span className='flex items-center gap-1.5 rounded-[12px] bg-[var(--white)] py-1.5 pr-1.5 pl-2.5 shadow-xs'>
                 <span className='text-[var(--text-primary)] text-small'>v3</span>
                 <ChipTag variant='solid'>Live</ChipTag>
               </span>

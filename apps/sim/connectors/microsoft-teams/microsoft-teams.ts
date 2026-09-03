@@ -7,8 +7,11 @@ import {
 } from '@/connectors/microsoft-teams/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
+  ConnectorListingScopeUnavailableError,
   computeContentHash,
   htmlToPlainText,
+  isListingScopeUnavailableError,
+  isPerMemberListing,
   parseMultiValue,
   parseTagDate,
 } from '@/connectors/utils'
@@ -310,14 +313,73 @@ async function resolveChannel(
   return null
 }
 
+/**
+ * Graph answers 403 for a team or private channel the caller is not a member
+ * of and 404 for one it will not show them; a channel the caller's channel
+ * list does not resolve is reported the same way.
+ */
+function isChannelScopeUnavailableError(error: unknown): boolean {
+  return (
+    isListingScopeUnavailableError(error) ||
+    (error instanceof GraphApiError && (error.status === 403 || error.status === 404))
+  )
+}
+
+/** Lists one configured channel as a document, or null when it holds no messages. */
+async function listChannel(
+  accessToken: string,
+  teamId: string,
+  channelInput: string,
+  maxMessages: number
+): Promise<ExternalDocument | null> {
+  const channel = await resolveChannel(accessToken, teamId, channelInput)
+  if (!channel) {
+    throw new ConnectorListingScopeUnavailableError(`Channel not found: ${channelInput}`, 404)
+  }
+
+  const { threads, messageCount, lastActivityTs } = await fetchChannelMessages(
+    accessToken,
+    teamId,
+    channel.id,
+    maxMessages
+  )
+
+  const content = formatMessages(threads)
+  if (!content.trim()) {
+    logger.info(`No messages found in channel: ${channel.displayName}`)
+    return null
+  }
+
+  const contentHash = await computeContentHash(content)
+
+  const sourceUrl = `https://teams.microsoft.com/l/channel/${encodeURIComponent(channel.id)}/${encodeURIComponent(channel.displayName)}?groupId=${encodeURIComponent(teamId)}`
+
+  return {
+    externalId: channel.id,
+    title: channel.displayName,
+    content,
+    mimeType: 'text/plain',
+    sourceUrl,
+    contentHash,
+    metadata: {
+      channelName: channel.displayName,
+      messageCount,
+      lastActivity: lastActivityTs || undefined,
+      description: channel.description || undefined,
+    },
+  }
+}
+
 export const microsoftTeamsConnector: ConnectorConfig = {
   ...microsoftTeamsConnectorMeta,
+
+  isListingScopeUnavailableError: isChannelScopeUnavailableError,
 
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     _cursor?: string,
-    _syncContext?: Record<string, unknown>
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const teamId = sourceConfig.teamId as string
     const channelInputs = parseMultiValue(sourceConfig.channel)
@@ -339,42 +401,32 @@ export const microsoftTeamsConnector: ConnectorConfig = {
     const documents: ExternalDocument[] = []
 
     for (const channelInput of channelInputs) {
-      const channel = await resolveChannel(accessToken, teamId, channelInput)
-      if (!channel) {
-        throw new Error(`Channel not found: ${channelInput}`)
+      let document: ExternalDocument | null
+      try {
+        document = await listChannel(accessToken, teamId, channelInput, maxMessages)
+      } catch (error) {
+        /**
+         * One of several channels a member cannot reach is absent from their
+         * listing, not the end of it: move on to the next channel so the rest
+         * of their access survives. A sole unreachable channel is the whole
+         * scope, which the members-mode crawl reads as a complete listing of
+         * nothing, and a shared credential still fails the sync rather than
+         * silently dropping the channel.
+         */
+        if (
+          channelInputs.length > 1 &&
+          isPerMemberListing(syncContext) &&
+          isChannelScopeUnavailableError(error)
+        ) {
+          logger.warn('Skipping a Microsoft Teams channel the member cannot reach', {
+            channel: channelInput,
+            error: getErrorMessage(error),
+          })
+          continue
+        }
+        throw error
       }
-
-      const { threads, messageCount, lastActivityTs } = await fetchChannelMessages(
-        accessToken,
-        teamId,
-        channel.id,
-        maxMessages
-      )
-
-      const content = formatMessages(threads)
-      if (!content.trim()) {
-        logger.info(`No messages found in channel: ${channel.displayName}`)
-        continue
-      }
-
-      const contentHash = await computeContentHash(content)
-
-      const sourceUrl = `https://teams.microsoft.com/l/channel/${encodeURIComponent(channel.id)}/${encodeURIComponent(channel.displayName)}?groupId=${encodeURIComponent(teamId)}`
-
-      documents.push({
-        externalId: channel.id,
-        title: channel.displayName,
-        content,
-        mimeType: 'text/plain',
-        sourceUrl,
-        contentHash,
-        metadata: {
-          channelName: channel.displayName,
-          messageCount,
-          lastActivity: lastActivityTs || undefined,
-          description: channel.description || undefined,
-        },
-      })
+      if (document) documents.push(document)
     }
 
     // All selected channels are emitted in a single page; no pagination needed

@@ -144,7 +144,7 @@ const COL_HEADERS = ['Name', 'Size', 'Type', 'Created', 'Owner'] as const
 function OwnerCell({ owner }: { owner: FileOwner }) {
   return (
     <span className='flex min-w-0 items-center gap-3 text-sm'>
-      <span className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] text-[8px] text-[var(--text-secondary)]'>
+      <span className='flex size-[14px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] text-[8px] text-[var(--text-secondary)]'>
         {owner.agent ? <AgentIcon className='size-[8px]' /> : owner.initial}
       </span>
       <span className='truncate text-[var(--text-secondary)]'>{owner.name}</span>
@@ -158,12 +158,12 @@ function FileRow({ row }: { row: FileRowData }) {
   return (
     <div className={cn(ROW_GRID, 'h-[40px] items-center')}>
       <span className='flex min-w-0 items-center gap-3 px-6 text-[var(--text-body)] text-sm'>
-        <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+        <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
         <span className='truncate'>{row.name}</span>
       </span>
       <span className='px-6 text-[var(--text-secondary)] text-sm'>{row.size}</span>
       <span className='flex items-center gap-3 px-6 text-[var(--text-secondary)] text-sm'>
-        <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+        <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
         {row.type}
       </span>
       <span className='px-6 text-[var(--text-secondary)] text-sm'>{row.created}</span>
@@ -243,7 +243,7 @@ export function FilesHeroLoop() {
             fading ? 'opacity-0' : 'opacity-100'
           )}
         >
-          <div className='flex h-[44px] flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6'>
+          <div className='flex h-[44px] shrink-0 items-center justify-between border-[var(--border)] border-b px-6'>
             <div className='flex items-center gap-3'>
               <File className='size-[14px] text-[var(--text-icon)]' />
               <span className='text-[var(--text-body)] text-sm'>Files</span>
@@ -254,9 +254,9 @@ export function FilesHeroLoop() {
             </span>
           </div>
 
-          <div className='flex flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6 py-2.5'>
+          <div className='flex shrink-0 items-center justify-between border-[var(--border)] border-b px-6 py-2.5'>
             <div className='flex flex-1 items-center gap-2.5'>
-              <Search className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              <Search className='size-[14px] shrink-0 text-[var(--text-icon)]' />
               <span className='text-[var(--text-subtle)] text-caption'>Search files...</span>
             </div>
             <div className='flex items-center gap-1.5'>
@@ -272,10 +272,7 @@ export function FilesHeroLoop() {
           </div>
 
           <div
-            className={cn(
-              ROW_GRID,
-              'h-10 flex-shrink-0 items-center border-[var(--border)] border-b'
-            )}
+            className={cn(ROW_GRID, 'h-10 shrink-0 items-center border-[var(--border)] border-b')}
           >
             {COL_HEADERS.map((header) => (
               <span key={header} className='px-6 text-[var(--text-muted)] text-caption'>

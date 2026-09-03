@@ -29,7 +29,7 @@ import { cn } from '../../lib/cn'
  * longer the value. Keep this in step with `Textarea`.
  */
 const INPUT_CLASS =
-  'flex w-full touch-manipulation rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-sans text-sm text-[var(--text-primary)] [letter-spacing:inherit] transition-colors placeholder:text-[var(--text-muted)] outline-none disabled:cursor-not-allowed disabled:opacity-50 scroll-pr-1'
+  'flex w-full touch-manipulation rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-sans text-sm text-[var(--text-primary)] [letter-spacing:inherit] transition-colors placeholder:text-[var(--text-muted)] outline-hidden disabled:cursor-not-allowed disabled:opacity-50 scroll-pr-1'
 
 export type InputProps = React.InputHTMLAttributes<HTMLInputElement>
 

@@ -8,10 +8,8 @@
  *    "Adding different instances of a keyed plugin (suggestion$)".
  *
  * 2. A markdown file authored outside the editor (e.g. the former Monaco editor) is rarely in the
- *    editor's canonical serialization. On open, a deferred view-plugin transaction re-serializes the
- *    doc to canonical markdown and emits one update — which, compared against the raw saved bytes,
- *    falsely marks the file dirty ("unsaved changes"). The fix normalizes the dirty-check baseline to
- *    the canonical form; this asserts that normalized form equals what the live editor emits.
+ *    editor's canonical serialization. The dirty-check baseline must use that canonical form so any
+ *    mount-time update remains clean.
  */
 
 import { sleep } from '@sim/utils/helpers'
@@ -79,28 +77,30 @@ describe('normalizeMarkdownContent — dirty-on-open baseline', () => {
   })
 })
 
-describe('baseline neutralizes the mount-time dirty signal', () => {
-  it('the editor mount serialization equals the normalized baseline (so isDirty stays false)', async () => {
+describe('baseline neutralizes mount-time dirty signals', () => {
+  it('mounting never produces content that differs from the normalized baseline', async () => {
     const raw = '# H\n\n* bullet\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n> quote\n'
     const { frontmatter, body } = splitFrontmatter(raw)
+    const canonical = normalizeMarkdownContent(raw)
     host = document.createElement('div')
     document.body.appendChild(host)
 
-    let emitted: string | null = null
+    let dirtyUpdate: string | null = null
     editor = new Editor({
       element: host,
       extensions: createMarkdownEditorExtensions({ placeholder: 'x' }),
       content: parseMarkdownToDoc(body),
       onUpdate: ({ editor }) => {
-        emitted = applyFrontmatter(frontmatter, postProcessSerializedMarkdown(editor.getMarkdown()))
+        const content = applyFrontmatter(
+          frontmatter,
+          postProcessSerializedMarkdown(editor.getMarkdown())
+        )
+        if (content !== canonical) dirtyUpdate = content
       },
     })
 
     await sleep(30)
 
-    // The deferred mount transaction re-serializes to canonical markdown; the baseline must match it
-    // exactly, so `content === savedContent` and the file is never falsely dirty on open.
-    expect(emitted).not.toBeNull()
-    expect(emitted).toBe(normalizeMarkdownContent(raw))
+    expect(dirtyUpdate).toBeNull()
   })
 })

@@ -16,13 +16,13 @@ const Switch = React.memo(
     <SwitchPrimitives.Root
       disabled={disabled}
       className={cn(
-        'peer relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full bg-[var(--border-1)] transition-colors before:absolute before:inset-[-12px] before:content-[""] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)] data-[disabled]:cursor-not-allowed data-[state=checked]:bg-[var(--text-primary)] data-[disabled]:opacity-50',
+        'peer relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full bg-[var(--border-1)] transition-colors before:absolute before:inset-[-12px] before:content-[""] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)] data-[disabled]:cursor-not-allowed data-[state=checked]:bg-[var(--text-primary)] data-[disabled]:opacity-50',
         className
       )}
       {...props}
       ref={ref}
     >
-      <SwitchPrimitives.Thumb className='pointer-events-none block size-4 rounded-full bg-[var(--surface-2)] shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-[18px] data-[state=unchecked]:translate-x-0.5' />
+      <SwitchPrimitives.Thumb className='pointer-events-none block size-4 rounded-full bg-[var(--surface-2)] shadow-xs ring-0 transition-transform data-[state=checked]:translate-x-[18px] data-[state=unchecked]:translate-x-0.5' />
     </SwitchPrimitives.Root>
   ))
 )

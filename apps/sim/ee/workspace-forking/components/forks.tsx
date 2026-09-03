@@ -75,7 +75,7 @@ function ForkListRow({ name, actions }: ForkListRowProps) {
         label={name}
         className='block min-w-0 truncate text-[var(--text-body)] text-sm'
       />
-      <div className='flex flex-shrink-0 items-center gap-1'>
+      <div className='flex shrink-0 items-center gap-1'>
         <RowActionsMenu label='Fork actions' actions={actions} />
       </div>
     </div>

@@ -84,7 +84,7 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
       <div className={cn(CHIP_FIELD_SHELL, !isValidHex && 'border-[var(--text-error)]')}>
         <div
           className={cn(
-            'size-[16px] flex-shrink-0 rounded-sm border border-[var(--border-1)]',
+            'size-[16px] shrink-0 rounded-sm border border-[var(--border-1)]',
             !showColor && 'bg-[var(--surface-3)]'
           )}
           style={showColor ? { backgroundColor: value } : undefined}

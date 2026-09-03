@@ -2,6 +2,8 @@
 
 import {
   memo,
+  type ReactNode,
+  type RefObject,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -60,6 +62,14 @@ interface MothershipChatProps {
   workspaceId: string
   messages: ChatMessage[]
   isSending: boolean
+  /** The composer's Search-mode results, shown above the input. */
+  searchResults?: ReactNode
+  /** The live search query; the composer shows it so the box and the results never disagree. */
+  searchQuery?: string
+  /** The composer, for a caller that hands a question to the agent from outside the box. */
+  userInputRef?: RefObject<UserInputHandle | null>
+  /** Puts the composer in the mode a queued message was written in, when one is loaded for editing. */
+  onRestoreQueuedMode?: (requestMode: QueuedMessage['requestMode']) => void
   isReconnecting?: boolean
   isLoading?: boolean
   onSubmit: (
@@ -67,6 +77,12 @@ interface MothershipChatProps {
     fileAttachments?: FileAttachmentForApi[],
     contexts?: ChatContext[]
   ) => void
+  /** Whether the composer offers Search mode; only the Home composer answers a search. */
+  canSearch?: boolean
+  /** Off in Search mode, where the query stays put so the person can refine it. */
+  clearOnSubmit?: boolean
+  /** Fires when the composer's text goes from something to nothing. */
+  onCleared?: () => void
   onStopGeneration: () => void
   messageQueue: QueuedMessage[]
   editingQueuedId: string | null
@@ -136,7 +152,7 @@ const LAYOUT_STYLES = {
     attachmentWidth: 'max-w-[70%]',
     userBubble: 'max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2',
     assistantRow: 'group/msg',
-    footer: 'flex-shrink-0 px-[24px] pb-[16px]',
+    footer: 'shrink-0 px-[24px] pb-[16px]',
     footerInner: 'mx-auto max-w-chat',
   },
   'copilot-view': {
@@ -148,7 +164,7 @@ const LAYOUT_STYLES = {
     attachmentWidth: 'max-w-[85%]',
     userBubble: 'max-w-[85%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3 py-2',
     assistantRow: 'group/msg',
-    footer: 'flex-shrink-0 px-3 pb-3',
+    footer: 'shrink-0 px-3 pb-3',
     footerInner: '',
   },
 } as const
@@ -195,7 +211,7 @@ interface AssistantMessageRowProps {
   prepareContentForCopy: (content: string) => ClipboardContent
   isStreaming: boolean
   isLast: boolean
-  precedingUserContent?: string
+  precedingUserContent: string | undefined
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
   /** Transcript-derived status payload for this message's credential card. */
@@ -312,9 +328,16 @@ export function MothershipChat({
   workspaceId,
   messages: messagesProp,
   isSending,
+  searchResults,
+  searchQuery,
+  userInputRef: userInputRefProp,
+  onRestoreQueuedMode,
   isReconnecting = false,
   isLoading = false,
   onSubmit,
+  canSearch = false,
+  clearOnSubmit,
+  onCleared,
   onStopGeneration,
   messageQueue,
   editingQueuedId,
@@ -663,7 +686,8 @@ export function MothershipChat({
     item.index !== lastIndex && item.start < (instance.scrollElement?.scrollTop ?? 0)
 
   const scrolledChatRef = useRef<string | undefined | typeof UNSCROLLED>(UNSCROLLED)
-  const userInputRef = useRef<UserInputHandle>(null)
+  const ownUserInputRef = useRef<UserInputHandle>(null)
+  const userInputRef = userInputRefProp ?? ownUserInputRef
   const messageQueueRef = useRef(messageQueue)
   useEffect(() => {
     messageQueueRef.current = messageQueue
@@ -686,9 +710,11 @@ export function MothershipChat({
   const handleEditQueued = useCallback(
     (id: string) => {
       const msg = onEditQueuedMessage(id)
-      if (msg) userInputRef.current?.loadQueuedMessage(msg)
+      if (!msg) return
+      onRestoreQueuedMode?.(msg.requestMode)
+      userInputRef.current?.loadQueuedMessage(msg)
     },
-    [onEditQueuedMessage]
+    [onEditQueuedMessage, onRestoreQueuedMode, userInputRef]
   )
 
   const handleEditQueuedTail = useCallback(() => {
@@ -817,6 +843,9 @@ export function MothershipChat({
           onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
         >
           <div className={styles.footerInner}>
+            {searchResults && (
+              <div className='max-h-[40vh] overflow-y-auto pb-2'>{searchResults}</div>
+            )}
             <QueuedMessages
               messageQueue={messageQueue}
               editingQueuedId={editingQueuedId}
@@ -829,7 +858,11 @@ export function MothershipChat({
             <UserInput
               key={draftScopeKey}
               ref={userInputRef}
+              defaultValue={searchQuery}
               onSubmit={onSubmit}
+              canSearch={canSearch}
+              clearOnSubmit={clearOnSubmit}
+              onCleared={onCleared}
               isSending={isStreamActive}
               onStopGeneration={onStopGeneration}
               isInitialView={false}

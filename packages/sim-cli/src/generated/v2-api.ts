@@ -1819,6 +1819,88 @@ export type CreateMcpServerResponse = {
   data: CreateMcpServerResponseRef0
 }
 
+/** `POST /api/v2/sandboxes` */
+export type CreateSandboxQuery = Record<string, unknown>
+
+export type CreateSandboxBody = {
+  workspaceId: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies?: Array<string>
+  cliTools?: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages?: Array<string>
+}
+
+type CreateSandboxResponseRef0 = {
+  id: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies: Array<string>
+  cliTools: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages: Array<string>
+  buildStatus: 'pending' | 'building' | 'ready' | 'failed' | null
+  errorCode: string | null
+  errorMessage: string | null
+  errorDetail: string | null
+  builtAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateSandboxResponse = {
+  data: CreateSandboxResponseRef0
+}
+
 /** `POST /api/v2/credentials` */
 export type CreateServiceAccountCredentialQuery = Record<string, unknown>
 
@@ -2798,6 +2880,24 @@ export type DeleteMcpServerResponse = {
   data: DeleteMcpServerResponseRef0
 }
 
+/** `DELETE /api/v2/sandboxes/[sandboxId]` */
+export type DeleteSandboxParams = {
+  sandboxId: string
+}
+
+export type DeleteSandboxQuery = {
+  workspaceId: string
+}
+
+type DeleteSandboxResponseRef0 = {
+  id: string
+  deleted: true
+}
+
+export type DeleteSandboxResponse = {
+  data: DeleteSandboxResponseRef0
+}
+
 /** `DELETE /api/v2/secrets/[name]` */
 export type DeleteSecretParams = {
   name: string
@@ -3310,6 +3410,66 @@ type DuplicateWorkflowResponseRef0 = {
 
 export type DuplicateWorkflowResponse = {
   data: DuplicateWorkflowResponseRef0
+}
+
+/** `PATCH /api/v2/files/[fileId]/content` */
+export type EditFileContentParams = {
+  fileId: string
+}
+
+export type EditFileContentQuery = Record<string, unknown>
+
+export type EditFileContentBody = {
+  workspaceId: string
+  edit:
+    | {
+        mode: 'search_replace'
+        search: string
+        content: string
+        replaceAll?: boolean
+      }
+    | {
+        mode: 'replace_between'
+        beforeAnchor: string
+        afterAnchor: string
+        content: string
+        occurrence?: number
+      }
+    | {
+        mode: 'insert_after'
+        anchor: string
+        content: string
+        occurrence?: number
+      }
+    | {
+        mode: 'delete_between'
+        startAnchor: string
+        endAnchor: string
+        occurrence?: number
+      }
+}
+
+type EditFileContentResponseRef0 = {
+  id: string
+  webUrl: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedByEmail: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+type EditFileContentResponseRef1 = {
+  file: EditFileContentResponseRef0
+  lineCount: number
+}
+
+export type EditFileContentResponse = {
+  data: EditFileContentResponseRef1
 }
 
 /** `POST /api/v2/tools/[toolId]/execute` */
@@ -4260,6 +4420,60 @@ type GetRowEnrichmentResponseRef1 = {
 
 export type GetRowEnrichmentResponse = {
   data: GetRowEnrichmentResponseRef0 | null
+}
+
+/** `GET /api/v2/sandboxes/[sandboxId]` */
+export type GetSandboxParams = {
+  sandboxId: string
+}
+
+export type GetSandboxQuery = {
+  workspaceId: string
+}
+
+type GetSandboxResponseRef0 = {
+  id: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies: Array<string>
+  cliTools: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages: Array<string>
+  buildStatus: 'pending' | 'building' | 'ready' | 'failed' | null
+  errorCode: string | null
+  errorMessage: string | null
+  errorDetail: string | null
+  builtAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type GetSandboxResponse = {
+  data: GetSandboxResponseRef0
 }
 
 /** `GET /api/v2/skills/[skillId]` */
@@ -5374,6 +5588,20 @@ export type ListFileFoldersQuery = {
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
   sortOrder?: 'asc' | 'desc'
   scope?: 'active' | 'archived'
+  recursive?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
+  depth?: number
 }
 
 type ListFileFoldersResponseRef0 = {
@@ -5871,6 +6099,62 @@ type ListMcpServerToolsResponseRef0 = {
 
 export type ListMcpServerToolsResponse = {
   data: Array<ListMcpServerToolsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/sandboxes` */
+export type ListSandboxesQuery = {
+  workspaceId: string
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+type ListSandboxesResponseRef0 = {
+  id: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies: Array<string>
+  cliTools: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages: Array<string>
+  buildStatus: 'pending' | 'building' | 'ready' | 'failed' | null
+  errorCode: string | null
+  errorMessage: string | null
+  errorDetail: string | null
+  builtAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type ListSandboxesResponse = {
+  data: Array<ListSandboxesResponseRef0>
   nextCursor: string | null
 }
 
@@ -6760,6 +7044,8 @@ export type ReadFileTextParams = {
 export type ReadFileTextQuery = {
   workspaceId: string
   maxBytes?: number
+  offset?: number
+  limit?: number
 }
 
 type ReadFileTextResponseRef0 = {
@@ -6772,6 +7058,12 @@ type ReadFileTextResponseRef0 = {
   degradedReason: string | null
   charCount: number
   byteCount: number
+  lineRange?: {
+    offset: number
+    lineCount: number
+    totalLines: number
+    totalLinesExact: boolean
+  }
 }
 
 export type ReadFileTextResponse = {
@@ -7531,6 +7823,50 @@ type RunRowEnrichmentResponseRef0 = {
 
 export type RunRowEnrichmentResponse = {
   data: RunRowEnrichmentResponseRef0
+}
+
+/** `GET /api/v2/files/search` */
+export type SearchFileContentQuery = {
+  workspaceId: string
+  query: string
+  mode?: 'exact' | 'regex'
+  maxResults?: number
+  folderPaths?: string
+  includeSubfolders?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
+}
+
+type SearchFileContentResponseRef0 = {
+  results: Array<{
+    fileId: string
+    lineNumber: number
+    text: string
+  }>
+  count: number
+  truncated: boolean
+  complete: boolean
+  indexStatus: {
+    readyFiles: number
+    pendingFiles: number
+    failedFiles: number
+    skippedFiles: number
+    partialFiles: number
+  }
+}
+
+export type SearchFileContentResponse = {
+  data: SearchFileContentResponseRef0
 }
 
 /** `POST /api/v2/knowledge/search` */
@@ -8354,6 +8690,92 @@ type UpdateRowsByFilterResponseRef0 = {
 
 export type UpdateRowsByFilterResponse = {
   data: UpdateRowsByFilterResponseRef0
+}
+
+/** `PATCH /api/v2/sandboxes/[sandboxId]` */
+export type UpdateSandboxParams = {
+  sandboxId: string
+}
+
+export type UpdateSandboxQuery = Record<string, unknown>
+
+export type UpdateSandboxBody = {
+  workspaceId: string
+  name?: string
+  language?: 'javascript' | 'python'
+  dependencies?: Array<string>
+  cliTools?: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages?: Array<string>
+}
+
+type UpdateSandboxResponseRef0 = {
+  id: string
+  name: string
+  language: 'javascript' | 'python'
+  dependencies: Array<string>
+  cliTools: Array<
+    | 'google-cloud-cli@577.0.0-r1'
+    | 'aws-cli@2.36.15-r1'
+    | 'azure-cli@2.89.0-r1'
+    | 'doctl@1.166.0-r1'
+    | 'github-cli@2.97.0-r1'
+    | 'gitlab-cli@1.111.0-r1'
+    | 'kubectl@1.36.3-r1'
+    | 'helm@4.2.3-r1'
+    | 'kustomize@5.8.1-r1'
+    | 'argocd@3.4.6-r1'
+    | 'terraform@1.15.8-r1'
+    | 'pulumi@3.255.0-r1'
+    | 'supabase-cli@2.111.0-r1'
+    | 'firebase-cli@15.25.1-r1'
+    | 'flyctl@0.4.78-r1'
+    | 'railway-cli@5.30.4-r1'
+    | 'stripe-cli@1.45.0-r1'
+    | 'duckdb@1.5.5-r1'
+    | 'rclone@1.75.0-r1'
+    | 'restic@0.19.1-r1'
+    | 'minio-mc@RELEASE.2025-08-13T08-35-41Z-r1'
+    | 'mongosh@2.9.2-r1'
+    | 'sops@3.13.3-r1'
+    | 'age@1.3.1-r1'
+  >
+  systemPackages: Array<string>
+  buildStatus: 'pending' | 'building' | 'ready' | 'failed' | null
+  errorCode: string | null
+  errorMessage: string | null
+  errorDetail: string | null
+  builtAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateSandboxResponse = {
+  data: UpdateSandboxResponseRef0
 }
 
 /** `PATCH /api/v2/skills/[skillId]` */
@@ -9934,6 +10356,47 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createSandbox: {
+    method: 'POST',
+    path: '/api/v2/sandboxes',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Sandbox',
+    personalKeyOnly: true,
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to create the sandbox.',
+      },
+      name: {
+        kind: 'string',
+        required: true,
+        describe: 'Display name, unique within the workspace; 1 to 64 characters.',
+      },
+      language: {
+        kind: 'enum',
+        required: true,
+        values: ['javascript', 'python'] as const,
+        describe: 'Dependency ecosystem: `javascript` installs from npm, `python` from PyPI.',
+      },
+      dependencies: {
+        kind: 'array',
+        default: [],
+        describe: 'Package specifiers installed into the sandbox, one per entry.',
+      },
+      cliTools: {
+        kind: 'array',
+        default: [],
+        describe: 'Pinned managed CLI ids installed into the sandbox, at most 10, no duplicates.',
+      },
+      systemPackages: {
+        kind: 'array',
+        default: [],
+        describe: 'Debian packages installed into the sandbox, one per entry.',
+      },
+    },
+  },
   createServiceAccountCredential: {
     method: 'POST',
     path: '/api/v2/credentials',
@@ -10459,6 +10922,18 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  deleteSandbox: {
+    method: 'DELETE',
+    path: '/api/v2/sandboxes/[sandboxId]',
+    pathParams: ['sandboxId'] as const,
+    pathParamDocs: { sandboxId: 'Unique sandbox identifier.' },
+    responseMode: 'json',
+    summary: 'Delete Sandbox',
+    personalKeyOnly: true,
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
+    },
+  },
   deleteSecret: {
     method: 'DELETE',
     path: '/api/v2/secrets/[name]',
@@ -10745,6 +11220,23 @@ export const V2_OPERATIONS = {
       folderPath: {
         kind: 'string',
         describe: "Destination folder path. Defaults to the source workflow's folder.",
+      },
+    },
+  },
+  editFileContent: {
+    method: 'PATCH',
+    path: '/api/v2/files/[fileId]/content',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
+    responseMode: 'json',
+    summary: 'Edit File Content',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      edit: {
+        kind: 'unknown',
+        required: true,
+        describe:
+          'One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between.',
       },
     },
   },
@@ -11168,6 +11660,17 @@ export const V2_OPERATIONS = {
     summary: 'Get Enrichment Run Detail',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+    },
+  },
+  getSandbox: {
+    method: 'GET',
+    path: '/api/v2/sandboxes/[sandboxId]',
+    pathParams: ['sandboxId'] as const,
+    pathParamDocs: { sandboxId: 'Unique sandbox identifier.' },
+    responseMode: 'json',
+    summary: 'Get Sandbox',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
     },
   },
   getSkill: {
@@ -11811,6 +12314,28 @@ export const V2_OPERATIONS = {
         describe:
           'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.',
       },
+      recursive: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        describe: 'Whether parentPath includes every descendant instead of direct children only.',
+      },
+      depth: {
+        kind: 'integer',
+        describe: 'Deepest level below parentPath to include when recursive is true.',
+      },
     },
   },
   listFiles: {
@@ -12376,6 +12901,44 @@ export const V2_OPERATIONS = {
         kind: 'boolean',
         describe:
           'Bypass the short-lived per-workspace tool cache and reconnect under your own credentials. A cached result reflects whichever workspace member last ran discovery, so this is the only way to pick up a tool added since then; it costs a live round trip.',
+      },
+    },
+  },
+  listSandboxes: {
+    method: 'GET',
+    path: '/api/v2/sandboxes',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Sandboxes',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the sandbox name.',
+      },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum sandboxes to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
     },
   },
@@ -13083,6 +13646,14 @@ export const V2_OPERATIONS = {
         describe:
           'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.',
       },
+      offset: {
+        kind: 'integer',
+        describe: 'First line to return, 1-based. Absent starts at the first line.',
+      },
+      limit: {
+        kind: 'integer',
+        describe: 'How many lines to return from `offset`. Absent reads to the end.',
+      },
     },
   },
   relocateFileFolder: {
@@ -13418,6 +13989,52 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
     },
   },
+  searchFileContent: {
+    method: 'GET',
+    path: '/api/v2/files/search',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Search File Content',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace to search.' },
+      query: {
+        kind: 'string',
+        required: true,
+        describe: 'Regular expression, or exact text when `mode` is `exact`.',
+      },
+      mode: {
+        kind: 'enum',
+        values: ['exact', 'regex'] as const,
+        default: 'regex',
+        describe: 'How `query` is read.',
+      },
+      maxResults: { kind: 'integer', default: 50, describe: 'Maximum matching lines to return.' },
+      folderPaths: {
+        kind: 'string',
+        describe:
+          'Folders the search is confined to, comma-separated. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.',
+      },
+      includeSubfolders: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        describe:
+          'Whether the scope descends into nested folders. Absent means yes. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.',
+      },
+    },
+  },
   searchKnowledge: {
     method: 'POST',
     path: '/api/v2/knowledge/search',
@@ -13453,7 +14070,6 @@ export const V2_OPERATIONS = {
       },
       searchMode: {
         kind: 'enum',
-        default: 'vector',
         describe:
           'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.',
       },
@@ -13957,6 +14573,40 @@ export const V2_OPERATIONS = {
         describe: 'Row-data patch applied to every matching row.',
       },
       limit: { kind: 'integer', describe: 'Maximum matching rows to update.' },
+    },
+  },
+  updateSandbox: {
+    method: 'PATCH',
+    path: '/api/v2/sandboxes/[sandboxId]',
+    pathParams: ['sandboxId'] as const,
+    pathParamDocs: { sandboxId: 'Unique sandbox identifier.' },
+    responseMode: 'json',
+    summary: 'Update Sandbox',
+    personalKeyOnly: true,
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
+      name: {
+        kind: 'string',
+        describe: 'New display name, unique within the workspace; 1 to 64 characters.',
+      },
+      language: {
+        kind: 'enum',
+        values: ['javascript', 'python'] as const,
+        describe:
+          'Replacement dependency ecosystem. The whole spec is revalidated against it, so a Python dependency list does not survive a switch to JavaScript.',
+      },
+      dependencies: {
+        kind: 'array',
+        describe: 'Replacement package list; replaces the whole list.',
+      },
+      cliTools: {
+        kind: 'array',
+        describe: 'Replacement managed CLI list; replaces the whole list.',
+      },
+      systemPackages: {
+        kind: 'array',
+        describe: 'Replacement Debian package list; replaces the whole list.',
+      },
     },
   },
   updateSkill: {

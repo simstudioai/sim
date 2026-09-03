@@ -89,7 +89,7 @@ export function PresenceAvatars({
   }
 
   return (
-    <div className={cn('-space-x-1 flex flex-shrink-0 items-center', className)}>
+    <div className={cn('-space-x-1 flex shrink-0 items-center', className)}>
       {overflowCount > 0 && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>

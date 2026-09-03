@@ -407,7 +407,7 @@ export const ShortInput = memo(function ShortInput({
               }
               disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
               aria-label='Generate content with AI'
-              className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
+              className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-xs transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
             >
               <Wand className='size-4' />
             </Button>

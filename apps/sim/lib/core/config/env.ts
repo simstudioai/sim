@@ -24,11 +24,11 @@ import { z } from 'zod'
  * hydration. So on a warm cache both module bodies and the first commit can run
  * before the parser has reached the assignment.
  *
- * An attribute has no such ordering problem. `<html>` is the first tag in the
- * document — ~490 bytes ahead of the first bootstrap script — so
- * `document.documentElement` already carries this value by the time *any*
- * script, framework or application, is able to execute. This is the race-free
- * transport; `window.__ENV` stays the public global and the preferred read.
+ * On a normally rendered document, the attribute is parsed before bootstrap
+ * scripts can execute. Next's server-rendering error document omits the root
+ * layout, so client recovery only installs the attribute when that layout
+ * mounts. Hosted detection also uses the browser hostname during this gap.
+ * `window.__ENV` stays the public global and the preferred read.
  */
 export const PUBLIC_ENV_ATTRIBUTE = 'data-public-env'
 
@@ -416,6 +416,9 @@ export const env = createEnv({
     EXECUTION_TIMEOUT_ASYNC_TEAM:          z.string().optional().default('5400'),  // 90 minutes
     EXECUTION_TIMEOUT_ASYNC_ENTERPRISE:    z.string().optional().default('5400'),  // 90 minutes
 
+    // Agent Tool-Call Loop
+    MAX_TOOL_ITERATIONS:                   z.string().optional(),                  // Max model round trips per Agent block tool-call loop (default 20)
+
     // Isolated-VM Worker Pool Configuration
     IVM_POOL_SIZE:                         z.string().optional().default('4'),      // Max worker processes in pool
     IVM_MAX_CONCURRENT:                    z.string().optional().default('10000'),  // Max concurrent executions globally
@@ -589,6 +592,7 @@ export const env = createEnv({
     TABLES_V2_API:                        z.boolean().optional(),                 // Enable the v2 tables HTTP API (public /api/v2/tables + internal /api/table/[tableId]/query predicate-grammar route)
     TABLE_ROW_TTL:                        z.boolean().optional(),
     CREDENTIAL_GROUPS:                    z.boolean().optional(),                 // Enable enterprise Credential Groups globally
+    KNOWLEDGE_MEMBER_ACCESS:              z.boolean().optional(),                 // Enable per-member knowledge connectors and hybrid-by-default retrieval globally
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)

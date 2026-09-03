@@ -74,7 +74,7 @@ const ROW_TONES = [
  * right-aligned timestamp. The newest record is the selected event: it
  * sits on a solid white card wearing the build tile's window chrome
  * exactly — `--white` fill, 1px `--border-1` hairline, `rounded-xl`,
- * `shadow-sm` — while the older records rest directly on the tile,
+ * `shadow-xs` — while the older records rest directly on the tile,
  * quietening with age until a mask gradient dissolves the oldest —
  * implying the trail continues into history. A small "Audit log"
  * header with an `Append-only` mono ChipTag (fill stepped up to
@@ -138,14 +138,14 @@ export function AuditTrailGraphic({ entries = ENTRIES }: AuditTrailGraphicProps 
                     'flex items-center gap-3 px-3 py-2.5',
                     newest &&
                       cn(
-                        'rounded-xl border border-[var(--border-1)] bg-[var(--white)] shadow-sm',
+                        'rounded-xl border border-[var(--border-1)] bg-[var(--white)] shadow-xs',
                         styles.stampIn
                       )
                   )}
                 >
                   <span
                     className={cn(
-                      'relative size-7 shrink-0 overflow-hidden rounded-full shadow-sm',
+                      'relative size-7 shrink-0 overflow-hidden rounded-full shadow-xs',
                       tone.avatar,
                       newest && styles.sealPulse
                     )}

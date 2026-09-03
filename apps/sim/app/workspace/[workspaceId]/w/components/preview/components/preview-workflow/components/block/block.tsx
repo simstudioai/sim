@@ -23,6 +23,7 @@ import {
   getDisplayValue,
   hasDisplayableRowValue,
   resolveDropdownLabel,
+  resolveFolderPathLabel,
   resolveSkillsLabel,
   resolveToolsLabel,
   resolveVariablesLabel,
@@ -56,11 +57,11 @@ interface SubBlockValueEntry {
  * Extracted to avoid recreating style objects on each render.
  */
 const HANDLE_STYLES = {
-  horizontal: '!border-none !bg-[var(--surface-7)] !h-5 !w-[7px] !rounded-xs',
+  horizontal: 'border-none! bg-[var(--surface-7)]! h-5! w-[7px]! rounded-xs!',
   right:
-    '!z-[10] !border-none !bg-[var(--workflow-edge)] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none',
+    'z-[10]! border-none! bg-[var(--workflow-edge)]! h-5! w-[7px]! rounded-r-[2px]! rounded-l-none!',
   error:
-    '!z-[10] !border-none !bg-[var(--text-error)] !h-[7px] !w-6 !rounded-b-[2px] !rounded-t-none',
+    'z-[10]! border-none! bg-[var(--text-error)]! h-[7px]! w-6! rounded-b-[2px]! rounded-t-none!',
 } as const
 
 /** Reusable style object for error handles positioned at bottom-right */
@@ -165,7 +166,14 @@ function resolvePreviewDisplayValue(
     toolsDisplay ||
     skillsDisplay ||
     workflowName ||
-    workflowMultiSelectionNames
+    workflowMultiSelectionNames ||
+    /*
+     * A type in SELECTOR_TYPES_HYDRATION_REQUIRED with no resolver here falls to
+     * the placeholder below, so a picked folder read as "you picked nothing".
+     * Same decode the canvas card and the workflow diff use, and it needs no
+     * hook or fetch, which is what lets it sit in this hook-free resolver.
+     */
+    resolveFolderPathLabel(subBlock, rawValue)
 
   return maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 }

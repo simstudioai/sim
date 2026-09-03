@@ -43,7 +43,7 @@ export const LANGUAGE_OPTIONS = [
 ] as const
 
 const CONTROL_CLASS =
-  'flex size-[24px] items-center justify-center rounded-lg text-[var(--text-icon)] outline-none transition-colors hover-hover:bg-[var(--surface-hover)] hover-hover:text-[var(--text-body)] focus-visible:bg-[var(--surface-hover)] [&_svg]:size-[14px]'
+  'flex size-[24px] items-center justify-center rounded-lg text-[var(--text-icon)] outline-hidden transition-colors hover-hover:bg-[var(--surface-hover)] hover-hover:text-[var(--text-body)] focus-visible:bg-[var(--surface-hover)] [&_svg]:size-[14px]'
 
 /**
  * Code block view with hover controls (language picker, line-wrap, copy). When the block holds

@@ -1007,7 +1007,7 @@ export function Document({
             content: {
               content: (
                 <div className='flex items-center gap-2'>
-                  <FileText className='size-5 flex-shrink-0 text-[var(--text-muted)]' />
+                  <FileText className='size-5 shrink-0 text-[var(--text-muted)]' />
                   <span className='text-[var(--text-muted)] text-sm italic'>
                     {processingStatus === 'pending' && 'Document processing pending...'}
                     {processingStatus === 'processing' && 'Document processing in progress...'}

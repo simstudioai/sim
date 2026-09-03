@@ -14,7 +14,7 @@ A custom block always runs the **latest deployed version** of its source workflo
 
 ## Common uses
 
-Custom blocks turn a workflow one team owns into infrastructure the whole organization can safely reuse. Credentials and complexity stay with the block's author; everyone else gets a clean block that's always up to date. A few patterns:
+Consumers see only the inputs and outputs by default, unless the author enables **Trace runs in consumer logs**. Identity splits at execution: the source workflow's owner supplies personal variables and delegated calls, and the source workspace supplies workspace variables and carries the billing. Common patterns:
 
 - **Internal API gateway.** Wrap an authenticated internal or partner endpoint — "Create Ticket", "Charge Account", "Provision User" — behind a block that takes only the business inputs. Teammates call it without the base URL, API key, or auth headers, and when the endpoint changes you update one workflow instead of every consumer's.
 - **Blessed knowledge lookup.** Package a vetted retrieval pipeline — chunking, filters, reranking — as "Search Company Docs" with a single query input, so teams reuse the approved retrieval instead of each rebuilding it.
@@ -35,7 +35,7 @@ Custom blocks turn a workflow one team owns into infrastructure the whole organi
 
 ### 1. Open Custom blocks settings
 
-Go to **Settings → Enterprise → Custom blocks** and click **Create block**.
+Go to **Settings → Organization → Custom blocks** and click **Create block**.
 
 <Image src="/static/enterprise/custom-blocks-list.png" alt="Custom blocks settings page listing a published block with its icon, name, and description, with a Create block button in the header" width={900} height={570} />
 
@@ -90,19 +90,19 @@ Click **Save changes**. The block is published immediately and becomes available
 
 ## Using a custom block
 
-In the workflow editor, open the block toolbar. Published custom blocks appear under a **Custom blocks** section. Drag one onto the canvas like any other block, fill in its inputs (using the placeholders as a guide), and reference its outputs in downstream blocks.
+In the workflow editor, open the block toolbar. Published custom blocks appear under a **Custom blocks** section. Drag one into your workflow like any other block, fill in its inputs (using the placeholders as a guide), and reference its outputs in downstream blocks.
 
 <Image src="/static/enterprise/custom-blocks-toolbar.png" alt="Workflow editor block toolbar with a Custom Blocks section listing two published blocks below Core Blocks" width={400} height={476} />
 
 Consumers don't need any access to the source workflow. The block runs on its own, using only the inputs provided, and returns only the outputs you exposed. Its internal steps, models, and intermediate values stay hidden unless the block's publisher turned on **Trace runs in consumer logs**, in which case they appear under the block in the run's trace.
 
-<Image src="/static/enterprise/custom-blocks-canvas.png" alt="A custom block connected to a Start block on the workflow canvas, with its query input filled in and the run output showing the returned fields" width={900} height={570} />
+<Image src="/static/enterprise/custom-blocks-canvas.png" alt="A custom block connected to a Start block in the workflow editor, with its query input filled in and the run output showing the returned fields" width={900} height={570} />
 
 ---
 
 ## Managing blocks
 
-Open a block from **Settings → Enterprise → Custom blocks** to edit or delete it.
+Open a block from **Settings → Organization → Custom blocks** to edit or delete it.
 
 - **Editing** changes only the block's presentation, interface, and trace policy — name, description, icon, input placeholders, exposed outputs, and whether runs are traced in consumer logs. The source workflow can't be re-pointed.
 - **Changing what the block does** is done by editing and **redeploying the source workflow**. The block picks up the new deployment automatically; there's nothing to republish.
@@ -131,7 +131,7 @@ Open a block from **Settings → Enterprise → Custom blocks** to edit or delet
   },
   {
     question: "Can consumers see the workflow behind a block?",
-    answer: "No. A custom block only exposes the inputs it needs and the outputs you chose to share. The source workflow, its steps, and its intermediate values are never visible, and consumers don't need any access to it."
+    answer: "A custom block only exposes the inputs it needs and the outputs you chose to share, and consumers don't need any access to the source workflow. Its steps and intermediate values stay hidden unless you enable Trace runs in consumer logs, which surfaces them in the consumer's run trace."
   },
   {
     question: "Can I change which workflow a block points to?",

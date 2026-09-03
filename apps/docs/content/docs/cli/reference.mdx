@@ -788,6 +788,8 @@ Also available as `sim files folders ls`.
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--scope <value>` | No | Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both. Accepted values: `active`, `archived`. |
+| `--recursive <value>` | No | Whether parentPath includes every descendant instead of direct children only. Accepted values: `true`, `1`, `yes`, `on`, `y`, `enabled`, `false`, `0`, `no`, `off`, `n`, `disabled`. |
+| `--depth <value>` | No | Deepest level below parentPath to include when recursive is true. |
 
 </CommandTable>
 
@@ -855,6 +857,34 @@ sim files delete <fileId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim files edit
+
+Apply one exact or anchor-based edit to a text file
+
+```bash
+sim files edit <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--edit <json\|@file>` | Yes | One edit object: &#123;"mode":"search_replace","search":"old","content":"new","replaceAll":false&#125;, &#123;"mode":"replace_between","beforeAnchor":"start line","afterAnchor":"end line","content":"new"&#125;, &#123;"mode":"insert_after","anchor":"line","content":"new"&#125;, or &#123;"mode":"delete_between","startAnchor":"first line deleted","endAnchor":"ending line kept"&#125;. Anchored modes also accept occurrence starting at 1 (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 
@@ -1006,6 +1036,8 @@ sim files read <fileId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--max-bytes <value>` | No | Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit. |
+| `--offset <value>` | No | First line to return, 1-based. Absent starts at the first line. |
+| `--limit <value>` | No | How many lines to return from `offset`. Absent reads to the end. |
 
 </CommandTable>
 
@@ -1052,6 +1084,29 @@ sim files restore <fileId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+### sim files search
+
+Search File Content
+
+```bash
+sim files search [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--query <value>` | Yes | Regular expression, or exact text when `mode` is `exact`. |
+| `--mode <value>` | No | How `query` is read. Accepted values: `exact`, `regex`. |
+| `--max-results <value>` | No | Maximum matching lines to return. |
+| `--folder <value...>` | No | Folders to search, by path as shown in the app; omit to search the whole workspace (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--include-subfolders` | No | Whether each folder scope includes nested folders; on by default. |
+| `--no-include-subfolders` | No | Send --include-subfolders as false. |
 
 </CommandTable>
 
@@ -2685,6 +2740,131 @@ Show what this API supports and which limits apply
 ```bash
 sim meta status
 ```
+
+## sim sandboxes
+
+Also spelled `sim sandbox`.
+
+### sim sandboxes create
+
+Create Sandbox (personal API key required)
+
+```bash
+sim sandboxes create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Display name, unique within the workspace; 1 to 64 characters. |
+| `--language <value>` | Yes | Dependency ecosystem: `javascript` installs from npm, `python` from PyPI. Accepted values: `javascript`, `python`. |
+| `--dependencies <value...>` | No | Package specifiers installed into the sandbox, one per entry. (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
+| `--cli-tools <value...>` | No | Pinned managed CLI ids installed into the sandbox, at most 10, no duplicates. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--system-packages <value...>` | No | Debian packages installed into the sandbox, one per entry. (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
+
+</CommandTable>
+
+### sim sandboxes delete
+
+Delete Sandbox (personal API key required)
+
+```bash
+sim sandboxes delete <sandboxId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `sandboxId` | Yes | Unique sandbox identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim sandboxes get
+
+Get Sandbox
+
+```bash
+sim sandboxes get <sandboxId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `sandboxId` | Yes | Unique sandbox identifier. |
+
+</CommandTable>
+
+### sim sandboxes list
+
+List Sandboxes
+
+```bash
+sim sandboxes list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the sandbox name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+### sim sandboxes update
+
+Update Sandbox (personal API key required)
+
+```bash
+sim sandboxes update <sandboxId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `sandboxId` | Yes | Unique sandbox identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New display name, unique within the workspace; 1 to 64 characters. |
+| `--language <value>` | No | Replacement dependency ecosystem. The whole spec is revalidated against it, so a Python dependency list does not survive a switch to JavaScript. Accepted values: `javascript`, `python`. |
+| `--dependencies <value...>` | No | Replacement package list; replaces the whole list. (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
+| `--cli-tools <value...>` | No | Replacement managed CLI list; replaces the whole list. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--system-packages <value...>` | No | Replacement Debian package list; replaces the whole list. (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @). |
+
+</CommandTable>
 
 ## sim secrets
 

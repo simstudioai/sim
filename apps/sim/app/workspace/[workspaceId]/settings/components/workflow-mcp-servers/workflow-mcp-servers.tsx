@@ -586,7 +586,7 @@ function ServerDetailView({
                         variant='ghost'
                         aria-label={copiedConfig ? 'Configuration copied' : 'Copy configuration'}
                         onClick={() => handleCopyConfig(server.isPublic, server.name)}
-                        className='!p-1.5 -my-1.5'
+                        className='-my-1.5 p-1.5!'
                       >
                         {copiedConfig ? (
                           <Check className='size-[14px]' />
@@ -606,12 +606,12 @@ function ServerDetailView({
                               : 'json'
                         }
                         wrapText
-                        className='!min-h-0 rounded-sm border border-[var(--border-1)]'
+                        className='min-h-0! rounded-sm border border-[var(--border-1)]'
                       />
                       {activeConfigTab === 'cursor' && (
                         <a
                           href={getCursorInstallUrl(server.isPublic, server.name)}
-                          className='absolute top-1.5 right-2 inline-flex rounded-md bg-[var(--surface-5)] ring-[length:var(--border-width)] ring-[var(--border-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]'
+                          className='absolute top-1.5 right-2 inline-flex rounded-md bg-[var(--surface-5)] ring-[length:var(--border-width)] ring-[var(--border-1)] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]'
                         >
                           <img
                             src='https://cursor.com/deeplink/mcp-install-dark.svg'

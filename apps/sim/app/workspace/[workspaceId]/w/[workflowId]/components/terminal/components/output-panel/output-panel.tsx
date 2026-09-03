@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   Code,
+  cn,
   Input,
   Popover,
   PopoverContent,
@@ -23,12 +24,8 @@ import {
   Trash,
   X,
 } from '@sim/emcn/icons'
-import clsx from 'clsx'
 import Link from 'next/link'
-import {
-  AgentStreamThinkingChrome,
-  AgentStreamToolCallsChrome,
-} from '@/components/agent-stream/agent-stream-chrome'
+import { AgentStreamThinkingChrome } from '@/components/agent-stream/agent-stream-chrome'
 import {
   OutputContextMenu,
   StructuredOutput,
@@ -307,15 +304,15 @@ export const OutputPanel = React.memo(function OutputPanel({
 
         {/* Header */}
         <div
-          className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-2.5'
+          className='group flex h-[30px] shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-2.5'
           onClick={handleHeaderClick}
         >
           <div className='flex items-center'>
             <Button
               variant='ghost'
-              className={clsx(
+              className={cn(
                 'px-2 py-1.5 text-small',
-                !showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-icon)]'
+                !showInput ? 'text-[var(--text-primary)]!' : 'text-[var(--text-icon)]!'
               )}
               onClick={handleOutputButtonClick}
               aria-label='Show output'
@@ -325,9 +322,9 @@ export const OutputPanel = React.memo(function OutputPanel({
             {hasInputData && (
               <Button
                 variant='ghost'
-                className={clsx(
+                className={cn(
                   'px-2 py-1.5 text-small',
-                  showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-icon)]'
+                  showInput ? 'text-[var(--text-primary)]!' : 'text-[var(--text-icon)]!'
                 )}
                 onClick={handleInputButtonClick}
                 aria-label='Show input'
@@ -336,7 +333,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               </Button>
             )}
           </div>
-          <div className='flex flex-shrink-0 items-center gap-2'>
+          <div className='flex shrink-0 items-center gap-2'>
             {isOutputSearchActive ? (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -344,7 +341,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     variant='ghost'
                     onClick={handleCloseSearchClick}
                     aria-label='Close search'
-                    className='!p-1.5 -m-1.5'
+                    className='-m-1.5 p-1.5!'
                   >
                     <X className='size-[14px]' />
                   </Button>
@@ -360,7 +357,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     variant='ghost'
                     onClick={handleSearchClick}
                     aria-label='Search in output'
-                    className='!p-1.5 -m-1.5'
+                    className='-m-1.5 p-1.5!'
                   >
                     <Search className='size-[14px]' />
                   </Button>
@@ -378,7 +375,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     <Button
                       variant='ghost'
                       aria-label='Component Playground'
-                      className='!p-1.5 -m-1.5'
+                      className='-m-1.5 p-1.5!'
                     >
                       <Palette className='size-[14px]' />
                     </Button>
@@ -396,7 +393,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   variant='ghost'
                   onClick={handleCopyClick}
                   aria-label='Copy output'
-                  className='!p-1.5 -m-1.5'
+                  className='-m-1.5 p-1.5!'
                 >
                   {showCopySuccess ? (
                     <Check className='size-[14px]' />
@@ -417,7 +414,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       variant='ghost'
                       onClick={handleExportConsole}
                       aria-label='Export console CSV'
-                      className='!p-1.5 -m-1.5'
+                      className='-m-1.5 p-1.5!'
                     >
                       <Download className='size-[14px]' />
                     </Button>
@@ -432,7 +429,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       variant='ghost'
                       onClick={handleClearConsole}
                       aria-label='Clear console'
-                      className='!p-1.5 -m-1.5'
+                      className='-m-1.5 p-1.5!'
                     >
                       <Trash className='size-[14px]' />
                     </Button>
@@ -449,7 +446,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   variant='ghost'
                   onClick={(e) => e.stopPropagation()}
                   aria-label='Terminal options'
-                  className='!p-1.5 -m-1.5'
+                  className='-m-1.5 p-1.5!'
                 >
                   <MoreHorizontal className='size-[14px]' />
                 </Button>
@@ -489,7 +486,7 @@ export const OutputPanel = React.memo(function OutputPanel({
         {/* Search Overlay */}
         {isOutputSearchActive && (
           <div
-            className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--bg)] px-1.5 shadow-sm'
+            className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--bg)] px-1.5 shadow-xs'
             onClick={(e) => e.stopPropagation()}
             data-toolbar-root
             data-search-active='true'
@@ -503,7 +500,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               className='mr-0.5 h-[23px] w-[94px] text-caption'
             />
             <span
-              className={clsx(
+              className={cn(
                 'w-[58px] text-xs',
                 matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
               )}
@@ -514,7 +511,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               variant='ghost'
               onClick={goToPreviousMatch}
               aria-label='Previous match'
-              className='!p-1.5 -m-1.5'
+              className='-m-1.5 p-1.5!'
               disabled={matchCount === 0}
             >
               <ArrowUp className='size-[14px]' />
@@ -523,7 +520,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               variant='ghost'
               onClick={goToNextMatch}
               aria-label='Next match'
-              className='!p-1.5 -m-1.5'
+              className='-m-1.5 p-1.5!'
               disabled={matchCount === 0}
             >
               <ArrowDown className='size-[14px]' />
@@ -532,7 +529,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               variant='ghost'
               onClick={closeOutputSearch}
               aria-label='Close search'
-              className='!p-1.5 -m-1.5'
+              className='-m-1.5 p-1.5!'
             >
               <X className='size-[14px]' />
             </Button>
@@ -541,34 +538,17 @@ export const OutputPanel = React.memo(function OutputPanel({
 
         {/* Content */}
         <div
-          className={clsx('flex-1 overflow-y-auto', !wrapText && 'overflow-x-auto')}
+          className={cn('flex-1 overflow-y-auto', !wrapText && 'overflow-x-auto')}
           onContextMenu={handleOutputPanelContextMenu}
         >
-          {!showInput &&
-            (selectedEntry.agentStreamThinking ||
-              (selectedEntry.agentStreamToolCalls &&
-                selectedEntry.agentStreamToolCalls.length > 0)) && (
-              <div className='border-[var(--border)] border-b px-3 pt-3'>
-                {selectedEntry.agentStreamThinking ? (
-                  <AgentStreamThinkingChrome
-                    thinking={selectedEntry.agentStreamThinking}
-                    isStreaming={Boolean(
-                      selectedEntry.isRunning && selectedEntry.agentStreamActive
-                    )}
-                  />
-                ) : null}
-                {selectedEntry.agentStreamToolCalls &&
-                selectedEntry.agentStreamToolCalls.length > 0 ? (
-                  <AgentStreamToolCallsChrome
-                    toolCalls={selectedEntry.agentStreamToolCalls}
-                    isStreaming={Boolean(
-                      selectedEntry.isRunning &&
-                        selectedEntry.agentStreamToolCalls.some((t) => t.status === 'running')
-                    )}
-                  />
-                ) : null}
-              </div>
-            )}
+          {!showInput && selectedEntry.agentStreamThinking && (
+            <div className='border-[var(--border)] border-b px-3 pt-3'>
+              <AgentStreamThinkingChrome
+                thinking={selectedEntry.agentStreamThinking}
+                isStreaming={Boolean(selectedEntry.isRunning && selectedEntry.agentStreamActive)}
+              />
+            </div>
+          )}
           {shouldShowCodeDisplay ? (
             <OutputCodeContent
               code={selectedEntry.input.code}

@@ -11,8 +11,13 @@
  */
 import { act, type ReactNode, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { InsideModalContext } from '../modal/modal'
 import { Combobox } from './combobox'
+
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/workspace/workspace-1/home',
+}))
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
@@ -42,6 +47,12 @@ function click(node: HTMLElement) {
   })
 }
 
+function mouseDown(node: HTMLElement) {
+  act(() => {
+    node.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+  })
+}
+
 function press(node: HTMLElement, key: string) {
   act(() => {
     node.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
@@ -60,6 +71,7 @@ afterEach(() => {
   container?.remove()
   root = null
   container = null
+  document.body.removeAttribute('style')
   vi.restoreAllMocks()
 })
 
@@ -70,6 +82,28 @@ describe('Combobox onOpenChange', () => {
     click(trigger())
 
     expect(container?.querySelector('[role="listbox"]')).not.toBeNull()
+  })
+
+  it('keeps portaled options interactive inside modal content', () => {
+    const onChange = vi.fn()
+    render(
+      <InsideModalContext.Provider value>
+        <Combobox options={OPTIONS} onChange={onChange} />
+      </InsideModalContext.Provider>
+    )
+
+    click(trigger())
+
+    const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(
+      ({ textContent }) => textContent === 'Alpha'
+    )
+    if (!option) throw new Error('Alpha option was not rendered')
+    expect(document.body.style.pointerEvents).toBe('none')
+    expect(getComputedStyle(option).pointerEvents).toBe('auto')
+
+    mouseDown(option)
+
+    expect(onChange).toHaveBeenCalledWith('alpha')
   })
 
   it('uses the overlay label for the interactive overflow layer', () => {
@@ -97,6 +131,7 @@ describe('Combobox onOpenChange', () => {
     click(trigger())
 
     expect(onOpenChange).toHaveBeenCalledWith(true)
+    expect(document.body.style.pointerEvents).toBe('')
   })
 
   it('reports the close a second trigger click causes', () => {
@@ -233,5 +268,94 @@ describe('Combobox pagination', () => {
     click(trigger())
 
     expect(document.body.textContent).toContain('Showing the first 10,000 options')
+  })
+})
+
+describe('Combobox virtualized options', () => {
+  const options = Array.from({ length: 250 }, (_, index) => ({
+    label: `Model ${index}`,
+    value: `model-${index}`,
+  }))
+
+  beforeEach(() => {
+    /** JSDOM has no layout; use a fixed viewport and row height without mocking the virtualizer. */
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      return this.hasAttribute('data-index') ? 34 : 192
+    })
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(300)
+  })
+
+  describe.each([false, true])('disablePortal=%s', (disablePortal) => {
+    it.each([99, 100, 250])('renders %i options on first open and reopen', (count) => {
+      const onChange = vi.fn()
+      render(
+        <Combobox
+          options={options.slice(0, count)}
+          disablePortal={disablePortal}
+          onChange={onChange}
+        />
+      )
+
+      click(trigger())
+
+      expect(trigger('[data-option-index="0"]').textContent).toBe('Model 0')
+      const renderedCount = document.querySelectorAll('[role="option"]').length
+      expect(renderedCount).toBeGreaterThan(0)
+      if (count >= 100) expect(renderedCount).toBeLessThan(count)
+
+      click(trigger())
+      expect(document.querySelector('[role="listbox"]')).toBeNull()
+      click(trigger())
+
+      mouseDown(trigger('[data-option-index="1"]'))
+      expect(onChange).toHaveBeenCalledWith('model-1')
+    })
+  })
+
+  it('renders a selected editable model on focus and supports keyboard selection', () => {
+    const onChange = vi.fn()
+    render(<Combobox options={options} editable value='model-0' onChange={onChange} />)
+
+    const input = trigger('input[role="combobox"]')
+    act(() => input.focus())
+
+    expect(trigger('[data-option-index="0"]').textContent).toBe('Model 0')
+    press(input, 'ArrowDown')
+    press(input, 'Enter')
+
+    expect(onChange).toHaveBeenCalledWith('model-0')
+  })
+
+  it('renders and selects options after scrolling beyond the initial window', () => {
+    const onChange = vi.fn()
+    render(<Combobox options={options} onChange={onChange} />)
+    click(trigger())
+
+    expect(document.querySelector('[data-option-index="249"]')).toBeNull()
+    const scrollArea = trigger('[role="listbox"]').parentElement
+    if (!scrollArea) throw new Error('Scroll area was not rendered')
+    act(() => {
+      scrollArea.scrollTop = options.length * 34 - 192
+      scrollArea.dispatchEvent(new Event('scroll'))
+    })
+
+    mouseDown(trigger('[data-option-index="249"]'))
+    expect(onChange).toHaveBeenCalledWith('model-249')
+  })
+
+  it('restores virtualized options after filtering below the threshold', () => {
+    render(<Combobox options={options} searchable />)
+    click(trigger())
+    const search = trigger('input[placeholder="Search..."]') as HTMLInputElement
+
+    type(search, 'Model 249')
+    expect(document.querySelectorAll('[role="option"]')).toHaveLength(1)
+    expect(trigger('[role="option"]').textContent).toBe('Model 249')
+
+    type(search, '')
+    expect(trigger('[data-option-index="0"]').textContent).toBe('Model 0')
+    expect(document.querySelectorAll('[role="option"]').length).toBeLessThan(options.length)
   })
 })

@@ -90,15 +90,45 @@ export type CreateWorkflowCopilotChatBody = z.input<typeof createWorkflowCopilot
 
 const copilotResourceTypeSchema = z.enum(PERSISTED_RESOURCE_TYPES)
 
-export const addCopilotChatResourceBodySchema = z.object({
-  chatId: z.string(),
-  resource: z.object({
+const copilotChatResourceItemSchema = z
+  .object({
     type: copilotResourceTypeSchema,
-    // Matches the bound the chat-send path enforces.
     id: requiredFieldSchema('resource.id cannot be empty'),
     title: z.string(),
-  }),
-})
+    viewId: z.string().min(1).optional(),
+  })
+  .superRefine((resource, ctx) => {
+    if (resource.viewId === undefined || resource.type === 'table') return
+    ctx.addIssue({
+      code: 'custom',
+      path: ['viewId'],
+      message: 'viewId is only valid for table resources',
+    })
+  })
+
+export const addCopilotChatResourceBodySchema = z
+  .object({
+    chatId: requiredFieldSchema('chatId cannot be empty'),
+    resource: copilotChatResourceItemSchema,
+    clearViewId: z.literal(true).optional(),
+  })
+  .superRefine((body, ctx) => {
+    if (body.clearViewId !== true) return
+    if (body.resource.type !== 'table') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['clearViewId'],
+        message: 'clearViewId is only valid for table resources',
+      })
+    }
+    if (body.resource.viewId !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['resource', 'viewId'],
+        message: 'viewId must be omitted when clearViewId is true',
+      })
+    }
+  })
 export type AddCopilotChatResourceBody = z.input<typeof addCopilotChatResourceBodySchema>
 
 export const removeCopilotChatResourceBodySchema = z.object({
@@ -110,13 +140,7 @@ export type RemoveCopilotChatResourceBody = z.input<typeof removeCopilotChatReso
 
 export const reorderCopilotChatResourcesBodySchema = z.object({
   chatId: z.string(),
-  resources: z.array(
-    z.object({
-      type: copilotResourceTypeSchema,
-      id: z.string(),
-      title: z.string(),
-    })
-  ),
+  resources: z.array(copilotChatResourceItemSchema),
 })
 export type ReorderCopilotChatResourcesBody = z.input<typeof reorderCopilotChatResourcesBodySchema>
 
@@ -338,6 +362,7 @@ const copilotChatResourceSchema = z.object({
   type: copilotResourceTypeSchema,
   id: z.string(),
   title: z.string(),
+  viewId: z.string().optional(),
 })
 
 const copilotChatGetChatSchema = z

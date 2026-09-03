@@ -14,6 +14,7 @@ const {
   mockDownloadWorkspaceFile,
   mockGetTableById,
   mockBatchInsertRows,
+  mockBatchUpdateRows,
   mockInsertRow,
   mockUpdateRow,
   mockReplaceTableRows,
@@ -44,6 +45,7 @@ const {
   mockDownloadWorkspaceFile: vi.fn(),
   mockGetTableById: vi.fn(),
   mockBatchInsertRows: vi.fn(),
+  mockBatchUpdateRows: vi.fn(),
   mockInsertRow: vi.fn(),
   mockUpdateRow: vi.fn(),
   mockReplaceTableRows: vi.fn(),
@@ -208,7 +210,7 @@ vi.mock('@/lib/table/columns/service', () => ({
 
 vi.mock('@/lib/table/rows/service', () => ({
   batchInsertRows: mockBatchInsertRows,
-  batchUpdateRows: vi.fn(),
+  batchUpdateRows: mockBatchUpdateRows,
   deleteRow: vi.fn(),
   deleteRowsByFilter: mockDeleteRowsByFilter,
   deleteRowsByIds: vi.fn(),
@@ -1841,5 +1843,137 @@ describe('userTableServerTool row writes key model-supplied columns by name', ()
 
     expect(mockUpdateRow).toHaveBeenCalledTimes(1)
     expect(mockUpdateRow.mock.calls[0][0].data).toEqual({ col_name: 'Grace' })
+  })
+})
+
+describe('userTableServerTool.batch_update_rows', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(buildTable())
+  })
+
+  it('rejects string elements with the expected shape instead of crashing in the executor', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'batch_update_rows',
+        args: { tableId: 'tbl_1', updates: ['rowId', 'data'] },
+      },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe(
+      'updates[0] is a string, not a { rowId, data } object. Expected updates: [{ rowId, data: { col: val } }]'
+    )
+    expect(mockBatchUpdateRows).not.toHaveBeenCalled()
+  })
+
+  it('names the element that is missing its data object', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'batch_update_rows',
+        args: {
+          tableId: 'tbl_1',
+          updates: [{ rowId: 'row-1', data: { name: 'Ada' } }, { rowId: 'row-2' }],
+        },
+      },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe(
+      'updates[1] is missing a data object of column → value pairs. Expected updates: [{ rowId, data: { col: val } }]'
+    )
+    expect(mockBatchUpdateRows).not.toHaveBeenCalled()
+  })
+
+  it('spells out both accepted formats when updates is empty and no values map is given', async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'batch_update_rows', args: { tableId: 'tbl_1', updates: [] } },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe(
+      'Provide either a non-empty "updates" array of { rowId, data } objects or "columnName" + "values" map'
+    )
+    expect(mockBatchUpdateRows).not.toHaveBeenCalled()
+  })
+
+  it('forwards well-formed per-row patches to the batch service', async () => {
+    mockBatchUpdateRows.mockResolvedValue({ affectedCount: 1, affectedRowIds: ['row-1'] })
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'batch_update_rows',
+        args: { tableId: 'tbl_1', updates: [{ rowId: 'row-1', data: { name: 'Ada' } }] },
+      },
+      buildToolContext()
+    )
+
+    expect(result).toEqual({
+      success: true,
+      message: 'Updated 1 rows',
+      data: { affectedCount: 1, affectedRowIds: ['row-1'] },
+    })
+    expect(mockBatchUpdateRows).toHaveBeenCalledTimes(1)
+    const call = mockBatchUpdateRows.mock.calls[0][0] as {
+      updates: Array<{ rowId: string; data: Record<string, unknown> }>
+    }
+    expect(call.updates).toHaveLength(1)
+    expect(call.updates[0].rowId).toBe('row-1')
+    expect(Object.values(call.updates[0].data)).toEqual(['Ada'])
+  })
+
+  it('expands the columnName + values map into per-row patches', async () => {
+    mockBatchUpdateRows.mockResolvedValue({ affectedCount: 2, affectedRowIds: ['row-1', 'row-2'] })
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'batch_update_rows',
+        args: { tableId: 'tbl_1', columnName: 'name', values: { 'row-1': 'Ada', 'row-2': 'Bob' } },
+      },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(true)
+    const call = mockBatchUpdateRows.mock.calls[0][0] as {
+      updates: Array<{ rowId: string; data: Record<string, unknown> }>
+    }
+    expect(call.updates.map((update) => update.rowId)).toEqual(['row-1', 'row-2'])
+  })
+})
+
+describe('userTableServerTool.batch_insert_rows', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(buildTable())
+  })
+
+  it('rejects a row that is not a column → value object', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'batch_insert_rows',
+        args: { tableId: 'tbl_1', rows: [{ name: 'Ada' }, 'Bob'] },
+      },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe(
+      'rows[1] is a string, not a row data object. Expected rows: [{ col: val }]'
+    )
+    expect(mockBatchInsertRows).not.toHaveBeenCalled()
+  })
+
+  it('rejects rows that is not an array', async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'batch_insert_rows', args: { tableId: 'tbl_1', rows: { name: 'Ada' } } },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('Rows array is required and must not be empty')
+    expect(mockBatchInsertRows).not.toHaveBeenCalled()
   })
 })

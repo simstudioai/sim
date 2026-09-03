@@ -102,7 +102,7 @@ export const MicButton = memo(function MicButton({
           <span
             className={cn(
               'absolute inset-0 flex items-center justify-center transition-[opacity,filter,scale] duration-300 [transition-timing-function:cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none',
-              isListening ? 'scale-100 opacity-100 blur-0' : 'scale-[0.25] opacity-0 blur-[4px]'
+              isListening ? 'scale-100 opacity-100 blur-none' : 'scale-[0.25] opacity-0 blur-[4px]'
             )}
           >
             <VoiceWaveform audioLevelsRef={audioLevelsRef} isListening={isListening} />
@@ -110,7 +110,7 @@ export const MicButton = memo(function MicButton({
           <Mic
             className={cn(
               'size-[16px] transition-[opacity,filter,scale] duration-300 [transition-timing-function:cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none',
-              isListening ? 'scale-[0.25] opacity-0 blur-[4px]' : 'scale-100 opacity-100 blur-0'
+              isListening ? 'scale-[0.25] opacity-0 blur-[4px]' : 'scale-100 opacity-100 blur-none'
             )}
           />
         </Button>

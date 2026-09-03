@@ -172,7 +172,7 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
           return (
             <Tooltip.Root key={type}>
               <Tooltip.Trigger asChild>
-                <span className='flex size-5 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-4)]'>
+                <span className='flex size-5 shrink-0 items-center justify-center rounded-md bg-[var(--surface-4)]'>
                   <BrandIcon icon={Icon} className='size-[13px]' />
                 </span>
               </Tooltip.Trigger>
@@ -183,7 +183,7 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
         {hiddenEntries.length > 0 && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <span className='flex size-5 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-4)] font-medium text-[var(--text-muted)] text-micro'>
+              <span className='flex size-5 shrink-0 items-center justify-center rounded-md bg-[var(--surface-4)] font-medium text-[var(--text-muted)] text-micro'>
                 +{hiddenEntries.length}
               </span>
             </Tooltip.Trigger>

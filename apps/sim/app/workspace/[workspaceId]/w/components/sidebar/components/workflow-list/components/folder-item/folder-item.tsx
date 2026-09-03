@@ -528,7 +528,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleRenameKeyDown}
             onBlur={handleInputBlur}
-            className='min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
             maxLength={50}
             disabled={isRenaming}
             onClick={(e) => {
@@ -548,7 +548,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
             >
               <OverflowText label={folder.name} className='flex-1 text-[var(--text-body)]' />
             </div>
-            <div className='relative size-[18px] flex-shrink-0'>
+            <div className='relative size-[18px] shrink-0'>
               {folder.locked && (
                 <span
                   role='img'

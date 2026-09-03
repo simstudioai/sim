@@ -298,7 +298,7 @@ export function Preview({
               <Button
                 variant='ghost'
                 onClick={handleGoBack}
-                className='flex h-[28px] items-center gap-[5px] rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 text-[var(--text-secondary)] shadow-sm hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
+                className='flex h-[28px] items-center gap-[5px] rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 text-[var(--text-secondary)] shadow-xs hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
               >
                 <ArrowLeft className='size-[12px]' />
                 <span className='text-caption'>Back</span>
@@ -307,7 +307,7 @@ export function Preview({
             <Tooltip.Content side='bottom'>Go back to parent workflow</Tooltip.Content>
           </Tooltip.Root>
           {currentWorkflowName && (
-            <div className='flex h-[28px] max-w-[200px] items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-sm'>
+            <div className='flex h-[28px] max-w-[200px] items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-xs'>
               <OverflowText
                 label={currentWorkflowName}
                 className='text-[var(--text-secondary)] text-caption'
@@ -333,7 +333,7 @@ export function Preview({
       </div>
 
       {pinnedBlockId && workflowState.blocks[pinnedBlockId] && (
-        <div style={{ width: panelWidth }} className='relative h-full flex-shrink-0'>
+        <div style={{ width: panelWidth }} className='relative h-full shrink-0'>
           {/* Left-edge resize handle */}
           <div
             role='separator'

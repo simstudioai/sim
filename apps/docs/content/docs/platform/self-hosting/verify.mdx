@@ -4,9 +4,37 @@ description: A smoke test that exercises every subsystem in about ten minutes
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
 
 Run this after a first install, after an upgrade, and after a restore. Each step exercises a different subsystem, so a failure tells you exactly where to look.
+
+## `sim-setup doctor`
+
+Run this first. It is the fastest signal you have, and it catches most bad installs before you open a browser.
+
+```bash
+npx sim-setup doctor
+```
+
+Run it from the directory holding your `.env` and Compose file, or from a source checkout. It reports five groups:
+
+| Group | What it checks |
+|---|---|
+| **Env files** | Every `.env` the layout requires exists. `--fix` seeds a missing one from the example plus the values already in `apps/sim/.env` |
+| **Schema** | **Required** keys are present, are not still the example placeholder, are valid URLs where they should be, and have a usable shape — `ENCRYPTION_KEY` is checked as exactly 64 hex characters, the rest as a minimum length. Optional secrets are not shape-checked, so a malformed `API_ENCRYPTION_KEY` passes here and fails later at encrypt time. `--fix` generates missing or placeholder secrets |
+| **Consistency** | The same key agrees across files — `BETTER_AUTH_SECRET` between the app and realtime, and `DATABASE_URL` between the app and `packages/db` (a mismatch there means migrations ran against a different database). `--fix` mirrors the `apps/sim/.env` value |
+| **Coherence** | Configuration that is individually valid but jointly wrong: a feature flag whose dependency is unset, a storage provider that is half-configured, and a server flag whose `NEXT_PUBLIC_` twin disagrees with it |
+| **Live** | Postgres is reachable, pgvector is available, migrations are applied — on a standalone `npx sim-setup` install the published package carries no migration journal, so it can confirm what has been applied but not that it is current — Redis answers, and the running services respond on their ports. Doctor reads env files, so on the production Compose layout — where those values live inside the containers rather than in `.env` — the Postgres, migration, and Redis probes are skipped and only the HTTP health checks run |
+
+<Callout type="warn">
+  The check worth knowing about before you hit it: if `NEXT_PUBLIC_APP_URL` points at `sim.ai` or any subdomain of it, Sim treats the deployment as Sim's own hosted platform (`isHosted=true`) and disables self-host overrides. Doctor flags this. Use your own domain.
+</Callout>
+
+Two flags matter:
+
+- `--fix` applies the safe repairs above and re-runs the checks. It never touches anything it cannot repair deterministically.
+- `--json` prints the findings as structured JSON instead of the report, so CI can gate on it. The command exits `1` when anything failed.
+
+The full command list is in the [Docker guide](/platform/self-hosting/docker#the-sim-setup-cli). Doctor reads env files, so it covers Compose installs and source checkouts — it is not a Kubernetes tool. On Helm, use the infrastructure checks below.
 
 ## Checklist
 
@@ -14,7 +42,7 @@ Run this after a first install, after an upgrade, and after a restore. Each step
 |---|---|---|---|
 | 1 | Open your Sim URL and create an account | App, database, TLS, migrations | `kubectl logs deploy/sim-app` — and check the `migrations` init container |
 | 2 | Sign out and sign back in | Session handling, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | URLs must match your real origin exactly |
-| 3 | Open a workflow and drag two blocks onto the canvas | Realtime websocket connection | Browser console for socket errors; see [Networking](/platform/self-hosting/networking) |
+| 3 | Open a workflow and drag two blocks into the editor | Realtime websocket connection | Browser console for socket errors; see [Networking](/platform/self-hosting/networking) |
 | 4 | Open the same workflow in a second browser window and edit | Cross-replica collaboration | With >1 replica this needs [Redis](/platform/self-hosting/redis) |
 | 5 | Paste a model API key in settings and run a two-block workflow | Execution engine, credential encryption, outbound network | App logs; check `ENCRYPTION_KEY` is set and outbound egress is allowed |
 | 6 | Upload a small file in Files | File storage end to end | With object storage configured: presigned URL + bucket CORS. On local disk: the upload proxies through the app |
@@ -31,7 +59,7 @@ Run this after a first install, after an upgrade, and after a restore. Each step
 
 ## Infrastructure checks
 
-Before the UI walkthrough, confirm the deployment itself is healthy.
+After the checklist, confirm the deployment itself is healthy.
 
 ```bash
 # Everything running?
@@ -47,7 +75,7 @@ curl -fsS https://sim.yourdomain.com/api/health
 kubectl get cronjobs -n simstudio
 
 # Redis configured (multi-replica deployments) — confirms the variable is set,
-# not that Redis answers. Steps 3 and 4 below are the real reachability test.
+# not that Redis answers. Checklist steps 3 and 4 above are the real reachability test.
 kubectl exec -n simstudio deploy/sim-app -- printenv REDIS_URL
 ```
 
@@ -76,9 +104,9 @@ All six should be present on Compose: `simstudio`, `realtime`, `db`, `redis`, `c
 
 **Step 8 fails — knowledge base upload errors.** Knowledge bases need a hosted embedding provider — OpenAI, Azure OpenAI, or Gemini. There is no local embedding backend. If a key is set, check pgvector is installed on the database.
 
-**Step 9 fails — no email arrives.** With no provider configured, emails are written to the app logs instead of sent — check there first to confirm the message was generated, then debug the provider.
+**Step 9 fails — no email arrives.** With no provider configured the mailer no-ops: it records the recipient, subject, and sender at `info` and reports success, never the message body. Raise `LOG_LEVEL` to `INFO` to see that line — the variable is uppercase-only, and at the production default of `ERROR` nothing is logged at all.
 
-**Step 11 fails — schedule never fires.** Read the scheduler's logs (`docker compose logs cron`, or `kubectl get cronjobs -n simstudio`). A `401` there means the app and the scheduler disagree on `CRON_SECRET`.
+**Step 11 fails — schedule never fires.** Read the scheduler's logs (`docker compose -f docker-compose.prod.yml logs cron`, or `kubectl get cronjobs -n simstudio`). A `401` there means the app and the scheduler disagree on `CRON_SECRET`.
 
 ## After an upgrade
 
@@ -87,8 +115,3 @@ Re-run steps 1, 3, 5, 6, and 11 at minimum. Those cover the app, realtime, execu
 ## After a restore
 
 Run the whole list, and pay special attention to **step 5 with an OAuth-backed integration**. That is what proves `ENCRYPTION_KEY` matches the backup. An app that loads and logs in but cannot decrypt credentials looks healthy right up until someone runs a real workflow.
-
-<FAQ items={[
-  { question: "How long does this take?", answer: "About ten minutes, most of it waiting for step 11's scheduled run. Run the infrastructure checks first — they take seconds and catch the majority of failed installs before you open a browser."},
-  { question: "Do I need to run all of this after every upgrade?", answer: "No. Steps 1, 3, 5, 6, and 11 cover the app, realtime, execution, storage, and background jobs. Run the full list after a restore or a significant infrastructure change."},
-]} />

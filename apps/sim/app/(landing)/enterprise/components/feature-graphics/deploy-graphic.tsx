@@ -96,7 +96,7 @@ export function DeployGraphic({
         aria-hidden='true'
         className='absolute inset-0 flex flex-col items-center pr-8 max-lg:pr-6'
       >
-        <div className='mt-1 flex items-center gap-1.5 rounded-[12px] bg-[var(--surface-2)] py-1.5 pr-1.5 pl-2.5 shadow-sm'>
+        <div className='mt-1 flex items-center gap-1.5 rounded-[12px] bg-[var(--surface-2)] py-1.5 pr-1.5 pl-2.5 shadow-xs'>
           <span className='text-[var(--text-secondary)] text-caption'>{agentName}</span>
           <ChipTag variant='mono'>{versionTag}</ChipTag>
         </div>

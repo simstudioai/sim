@@ -31,7 +31,7 @@ const DRAFT_BAR_CLASSES = [styles.bar0, styles.bar1, styles.bar2, styles.bar3, s
  * audit tile's stamp-in, since the draft is written once, not re-typed),
  * and the closing delivery row is the tile's highlight — a white card in
  * the audit tile's exact chrome (`--white` fill, 1px `--border-1`
- * hairline, `rounded-xl`, `shadow-sm`) pairing a passing circle-check
+ * hairline, `rounded-xl`, `shadow-xs`) pairing a passing circle-check
  * and the delivery claim with a right-aligned timestamp. The header's
  * status tag carries the family's shared quiet 6s ring pulse. Both
  * motions are removed under `prefers-reduced-motion`.
@@ -92,7 +92,7 @@ export function DocumentDraftGraphic({
             />
           ))}
 
-          <div className='mt-2 flex items-center gap-2 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm'>
+          <div className='mt-2 flex items-center gap-2 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs'>
             <CircleCheck className='size-[13px] shrink-0 text-[var(--text-icon)]' />
             <span className='min-w-0 flex-1 truncate text-[var(--text-primary)] text-small'>
               {footerLabel}

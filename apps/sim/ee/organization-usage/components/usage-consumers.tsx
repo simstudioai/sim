@@ -147,12 +147,10 @@ function UsageConsumerRow({
         onSelect && 'transition-colors hover-hover:bg-[var(--surface-active)]'
       )}
     >
-      {ProviderIcon && (
-        <ProviderIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      )}
+      {ProviderIcon && <ProviderIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
       <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>{row.label}</span>
       <div
-        className='h-[4px] w-[64px] flex-shrink-0 overflow-hidden rounded-full bg-[var(--border)]'
+        className='h-[4px] w-[64px] shrink-0 overflow-hidden rounded-full bg-[var(--border)]'
         aria-hidden='true'
       >
         <div
@@ -160,7 +158,7 @@ function UsageConsumerRow({
           style={{ width: `${Math.max(2, Math.round(row.share * 100))}%` }}
         />
       </div>
-      <span className='w-[72px] flex-shrink-0 text-right text-[var(--text-muted)] text-caption tabular-nums'>
+      <span className='w-[72px] shrink-0 text-right text-[var(--text-muted)] text-caption tabular-nums'>
         {showTokensOnly ? formatChartCompactNumber(row.tokens ?? 0) : row.credits.toLocaleString()}
       </span>
       {/* An arrow or a menu, never both — `sim-settings-pages.md`. */}
@@ -169,7 +167,7 @@ function UsageConsumerRow({
       ) : actions?.length ? (
         <RowActionsMenu label={`${row.label} actions`} actions={actions} />
       ) : reservedTrailing ? (
-        <span className={cn(reservedTrailing, 'flex-shrink-0')} aria-hidden='true' />
+        <span className={cn(reservedTrailing, 'shrink-0')} aria-hidden='true' />
       ) : null}
     </Row>
   )
@@ -273,7 +271,7 @@ export function UsageConsumers({
               <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-sm'>
                 {`Other (${breakdown.other.rowCount} more)`}
               </span>
-              <span className='w-[72px] flex-shrink-0 text-right text-[var(--text-muted)] text-caption tabular-nums'>
+              <span className='w-[72px] shrink-0 text-right text-[var(--text-muted)] text-caption tabular-nums'>
                 {showTokensOnly
                   ? formatChartCompactNumber(breakdown.other.tokens)
                   : breakdown.other.credits.toLocaleString()}
@@ -286,7 +284,7 @@ export function UsageConsumers({
               */}
               {trailingSlot && (
                 <span
-                  className={cn(trailingSlot, 'flex flex-shrink-0 items-center justify-center')}
+                  className={cn(trailingSlot, 'flex shrink-0 items-center justify-center')}
                   aria-hidden='true'
                 >
                   {onExpandOther && <ChevronDown className={disclosureChevronClass} />}

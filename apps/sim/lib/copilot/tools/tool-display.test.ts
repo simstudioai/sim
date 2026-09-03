@@ -378,6 +378,12 @@ describe('getToolDisplayTitle for operation-driven tools', () => {
     expect(getToolDisplayTitle('manage_knowledge_base', { operation: 'query' })).toBe(
       'Searching knowledge base'
     )
+    expect(
+      getToolDisplayTitle('manage_knowledge_base', {
+        operation: 'query',
+        args: { query: 'volvo delivery process' },
+      })
+    ).toBe('Searching knowledge base for volvo delivery process')
     expect(getToolDisplayTitle('manage_knowledge_base', { operation: 'sync_connector' })).toBe(
       'Syncing knowledge base connector'
     )
@@ -706,23 +712,38 @@ describe('terminal-title projection is idempotent', () => {
 
 describe('resource-naming titles', () => {
   it('names the table a row/column operation targets', () => {
-    expect(getToolDisplayTitle('table_rows', { operation: 'insert', tableName: 'Runtimes' })).toBe(
-      'Adding rows to Runtimes'
-    )
+    expect(
+      getToolDisplayTitle('table_rows', { operation: 'insert_row', tableName: 'Runtimes' })
+    ).toBe('Adding rows to Runtimes')
     expect(
       getToolDisplayTitle('table_columns', {
-        operation: 'add',
+        operation: 'add_column',
         columnName: 'status',
         tableName: 'Runtimes',
       })
     ).toBe('Adding column status in Runtimes')
-    expect(getToolDisplayTitle('table_views', { operation: 'list', tableName: 'Runtimes' })).toBe(
-      'Reading views of Runtimes'
-    )
+    expect(
+      getToolDisplayTitle('table_views', { operation: 'list_views', tableName: 'Runtimes' })
+    ).toBe('Reading views of Runtimes')
+  })
+
+  it('matches the verb inside compound operation ids', () => {
+    expect(
+      getToolDisplayTitle('table_rows', { operation: 'batch_update_rows', tableName: 'Runtimes' })
+    ).toBe('Updating rows in Runtimes')
+    expect(
+      getToolDisplayTitle('table_rows', {
+        operation: 'delete_rows_by_filter',
+        tableName: 'Runtimes',
+      })
+    ).toBe('Deleting rows in Runtimes')
+    expect(
+      getToolDisplayTitle('table_views', { operation: 'set_default_view', tableName: 'Runtimes' })
+    ).toBe('Editing views of Runtimes')
   })
 
   it('falls back cleanly when the table is unnamed', () => {
-    expect(getToolDisplayTitle('table_rows', { operation: 'update' })).toBe('Updating rows')
+    expect(getToolDisplayTitle('table_rows', { operation: 'update_row' })).toBe('Updating rows')
   })
 
   it('names the block behind a block-schema read', () => {

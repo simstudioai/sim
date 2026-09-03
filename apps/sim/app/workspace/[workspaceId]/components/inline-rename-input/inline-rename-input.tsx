@@ -66,7 +66,7 @@ export function InlineRenameInput({
         }
       }}
       onClick={(e) => e.stopPropagation()}
-      className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+      className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
       maxLength={100}
       disabled={disabled}
       autoComplete='off'

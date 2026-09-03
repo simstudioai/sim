@@ -196,7 +196,7 @@ function LogsTableRow({ row, visible }: LogsTableRowProps) {
     >
       <td className='px-6 align-middle'>
         <div className='flex items-center gap-2'>
-          <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+          <Workflow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
           <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
             {row.workflowName}
           </span>
@@ -283,7 +283,7 @@ export function LogsHeroLoop() {
             fading ? 'opacity-0' : 'opacity-100'
           )}
         >
-          <div className='flex h-[44px] flex-shrink-0 items-center border-[var(--border)] border-b px-6'>
+          <div className='flex h-[44px] shrink-0 items-center border-[var(--border)] border-b px-6'>
             <div className='flex w-full items-center justify-between'>
               <div className='flex items-center gap-3'>
                 <Library className='size-[14px] text-[var(--text-icon)]' />
@@ -304,10 +304,10 @@ export function LogsHeroLoop() {
             </div>
           </div>
 
-          <div className='flex-shrink-0 border-[var(--border)] border-b px-6 py-2.5'>
+          <div className='shrink-0 border-[var(--border)] border-b px-6 py-2.5'>
             <div className='flex items-center justify-between'>
               <div className='flex flex-1 items-center gap-2.5'>
-                <Search className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                <Search className='size-[14px] shrink-0 text-[var(--text-icon)]' />
                 <span className='flex-1 text-[var(--text-muted)] text-caption'>Search logs...</span>
               </div>
               <div className='flex items-center gap-1.5'>
@@ -351,7 +351,7 @@ export function LogsHeroLoop() {
                 >
                   <td className='px-6 align-middle'>
                     <div className='flex items-center gap-2'>
-                      <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                      <Workflow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
                       <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
                         {LIVE_ROW.workflowName}
                       </span>

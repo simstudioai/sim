@@ -5,6 +5,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import type { DbOrTx } from '@/lib/db/types'
+import { buildFolderPathIndex, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { assertFolderCollectionHasRoom } from '@/lib/folders/queries'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
@@ -59,6 +60,14 @@ interface ResolveForkFolderMappingParams {
    * would end up empty.
    */
   contentFolderIds: ReadonlyArray<string | null>
+  /** Canonical path references that must exist even when no copied file directly occupies them. */
+  contentFolderPaths?: ReadonlyArray<string>
+}
+
+export interface ForkFolderMappingResult {
+  folderIdMap: Map<string, string>
+  /** Source canonical path -> target canonical path for directly referenced folders. */
+  folderPathMap: Map<string, string>
 }
 
 /**
@@ -67,9 +76,10 @@ interface ResolveForkFolderMappingParams {
  * nesting stays intact). Target folders that already match by name within the same (mapped)
  * parent are reused instead of duplicated. Folders whose subtree holds no copied content are
  * pruned - never created - though a pruned folder still maps onto an existing target folder
- * when one matches, so previously-synced content refs keep resolving. Returns a map from
- * source folder id to target folder id; copied content whose folder is absent from the
- * map is placed at the target's root (see {@link copyWorkflowStateIntoTarget}).
+ * when one matches, so previously-synced content refs keep resolving. Canonical paths in
+ * `contentFolderPaths` are also retained even when empty because workflows reference them
+ * directly. Returns both id and path maps; copied content whose folder id is absent is placed
+ * at the target's root (see {@link copyWorkflowStateIntoTarget}).
  *
  * Call once per folder-bearing family being copied; the returned maps are disjoint (folder ids
  * are globally unique) and safe to merge for content-reference rewriting.
@@ -82,8 +92,10 @@ export async function resolveForkFolderMapping({
   now,
   resourceType,
   contentFolderIds,
-}: ResolveForkFolderMappingParams): Promise<Map<string, string>> {
-  const map = new Map<string, string>()
+  contentFolderPaths = [],
+}: ResolveForkFolderMappingParams): Promise<ForkFolderMappingResult> {
+  const folderIdMap = new Map<string, string>()
+  const folderPathMap = new Map<string, string>()
 
   const sourceFolders = await tx
     .select()
@@ -96,9 +108,16 @@ export async function resolveForkFolderMapping({
       )
     )
 
-  if (sourceFolders.length === 0) return map
+  if (sourceFolders.length === 0) {
+    if (contentFolderPaths.includes(ROOT_FOLDER_PATH)) {
+      folderPathMap.set(ROOT_FOLDER_PATH, ROOT_FOLDER_PATH)
+    }
+    return { folderIdMap, folderPathMap }
+  }
 
   const byId = new Map(sourceFolders.map((folder) => [folder.id, folder]))
+  const sourcePathIndex =
+    contentFolderPaths.length > 0 ? buildFolderPathIndex(sourceFolders) : undefined
 
   // Kept = folders that directly hold copied content plus every ancestor; everything else
   // would be empty in the target and is pruned. A dangling (archived) parent ends the walk,
@@ -106,6 +125,15 @@ export async function resolveForkFolderMapping({
   const kept = new Set<string>()
   for (const folderId of contentFolderIds) {
     let current = folderId ? byId.get(folderId) : undefined
+    while (current && !kept.has(current.id)) {
+      kept.add(current.id)
+      current = current.parentId ? byId.get(current.parentId) : undefined
+    }
+  }
+  for (const path of contentFolderPaths) {
+    const folderId = sourcePathIndex?.idByPath.get(path)
+    if (!folderId) continue
+    let current = byId.get(folderId)
     while (current && !kept.has(current.id)) {
       kept.add(current.id)
       current = current.parentId ? byId.get(current.parentId) : undefined
@@ -142,21 +170,21 @@ export async function resolveForkFolderMapping({
   const newFolders: (typeof sourceFolders)[number][] = []
   for (const folder of ordered) {
     const isKept = kept.has(folder.id)
-    const mappedParentId = folder.parentId ? (map.get(folder.parentId) ?? null) : null
+    const mappedParentId = folder.parentId ? (folderIdMap.get(folder.parentId) ?? null) : null
     const key = `${mappedParentId ?? ''}::${folder.name}`
     const existing = targetByKey.get(key)
     if (existing) {
       // A pruned folder may still MAP onto an existing target folder, but only when its
       // parent chain actually resolved: an unmapped pruned parent aliases the key to root
       // level, which could match an unrelated same-named root folder.
-      if (isKept || !folder.parentId || map.has(folder.parentId)) {
-        map.set(folder.id, existing)
+      if (isKept || !folder.parentId || folderIdMap.has(folder.parentId)) {
+        folderIdMap.set(folder.id, existing)
       }
       continue
     }
     if (!isKept) continue
     const newFolderId = generateId()
-    map.set(folder.id, newFolderId)
+    folderIdMap.set(folder.id, newFolderId)
     targetByKey.set(key, newFolderId)
     newFolders.push({
       ...folder,
@@ -189,7 +217,16 @@ export async function resolveForkFolderMapping({
     await tx.insert(folderTable).values(newFolders)
   }
 
-  return map
+  for (const path of contentFolderPaths) {
+    if (path === ROOT_FOLDER_PATH) {
+      folderPathMap.set(path, path)
+      continue
+    }
+    const sourceFolderId = sourcePathIndex?.idByPath.get(path)
+    if (sourceFolderId && folderIdMap.has(sourceFolderId)) folderPathMap.set(path, path)
+  }
+
+  return { folderIdMap, folderPathMap }
 }
 
 // `\u0000` (a NUL byte) can never appear in a Postgres text column, so it is a

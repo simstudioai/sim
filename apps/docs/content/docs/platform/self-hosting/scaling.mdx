@@ -4,13 +4,12 @@ description: Replicas, connection pooling, autoscaling, and where the limits act
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
 
 ## What scales how
 
 | Component | Scaling | Notes |
 |---|---|---|
-| **app** | Horizontal | Stateless. **Requires Redis** past one replica |
+| **app** | Horizontal | Stateless once object storage is configured. **Requires Redis** past one replica |
 | **realtime** | Horizontal | **Requires Redis** past one replica (Socket.IO adapter) |
 | **postgresql** | Vertical + read replicas | The eventual bottleneck |
 | **redis** | Vertical / HA pair | Coordination only; small |
@@ -38,9 +37,11 @@ app:
       cpu: 1000m
 ```
 
-**Memory is the constraint, not CPU.** Workflow executions run inside the app process in isolated-vm sandboxes, and file parsing happens in memory. Production telemetry shows 4–8 GB steady with peaks to 12 GB under heavy execution load. Under-provision memory and you get OOMKills that terminate in-flight workflow runs.
+The `resources` block above is the chart's default — it is shown so the numbers are visible, not because it changes anything. Only `replicaCount` needs setting unless you are raising the ceiling.
 
-A PodDisruptionBudget is created automatically once `replicaCount > 1` (`maxUnavailable: 25%`). Tighten it with `podDisruptionBudget.minAvailable` if you need to.
+**Memory is the constraint, not CPU.** Workflow executions run inside the app process in isolated-vm sandboxes, and file parsing happens in memory. Production telemetry shows 4–8 GB steady with peaks to 12 GB under heavy execution load. Under-provision memory and you get OOMKills that terminate in-flight workflow runs — so raise `limits.memory` above the 8 Gi default if your workload shows those peaks.
+
+A PodDisruptionBudget is created automatically once `replicaCount > 1`, or once `autoscaling.enabled` with `minReplicas > 1` (`maxUnavailable: 25%`). The app and realtime each consider their own `replicaCount`, but the autoscaling term is shared: `minReplicas > 1` creates both PDBs, including realtime's when `autoscaling.realtime.enabled` is false and no realtime HPA exists. Tighten it with `podDisruptionBudget.minAvailable` if you need to.
 
 ### Autoscaling
 
@@ -77,7 +78,7 @@ Each app replica opens a pool. Total connections grow with replica count, and Po
 
 Budget it: `replicas × pool size + realtime + cronjobs + migrations + headroom` must stay under `max_connections`.
 
-For anything beyond a handful of replicas, put **PgBouncer** in transaction pooling mode in front of the database and point `DATABASE_URL` at it. This is the single highest-leverage change for a large deployment — it decouples app replica count from database connection count.
+For anything beyond a handful of replicas, put **PgBouncer** in transaction pooling mode in front of the database and point the chart at it with `externalDatabase.enabled: true`, `externalDatabase.host`, and `externalDatabase.port`, alongside `postgresql.enabled: false`. Both halves are required — with `postgresql.enabled: false` and `externalDatabase.enabled` still false the chart renders an empty `DATABASE_URL`. Setting `app.env.DATABASE_URL` does nothing — the chart computes `DATABASE_URL` itself and inlines it on the container, where it overrides anything from the Secret. This is the single highest-leverage change for a large deployment — it decouples app replica count from database connection count.
 
 ### Read replicas
 
@@ -129,9 +130,6 @@ A production deployment serving ~100 active users:
 ```yaml
 app:
   replicaCount: 3
-  resources:
-    limits: { memory: 8Gi, cpu: 2000m }
-    requests: { memory: 4Gi, cpu: 1000m }
   env:
     REDIS_URL: "rediss://:<password>@redis.internal:6380"
 
@@ -149,6 +147,15 @@ externalDatabase:
   port: 6432
   database: simstudio
   sslMode: require
+  # Replace with your real password. It must match ^[a-zA-Z0-9._-]+$ — the
+  # chart rejects anything else, including the angle brackets a placeholder
+  # would normally use.
+  #
+  # Required unless you use externalDatabase.existingSecret or External
+  # Secrets, either of which skips both checks. Under External Secrets, map
+  # externalSecrets.remoteRefs.externalDatabase.password — an omitted mapping
+  # renders no Secret and the pod cannot start.
+  password: "replace-with-your-password"
 
 autoscaling:
   enabled: true
@@ -160,10 +167,3 @@ podDisruptionBudget:
 ```
 
 Plus: managed Postgres with PITR, managed Redis in an HA tier, object storage with versioning, and images pinned to an explicit tag.
-
-<FAQ items={[
-  { question: "Should I scale up or scale out?", answer: "Scale out for concurrent users and workflow throughput. Scale up when individual executions are memory-hungry — a single large document parse or execution has to fit in one pod. Memory is almost always the binding constraint."},
-  { question: "When do I need PgBouncer?", answer: "Once replica count times pool size approaches Postgres max_connections — typically past a handful of replicas. Transaction pooling decouples app replicas from database connections and is the highest-leverage change for a large deployment."},
-  { question: "Does the HPA interrupt running workflows?", answer: "Scale-down can terminate a pod mid-execution. Use a conservative minReplicas and a long scale-down stabilization window so long-running executions are not repeatedly interrupted."},
-  { question: "Can I use a read replica?", answer: "Yes. Set DATABASE_REPLICA_URL and latency-tolerant reads — log listing, audit logs, dashboard aggregations — are routed to it. Per-role overrides exist for the web, realtime, and trigger components." },
-]} />

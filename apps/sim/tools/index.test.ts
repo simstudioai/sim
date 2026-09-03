@@ -796,7 +796,17 @@ describe('executeTool Function', () => {
     })
 
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
   })
 
   afterEach(() => {
@@ -2771,7 +2781,17 @@ describe('Internal Route Trust', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
 
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
     mockSecureFetchWithPinnedIP.mockResolvedValue({
@@ -4245,7 +4265,17 @@ describe('File Parameter Normalization', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
     mockResolveWorkspaceFileReference.mockReset()
   })
 
@@ -4461,7 +4491,17 @@ describe('Copilot OAuth Credential Enforcement', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
   })
 
   afterEach(() => {
@@ -4598,7 +4638,17 @@ describe('Copilot Env Variable Reference Resolution', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
     mockGetEffectiveDecryptedEnv.mockReset()
     mockGetEffectiveDecryptedEnv.mockResolvedValue({ SENTRY_AUTH_TOKEN: 'sntrys_real_token' })
   })
@@ -4821,7 +4871,17 @@ describe('Centralized Error Handling', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
   })
 
   afterEach(() => {
@@ -5041,7 +5101,17 @@ describe('MCP Tool Execution', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
   })
 
   afterEach(() => {
@@ -5323,7 +5393,17 @@ describe('Hosted Key Injection', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
     vi.clearAllMocks()
     mockGetBYOKKey.mockReset()
   })
@@ -5752,7 +5832,17 @@ describe('stripInternalFields Safety', () => {
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
-    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    /*
+     * getInternalApiBaseUrl prefers INTERNAL_API_BASE_URL over the app URL, so
+     * pinning only NEXT_PUBLIC_APP_URL lets a developer's real .env decide the
+     * URL these tests assert on. Anyone running the app on a non-default port
+     * saw three unrelated-looking failures here.
+     */
+    process.env.INTERNAL_API_BASE_URL = ''
+    cleanupEnvVars = setupEnvVars({
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      INTERNAL_API_BASE_URL: '',
+    })
   })
 
   afterEach(() => {

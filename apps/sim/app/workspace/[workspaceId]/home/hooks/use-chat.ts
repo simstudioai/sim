@@ -18,6 +18,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   addMothershipChatResourceContract,
@@ -66,10 +67,13 @@ import {
 } from '@/lib/copilot/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { canDisplayResource } from '@/lib/copilot/resources/availability'
+import { ResourcePersistenceQueue } from '@/lib/copilot/resources/client-persistence-queue'
 import {
   BROWSER_SESSION_RESOURCE_ID,
   isAddressableResource,
   isEphemeralResource,
+  type MothershipResourceUpdate,
+  mergeChatResource,
   sanitizeChatResources,
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/copilot/resources/types'
@@ -98,6 +102,7 @@ import {
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { chatUrl } from '@/app/workspace/[workspaceId]/home/hooks/chat-url'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import {
   captureResourceActivityScope,
@@ -136,12 +141,14 @@ import type {
   QueuedSendHandoffSeed,
 } from '@/stores/mothership-queue/types'
 import type { ChatContext } from '@/stores/panel'
+import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type {
   ChatMessage,
   ChatMessageContext,
+  ChatRequestMode,
   ContentBlock,
   FileAttachmentForApi,
   GenericResourceData,
@@ -158,6 +165,8 @@ export interface SendMessageOptions {
    * attempts instead of opening a second chat.
    */
   resumeUserMessageId?: string
+  /** Asked for beyond the default agent turn; `ask` answers from the attached knowledge alone. */
+  requestMode?: ChatRequestMode
 }
 
 /**
@@ -181,6 +190,7 @@ interface StartSendMessageOptions {
    * opening a second chat and billing a second turn.
    */
   resumeUserMessageId?: string
+  requestMode?: ChatRequestMode
 }
 
 /** A send an unmount cleanup withdrew, as handed to the next chat surface. */
@@ -189,6 +199,7 @@ interface WithdrawnSend {
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
   userMessageId: string
+  requestMode?: ChatRequestMode
 }
 
 export interface UseChatReturn {
@@ -210,7 +221,7 @@ export interface UseChatReturn {
   resources: MothershipResource[]
   activeResourceId: string | null
   setActiveResourceId: (id: string | null) => void
-  addResource: (resource: MothershipResource) => boolean
+  addResource: (resource: MothershipResourceUpdate) => boolean
   removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
   reorderResources: (resources: MothershipResource[]) => void
   messageQueue: QueuedMessage[]
@@ -299,6 +310,7 @@ interface QueuedSendHandoffState {
   message: string
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
+  requestMode?: ChatRequestMode
   requestedAt: number
   resolveAttempts?: number
 }
@@ -906,10 +918,19 @@ function markMessageStopped(message: PersistedMessage): PersistedMessage {
   })
 }
 
+function buildChatResourceHydrationKey(resource: MothershipResource): string {
+  return JSON.stringify([
+    resource.type,
+    resource.id,
+    resource.title,
+    resource.path ?? null,
+    resource.viewId ?? null,
+    resource.executionId ?? null,
+  ])
+}
+
 function buildChatHistoryHydrationKey(chatHistory: MothershipChatHistory): string {
-  const resourceKey = chatHistory.resources
-    .map((resource) => `${resource.type}:${resource.id}:${resource.title}`)
-    .join('|')
+  const resourceKey = chatHistory.resources.map(buildChatResourceHydrationKey).join('|')
   const messageKey = chatHistory.messages.map((message) => message.id).join('|')
   const streamSnapshot = chatHistory.streamSnapshot
   const snapshotKey = streamSnapshot
@@ -1381,9 +1402,27 @@ export function useChat(
    * make the tabs disappear for the desktop app too.
    */
   const undisplayableResourcesRef = useRef<MothershipResource[]>([])
-  const pendingPersistResourceKeysRef = useRef<Set<string>>(new Set())
-  const inFlightResourceAddsRef = useRef<Map<string, Promise<unknown>>>(new Map())
-  const reorderNeededAfterFlushRef = useRef(false)
+  const resourcePersistenceQueueRef = useRef<ResourcePersistenceQueue | null>(null)
+  if (!resourcePersistenceQueueRef.current) {
+    resourcePersistenceQueueRef.current = new ResourcePersistenceQueue({
+      persist: (chatId, update) => {
+        const { clearViewId, ...resource } = update
+        return requestJson(addMothershipChatResourceContract, {
+          body: {
+            chatId,
+            resource,
+            ...(clearViewId === true ? { clearViewId: true as const } : {}),
+          },
+        })
+      },
+      onError: (error) => {
+        logger.warn('Failed to persist resource; will retry on next hydration', error)
+      },
+    })
+  }
+  const resourcePersistenceQueue = resourcePersistenceQueueRef.current
+  const pendingResourceReordersRef = useRef(new Map<string, MothershipResource[]>())
+  const pendingResourceReorderFlushesRef = useRef(new Map<string, Promise<void>>())
 
   // Derive the effective active resource ID for rendering without writing a
   // passive fallback back into the user's URL selection.
@@ -1637,10 +1676,9 @@ export function useChat(
     setTransportIdle()
     setResources([])
     setActiveResourceId(null)
+    // Pending view pins belong to the chat whose stream issued them.
+    useTableViewPinStore.getState().reset()
     undisplayableResourcesRef.current = []
-    pendingPersistResourceKeysRef.current.clear()
-    inFlightResourceAddsRef.current.clear()
-    reorderNeededAfterFlushRef.current = false
     resetEphemeralPreviewState()
     // Editing binds to this hook's composer — release it before rotating chatKey.
     useMothershipQueueStore.getState().setEditing(chatKeyRef.current, null)
@@ -1667,47 +1705,69 @@ export function useChat(
     workspaceId,
   ])
 
-  const flushPendingResources = useCallback(async (chatId: string) => {
-    const pendingKeys = pendingPersistResourceKeysRef.current
-    if (pendingKeys.size === 0) return
-    const flushPromises: Array<Promise<unknown>> = []
-    for (const resource of resourcesRef.current) {
-      if (resource.id === 'streaming-file') continue
-      const key = `${resource.type}:${resource.id}`
-      if (!pendingKeys.has(key)) continue
-      pendingKeys.delete(key)
-      const promise = requestJson(addMothershipChatResourceContract, {
-        body: { chatId, resource },
+  const flushPendingResourceReorder = useCallback(
+    (chatId: string): Promise<void> => {
+      const activeFlush = pendingResourceReorderFlushesRef.current.get(chatId)
+      if (activeFlush) return activeFlush
+
+      const flush = async () => {
+        while (true) {
+          const pendingOrder = pendingResourceReordersRef.current.get(chatId)
+          if (!pendingOrder) return
+          if (resourcePersistenceQueue.hasPendingIdentityChanges(chatId)) return
+
+          const inFlightWrites = resourcePersistenceQueue.getInFlightWrites(chatId)
+          if (inFlightWrites.length > 0) {
+            await Promise.allSettled(inFlightWrites)
+            continue
+          }
+
+          pendingResourceReordersRef.current.delete(chatId)
+          if (pendingOrder.length === 0) return
+          try {
+            await requestJson(reorderMothershipChatResourcesContract, {
+              body: { chatId, resources: pendingOrder },
+            })
+          } catch (error) {
+            // 400 is the server rejecting the body's identity set — a tab was
+            // closed after this order was captured. Replaying it verbatim can
+            // only fail again, so drop it and let the next reorder or hydration
+            // re-establish the order. Everything else (offline, 401, 5xx) is
+            // transient and keeps the body for the next retry.
+            const unsatisfiable = isApiClientError(error) && error.status === 400
+            if (!unsatisfiable && !pendingResourceReordersRef.current.has(chatId)) {
+              pendingResourceReordersRef.current.set(chatId, pendingOrder)
+            }
+            logger.warn(
+              unsatisfiable
+                ? 'Discarded a resource reorder the server rejected'
+                : 'Failed to persist resource reorder; will retry on next hydration',
+              error
+            )
+            return
+          }
+        }
+      }
+      const tracked = flush().finally(() => {
+        if (pendingResourceReorderFlushesRef.current.get(chatId) === tracked) {
+          pendingResourceReorderFlushesRef.current.delete(chatId)
+        }
       })
-        .catch((err) => {
-          pendingPersistResourceKeysRef.current.add(key)
-          logger.warn('Failed to flush pending resource; will retry on next hydration', err)
-        })
-        .finally(() => {
-          inFlightResourceAddsRef.current.delete(key)
-        })
-      inFlightResourceAddsRef.current.set(key, promise)
-      flushPromises.push(promise)
-    }
-    if (flushPromises.length === 0) return
-    await Promise.allSettled(flushPromises)
-    if (!reorderNeededAfterFlushRef.current) return
-    reorderNeededAfterFlushRef.current = false
-    const localOrder = [
-      ...resourcesRef.current.filter(
-        (r) =>
-          r.id !== 'streaming-file' &&
-          !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
-      ),
-      ...undisplayableResourcesRef.current,
-    ]
-    if (localOrder.length === 0) return
-    requestJson(reorderMothershipChatResourcesContract, {
-      body: { chatId, resources: localOrder },
-    }).catch((err) => {
-      logger.warn('Failed to sync resource order after flush', err)
-    })
-  }, [])
+      pendingResourceReorderFlushesRef.current.set(chatId, tracked)
+      return tracked
+    },
+    [resourcePersistenceQueue]
+  )
+
+  const flushPendingResources = useCallback(
+    async (chatId: string, sourceScopeId: string = chatId) => {
+      if (resourcePersistenceQueue.getPendingResourceKeys(sourceScopeId).size > 0) {
+        await resourcePersistenceQueue.flush(chatId, sourceScopeId)
+      }
+      await flushPendingResourceReorder(chatId)
+    },
+    [flushPendingResourceReorder, resourcePersistenceQueue]
+  )
 
   const adoptResolvedChatId = useCallback(
     (chatId: string, options?: { replaceHomeHistory?: boolean; invalidateList?: boolean }) => {
@@ -1779,12 +1839,12 @@ export function useChat(
         !workflowIdRef.current &&
         typeof window !== 'undefined'
       ) {
-        window.history.replaceState(null, '', `/workspace/${workspaceId}/chat/${chatId}`)
+        window.history.replaceState(null, '', chatUrl(workspaceId, chatId))
       }
       if (options?.invalidateList) {
         queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
       }
-      flushPendingResources(chatId)
+      flushPendingResources(chatId, pendingChatKey)
     },
     [flushPendingResources, queryClient, workspaceId]
   )
@@ -1795,87 +1855,102 @@ export function useChat(
     const source = chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages
     return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
   }, [chatHistory, pendingMessages])
-  const addResource = useCallback((resource: MothershipResource): boolean => {
-    // The single fan-in for tab creation, so the invariant lives here.
-    if (!isAddressableResource(resource)) {
-      logger.warn('Ignored a resource with no id', { type: resource.type, title: resource.title })
-      return false
-    }
-    if (resourcesRef.current.some((r) => r.type === resource.type && r.id === resource.id)) {
-      return false
-    }
-
-    setResources((prev) => {
-      const exists = prev.some((r) => r.type === resource.type && r.id === resource.id)
-      if (exists) return prev
-      return [...prev, resource]
-    })
-    // Synthetic result/preview panels are in-memory only. The browser tab
-    // metadata is persisted even though its live page remains desktop-owned.
-    if (isEphemeralResource(resource)) {
-      return true
-    }
-
-    const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
-    const key = `${resource.type}:${resource.id}`
-    // `resourcesRef` is written during render, so adds of the same resource in
-    // one tick all read the pre-render list and all pass the check above. State
-    // converges (the updater is idempotent) but each fired its own POST — 5-6
-    // per resource in production.
-    const alreadyPersisting =
-      inFlightResourceAddsRef.current.has(key) || pendingPersistResourceKeysRef.current.has(key)
-    if (alreadyPersisting) {
-      return true
-    }
-    if (persistChatId) {
-      const promise = requestJson(addMothershipChatResourceContract, {
-        body: { chatId: persistChatId, resource },
-      })
-        .catch((err) => {
-          pendingPersistResourceKeysRef.current.add(key)
-          logger.warn('Failed to persist resource; will retry on next hydration', err)
+  const addResource = useCallback(
+    (resourceUpdate: MothershipResourceUpdate): boolean => {
+      // The single fan-in for tab creation, so the invariant lives here.
+      if (!isAddressableResource(resourceUpdate)) {
+        logger.warn('Ignored a resource with no id', {
+          type: resourceUpdate.type,
+          title: resourceUpdate.title,
         })
-        .finally(() => {
-          inFlightResourceAddsRef.current.delete(key)
-        })
-      inFlightResourceAddsRef.current.set(key, promise)
-    } else {
-      pendingPersistResourceKeysRef.current.add(key)
-    }
-    return true
-  }, [])
+        return false
+      }
+      const existing = resourcesRef.current.find(
+        (r) => r.type === resourceUpdate.type && r.id === resourceUpdate.id
+      )
+      const resource = mergeChatResource(existing, resourceUpdate)
+      const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
+      if (persistChatId && !isEphemeralResource(resource)) {
+        queryClient.setQueryData<MothershipChatHistory>(
+          mothershipChatKeys.detail(persistChatId),
+          (current) => {
+            if (!current) return current
+            const cached = current.resources.find(
+              (item) => item.type === resource.type && item.id === resource.id
+            )
+            const merged = mergeChatResource(cached, resourceUpdate)
+            if (cached === merged) return current
+            return {
+              ...current,
+              resources: cached
+                ? current.resources.map((item) =>
+                    item.type === resource.type && item.id === resource.id ? merged : item
+                  )
+                : [...current.resources, merged],
+            }
+          }
+        )
+      }
+      if (existing && resource === existing && resourceUpdate.clearViewId !== true) {
+        return false
+      }
 
-  const removeResource = useCallback((resourceType: MothershipResourceType, resourceId: string) => {
-    setResources((prev) => prev.filter((r) => !(r.type === resourceType && r.id === resourceId)))
-    setActiveResourceId((prev) => (prev === resourceId ? null : prev))
-
-    // Ephemeral panels were never persisted; nothing to delete server-side.
-    if (isEphemeralResource({ type: resourceType, id: resourceId, title: '' })) return
-
-    const key = `${resourceType}:${resourceId}`
-    const wasPending = pendingPersistResourceKeysRef.current.delete(key)
-    const inFlightAdd = inFlightResourceAddsRef.current.get(key)
-    if (wasPending && !inFlightAdd) return
-
-    const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
-    if (!persistChatId) return
-    const fireDelete = () => {
-      requestJson(removeMothershipChatResourceContract, {
-        body: { chatId: persistChatId, resourceType, resourceId },
-      }).catch((err) => {
-        logger.warn('Failed to persist resource removal', err)
+      setResources((prev) => {
+        const current = prev.find((r) => r.type === resource.type && r.id === resource.id)
+        if (!current) return [...prev, resource]
+        const merged = mergeChatResource(current, resourceUpdate)
+        return merged === current
+          ? prev
+          : prev.map((r) => (r.type === resource.type && r.id === resource.id ? merged : r))
       })
-    }
-    if (inFlightAdd) {
-      // Drop the entry now, not when the add settles: an add being deleted must
-      // not suppress a fresh add of the same resource. The chained delete keeps
-      // its own reference to the promise.
-      inFlightResourceAddsRef.current.delete(key)
-      inFlightAdd.finally(fireDelete)
-    } else {
-      fireDelete()
-    }
-  }, [])
+      // Synthetic result/preview panels are in-memory only. The browser tab
+      // metadata is persisted even though its live page remains desktop-owned.
+      if (isEphemeralResource(resource)) {
+        return true
+      }
+
+      const persistenceScopeId = persistChatId ?? pendingChatKeyRef.current
+      resourcePersistenceQueue.enqueue(resourceUpdate, persistChatId, persistenceScopeId, existing)
+      return existing === undefined
+    },
+    [queryClient, resourcePersistenceQueue]
+  )
+
+  const removeResource = useCallback(
+    (resourceType: MothershipResourceType, resourceId: string) => {
+      setResources((prev) => prev.filter((r) => !(r.type === resourceType && r.id === resourceId)))
+      setActiveResourceId((prev) => (prev === resourceId ? null : prev))
+
+      // Ephemeral panels were never persisted; nothing to delete server-side.
+      if (isEphemeralResource({ type: resourceType, id: resourceId, title: '' })) return
+
+      const existing = resourcesRef.current.find(
+        (resource) => resource.type === resourceType && resource.id === resourceId
+      )
+      const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
+      const persistenceScopeId = persistChatId ?? pendingChatKeyRef.current
+      const {
+        inFlight: inFlightAdd,
+        scheduleDelete,
+        wasPending,
+        wasPersisted,
+      } = resourcePersistenceQueue.remove(
+        resourceType,
+        resourceId,
+        persistenceScopeId,
+        Boolean(existing && persistChatId)
+      )
+      if (wasPending && !inFlightAdd && !wasPersisted) return
+
+      if (!persistChatId) return
+      scheduleDelete(persistChatId, () =>
+        requestJson(removeMothershipChatResourceContract, {
+          body: { chatId: persistChatId, resourceType, resourceId },
+        })
+      )
+    },
+    [resourcePersistenceQueue]
+  )
 
   /**
    * Drops hydrated workflow tabs whose workflow no longer exists, so an old
@@ -1908,53 +1983,20 @@ export function useChat(
     [workspaceId, removeResource]
   )
 
-  const reorderResources = useCallback((newOrder: MothershipResource[]) => {
-    setResources(newOrder)
-    const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
-    if (!persistChatId) return
-    const pendingKeys = pendingPersistResourceKeysRef.current
-    const inFlightAdds = inFlightResourceAddsRef.current
-    const hasUnsyncedAdds = newOrder.some((r) => {
-      const key = `${r.type}:${r.id}`
-      return pendingKeys.has(key) || inFlightAdds.has(key)
-    })
-    if (hasUnsyncedAdds) {
-      reorderNeededAfterFlushRef.current = true
-      if (pendingKeys.size === 0 && inFlightAdds.size > 0) {
-        Promise.allSettled(Array.from(inFlightAdds.values())).then(() => {
-          if (!reorderNeededAfterFlushRef.current) return
-          reorderNeededAfterFlushRef.current = false
-          const chatId = chatIdRef.current ?? selectedChatIdRef.current
-          if (!chatId) return
-          const order = [
-            ...resourcesRef.current.filter(
-              (r) =>
-                !isEphemeralResource(r) &&
-                !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
-            ),
-            ...undisplayableResourcesRef.current,
-          ]
-          if (order.length === 0) return
-          requestJson(reorderMothershipChatResourcesContract, {
-            body: { chatId, resources: order },
-          }).catch((err) => {
-            logger.warn('Failed to sync resource order after in-flight ADDs', err)
-          })
-        })
-      }
-      return
-    }
-    const persistableResources = [
-      ...newOrder.filter((r) => !isEphemeralResource(r)),
-      ...undisplayableResourcesRef.current,
-    ]
-    if (persistableResources.length === 0) return
-    requestJson(reorderMothershipChatResourcesContract, {
-      body: { chatId: persistChatId, resources: persistableResources },
-    }).catch((err) => {
-      logger.warn('Failed to persist resource reorder', err)
-    })
-  }, [])
+  const reorderResources = useCallback(
+    (newOrder: MothershipResource[]) => {
+      setResources(newOrder)
+      const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
+      if (!persistChatId) return
+      const persistableResources = [
+        ...newOrder.filter((resource) => !isEphemeralResource(resource)),
+        ...undisplayableResourcesRef.current,
+      ]
+      pendingResourceReordersRef.current.set(persistChatId, persistableResources)
+      void flushPendingResourceReorder(persistChatId)
+    },
+    [flushPendingResourceReorder]
+  )
 
   const ensureWorkflowToolResource = useCallback(
     (toolArgs: Record<string, unknown>): string | undefined => {
@@ -2238,11 +2280,8 @@ export function useChat(
     const streamOwnerId = chatIdRef.current
     const pendingTurn = activeTurnRef.current
     const pendingStreamId = streamIdRef.current ?? pendingTurn?.userMessageId
-    const pendingResources = resourcesRef.current.filter(
-      (resource) =>
-        !isEphemeralResource(resource) &&
-        pendingPersistResourceKeysRef.current.has(`${resource.type}:${resource.id}`)
-    )
+    const pendingResourceScopeId =
+      streamOwnerId ?? pendingTurn?.pendingChatKey ?? pendingChatKeyRef.current
     const navigatedToDifferentChat =
       sendingRef.current &&
       initialChatId !== streamOwnerId &&
@@ -2287,13 +2326,7 @@ export function useChat(
             if (pendingChatKey) {
               useMothershipQueueStore.getState().migrate(pendingChatKey, resolvedChatId)
             }
-            await Promise.allSettled(
-              pendingResources.map((resource) =>
-                requestJson(addMothershipChatResourceContract, {
-                  body: { chatId: resolvedChatId, resource },
-                })
-              )
-            )
+            await resourcePersistenceQueue.flush(resolvedChatId, pendingResourceScopeId)
             queryClient.invalidateQueries({
               queryKey: mothershipChatKeys.detail(resolvedChatId),
             })
@@ -2339,9 +2372,7 @@ export function useChat(
     setTransportIdle()
     setResources([])
     setActiveResourceId(null)
-    pendingPersistResourceKeysRef.current.clear()
-    inFlightResourceAddsRef.current.clear()
-    reorderNeededAfterFlushRef.current = false
+    useTableViewPinStore.getState().reset()
     resetEphemeralPreviewState()
     // Rotate the bucket key; the previous chat's queue stays in the store.
     // Release editing on the chat we're leaving (composer-scoped).
@@ -2474,9 +2505,8 @@ export function useChat(
       mergedResources.length === resourcesRef.current.length &&
       mergedResources.every(
         (resource, index) =>
-          resourcesRef.current[index].type === resource.type &&
-          resourcesRef.current[index].id === resource.id &&
-          resourcesRef.current[index].title === resource.title
+          buildChatResourceHydrationKey(resourcesRef.current[index]) ===
+          buildChatResourceHydrationKey(resource)
       )
 
     if (mergedResources.length > 0) {
@@ -3698,7 +3728,8 @@ export function useChat(
       message: string,
       fileAttachments?: FileAttachmentForApi[],
       contexts?: ChatContext[],
-      resumeUserMessageId?: string
+      resumeUserMessageId?: string,
+      requestMode?: ChatRequestMode
     ): QueuedMothershipMessage => {
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
@@ -3719,6 +3750,7 @@ export function useChat(
         fileAttachments,
         contexts,
         ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
+        ...(requestMode ? { requestMode } : {}),
         ...(supersededStreamId || handoffChatId
           ? {
               queuedSendHandoff: {
@@ -3860,6 +3892,7 @@ export function useChat(
           message,
           ...(fileAttachments ? { fileAttachments } : {}),
           ...(contexts ? { contexts } : {}),
+          ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
           requestedAt: Date.now(),
         })
       }
@@ -4086,6 +4119,7 @@ export function useChat(
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
+            ...(options?.requestMode ? { mode: options.requestMode } : {}),
             ...(workflowIdRef.current ? { workflowId: workflowIdRef.current } : {}),
             // Desktop-only capabilities (local filesystem tools, browser
             // subagent) — the server gates the features on these flags.
@@ -4286,7 +4320,13 @@ export function useChat(
   const handOffWithdrawnSend = useCallback(
     (send: WithdrawnSend) => {
       if (
-        sendMothershipMessage(send.content, send.contexts, send.fileAttachments, send.userMessageId)
+        sendMothershipMessage(
+          send.content,
+          send.contexts,
+          send.fileAttachments,
+          send.userMessageId,
+          send.requestMode
+        )
       ) {
         return
       }
@@ -4296,6 +4336,7 @@ export function useChat(
           ...(send.contexts?.length ? { contexts: send.contexts } : {}),
           ...(send.fileAttachments?.length ? { fileAttachments: send.fileAttachments } : {}),
           resumeUserMessageId: send.userMessageId,
+          ...(send.requestMode ? { requestMode: send.requestMode } : {}),
         },
         workspaceId
       )
@@ -4325,6 +4366,7 @@ export function useChat(
             content: message,
             fileAttachments,
             contexts,
+            requestMode: options?.requestMode,
           })
           queueStore.setEditing(activeChatKey, null)
           // Resume dispatch if it paused on this slot.
@@ -4352,7 +4394,13 @@ export function useChat(
       ) {
         queueStore.enqueue(
           activeChatKey,
-          createQueuedMessage(message, fileAttachments, contexts, options?.resumeUserMessageId)
+          createQueuedMessage(
+            message,
+            fileAttachments,
+            contexts,
+            options?.resumeUserMessageId,
+            options?.requestMode
+          )
         )
         if (pendingStopPromiseRef.current || (queuedAheadCount > 0 && !sendingRef.current)) {
           void enqueueQueueDispatchRef.current({ type: 'send_head' })
@@ -4373,6 +4421,7 @@ export function useChat(
         fileAttachments,
         contexts,
         userMessageId: result.userMessageId,
+        ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
       }
       if (activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
         handOffWithdrawnSend(withdrawn)
@@ -4382,7 +4431,13 @@ export function useChat(
         .getState()
         .enqueue(
           activeChatKey,
-          createQueuedMessage(message, fileAttachments, contexts, result.userMessageId)
+          createQueuedMessage(
+            message,
+            fileAttachments,
+            contexts,
+            result.userMessageId,
+            options?.requestMode
+          )
         )
     },
     [workspaceId, createQueuedMessage, startSendMessage, handOffWithdrawnSend]
@@ -4556,6 +4611,7 @@ export function useChat(
     recoveringQueuedSendHandoffRef.current = { id: handoff.id, ownerId: claimOwnerId }
     void startSendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
       pendingStop: null,
+      ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
       queuedSendHandoff: {
         id: handoff.id,
         chatId: handoff.chatId,
@@ -4978,6 +5034,7 @@ export function useChat(
             content: dispatched.content,
             fileAttachments: dispatched.fileAttachments,
             contexts: dispatched.contexts,
+            ...(dispatched.requestMode ? { requestMode: dispatched.requestMode } : {}),
             userMessageId: withdrawnUserMessageId,
           })
           return
@@ -5016,6 +5073,7 @@ export function useChat(
             ...(liveMsg.resumeUserMessageId
               ? { resumeUserMessageId: liveMsg.resumeUserMessageId }
               : {}),
+            ...(liveMsg.requestMode ? { requestMode: liveMsg.requestMode } : {}),
           }
         )
 

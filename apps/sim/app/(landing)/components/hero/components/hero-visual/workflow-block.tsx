@@ -23,7 +23,7 @@ export function WorkflowBlock({
   handlesVisible = true,
 }: WorkflowBlockProps) {
   return (
-    <div className='relative w-[250px] rounded-[13px] border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm'>
+    <div className='relative w-[250px] rounded-[13px] border border-[var(--border-1)] bg-[var(--surface-2)] shadow-xs'>
       <div
         className={cn(
           'transition-opacity [transition-duration:360ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',

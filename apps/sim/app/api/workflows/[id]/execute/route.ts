@@ -1497,6 +1497,7 @@ async function handleExecutePost(
                 fileKeys: outputFileKeys,
                 allowLargeValueWorkflowScope,
                 userId: actorUserId,
+                principal: executionPrincipal,
                 maxBytes: base64MaxBytes,
                 preserveLargeValueMetadata: true,
               })) as NormalizedBlockOutput)
@@ -1701,6 +1702,7 @@ async function handleExecutePost(
         workspaceId,
         workflowId,
         userId: actorUserId,
+        principal: executionPrincipal,
         allowLargeValueWorkflowScope,
         requestSignal: req.signal,
         requestHeaders: req.headers,
@@ -2303,6 +2305,7 @@ async function handleExecutePost(
                 fileKeys: outputFileKeys,
                 allowLargeValueWorkflowScope,
                 userId: actorUserId,
+                principal: executionPrincipal,
                 maxBytes: base64MaxBytes,
                 preserveLargeValueMetadata: true,
               })

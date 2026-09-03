@@ -53,7 +53,10 @@ import {
 } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import { deriveForkBlockId } from '@/ee/workspace-forking/lib/remap/block-identity'
 import { createForkBootstrapTransform } from '@/ee/workspace-forking/lib/remap/fork-bootstrap'
-import { collectReferencedDocumentIds } from '@/ee/workspace-forking/lib/remap/reference-scan'
+import {
+  collectReferencedDocumentIds,
+  collectReferencedFileFolderPaths,
+} from '@/ee/workspace-forking/lib/remap/reference-scan'
 import type { ForkRemapKind } from '@/ee/workspace-forking/lib/remap/remap-references'
 
 const logger = createLogger('WorkspaceForkCreate')
@@ -145,6 +148,12 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   // tool params). Those whose parent KB is being copied get a placeholder + id map inside the
   // fork tx so their references remap to the copied document instead of being cleared.
   const referencedDocumentIds = collectReferencedDocumentIds(
+    deployedWorkflows.flatMap((wf) => {
+      const sourceState = sourceStates.get(wf.id)
+      return sourceState ? [sourceState] : []
+    })
+  )
+  const referencedFileFolderPaths = collectReferencedFileFolderPaths(
     deployedWorkflows.flatMap((wf) => {
       const sourceState = sourceStates.get(wf.id)
       return sourceState ? [sourceState] : []
@@ -277,6 +286,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       childWorkspaceId,
       userId,
       fileIds: selection.files,
+      folderPaths: Array.from(referencedFileFolderPaths),
       now,
     })
 
@@ -286,7 +296,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     // fork copies only DEPLOYED workflows, so folders holding none would be created empty in
     // the child and are pruned instead. The file/table/knowledge-base trees are mirrored
     // separately by their own copies and merged in below.
-    const workflowFolderIdMap = await resolveForkFolderMapping({
+    const { folderIdMap: workflowFolderIdMap } = await resolveForkFolderMapping({
       tx,
       sourceWorkspaceId: source.id,
       targetWorkspaceId: childWorkspaceId,
@@ -334,6 +344,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
 
     const resolveCopied = (kind: ForkRemapKind, sourceId: string): string | null => {
       if (kind === 'file') return fileResult.keyMap.get(sourceId) ?? null
+      if (kind === 'file-folder') return fileResult.folderPathMap.get(sourceId) ?? null
       const resourceType = FORK_KIND_TO_RESOURCE_TYPE[kind]
       if (!resourceType) return null
       return resourceResult.idMap.get(resourceType)?.get(sourceId) ?? null
@@ -469,6 +480,13 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         childResourceId: childKey,
       })
     }
+    for (const [sourcePath, childPath] of fileResult.folderPathMap) {
+      seedEntries.push({
+        resourceType: 'file_folder',
+        parentResourceId: sourcePath,
+        childResourceId: childPath,
+      })
+    }
     await seedEdgeMappings(tx, childWorkspaceId, userId, seedEntries)
 
     logger.info(`[${requestId}] Created fork ${childWorkspaceId} from ${source.id}`, {
@@ -542,6 +560,8 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         tables: contentPlan.tables.length,
         knowledgeBases: contentPlan.knowledgeBases.length,
         files: blobTasks.length,
+        skills: contentPlan.skills.length,
+        documents: contentPlan.documents.length,
         workflowNames: forkedWorkflowNames,
         tableNames: forkedResourceNames.tables,
         knowledgeBaseNames: forkedResourceNames.knowledgeBases,

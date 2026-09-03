@@ -63,18 +63,23 @@ import { typeformConnector } from '@/connectors/typeform/typeform'
 import {
   appendPendingMicrosoftGraphFolders,
   assertMicrosoftGraphNextLink,
+  BoundedLines,
   ConnectorFileTooLargeError,
+  ConnectorListingScopeUnavailableError,
   decodeMicrosoftGraphTraversalCursor,
   encodeMicrosoftGraphTraversalCursor,
   extractConnectorText,
   hasIndexablePayload,
   htmlToPlainText,
   isIndexableConnectorFile,
+  isSkippableMicrosoftGraphFolderError,
   isSkippedDocument,
   MICROSOFT_GRAPH_MAX_CURSOR_ENCODED_BYTES,
   MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES,
   MICROSOFT_GRAPH_MAX_PENDING_FOLDERS,
   markSkipped,
+  PER_MEMBER_LISTING_CONTEXT,
+  parseDefaultedUnlimitedSafeInteger,
   pipelineParsedMimeType,
   readBodyWithLimit,
   sizeLimitSkipReason,
@@ -1592,5 +1597,102 @@ describe('hasIndexablePayload', () => {
 
   it('rejects blank text', () => {
     expect(hasIndexablePayload({ content: '   ' })).toBe(false)
+  })
+})
+
+describe('parseDefaultedUnlimitedSafeInteger', () => {
+  const ERROR = 'bad cap'
+
+  it.each([undefined, null, '', '   '])('keeps the default for a blank field (%j)', (value) => {
+    expect(parseDefaultedUnlimitedSafeInteger(value, 500, ERROR)).toBe(500)
+  })
+
+  it('reads an explicit 0 as unlimited', () => {
+    expect(parseDefaultedUnlimitedSafeInteger(0, 500, ERROR)).toBe(0)
+    expect(parseDefaultedUnlimitedSafeInteger('0', 500, ERROR)).toBe(0)
+  })
+
+  it('parses a set cap and rejects a malformed one', () => {
+    expect(parseDefaultedUnlimitedSafeInteger(' 200 ', 500, ERROR)).toBe(200)
+    expect(() => parseDefaultedUnlimitedSafeInteger('many', 500, ERROR)).toThrow(ERROR)
+    expect(() => parseDefaultedUnlimitedSafeInteger(-1, 500, ERROR)).toThrow(ERROR)
+  })
+})
+
+describe('isSkippableMicrosoftGraphFolderError', () => {
+  const unreachable = new ConnectorListingScopeUnavailableError('folder', 403)
+  const perMember = { ...PER_MEMBER_LISTING_CONTEXT }
+
+  it('skips an unreachable descendant folder under a per-member listing', () => {
+    expect(isSkippableMicrosoftGraphFolderError(unreachable, perMember, false)).toBe(true)
+  })
+
+  it('never skips the configured root', () => {
+    expect(isSkippableMicrosoftGraphFolderError(unreachable, perMember, true)).toBe(false)
+  })
+
+  it('never skips under a shared credential', () => {
+    expect(isSkippableMicrosoftGraphFolderError(unreachable, {}, false)).toBe(false)
+    expect(isSkippableMicrosoftGraphFolderError(unreachable, undefined, false)).toBe(false)
+  })
+
+  it('never skips a fault the engine should retry', () => {
+    expect(isSkippableMicrosoftGraphFolderError(new Error('500'), perMember, false)).toBe(false)
+  })
+})
+
+describe('BoundedLines', () => {
+  it('joins everything when the text fits', () => {
+    const lines = new BoundedLines(64)
+    expect(lines.push('Subject: hi', '')).toBe(true)
+    expect(lines.push('--- a ---', 'body')).toBe(true)
+    expect(lines.join()).toBe('Subject: hi\n\n--- a ---\nbody')
+  })
+
+  it('refuses a record that would cross the ceiling, whole, and says so in the output', () => {
+    const lines = new BoundedLines(20)
+    expect(lines.push('first')).toBe(true)
+    expect(lines.push('--- header ---', 'a long body')).toBe(false)
+    expect(lines.push('x')).toBe(false)
+    expect(lines.join()).toBe('first\n[Truncated: the indexed text reached the size limit]')
+  })
+
+  it('counts encoded bytes, not characters', () => {
+    const lines = new BoundedLines(6)
+    expect(lines.push('éé')).toBe(true)
+    expect(lines.push('é')).toBe(false)
+  })
+
+  describe('keeping the last records', () => {
+    it('lets the oldest records go so the newest fit, under a header that stays', () => {
+      const lines = new BoundedLines(24, 'last')
+      lines.pin('# room')
+      expect(lines.push('one')).toBe(true)
+      expect(lines.push('two')).toBe(true)
+      expect(lines.push('three')).toBe(true)
+      expect(lines.push('four')).toBe(true)
+      expect(lines.count).toBe(3)
+      expect(lines.join()).toBe(
+        '# room\n[Truncated: earlier text was left out to fit the size limit]\ntwo\nthree\nfour'
+      )
+    })
+
+    it('refuses only a record that cannot fit on its own and carries on', () => {
+      const lines = new BoundedLines(12, 'last')
+      expect(lines.push('a very long record')).toBe(false)
+      expect(lines.push('short')).toBe(true)
+      expect(lines.push('next')).toBe(true)
+      expect(lines.count).toBe(2)
+      expect(lines.join()).toBe(
+        '[Truncated: earlier text was left out to fit the size limit]\nshort\nnext'
+      )
+    })
+
+    it('joins the header and records plainly when everything fits', () => {
+      const lines = new BoundedLines(64, 'last')
+      lines.pin('# room', '')
+      lines.push('hello')
+      expect(lines.join()).toBe('# room\n\nhello')
+    })
   })
 })

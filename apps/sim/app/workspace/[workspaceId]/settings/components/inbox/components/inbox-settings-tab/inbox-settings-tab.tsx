@@ -35,7 +35,7 @@ const SECRET_SCOPE_OPTIONS = [
   { value: 'selected', label: 'Selected secrets' },
 ]
 
-const DROPDOWN_TRIGGER_CLASS = 'w-[240px] flex-shrink-0'
+const DROPDOWN_TRIGGER_CLASS = 'w-[240px] shrink-0'
 
 export function InboxSettingsTab() {
   const params = useParams()

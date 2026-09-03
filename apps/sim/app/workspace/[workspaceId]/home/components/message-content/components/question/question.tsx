@@ -54,7 +54,7 @@ export function parseQuestionAnswerMessage(
 }
 
 /** Ghost icon-button chrome shared by the stepper chevrons and the dismiss X. */
-const ICON_BUTTON_CLASSES = 'relative size-[14px] flex-shrink-0 p-0'
+const ICON_BUTTON_CLASSES = 'relative size-[14px] shrink-0 p-0'
 
 /**
  * Leading checkbox slot for multi_select rows. Purely presentational — it
@@ -64,7 +64,7 @@ const ICON_BUTTON_CLASSES = 'relative size-[14px] flex-shrink-0 p-0'
  */
 function RowCheckbox({ checked, disabled }: { checked: boolean; disabled?: boolean }) {
   return (
-    <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
+    <div className='flex size-[16px] shrink-0 items-center justify-center'>
       <span
         data-state={checked ? 'checked' : 'unchecked'}
         data-disabled={disabled ? '' : undefined}
@@ -346,7 +346,7 @@ export function QuestionDisplay({
           divided={options.length > 0}
           leading={
             isMulti ? (
-              <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
+              <div className='flex size-[16px] shrink-0 items-center justify-center'>
                 <button
                   ref={freeTextCheckboxRef}
                   type='button'
@@ -427,7 +427,7 @@ export function QuestionDisplay({
             label={isLast ? 'Submit' : 'Continue'}
             disabled={!canSubmitStep}
             onClick={submitMultiStep}
-            leading={<div className='flex size-[16px] flex-shrink-0 items-center justify-center' />}
+            leading={<div className='flex size-[16px] shrink-0 items-center justify-center' />}
           />
         )}
       </div>

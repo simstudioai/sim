@@ -21,7 +21,7 @@ import { cn } from '../../lib/cn'
  * @example <Button variant='quiet' size='icon' aria-label='Dismiss'><X className='size-[16px]' /></Button>
  */
 const buttonVariants = cva(
-  'inline-flex items-center justify-center transition-colors disabled:pointer-events-none disabled:opacity-70 outline-none focus:outline-none focus-visible:outline-none rounded-[5px]',
+  'inline-flex items-center justify-center transition-colors disabled:pointer-events-none disabled:opacity-70 outline-hidden focus:outline-hidden focus-visible:outline-hidden rounded-[5px]',
   {
     variants: {
       variant: {

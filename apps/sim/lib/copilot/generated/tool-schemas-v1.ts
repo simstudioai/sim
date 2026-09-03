@@ -3227,6 +3227,9 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'array',
               description:
                 'Tag definition IDs to opt out of (optional for add_connector). See tagDefinitions in the connector schema.',
+              items: {
+                type: 'string',
+              },
             },
             documentId: {
               type: 'string',
@@ -4105,6 +4108,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'array',
               description:
                 'Sort spec for query_rows (optional). Ordered list of {field, direction} where direction is asc or desc, e.g. [{"field":"wins","direction":"desc"},{"field":"name","direction":"asc"}].',
+              items: {
+                type: 'object',
+                properties: {
+                  direction: {
+                    type: 'string',
+                    enum: ['asc', 'desc'],
+                  },
+                  field: {
+                    type: 'string',
+                  },
+                },
+                required: ['field', 'direction'],
+              },
             },
             rowId: {
               type: 'string',
@@ -5359,6 +5375,9 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'array',
               description:
                 'Array of column names to delete at once (preferred for multi-column delete_column)',
+              items: {
+                type: 'string',
+              },
             },
             multiple: {
               type: 'boolean',
@@ -5665,6 +5684,9 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'array',
               description:
                 'Array of row data objects (required for batch_insert_rows). TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds; a missing or null TTL means no expiration.',
+              items: {
+                type: 'object',
+              },
             },
             tableId: {
               type: 'string',
@@ -5674,6 +5696,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'array',
               description:
                 "Array of per-row updates: [{ rowId, data: { col: val } }] (batch_update_rows format a). TTL values are absolute whole Unix epoch seconds, never JavaScript milliseconds; omit a row's TTL key to preserve it or set it to null to clear the expiration.",
+              items: {
+                type: 'object',
+                properties: {
+                  data: {
+                    type: 'object',
+                  },
+                  rowId: {
+                    type: 'string',
+                  },
+                },
+                required: ['rowId', 'data'],
+              },
             },
             values: {
               type: 'object',
@@ -5728,9 +5762,9 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'Arguments for the operation',
           properties: {
             filter: {
-              type: 'object',
+              type: ['object', 'null'],
               description:
-                'Saved row predicate, same grammar as query_rows filters: {"all":[...]} / {"any":[...]} of {field, op, value} leaves with exact column NAMES. Omit or null for an unfiltered view.',
+                'Saved row predicate, same grammar as query_rows filters: {"all":[...]} / {"any":[...]} of {field, op, value} leaves with exact column NAMES. On update_view, omit to keep the existing filter, pass null to clear it, or pass a predicate to replace it. On create_view, omit or pass null for an unfiltered view.',
             },
             hiddenColumns: {
               type: 'array',
@@ -5751,9 +5785,22 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 'View display name (required for create_view; optional rename on update_view). Free-form label; references always use the view ID, so names are purely display.',
             },
             sort: {
-              type: 'array',
+              type: ['array', 'null'],
               description:
-                'Saved ordered sort spec, e.g. [{"field":"due","direction":"asc"}], column NAMES. Omit or null for default ordering.',
+                'Saved ordered sort spec, e.g. [{"field":"due","direction":"asc"}], column NAMES. On update_view, omit to keep the existing sort, pass null to clear it, or pass a sort spec to replace it. On create_view, omit or pass null for default ordering.',
+              items: {
+                type: 'object',
+                properties: {
+                  direction: {
+                    type: 'string',
+                    enum: ['asc', 'desc'],
+                  },
+                  field: {
+                    type: 'string',
+                  },
+                },
+                required: ['field', 'direction'],
+              },
             },
             tableId: {
               type: 'string',
@@ -6019,6 +6066,9 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'array',
               description:
                 'Array of column names to delete at once (for delete_column). Preferred over columnName when deleting multiple columns.',
+              items: {
+                type: 'string',
+              },
             },
             cursor: {
               type: 'string',
@@ -6173,6 +6223,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'array',
               description:
                 'Sort spec for query_rows (optional). Ordered list of {field, direction} where direction is asc or desc, e.g. [{"field":"wins","direction":"desc"},{"field":"name","direction":"asc"}].',
+              items: {
+                type: 'object',
+                properties: {
+                  direction: {
+                    type: 'string',
+                    enum: ['asc', 'desc'],
+                  },
+                  field: {
+                    type: 'string',
+                  },
+                },
+                required: ['field', 'direction'],
+              },
             },
             outputColumnNames: {
               type: 'object',
@@ -6249,6 +6312,9 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'array',
               description:
                 'Array of row data objects (required for batch_insert_rows). TTL cells take absolute whole Unix epoch seconds, never JavaScript milliseconds; a missing or null TTL means no expiration.',
+              items: {
+                type: 'object',
+              },
             },
             runMode: {
               type: 'string',
@@ -6287,6 +6353,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'array',
               description:
                 "Array of per-row updates: [{ rowId, data: { col: val } }] (for batch_update_rows). TTL values are absolute whole Unix epoch seconds, never JavaScript milliseconds; omit a row's TTL key to preserve it or set it to null to clear the expiration.",
+              items: {
+                type: 'object',
+                properties: {
+                  data: {
+                    type: 'object',
+                  },
+                  rowId: {
+                    type: 'string',
+                  },
+                },
+                required: ['rowId', 'data'],
+              },
             },
             values: {
               type: 'object',

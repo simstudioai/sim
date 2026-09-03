@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { organizationUsageEventsQuerySchema } from '@/lib/api/contracts/organization-usage'
+import {
+  organizationUsageBreakdownQuerySchema,
+  organizationUsageEventsQuerySchema,
+} from '@/lib/api/contracts/organization-usage'
 
 /** The shared window fields every usage contract extends, exercised through one of them. */
 function parseWindow(input: Record<string, unknown>) {
@@ -66,5 +69,22 @@ describe('organization usage window contract', () => {
 
   it('refuses a timezone the runtime does not recognize', () => {
     expect(parseWindow({ timezone: 'Mars/Olympus_Mons' }).success).toBe(false)
+  })
+})
+
+describe('organization usage breakdown contract', () => {
+  const baseQuery = { dimension: 'workspace' as const }
+
+  it('defaults to 50 rows', () => {
+    expect(organizationUsageBreakdownQuerySchema.parse(baseQuery).limit).toBe(50)
+  })
+
+  it('allows expansion to 100 rows and refuses larger requests', () => {
+    expect(
+      organizationUsageBreakdownQuerySchema.safeParse({ ...baseQuery, limit: 100 }).success
+    ).toBe(true)
+    expect(
+      organizationUsageBreakdownQuerySchema.safeParse({ ...baseQuery, limit: 101 }).success
+    ).toBe(false)
   })
 })

@@ -11,20 +11,40 @@ import {
   type ConnectorData,
   type ConnectorDetailData,
   type ConnectorDocumentsData,
+  type ConnectorMemberSummary,
+  type ConnectSimSearchConnectorBody,
+  connectSimSearchConnectorContract,
   createKnowledgeConnectorContract,
   deleteKnowledgeConnectorContract,
   getKnowledgeConnectorContract,
   listKnowledgeConnectorDocumentsContract,
   listKnowledgeConnectorsContract,
+  listWorkspaceMemberConnectorsContract,
+  type MemberSyncLogData,
   patchKnowledgeConnectorDocumentsContract,
+  type StartKnowledgeConnectorMemberEnrollmentData,
   type SyncLogData,
+  startKnowledgeConnectorMemberEnrollmentContract,
   triggerKnowledgeConnectorSyncContract,
+  type UpdateConnectorAccessBody,
+  updateKnowledgeConnectorAccessContract,
   updateKnowledgeConnectorContract,
+  type ViewerConnectorMembership,
+  type WorkspaceMemberConnector,
 } from '@/lib/api/contracts/knowledge'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
-export type { ConnectorData, ConnectorDetailData, SyncLogData }
+export type {
+  ViewerConnectorMembership,
+  WorkspaceMemberConnector,
+  ConnectorData,
+  ConnectorDetailData,
+  ConnectorMemberSummary,
+  MemberSyncLogData,
+  SyncLogData,
+  UpdateConnectorAccessBody,
+}
 
 export const CONNECTOR_LIST_STALE_TIME = 30 * 1000
 export const CONNECTOR_DETAIL_STALE_TIME = 30 * 1000
@@ -80,8 +100,14 @@ export const CONNECTOR_SYNC_POLL_INTERVAL_MS = 3000
  */
 export function isConnectorSyncingOrPending(connector: {
   status: ConnectorData['status']
+  memberSyncStatus?: ConnectorData['memberSyncStatus']
 }): boolean {
-  return connector.status === 'pending' || connector.status === 'syncing'
+  return (
+    connector.status === 'pending' ||
+    connector.status === 'syncing' ||
+    connector.memberSyncStatus === 'pending' ||
+    connector.memberSyncStatus === 'running'
+  )
 }
 
 export function useConnectorList(knowledgeBaseId?: string) {
@@ -128,20 +154,22 @@ export function useConnectorDetail(knowledgeBaseId?: string, connectorId?: strin
  * never starting that poll, and showing stale sync history behind the list's
  * spinner.
  */
+type ConnectorStatusPatch = Pick<ConnectorData, 'status'> | Pick<ConnectorData, 'memberSyncStatus'>
+
 function setCachedConnectorStatus(
   queryClient: QueryClient,
   knowledgeBaseId: string,
   connectorId: string,
-  status: ConnectorData['status']
+  patch: ConnectorStatusPatch
 ) {
   queryClient.setQueryData<ConnectorData[]>(connectorKeys.lists(knowledgeBaseId), (connectors) =>
     connectors?.map((connector) =>
-      connector.id === connectorId ? { ...connector, status } : connector
+      connector.id === connectorId ? { ...connector, ...patch } : connector
     )
   )
   queryClient.setQueryData<ConnectorDetailData>(
     connectorKeys.detail(knowledgeBaseId, connectorId),
-    (detail) => (detail ? { ...detail, status } : detail)
+    (detail) => (detail ? { ...detail, ...patch } : detail)
   )
 }
 
@@ -150,9 +178,9 @@ function setCachedConnectorStatus(
  * which is all `onError` needs to undo it — the mutation variables already
  * carry the ids.
  *
- * Both status-changing mutations resolve into the same list, so they share this
- * write instead of each keeping a local `Set` of in-flight ids alongside it —
- * that duplicated the server's own state and could not survive a remount.
+ * The pause and resume mutations share this write instead of each keeping a
+ * local `Set` of in-flight ids alongside it — that duplicated the server's own
+ * state and could not survive a remount.
  *
  * Deliberately not a snapshot of the whole array: two connectors can be in
  * flight at once, and restoring a whole-list snapshot would roll the other
@@ -169,9 +197,45 @@ function optimisticallySetConnectorStatus(
     .getQueryData<ConnectorData[]>(connectorKeys.lists(knowledgeBaseId))
     ?.find((connector) => connector.id === connectorId)?.status
 
-  setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, status)
+  setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, { status })
 
   return previousStatus
+}
+
+/**
+ * The optimistic "queued" write for a sync trigger, on whichever engine the
+ * connector runs: a members connector queues a member run, so its content
+ * status must not flip. The Search surface reads the same member sync status
+ * from the workspace member-connector list, so that cache is queued too; it
+ * has no poll to reconcile it, and the write cannot stop one, so it is patched
+ * rather than refetched. Returns what to restore if the trigger is refused.
+ */
+function optimisticallyQueueSync(
+  queryClient: QueryClient,
+  knowledgeBaseId: string,
+  connectorId: string
+): ConnectorStatusPatch | undefined {
+  const cached = queryClient
+    .getQueryData<ConnectorData[]>(connectorKeys.lists(knowledgeBaseId))
+    ?.find((connector) => connector.id === connectorId)
+  if (!cached) return undefined
+  if (cached.accessMode === 'members') {
+    setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, {
+      memberSyncStatus: 'pending',
+    })
+    queryClient.setQueriesData<WorkspaceMemberConnector[]>(
+      { queryKey: memberConnectorKeys.lists() },
+      (connectors) =>
+        connectors?.map((connector) =>
+          connector.connectorId === connectorId
+            ? { ...connector, memberSyncStatus: 'pending' }
+            : connector
+        )
+    )
+    return { memberSyncStatus: cached.memberSyncStatus }
+  }
+  setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, { status: 'pending' })
+  return { status: cached.status }
 }
 
 interface CreateConnectorParams {
@@ -181,6 +245,9 @@ interface CreateConnectorParams {
   apiKey?: string
   sourceConfig: Record<string, unknown>
   syncIntervalMinutes?: number
+  accessMode?: 'workspace' | 'members'
+  credentialGroupId?: string
+  credentialGroupOptionId?: string
 }
 
 async function createConnector({
@@ -207,6 +274,8 @@ export function useCreateConnector() {
      */
     onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
     },
   })
 }
@@ -251,11 +320,122 @@ export function useUpdateConnector() {
     },
     onError: (_error, { knowledgeBaseId, connectorId }, previousStatus) => {
       if (previousStatus) {
-        setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, previousStatus)
+        setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, {
+          status: previousStatus,
+        })
       }
     },
     onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+    },
+  })
+}
+
+interface UpdateConnectorAccessParams {
+  knowledgeBaseId: string
+  connectorId: string
+  access: UpdateConnectorAccessBody
+}
+
+async function updateConnectorAccess({
+  knowledgeBaseId,
+  connectorId,
+  access,
+}: UpdateConnectorAccessParams): Promise<ConnectorData> {
+  const result = await requestJson(updateKnowledgeConnectorAccessContract, {
+    params: { id: knowledgeBaseId, connectorId },
+    body: access,
+  })
+
+  return result.data
+}
+
+interface StartConnectorMemberEnrollmentParams {
+  knowledgeBaseId: string
+  connectorId: string
+}
+
+async function startConnectorMemberEnrollment({
+  knowledgeBaseId,
+  connectorId,
+}: StartConnectorMemberEnrollmentParams): Promise<StartKnowledgeConnectorMemberEnrollmentData> {
+  const response = await requestJson(startKnowledgeConnectorMemberEnrollmentContract, {
+    params: { id: knowledgeBaseId, connectorId },
+  })
+  return response.data
+}
+
+export const memberConnectorKeys = {
+  all: ['member-connectors'] as const,
+  lists: () => [...memberConnectorKeys.all, 'list'] as const,
+  list: (workspaceId?: string) => [...memberConnectorKeys.lists(), workspaceId ?? ''] as const,
+}
+
+export const WORKSPACE_MEMBER_CONNECTORS_STALE_TIME = 30 * 1000
+/** While a connected source is still indexing for the viewer, its state is worth asking for again. */
+const WORKSPACE_MEMBER_CONNECTORS_INDEXING_POLL_MS = 5 * 1000
+
+async function fetchWorkspaceMemberConnectors(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkspaceMemberConnector[]> {
+  const response = await requestJson(listWorkspaceMemberConnectorsContract, {
+    query: { workspaceId },
+    signal,
+  })
+  return response.data
+}
+
+/** Every per-member connector in the workspace and where the viewer stands with each. */
+export function useWorkspaceMemberConnectors(
+  workspaceId?: string,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: memberConnectorKeys.list(workspaceId),
+    queryFn: ({ signal }) => fetchWorkspaceMemberConnectors(workspaceId as string, signal),
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
+    staleTime: WORKSPACE_MEMBER_CONNECTORS_STALE_TIME,
+    refetchInterval: (query) =>
+      query.state.data?.some(
+        (connector) =>
+          connector.viewerMembership === 'connected' &&
+          (connector.memberSyncStatus === 'pending' || connector.memberSyncStatus === 'running')
+      )
+        ? WORKSPACE_MEMBER_CONNECTORS_INDEXING_POLL_MS
+        : false,
+    placeholderData: keepPreviousData,
+  })
+}
+
+/** Mints the viewer's enrollment link for a per-member connector; the caller navigates to it. */
+export function useStartConnectorMemberEnrollment() {
+  return useMutation({ mutationFn: startConnectorMemberEnrollment })
+}
+
+/**
+ * Moves a connector between workspace and members mode. The switch rewrites
+ * document access, so everything under the base is refetched: the connector
+ * list and detail for the new mode and member state, and the document lists
+ * and per-document caches whose rows and chunks may have become hidden or
+ * visible.
+ */
+export function useUpdateConnectorAccess() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: updateConnectorAccess,
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
+      queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentLists(knowledgeBaseId) })
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentDetails(knowledgeBaseId) })
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        exact: true,
+      })
+      /** The base list says whether any connector syncs per member, and the Search tab lists them. */
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
     },
   })
 }
@@ -290,6 +470,7 @@ export function useDeleteConnector() {
      */
     onSettled: (_data, _error, { knowledgeBaseId, deleteDocuments }) => {
       queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentLists(knowledgeBaseId) })
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
@@ -304,6 +485,7 @@ export function useDeleteConnector() {
       if (deleteDocuments) {
         queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentDetails(knowledgeBaseId) })
       }
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
     },
   })
 }
@@ -338,18 +520,30 @@ export function useTriggerSync() {
      * takes over through `pending` → `syncing` → `active`.
      */
     onMutate: async ({ knowledgeBaseId, connectorId }) => {
-      await queryClient.cancelQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
-      return optimisticallySetConnectorStatus(queryClient, knowledgeBaseId, connectorId, 'pending')
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: connectorKeys.all(knowledgeBaseId) }),
+        queryClient.cancelQueries({ queryKey: memberConnectorKeys.lists() }),
+      ])
+      return optimisticallyQueueSync(queryClient, knowledgeBaseId, connectorId)
     },
     /**
      * Rolling back also stops the poll the optimistic `pending` started, so a
      * refused sync does not leave the row spinning.
      */
-    onError: (_error, { knowledgeBaseId, connectorId }, previousStatus) => {
-      if (previousStatus) {
-        setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, previousStatus)
+    onError: (_error, { knowledgeBaseId, connectorId }, previous) => {
+      if (previous) {
+        setCachedConnectorStatus(queryClient, knowledgeBaseId, connectorId, previous)
       }
-      queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      /**
+       * The member-connector list took the same optimistic `pending`; a refetch
+       * is its rollback, and the connector list's own status was restored above,
+       * so it is not refetched over concurrent optimistic patches.
+       */
+      if (previous && 'memberSyncStatus' in previous) {
+        queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
+      } else {
+        queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      }
     },
     /**
      * Deliberately no invalidation on success. The route answers without
@@ -502,5 +696,30 @@ export function useRestoreConnectorDocument() {
     mutationFn: restoreConnectorDocuments,
     onSettled: (_data, _error, variables) =>
       invalidateConnectorDocumentChange(queryClient, variables),
+  })
+}
+
+async function connectSimSearchConnector(body: ConnectSimSearchConnectorBody) {
+  const result = await requestJson(connectSimSearchConnectorContract, { body })
+  return result.data
+}
+
+/**
+ * One click on a Sim Search source: the source's per-member connector exists
+ * afterwards and the viewer has their enrollment link. The member list and the
+ * base list both gain a row on a first connect.
+ */
+export function useConnectSimSearchConnector() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: connectSimSearchConnector,
+    onSuccess: (data) => {
+      /** A first connect added a connector to the base; its own list is open on the settings page. */
+      queryClient.invalidateQueries({ queryKey: connectorKeys.all(data.knowledgeBaseId) })
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: memberConnectorKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+    },
   })
 }

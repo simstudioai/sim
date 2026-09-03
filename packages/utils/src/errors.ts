@@ -100,7 +100,7 @@ export function describeError(error: unknown): DescribedError {
 }
 
 /** Replaces a driver-appended `params: <values>` tail with a redaction marker. */
-function redactBoundParameters(message: string): string {
+export function redactBoundParameters(message: string): string {
   const index = message.indexOf('\nparams:')
   return index === -1 ? message : `${message.slice(0, index)}\nparams: [redacted]`
 }

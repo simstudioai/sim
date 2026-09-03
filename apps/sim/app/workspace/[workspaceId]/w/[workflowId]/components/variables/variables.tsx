@@ -449,16 +449,16 @@ export function Variables({ readOnly = false }: VariablesProps) {
       {/* Header (drag handle) */}
       <div
         role='presentation'
-        className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between bg-[var(--surface-1)] p-0 active:cursor-grabbing'
+        className='flex h-[32px] shrink-0 cursor-grab items-center justify-between bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >
         <div className='flex items-center'>
-          <span className='flex-shrink-0 text-[var(--text-primary)] text-sm'>Variables</span>
+          <span className='shrink-0 text-[var(--text-primary)] text-sm'>Variables</span>
         </div>
         <div className='flex items-center gap-2'>
           <Button
             variant='ghost'
-            className='!p-1.5 -m-1.5'
+            className='-m-1.5 p-1.5!'
             onClick={(e) => {
               e.stopPropagation()
               handleAddVariable()
@@ -470,7 +470,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
           </Button>
           <Button
             variant='ghost'
-            className='!p-1.5 -m-1.5'
+            className='-m-1.5 p-1.5!'
             onClick={handleClose}
             aria-label='Close variables panel'
           >

@@ -5,7 +5,7 @@ export const INTERACTION_CARD_ROW_CLASSES =
   'flex items-center gap-2 border-[var(--border)] px-2 py-2 text-left transition-colors'
 
 export const INTERACTION_CARD_TEXT_INPUT_CLASSES =
-  'min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed'
+  'min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-hidden placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed'
 
 export interface InteractionCardRecapItem {
   label: string

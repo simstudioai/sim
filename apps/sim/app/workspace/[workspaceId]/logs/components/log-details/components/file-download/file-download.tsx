@@ -94,7 +94,7 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
         <span className='min-w-0 flex-1 truncate text-[var(--text-secondary)] text-caption'>
           {file.name}
         </span>
-        <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
+        <span className='shrink-0 text-[var(--text-tertiary)] text-caption'>
           {formatFileSize(file.size)}
         </span>
       </div>
@@ -103,7 +103,7 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
         <span className='text-[var(--text-subtle)] text-xs'>{file.type}</span>
         <Button
           variant='ghost'
-          className='!h-[20px] !px-1.5 !py-0 text-xs'
+          className='h-[20px]! px-1.5! py-0! text-xs'
           onClick={handleDownload}
         >
           <Download className='mr-1 size-[10px]' />

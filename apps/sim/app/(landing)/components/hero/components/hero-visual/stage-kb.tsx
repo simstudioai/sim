@@ -82,11 +82,11 @@ export function KnowledgeBasePanel({
                     )}
                     style={{ '--drop-delay': `${120 + i * 170}ms` } as CSSProperties}
                   >
-                    <file.icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                    <file.icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
                     <span className='min-w-0 flex-1 truncate text-[14px] text-[var(--text-body)]'>
                       {file.name}
                     </span>
-                    <span className='flex-shrink-0 text-[14px] text-[var(--text-muted)]'>
+                    <span className='shrink-0 text-[14px] text-[var(--text-muted)]'>
                       {file.size}
                     </span>
                   </div>
@@ -175,7 +175,7 @@ export function KnowledgeBasePanel({
   return (
     <div
       className={cn(
-        'w-full max-w-[420px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)]',
+        'w-full max-w-[420px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px]',
         'animate-hero-modal-in motion-reduce:animate-none'
       )}
     >

@@ -28,7 +28,7 @@ export function ToolbarButton({
           onMouseDown={(event) => event.preventDefault()}
           onClick={onClick}
           className={cn(
-            'flex size-[28px] items-center justify-center rounded-md text-[var(--text-icon)] outline-none transition-colors focus-visible:bg-[var(--surface-hover)] [&_svg]:size-[14px]',
+            'flex size-[28px] items-center justify-center rounded-md text-[var(--text-icon)] outline-hidden transition-colors focus-visible:bg-[var(--surface-hover)] [&_svg]:size-[14px]',
             isActive
               ? 'bg-[var(--surface-active)] text-[var(--text-body)]'
               : 'hover-hover:bg-[var(--surface-hover)]'

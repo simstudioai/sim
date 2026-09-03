@@ -436,7 +436,7 @@ export const ComboBox = memo(function ComboBox({
     })
     return (
       <div className='flex w-full items-center truncate [scrollbar-width:none]'>
-        {SelectedIcon && <SelectedIcon className='mr-2 size-3 flex-shrink-0' />}
+        {SelectedIcon && <SelectedIcon className='mr-2 size-3 shrink-0' />}
         <div className='truncate'>
           {formatDisplayText(displayLabel, {
             accessiblePrefixes,

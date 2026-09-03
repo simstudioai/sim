@@ -168,19 +168,36 @@ describe.concurrent('Blocks Module', () => {
       expect(block).toBeDefined()
       expect(block?.hideFromToolbar).toBe(false)
       expect(block?.subBlocks[0].options?.map((option) => option.id)).toEqual([
+        'file_list',
         'file_read',
         'file_get_content',
         'file_search',
         'file_fetch',
         'file_write',
         'file_append',
+        'file_edit',
         'file_compress',
         'file_decompress',
         'file_manage_sharing',
+        'file_create_folder',
+        'file_update_folder',
+        'file_delete_folder',
+        'file_restore_folder',
+        'file_move',
       ])
+      expect(block?.tools.config?.tool({ operation: 'file_list' })).toBe('file_list')
+      expect(block?.tools.config?.tool({ operation: 'file_delete_folder' })).toBe(
+        'file_delete_folder'
+      )
       expect(block?.tools.config?.tool({ operation: 'file_compress' })).toBe('file_compress')
       expect(block?.tools.config?.tool({ operation: 'file_decompress' })).toBe('file_decompress')
-      expect(block?.subBlocks.find((subBlock) => subBlock.id === 'readFile')?.multiple).toBe(true)
+      expect(block?.subBlocks.find((subBlock) => subBlock.id === 'readFile')?.folderScope).toEqual({
+        fieldId: 'folderSelection',
+        recursiveFieldId: 'folderIncludeSubfolders',
+      })
+      expect(block?.subBlocks.find((subBlock) => subBlock.id === 'folderSelection')?.mode).toBe(
+        'basic'
+      )
       expect(block?.tools.config?.tool({ operation: 'file_read' })).toBe('file_read')
       expect(block?.tools.config?.tool({ operation: 'file_get_content' })).toBe('file_get_content')
       expect(block?.tools.config?.tool({ operation: 'file_fetch' })).toBe('file_fetch')

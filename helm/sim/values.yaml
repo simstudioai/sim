@@ -114,6 +114,7 @@ app:
     # Generate using: openssl rand -hex 32
     CRON_SECRET: ""         # OPTIONAL - required only if cronjobs.enabled=true, authenticates scheduled job requests
     TABLE_ROW_TTL: ""       # Enable TTL columns and expired-row cleanup when AppConfig is unavailable
+    KNOWLEDGE_MEMBER_ACCESS: ""  # Enable per-member knowledge connectors when AppConfig is unavailable
 
     # Optional: API Key Encryption (RECOMMENDED for production)
     # Generate with: openssl rand -hex 32 (produces the required 64-hex-char / 32-byte value).
@@ -398,6 +399,9 @@ app:
     EXECUTION_TIMEOUT_ASYNC_PRO: "5400"                   # Pro tier async timeout (90 minutes)
     EXECUTION_TIMEOUT_ASYNC_TEAM: "5400"                  # Team tier async timeout (90 minutes)
     EXECUTION_TIMEOUT_ASYNC_ENTERPRISE: "5400"            # Enterprise tier async timeout (90 minutes)
+
+    # Agent tool-call loop
+    # MAX_TOOL_ITERATIONS: "20"                           # Model round trips per Agent block tool-call loop
 
     # Table Feature Limits (per workspace, per plan)
     # FREE_TABLES_LIMIT: "3"                              # Opt-in; unset means no cap on a self-host
@@ -818,6 +822,17 @@ ollama:
   gpu:
     enabled: false
     count: 1
+    # The NVIDIA device plugin DaemonSet deployed alongside Ollama when GPU is
+    # enabled. Configurable so a disconnected install can point it at a mirror:
+    # it is the one image an air-gapped cluster would otherwise have to patch
+    # after install. Honors global.imageRegistry when
+    # global.useRegistryForAllImages is set, like the other third-party images.
+    devicePlugin:
+      image:
+        repository: nvcr.io/nvidia/k8s-device-plugin
+        tag: v0.18.2
+        pullPolicy: Always
+        digest: ""
     # GPU sharing strategy: "mig" (Multi-Instance GPU) or "time-slicing"
     # - mig: Hardware-level GPU partitioning (requires supported GPUs like A100)
     # - time-slicing: Software-level GPU sharing (works with most NVIDIA GPUs)
@@ -1269,7 +1284,9 @@ branding:
   enabled: false
 
   # Mount path in the container where branding files will be available
-  mountPath: "/app/public/branding"
+  # Must sit inside the image's public directory, which the standalone build
+  # places at /app/apps/sim/public — a path outside it serves nothing.
+  mountPath: "/app/apps/sim/public/branding"
 
   # Text files (CSS, JSON, HTML, etc.) - values are plain text
   # Example:
@@ -1453,6 +1470,15 @@ cronjobs:
       name: connector-sync
       schedule: "*/5 * * * *"
       path: "/api/knowledge/connectors/sync"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    connectorMemberSync:
+      enabled: true
+      name: connector-member-sync
+      schedule: "*/5 * * * *"
+      path: "/api/knowledge/connectors/member-sync"
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
@@ -1866,10 +1892,9 @@ externalSecrets:
   # Enable External Secrets Operator integration
   enabled: false
 
-  # ESO API version. Default "v1beta1" — supported by every ESO release from
-  # Current ESO releases serve only external-secrets.io/v1 (the v1beta1
-  # compatibility path was removed in 2026). Set to "v1beta1" only for
-  # clusters still running ESO < 0.17.
+  # ESO API version. Current ESO releases serve only external-secrets.io/v1
+  # (the v1beta1 compatibility path was removed in 2026). Set this to
+  # "v1beta1" only for clusters still running ESO < 0.17.
   apiVersion: "v1"
 
   # How often to sync secrets from the external store

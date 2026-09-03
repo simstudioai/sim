@@ -7,7 +7,7 @@
 
 /* Every @sim/emcn component expresses hover through `hover-hover:` so touch
    devices never latch a sticky hover state. The app registers it as a plugin
-   variant in apps/sim/tailwind.config.ts; docs is CSS-first Tailwind v4 with no
+   variant in apps/sim/app/_styles/globals.css; docs is CSS-first Tailwind v4 with no
    config, so without this declaration the variant compiles to nothing and every
    emcn hover state silently no-ops here. */
 @custom-variant hover-hover {
@@ -35,7 +35,7 @@ body {
   --color-fd-primary: var(--color-fd-foreground);
   /* Sim's custom type scale — emcn components (Label, Badge, the shared block
      views) use these names, so they must resolve here or text falls back to the
-     inherited size. Mirrors apps/sim/tailwind.config.ts. */
+     inherited size. Mirrors apps/sim/app/_styles/globals.css. */
   --text-micro: 10px;
   --text-xs: 11px;
   --text-caption: 12px;
@@ -47,7 +47,7 @@ body {
      --text-caption and --text-small, because the mono face reads small at 12px. */
   --text-code: 0.78125rem;
 
-  /* The platform's code face. `apps/sim/tailwind.config.ts` lists `var(--font-martian-mono)`
+  /* The platform's code face. `apps/sim/app/_styles/globals.css` lists `var(--font-martian-mono)`
      first, but nothing in the app ever defines that variable — `apps/sim/app/layout.tsx`
      applies only `season.variable` — so every code surface in the product resolves to the
      system stack below. Docs match what the app actually renders rather than the token it

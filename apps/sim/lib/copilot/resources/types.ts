@@ -30,6 +30,12 @@ export interface MothershipResource {
   executionId?: string
 }
 
+/** A resource upsert may explicitly clear metadata that omission preserves. */
+export interface MothershipResourceUpdate extends MothershipResource {
+  /** Removes a table's saved-view pin instead of preserving it. */
+  clearViewId?: true
+}
+
 /**
  * What a chip in an assistant message knows about the resource it points at,
  * before it has been resolved. The agent writes these tags as text, so a file
@@ -202,6 +208,40 @@ export function sanitizeChatResources(
   return canonicalizeDesktopSessionResources(resources).filter(isAddressableResource)
 }
 
+/**
+ * Applies a client-supplied order to the canonical stored entries. Reordering
+ * carries identity only: metadata echoed by a stale tab must never overwrite a
+ * newer pin, path, title, or execution id already persisted on the chat.
+ */
+export function reorderStoredChatResources(
+  storedResources: readonly MothershipResource[],
+  requestedOrder: readonly MothershipResource[]
+): MothershipResource[] | null {
+  const stored = sanitizeChatResources(storedResources)
+  const requested = sanitizeChatResources(requestedOrder)
+
+  // Compared as key SETS, not lengths: a chat that already holds a duplicated
+  // row (nothing writes one today, but stored data predates the merge-by-key
+  // writers) sends one fewer entry from the deduplicated client. Matching on
+  // sets keeps that reorder valid and collapses the duplicate on write, where
+  // a length check would reject every reorder for that chat forever.
+  const storedByKey = new Map(
+    stored.map((resource) => [`${resource.type}:${resource.id}`, resource])
+  )
+  const requestedKeys = Array.from(
+    new Set(requested.map((resource) => `${resource.type}:${resource.id}`))
+  )
+  if (requestedKeys.length !== storedByKey.size) return null
+
+  const reordered: MothershipResource[] = []
+  for (const key of requestedKeys) {
+    const resource = storedByKey.get(key)
+    if (!resource) return null
+    reordered.push(resource)
+  }
+  return reordered
+}
+
 /** Placeholder resource titles that a more specific title may overwrite during dedup. */
 export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Table',
@@ -211,6 +251,78 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Folder',
   'Log',
 ])
+
+/**
+ * Every field {@link mergeChatResource} carries over from the newcomer. `type`
+ * and `id` identify the entry and can never differ; `title` has its own
+ * placeholder rule. Declared once so a field added to {@link MothershipResource}
+ * fails to compile here rather than being silently dropped from both the merge
+ * and its no-op check.
+ */
+const MERGED_FIELDS = {
+  title: true,
+  path: true,
+  viewId: true,
+  executionId: true,
+} as const satisfies Record<Exclude<keyof MothershipResource, 'type' | 'id'>, true>
+
+const MERGED_FIELD_NAMES = Object.keys(MERGED_FIELDS) as (keyof typeof MERGED_FIELDS)[]
+
+/**
+ * Folds a re-added resource into the stored entry with the same type+id. The
+ * stored title wins unless it was a placeholder. Every other field the
+ * newcomer defines replaces the stored one — a file's `path`, a log's
+ * `executionId`, a table's saved-view pin (the tab reopens on the view the
+ * agent touched last) — while a field the newcomer omits is kept, so an
+ * unrelated row edit never unpins a table. Returns `prev` itself when nothing
+ * changes, so callers can skip a no-op write.
+ */
+export function mergeChatResource(
+  prev: MothershipResource | undefined,
+  next: MothershipResourceUpdate
+): MothershipResource {
+  if (!prev) {
+    // Copied, never aliased: the result lands in React state, the query cache
+    // and the pending-write queue at once, and `next` is the caller's object.
+    const { clearViewId: _clearViewId, ...resource } = next
+    return resource
+  }
+  const { viewId: _previousViewId, ...prevWithoutViewId } = prev
+  const merged: MothershipResource = {
+    ...(next.clearViewId === true ? prevWithoutViewId : prev),
+    ...(next.path !== undefined ? { path: next.path } : {}),
+    ...(next.clearViewId !== true && next.viewId !== undefined ? { viewId: next.viewId } : {}),
+    ...(next.executionId !== undefined ? { executionId: next.executionId } : {}),
+    title:
+      GENERIC_RESOURCE_TITLES.has(prev.title) && !GENERIC_RESOURCE_TITLES.has(next.title)
+        ? next.title
+        : prev.title,
+  }
+  const unchanged = MERGED_FIELD_NAMES.every((field) => merged[field] === prev[field])
+  return unchanged ? prev : merged
+}
+
+/**
+ * Coalesces durable updates that have not all reached the server yet. Unlike a
+ * stored resource, the pending value must retain an explicit pin-clear until a
+ * write succeeds; a later row edit that omits `viewId` must not cancel it.
+ */
+export function mergePendingChatResourceUpdate(
+  prev: MothershipResourceUpdate | undefined,
+  next: MothershipResourceUpdate
+): MothershipResourceUpdate {
+  let previousClearViewId: true | undefined
+  let previousResource: MothershipResource | undefined
+  if (prev) {
+    const { clearViewId, ...resource } = prev
+    previousClearViewId = clearViewId
+    previousResource = resource
+  }
+  const merged = mergeChatResource(previousResource, next)
+  const shouldClearViewId =
+    next.viewId === undefined && (next.clearViewId === true || previousClearViewId === true)
+  return shouldClearViewId ? { ...merged, clearViewId: true } : merged
+}
 
 export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   tables: 'table',

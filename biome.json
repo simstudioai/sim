@@ -142,6 +142,11 @@
   },
   "overrides": [
     {
+      "includes": ["apps/sim/app/_styles/tailwind.css"],
+      "linter": { "enabled": false },
+      "formatter": { "enabled": false }
+    },
+    {
       "includes": ["packages/**"],
       "linter": {
         "rules": {

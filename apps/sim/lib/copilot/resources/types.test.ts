@@ -8,7 +8,10 @@ import {
   isEphemeralResource,
   type MothershipResource,
   MothershipResourceType,
+  mergeChatResource,
+  mergePendingChatResourceUpdate,
   PERSISTED_RESOURCE_TYPES,
+  reorderStoredChatResources,
   sanitizeChatResources,
   TERMINAL_SESSION_RESOURCE_ID,
 } from './types'
@@ -110,6 +113,30 @@ describe('client and server agree on what can be persisted', () => {
     }
   })
 
+  it('accepts an explicit table pin clear and rejects ambiguous or non-table clears', () => {
+    expect(
+      addCopilotChatResourceBodySchema.safeParse({
+        chatId: 'chat-1',
+        resource: { type: 'table', id: 'tbl-1', title: 'Invoices' },
+        clearViewId: true,
+      }).success
+    ).toBe(true)
+    expect(
+      addCopilotChatResourceBodySchema.safeParse({
+        chatId: 'chat-1',
+        resource: { type: 'table', id: 'tbl-1', title: 'Invoices', viewId: 'view-1' },
+        clearViewId: true,
+      }).success
+    ).toBe(false)
+    expect(
+      addCopilotChatResourceBodySchema.safeParse({
+        chatId: 'chat-1',
+        resource: { type: 'file', id: 'file-1', title: 'report.csv' },
+        clearViewId: true,
+      }).success
+    ).toBe(false)
+  })
+
   it('covers every resource type, so a new one has to make the choice explicitly', () => {
     const all = Object.values(MothershipResourceType)
     const ephemeral = all.filter((type) => isEphemeralResource(resource({ type })))
@@ -151,5 +178,124 @@ describe('unaddressable resources', () => {
       resource: { type: 'file', id: '', title: 'reporte-russell.md' },
     })
     expect(parsed.success).toBe(false)
+  })
+})
+
+describe('mergeChatResource', () => {
+  const stored = resource({ type: 'table', id: 'tbl-1', title: 'Invoices' })
+
+  it('adds a resource the chat does not have yet as a copy', () => {
+    const added = mergeChatResource(undefined, stored)
+    expect(added).toEqual(stored)
+    // Copied, not aliased: the result is handed to React state, the query cache
+    // and the pending-write queue, and the caller keeps mutating its own object.
+    expect(added).not.toBe(stored)
+  })
+
+  it('keeps the stored entry when the newcomer changes nothing', () => {
+    expect(mergeChatResource(stored, { ...stored })).toBe(stored)
+  })
+
+  it('replaces a placeholder title but never a specific one', () => {
+    const placeholder = resource({ type: 'table', id: 'tbl-1', title: 'Table' })
+    expect(mergeChatResource(placeholder, stored).title).toBe('Invoices')
+    expect(mergeChatResource(stored, placeholder).title).toBe('Invoices')
+  })
+
+  it('moves the pin to the view the agent touched last and keeps it across unpinned re-adds', () => {
+    const pinnedA = mergeChatResource(stored, { ...stored, viewId: 'view-a' })
+    expect(pinnedA.viewId).toBe('view-a')
+
+    const pinnedB = mergeChatResource(pinnedA, { ...stored, viewId: 'view-b' })
+    expect(pinnedB.viewId).toBe('view-b')
+
+    // A row edit re-adds the table without a view — the tab stays on view-b.
+    expect(mergeChatResource(pinnedB, stored)).toBe(pinnedB)
+  })
+
+  it('clears a pin only when the update carries the explicit clear directive', () => {
+    const pinned = { ...stored, viewId: 'view-a' }
+
+    expect(mergeChatResource(pinned, { ...stored, clearViewId: true })).toEqual(stored)
+    expect(mergeChatResource(undefined, { ...stored, clearViewId: true })).toEqual(stored)
+  })
+})
+
+describe('mergeChatResource metadata', () => {
+  it('takes the metadata a newcomer defines and keeps what it omits', () => {
+    const placeholder = resource({ type: 'file', id: 'f1', title: 'File' })
+    const upgraded = mergeChatResource(placeholder, {
+      type: 'file',
+      id: 'f1',
+      title: 'notes.md',
+      path: 'files/notes.md',
+    })
+    expect(upgraded).toEqual({ type: 'file', id: 'f1', title: 'notes.md', path: 'files/notes.md' })
+
+    // A later re-add without a path keeps the stored one.
+    expect(mergeChatResource(upgraded, { type: 'file', id: 'f1', title: 'notes.md' })).toBe(
+      upgraded
+    )
+
+    const log = resource({ type: 'log', id: 'row-1', title: 'Run' })
+    expect(
+      mergeChatResource(log, { type: 'log', id: 'row-1', title: 'Run', executionId: 'exec-1' })
+        .executionId
+    ).toBe('exec-1')
+  })
+})
+
+describe('mergePendingChatResourceUpdate', () => {
+  const table = resource({ type: 'table', id: 'tbl-1', title: 'Invoices' })
+
+  it('retains a pending clear across an unrelated update', () => {
+    expect(mergePendingChatResourceUpdate({ ...table, clearViewId: true }, table)).toEqual({
+      ...table,
+      clearViewId: true,
+    })
+  })
+
+  it('lets a newer explicit pin replace a pending clear', () => {
+    expect(
+      mergePendingChatResourceUpdate(
+        { ...table, clearViewId: true },
+        { ...table, viewId: 'view-new' }
+      )
+    ).toEqual({ ...table, viewId: 'view-new' })
+  })
+})
+
+describe('reorderStoredChatResources', () => {
+  const table = resource({
+    type: 'table',
+    id: 'tbl-1',
+    title: 'Invoices',
+    viewId: 'view-new',
+  })
+  const file = resource({ id: 'file-1', title: 'report.csv', path: 'files/report.csv' })
+
+  it('uses the request only for order and preserves newer stored metadata', () => {
+    expect(
+      reorderStoredChatResources(
+        [table, file],
+        [
+          { ...file, path: 'stale/report.csv' },
+          { ...table, viewId: 'view-stale' },
+        ]
+      )
+    ).toEqual([file, table])
+  })
+
+  it('rejects missing, extra, and duplicate identities', () => {
+    expect(reorderStoredChatResources([table, file], [table])).toBeNull()
+    expect(reorderStoredChatResources([table], [table, file])).toBeNull()
+    expect(reorderStoredChatResources([table, file], [table, table])).toBeNull()
+  })
+
+  it('collapses a duplicated stored row instead of rejecting the reorder', () => {
+    // Nothing writes a duplicate today, but a chat stored before the writers
+    // merged by key can hold one. The client sends its deduplicated list, so a
+    // length comparison would reject every reorder for that chat forever.
+    expect(reorderStoredChatResources([table, table, file], [file, table])).toEqual([file, table])
   })
 })

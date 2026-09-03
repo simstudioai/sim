@@ -180,6 +180,11 @@ export const AuditAction = {
   PERMISSION_GROUP_MEMBER_ADDED: 'permission_group_member.added',
   PERMISSION_GROUP_MEMBER_REMOVED: 'permission_group_member.removed',
 
+  // Sandboxes
+  SANDBOX_CREATED: 'sandbox.created',
+  SANDBOX_UPDATED: 'sandbox.updated',
+  SANDBOX_DELETED: 'sandbox.deleted',
+
   // Skills
   SKILL_CREATED: 'skill.created',
   SKILL_UPDATED: 'skill.updated',
@@ -260,6 +265,7 @@ export const AuditResourceType = {
   ORGANIZATION: 'organization',
   PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',
+  SANDBOX: 'sandbox',
   SCHEDULE: 'schedule',
   /** Not a stored resource: the workspace's secrets, as the thing put at risk. */
   SECRET_PROVENANCE: 'secret_provenance',

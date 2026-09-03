@@ -1,6 +1,7 @@
 import { executeCopilotTableUseCase } from '@/lib/copilot/application/execute-table-use-case'
 import { TableViews } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { SortSpec, TablePredicateInput, TableSchema, TableViewConfig } from '@/lib/table'
 import {
   createTableViewUseCase,
@@ -9,7 +10,11 @@ import {
   readTableViewUseCase,
   updateTableViewUseCase,
 } from '@/lib/table/application/views'
-import { viewConfigIdsToNames, viewConfigNamesToIds } from '@/lib/table/views/service'
+import {
+  TableViewValidationError,
+  viewConfigIdsToNames,
+  viewConfigNamesToIds,
+} from '@/lib/table/views/service'
 
 type TableViewsArgs = {
   operation: string
@@ -22,12 +27,16 @@ type TableViewsResult = {
   data?: any
 }
 
+type StoredView = { id: string; name: string; isDefault: boolean; config: TableViewConfig }
+
 /**
  * Saved-view slice of the split table surface. Unlike the other slices this is
  * NOT a user_table passthrough — it adapts the dedicated view use cases.
  * Agents speak column NAMES; stored configs are keyed by stable column id, so
  * inputs translate names→ids on the way in and every returned view translates
- * ids→names on the way out.
+ * ids→names on the way out. Every write also names the table and the view it
+ * touched in `data`; resource extraction reads that to open the panel on the
+ * view that was just written.
  */
 export const tableViewsServerTool: BaseServerTool<TableViewsArgs, TableViewsResult> = {
   name: TableViews.id,
@@ -39,10 +48,7 @@ export const tableViewsServerTool: BaseServerTool<TableViewsArgs, TableViewsResu
     if (!tableId) return { success: false, message: 'Table ID is required' }
     if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
 
-    const presentView = (
-      view: { id: string; name: string; isDefault: boolean; config: TableViewConfig },
-      columns: TableSchema['columns']
-    ) => {
+    const presentView = (view: StoredView, columns: TableSchema['columns']) => {
       const named = viewConfigIdsToNames(view.config, columns)
       return {
         id: view.id,
@@ -54,16 +60,38 @@ export const tableViewsServerTool: BaseServerTool<TableViewsArgs, TableViewsResu
       }
     }
 
+    // What a write hands back: the view, plus the ids the resource panel opens on.
+    const presentWrite = (
+      table: { id: string; name: string },
+      view: StoredView,
+      columns: TableSchema['columns']
+    ) => ({
+      tableId: table.id,
+      tableName: table.name,
+      viewId: view.id,
+      view: presentView(view, columns),
+    })
+
     // Build the patch from only the keys the caller actually sent: the update
     // path shallow-merges this into the stored config, so including an absent
     // part as `null` silently wiped a view's saved sort when only the filter
-    // changed (and vice versa) — the doc promises "omit to keep".
+    // changed (and vice versa) — the doc promises "omit to keep, null to clear".
+    // The name→id translation runs here, outside the use case that would
+    // classify a bad column name, so it is classified here: unclassified, the
+    // model gets a masked "system error" instead of the column it got wrong.
     const namedConfigFromArgs = (columns: TableSchema['columns']): TableViewConfig => {
       const patch: Record<string, unknown> = {}
       if (args.filter !== undefined) patch.filter = args.filter as TablePredicateInput | null
       if (args.sort !== undefined) patch.sort = args.sort as SortSpec | null
       if (args.hiddenColumns !== undefined) patch.hiddenColumns = args.hiddenColumns as string[]
-      return viewConfigNamesToIds(patch as TableViewConfig, columns)
+      try {
+        return viewConfigNamesToIds(patch as TableViewConfig, columns)
+      } catch (error) {
+        if (error instanceof TableViewValidationError) {
+          throw new OrchestrationError('validation', error.message)
+        }
+        throw error
+      }
     }
 
     switch (operation) {
@@ -106,26 +134,24 @@ export const tableViewsServerTool: BaseServerTool<TableViewsArgs, TableViewsResu
           { tableId }
         )
         const columns = (listed.table.schema as TableSchema).columns
+        // The default flag lands in the same locked transaction as the insert
+        // (demoting the previous default), so no follow-up write can race it.
         const created = await executeCopilotTableUseCase(
           context,
           createTableViewUseCase,
-          { tableId, workspaceId, name: args.name, config: namedConfigFromArgs(columns) },
+          {
+            tableId,
+            workspaceId,
+            name: args.name,
+            config: namedConfigFromArgs(columns),
+            ...(args.isDefault === true ? { isDefault: true } : {}),
+          },
           { tableId }
         )
-        if (args.isDefault === true) {
-          await executeCopilotTableUseCase(
-            context,
-            updateTableViewUseCase,
-            { tableId, workspaceId, viewId: created.view.id, isDefault: true },
-            { tableId }
-          )
-        }
         return {
           success: true,
-          message: `Created view "${created.view.name}" (${created.view.id})${args.isDefault === true ? ' as default' : ''}`,
-          data: {
-            view: presentView({ ...created.view, isDefault: args.isDefault === true }, columns),
-          },
+          message: `Created view "${created.view.name}" (${created.view.id})${created.view.isDefault ? ' as default' : ''}`,
+          data: presentWrite(created.table, created.view, columns),
         }
       }
       case 'update_view': {
@@ -155,7 +181,7 @@ export const tableViewsServerTool: BaseServerTool<TableViewsArgs, TableViewsResu
         return {
           success: true,
           message: `Updated view "${updated.view.name}"`,
-          data: { view: presentView(updated.view, columns) },
+          data: presentWrite(updated.table, updated.view, columns),
         }
       }
       case 'delete_view': {
@@ -166,7 +192,11 @@ export const tableViewsServerTool: BaseServerTool<TableViewsArgs, TableViewsResu
           { tableId, workspaceId, viewId: args.viewId },
           { tableId }
         )
-        return { success: true, message: `Deleted view "${result.viewName}"` }
+        return {
+          success: true,
+          message: `Deleted view "${result.viewName}"`,
+          data: { tableId: result.table.id, tableName: result.table.name },
+        }
       }
       case 'set_default_view': {
         if (!args.viewId) return { success: false, message: 'viewId is required' }
@@ -186,7 +216,7 @@ export const tableViewsServerTool: BaseServerTool<TableViewsArgs, TableViewsResu
         return {
           success: true,
           message: `"${updated.view.name}" is now the default view`,
-          data: { view: presentView(updated.view, columns) },
+          data: presentWrite(updated.table, updated.view, columns),
         }
       }
       default:

@@ -9,7 +9,7 @@ export function ContentPostLoading() {
           <Skeleton className='h-[16px] w-[100px] rounded-[4px] bg-[var(--surface-hover)]' />
         </div>
         <div className='flex flex-col gap-8 md:flex-row md:gap-12'>
-          <div className='w-full flex-shrink-0 md:w-[450px]'>
+          <div className='w-full shrink-0 md:w-[450px]'>
             <Skeleton className='aspect-[450/360] w-full rounded-[5px] bg-[var(--surface-hover)]' />
           </div>
           <div className='flex flex-1 flex-col justify-between'>
@@ -40,7 +40,7 @@ export function ContentPostLoading() {
               <Skeleton className='h-[16px] w-[95%] rounded-[4px] bg-[var(--surface-hover)]' />
               <Skeleton className='h-[16px] w-[88%] rounded-[4px] bg-[var(--surface-hover)]' />
               <Skeleton className='h-[16px] w-full rounded-[4px] bg-[var(--surface-hover)]' />
-              <Skeleton className='mt-6 h-[24px] w-[200px] rounded-[4px] bg-[var(--surface-hover)]' />
+              <Skeleton className='h-[24px] w-[200px] rounded-[4px] bg-[var(--surface-hover)]' />
               <Skeleton className='h-[16px] w-full rounded-[4px] bg-[var(--surface-hover)]' />
               <Skeleton className='h-[16px] w-[92%] rounded-[4px] bg-[var(--surface-hover)]' />
               <Skeleton className='h-[16px] w-[85%] rounded-[4px] bg-[var(--surface-hover)]' />

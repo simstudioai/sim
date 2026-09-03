@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { sanitizeChatDisplayContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-sanitize'
 import { scalingRatioOver4x } from '@/app/workspace/[workspaceId]/home/components/message-content/components/scaling-test-helpers'
-import { sanitizeChatDisplayContent } from './chat-sanitize'
 
 describe('sanitizeChatDisplayContent', () => {
   it('unwraps workspace resource tags from inline code spans', () => {
@@ -13,6 +13,43 @@ describe('sanitizeChatDisplayContent', () => {
     expect(sanitizeChatDisplayContent(content)).toBe(
       'I updated <workspace_resource>{"type":"workflow","id":"wf-1","title":"Workflow"}</workspace_resource>.'
     )
+  })
+
+  it('unwraps source tags from inline code spans', () => {
+    const content = '`Block them first. <source>{"url":"https://docs.github.com/a"}</source>`'
+
+    expect(sanitizeChatDisplayContent(content)).toBe(
+      'Block them first. <source>{"url":"https://docs.github.com/a"}</source>'
+    )
+  })
+
+  it.each(['source', 'workspace_resource'])('preserves backticks inside %s JSON strings', (tag) => {
+    const payload = JSON.stringify({
+      title: 'Run `bun test`',
+      snippet: 'Quoted "commands" and a \\path with `backticks`',
+    })
+    const chip = `<${tag}>${payload}</${tag}>`
+
+    expect(sanitizeChatDisplayContent(`\`Evidence ${chip}.\``)).toBe(`Evidence ${chip}.`)
+    expect(sanitizeChatDisplayContent(`\`${chip} done`)).toBe(`${chip} done`)
+    expect(sanitizeChatDisplayContent(`${chip}\` done`)).toBe(`${chip} done`)
+    expect(sanitizeChatDisplayContent(`\`before\`${chip}\`after\``)).toBe(
+      `\`before\`${chip}\`after\``
+    )
+  })
+
+  it('treats tag markers inside JSON strings as payload', () => {
+    const payload = JSON.stringify({ snippet: 'Use `<source>` and `</source>` markers' })
+    const chip = `<source>${payload}</source>`
+
+    expect(sanitizeChatDisplayContent(`\`See ${chip}\``)).toBe(`See ${chip}`)
+  })
+
+  it('leaves a fenced source example with payload backticks intact', () => {
+    const payload = JSON.stringify({ snippet: 'Run `bun test`' })
+    const content = `Example:\n\`\`\`json\n<source>${payload}</source>\n\`\`\`\nDone.`
+
+    expect(sanitizeChatDisplayContent(content)).toBe(content)
   })
 
   it('removes hidden internal references wrapped in inline code', () => {
@@ -95,6 +132,16 @@ describe('sanitizeChatDisplayContent', () => {
     // Asserted as a scaling ratio, not a wall-clock ceiling — see
     // {@link scalingRatioOver4x} for why.
     expect(scalingRatioOver4x((content) => sanitizeChatDisplayContent(content))).toBeLessThan(8)
+  })
+
+  it('stays linear on repeated unclosed JSON chip bodies', () => {
+    expect(
+      scalingRatioOver4x((content) =>
+        sanitizeChatDisplayContent(
+          content.replaceAll('The <workspace_resource> tag is used here. ', '<source>{"snippet":"')
+        )
+      )
+    ).toBeLessThan(8)
   })
 
   it('still unwraps a real tag that carries a stray backtick on one side only', () => {

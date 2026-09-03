@@ -20,7 +20,7 @@ const CHECKS: readonly [string, string, string] = [
  * three hairline-ruled sections tell the
  * merge-area story with an inverted surface hierarchy — the build being
  * promoted is the highlight, a white card (`--white` fill, `--border-1`
- * hairline, nested `rounded-lg`, `shadow-sm`, echoing the audit tile's
+ * hairline, nested `rounded-lg`, `shadow-xs`, echoing the audit tile's
  * selected-record card) pairing a short hash chip with its change
  * message and a "Maya Chen · 2h ago" attribution line (gradient avatar
  * shared with the access and audit tiles); the named check gates sit
@@ -107,7 +107,7 @@ export function StagingGraphic({
           </div>
 
           <div className='px-3 py-2.5'>
-            <div className='rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm'>
+            <div className='rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs'>
               <span className='flex items-center gap-2'>
                 <ChipTag variant='mono'>{changeTag}</ChipTag>
                 <span className='min-w-0 truncate text-[var(--text-primary)] text-small'>

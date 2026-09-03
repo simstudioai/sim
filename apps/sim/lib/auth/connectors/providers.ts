@@ -1260,6 +1260,140 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
     },
 
     {
+      providerId: 'manageengine-sdp',
+      // Shares the Zoho API-console client with zoho-desk: Zoho scopes are
+      // chosen per authorization request, not per registered client, so one
+      // client serves both products.
+      clientId: env.ZOHO_CLIENT_ID as string,
+      clientSecret: env.ZOHO_CLIENT_SECRET as string,
+      authorizationUrl: 'https://accounts.zoho.com/oauth/v2/auth',
+      tokenUrl: 'https://accounts.zoho.com/oauth/v2/token',
+      scopes: getCanonicalScopesForProvider('manageengine-sdp'),
+      responseType: 'code',
+      pkce: true,
+      accessType: 'offline',
+      prompt: 'consent',
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/manageengine-sdp`,
+      // Zoho only issues a refresh token when access_type=offline AND
+      // prompt=consent are present on the authorize request, and it expects
+      // comma-separated scopes rather than the default space-delimited list.
+      authorizationUrlParams: {
+        access_type: 'offline',
+        prompt: 'consent',
+        scope: getCanonicalScopesForProvider('manageengine-sdp').join(','),
+      },
+      getToken: async ({ code, redirectURI, codeVerifier }) => {
+        const tokenParams = new URLSearchParams({
+          client_id: env.ZOHO_CLIENT_ID as string,
+          client_secret: env.ZOHO_CLIENT_SECRET as string,
+          code,
+          grant_type: 'authorization_code',
+          redirect_uri: redirectURI,
+        })
+        // PKCE is enabled, so better-auth sent a code_challenge on the authorize
+        // request. The exchange MUST echo the matching code_verifier or Zoho
+        // rejects the request shape (invalid_request).
+        if (codeVerifier) tokenParams.set('code_verifier', codeVerifier)
+
+        const response = await fetch('https://accounts.zoho.com/oauth/v2/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: tokenParams.toString(),
+        })
+
+        const data = await readResponseJsonWithLimit<Record<string, unknown>>(response, {
+          maxBytes: 1024 * 1024,
+          label: 'ManageEngine ServiceDesk Plus token response',
+        }).catch(() => null)
+
+        // Zoho answers a failed exchange with HTTP 200 and an `error` key, so
+        // the status alone is not a sufficient success test.
+        const zohoError =
+          data && typeof data.error === 'string' ? (data.error as string) : undefined
+        if (!response.ok || !data || zohoError) {
+          logger.error('ManageEngine ServiceDesk Plus OAuth token exchange failed', {
+            status: response.status,
+            zohoError: zohoError ?? null,
+          })
+          throw new Error(
+            `ManageEngine ServiceDesk Plus OAuth token exchange failed (HTTP ${response.status}${
+              zohoError ? `, ${zohoError}` : ''
+            })`
+          )
+        }
+
+        const tokens = getOAuth2Tokens(data)
+        if (!tokens.accessToken) {
+          throw new Error(
+            'ManageEngine ServiceDesk Plus OAuth token response did not include an access token'
+          )
+        }
+
+        // Unlike zoho-desk, no data-center marker is persisted: the SDP API
+        // host is not derivable from Zoho's `api_domain` (the regional apexes
+        // differ — sdpondemand.manageengine.eu but servicedeskplus.net.au), so
+        // the block selects it explicitly from a closed list instead.
+        //
+        // Zoho's token response does not consistently carry `scope`; falling
+        // back to the requested scopes keeps the credential picker from showing
+        // a permanent "needs update" badge on every connection.
+        const reportedScopes =
+          typeof data.scope === 'string' ? data.scope.split(/[\s,]+/).filter(Boolean) : []
+        tokens.scopes = reportedScopes.length
+          ? reportedScopes
+          : getCanonicalScopesForProvider('manageengine-sdp')
+        return tokens
+      },
+      getUserInfo: async (tokens) => {
+        try {
+          const response = await fetch('https://accounts.zoho.com/oauth/user/info', {
+            headers: { Authorization: `Zoho-oauthtoken ${tokens.accessToken}` },
+          })
+
+          if (!response.ok) {
+            await readResponseTextWithLimit(response, {
+              maxBytes: 1024 * 1024,
+              label: 'ManageEngine ServiceDesk Plus profile error response',
+            }).catch(() => {})
+            logger.error('Error fetching ManageEngine ServiceDesk Plus user info:', {
+              status: response.status,
+              statusText: response.statusText,
+            })
+            return null
+          }
+
+          const profile = await readResponseJsonWithLimit<{
+            ZUID?: number | string
+            Display_Name?: string
+            Email?: string
+          }>(response, {
+            maxBytes: 1024 * 1024,
+            label: 'ManageEngine ServiceDesk Plus profile response',
+          })
+
+          const zuid = profile.ZUID?.toString()
+          if (!zuid) {
+            logger.error('Invalid ManageEngine ServiceDesk Plus profile response:', profile)
+            return null
+          }
+
+          const now = new Date()
+          return {
+            id: `${zuid}-${generateId()}`,
+            name: profile.Display_Name || 'ManageEngine User',
+            email: profile.Email || syntheticConnectorEmail('manageengine-sdp', zuid),
+            emailVerified: Boolean(profile.Email),
+            createdAt: now,
+            updatedAt: now,
+          }
+        } catch (error) {
+          logger.error('Error in ManageEngine ServiceDesk Plus getUserInfo:', { error })
+          return null
+        }
+      },
+    },
+
+    {
       providerId: 'x',
       clientId: env.X_CLIENT_ID as string,
       clientSecret: env.X_CLIENT_SECRET as string,
@@ -1754,6 +1888,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       pkce: true,
       authentication: 'post',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/monday`,
+      authorizationUrlParams: { force_install_if_needed: 'true' },
       getToken: async ({ code, codeVerifier, redirectURI }) => {
         if (!codeVerifier) {
           throw new Error('Monday OAuth token exchange requires a PKCE verifier')

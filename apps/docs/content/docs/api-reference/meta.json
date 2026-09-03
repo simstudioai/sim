@@ -19,6 +19,7 @@
     "(generated)/mcp-servers",
     "(generated)/skills",
     "(generated)/custom-tools",
+    "(generated)/sandboxes",
     "(generated)/credentials",
     "(generated)/secrets",
     "(generated)/billing",

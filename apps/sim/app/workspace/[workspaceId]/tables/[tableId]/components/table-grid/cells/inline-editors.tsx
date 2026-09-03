@@ -286,7 +286,7 @@ function ReadyInlineDateEditor({
         onBlur={scheduleBlurSave}
         placeholder='mm/dd/yyyy'
         className={cn(
-          'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none',
+          'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-hidden',
           invalid && 'text-[var(--text-error)]'
         )}
       />
@@ -402,7 +402,7 @@ function InlineTextEditor({
       onWheel={handleEditorWheel}
       onBlur={() => doSave('blur')}
       className={cn(
-        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none',
+        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-hidden',
         invalid && 'text-[var(--text-error)]'
       )}
     />
@@ -484,13 +484,13 @@ function InlineSelectEditor({ value, column, onSave, onCancel }: InlineEditorPro
         {!isMulti && !column.required && (
           <DropdownMenuItem onSelect={() => setDraftAnd([])}>
             <span className='text-[var(--text-muted)]'>None</span>
-            {draft.length === 0 && <Check className='!ml-auto' />}
+            {draft.length === 0 && <Check className='ml-auto!' />}
           </DropdownMenuItem>
         )}
         {allOptions.map((option) => (
           <DropdownMenuItem key={option.id} onSelect={(e) => handleSelectOption(e, option.id)}>
             <SelectPill option={option} />
-            {draft.includes(option.id) && <Check className='!ml-auto' />}
+            {draft.includes(option.id) && <Check className='ml-auto!' />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

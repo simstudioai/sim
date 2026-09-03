@@ -53,6 +53,7 @@ vi.mock('@/lib/workflows/persistence/utils', () => ({
   undeployWorkflow: vi.fn(async () => ({ success: true })),
 }))
 vi.mock('@/ee/workspace-forking/lib/background-work/store', () => ({
+  recordBackgroundWork: vi.fn(),
   startBackgroundWork: vi.fn(),
 }))
 vi.mock('@/ee/workspace-forking/lib/copy/content-copy-runner', () => ({
@@ -158,7 +159,16 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 import { db } from '@sim/db'
+import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
 import { getBlock } from '@/blocks/registry'
+import {
+  recordBackgroundWork,
+  startBackgroundWork,
+} from '@/ee/workspace-forking/lib/background-work/store'
+import {
+  hasForkContentToCopy,
+  scheduleForkContentCopy,
+} from '@/ee/workspace-forking/lib/copy/content-copy-runner'
 import { copyWorkflowStateIntoTarget } from '@/ee/workspace-forking/lib/copy/copy-workflows'
 import { reconcileForkDependentValues } from '@/ee/workspace-forking/lib/mapping/dependent-value-store'
 import { promoteFork } from '@/ee/workspace-forking/lib/promote/promote'
@@ -216,7 +226,41 @@ function promoteParams() {
     targetWorkspaceId: 'tgt-ws',
     direction: 'push' as const,
     userId: 'user-1',
+    otherWorkspaceName: 'Parent',
   }
+}
+
+/** One deployed source workflow the sync writes (replace mode) and then deploys. */
+function arrangeWrittenWorkflow() {
+  mockComputePlan.mockResolvedValue(
+    makePlan({
+      items: [
+        {
+          sourceWorkflowId: 'wf-src',
+          targetWorkflowId: 'wf-tgt',
+          targetName: 'Flow',
+          mode: 'replace' as const,
+          sourceMeta: { name: 'Flow', description: null, folderId: null, sortOrder: 0 },
+        },
+      ],
+    })
+  )
+  mockLoadSourceDeployedStates.mockResolvedValue({
+    deployedWorkflows: [],
+    sourceStates: new Map([
+      ['wf-src', { blocks: {}, edges: [], loops: {}, parallels: {}, variables: {} }],
+    ]),
+  })
+  vi.mocked(copyWorkflowStateIntoTarget).mockResolvedValue({
+    targetWorkflowId: 'wf-tgt',
+    mode: 'replace',
+    name: 'Flow',
+    blocksCount: 0,
+    edgesCount: 0,
+    subflowsCount: 0,
+    clearedDependents: [],
+    blockIdMapping: new Map(),
+  })
 }
 
 /** A copy result carrying no content/id maps, for tests that only need the copy to run. */
@@ -256,7 +300,7 @@ beforeEach(() => {
   mockCollectBlockers.mockResolvedValue({ blockers: [], appliedDrops: [] })
   mockLoadBlockMap.mockResolvedValue(new Map())
   mockBuildBlockIdResolver.mockReturnValue((_wf: string, blockId: string) => blockId)
-  mockResolveFolderMapping.mockResolvedValue(new Map())
+  mockResolveFolderMapping.mockResolvedValue({ folderIdMap: new Map(), folderPathMap: new Map() })
   mockUpsertPromoteRun.mockResolvedValue('run-1')
   mockGetMcpServerMeta.mockResolvedValue(new Map())
   mockCreateTransform.mockReturnValue((subBlocks: unknown) => subBlocks)
@@ -772,6 +816,39 @@ describe('promoteFork trigger URLs', () => {
     expect(result.triggerUrlChanges).toEqual([{ workflowName: 'Flow', path: 'live-slack-path' }])
   })
 
+  /**
+   * A lost URL is a warning on the sync's Activity row. When copied resources still need their
+   * content filled, that row is finished later by the fill - which must keep the warning rather
+   * than report a clean sync once every item copies.
+   */
+  it('records the lost URL as a sync warning that the content fill keeps', async () => {
+    arrangeReCreatedTrigger()
+    mockHasCopySelection.mockReturnValue(true)
+    mockCopyUnmapped.mockResolvedValue(emptyCopyResult())
+    vi.mocked(hasForkContentToCopy).mockReturnValueOnce(true)
+    vi.mocked(startBackgroundWork).mockResolvedValueOnce('status-1')
+
+    await promoteFork({
+      ...promoteParams(),
+      triggerMappings: [{ sourceBlockId: 'blk-new', adoptPath: null }],
+    })
+
+    expect(startBackgroundWork).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        kind: 'fork_sync',
+        metadata: expect.objectContaining({ triggerUrlChanges: 1 }),
+      })
+    )
+    expect(scheduleForkContentCopy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusId: 'status-1',
+        completionStatus: 'completed_with_warnings',
+      }),
+      expect.anything()
+    )
+  })
+
   /** The server re-derives the adoptable set, so a stale or crafted path is never honoured. */
   it('ignores a mapping naming a path the plan does not offer', async () => {
     arrangeReCreatedTrigger()
@@ -783,5 +860,91 @@ describe('promoteFork trigger URLs', () => {
 
     const writeParams = vi.mocked(copyWorkflowStateIntoTarget).mock.calls[0][0]
     expect(writeParams.triggerPathByBlockId?.size).toBe(0)
+  })
+})
+
+describe('promoteFork activity', () => {
+  it('records a deploy that succeeded with a warning as a sync with warnings', async () => {
+    arrangeWrittenWorkflow()
+    vi.mocked(performFullDeploy).mockResolvedValueOnce({
+      success: true,
+      warnings: ['prior workflow version remains active'],
+    } as never)
+
+    const result = await promoteFork(promoteParams())
+
+    expect(result.deployWarnings).toEqual(['Flow — prior workflow version remains active'])
+    expect(recordBackgroundWork).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        status: 'completed_with_warnings',
+        metadata: expect.objectContaining({
+          deployWarnings: ['Flow — prior workflow version remains active'],
+        }),
+      })
+    )
+  })
+
+  it('records the sync as one terminal Activity row when nothing is left to fill', async () => {
+    await promoteFork(promoteParams())
+
+    expect(recordBackgroundWork).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        workspaceId: 'src-ws',
+        kind: 'fork_sync',
+        status: 'completed',
+        message: 'Pushed to "Parent"',
+        metadata: expect.objectContaining({
+          direction: 'push',
+          otherWorkspaceId: 'tgt-ws',
+          otherWorkspaceName: 'Parent',
+        }),
+      })
+    )
+    expect(startBackgroundWork).not.toHaveBeenCalled()
+    expect(scheduleForkContentCopy).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The reported bug: a sync that copied resources opened a second, "Fork"-labelled row for the
+   * background fill. The fill now runs on the sync's own row, which stays processing until the
+   * runner finishes it.
+   */
+  it('keeps the sync row processing and hands it to the content fill instead of opening a copy row', async () => {
+    mockHasCopySelection.mockReturnValue(true)
+    mockCopyUnmapped.mockResolvedValue({
+      ...emptyCopyResult(),
+      contentPlan: { ...emptyCopyResult().contentPlan, tables: [{} as never] },
+    })
+    vi.mocked(hasForkContentToCopy).mockReturnValueOnce(true)
+    vi.mocked(startBackgroundWork).mockResolvedValueOnce('status-1')
+
+    await promoteFork(promoteParams())
+
+    expect(recordBackgroundWork).not.toHaveBeenCalled()
+    expect(startBackgroundWork).toHaveBeenCalledTimes(1)
+    expect(startBackgroundWork).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        workspaceId: 'src-ws',
+        kind: 'fork_sync',
+        supersede: false,
+        message: 'Pushed to "Parent"',
+        metadata: expect.objectContaining({
+          direction: 'push',
+          otherWorkspaceName: 'Parent',
+          tables: 1,
+          knowledgeBases: 0,
+          files: 0,
+          skills: 0,
+          documents: 0,
+        }),
+      })
+    )
+    expect(scheduleForkContentCopy).toHaveBeenCalledWith(
+      expect.objectContaining({ statusId: 'status-1', completionStatus: 'completed' }),
+      expect.objectContaining({ detachedLabel: 'fork-sync-content-copy' })
+    )
   })
 })

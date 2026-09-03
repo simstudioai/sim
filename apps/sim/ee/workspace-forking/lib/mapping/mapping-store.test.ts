@@ -94,6 +94,22 @@ describe('buildForkResolver', () => {
     expect(resolve('credential', 'cred-parent')).toBe('cred-child')
   })
 
+  it('resolves file-folder mappings by canonical path', () => {
+    const resolve = buildForkResolver(
+      [
+        {
+          ...credentialRow,
+          resourceType: 'file_folder',
+          parentResourceId: '/Reports',
+          childResourceId: '/Production Reports',
+        },
+      ],
+      { sourceIsParent: true }
+    )
+
+    expect(resolve('file-folder', '/Reports')).toBe('/Production Reports')
+  })
+
   it('falls back to identity for a workspace env key present in the target', () => {
     const resolve = buildForkResolver([], {
       sourceIsParent: true,

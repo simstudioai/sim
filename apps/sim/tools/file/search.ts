@@ -7,6 +7,8 @@ interface FileSearchParams {
   query: string
   mode?: FileSearchMode
   maxResults?: number
+  folderPaths?: string[]
+  includeSubfolders?: boolean
 }
 
 interface FileSearchResponse extends ToolResponse {
@@ -21,9 +23,9 @@ interface FileSearchResponse extends ToolResponse {
  */
 const TOOL_DESCRIPTIONS: Record<FileSearchMode, string> = {
   regex:
-    'Search the indexed text of active workspace files for lines matching a regular expression, and return each matching line once with its file ID and line number. Coverage is what the index currently holds, so check "complete" and "indexStatus" before concluding that something is absent.',
+    'Search the indexed text of active workspace files for lines matching a regular expression, and return each matching line once with its file ID and line number. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped or partial files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one or more folder trees, which also narrows "indexStatus" to those trees.',
   exact:
-    'Search the indexed text of active workspace files for lines containing an exact piece of text, and return each matching line once with its file ID and line number. Coverage is what the index currently holds, so check "complete" and "indexStatus" before concluding that something is absent.',
+    'Search the indexed text of active workspace files for lines containing an exact piece of text, and return each matching line once with its file ID and line number. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped or partial files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one or more folder trees, which also narrows "indexStatus" to those trees.',
 }
 
 const QUERY_DESCRIPTIONS: Record<FileSearchMode, string> = {
@@ -41,10 +43,19 @@ const QUERY_DESCRIPTIONS: Record<FileSearchMode, string> = {
  */
 const DECLARED_QUERY_DESCRIPTION = `${QUERY_DESCRIPTIONS.regex} When the workflow builder sets Match to exact instead, the query is matched verbatim and no metacharacter needs escaping.`
 
+/**
+ * What a consumer sees before the mode is known — the catalog and the generated
+ * docs. Like {@link DECLARED_QUERY_DESCRIPTION} it names both readings rather
+ * than describing only the default, because a reader of the docs has no way to
+ * tell which mode a given block is set to.
+ */
+const DECLARED_TOOL_DESCRIPTION =
+  'Search the indexed text of active workspace files for lines matching a query, and return each matching line once with its file ID and line number. By default the query is a regular expression; in exact mode it is matched verbatim and metacharacters are literal. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped or partial files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one or more folder trees, which also narrows "indexStatus" to those trees.'
+
 export const fileSearchTool: InternalToolConfig<FileSearchParams, FileSearchResponse> = {
   id: 'file_search',
   name: 'File Search',
-  description: TOOL_DESCRIPTIONS.regex,
+  description: DECLARED_TOOL_DESCRIPTION,
   version: '1.1.0',
   params: {
     query: {
@@ -65,6 +76,22 @@ export const fileSearchTool: InternalToolConfig<FileSearchParams, FileSearchResp
       required: false,
       visibility: 'user-only',
       description: 'Hard result cap configured by the workflow builder (1-200, default 50).',
+    },
+    folderPaths: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      maxItems: 64,
+      items: { type: 'string' },
+      description:
+        'Folders the search is confined to, as canonical percent-encoded paths, e.g. ["/memory/user-a"]. Absent searches the whole workspace. Scoping also narrows the reported index coverage, so "complete" describes the folders searched.',
+    },
+    includeSubfolders: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether the scope descends into nested folders. Defaults to true; set false to search only the folders’ direct files.',
     },
   },
   /**
@@ -98,6 +125,13 @@ export const fileSearchTool: InternalToolConfig<FileSearchParams, FileSearchResp
       query: params.query,
       mode: params.mode ?? 'regex',
       maxResults: params.maxResults ?? FILE_SEARCH_DEFAULT_MAX_RESULTS,
+      /*
+       * Presence, not length: an explicitly empty list is a scope naming no
+       * folder, which must match nothing. Dropping it would answer a request
+       * for nothing with the whole workspace.
+       */
+      ...(params.folderPaths === undefined ? {} : { folderPaths: params.folderPaths }),
+      ...(params.includeSubfolders === false ? { includeSubfolders: false } : {}),
     }),
   },
   transformResponse: async (response): Promise<FileSearchResponse> => {

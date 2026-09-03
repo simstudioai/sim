@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { MAX_OAUTH_CODE_LENGTH, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import type {
   ContractBody,
   ContractBodyInput,
@@ -223,7 +223,6 @@ export const trelloCallbackContract = defineRouteContract({
 })
 
 const MAX_OAUTH_RETURN_URL_LENGTH = 2048
-const MAX_OAUTH_CODE_LENGTH = 8192
 const MAX_OAUTH_STATE_LENGTH = 256
 const MAX_OAUTH_ERROR_LENGTH = 2048
 

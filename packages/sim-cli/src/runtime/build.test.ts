@@ -196,6 +196,7 @@ describe('commands parsed through commander', () => {
       knowledge: 'kb',
       logs: 'log',
       'mcp-servers': 'mcp-server',
+      sandboxes: 'sandbox',
       secrets: 'secret',
       skills: 'skill',
       tables: 'table',
@@ -853,6 +854,14 @@ describe('commands parsed through commander', () => {
     expect(commandAt('files', 'set-content').helpInformation()).toMatch(
       /--encoding.*utf-8.*base64/s
     )
+  })
+
+  it('documents every exact and anchor-based file edit mode', () => {
+    const help = commandAt('files', 'edit').helpInformation()
+
+    expect(help).toMatch(/--edit.*search_replace.*replace_between.*insert_after.*delete_between/s)
+    expect(help).toContain('replaceAll')
+    expect(help).toContain('occurrence')
   })
 
   it('offers expanded trace output without changing the default summary', () => {

@@ -21,6 +21,9 @@ export const salesforceConnectorMeta: ConnectorMeta = {
     requiredScopes: ['api', 'refresh_token', 'openid'],
   },
 
+  /** Every synced object carries `LastModifiedDate`, which the listing filters on. */
+  supportsIncrementalSync: true,
+  permissionScopedListing: { capFieldIds: ['maxRecords'] },
   configFields: [
     {
       id: 'objectType',

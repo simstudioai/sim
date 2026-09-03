@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { truncate } from '@sim/utils/string'
 import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import {
   messageForCopilotFileError,
@@ -13,6 +12,12 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
+import {
+  applyWorkspaceFileContentEdit,
+  EditContentError,
+  type WorkspaceFileContentEdit,
+} from '@/lib/workspace-files/edit-content'
+import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 import {
   collectSimPageDiagnostics,
   HAND_WRITTEN_PAGE_MESSAGE,
@@ -139,59 +144,21 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
             return { success: false, message: 'Patch intent missing edit metadata' }
           }
 
+          let edit: WorkspaceFileContentEdit
           if (intent.edit.strategy === 'search_replace') {
-            const search = intent.edit.search!
-            const firstIdx = existing.indexOf(search)
-            if (firstIdx === -1) {
+            if (!intent.edit.search) {
               return {
                 success: false,
-                message: `Patch failed: search string not found in file "${fileRecord.name}": ${JSON.stringify(truncate(search, 120))}`,
+                message: 'search_replace requires search',
               }
             }
-            // The tool doc promises "must match exactly once unless
-            // replaceAll" — enforce it, or an ambiguous search silently
-            // rewrites the first occurrence with a success receipt.
-            if (!intent.edit.replaceAll) {
-              const occurrences = existing.split(search).length - 1
-              if (occurrences > 1) {
-                return {
-                  success: false,
-                  message: `Patch failed: search string matches ${occurrences} places in "${fileRecord.name}". Add surrounding context to make it unique, or pass replaceAll: true to change every occurrence.`,
-                }
-              }
+            edit = {
+              mode: 'search_replace',
+              search: intent.edit.search,
+              content,
+              replaceAll: intent.edit.replaceAll,
             }
-            finalContent = intent.edit.replaceAll
-              ? existing.split(search).join(content)
-              : existing.slice(0, firstIdx) + content + existing.slice(firstIdx + search.length)
           } else if (intent.edit.strategy === 'anchored') {
-            const lines = existing.split('\n')
-            const defaultOccurrence = intent.edit.occurrence ?? 1
-
-            const findAnchorLine = (
-              anchor: string,
-              occurrence = defaultOccurrence,
-              afterIndex = -1
-            ): { index: number; error?: string } => {
-              const trimmed = anchor.trim()
-              let count = 0
-              for (let i = afterIndex + 1; i < lines.length; i++) {
-                if (lines[i].trim() === trimmed) {
-                  count++
-                  if (count === occurrence) return { index: i }
-                }
-              }
-              if (count === 0) {
-                return {
-                  index: -1,
-                  error: `Anchor line not found in "${fileRecord.name}": "${anchor.slice(0, 100)}"`,
-                }
-              }
-              return {
-                index: -1,
-                error: `Anchor line occurrence ${occurrence} not found (only ${count} match${count > 1 ? 'es' : ''}) in "${fileRecord.name}": "${anchor.slice(0, 100)}"`,
-              }
-            }
-
             if (intent.edit.mode === 'replace_between') {
               if (!intent.edit.before_anchor || !intent.edit.after_anchor) {
                 return {
@@ -199,38 +166,23 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
                   message: 'replace_between requires before_anchor and after_anchor',
                 }
               }
-              const before = findAnchorLine(intent.edit.before_anchor)
-              if (before.error) return { success: false, message: `Patch failed: ${before.error}` }
-              const after = findAnchorLine(
-                intent.edit.after_anchor,
-                defaultOccurrence,
-                before.index
-              )
-              if (after.error) return { success: false, message: `Patch failed: ${after.error}` }
-              if (after.index <= before.index) {
-                return {
-                  success: false,
-                  message: 'Patch failed: after_anchor must appear after before_anchor in the file',
-                }
+              edit = {
+                mode: 'replace_between',
+                beforeAnchor: intent.edit.before_anchor,
+                afterAnchor: intent.edit.after_anchor,
+                content,
+                occurrence: intent.edit.occurrence,
               }
-              const newLines = [
-                ...lines.slice(0, before.index + 1),
-                ...content.split('\n'),
-                ...lines.slice(after.index),
-              ]
-              finalContent = newLines.join('\n')
             } else if (intent.edit.mode === 'insert_after') {
               if (!intent.edit.anchor) {
                 return { success: false, message: 'insert_after requires anchor' }
               }
-              const found = findAnchorLine(intent.edit.anchor)
-              if (found.error) return { success: false, message: `Patch failed: ${found.error}` }
-              const newLines = [
-                ...lines.slice(0, found.index + 1),
-                ...content.split('\n'),
-                ...lines.slice(found.index + 1),
-              ]
-              finalContent = newLines.join('\n')
+              edit = {
+                mode: 'insert_after',
+                anchor: intent.edit.anchor,
+                content,
+                occurrence: intent.edit.occurrence,
+              }
             } else if (intent.edit.mode === 'delete_between') {
               if (!intent.edit.start_anchor || !intent.edit.end_anchor) {
                 return {
@@ -238,18 +190,12 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
                   message: 'delete_between requires start_anchor and end_anchor',
                 }
               }
-              const start = findAnchorLine(intent.edit.start_anchor)
-              if (start.error) return { success: false, message: `Patch failed: ${start.error}` }
-              const end = findAnchorLine(intent.edit.end_anchor, defaultOccurrence, start.index)
-              if (end.error) return { success: false, message: `Patch failed: ${end.error}` }
-              if (end.index <= start.index) {
-                return {
-                  success: false,
-                  message: 'Patch failed: end_anchor must appear after start_anchor in the file',
-                }
+              edit = {
+                mode: 'delete_between',
+                startAnchor: intent.edit.start_anchor,
+                endAnchor: intent.edit.end_anchor,
+                occurrence: intent.edit.occurrence,
               }
-              const newLines = [...lines.slice(0, start.index), ...lines.slice(end.index)]
-              finalContent = newLines.join('\n')
             } else {
               return {
                 success: false,
@@ -258,6 +204,19 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
             }
           } else {
             return { success: false, message: `Unknown patch strategy: "${intent.edit.strategy}"` }
+          }
+          try {
+            finalContent = applyWorkspaceFileContentEdit(existing, edit, {
+              maxOutputBytes: MAX_WORKSPACE_FILE_CONTENT_BYTES,
+            })
+          } catch (error) {
+            if (error instanceof EditContentError) {
+              return {
+                success: false,
+                message: `Patch failed for "${fileRecord.name}": ${error.message}`,
+              }
+            }
+            throw error
           }
           break
         }

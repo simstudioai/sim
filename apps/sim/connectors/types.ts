@@ -64,6 +64,14 @@ export interface ExternalDocument {
   /** When true, content is empty and will be fetched via getDocument for new/changed docs only */
   contentDeferred?: boolean
   /**
+   * How large the deferred content is expected to be, in bytes, when the
+   * listing cannot know exactly. Bounds how many deferred documents hydrate
+   * at once: without it a deferred document is assumed to be as large as the
+   * whole in-flight budget and hydrates alone, which turns a mailbox crawl
+   * into one thread at a time.
+   */
+  estimatedBytes?: number
+  /**
    * When set, the document was intentionally not indexed (e.g. it exceeds the
    * connector's size limit). The sync engine records it as a `failed` document
    * carrying this reason so it is visible in the knowledge base UI instead of
@@ -93,6 +101,24 @@ export interface ExternalDocumentList {
    * provider pagination must set this to false.
    */
   reconciliationSafe?: boolean
+}
+
+/**
+ * One entry of a connector's change feed. A removal is authoritative for the
+ * caller: the item was deleted, or their account can no longer reach it.
+ */
+export type ExternalChange =
+  | { kind: 'upsert'; externalId: string; document: ExternalDocument }
+  | { kind: 'removed'; externalId: string }
+
+export interface ExternalChangeList {
+  changes: ExternalChange[]
+  /**
+   * The cursor to continue from: the next page while `hasMore`, otherwise the
+   * point the drained feed should resume from on the next read.
+   */
+  nextCursor: string
+  hasMore: boolean
 }
 
 export const SYNC_SKIP_REASONS = [
@@ -218,6 +244,16 @@ export interface ConnectorMeta {
    * on the KB for enabled slots, and mapTags output is filtered to only include them.
    */
   tagDefinitions?: ConnectorTagDefinition[]
+
+  /**
+   * Set when a listing under one person's own token returns exactly the documents
+   * that person may read, so a knowledge base can crawl the source once per
+   * enrolled member and take each member's listing as that member's access.
+   * Names the config fields that cap the listing: a cap would hide part of a
+   * member's corpus and suppress removals forever, so those fields are refused
+   * whenever the connector crawls per member.
+   */
+  permissionScopedListing?: { capFieldIds: readonly string[] }
 }
 
 /**
@@ -265,6 +301,46 @@ export interface ConnectorConfig extends ConnectorMeta {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ) => Promise<{ valid: boolean; error?: string }>
+
+  /**
+   * Whether a listing failure means the caller simply cannot reach the
+   * configured scope — the folder or space is not shared with them. A
+   * members-mode crawl treats that as a complete listing of nothing for that
+   * member rather than an error, so their access is withdrawn instead of
+   * retried forever. Only meaningful alongside {@link ConnectorMeta.permissionScopedListing}.
+   */
+  isListingScopeUnavailableError?: (error: unknown) => boolean
+
+  /**
+   * Opens a change feed over the caller's view of the source: the cursor from
+   * which {@link listChanges} later reports everything they gain, lose, or see
+   * modified. A members-mode crawl takes it before a full listing so nothing
+   * that changes during the listing is missed, and then reads the feed on
+   * every run instead of relisting. Only meaningful alongside
+   * {@link ConnectorMeta.permissionScopedListing}.
+   */
+  getChangeCursor?: (
+    accessToken: string,
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
+  ) => Promise<string>
+
+  /**
+   * Reads the change feed from a cursor. An upsert carries the same stub a
+   * listing would; a removal withdraws the caller's access to the item.
+   */
+  listChanges?: (
+    accessToken: string,
+    sourceConfig: Record<string, unknown>,
+    cursor: string,
+    syncContext?: Record<string, unknown>
+  ) => Promise<ExternalChangeList>
+
+  /**
+   * Whether a change-feed failure means the cursor has expired, so the feed
+   * must be reopened from a fresh full listing rather than retried.
+   */
+  isChangeCursorInvalidError?: (error: unknown) => boolean
 
   /** Map source metadata to semantic tag keys (translated to slots by the sync engine) */
   mapTags?: (metadata: Record<string, unknown>) => Record<string, unknown>

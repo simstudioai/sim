@@ -73,7 +73,7 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
         className
       )}
     >
-      {Icon ? <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' /> : null}
+      {Icon ? <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' /> : null}
       <input
         ref={ref}
         type={type}

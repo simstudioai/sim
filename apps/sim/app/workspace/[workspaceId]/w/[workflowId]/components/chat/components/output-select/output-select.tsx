@@ -323,7 +323,7 @@ function OutputSelectMenu({
   return (
     <Trigger
       size={size}
-      className={cn('min-w-[100px]', size === 'sm' && '!py-0.5 w-fit rounded-md px-2.5', className)}
+      className={cn('min-w-[100px]', size === 'sm' && 'w-fit rounded-md px-2.5 py-0.5!', className)}
       groups={comboboxGroups}
       options={[]}
       multiSelect

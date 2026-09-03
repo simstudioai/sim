@@ -48,6 +48,15 @@ describe('resource policy condition registry', () => {
     )
   })
 
+  it('registers the credential option as an internal string fact', () => {
+    const definition = RESOURCE_POLICY_CONDITION_DEFINITIONS['credential_group:OptionId']
+    expect(definition.valueType).toBe('string')
+    expect(definition.operators).toEqual(['StringEquals'])
+    expect(definition.selector).toEqual({ type: 'internal' })
+    expect(definition.resolve({ credentialGroupOptionId: 'option-1' })).toBe('option-1')
+    expect(definition.resolve({})).toBe(undefined)
+  })
+
   it('fails fast for an unregistered condition key', () => {
     expect(() => requireResourcePolicyConditionDefinition('execution:Unknown')).toThrow(
       'Resource policy condition key execution:Unknown is not registered'

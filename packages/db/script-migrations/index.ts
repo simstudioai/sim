@@ -9,6 +9,7 @@ import { repairUnknownWorkspaceFileProvenance } from './0007_repair_unknown_work
 import { backfillWorkspaceFileSizeBytesMigration } from './0008_backfill_workspace_file_size_bytes'
 import { backfillWelResidualCostTotalMigration } from './0009_backfill_wel_residual_cost_total'
 import { backfillCredentialGroupResourcePolicies } from './0010_backfill_credential_group_resource_policies'
+import { remapLegacyKnowledgeConnectorCredentialsMigration } from './0011_remap_legacy_knowledge_connector_credentials'
 import type { ScriptMigration } from './types'
 
 export type { ScriptMigration } from './types'
@@ -29,6 +30,7 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   backfillWorkspaceFileSizeBytesMigration,
   backfillWelResidualCostTotalMigration,
   backfillCredentialGroupResourcePolicies,
+  remapLegacyKnowledgeConnectorCredentialsMigration,
 ]
 
 /**

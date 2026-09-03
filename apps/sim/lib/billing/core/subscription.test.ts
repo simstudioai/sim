@@ -69,6 +69,7 @@ import {
   hasPaidSubscription,
   hasWorkspaceLiveSyncAccess,
   hasWorkspaceSandboxAccess,
+  hasWorkspaceSandboxRetentionAccess,
   isOrganizationOnEnterprisePlan,
   isWorkspaceOnEnterprisePlan,
   resolveOrganizationPlan,
@@ -422,6 +423,89 @@ describe('hasWorkspaceSandboxAccess', () => {
 
     await expect(hasWorkspaceSandboxAccess('workspace-host')).resolves.toBe(true)
     expect(mockGetWorkspaceWithOwner).not.toHaveBeenCalled()
+  })
+})
+
+describe('hasWorkspaceSandboxRetentionAccess', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setEnvFlags({
+      isBillingEnabled: true,
+      isHosted: true,
+      isSandboxDeploymentEntitled: false,
+      isSandboxesEnabled: true,
+    })
+    mockGetWorkspaceWithOwner.mockResolvedValue({
+      id: 'workspace-host',
+      billedAccountUserId: 'workspace-owner',
+      organizationId: null,
+    })
+  })
+
+  /**
+   * The point of the retention intent: a card that failed last night must not
+   * turn every deployed Function block into an outage this morning.
+   */
+  it('keeps a past_due Max payer running without consulting usability', async () => {
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue({
+      referenceId: 'workspace-owner',
+      plan: 'pro_25000',
+      status: 'past_due',
+    })
+    mockGetPlanTierCredits.mockReturnValue(25000)
+
+    await expect(hasWorkspaceSandboxRetentionAccess('workspace-host')).resolves.toBe(true)
+    expect(mockHasUsableSubscriptionAccess).not.toHaveBeenCalled()
+    expect(mockGetEffectiveBillingStatus).not.toHaveBeenCalled()
+  })
+
+  it('fails a payer that dropped below the Max tier', async () => {
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue({
+      referenceId: 'workspace-owner',
+      plan: 'pro_6000',
+      status: 'active',
+    })
+    mockGetPlanTierCredits.mockReturnValue(6000)
+
+    await expect(hasWorkspaceSandboxRetentionAccess('workspace-host')).resolves.toBe(false)
+  })
+
+  it('fails a payer with no entitled subscription left', async () => {
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue(null)
+
+    await expect(hasWorkspaceSandboxRetentionAccess('workspace-host')).resolves.toBe(false)
+  })
+
+  it('grants the deployment override without resolving a payer', async () => {
+    setEnvFlags({ isSandboxDeploymentEntitled: true })
+
+    await expect(hasWorkspaceSandboxRetentionAccess('workspace-host')).resolves.toBe(true)
+    expect(mockGetWorkspaceWithOwner).not.toHaveBeenCalled()
+  })
+
+  it('fails closed before resolving a payer when the remote feature is unavailable', async () => {
+    setEnvFlags({ isSandboxesEnabled: false })
+
+    await expect(hasWorkspaceSandboxRetentionAccess('workspace-host')).resolves.toBe(false)
+    expect(mockGetWorkspaceWithOwner).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A one-shot gate may read an outage as a lapse; a cached gate must not, or
+   * it would hold every Function block shut for a whole TTL. The caller asks,
+   * and the ask is forwarded to the reader so the failure is not swallowed
+   * one level down.
+   */
+  it('reports a read failure as a lapse unless asked to throw', async () => {
+    mockGetHighestPriorityPersonalSubscription.mockRejectedValue(new Error('billing down'))
+
+    await expect(hasWorkspaceSandboxRetentionAccess('workspace-host')).resolves.toBe(false)
+    await expect(
+      hasWorkspaceSandboxRetentionAccess('workspace-host', { onError: 'throw' })
+    ).rejects.toThrow('billing down')
+    expect(mockGetHighestPriorityPersonalSubscription).toHaveBeenLastCalledWith('workspace-owner', {
+      onError: 'throw',
+    })
   })
 })
 

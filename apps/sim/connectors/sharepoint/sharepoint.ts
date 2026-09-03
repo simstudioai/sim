@@ -13,16 +13,20 @@ import {
   assertMicrosoftGraphNextLink,
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
+  ConnectorListingScopeUnavailableError,
   connectorFileExtension,
   decodeMicrosoftGraphTraversalCursor,
   encodeMicrosoftGraphTraversalCursor,
   extractConnectorText,
   hasIndexablePayload,
   isIndexableConnectorFile,
+  isListingScopeUnavailableError,
   isMicrosoftGraphDriveItem,
+  isSkippableMicrosoftGraphFolderError,
   isSkippedDocument,
   type MicrosoftGraphTraversalState,
   markSkipped,
+  microsoftGraphListingError,
   parseMicrosoftGraphDriveItemList,
   parseOptionalUnlimitedSafeInteger,
   parseTagDate,
@@ -216,8 +220,10 @@ async function resolveSiteId(
 
   if (!response.ok) {
     const errorText = await readBoundedHttpErrorBody(response)
-    throw new Error(
-      `Failed to resolve SharePoint site "${siteUrl}": ${response.status} – ${errorText}`
+    throw microsoftGraphListingError(
+      `Failed to resolve SharePoint site "${siteUrl}"`,
+      response.status,
+      errorText
     )
   }
 
@@ -323,7 +329,7 @@ async function listFolderItems(
 
   if (!response.ok) {
     const errorText = await readBoundedHttpErrorBody(response)
-    throw new Error(`Failed to list folder items: ${response.status} – ${errorText}`)
+    throw microsoftGraphListingError('Failed to list folder items', response.status, errorText)
   }
 
   const data = parseMicrosoftGraphDriveItemList(await response.json(), 'SharePoint')
@@ -403,7 +409,7 @@ async function getItemByPath(
 
   if (response.status === 404) return null
   if (!response.ok) {
-    throw new Error(`Failed to resolve folder path: ${response.status}`)
+    throw microsoftGraphListingError('Failed to resolve folder path', response.status)
   }
 
   return (await response.json()) as DriveItem
@@ -427,7 +433,7 @@ async function listChildFolders(
     const response = await graphGet(url, accessToken, retryOptions)
     if (!response.ok) {
       const errorText = await readBoundedHttpErrorBody(response)
-      throw new Error(`Failed to list folder contents: ${response.status} – ${errorText}`)
+      throw microsoftGraphListingError('Failed to list folder contents', response.status, errorText)
     }
 
     const rawData: unknown = await response.json()
@@ -564,8 +570,9 @@ export async function resolveFolderTarget(
     retryOptions
   )
   if (!defaultDriveResponse.ok) {
-    throw new Error(
-      `Failed to open the default document library for site "${siteUrl}": ${defaultDriveResponse.status}`
+    throw microsoftGraphListingError(
+      `Failed to open the default document library for site "${siteUrl}"`,
+      defaultDriveResponse.status
     )
   }
   const defaultDrive = (await defaultDriveResponse.json()) as Drive
@@ -648,7 +655,8 @@ export async function resolveFolderTarget(
     ? { id: libraryMatch.id, name: libraryMatch.name || segments[0] }
     : { id: defaultDrive.id, name: defaultDriveName }
 
-  throw new Error(
+  /** A folder Graph will not show this caller is, for them, a scope of nothing. */
+  throw new ConnectorListingScopeUnavailableError(
     await buildFolderNotFoundMessage(
       accessToken,
       reportDrive,
@@ -658,7 +666,8 @@ export async function resolveFolderTarget(
       drives,
       reportDrive.id === defaultDrive.id,
       retryOptions
-    )
+    ),
+    404
   )
 }
 
@@ -675,8 +684,10 @@ async function listSiteDrives(
     const response = await graphGet(url, accessToken, retryOptions)
     if (!response.ok) {
       const errorText = await readBoundedHttpErrorBody(response)
-      throw new Error(
-        `Failed to list SharePoint document libraries: ${response.status} – ${errorText}`
+      throw microsoftGraphListingError(
+        'Failed to list SharePoint document libraries',
+        response.status,
+        errorText
       )
     }
     const data = parseDriveListResponse(await response.json())
@@ -784,6 +795,8 @@ function decodeCursor(cursor: string): PaginationState {
 export const sharepointConnector: ConnectorConfig = {
   ...sharepointConnectorMeta,
 
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -853,7 +866,24 @@ export const sharepointConnector: ConnectorConfig = {
     let cappedWithItemsLeft = false
 
     for (let request = 0; request < MAX_LIST_REQUESTS_PER_CALL; request++) {
-      const data = await listFolderItems(accessToken, driveId, state.currentFolder, state.nextLink)
+      let data: Awaited<ReturnType<typeof listFolderItems>>
+      try {
+        data = await listFolderItems(accessToken, driveId, state.currentFolder, state.nextLink)
+      } catch (error) {
+        const isRootFolder = state.currentFolder === rootFolderId
+        if (!isSkippableMicrosoftGraphFolderError(error, syncContext, isRootFolder)) throw error
+        logger.warn('Skipping a SharePoint folder the member cannot reach', {
+          folderId: state.currentFolder,
+          error: getErrorMessage(error),
+        })
+        if (state.folderStack.length === 0) {
+          stopPaging = true
+          break
+        }
+        state.currentFolder = state.folderStack.pop()!
+        state.nextLink = undefined
+        continue
+      }
 
       // Separate files and subfolders
       const subfolders: string[] = []

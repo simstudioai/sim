@@ -15,6 +15,7 @@ const {
   mockEnsureSandboxImage,
   mockIsMissingImage,
   mockLocalGeneration,
+  mockPlanAccess,
 } = vi.hoisted(() => ({
   mockSelect: vi.fn(),
   mockUpdate: vi.fn(),
@@ -22,11 +23,17 @@ const {
   mockEnsureSandboxImage: vi.fn(),
   mockIsMissingImage: vi.fn(),
   mockLocalGeneration: { current: 1785792000000001 },
+  mockPlanAccess: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/remote-sandbox/image-registry', () => ({
   ensureSandboxImage: mockEnsureSandboxImage,
   FAILED_BUILD_RETRY_COOLDOWN_MS: 600_000,
+}))
+
+vi.mock('@/lib/execution/remote-sandbox/entitlement', () => ({
+  MAX_PLAN_REQUIRED: 'Sim sandboxes require an active Max or Enterprise plan.',
+  hasWorkspaceSandboxRetentionAccessCached: mockPlanAccess,
 }))
 
 vi.mock('@sim/db', () => ({
@@ -127,6 +134,7 @@ beforeEach(() => {
   mockLocalGeneration.current = 1785792000000001
   mockUpdate.mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) })
   mockEnsureSandboxImage.mockResolvedValue(undefined)
+  mockPlanAccess.mockResolvedValue(true)
 })
 
 describe('resolveWorkspaceSandbox', () => {
@@ -727,4 +735,68 @@ describe('repairMissingSandboxImage', () => {
     expect(message).toBeNull()
     expect(mockEnsureSandboxImage).not.toHaveBeenCalled()
   })
+})
+
+/**
+ * Execution is gated on a *terminal* plan lapse only. A payment retry keeps
+ * running (the retention reader decides that); what is pinned here is that the
+ * gate fires before any row is read, never fires without a selection, and
+ * fails open when the plan cannot be read at all.
+ */
+describe('resolveWorkspaceSandbox plan gate', () => {
+  it('refuses a selection once the plan has lapsed, before reading the row', async () => {
+    mockPlanAccess.mockResolvedValue(false)
+
+    await expect(
+      resolveWorkspaceSandbox({
+        kind: 'code',
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+    ).rejects.toThrow('Max or Enterprise')
+    expect(mockPlanAccess).toHaveBeenCalledWith('ws-1')
+    expect(mockSelect).not.toHaveBeenCalled()
+  })
+
+  it('allows the selection when the plan cannot be read, rather than failing every block', async () => {
+    mockPlanAccess.mockRejectedValue(new Error('billing read failed'))
+    queueSelects(
+      [SANDBOX_ROW],
+      [{ status: 'ready', imageRef: 'sim-sbx-current:abc', errorCode: null, errorMessage: null }]
+    )
+
+    const resolved = await resolveWorkspaceSandbox({
+      kind: 'code',
+      language: CodeLanguage.Python,
+      workspaceId: 'ws-1',
+      sandboxId: 'sbx-1',
+    })
+
+    expect(resolved).toMatchObject({ strategy: 'prebuilt', imageRef: 'sim-sbx-current:abc' })
+  })
+
+  it('never consults the plan without a selection', async () => {
+    await resolveWorkspaceSandbox({
+      kind: 'code',
+      language: CodeLanguage.Python,
+      workspaceId: 'ws-1',
+    })
+
+    expect(mockPlanAccess).not.toHaveBeenCalled()
+  })
+
+  it.each(['mothership', 'doc', 'pi'] as const)(
+    'never consults the plan for the %s kind',
+    async (kind) => {
+      await resolveWorkspaceSandbox({
+        kind,
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+
+      expect(mockPlanAccess).not.toHaveBeenCalled()
+    }
+  )
 })

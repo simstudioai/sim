@@ -3,7 +3,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { restoreWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
-import { toV2Folder } from '@/app/api/v2/files/folders/utils'
+import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
@@ -28,7 +28,7 @@ export const POST = defineV2JsonRoute({
   useCase: restoreWorkspaceFileFolderOperation,
   present: ({ folder, restoredItems }) => ({
     data: {
-      folder: toV2Folder(folder),
+      folder: toWorkspaceFileFolderPathView(folder),
       restoredItems: { files: restoredItems.files, folders: restoredItems.folders },
     },
   }),

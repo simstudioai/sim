@@ -87,7 +87,7 @@ export function ChipSwitch<T extends string>({
                 : 'text-[var(--text-muted)] hover-hover:bg-transparent hover-hover:text-[var(--text-primary)]'
             )}
           >
-            {Icon ? <Icon className='size-[14px] flex-shrink-0' /> : null}
+            {Icon ? <Icon className='size-[14px] shrink-0' /> : null}
             {option.label}
           </button>
         )

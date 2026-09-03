@@ -51,7 +51,7 @@ const ROW_STEP_CLASSES = [styles.row0, styles.row1, styles.row2] as const
  * ChipTag (fill stepped up to `--surface-6` so the pill stays legible on
  * the grey ground) above three source rows, each a white card in the
  * audit tile's exact chrome (`--white` fill, 1px `--border-1` hairline,
- * `rounded-xl`, `shadow-sm`) pairing the connector's real brand mark in
+ * `rounded-xl`, `shadow-xs`) pairing the connector's real brand mark in
  * the lifecycle header's outlined `size-6` icon box with the source name,
  * its document count, and a right-aligned sync status. The top row is
  * mid-sync - a pulsing dot beside "Syncing" and the family's quiet 6s
@@ -90,7 +90,7 @@ export function ConnectorSyncGraphic() {
               <div
                 key={row.name}
                 className={cn(
-                  'flex items-center gap-2.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm',
+                  'flex items-center gap-2.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs',
                   ROW_STEP_CLASSES[index]
                 )}
               >

@@ -4,6 +4,7 @@ description: Continuously export workflow logs, audit logs, and Chat data to you
 ---
 
 import { FAQ } from '@/components/ui/faq'
+import { Image } from '@/components/ui/image'
 
 Data Drains let organization owners and admins on Enterprise plans continuously export Sim data to a destination they control — a customer-owned S3 bucket, Google Cloud Storage bucket, Azure Blob container, BigQuery table, Snowflake table, Datadog logs intake, or an HTTPS webhook. A drain runs on a schedule, picks up only new rows since its last successful run, and writes them to the destination. Viewing drain configuration and run history is restricted to owners and admins as well, since destinations expose internal bucket names, table identifiers, and webhook URLs.
 
@@ -13,11 +14,11 @@ Drains are independent of [Data Retention](/platform/enterprise/data-retention) 
 
 ## Setup
 
-Go to **Settings → Enterprise → Data Drains** in your workspace, then click **New drain**.
+Go to **Settings → Organization → Data drains** in your workspace, then click **New drain**.
 
-![Data Drains settings page showing two configured drains — one exporting workflow logs to Amazon S3 daily, another exporting Copilot chats to an HTTPS webhook hourly](/static/enterprise/data-drains-list.png)
+<Image src="/static/enterprise/data-drains-list.png" alt="Data Drains settings page showing two configured drains — one exporting workflow logs to Amazon S3 daily, another exporting Chat conversations to an HTTPS webhook hourly" width={900} height={885} />
 
-![New data drain dialog with fields for name, source, cadence, destination, and S3 credentials](/static/enterprise/data-drains-new.png)
+<Image src="/static/enterprise/data-drains-new.png" alt="New data drain dialog with fields for name, source, cadence, destination, and S3 credentials" width={900} height={491} />
 
 Each drain has four pieces:
 
@@ -186,7 +187,7 @@ The **last 10 runs** for each drain are visible by expanding its row in the sett
 
 ## Pairing with Data Retention
 
-Drains and [Data Retention](/platform/enterprise/data-retention) are independent modules. Sim does **not** gate retention on drain progress — if a drain is failing, retention will still purge data on its own schedule. This matches the model used by Datadog Archives and AWS CloudWatch + S3 Export: keep the two configurations orthogonal and let the customer pair them deliberately.
+Drains and [Data Retention](/platform/enterprise/data-retention) are independent modules. Sim does **not** gate retention on drain progress — if a drain is failing, retention will still purge data on its own schedule. Keep the two configurations independent and pair them deliberately.
 
 To safely use both together, set the drain cadence shorter than the retention period for the same data category:
 
@@ -206,10 +207,6 @@ After data lands in your bucket or webhook system, archive lifecycle (transition
   {
     question: "Who can configure data drains?",
     answer: "Only organization owners and admins can view, create, edit, run, or delete drains. On Sim Cloud, the organization must be on an Enterprise plan."
-  },
-  {
-    question: "Will drained data be duplicated if a run fails?",
-    answer: "The drain cursor only advances on overall success, so a failure replays the same chunks on the next run. Every row has a stable `id` field and every webhook chunk has an `Idempotency-Key` header so receivers can dedupe."
   },
   {
     question: "Can I export multiple sources to the same destination?",
@@ -240,6 +237,29 @@ DATA_DRAINS_ENABLED=true
 NEXT_PUBLIC_DATA_DRAINS_ENABLED=true
 ```
 
-`NEXT_PUBLIC_DATA_DRAINS_ENABLED` shows the **Settings → Enterprise → Data Drains** page in the UI. `DATA_DRAINS_ENABLED` gates the server-side mutating endpoints and the cron dispatcher — when unset on a self-hosted deployment, drain create/update/delete/run requests return `404` and the dispatcher is a no-op. Both should be set to `true` together.
+`NEXT_PUBLIC_DATA_DRAINS_ENABLED` shows the **Settings → Organization → Data drains** page in the UI. `DATA_DRAINS_ENABLED` gates the server-side mutating endpoints and the cron dispatcher — when unset on a self-hosted deployment, drain create/update/delete/run requests return `404` and the dispatcher is a no-op. Both should be set to `true` together.
 
-Data Drains otherwise rely on the standard Trigger.dev background job infrastructure used elsewhere in Sim — no additional setup is required. The cron dispatcher runs hourly and fans out due drains as background jobs.
+### Scheduling the dispatcher
+
+The dispatcher is an HTTP endpoint, not a self-scheduling job — something has to call it:
+
+```
+GET /api/cron/run-data-drains
+```
+
+It authenticates with a bearer token equal to `CRON_SECRET` and returns `401` when that variable is unset, so a self-hosted deployment must set it:
+
+```bash
+openssl rand -hex 32
+```
+
+Set the same value as `CRON_SECRET` on both the app and whatever invokes the endpoint. Generating it in your shell does not configure either one.
+
+Both shipped deployments schedule this endpoint hourly for you — Helm through `cronjobs.jobs.runDataDrains`, Docker Compose through its `cron` service. A deployment that runs neither schedules it itself:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  https://sim.example.com/api/cron/run-data-drains
+```
+
+Each due drain is then fanned out as a `run-data-drain` background job, so the deployment also needs `TRIGGER_DEV_ENABLED` and a configured Trigger.dev project. Without it the dispatcher still claims the work and enqueues it to the database, but nothing drains that queue for this job type, so the runs stay pending and never execute. See [background jobs](/platform/self-hosting/background-jobs).

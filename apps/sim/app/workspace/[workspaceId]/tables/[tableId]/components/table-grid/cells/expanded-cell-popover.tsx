@@ -263,7 +263,7 @@ function ExpandedCellEditor({
           setParseError(null)
         }}
         onKeyDown={handleTextareaKeyDown}
-        className='min-h-0 flex-1 resize-none bg-transparent px-2.5 py-2 font-sans text-[var(--text-primary)] text-small outline-none placeholder:text-[var(--text-muted)]'
+        className='min-h-0 flex-1 resize-none bg-transparent px-2.5 py-2 font-sans text-[var(--text-primary)] text-small outline-hidden placeholder:text-[var(--text-muted)]'
         spellCheck={false}
         autoCorrect='off'
       />

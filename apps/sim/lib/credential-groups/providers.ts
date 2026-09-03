@@ -4,11 +4,23 @@ import { getServiceConfigByServiceId } from '@/lib/oauth'
 export const CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS = [
   'gmail',
   'google-calendar',
+  'google-drive',
+  'google-docs',
+  'google-forms',
+  'google-chat',
+  'google-meet',
+  'google-sheets',
+  'microsoft-teams',
+  'outlook',
+  'onedrive',
+  'sharepoint',
+  'microsoft-excel',
   'confluence',
   'jira',
   'airtable',
   'asana',
   'attio',
+  'bitbucket',
   'box',
   'calcom',
   'clickup',
@@ -55,6 +67,61 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
     description: 'Let each person connect one Google Calendar account',
     configuration: 'oauth',
   },
+  'google-drive': {
+    serviceId: 'google-drive',
+    description: 'Let each person connect one Google Drive account',
+    configuration: 'oauth',
+  },
+  'google-docs': {
+    serviceId: 'google-docs',
+    description: 'Let each person connect one Google Docs account',
+    configuration: 'oauth',
+  },
+  'google-forms': {
+    serviceId: 'google-forms',
+    description: 'Let each person connect one Google Forms account',
+    configuration: 'oauth',
+  },
+  'google-chat': {
+    serviceId: 'google-chat',
+    description: 'Let each person connect one Google Chat account',
+    configuration: 'oauth',
+  },
+  'google-meet': {
+    serviceId: 'google-meet',
+    description: 'Let each person connect one Google Meet account',
+    configuration: 'oauth',
+  },
+  'google-sheets': {
+    serviceId: 'google-sheets',
+    description: 'Let each person connect one Google Sheets account',
+    configuration: 'oauth',
+  },
+  'microsoft-teams': {
+    serviceId: 'microsoft-teams',
+    description: 'Let each person connect one Microsoft Teams account',
+    configuration: 'oauth',
+  },
+  outlook: {
+    serviceId: 'outlook',
+    description: 'Let each person connect one Outlook account',
+    configuration: 'oauth',
+  },
+  onedrive: {
+    serviceId: 'onedrive',
+    description: 'Let each person connect one OneDrive account',
+    configuration: 'oauth',
+  },
+  sharepoint: {
+    serviceId: 'sharepoint',
+    description: 'Let each person connect one SharePoint account',
+    configuration: 'oauth',
+  },
+  'microsoft-excel': {
+    serviceId: 'microsoft-excel',
+    description: 'Let each person connect one Microsoft Excel account',
+    configuration: 'oauth',
+  },
   confluence: {
     serviceId: 'confluence',
     description: 'Let each person connect one Confluence account',
@@ -78,6 +145,11 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
   attio: {
     serviceId: 'attio',
     description: 'Let each person connect one Attio account',
+    configuration: 'oauth',
+  },
+  bitbucket: {
+    serviceId: 'bitbucket',
+    description: 'Let each person connect one Bitbucket account',
     configuration: 'oauth',
   },
   box: {
@@ -190,12 +262,31 @@ export function getCredentialGroupProviderId(provider: CredentialGroupProvider):
   return getCredentialGroupProviderService(provider).providerId
 }
 
+/**
+ * The credential group provider collecting accounts for an OAuth provider id,
+ * or `null` when none does.
+ *
+ * Every provider counts here, not only the standard OAuth ones: Slack is
+ * collected through a custom bot app, so resolving against
+ * {@link CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS} misses it. Callers that
+ * treat a miss as an ordinary answer take this rather than catching the throw
+ * from {@link getCredentialGroupProviderFromProviderId}, so the choice of which
+ * provider set counts is made in one place instead of at each call site.
+ */
+export function findCredentialGroupProviderFromProviderId(
+  providerId: string
+): CredentialGroupProvider | null {
+  return (
+    CREDENTIAL_GROUP_PROVIDER_IDS.find(
+      (candidate) => getCredentialGroupProviderId(candidate) === providerId
+    ) ?? null
+  )
+}
+
 export function getCredentialGroupProviderFromProviderId(
   providerId: string
 ): CredentialGroupProvider {
-  const provider = CREDENTIAL_GROUP_PROVIDER_IDS.find(
-    (candidate) => getCredentialGroupProviderId(candidate) === providerId
-  )
+  const provider = findCredentialGroupProviderFromProviderId(providerId)
   if (!provider) throw new Error(`Unsupported managed credential provider: ${providerId}`)
   return provider
 }

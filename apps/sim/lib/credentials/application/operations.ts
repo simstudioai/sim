@@ -177,7 +177,7 @@ export const credentialOperations = {
     workspaceApiKey: 'deny',
     capability: 'integrations.manage',
     principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
+    delegatedServices: ['executor', 'copilot'],
     resourcePolicy: {
       resourceType: 'credential_group',
       action: CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,

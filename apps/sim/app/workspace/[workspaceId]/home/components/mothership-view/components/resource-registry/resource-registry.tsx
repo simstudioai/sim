@@ -53,7 +53,7 @@ export interface ResourceTypeConfig {
 function WorkflowDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
-      <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <Workflow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
       <OverflowText label={item.name} />
     </>
   )
@@ -67,7 +67,7 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
   const DocIcon = getDocumentIcon('', item.name)
   return (
     <>
-      <DocIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <DocIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
       <OverflowText label={item.name} />
     </>
   )
@@ -76,7 +76,7 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
 function IconDropdownItem({ item, icon: Icon }: DropdownItemRenderProps & { icon: ElementType }) {
   return (
     <>
-      <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
       <OverflowText label={item.name} />
     </>
   )
@@ -93,7 +93,7 @@ function IntegrationDropdownItem({ item }: DropdownItemRenderProps) {
   if (!Icon) return <OverflowText label={item.name} />
   return (
     <>
-      <BrandIcon icon={Icon} className='size-[14px] flex-shrink-0' />
+      <BrandIcon icon={Icon} className='size-[14px] shrink-0' />
       <OverflowText label={item.name} />
     </>
   )
@@ -114,19 +114,19 @@ function LogDropdownItem({ item }: DropdownItemRenderProps) {
   const statusColor = status === 'info' ? null : STATUS_CONFIG[status].color
   return (
     <>
-      <Library className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <Library className='size-[14px] shrink-0 text-[var(--text-icon)]' />
       <OverflowText label={workflowName} />
       {statusColor && (
         <div
           aria-hidden
-          className='ml-auto size-[5px] flex-shrink-0 rounded-xs'
+          className='ml-auto size-[5px] shrink-0 rounded-xs'
           style={{ backgroundColor: statusColor }}
         />
       )}
       {time && (
         <span
           className={cn(
-            'flex-shrink-0 text-[var(--text-tertiary)] text-caption',
+            'shrink-0 text-[var(--text-tertiary)] text-caption',
             !statusColor && 'ml-auto'
           )}
         >
@@ -300,6 +300,9 @@ const RESOURCE_INVALIDATORS: Record<
   table: (qc, _wId, id) => {
     qc.invalidateQueries({ queryKey: tableKeys.lists() })
     qc.invalidateQueries({ queryKey: tableKeys.detail(id) })
+    // A view the agent just created must be in the list before the embedded
+    // table can switch to it; see the view-pin store.
+    qc.invalidateQueries({ queryKey: tableKeys.views(id) })
   },
   file: (qc, wId, id) => {
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })

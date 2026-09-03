@@ -16,10 +16,16 @@ import {
   createNotFoundResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
-import type { ChatResource } from '@/lib/copilot/resources/persistence'
+import {
+  type ChatResource,
+  serializeChatResourceWrite,
+  setChatResourceTxTimeouts,
+} from '@/lib/copilot/resources/persistence'
+import type { MothershipResourceUpdate } from '@/lib/copilot/resources/types'
 import {
   canonicalizeDesktopSessionResource,
-  GENERIC_RESOURCE_TITLES,
+  mergeChatResource,
+  reorderStoredChatResources,
   sanitizeChatResources,
 } from '@/lib/copilot/resources/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -43,59 +49,56 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
     )
     if (!parsed.success) return parsed.response
-    const { chatId, resource: requestedResource } = parsed.data.body
+    const { chatId, resource: requestedResource, clearViewId } = parsed.data.body
     const resource = canonicalizeDesktopSessionResource(requestedResource)
+    const resourceUpdate: MothershipResourceUpdate =
+      clearViewId === true ? { ...resource, clearViewId: true } : resource
 
     // Ephemeral UI tab (client does not POST this; guard for old clients / bugs).
     if (resource.id === 'streaming-file') {
       return NextResponse.json({ success: true })
     }
 
-    const [chat] = await db
-      .select({ resources: copilotChats.resources })
-      .from(copilotChats)
-      .where(
-        and(
+    const merged = await serializeChatResourceWrite(chatId, () =>
+      db.transaction(async (tx) => {
+        await setChatResourceTxTimeouts(tx)
+        const scope = and(
           eq(copilotChats.id, chatId),
           eq(copilotChats.userId, userId),
           isNull(copilotChats.deletedAt)
         )
-      )
-      .limit(1)
+        const [chat] = await tx
+          .select({ resources: copilotChats.resources })
+          .from(copilotChats)
+          .where(scope)
+          .for('update')
+          .limit(1)
 
-    if (!chat) {
+        if (!chat) return null
+
+        const existing = sanitizeChatResources(
+          Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
+        )
+        const key = `${resource.type}:${resource.id}`
+        const prev = existing.find((r) => `${r.type}:${r.id}` === key)
+        const next: ChatResource[] = prev
+          ? existing.map((r) =>
+              `${r.type}:${r.id}` === key ? mergeChatResource(r, resourceUpdate) : r
+            )
+          : [...existing, mergeChatResource(undefined, resourceUpdate)]
+
+        await tx
+          .update(copilotChats)
+          .set({ resources: sql`${JSON.stringify(next)}::jsonb`, updatedAt: new Date() })
+          .where(scope)
+
+        return next
+      })
+    )
+
+    if (!merged) {
       return createNotFoundResponse('Chat not found or unauthorized')
     }
-
-    const existing = sanitizeChatResources(
-      Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
-    )
-    const key = `${resource.type}:${resource.id}`
-    const prev = existing.find((r) => `${r.type}:${r.id}` === key)
-
-    let merged: ChatResource[]
-    if (prev) {
-      if (GENERIC_RESOURCE_TITLES.has(prev.title) && !GENERIC_RESOURCE_TITLES.has(resource.title)) {
-        merged = existing.map((r) =>
-          `${r.type}:${r.id}` === key ? { ...r, title: resource.title } : r
-        )
-      } else {
-        merged = existing
-      }
-    } else {
-      merged = [...existing, resource]
-    }
-
-    await db
-      .update(copilotChats)
-      .set({ resources: sql`${JSON.stringify(merged)}::jsonb`, updatedAt: new Date() })
-      .where(
-        and(
-          eq(copilotChats.id, chatId),
-          eq(copilotChats.userId, userId),
-          isNull(copilotChats.deletedAt)
-        )
-      )
 
     logger.info('Added resource to chat', { chatId, resource })
 
@@ -125,43 +128,44 @@ export const PATCH = withRouteHandler(async (req: NextRequest) => {
     if (!parsed.success) return parsed.response
     const { chatId, resources: newOrder } = parsed.data.body
 
-    const [chat] = await db
-      .select({ resources: copilotChats.resources })
-      .from(copilotChats)
-      .where(
-        and(
+    const canonicalOrder = await serializeChatResourceWrite(chatId, () =>
+      db.transaction(async (tx): Promise<ChatResource[] | null | undefined> => {
+        await setChatResourceTxTimeouts(tx)
+        const scope = and(
           eq(copilotChats.id, chatId),
           eq(copilotChats.userId, userId),
           isNull(copilotChats.deletedAt)
         )
-      )
-      .limit(1)
+        const [chat] = await tx
+          .select({ resources: copilotChats.resources })
+          .from(copilotChats)
+          .where(scope)
+          .for('update')
+          .limit(1)
 
-    if (!chat) {
+        if (!chat) return undefined
+
+        const existing = sanitizeChatResources(
+          Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
+        )
+        const next = reorderStoredChatResources(existing, newOrder)
+        if (!next) return null
+
+        await tx
+          .update(copilotChats)
+          .set({ resources: sql`${JSON.stringify(next)}::jsonb`, updatedAt: new Date() })
+          .where(scope)
+
+        return next
+      })
+    )
+
+    if (canonicalOrder === undefined) {
       return createNotFoundResponse('Chat not found or unauthorized')
     }
-
-    const existing = sanitizeChatResources(
-      Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
-    )
-    const canonicalOrder = sanitizeChatResources(newOrder)
-    const existingKeys = new Set(existing.map((r) => `${r.type}:${r.id}`))
-    const newKeys = new Set(canonicalOrder.map((r) => `${r.type}:${r.id}`))
-
-    if (existingKeys.size !== newKeys.size || ![...existingKeys].every((k) => newKeys.has(k))) {
+    if (!canonicalOrder) {
       return createBadRequestResponse('Reordered resources must match existing resources')
     }
-
-    await db
-      .update(copilotChats)
-      .set({ resources: sql`${JSON.stringify(canonicalOrder)}::jsonb`, updatedAt: new Date() })
-      .where(
-        and(
-          eq(copilotChats.id, chatId),
-          eq(copilotChats.userId, userId),
-          isNull(copilotChats.deletedAt)
-        )
-      )
 
     logger.info('Reordered resources for chat', { chatId, count: canonicalOrder.length })
 
@@ -191,38 +195,44 @@ export const DELETE = withRouteHandler(async (req: NextRequest) => {
     if (!parsed.success) return parsed.response
     const { chatId, resourceType, resourceId } = parsed.data.body
 
-    // Old builds could persist an inner browser/terminal tab id. Closing the
-    // singleton panel removes every legacy row of that type so it cannot be
-    // canonicalized back into view on the next hydration.
-    const removePredicate =
-      resourceType === 'browser' || resourceType === 'terminal'
-        ? sql`elem->>'type' = ${resourceType}`
-        : sql`elem->>'type' = ${resourceType} AND elem->>'id' = ${resourceId}`
-
-    const [updated] = await db
-      .update(copilotChats)
-      .set({
-        resources: sql`COALESCE((
-          SELECT jsonb_agg(elem)
-          FROM jsonb_array_elements(${copilotChats.resources}) elem
-          WHERE NOT (${removePredicate})
-        ), '[]'::jsonb)`,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
+    const merged = await serializeChatResourceWrite(chatId, () =>
+      db.transaction(async (tx) => {
+        await setChatResourceTxTimeouts(tx)
+        const scope = and(
           eq(copilotChats.id, chatId),
           eq(copilotChats.userId, userId),
           isNull(copilotChats.deletedAt)
         )
-      )
-      .returning({ resources: copilotChats.resources })
+        const [chat] = await tx
+          .select({ resources: copilotChats.resources })
+          .from(copilotChats)
+          .where(scope)
+          .for('update')
+          .limit(1)
 
-    if (!updated) {
+        if (!chat) return null
+
+        const existing = sanitizeChatResources(
+          Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
+        )
+        const removeAllOfType = resourceType === 'browser' || resourceType === 'terminal'
+        const next = existing.filter(
+          (resource) =>
+            resource.type !== resourceType || (!removeAllOfType && resource.id !== resourceId)
+        )
+
+        await tx
+          .update(copilotChats)
+          .set({ resources: sql`${JSON.stringify(next)}::jsonb`, updatedAt: new Date() })
+          .where(scope)
+
+        return next
+      })
+    )
+
+    if (!merged) {
       return createNotFoundResponse('Chat not found or unauthorized')
     }
-
-    const merged = Array.isArray(updated.resources) ? (updated.resources as ChatResource[]) : []
 
     logger.info('Removed resource from chat', { chatId, resourceType, resourceId })
 

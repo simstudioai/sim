@@ -229,7 +229,7 @@ export function GeneralDeploy({
           >
             {workflowToShow ? (
               <>
-                <div className='[&_*]:!cursor-default h-full w-full cursor-default'>
+                <div className='h-full w-full cursor-default [&_*]:cursor-default!'>
                   <PreviewWorkflow
                     workflowState={workflowToShow}
                     height='100%'
@@ -245,7 +245,7 @@ export function GeneralDeploy({
                       type='button'
                       variant='default'
                       onClick={() => setShowExpandedPreview(true)}
-                      className='absolute right-[8px] bottom-2 z-10 size-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                      className='absolute right-[8px] bottom-2 z-10 size-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                     >
                       <Expand className='size-[14px]' />
                     </Button>

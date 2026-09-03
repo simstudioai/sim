@@ -4,10 +4,13 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  knowledgeBase,
+  knowledgeConnector,
   mcpServers,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   credentialGroupWorkflowAccessPolicyCodec,
   requireDefaultCredentialGroupWorkflowAccessPolicy,
@@ -284,6 +287,53 @@ export async function createCredentialGroup(
   })
 }
 
+/**
+ * Refuses to remove a group, or the given options of it, while a knowledge
+ * connector syncs per member through one of them: the connector would be left
+ * bound to nothing, and its members' documents dark, without anyone choosing
+ * that. `optionIds` null means the whole group.
+ *
+ * Runs under the caller's `FOR UPDATE` on the group row. Every write that binds
+ * a connector row to an option (`lockCredentialGroupOption`) takes that same
+ * lock and re-checks the option under it, so a binding is either visible here
+ * or refused once this transaction commits; the check reads only the rows.
+ */
+async function refuseIfServingMemberConnectors(
+  executor: DbOrTx,
+  workspaceId: string,
+  groupId: string,
+  optionIds: readonly string[] | null
+): Promise<void> {
+  if (optionIds !== null && optionIds.length === 0) return
+  const serving = await executor
+    .select({
+      knowledgeBaseName: knowledgeBase.name,
+      connectorType: knowledgeConnector.connectorType,
+    })
+    .from(knowledgeConnector)
+    .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
+    .where(
+      and(
+        eq(knowledgeBase.workspaceId, workspaceId),
+        eq(knowledgeConnector.accessMode, 'members'),
+        eq(knowledgeConnector.credentialGroupId, groupId),
+        optionIds === null
+          ? undefined
+          : inArray(knowledgeConnector.credentialGroupOptionId, [...optionIds]),
+        isNull(knowledgeConnector.deletedAt)
+      )
+    )
+    .limit(5)
+  if (serving.length === 0) return
+  const names = serving
+    .map((row) => `the ${row.connectorType} connector in "${row.knowledgeBaseName}"`)
+    .join(', ')
+  throw new OrchestrationError(
+    'conflict',
+    `${optionIds === null ? 'This Credential Group' : 'An option being removed'} is what ${names} ${serving.length === 1 ? 'syncs' : 'sync'} per member through. Switch ${serving.length === 1 ? 'that connector' : 'those connectors'} to another group first.`
+  )
+}
+
 export async function deleteCredentialGroup(
   workspaceId: string,
   groupId: string
@@ -301,6 +351,7 @@ export async function deleteCredentialGroup(
 
     const retiredMcp = await retireManagedMcpServersForGroup(workspaceId, groupId, tx)
 
+    await refuseIfServingMemberConnectors(tx, workspaceId, groupId, null)
     await deleteResourcePolicyForResource(
       { workspaceId, resourceType: 'credential_group', resourceId: groupId },
       tx
@@ -332,6 +383,17 @@ export async function updateCredentialGroup(
       .for('update')
     if (!existing) return null
 
+    if (body.options !== undefined) {
+      const keptOptionIds = new Set(body.options.map((option) => option.id))
+      await refuseIfServingMemberConnectors(
+        tx,
+        workspaceId,
+        groupId,
+        existing.options
+          .filter((option) => !keptOptionIds.has(option.id))
+          .map((option) => option.id)
+      )
+    }
     const nextOptions =
       body.options !== undefined
         ? await updateOptions(workspaceId, groupId, body.options, existing.options, tx)

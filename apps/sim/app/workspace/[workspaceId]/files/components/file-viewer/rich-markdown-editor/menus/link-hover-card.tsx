@@ -147,7 +147,7 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
       aria-label='Link'
       onMouseEnter={cancelHide}
       onMouseLeave={scheduleHide}
-      className='z-[var(--z-popover)] flex items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-sm transition-opacity duration-150 ease-out'
+      className='z-[var(--z-popover)] flex items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-xs transition-opacity duration-150 ease-out'
     >
       {isEditing ? (
         <>

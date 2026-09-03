@@ -274,7 +274,7 @@ export function BuildMethodsGraphic() {
         <div
           aria-hidden='true'
           className={cn(
-            'absolute top-5 right-0 bottom-0 left-0 overflow-hidden rounded-tl-xl border-[var(--border-1)] border-t border-l bg-[var(--white)] shadow-sm transition-[transform,opacity] [transition-duration:420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+            'absolute top-5 right-0 bottom-0 left-0 overflow-hidden rounded-tl-xl border-[var(--border-1)] border-t border-l bg-[var(--white)] shadow-xs transition-[transform,opacity] [transition-duration:420ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
             phase === 'idle' && 'transition-none',
             chatOpen ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
           )}
@@ -297,7 +297,7 @@ export function BuildMethodsGraphic() {
 
         <div
           className={cn(
-            'absolute right-3 bottom-5 left-5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm transition-transform [transition-duration:450ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+            'absolute right-3 bottom-5 left-5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs transition-transform [transition-duration:450ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
             phase === 'idle' && 'transition-none',
             composerVisible ? 'translate-y-0' : 'translate-y-[130%]'
           )}

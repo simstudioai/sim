@@ -983,6 +983,7 @@ export interface WorkspacePermissionConfig {
   hideInboxTab?: boolean
   disableMcpTools?: boolean
   disableCustomTools?: boolean
+  hideSandboxesTab?: boolean
 }
 
 const WORKSPACE_PERMISSION_CONFIG_KEYS: Partial<
@@ -993,6 +994,7 @@ const WORKSPACE_PERMISSION_CONFIG_KEYS: Partial<
   inbox: 'hideInboxTab',
   mcp: 'disableMcpTools',
   'custom-tools': 'disableCustomTools',
+  sandboxes: 'hideSandboxesTab',
 }
 
 export function workspaceSectionUsesPermissionConfig(section: WorkspaceSettingsSection): boolean {

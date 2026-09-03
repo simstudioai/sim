@@ -1,14 +1,19 @@
 /**
  * @vitest-environment node
  */
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { Command } from 'commander'
 import { describe, expect, it } from 'vitest'
 import { buildProgram } from './program'
 import { CLI_VERSION } from './version'
 
 /** Parses argv against a program whose output and exits are captured, not taken. */
-async function parse(argv: string[]): Promise<{ out: string; code: string | null }> {
-  const program = buildProgram()
+async function parse(
+  argv: string[],
+  program: Command = buildProgram()
+): Promise<{ out: string; code: string | null }> {
   let out = ''
   const capture = (command: Command) => {
     command.exitOverride()
@@ -157,5 +162,71 @@ describe('help typed after a command that does not exist', () => {
     const implicit = await parse(['profiles', 'help', 'add'])
     expect(implicit.code).toBe('commander.help')
     expect(implicit.out).toContain('Usage: sim profiles add')
+  })
+})
+
+/** Commander keeps lifecycle hooks on a private field and offers no getter. */
+function preActionHooks(program: Command): Array<(a: Command, b: Command) => unknown> {
+  const { _lifeCycleHooks: hooks } = program as Command & {
+    _lifeCycleHooks?: Record<string, Array<(a: Command, b: Command) => unknown>>
+  }
+  return hooks?.preAction ?? []
+}
+
+describe('the update check', () => {
+  /**
+   * The notice must cost `--version` and `--help` nothing. Commander answers
+   * both during parsing, before any action hook runs, so the guarantee is
+   * structural — this holds it in place if the check is ever moved.
+   *
+   * It swaps in a sentinel hook rather than watching for a request or a cache
+   * file. Those side effects never appear from inside a checkout no matter
+   * what runs, because the check suppresses itself there — so asserting on
+   * them would pass even if the hook fired, which is precisely the regression
+   * this is meant to catch.
+   */
+  it('fires no preAction hook for the two commands commander answers while parsing', async () => {
+    let fired = 0
+    const program = buildProgram()
+    const hooks = preActionHooks(program)
+    expect(hooks).toHaveLength(1)
+    hooks.splice(0, hooks.length, () => {
+      fired += 1
+    })
+
+    await parse(['--version'], program)
+    await parse(['--help'], program)
+    expect(fired).toBe(0)
+
+    const dir = mkdtempSync(join(tmpdir(), 'sim-cli-program-'))
+    const previousConfigDir = process.env.SIM_CONFIG_DIR
+    process.env.SIM_CONFIG_DIR = dir
+    try {
+      await parse(['configure', '--set-output', 'json'], program)
+      expect(fired).toBe(1)
+    } finally {
+      if (previousConfigDir === undefined) Reflect.deleteProperty(process.env, 'SIM_CONFIG_DIR')
+      else process.env.SIM_CONFIG_DIR = previousConfigDir
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  /**
+   * The positive half, and the one that matters: without it the hook can be
+   * deleted from `buildProgram` and every other test still passes.
+   *
+   * It asserts registration rather than a resulting request, because the check
+   * suppresses itself when it is running from a checkout — and inside this
+   * suite `import.meta.url` IS a checkout, so the behavioural path is
+   * unreachable here by construction. That path is covered directly in
+   * check.test.ts and walked against the real registry from a staged global
+   * install before release.
+   */
+  it('registers the update check as a root preAction hook', async () => {
+    const program = buildProgram()
+    const preAction = preActionHooks(program)
+
+    expect(preAction).toHaveLength(1)
+    await expect(preAction[0](program, program)).resolves.toBeUndefined()
   })
 })

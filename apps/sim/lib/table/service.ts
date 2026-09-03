@@ -43,6 +43,7 @@ import {
   TABLE_LIMITS,
 } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
+import { generateTableId } from '@/lib/table/ids'
 import {
   EMPTY_JOB_FIELDS,
   latestJobsForTables,
@@ -565,7 +566,7 @@ export async function createTable(
     await assertTableRowTtlEnabled()
   }
 
-  const tableId = `tbl_${generateId().replace(/-/g, '')}`
+  const tableId = generateTableId()
   const now = new Date()
 
   // Stamp stable ids so the table is id-keyed from its first row write.

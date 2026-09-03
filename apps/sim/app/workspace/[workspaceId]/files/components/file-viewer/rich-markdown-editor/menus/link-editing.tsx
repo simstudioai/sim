@@ -53,7 +53,7 @@ export function LinkUrlInput({ value, onChange, onCommit, onCancel, inputRef }: 
         }
       }}
       placeholder='Paste or type a link…'
-      className='h-[28px] w-[220px] bg-transparent px-2 text-[var(--text-body)] text-small outline-none placeholder:text-[var(--text-subtle)]'
+      className='h-[28px] w-[220px] bg-transparent px-2 text-[var(--text-body)] text-small outline-hidden placeholder:text-[var(--text-subtle)]'
     />
   )
 }

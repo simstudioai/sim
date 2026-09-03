@@ -13,6 +13,8 @@ const CUSTOM_TOOL_SCHEMA_HELP =
   'OpenAI function schema: {"type":"function","function":{"name":"...","parameters":{"type":"object","properties":{}}}}'
 const DISPATCH_ROW_LIMIT_HELP =
   'Stop after this many eligible rows have run (1-1,000,000). Omit for an unbounded run'
+const FILE_EDIT_HELP =
+  'One edit object: {"mode":"search_replace","search":"old","content":"new","replaceAll":false}, {"mode":"replace_between","beforeAnchor":"start line","afterAnchor":"end line","content":"new"}, {"mode":"insert_after","anchor":"line","content":"new"}, or {"mode":"delete_between","startAnchor":"first line deleted","endAnchor":"ending line kept"}. Anchored modes also accept occurrence starting at 1'
 /**
  * The shapes behind the graph-write batches.
  *
@@ -327,6 +329,9 @@ export const CLI_CONTRACT: CliContract = {
     confirm: 'This revokes the explicit skill editor grant for the selected email.',
   },
   deleteCustomTool: { confirm: 'This deletes the custom tool.' },
+  deleteSandbox: {
+    confirm: 'This deletes the sandbox; Function blocks that select it fail until re-pointed.',
+  },
   deleteMcpServer: {
     confirm: 'This removes the MCP server and the tools it provides.',
   },
@@ -583,6 +588,26 @@ export const CLI_CONTRACT: CliContract = {
     flags: { folderPaths: FOLDER_PATHS_FLAG },
     confirm: 'This deletes every listed table and all of their rows.',
   },
+  searchFileContent: {
+    flags: {
+      folderPaths: {
+        ...FOLDER_PATHS_FLAG,
+        describe:
+          'Folders to search, by path as shown in the app; omit to search the whole workspace',
+      },
+      includeSubfolders: {
+        boolean: true,
+        negatable: true,
+        describe: 'Whether each folder scope includes nested folders; on by default',
+      },
+    },
+    itemsPath: 'results',
+    columns: [
+      { header: 'file', path: 'fileId' },
+      { header: 'line', path: 'lineNumber' },
+      { header: 'text' },
+    ],
+  },
   searchKnowledge: {
     // Accepts a string or an array on the wire; the CLI always sends the array.
     flags: {
@@ -672,6 +697,25 @@ export const CLI_CONTRACT: CliContract = {
   importWorkflow: { flags: { folderPath: FOLDER_PATH_FLAG } },
   createCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
   updateCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
+  // A dependency set is typed one specifier at a time or pasted from a
+  // requirements file, so each list takes space-separated values or `@path`
+  // with one entry per line rather than a JSON array. The package lists are
+  // manifests: a requirements file carries blank lines and `#` comments, which
+  // the API ignores, so the reader drops them instead of refusing the file.
+  createSandbox: {
+    flags: {
+      dependencies: { list: true, manifest: true },
+      cliTools: { list: true },
+      systemPackages: { list: true, manifest: true },
+    },
+  },
+  updateSandbox: {
+    flags: {
+      dependencies: { list: true, manifest: true },
+      cliTools: { list: true },
+      systemPackages: { list: true, manifest: true },
+    },
+  },
 
   // ─── Output columns for list commands ─────────────────────────────────────
   listTables: {
@@ -842,6 +886,17 @@ export const CLI_CONTRACT: CliContract = {
       // title named the other one.
       { header: 'title', path: 'title' },
       { header: 'description', path: 'schema.function.description' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  listSandboxes: {
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'language' },
+      // `builtAt` is null under a runtime-install deployment, so the build
+      // state and the last edit are what every row can show.
+      { header: 'status', path: 'buildStatus' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
     ],
   },
@@ -1103,6 +1158,13 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       fileIds: { list: true },
       folderPaths: FOLDER_PATHS_FLAG,
+    },
+  },
+  editFileContent: {
+    command: 'files edit',
+    describe: 'Apply one exact or anchor-based edit to a text file',
+    flags: {
+      edit: { describe: FILE_EDIT_HELP },
     },
   },
   updateFileContent: {

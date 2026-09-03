@@ -32,7 +32,7 @@ export function isLightTileColor(bgColor: string | null | undefined): boolean {
  * near-black so monochrome `currentColor` icons (Notion, Mailchimp, …) stay
  * legible instead of rendering white-on-white. Hardcoded multi-color icons
  * ignore the class and keep their own fills. Pass `important` when overriding
- * an inherited text color (the legacy `!text-white` tile rows).
+ * an inherited text color (the legacy `text-white!` tile rows).
  *
  * All four literals are spelled out so Tailwind's JIT scanner emits them.
  */
@@ -40,6 +40,6 @@ export function getTileIconColorClass(
   bgColor: string | null | undefined,
   important = false
 ): string {
-  if (isLightTileColor(bgColor)) return important ? '!text-black' : 'text-black'
-  return important ? '!text-white' : 'text-white'
+  if (isLightTileColor(bgColor)) return important ? 'text-black!' : 'text-black'
+  return important ? 'text-white!' : 'text-white'
 }

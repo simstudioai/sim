@@ -27,14 +27,14 @@ import { useFolderStore } from '@/stores/folders/store'
 
 const ICON_CLASS = 'size-[14px]'
 const BUTTON_CLASS =
-  'flex size-[26px] items-center justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
+  'flex size-[26px] items-center justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-hidden'
 
 interface MessageActionsProps {
   content: string
   getCopyContent?: () => string
   hasCopyContent?: boolean
   prepareContentForCopy?: (content: string) => ClipboardContent
-  userQuery?: string
+  userQuery: string | undefined
   requestId?: string
   messageId?: string
 }

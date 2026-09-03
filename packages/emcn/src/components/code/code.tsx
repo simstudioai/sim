@@ -470,7 +470,7 @@ const CollapseButton = memo(function CollapseButton({ isCollapsed, onClick }: Co
     >
       <ChevronRight
         className={cn(
-          '!h-[12px] !w-[12px] transition-transform duration-100',
+          'h-[12px]! w-[12px]! transition-transform duration-100',
           !isCollapsed && 'rotate-90'
         )}
       />
@@ -596,15 +596,15 @@ export function getCodeEditorProps(options?: {
       // Base editor classes
       'bg-transparent font-[inherit] text-[inherit]',
       'text-[var(--text-primary)] dark:text-[var(--code-foreground)]',
-      'leading-[21px] outline-none focus:outline-none',
+      'leading-[21px] outline-hidden focus:outline-hidden',
       'min-h-[106px]',
       // Streaming/disabled states
       (isStreaming || disabled) && 'cursor-not-allowed opacity-50'
     ),
     textareaClassName: cn(
       // Reset browser defaults
-      'border-none bg-transparent outline-none resize-none',
-      'focus:outline-none focus:ring-0',
+      'border-none bg-transparent outline-hidden resize-none',
+      'focus:outline-hidden focus:ring-0',
       // Selection styling - light and dark modes
       'selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)]',
       'dark:selection:bg-[var(--selection-dark)] dark:selection:text-white',
@@ -772,7 +772,7 @@ function CodeRow({
       {showGutter && (
         <div
           className={cn(
-            'flex-shrink-0 select-none pr-0.5 text-right text-[var(--text-muted)] tabular-nums dark:text-[var(--code-line-number)]',
+            'shrink-0 select-none pr-0.5 text-right text-[var(--text-muted)] tabular-nums dark:text-[var(--code-line-number)]',
             density === 'compact' ? 'text-caption leading-5' : 'text-xs leading-[21px]'
           )}
           style={{ width: gutterWidth, marginLeft: leftOffset, ...gutterStyle }}
@@ -782,7 +782,7 @@ function CodeRow({
       )}
       {showCollapseColumn && (
         <div
-          className='ml-1 flex flex-shrink-0 items-start justify-end'
+          className='ml-1 flex shrink-0 items-start justify-end'
           style={{ width: COLLAPSE_COLUMN_WIDTH }}
         >
           {isCollapsible && (

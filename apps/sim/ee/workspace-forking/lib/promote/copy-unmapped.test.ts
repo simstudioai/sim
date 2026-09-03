@@ -315,6 +315,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
     mockPlanForkFileCopies.mockResolvedValue({
       keyMap: new Map([['workspace/SRC/a.png', 'workspace/DST/a.png']]),
       folderIdMap: new Map(),
+      folderPathMap: new Map(),
       idMap: new Map([['file-src', 'file-dst']]),
       blobTasks: [
         {
@@ -413,6 +414,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
     mockPlanForkFileCopies.mockResolvedValue({
       keyMap: new Map<string, string>(),
       folderIdMap: new Map(),
+      folderPathMap: new Map(),
       idMap: new Map<string, string>(),
       blobTasks: [],
     })
@@ -512,7 +514,12 @@ describe('fork copyable kind drift', () => {
     for (const kind of forkCopyableKindSchema.options) {
       expect(isForkCopyableKind(kind)).toBe(true)
     }
-    const nonCopyable: ForkRemapKind[] = ['credential', 'env-var', 'knowledge-document']
+    const nonCopyable: ForkRemapKind[] = [
+      'credential',
+      'env-var',
+      'knowledge-document',
+      'file-folder',
+    ]
     for (const kind of nonCopyable) {
       expect(isForkCopyableKind(kind)).toBe(false)
     }

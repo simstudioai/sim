@@ -28,7 +28,7 @@ const ROW_STEP_CLASSES = [styles.row0, styles.row1, styles.row2] as const
  * match-count mono ChipTag (fill stepped up to `--surface-6` so the pill
  * stays legible on the grey ground), the query itself lifted onto the
  * tile's highlight - a white card in the audit tile's exact chrome
- * (`--white` fill, 1px `--border-1` hairline, rounded, `shadow-sm`) with
+ * (`--white` fill, 1px `--border-1` hairline, rounded, `shadow-xs`) with
  * a blinking caret holding the query - a row of quiet mono filter chips,
  * and the three matched runs as airy rows ruled by 1px `--border-1`
  * hairlines, each pairing the workflow name with its Error badge and
@@ -61,7 +61,7 @@ export function FilterRunsGraphic() {
             </ChipTag>
           </div>
 
-          <div className='flex items-center gap-2.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2 shadow-sm'>
+          <div className='flex items-center gap-2.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2 shadow-xs'>
             <Search className='size-[14px] shrink-0 text-[var(--text-icon)]' />
             <span className='min-w-0 truncate text-[var(--text-body)] text-caption'>
               nightly sync

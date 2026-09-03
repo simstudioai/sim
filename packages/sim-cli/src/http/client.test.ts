@@ -995,6 +995,7 @@ describe('destructive operations are gated', () => {
     'createKnowledgeFolder',
     'createKnowledgeTag',
     'createMcpServer',
+    'createSandbox',
     'createServiceAccountCredential',
     'createSkill',
     'createTable',
@@ -1016,6 +1017,7 @@ describe('destructive operations are gated', () => {
     // path of every tool.
     'executeTool',
     'executeWorkflow',
+    'editFileContent',
     'unzipFile',
     'searchTableRows',
     'grantSkillEditor',
@@ -1054,6 +1056,7 @@ describe('destructive operations are gated', () => {
     'updateKnowledgeDocument',
     'updateKnowledgeTag',
     'updateMcpServer',
+    'updateSandbox',
     'updateSkill',
     'updateTable',
     'updateTableColumn',

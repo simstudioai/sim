@@ -184,7 +184,7 @@ function auditLogDetails(entry: EnterpriseAuditLogEntry): ReactNode {
   return (
     <>
       <div className='flex gap-2'>
-        <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Resource</span>
+        <span className='w-[100px] shrink-0 text-[var(--text-muted)]'>Resource</span>
         <span className='text-[var(--text-primary)]'>
           {formatResourceType(entry.resourceType)}
           {entry.resourceId && (
@@ -194,12 +194,12 @@ function auditLogDetails(entry: EnterpriseAuditLogEntry): ReactNode {
       </div>
       {entry.resourceName && (
         <div className='flex gap-2'>
-          <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Name</span>
+          <span className='w-[100px] shrink-0 text-[var(--text-muted)]'>Name</span>
           <span className='text-[var(--text-primary)]'>{entry.resourceName}</span>
         </div>
       )}
       <div className='flex gap-2'>
-        <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Actor</span>
+        <span className='w-[100px] shrink-0 text-[var(--text-muted)]'>Actor</span>
         <span className='text-[var(--text-primary)]'>
           {entry.actorName || 'Unknown'}
           {entry.actorEmail && (
@@ -209,13 +209,13 @@ function auditLogDetails(entry: EnterpriseAuditLogEntry): ReactNode {
       </div>
       {entry.description && (
         <div className='flex gap-2'>
-          <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Description</span>
+          <span className='w-[100px] shrink-0 text-[var(--text-muted)]'>Description</span>
           <span className='text-[var(--text-primary)]'>{entry.description}</span>
         </div>
       )}
       {metadataEntries.map(([key, value]) => (
         <div key={key} className='flex gap-2'>
-          <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>
+          <span className='w-[100px] shrink-0 text-[var(--text-muted)]'>
             {formatMetadataLabel(key)}
           </span>
           <div className='min-w-0 flex-1'>{renderMetadataValue(value)}</div>

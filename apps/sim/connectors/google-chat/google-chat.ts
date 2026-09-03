@@ -9,7 +9,7 @@ import {
   SPACES_PAGE_SIZE,
 } from '@/connectors/google-chat/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseTagDate } from '@/connectors/utils'
+import { BoundedLines, CONNECTOR_TEXT_DOCUMENT_MAX_BYTES, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GoogleChatConnector')
 
@@ -218,6 +218,7 @@ function spaceToStub(
     title: spaceTitle(space),
     content: '',
     contentDeferred: true,
+    estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
     mimeType: 'text/plain',
     sourceUrl: space.spaceUri,
     contentHash: buildContentHash(space, maxMessages, lookbackDays, syncContext),
@@ -323,37 +324,31 @@ function senderLabel(sender: ChatUser | undefined): string {
  * that belongs in a knowledge base is synced through the Google Drive connector
  * instead, which already handles size caps, OCR, and format parsing.
  */
-function formatSpaceContent(space: Space, messages: ChatMessage[]): string {
-  const parts: string[] = [`Space: ${spaceTitle(space)}`]
+function formatSpaceContent(
+  space: Space,
+  messages: ChatMessage[]
+): { content: string; messageCount: number } {
+  /** The newest messages survive when the window does not fit; the header always does. */
+  const parts = new BoundedLines(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES, 'last')
+  parts.pin(`Space: ${spaceTitle(space)}`)
   const description = space.spaceDetails?.description?.trim()
-  if (description) parts.push(`Description: ${description}`)
+  if (description) parts.pin(`Description: ${description}`)
   const guidelines = space.spaceDetails?.guidelines?.trim()
-  if (guidelines) parts.push(`Guidelines: ${guidelines}`)
+  if (guidelines) parts.pin(`Guidelines: ${guidelines}`)
 
-  const lines: string[] = []
+  let headed = false
   for (const message of messages) {
     const text = message.text?.trim() || message.fallbackText?.trim()
     if (!text) continue
+    if (!headed) {
+      parts.pin('', '--- Messages ---')
+      headed = true
+    }
     const timestamp = message.createTime ?? ''
-    lines.push(`[${timestamp}] ${senderLabel(message.sender)}: ${text}`)
+    parts.push(`[${timestamp}] ${senderLabel(message.sender)}: ${text}`)
   }
 
-  if (lines.length > 0) {
-    parts.push('')
-    parts.push('--- Messages ---')
-    parts.push(...lines)
-  }
-
-  return parts.join('\n')
-}
-
-/** Number of messages that actually contributed text to the transcript. */
-function countIndexedMessages(messages: ChatMessage[]): number {
-  let count = 0
-  for (const message of messages) {
-    if (message.text?.trim() || message.fallbackText?.trim()) count++
-  }
-  return count
+  return { content: parts.join(), messageCount: parts.count }
 }
 
 export const googleChatConnector: ConnectorConfig = {
@@ -476,12 +471,12 @@ export const googleChatConnector: ConnectorConfig = {
      * leave a previously indexed transcript in place after the space was cleared
      * or `lookbackDays` was tightened past every message.
      */
-    const messageCount = countIndexedMessages(messages)
+    const { content, messageCount } = formatSpaceContent(space, messages)
     const stub = spaceToStub(space, maxMessages, lookbackDays, syncContext)
 
     return {
       ...stub,
-      content: formatSpaceContent(space, messages),
+      content,
       contentDeferred: false,
       metadata: { ...stub.metadata, messageCount },
     }

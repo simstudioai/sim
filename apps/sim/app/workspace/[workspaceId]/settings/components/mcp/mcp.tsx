@@ -591,7 +591,7 @@ export function MCP() {
                       {hasParams && (
                         <ChevronDown
                           className={cn(
-                            'mt-0.5 size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
+                            'mt-0.5 size-[14px] shrink-0 text-[var(--text-muted)] transition-transform duration-200',
                             isExpanded && 'rotate-180'
                           )}
                         />

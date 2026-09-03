@@ -157,7 +157,7 @@ export function HeroChatLoop({ phase, fading }: HeroChatLoopProps) {
                       i > 0 && 'border-t'
                     )}
                   >
-                    <span className='flex size-[16px] flex-shrink-0 items-center justify-center'>
+                    <span className='flex size-[16px] shrink-0 items-center justify-center'>
                       <span className='text-[var(--text-icon)] text-sm'>{i + 1}</span>
                     </span>
                     <span className='flex-1 text-[var(--text-body)] text-sm'>{title}</span>

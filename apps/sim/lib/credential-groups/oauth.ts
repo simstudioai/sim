@@ -1,5 +1,7 @@
 import { db } from '@sim/db'
 import { credential, credentialGroup, credentialGroupEnrollment } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, ne, sql } from 'drizzle-orm'
 import {
@@ -94,6 +96,8 @@ async function assertCurrentPolicy(
   return policy
 }
 
+const logger = createLogger('CredentialGroupOAuth')
+
 /** Builds a provider authorization URL after persisting a provider-bound one-time attempt. */
 export async function startCredentialGroupOAuth(
   context: CredentialGroupOAuthContext,
@@ -127,7 +131,7 @@ async function persistGrant(
     throw new CredentialGroupOAuthError('Provider returned a credential for another app.', 502)
   }
 
-  return db.transaction(async (tx) => {
+  const completion: CredentialGroupOAuthCompletion = await db.transaction(async (tx) => {
     await lockCredentialGroupEnrollmentLifecycle(tx, context.enrollmentId)
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-oauth:${context.enrollmentId}:${context.option.id}`}, 0))`
@@ -293,6 +297,27 @@ async function persistGrant(
       enrollmentStatus,
     }
   })
+
+  /**
+   * Knowledge connectors crawling through this option pick the member up on
+   * their next run; queue one now so their documents arrive within minutes.
+   * Loaded lazily: credential groups do not otherwise depend on knowledge.
+   */
+  try {
+    const { dispatchMemberSyncsForCredentialOption } = await import(
+      '@/lib/knowledge/connectors/member-queue'
+    )
+    await dispatchMemberSyncsForCredentialOption({
+      workspaceId: context.workspaceId,
+      credentialGroupOptionId: context.option.id,
+    })
+  } catch (error) {
+    logger.warn('Failed to queue member syncs after an account connected', {
+      credentialGroupOptionId: context.option.id,
+      error: getErrorMessage(error),
+    })
+  }
+  return completion
 }
 
 /** Exchanges a single-use code through its provider adapter and persists a normalized grant. */

@@ -202,7 +202,7 @@ export function CodeEditor({
           style={minHeight ? { minHeight } : undefined}
           textareaClassName={cn(
             getCodeEditorProps({ disabled }).textareaClassName,
-            '!block !h-full !min-h-full'
+            'block! h-full! min-h-full!'
           )}
         />
       </Code.Content>

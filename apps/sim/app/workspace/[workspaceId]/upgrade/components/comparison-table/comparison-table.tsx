@@ -65,7 +65,7 @@ function CheckIcon() {
       viewBox='0 0 14 14'
       fill='none'
       aria-hidden='true'
-      className='size-[14px] flex-shrink-0'
+      className='size-[14px] shrink-0'
     >
       <path
         d='M2.5 7L5.5 10L11.5 4'
@@ -98,7 +98,7 @@ function Cell({ value }: { value: CellValue }) {
     const Icon = CELL_ICONS[value.icon]
     return (
       <span className='flex justify-center'>
-        <Icon className='size-[14px] flex-shrink-0' />
+        <Icon className='size-[14px] shrink-0' />
       </span>
     )
   }

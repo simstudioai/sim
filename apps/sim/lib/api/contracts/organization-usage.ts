@@ -40,6 +40,9 @@ export type UsageBreakdownDimension = z.output<typeof usageBreakdownDimensionSch
  */
 export const MAX_CUSTOM_RANGE_DAYS = 92
 
+export const ORGANIZATION_USAGE_BREAKDOWN_DEFAULT_LIMIT = 50
+export const ORGANIZATION_USAGE_BREAKDOWN_MAX_LIMIT = 100
+
 /**
  * A bare `YYYY-MM-DD` calendar date, and nothing else.
  *
@@ -144,7 +147,10 @@ export type OrganizationUsageSummaryQuery = z.input<typeof organizationUsageSumm
 export const organizationUsageBreakdownQuerySchema = organizationUsageWindowQuerySchema.extend({
   ...usageWorkspaceScopeShape,
   dimension: usageBreakdownDimensionSchema,
-  limit: usageLimitSchema(50, 10),
+  limit: usageLimitSchema(
+    ORGANIZATION_USAGE_BREAKDOWN_MAX_LIMIT,
+    ORGANIZATION_USAGE_BREAKDOWN_DEFAULT_LIMIT
+  ),
 })
 export type OrganizationUsageBreakdownQuery = z.input<typeof organizationUsageBreakdownQuerySchema>
 

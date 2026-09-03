@@ -66,7 +66,7 @@ export const typography = {
   systemFontFamily:
     '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   /**
-   * `caption`/`base`/`md` are Sim's own scale from `tailwind.config.ts`. `sm` is
+   * `caption`/`base`/`md` are Sim's own scale from the `@theme` block in `app/_styles/globals.css`. `sm` is
    * Tailwind's stock 14px — not a Sim token, but what `text-sm` resolves to in
    * `chipGeometryClass`, so the CTA has to use it.
    */

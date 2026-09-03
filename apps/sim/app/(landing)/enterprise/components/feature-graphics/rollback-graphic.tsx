@@ -22,7 +22,7 @@ import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/featu
  * highlight: the node fills solid and
  * the row lifts onto a white card (`--white` fill, 1px `--border-1`
  * hairline, nested `rounded-lg` inside the `rounded-tl-xl` window,
- * `shadow-sm`) pairing "v3 · Stable · Maya Chen" with the tile's
+ * `shadow-xs`) pairing "v3 · Stable · Maya Chen" with the tile's
  * strongest element, the solid Roll back button led by a small `Undo`
  * glyph inked in the button's inverse text color. A quieter v2 row
  * dissolves through a mask gradient below, implying the history continues
@@ -85,7 +85,7 @@ export function RollbackGraphic() {
             <span className='flex w-2.5 shrink-0 justify-center'>
               <span className='size-2.5 rounded-full bg-[var(--text-primary)]' />
             </span>
-            <div className='flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm'>
+            <div className='flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs'>
               <span className='min-w-0 flex-1'>
                 <span className='flex items-center gap-2'>
                   <span className='text-[var(--text-primary)] text-small'>v3</span>

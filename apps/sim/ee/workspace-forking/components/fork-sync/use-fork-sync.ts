@@ -65,11 +65,12 @@ const MAPPING_SECTION: Record<MappableMappingKind, { label: string; order: numbe
   'env-var': { label: 'Secrets', order: 1 },
   table: { label: 'Tables', order: 2 },
   'knowledge-base': { label: 'Knowledge bases', order: 3 },
-  file: { label: 'Files', order: 4 },
-  'mcp-server': { label: 'MCP servers', order: 5 },
-  'custom-tool': { label: 'Custom tools', order: 6 },
-  'custom-block': { label: 'Custom blocks', order: 7 },
-  skill: { label: 'Skills', order: 8 },
+  'file-folder': { label: 'File folders', order: 4 },
+  file: { label: 'Files', order: 5 },
+  'mcp-server': { label: 'MCP servers', order: 6 },
+  'custom-tool': { label: 'Custom tools', order: 7 },
+  'custom-block': { label: 'Custom blocks', order: 8 },
+  skill: { label: 'Skills', order: 9 },
 }
 
 /** Shared empty owners map for the pull direction so the options mapper never re-allocates. */

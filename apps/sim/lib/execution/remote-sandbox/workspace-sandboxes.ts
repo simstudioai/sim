@@ -4,6 +4,19 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { CreateSandboxBody, Sandbox, UpdateSandboxBody } from '@/lib/api/contracts/sandboxes'
+import {
+  type CursorKey,
+  type KeysetKey,
+  keysetColumns,
+  keysetPage,
+  type ListSortOrder,
+  listOrderBy,
+  resumeKeyset,
+  searchFilter,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { runDetached } from '@/lib/core/utils/background'
 import {
   canonicalizeSandboxCliTools,
@@ -27,11 +40,6 @@ import {
 } from '@/lib/execution/remote-sandbox/sandbox-spec'
 import type { SandboxDependencyStrategy } from '@/lib/execution/remote-sandbox/types'
 
-/** 403 copy for a workspace whose plan does not include Sim sandbox access. */
-export const MAX_PLAN_REQUIRED = 'Sim sandboxes require an active Max or Enterprise plan.'
-
-export const SANDBOX_ADMIN_REQUIRED = 'Only workspace admins can manage Sim sandboxes'
-
 /**
  * The unique index that actually arbitrates sandbox-name collisions. Named here
  * so a write path can recognize losing the race and answer 409 rather than 500.
@@ -39,7 +47,8 @@ export const SANDBOX_ADMIN_REQUIRED = 'Only workspace admins can manage Sim sand
 export const WORKSPACE_SANDBOX_NAME_INDEX = 'workspace_sandbox_workspace_name_unique'
 
 /**
- * Builds cost provider compute, so every mutation shares one per-workspace
+ * Saves cost provider work — a prebuilt image, or a re-install on the next run
+ * under a runtime provider — so creates and updates share one per-workspace
  * budget rather than giving each admin a full allowance of their own.
  */
 export const SANDBOX_MUTATION_LIMIT = {
@@ -48,32 +57,38 @@ export const SANDBOX_MUTATION_LIMIT = {
   refillIntervalMs: 60_000,
 } as const
 
-/** Thrown when a submitted dependency list has lines the editor should mark. */
-export class SandboxDependencyError extends Error {
+/**
+ * Thrown when a submitted dependency list has lines the editor should mark.
+ *
+ * Classified as `validation` so every surface answers 400 without restating the
+ * mapping; the surfaces read `issues` off it to address each refusal to the
+ * submitted line.
+ */
+export class SandboxDependencyError extends OrchestrationError {
   constructor(readonly issues: DependencyIssue[]) {
-    super(issues[0]?.reason ?? 'Invalid dependency list')
+    super('validation', issues[0]?.reason ?? 'Invalid dependency list')
     this.name = 'SandboxDependencyError'
   }
 }
 
 /** Thrown when a submitted Debian package coordinate is invalid. */
-export class SandboxSystemPackageError extends Error {
+export class SandboxSystemPackageError extends OrchestrationError {
   constructor(readonly issues: SystemPackageIssue[]) {
-    super(issues[0]?.reason ?? 'Invalid system package list')
+    super('validation', issues[0]?.reason ?? 'Invalid system package list')
     this.name = 'SandboxSystemPackageError'
   }
 }
 
-export class WorkspaceSandboxNotFoundError extends Error {
+export class WorkspaceSandboxNotFoundError extends OrchestrationError {
   constructor() {
-    super('Sandbox not found')
+    super('not_found', 'Sandbox not found')
     this.name = 'WorkspaceSandboxNotFoundError'
   }
 }
 
-export class WorkspaceSandboxNameConflictError extends Error {
+export class WorkspaceSandboxNameConflictError extends OrchestrationError {
   constructor(readonly sandboxName: string) {
-    super(`A sandbox named "${sandboxName}" already exists in this workspace`)
+    super('conflict', `A sandbox named "${sandboxName}" already exists in this workspace`)
     this.name = 'WorkspaceSandboxNameConflictError'
   }
 }
@@ -84,6 +99,16 @@ export interface SandboxSpecUpdate {
   cliTools: SandboxCliToolId[]
   systemPackages: string[]
   specHash: string
+}
+
+export interface SandboxWriteOptions {
+  /**
+   * Runs once the spec has validated and the name is known to be free,
+   * immediately before the write that schedules a build. The build budget is
+   * spent here rather than up front so a refused line or a name collision,
+   * which build nothing, cannot drain it.
+   */
+  admit?: () => Promise<void>
 }
 
 /**
@@ -205,18 +230,73 @@ const SANDBOX_COLUMNS = {
   updatedAt: workspaceSandbox.updatedAt,
 } as const
 
+export type SandboxSortBy = 'name' | 'createdAt' | 'updatedAt'
+
+type SandboxListRow = SandboxRow & { specHash: string }
+
+/** The tiebreaker every ordering ends in, so a page boundary inside a tie is exact. */
+const sandboxIdKey = textKey<SandboxListRow>(workspaceSandbox.id, (row) => row.id)
+
+const SANDBOX_SORTS = {
+  name: [textKey<SandboxListRow>(workspaceSandbox.name, (row) => row.name), sandboxIdKey],
+  createdAt: [
+    timestampKey<SandboxListRow>(workspaceSandbox.createdAt, (row) => row.createdAt),
+    sandboxIdKey,
+  ],
+  updatedAt: [
+    timestampKey<SandboxListRow>(workspaceSandbox.updatedAt, (row) => row.updatedAt),
+    sandboxIdKey,
+  ],
+} satisfies Record<SandboxSortBy, readonly KeysetKey<SandboxListRow>[]>
+
+export interface WorkspaceSandboxPage {
+  data: Sandbox[]
+  nextCursorKeys: CursorKey[] | null
+}
+
 /**
- * Lists a workspace's sandboxes with their build status. Under a runtime
- * provider the registry is never consulted, because it is never written.
+ * Lists a workspace's sandboxes with their build status, optionally searched,
+ * sorted, and keyset-paged. Without `limit` the whole set comes back in one
+ * read and can never carry a cursor, which is what the settings page and
+ * Copilot want; the public API passes one and resumes from `cursorKeys`.
+ *
+ * Under a runtime provider the build registry is never consulted, because it
+ * is never written.
  */
-export async function listWorkspaceSandboxes(workspaceId: string): Promise<Sandbox[]> {
-  const rows = await db
+export async function listWorkspaceSandboxesPage(params: {
+  workspaceId: string
+  /** Case-insensitive substring match on the sandbox name. */
+  search?: string
+  sortBy?: SandboxSortBy
+  sortOrder?: ListSortOrder
+  limit?: number
+  cursorKeys?: CursorKey[]
+}): Promise<WorkspaceSandboxPage> {
+  const { sortBy = 'name', sortOrder = 'asc', limit } = params
+  const keys = SANDBOX_SORTS[sortBy]
+  const resumeAfter = resumeKeyset(keys, params.cursorKeys, sortOrder)
+
+  const query = db
     .select(SANDBOX_COLUMNS)
     .from(workspaceSandbox)
-    .where(eq(workspaceSandbox.workspaceId, workspaceId))
-    .orderBy(workspaceSandbox.name)
+    .where(
+      and(
+        eq(workspaceSandbox.workspaceId, params.workspaceId),
+        searchFilter(workspaceSandbox.name, params.search),
+        resumeAfter
+      )
+    )
+    .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
+  const rows = limit === undefined ? await query : await query.limit(limit + 1)
 
-  return attachBuildStatus(rows)
+  const page = keysetPage(keys, rows, limit)
+  return { data: await attachBuildStatus(page.data), nextCursorKeys: page.nextCursorKeys }
+}
+
+/** The whole set, name-ordered, for the surfaces that render every sandbox at once. */
+export async function listWorkspaceSandboxes(workspaceId: string): Promise<Sandbox[]> {
+  const page = await listWorkspaceSandboxesPage({ workspaceId })
+  return page.data
 }
 
 /**
@@ -282,7 +362,8 @@ export function isWorkspaceSandboxNameConflictError(error: unknown): boolean {
 export async function createWorkspaceSandbox(
   workspaceId: string,
   createdBy: string,
-  input: CreateSandboxBody
+  input: CreateSandboxBody,
+  options: SandboxWriteOptions = {}
 ): Promise<Sandbox> {
   const spec = buildSpecUpdate(
     input.language,
@@ -294,6 +375,7 @@ export async function createWorkspaceSandbox(
   if (await isSandboxNameTaken(workspaceId, input.name)) {
     throw new WorkspaceSandboxNameConflictError(input.name)
   }
+  await options.admit?.()
 
   const id = generateId()
   try {
@@ -329,7 +411,8 @@ export async function createWorkspaceSandbox(
 export async function updateWorkspaceSandbox(
   workspaceId: string,
   sandboxId: string,
-  input: UpdateSandboxBody
+  input: UpdateSandboxBody,
+  options: SandboxWriteOptions = {}
 ): Promise<Sandbox> {
   const [existing] = await db
     .select({
@@ -362,6 +445,7 @@ export async function updateWorkspaceSandbox(
     input.cliTools ?? existing.cliTools ?? [],
     input.systemPackages ?? existing.systemPackages ?? []
   )
+  await options.admit?.()
 
   try {
     await db

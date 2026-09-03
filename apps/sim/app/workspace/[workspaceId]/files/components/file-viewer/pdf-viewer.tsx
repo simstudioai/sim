@@ -271,7 +271,7 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
                   <ReactPdfPage
                     pageNumber={i + 1}
                     width={pageWidth}
-                    className='!overflow-clip [&_.textLayer]:!overflow-clip'
+                    className='overflow-clip! [&_.textLayer]:overflow-clip!'
                     renderTextLayer
                     renderAnnotationLayer={false}
                     aria-label={`${filename} page ${i + 1}`}

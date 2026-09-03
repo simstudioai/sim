@@ -104,14 +104,14 @@ export function SettingsSidebar<Section extends SettingsSection>({
 
   return (
     <>
-      <div className='flex flex-shrink-0 flex-col gap-0.5 px-2 pb-1.5'>
+      <div className='flex shrink-0 flex-col gap-0.5 px-2 pb-1.5'>
         {/* Both stay buttons, not Links: leaving settings must run the unsaved-changes guard. */}
         {SETTINGS_PLANE_CHROME[plane].showWordmark ? (
           <button
             type='button'
             aria-label='Sim home'
             onClick={() => requestLeave(() => router.push(LANDING_HREF))}
-            className='flex h-[30px] flex-shrink-0 items-center px-2 transition-opacity hover:opacity-70'
+            className='flex h-[30px] shrink-0 items-center px-2 transition-opacity hover:opacity-70'
           >
             <SimWordmark />
           </button>
@@ -147,10 +147,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
             }))
             .filter((group) => group.items.length > 0)
             .map((group, index) => (
-              <div
-                key={group.key}
-                className={cn(index > 0 && 'mt-6', 'flex flex-shrink-0 flex-col')}
-              >
+              <div key={group.key} className={cn(index > 0 && 'mt-6', 'flex shrink-0 flex-col')}>
                 <div className='px-4 pb-2'>
                   <div className='text-[var(--text-muted)] text-small'>{group.title}</div>
                 </div>
@@ -181,7 +178,7 @@ export function SettingsSidebar<Section extends SettingsSection>({
                             requestLeave(() => router.replace(href, { scroll: false }))
                           }}
                         >
-                          <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                          <Icon className='size-[16px] shrink-0 text-[var(--text-icon)]' />
                           <OverflowText
                             label={item.label}
                             className='sidebar-collapse-hide text-[var(--text-body)]'

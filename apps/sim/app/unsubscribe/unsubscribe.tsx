@@ -124,7 +124,7 @@ function UnsubscribeContent() {
         <p className={'text-[var(--text-muted)] text-md'}>
           Choose which emails you'd like to stop receiving.
         </p>
-        <p className={'mt-2 text-[var(--text-muted)] text-sm'}>{data?.email}</p>
+        <p className={'text-[var(--text-muted)] text-sm'}>{data?.email}</p>
       </div>
 
       <div className={'mt-8 w-full max-w-[410px] space-y-3'}>

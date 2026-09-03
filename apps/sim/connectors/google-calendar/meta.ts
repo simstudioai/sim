@@ -16,6 +16,7 @@ export const googleCalendarConnectorMeta: ConnectorMeta = {
     requiredScopes: ['https://www.googleapis.com/auth/calendar'],
   },
 
+  permissionScopedListing: { capFieldIds: ['maxEvents'] },
   configFields: [
     {
       id: 'calendarSelector',

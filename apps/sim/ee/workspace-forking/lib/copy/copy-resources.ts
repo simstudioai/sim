@@ -47,6 +47,7 @@ import {
   type DurableSecretProvenance,
   hashDurableSecretProvenanceValue,
 } from '@/lib/execution/durable-secret-provenance'
+import { WORKSPACE_ACCESS_TOKEN } from '@/lib/knowledge/access/types'
 import {
   createKnowledgeDocumentSourceValue,
   type KnowledgeDocumentSourceValue,
@@ -56,6 +57,7 @@ import {
   replaceKnowledgeDocumentSecretProvenanceInTx,
 } from '@/lib/knowledge/secret-provenance'
 import { DEFAULT_TABLE_VIEW_NAME } from '@/lib/table/constants'
+import { generateTableId } from '@/lib/table/ids'
 import { nKeysBetween } from '@/lib/table/order-key'
 import {
   classifyTableRowSecretProvenanceForCopy,
@@ -658,7 +660,7 @@ export async function copyForkResourceContainers(
       views.push(view)
       sourceViewsByTable.set(view.tableId, views)
     }
-    const tableFolderIdMap = await resolveForkFolderMapping({
+    const { folderIdMap: tableFolderIdMap } = await resolveForkFolderMapping({
       tx,
       sourceWorkspaceId,
       targetWorkspaceId: childWorkspaceId,
@@ -672,7 +674,7 @@ export async function copyForkResourceContainers(
     const inserts: (typeof userTableDefinitions.$inferInsert)[] = []
     const viewInserts: (typeof tableViews.$inferInsert)[] = []
     for (const definition of definitions) {
-      const childTableId = generateId()
+      const childTableId = generateTableId()
       const remappedSchema = remapForkTableWorkflowGroups(
         definition.schema as TableSchema,
         workflowIdMap,
@@ -752,7 +754,7 @@ export async function copyForkResourceContainers(
           isNull(knowledgeBase.deletedAt)
         )
       )
-    const kbFolderIdMap = await resolveForkFolderMapping({
+    const { folderIdMap: kbFolderIdMap } = await resolveForkFolderMapping({
       tx,
       sourceWorkspaceId,
       targetWorkspaceId: childWorkspaceId,
@@ -886,6 +888,7 @@ async function createForkDocumentPlaceholders(params: {
       fileSize: 0,
       deletedAt: null,
       archivedAt: now,
+      acl: [WORKSPACE_ACCESS_TOKEN],
     })
     record('knowledge_document', doc.id, childDocId)
     kbEntry.documentIdMap[doc.id] = childDocId
@@ -995,6 +998,7 @@ export async function planForkMappedKbDocumentCopies(params: {
         fileSize: 0,
         deletedAt: null,
         archivedAt: now,
+        acl: [WORKSPACE_ACCESS_TOKEN],
       })
     }
     docIdMap.set(doc.id, childDocId)
@@ -1597,6 +1601,7 @@ async function ensureKbDocumentPlaceholder(
       archivedAt: new Date(),
       deletedAt: null,
       uploadedBy: userId,
+      acl: [WORKSPACE_ACCESS_TOKEN],
     })
     .onConflictDoNothing({ target: document.id })
 }
@@ -1764,6 +1769,8 @@ async function copyKbDocument(params: {
     deletedAt: null,
     uploadedBy: userId,
     secretProvenanceVersion: sourceSecretContext.tracked ? 1 : null,
+    /** A copy has no connector and therefore no source-derived access; it is a workspace document. */
+    acl: [WORKSPACE_ACCESS_TOKEN],
   }
   const copiedSource = createKnowledgeDocumentSourceValue(copiedValues)
   const finalizedStorageKey = await finalizeKbDocument({

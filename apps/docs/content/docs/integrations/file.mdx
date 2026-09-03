@@ -15,20 +15,20 @@ The File block is a built-in Sim block for working with files stored in the work
 
 With the File block, you can:
 
-- **Read and extract content**: Load workspace file objects and extract their text content
-- **Search workspace content**: Match a regular expression, or an exact piece of text, against the indexed lines of active workspace files with bounded line-level results
+- **Read and extract content**: Load workspace file objects and extract their text content from selected files or one or more folders
+- **Search workspace content**: Match a regular expression, or an exact piece of text, across the workspace or selected folder scopes with bounded line-level results
 - **Fetch from URLs**: Retrieve and parse files from external URLs with custom headers
 - **Write and append**: Create new workspace files or append content to existing ones
 - **Compress and decompress**: Bundle files into a .zip archive or extract an archive into the workspace
 - **Manage sharing**: Enable or disable a public share link for a file, with public, password, email, or SSO access modes
 
-In Sim, the File block allows your agents to search, read, and extract text from workspace files, fetch and parse files from URLs, write or append content to files, bundle files into or out of .zip archives, and control public sharing access for a file—all programmatically as steps in a workflow. This makes it possible to explore workspace content, move file content into and out of a workflow, package outputs for download or transfer, and expose files to external users through a managed share link.
+In Sim, the File block allows your agents to search, read, and extract text from workspace files, fetch and parse files from URLs, write or append content to files, bundle files into or out of .zip archives, and control public sharing access for a file—all programmatically as steps in a workflow. Folder selection is optional and supports multiple folders. Pick them from the workspace, or switch the field to advanced mode and type comma-separated paths, including a value from an earlier block. When no folder is selected, search spans the workspace and file pickers are unscoped. Selected folders are expanded when the workflow runs, so newly added files are included automatically. This makes it possible to explore workspace content, move file content into and out of a workflow, package outputs for download or transfer, and expose files to external users through a managed share link.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Read workspace file objects, search indexed text across all active workspace files, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
+Read workspace file objects, search indexed text across the workspace or selected folder scopes, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
 
 
 
@@ -36,7 +36,7 @@ Read workspace file objects, search indexed text across all active workspace fil
 
 ### File Read
 
-Read workspace file objects from selected files or canonical workspace file IDs.
+Read workspace file objects from selected files, canonical workspace file IDs, or one or more workspace folders.
 
 #### Input
 
@@ -44,6 +44,8 @@ Read workspace file objects from selected files or canonical workspace file IDs.
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
 | `fileInput` | file | No | Selected workspace file object. |
+| `folderPaths` | array | No | Folders whose files are included, as canonical percent-encoded paths, e.g. \["/Reports/Q3%20Results"\]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up. |
+| `includeSubfolders` | boolean | No | Whether nested folders are read too. Defaults to true; set false to take only the folders’ direct files. |
 
 #### Output
 
@@ -53,7 +55,7 @@ Read workspace file objects from selected files or canonical workspace file IDs.
 
 ### File Get Content
 
-Extract the text content of one or more workspace files from selected file objects or canonical workspace file IDs.
+Extract the text content of workspace files selected directly, identified by canonical file ID, or collected from one or more workspace folders.
 
 #### Input
 
@@ -61,16 +63,21 @@ Extract the text content of one or more workspace files from selected file objec
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
 | `fileInput` | file | No | Selected workspace file object, or an array of file objects. |
+| `folderPaths` | array | No | Folders whose files are included, as canonical percent-encoded paths, e.g. \["/Reports/Q3%20Results"\]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up. |
+| `includeSubfolders` | boolean | No | Whether nested folders are read too. Defaults to true; set false to take only the folders’ direct files. |
+| `offset` | number | No | First line to return, 1-based. Applied to each selected file separately, so a multi-file selection returns the same window of each. Absent starts at the first line. |
+| `limit` | number | No | How many lines to return from the offset. Absent reads to the end. Use this to read part of a long file instead of all of it; the response reports the total line count alongside the window. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contents` | array | Array of file text contents, one entry per file in input order |
+| `lineRanges` | array | Present when a line range was requested: one entry per file, in the same order, with offset, lineCount, and totalLines |
 
 ### File Search
 
-Search the indexed text of active workspace files for lines matching a regular expression, and return each matching line once with its file ID and line number. Coverage is what the index currently holds, so check "complete" and "indexStatus" before concluding that something is absent.
+Search the indexed text of active workspace files for lines matching a query, and return each matching line once with its file ID and line number. By default the query is a regular expression; in exact mode it is matched verbatim and metacharacters are literal. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped or partial files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one or more folder trees, which also narrows "indexStatus" to those trees.
 
 #### Input
 
@@ -79,6 +86,8 @@ Search the indexed text of active workspace files for lines matching a regular e
 | `query` | string | Yes | A regular expression matched against each line, 3-512 characters. Supports "." "*" "+" "?" "\{n,m\}" and their lazy forms, character classes such as "\[a-z\]" and "\[^0-9\]", the classes \d \w \s and \D \W \S, alternation "\|", groups "\(...\)" and "\(?:...\)", the anchors "^" and "$", and the word boundary \b. Lookahead, lookbehind, backreferences, named groups, inline flags such as "\(?i\)", \p\{...\} and POSIX "\[\[:alpha:\]\]" classes are not supported, and a pattern cannot span a line break. The pattern must contain at least 3 consecutive literal characters that every match will include — write "error \d+" rather than "\w+ \d+". Escape any metacharacter you mean literally. Matching is case-insensitive until the pattern contains an uppercase letter you are searching for; uppercase inside an escape or a character class, such as \D or \[A-Z\], does not make it case-sensitive. When the workflow builder sets Match to exact instead, the query is matched verbatim and no metacharacter needs escaping. |
 | `mode` | string | No | How the query is read, chosen by the workflow builder: "regex" \(default\) as a regular expression, or "exact" as verbatim text. |
 | `maxResults` | number | No | Hard result cap configured by the workflow builder \(1-200, default 50\). |
+| `folderPaths` | array | No | Folders the search is confined to, as canonical percent-encoded paths, e.g. \["/memory/user-a"\]. Absent searches the whole workspace. Scoping also narrows the reported index coverage, so "complete" describes the folders searched. |
+| `includeSubfolders` | boolean | No | Whether the scope descends into nested folders. Defaults to true; set false to search only the folders’ direct files. |
 
 #### Output
 
@@ -125,6 +134,7 @@ Create a new workspace file, either from text content or from an existing file. 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | No | File name \(e.g., "data.csv"\). Required when writing text; optional when storing a file, which keeps its own name unless this overrides it. If the name already exists, a numeric suffix is added automatically unless overwrite is enabled. |
+| `folderPath` | string | No | Folder to create the file in. Omit for the workspace root. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
 | `content` | string | No | The text content to write to the file. Provide exactly one of content or fileInput. |
 | `fileInput` | file | No | An existing file to store in the workspace, such as one produced by an earlier tool. Use this for anything that is not text — PDFs, images, audio, archives. Provide exactly one of content or fileInput. |
 | `contentType` | string | No | MIME type for new files \(e.g., "text/plain"\). Auto-detected from the file extension, or taken from the stored file, if omitted. |
@@ -148,6 +158,9 @@ Append content to an existing workspace file. The file must already exist. Conte
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | Yes | Name of an existing workspace file to append to. |
+| `folderPath` | string | No | Single folder in which to resolve the file name. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". Use folderPaths for multiple folders; do not provide both fields. |
+| `folderPaths` | array | No | Folders to search for the named file. The name must resolve to exactly one file across the selected scopes. Do not provide folderPath as well. |
+| `includeSubfolders` | boolean | No | Whether the folder scope includes nested folders. Defaults to true; set false to target only files directly in the folder. |
 | `content` | string | Yes | The text content to append to the file. |
 
 #### Output
@@ -159,6 +172,38 @@ Append content to an existing workspace file. The file must already exist. Conte
 | `size` | number | File size in bytes |
 | `url` | string | URL to access the file |
 
+### Apply File Edit
+
+Apply one precise edit to an existing text file without rewriting it. Use search_replace for verbatim replacement, optionally with replaceAll. Use replace_between, insert_after, or delete_between for complete trimmed-line anchors that stay stable when line numbers move. Folder scope can disambiguate a name or constrain a file ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileName` | string | Yes | Name or ID of the workspace file to edit. |
+| `folderPath` | string | No | Single folder in which to resolve the file name or validate the file ID. Canonical folder path, percent-encoded, e.g. "/memory/user-a/people". The workspace root is "/". Use folderPaths for multiple folders; do not provide both fields. |
+| `folderPaths` | array | No | Folders to search for the named file or validate the file ID against. The name must resolve to exactly one file across the selected scopes. Do not provide folderPath as well. |
+| `includeSubfolders` | boolean | No | Whether selected folders are searched recursively. Defaults to true; false matches only their direct contents. |
+| `mode` | string | Yes | Edit type: search_replace, replace_between, insert_after, or delete_between. |
+| `search` | string | No | For search_replace, the exact text to replace, including whitespace and line breaks. It must be unique unless replaceAll is true. |
+| `content` | string | No | Replacement or inserted text. Pass an empty string to delete a search match or clear the text between anchors. Omit only for delete_between. |
+| `replaceAll` | boolean | No | For search_replace, replace every non-overlapping match. Defaults to false, which refuses an ambiguous match. |
+| `beforeAnchor` | string | No | For replace_between, the complete line before the content to replace. Leading and trailing whitespace is ignored. |
+| `afterAnchor` | string | No | For replace_between, the complete line after the content to replace. The anchor lines remain in the file. |
+| `anchor` | string | No | For insert_after, the complete line after which content is inserted. |
+| `startAnchor` | string | No | For delete_between, the complete first line to delete. The start anchor is removed. |
+| `endAnchor` | string | No | For delete_between, the complete ending boundary line. The end anchor remains in the file. |
+| `occurrence` | number | No | For anchored edits, which matching anchor occurrence to use, starting at 1. Defaults to 1. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | File ID |
+| `name` | string | File name |
+| `size` | number | File size in bytes |
+| `lineCount` | number | Lines in the file after the edit |
+
 ### File Compress
 
 Compress one or more workspace files into a single .zip archive stored in the workspace, for bundling files to download, transfer, or store. Preserves the workspace folder structure of the selected files.
@@ -169,6 +214,8 @@ Compress one or more workspace files into a single .zip archive stored in the wo
 | --------- | ---- | -------- | ----------- |
 | `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
 | `fileInput` | file | No | Selected workspace file object, or an array of file objects. |
+| `folderPaths` | array | No | Folders whose files are included, as canonical percent-encoded paths, e.g. \["/Reports/Q3%20Results"\]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up. |
+| `includeSubfolders` | boolean | No | Whether nested folders are read too. Defaults to true; set false to take only the folders’ direct files. |
 | `archiveName` | string | No | Name for the .zip archive \(e.g., "documents.zip"\). Defaults to the source file name when compressing a single file, otherwise "archive.zip". |
 
 #### Output
@@ -222,5 +269,115 @@ Enable or disable the public share link for a workspace file, and set its access
 | `authType` | string | Access mode: public, password, email, or sso |
 | `hasPassword` | boolean | Whether the share is password-protected |
 | `allowedEmails` | array | Allowed emails/domains for email or SSO access |
+
+### List Files and Folders
+
+List what is inside a workspace folder: its subfolders and its files together. Lists direct children by default; set Recursive to walk the whole subtree.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | No | Folder to list. Omit to list from the workspace root. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
+| `recursive` | boolean | No | List everything beneath the path rather than only its direct children. Each entry carries its depth below the listed folder. |
+| `depth` | number | No | Deepest level to include when recursive, counted from the listed folder. 1 is direct children. |
+| `search` | string | No | Case-insensitive substring match against an entry name. Filters the result, so a deep match is still reported even when its parent folders do not match. |
+| `limit` | number | No | Most entries to return, 200 by default. A listing cut short comes back with truncated set. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `path` | string | The folder that was listed. |
+| `entries` | array | What the folder holds. Each entry has kind "folder" or "file", a name, and its depth below the listed folder. A folder carries its own canonical path; a file carries its id, size, type, and the canonical path of the folder holding it. |
+| `truncated` | boolean | True when the limit cut the listing short, so more entries exist. |
+
+### Create File Folder
+
+Create a workspace file folder at a path. Parent folders are created as needed. Fails if a folder already exists at the path.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | Path of the folder to create. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folder` | object | The created folder, with its name, canonical path, parent path, and timestamps. |
+
+### Move File Folder
+
+Move or rename a workspace file folder by giving its full destination path. Everything inside the folder moves with it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | Folder to move. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
+| `destinationPath` | string | Yes | Full path the folder should have afterwards. Renaming is a destination whose parent is unchanged. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folder` | object | The folder at its new path. |
+| `previousPath` | string | The path the folder had before the move. |
+
+### Delete File Folder
+
+Delete a workspace file folder. It moves to Recently deleted and can be brought back with Restore File Folder. Deleting a folder that still has contents requires the recursive option.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `path` | string | Yes | Folder to delete. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
+| `recursive` | boolean | No | Also delete the folder’s nested folders and files. Without it, deleting a non-empty folder fails. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `path` | string | The folder that was deleted. |
+| `deleted` | boolean | Always true when the operation succeeded. |
+| `deletedItems` | object | Counts of the folders and files deleted alongside it. |
+
+### Restore File Folder
+
+Restore a deleted workspace file folder and its contents from Recently deleted. Addressed by folder ID, because a deleted folder has no live path.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderId` | string | Yes | ID of the deleted folder to restore. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folder` | object | The restored folder at its live path. |
+| `restoredItems` | object | Counts of the folders and files restored alongside it. |
+
+### Move File
+
+Move an existing workspace file into a folder. Moves the file itself; use Move File Folder to relocate a whole folder.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | Canonical workspace file ID of the file to move. |
+| `folderPath` | string | No | Destination folder. Omit to move the file to the workspace root. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fileId` | string | The file that was moved. |
+| `folderPath` | string | The folder the file now lives in. |
 
 

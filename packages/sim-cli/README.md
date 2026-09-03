@@ -256,9 +256,26 @@ The main environment variables are:
 | `SIM_API_KEY` | API key, usually for CI |
 | `SIM_WORKSPACE` | Workspace to target |
 | `SIM_OUTPUT` | `table`, `json`, `yaml`, or `text` |
-| `SIM_CONFIG_DIR` | Directory containing CLI config and credentials |
+| `SIM_CONFIG_DIR` | Base directory for CLI config, credentials, and the update cache |
 | `SIM_TIMEOUT_SECONDS` | Per-request timeout; `0` waits indefinitely |
 | `SIM_DEBUG` | Print request diagnostics to stderr |
+| `SIM_NO_UPDATE_CHECK` | Turn off the update notice |
+
+On eligible interactive invocations, `sim` uses a daily cache before asking
+`registry.npmjs.org` what is published under the `latest` tag and prints one
+line on stderr when a newer version exists. Prerelease installs are skipped
+entirely. The cache lives in `~/.sim` by default and follows `SIM_CONFIG_DIR`;
+without a writable cache, each eligible invocation checks again. Concurrent
+invocations can also perform duplicate checks. The registry request has a
+one-second deadline; the short-lived request process is terminated on expiry.
+Apart from the configured registry URL, it sends only its own version and never
+your Sim API key. If `npm_config_registry` points at a private mirror, its query
+string is preserved, including any query-string credentials. Registry URLs
+containing username/password userinfo are rejected. Set
+`SIM_NO_UPDATE_CHECK=1` to turn it off. Empty or whitespace-only registry values
+use the public default; non-empty malformed or non-HTTP(S) values fail closed.
+The full list of cases where it stays quiet is in the
+[configuration guide](https://docs.sim.ai/cli/configuration).
 
 ## Documentation
 

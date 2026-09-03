@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import * as cheerio from 'cheerio'
+import {
+  AtlassianSiteNotAccessibleError,
+  AtlassianSiteNotMatchedError,
+} from '@/lib/atlassian/discovery'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -8,6 +12,18 @@ import { htmlToPlainText, joinTagArray, parseMultiValue, parseTagDate } from '@/
 import { getConfluenceCloudId, normalizeConfluenceDomainHost } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceConnector')
+
+/**
+ * The configured space does not exist for the caller. Confluence answers a
+ * space lookup with an empty result rather than a 403 when the caller cannot
+ * see the space, so this is also what a member without access observes.
+ */
+export class ConfluenceSpaceNotFoundError extends Error {
+  constructor(readonly spaceKey: string) {
+    super(`Space "${spaceKey}" not found`)
+    this.name = 'ConfluenceSpaceNotFoundError'
+  }
+}
 
 /** Label prefixes for Confluence's built-in Info/Note/Warning/Tip macros, by their rendered CSS suffix. */
 const CALLOUT_LABELS: Record<string, string> = {
@@ -289,7 +305,8 @@ export const confluenceConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     cursor?: string,
-    syncContext?: Record<string, unknown>
+    syncContext?: Record<string, unknown>,
+    lastSyncAt?: Date
   ): Promise<ExternalDocumentList> => {
     const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
     const spaceKeys = parseMultiValue(sourceConfig.spaceKey)
@@ -308,11 +325,13 @@ export const confluenceConnector: ConnectorConfig = {
     }
 
     /**
-     * Route through CQL when a label filter is set or when multiple spaces are
-     * selected — the v2 `/spaces/{spaceId}/pages` endpoint is single-space only,
-     * but CQL natively supports `space in (...)`.
+     * Route through CQL when a label filter is set, when multiple spaces are
+     * selected, or when only recently modified content is wanted — the v2
+     * `/spaces/{spaceId}/pages` endpoint is single-space only and cannot filter
+     * by modification time, but CQL natively supports `space in (...)` and
+     * `lastModified`.
      */
-    if (labelFilter.trim() || spaceKeys.length > 1) {
+    if (labelFilter.trim() || spaceKeys.length > 1 || lastSyncAt) {
       return listDocumentsViaCql(
         cloudId,
         accessToken,
@@ -322,7 +341,8 @@ export const confluenceConnector: ConnectorConfig = {
         labelFilter,
         maxPages,
         cursor,
-        syncContext
+        syncContext,
+        lastSyncAt
       )
     }
 
@@ -489,6 +509,16 @@ export const confluenceConnector: ConnectorConfig = {
 
     return result
   },
+
+  /**
+   * A member who is not on the Atlassian site — their token reaches no site,
+   * or only sites other than the configured one — or who cannot see the
+   * configured space, lists nothing: a complete listing of nothing, not an error.
+   */
+  isListingScopeUnavailableError: (error) =>
+    error instanceof ConfluenceSpaceNotFoundError ||
+    error instanceof AtlassianSiteNotAccessibleError ||
+    error instanceof AtlassianSiteNotMatchedError,
 }
 
 /**
@@ -658,6 +688,34 @@ async function listAllContentTypes(
 }
 
 /**
+ * The CQL clause selecting content modified since a watermark. CQL's `now()`
+ * takes a relative offset and evaluates on the server, which sidesteps the
+ * timezone the endpoint would otherwise assume for an absolute timestamp; the
+ * offset rounds up to the next whole minute so nothing at the edge is missed.
+ */
+export function buildLastModifiedClause(lastSyncAt: Date, now: Date): string {
+  const minutes = Math.max(1, Math.ceil((now.getTime() - lastSyncAt.getTime()) / 60_000))
+  return `lastModified >= now("-${minutes}m")`
+}
+
+/**
+ * The `lastModified` clause every page of one listing shares. The clause is a
+ * window relative to the server clock, so recomputing it on a later page that
+ * crosses a minute boundary would pair the cursor `_links.next` issued with a
+ * query it was not issued for; the first page fixes it for the run.
+ */
+export function resolveLastModifiedClause(
+  lastSyncAt: Date,
+  syncContext: Record<string, unknown> | undefined
+): string {
+  const fixed = syncContext?.cqlLastModifiedClause
+  if (typeof fixed === 'string') return fixed
+  const clause = buildLastModifiedClause(lastSyncAt, new Date())
+  if (syncContext) syncContext.cqlLastModifiedClause = clause
+  return clause
+}
+
+/**
  * Page size for CQL search. The endpoint defaults to 25 and documents no hard
  * maximum, so this stays conservatively below the fixed system limits it warns
  * about rather than mirroring the v2 endpoints' 250.
@@ -676,7 +734,8 @@ async function listDocumentsViaCql(
   labelFilter: string,
   maxPages: number,
   cursor?: string,
-  syncContext?: Record<string, unknown>
+  syncContext?: Record<string, unknown>,
+  lastSyncAt?: Date
 ): Promise<ExternalDocumentList> {
   const labels = labelFilter
     .split(',')
@@ -706,6 +765,8 @@ async function listDocumentsViaCql(
     const labelList = labels.map((l) => `"${escapeCql(l)}"`).join(',')
     cql += ` AND label in (${labelList})`
   }
+
+  if (lastSyncAt) cql += ` AND ${resolveLastModifiedClause(lastSyncAt, syncContext)}`
 
   const fetchedSoFar = (syncContext?.totalDocsFetched as number) ?? 0
   const remaining = maxPages > 0 ? maxPages - fetchedSoFar : Number.POSITIVE_INFINITY
@@ -815,7 +876,7 @@ async function resolveSpaceId(
   const results = data.results || []
 
   if (results.length === 0) {
-    throw new Error(`Space "${spaceKey}" not found`)
+    throw new ConfluenceSpaceNotFoundError(spaceKey)
   }
 
   return String(results[0].id)

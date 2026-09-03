@@ -37,10 +37,10 @@ When the user runs `/ship`:
   - `bun run check:migrations origin/staging` must pass (staging is the PR base). Do not silence a flagged statement with a `-- migration-safe:` annotation unless `/db-migrate` confirmed the old code no longer depends on it; otherwise split the destructive change into a later deploy.
 6. **Run pre-ship checks** from the repo root before staging. This has two phases: first **regenerate** every committed artifact so generated files never drift into a CI failure (this is what catches things like `agent-stream-docs` going stale after a `models.ts` edit), then run the **full audit suite** CI's `Lint and Test` job enforces. Both phases parallelize — but only across commands that write **disjoint** outputs — and a bare `wait` swallows child exit codes, so both phases below explicitly collect each job's status and abort ship if any failed.
 
-  **Phase A — regenerate the always-in-repo committed artifacts (parallel), then let step 7 stage whatever changed.** Regenerate only the generators whose inputs live entirely in this repo and that any ordinary code change can drift — `agent-stream-docs:generate` (derives from the provider model registry) and `skills:sync` (derives from `.agents/skills/**`). They write disjoint trees (`apps/docs/…/agent.mdx` vs the `.claude`/`.cursor` command projections), so they parallelize safely, and each is idempotent (a no-op when already in sync):
+  **Phase A — regenerate the always-in-repo committed artifacts (parallel), then let step 7 stage whatever changed.** Regenerate only the generators whose inputs live entirely in this repo and that any ordinary code change can drift — `agent-stream-docs:generate` (derives from the provider model registry), `docs-manifest:generate` (derives from docs page paths), and `skills:sync` (derives from `.agents/skills/**`). They write disjoint outputs (`apps/docs/…/agent.mdx`, `apps/sim/lib/copilot/generated/docs-manifest.ts`, and `.claude/skills` links), so they parallelize safely, and each is idempotent (a no-op when already in sync):
   ```bash
   rm -f /tmp/ship-gen-results
-  for g in agent-stream-docs:generate skills:sync; do
+  for g in agent-stream-docs:generate docs-manifest:generate skills:sync; do
     ( bun run "$g" >"/tmp/ship-gen-${g//:/-}.log" 2>&1; echo "$? $g" >>/tmp/ship-gen-results ) &
   done
   wait
@@ -66,6 +66,10 @@ When the user runs `/ship`:
   # Runs every audit CI runs, concurrently, and replays the output of any that fail.
   # The audit list is derived in scripts/run-audits.ts — do not hand-list audits here.
   bun run check:audits || { echo "❌ audit(s) failed — do not ship"; exit 1; }
+  # CI's "Verify docs manifest is in sync" step is not a `check:*` script, so the runner above
+  # does not cover it. (CI's "Security audit" `bun audit` step is `continue-on-error` — advisory
+  # only, not a gate — so it is deliberately not run here.)
+  bun run docs-manifest:check || { echo "❌ docs manifest out of sync — do not ship"; exit 1; }
   ```
   If Phase A regenerated a file, its matching `:check` in Phase B now passes trivially — that parity is the point. Do not ship with any generator or audit failing; fix the cause (never silence it) and re-run. `check:migrations` and `type-check` are covered by steps 5 and CI respectively and are not repeated here.
 7. **Stage and commit** the changes with the generated message — including any files Phase A regenerated in step 6

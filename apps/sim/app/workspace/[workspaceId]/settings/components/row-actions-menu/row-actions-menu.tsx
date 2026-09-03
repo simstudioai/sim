@@ -45,7 +45,7 @@ export function RowActionsMenu({ label, actions, triggerClassName }: RowActionsM
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button type='button' aria-label={label} className={cn(chipVariants(), triggerClassName)}>
-          <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+          <MoreHorizontal className='size-[14px] shrink-0 text-[var(--text-icon)]' />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>

@@ -68,6 +68,8 @@ export const readTableViewUseCase = defineAuthorizedTableUseCase({
 export interface CreateTableViewInput extends TableViewInput {
   name: string
   config: TableViewConfig
+  /** Make the new view the table's default, demoting the previous one in the same transaction. */
+  isDefault?: boolean
 }
 
 export const createTableViewUseCase = defineAuthorizedTableUseCase({
@@ -88,6 +90,7 @@ export const createTableViewUseCase = defineAuthorizedTableUseCase({
         workspaceId: context.workspaceId,
         name: input.name,
         config: input.config,
+        isDefault: input.isDefault,
         userId: attribution.attributedUserId,
         columns,
         strictRefs: true,

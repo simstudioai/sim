@@ -1081,7 +1081,7 @@ export function HeroVisual() {
                   className={cn(
                     'absolute transform-gpu transition-[opacity,transform,width,height,top,left] will-change-transform [transition-duration:520ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]',
                     showKbShell &&
-                      'overflow-hidden rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)]'
+                      'overflow-hidden rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px]'
                   )}
                   style={{
                     left: showKbShell

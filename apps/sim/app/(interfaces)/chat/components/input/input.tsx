@@ -124,7 +124,7 @@ export const ChatInput: React.FC<{
   const canSubmit = (inputValue.trim().length > 0 || attachedFiles.length > 0) && !isStreaming
 
   return (
-    <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-gradient-to-t from-[var(--bg)] to-transparent px-4 pb-4 md:px-0 md:pb-4'>
+    <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-linear-to-t from-[var(--bg)] to-transparent px-4 pb-4 md:px-0 md:pb-4'>
       <div className='w-full max-w-3xl md:max-w-[748px]'>
         {uploadErrors.length > 0 && (
           <div className='mb-3 flex flex-col gap-2'>
@@ -171,7 +171,7 @@ export const ChatInput: React.FC<{
               {attachedFiles.map((file) => (
                 <Tooltip.Root key={file.id}>
                   <Tooltip.Trigger asChild>
-                    <div className='group relative size-[56px] flex-shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-3)]'>
+                    <div className='group relative size-[56px] shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-3)]'>
                       {file.dataUrl ? (
                         <img
                           src={file.dataUrl}
@@ -214,7 +214,7 @@ export const ChatInput: React.FC<{
             onKeyDown={handleKeyDown}
             placeholder={isDragOver ? 'Drop files here...' : 'Enter a message...'}
             rows={1}
-            className='m-0 h-auto min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent p-1 text-[15px] text-[var(--text-primary)] leading-[24px] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
+            className='m-0 h-auto min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent p-1 text-[15px] text-[var(--text-primary)] leading-[24px] caret-[var(--text-primary)] outline-hidden [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
           />
 
           <div className='flex items-center justify-between'>

@@ -93,9 +93,9 @@ const TAB_SHAPE: Record<TabStripVariant, string> = {
  */
 const TAB_ACTIVE: Record<TabStripVariant, string> = {
   attached:
-    'hover-hover:!border-[var(--border)] hover-hover:!bg-[var(--bg)] hover-hover:!text-[var(--text-primary)] hover-hover:!brightness-100 hover-hover:!opacity-100 border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)] transition-none',
+    'hover-hover:border-[var(--border)]! hover-hover:bg-[var(--bg)]! hover-hover:text-[var(--text-primary)]! hover-hover:brightness-100! hover-hover:opacity-100! border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)] transition-none',
   floating:
-    'hover-hover:!bg-[var(--surface-active)] hover-hover:!text-[var(--text-primary)] bg-[var(--surface-active)] text-[var(--text-primary)]',
+    'hover-hover:bg-[var(--surface-active)]! hover-hover:text-[var(--text-primary)]! bg-[var(--surface-active)] text-[var(--text-primary)]',
 }
 
 /**

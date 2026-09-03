@@ -224,8 +224,18 @@ export function readArgumentSource(raw: string, flagName: string): { text: strin
   }
 }
 
-/** Reads a primitive list from argv or a newline-delimited file. */
-function readListValues(raw: unknown, flagName: string): string[] {
+/** A manifest line that carries no value: blank, or a `#` comment. */
+function isManifestNoise(line: string): boolean {
+  const trimmed = line.trim()
+  return trimmed === '' || trimmed.startsWith('#')
+}
+
+/**
+ * Reads a primitive list from argv or a newline-delimited file. A `manifest`
+ * list drops blank and `#` comment lines read from a file, so a requirements
+ * file can be passed as it is on disk.
+ */
+function readListValues(raw: unknown, flagName: string, manifest = false): string[] {
   const arguments_ = Array.isArray(raw) ? raw : [raw]
   const values = arguments_.flatMap((argument) => {
     if (typeof argument !== 'string') {
@@ -237,11 +247,12 @@ function readListValues(raw: unknown, flagName: string): string[] {
     const source = readArgumentSource(argument, flagName)
     const lines = source.text.split(/\r?\n/)
     if (lines.at(-1) === '') lines.pop()
-    if (lines.length === 0) {
+    const kept = manifest ? lines.filter((line) => !isManifestNoise(line)) : lines
+    if (kept.length === 0) {
       throw new SimApiError(`--${flagName}${source.from} contains no values`, 0)
     }
 
-    return lines.map((line, index) => {
+    return kept.map((line, index) => {
       const value = line.trim()
       if (!value) {
         throw new SimApiError(
@@ -365,7 +376,7 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
    *   or failed validation outright.
    */
   if (flag.list) {
-    const values = readListValues(raw, flagName).map((value) =>
+    const values = readListValues(raw, flagName, flag.manifest === true).map((value) =>
       flag.folderPath ? encodeFolderPath(value) : value
     )
     // Encoding first is also what keeps the comma-joined form unambiguous: a

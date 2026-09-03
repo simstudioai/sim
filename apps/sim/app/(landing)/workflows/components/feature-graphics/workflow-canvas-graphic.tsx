@@ -34,7 +34,7 @@ const OUTPUT_BLOCKS = [
  * edges with vertical tangents landing on small port dots (the access
  * tile's junction vocabulary). Every block is a white card in the audit
  * tile's exact chrome (`--white` fill, 1px `--border-1` hairline,
- * `rounded-lg`, `shadow-sm`) so the canvas reads as the workspace's own
+ * `rounded-lg`, `shadow-xs`) so the canvas reads as the workspace's own
  * block language; the agent is the tile's strongest element, pairing its
  * name with a solid `Agent` ChipTag.
  *
@@ -85,14 +85,14 @@ export function WorkflowCanvasGraphic() {
             ))}
           </svg>
 
-          <div className='-translate-x-1/2 absolute top-[14px] left-[160px] flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-1.5 shadow-sm'>
+          <div className='-translate-x-1/2 absolute top-[14px] left-[160px] flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-1.5 shadow-xs'>
             <span className='size-2 shrink-0 rounded-full border border-[var(--text-muted)] bg-[var(--surface-3)]' />
             <span className='whitespace-nowrap text-[var(--text-secondary)] text-caption'>
               New ticket
             </span>
           </div>
 
-          <div className='-translate-x-1/2 absolute top-[102px] left-[160px] flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm'>
+          <div className='-translate-x-1/2 absolute top-[102px] left-[160px] flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs'>
             <span
               className={cn(
                 'size-2.5 shrink-0 rounded-full bg-[var(--text-primary)]',
@@ -109,7 +109,7 @@ export function WorkflowCanvasGraphic() {
             <div
               key={block.label}
               className={cn(
-                '-translate-x-1/2 absolute top-[196px] flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-1.5 shadow-sm',
+                '-translate-x-1/2 absolute top-[196px] flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-1.5 shadow-xs',
                 block.leftClass
               )}
             >

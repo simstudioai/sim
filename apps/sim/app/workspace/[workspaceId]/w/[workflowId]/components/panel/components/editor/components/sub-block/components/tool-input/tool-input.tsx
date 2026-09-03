@@ -306,7 +306,7 @@ function createToolIcon(
 ) {
   return (
     <div
-      className='flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
+      className='flex size-[16px] shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
       style={{ background: bgColor }}
     >
       <IconComponent className={cn('size-[10px]', getTileIconColorClass(bgColor))} />
@@ -1567,7 +1567,7 @@ export const ToolInput = memo(function ToolInput({
                 'group relative flex flex-col overflow-hidden rounded-sm border border-[var(--border-1)] transition-all duration-200 ease-in-out',
                 draggedIndex === toolIndex ? 'scale-95 opacity-40' : '',
                 dragOverIndex === toolIndex && draggedIndex !== toolIndex && draggedIndex !== null
-                  ? 'translate-y-1 transform border-t-2 border-t-muted-foreground/40'
+                  ? 'translate-y-1 border-t-2 border-t-muted-foreground/40'
                   : '',
                 selectedTools.length > 1 && !isPreview && !disabled && 'active:cursor-grabbing'
               )}
@@ -1603,7 +1603,7 @@ export const ToolInput = memo(function ToolInput({
               >
                 <div className='flex min-w-0 flex-1 items-center gap-2'>
                   <div
-                    className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+                    className='flex size-[16px] shrink-0 items-center justify-center rounded-sm'
                     style={{
                       backgroundColor: isCustomTool
                         ? '#3B82F6'
@@ -1672,7 +1672,7 @@ export const ToolInput = memo(function ToolInput({
                       <WorkflowToolDeployBadge workflowId={tool.params.workflowId} />
                     )}
                 </div>
-                <div className='flex flex-shrink-0 items-center gap-2'>
+                <div className='flex shrink-0 items-center gap-2'>
                   {supportsToolControl && !(isMcpTool && isMcpToolUnavailable(tool)) && (
                     <Popover
                       open={usageControlPopoverIndex === toolIndex}
