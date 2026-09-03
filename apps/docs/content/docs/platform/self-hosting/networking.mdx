@@ -229,7 +229,8 @@ spec:
 Then annotate the realtime Service so the load balancer picks it up. The chart renders no annotations on any Service, and `realtime.service` accepts only `type`, `port`, and `targetPort` — an annotations key there is silently dropped. Annotate the Service directly:
 
 ```bash
-kubectl annotate service <release>-realtime -n <namespace> \
+kubectl annotate service -n <namespace> \
+  -l app.kubernetes.io/instance=<release>,app.kubernetes.io/component=realtime \
   cloud.google.com/backend-config='{"default": "sim-realtime-backendconfig"}'
 ```
 
@@ -329,13 +330,13 @@ The practical consequence: a mandatory-egress-proxy environment can route most L
 <Callout type="info">
   Set `NO_PROXY` for every destination that is not on the public internet, not just model endpoints. The app reaches the realtime server (`SOCKET_SERVER_URL`), the Presidio PII service (`PII_URL`), and itself (`INTERNAL_API_BASE_URL`) over the same default `fetch`, alongside self-hosted Ollama, LiteLLM, and vLLM — so a proxy that cannot reach your internal network breaks live updates and PII redaction, not only inference.
 
-  Set it in the application environment, not your shell — under `app.env` on Helm, or the service's `environment:` on Compose. The cluster suffix covers every Service whatever the release is named:
+  Set it in the application environment, not your shell — under `app.env` on Helm, or the service's `environment:` on Compose. On Helm the suffixes alone are not enough: the chart wires `SOCKET_SERVER_URL`, `PII_URL`, and `OLLAMA_URL` to bare Service names, which no domain suffix matches. Add those names too — `helm template` prints the rendered ones, and the prefix is the release name unless it already contains `sim`, in which case it is the release name alone:
 
   ```yaml
-  # Helm
+  # Helm — for a release named `acme`
   app:
     env:
-      NO_PROXY: "localhost,127.0.0.1,.svc,.svc.cluster.local"
+      NO_PROXY: "localhost,127.0.0.1,.svc,.svc.cluster.local,acme-sim-realtime,acme-sim-pii,acme-sim-ollama"
   ```
 
   ```yaml

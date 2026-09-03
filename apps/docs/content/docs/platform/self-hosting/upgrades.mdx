@@ -193,6 +193,13 @@ install uses:
 
 Inspect the result with `npx sim-setup logs`, which targets whichever Compose file the install uses.
 
+The CLI detects only those two files. An install started from `docker-compose.ollama.yml` is invisible to it — `update`, `logs`, and `status` all report no install — so upgrade that stack directly:
+
+```bash
+docker compose -f docker-compose.ollama.yml pull
+docker compose -f docker-compose.ollama.yml up -d
+```
+
 <Callout type="warn">
   `sim-setup update` refuses two install kinds outright rather than doing something surprising:
 

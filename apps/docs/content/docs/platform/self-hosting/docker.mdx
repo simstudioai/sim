@@ -154,9 +154,9 @@ VLLM_API_KEY=your_lm_studio_api_token
 Both the server root shown above and a URL ending in `/v1` are accepted. After recreating the `simstudio` service, its models appear in the model picker with a `vllm/` prefix; Sim removes that prefix before sending the model identifier to LM Studio.
 
 ```bash
-# Use the file that started your install — docker-compose.ollama.yml if you
-# started from the Ollama stack.
+# Pick the file that started your install.
 COMPOSE_FILE=docker-compose.prod.yml
+# COMPOSE_FILE=docker-compose.ollama.yml
 docker compose -f "$COMPOSE_FILE" up -d --force-recreate simstudio
 ```
 
@@ -168,7 +168,7 @@ docker compose -f "$COMPOSE_FILE" up -d --force-recreate simstudio
 |---|---|
 | `sim-setup` | The setup wizard. `--quick` skips the prompts, `--dir <path>` picks the directory, `--mode compose\|dev\|k8s` picks the target (`dev` and `k8s` need a source checkout) |
 | `sim-setup status` | Show what is installed and healthy |
-| `sim-setup logs` | Follow logs |
+| `sim-setup logs` | Follow logs. On a source checkout it prints where the logs are — the dev server streams in its own terminal — rather than following a stream |
 | `sim-setup start` / `stop` / `restart` | Bring the install up, down, or cycle it |
 | `sim-setup update` | Pull or rebuild images and apply them. Compose installs only — it refuses on source checkouts and Kubernetes, which update through git and `helm upgrade` |
 | `sim-setup down` | Remove containers, keep the data |
