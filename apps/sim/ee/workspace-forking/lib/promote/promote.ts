@@ -4,7 +4,11 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import type { ForkSyncBlocker, PromoteCopyResources } from '@/lib/api/contracts/workspace-fork'
+import type {
+  BackgroundWorkMetadata,
+  ForkSyncBlocker,
+  PromoteCopyResources,
+} from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
 import { notifyMcpToolServers } from '@/lib/mcp/workflow-mcp-sync'
 import {
@@ -14,7 +18,10 @@ import {
 import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
 import { undeployWorkflow } from '@/lib/workflows/persistence/utils'
 import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
-import { startBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
+import {
+  recordBackgroundWork,
+  startBackgroundWork,
+} from '@/ee/workspace-forking/lib/background-work/store'
 import {
   type ForkContentCopyPayload,
   hasForkContentToCopy,
@@ -106,8 +113,10 @@ export interface PromoteForkParams {
   targetWorkspaceId: string
   direction: 'push' | 'pull'
   userId: string
-  /** Initiator's display name, stamped on the sync's content-copy Activity row. */
+  /** Initiator's display name, stamped on the sync's Activity row. */
   actorName?: string
+  /** Display name of the edge's other side, for the sync's Activity row title. */
+  otherWorkspaceName: string
   /**
    * The full stored mapping of dependent-field values the caller is committing (target
    * workflow id + deterministic block id + subblock key -> value). Applied to the target
@@ -156,6 +165,12 @@ export interface PromoteForkResult {
    * until a redeploy. Surfaced (rather than swallowed) so the caller can warn.
    */
   deployFailed: number
+  /**
+   * Deploys that succeeded but left something pending - a cutover still activating, a side
+   * effect still queued - as `<workflow> — <warning>`. The target is not yet running what the
+   * sync wrote, so the sync's Activity row must not read as clean.
+   */
+  deployWarnings: string[]
   unmappedRequired: Array<Pick<ForkReference, 'kind' | 'sourceId' | 'required' | 'blockName'>>
   /**
    * References the sync would have cleared in the target, so it was blocked without writing
@@ -191,6 +206,63 @@ export interface PromoteForkResult {
    * arriving trigger adopting it. Whatever calls it externally has to be repointed.
    */
   triggerUrlChanges: ForkTriggerUrlChange[]
+}
+
+interface SyncActivity {
+  /** The workspace the sync was initiated from, whose Manage Forks -> Activity records it. */
+  workspaceId: string
+  status: 'completed' | 'completed_with_warnings'
+  message: string
+  metadata: NonNullable<BackgroundWorkMetadata>
+}
+
+/**
+ * The sync's Activity row: the in-request outcome (what was written, deployed, and archived, and
+ * what the target still has to re-pick), phrased from the initiating workspace's side and keyed
+ * to the edge's other side so the partner's Activity surfaces the same row.
+ */
+function buildSyncActivity(
+  result: PromoteForkResult,
+  params: Pick<
+    PromoteForkParams,
+    'direction' | 'sourceWorkspaceId' | 'targetWorkspaceId' | 'otherWorkspaceName' | 'actorName'
+  >
+): SyncActivity {
+  const { direction, sourceWorkspaceId, targetWorkspaceId, otherWorkspaceName, actorName } = params
+  const warnings =
+    result.deployFailed > 0 ||
+    result.deployWarnings.length > 0 ||
+    result.needsConfiguration.length > 0 ||
+    result.clearedOptional.length > 0 ||
+    result.droppedReferences.length > 0 ||
+    result.triggerUrlChanges.length > 0
+  return {
+    workspaceId: direction === 'push' ? sourceWorkspaceId : targetWorkspaceId,
+    status: warnings ? 'completed_with_warnings' : 'completed',
+    message:
+      direction === 'pull'
+        ? `Pulled from "${otherWorkspaceName}"`
+        : `Pushed to "${otherWorkspaceName}"`,
+    metadata: {
+      actorName,
+      otherWorkspaceId: direction === 'push' ? targetWorkspaceId : sourceWorkspaceId,
+      otherWorkspaceName,
+      direction,
+      updated: result.updated,
+      created: result.created,
+      archived: result.archived,
+      redeployed: result.redeployed,
+      deployFailed: result.deployFailed,
+      deployWarnings: result.deployWarnings,
+      updatedNames: result.updatedNames,
+      createdNames: result.createdNames,
+      archivedNames: result.archivedNames,
+      needsConfiguration: result.needsConfiguration,
+      clearedOptional: result.clearedOptional,
+      droppedReferences: result.droppedReferences.length,
+      triggerUrlChanges: result.triggerUrlChanges.length,
+    },
+  }
 }
 
 function collectCredentialPairs(plan: ForkPromotePlan): Array<[string, string]> {
@@ -995,6 +1067,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       archived: 0,
       redeployed: 0,
       deployFailed: 0,
+      deployWarnings: [],
       unmappedRequired: txResult.blocked === 'unmapped' ? txResult.unmappedRequired : [],
       blockers: txResult.blocked === 'cleared-refs' ? txResult.blockers : [],
       blocked: txResult.blocked,
@@ -1053,7 +1126,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         // sync). Surface those instead of swallowing them into a clean success.
         if (result.warnings?.length) {
           const name = txResult.writtenNames[targetWorkflowId] ?? targetWorkflowId
-          for (const warning of result.warnings) deployWarnings.push(`${name}: ${warning}`)
+          for (const warning of result.warnings) deployWarnings.push(`${name} — ${warning}`)
         }
       } else {
         deployFailures.push(targetWorkflowId)
@@ -1071,6 +1144,29 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     }
   }
 
+  const result: PromoteForkResult = {
+    promoteRunId: txResult.promoteRunId,
+    updated: txResult.updated,
+    created: txResult.created,
+    archived: txResult.archived,
+    redeployed,
+    deployFailed: deployFailures.length,
+    deployWarnings,
+    unmappedRequired: [],
+    blockers: [],
+    blocked: null,
+    updatedNames: txResult.updatedNames,
+    createdNames: txResult.createdNames,
+    archivedNames: txResult.archivedNames,
+    needsConfiguration: txResult.needsConfiguration.map(({ workflowName, blocks }) => ({
+      workflowName,
+      blocks,
+    })),
+    clearedOptional: txResult.clearedOptional,
+    droppedReferences: txResult.droppedReferences,
+    triggerUrlChanges: txResult.triggerUrlChanges,
+  }
+
   // Fill the heavy content (table rows, KB documents + embeddings) of resources copied into the
   // target this sync and rewrite copied skill bodies, off the request path. Scheduled AFTER the
   // deploy loop so every deployed version this sync cut already EXISTS: a failed content fill's
@@ -1080,45 +1176,64 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
   // runner also clears references + drops the placeholder for any resource whose fill fails.
   const copyContentPlan = txResult.copyContentPlan
   const copyBlobTasks = txResult.copyContentBlobTasks
-  const hasCopyContent =
+  const contentFill =
     copyContentPlan != null && hasForkContentToCopy(copyContentPlan, copyBlobTasks)
-  if (copyContentPlan && hasCopyContent) {
-    // Scope the durable record to the workspace whose Manage Forks -> Activity the user is
-    // viewing (the one the sync was initiated from), matching where the route records the sync.
-    const activityWorkspaceId = direction === 'push' ? sourceWorkspaceId : targetWorkspaceId
-    // The sync already committed; failing to record the tracking row must not turn it into a 500.
-    // The runner no-ops its status updates when statusId is absent, so the copy still runs.
-    let statusId: string | undefined
-    try {
+      ? { contentPlan: copyContentPlan, blobTasks: copyBlobTasks }
+      : null
+
+  // One Activity row per sync. The content fill is part of that row, not an entry of its own:
+  // when there is one, the row stays `processing` and the runner finishes it, merging the fill's
+  // copied/failed counts into the sync's report. The sync already committed, so failing to record
+  // the row must not turn it into a 500 - the runner no-ops its status updates when statusId is
+  // absent, and the copy still runs.
+  const activity = buildSyncActivity(result, {
+    direction,
+    sourceWorkspaceId,
+    targetWorkspaceId,
+    otherWorkspaceName: params.otherWorkspaceName,
+    actorName: params.actorName,
+  })
+  let statusId: string | undefined
+  try {
+    if (contentFill) {
       statusId = await startBackgroundWork(db, {
-        workspaceId: activityWorkspaceId,
-        kind: 'fork_content_copy',
-        // Append-only: each sync's content fill is a distinct entry in the Activity history.
+        workspaceId: activity.workspaceId,
+        kind: 'fork_sync',
+        // Append-only: each sync is a distinct entry in the Activity history.
         supersede: false,
-        message: 'Copying synced resources',
+        message: activity.message,
         metadata: {
-          // The edge's other side, so the partner workspace's Activity surfaces this row too.
-          otherWorkspaceId: direction === 'push' ? targetWorkspaceId : sourceWorkspaceId,
-          // The content fill runs as a background worker with no session; the Activity
-          // actor is the user who initiated the sync, not "System".
-          actorName: params.actorName,
-          tables: copyContentPlan.tables.length,
-          knowledgeBases: copyContentPlan.knowledgeBases.length,
-          files: copyBlobTasks.length,
+          ...activity.metadata,
+          tables: contentFill.contentPlan.tables.length,
+          knowledgeBases: contentFill.contentPlan.knowledgeBases.length,
+          files: contentFill.blobTasks.length,
+          skills: contentFill.contentPlan.skills.length,
+          documents: contentFill.contentPlan.documents.length,
         },
       })
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to record sync content-copy status`, {
-        targetWorkspaceId,
-        error: getErrorMessage(error),
+    } else {
+      await recordBackgroundWork(db, {
+        workspaceId: activity.workspaceId,
+        kind: 'fork_sync',
+        status: activity.status,
+        message: activity.message,
+        metadata: activity.metadata,
       })
     }
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to record sync activity`, {
+      targetWorkspaceId,
+      error: getErrorMessage(error),
+    })
+  }
 
+  if (contentFill) {
     const payload: ForkContentCopyPayload = {
-      contentPlan: copyContentPlan,
-      blobTasks: copyBlobTasks,
+      contentPlan: contentFill.contentPlan,
+      blobTasks: contentFill.blobTasks,
       contentRefMaps: txResult.copyContentRefMaps ?? undefined,
       statusId,
+      completionStatus: activity.status,
       // The targets this sync wrote and deployed above, so a failed content fill can sweep the
       // dropped placeholder from their DEPLOYED version states too, not just drafts.
       deployedTargetWorkflowIds: txResult.deployTargetIds,
@@ -1160,25 +1275,5 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     needsConfiguration: txResult.needsConfiguration.length,
   })
 
-  return {
-    promoteRunId: txResult.promoteRunId,
-    updated: txResult.updated,
-    created: txResult.created,
-    archived: txResult.archived,
-    redeployed,
-    deployFailed: deployFailures.length,
-    unmappedRequired: [],
-    blockers: [],
-    blocked: null,
-    updatedNames: txResult.updatedNames,
-    createdNames: txResult.createdNames,
-    archivedNames: txResult.archivedNames,
-    needsConfiguration: txResult.needsConfiguration.map(({ workflowName, blocks }) => ({
-      workflowName,
-      blocks,
-    })),
-    clearedOptional: txResult.clearedOptional,
-    droppedReferences: txResult.droppedReferences,
-    triggerUrlChanges: txResult.triggerUrlChanges,
-  }
+  return result
 }

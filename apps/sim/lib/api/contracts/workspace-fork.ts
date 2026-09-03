@@ -777,13 +777,17 @@ export const backgroundWorkMetadataSchema = z
   .object({
     /** Display name of the user who performed the action (denormalized at write time). */
     actorName: z.string().optional(),
-    // Fork content copy
+    // Fork content copy. The per-kind counts and copied/failed also describe the background
+    // fill of the resources a sync copied, which reports on the sync's own row.
     childWorkspaceId: z.string().optional(),
     childWorkspaceName: z.string().optional(),
     workflowsCopied: z.number().int().optional(),
     tables: z.number().int().optional(),
     knowledgeBases: z.number().int().optional(),
     files: z.number().int().optional(),
+    skills: z.number().int().optional(),
+    /** Documents copied into an already-mapped target knowledge base (sync only). */
+    documents: z.number().int().optional(),
     copied: z.number().int().optional(),
     failed: z.number().int().optional(),
     /** Count of failed resources whose dangling references were cleared post-fork (U8). */
@@ -813,6 +817,8 @@ export const backgroundWorkMetadataSchema = z
     archived: z.number().int().optional(),
     redeployed: z.number().int().optional(),
     deployFailed: z.number().int().optional(),
+    /** Deploys that succeeded with a cutover or side effect still pending, as `<workflow> — <warning>`. */
+    deployWarnings: z.array(z.string()).optional(),
     restored: z.number().int().optional(),
     unarchived: z.number().int().optional(),
     removed: z.number().int().optional(),
