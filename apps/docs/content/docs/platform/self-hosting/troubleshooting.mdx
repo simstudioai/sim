@@ -18,11 +18,15 @@ On a standalone Compose install, run it from the directory holding your `.env` a
 ## Database connection failed
 
 ```bash
+# The file that started your install — no bare `docker compose` works, the
+# repo ships no default docker-compose.yml.
+COMPOSE_FILE=docker-compose.prod.yml
+
 # Check database is running
-docker compose ps db
+docker compose -f "$COMPOSE_FILE" ps db
 
 # Test connection
-docker compose exec db psql -U postgres -c "SELECT 1"
+docker compose -f "$COMPOSE_FILE" exec db psql -U postgres -c "SELECT 1"
 ```
 
 Verify `DATABASE_URL` format: `postgresql://user:pass@host:5432/database`
@@ -59,12 +63,12 @@ Two things this does not cover:
 
 Sim identifies dynamically discovered LM Studio and vLLM models by their `vllm/` prefix. If the endpoint is unavailable and you manually enter the raw LM Studio model identifier, Sim treats that unknown identifier as an Ollama model.
 
-1. Set `VLLM_BASE_URL`, and `VLLM_API_KEY` too if you enabled LM Studio's API authentication — without the key, discovery requests omit the bearer token and fail. No Compose file sets either for you — `docker-compose.ollama.yml` only sets `OLLAMA_URL` — so add them to the `simstudio` service's `environment:` block (or to `.env` and interpolate them), then recreate the service and confirm it landed:
+1. Set `VLLM_BASE_URL`, and `VLLM_API_KEY` too if you enabled LM Studio's API authentication — without the key, discovery requests omit the bearer token and fail. No Compose file sets either for you — `docker-compose.ollama.yml` only sets `OLLAMA_URL` — so add them to the `.env` file next to your Compose file — `simstudio` declares `env_file: .env` in every shipped file — then recreate the service and confirm it landed:
 
-   Use the Compose file that started your installation — `docker-compose.prod.yml` for the documented production setup, or `docker-compose.ollama.yml` if you started from the Ollama stack:
+   Use the Compose file that started your installation — `docker-compose.prod.yml` for the documented production setup, `docker-compose.local.yml` for a source-built stack, or `docker-compose.ollama.yml` if you started from the Ollama stack:
 
    ```bash
-   COMPOSE_FILE=docker-compose.prod.yml   # or docker-compose.ollama.yml
+   COMPOSE_FILE=docker-compose.prod.yml   # or docker-compose.local.yml, docker-compose.ollama.yml
    docker compose -f "$COMPOSE_FILE" up -d --force-recreate simstudio
    docker compose -f "$COMPOSE_FILE" exec simstudio printenv VLLM_BASE_URL
    ```
@@ -79,15 +83,15 @@ Sim identifies dynamically discovered LM Studio and vLLM models by their `vllm/`
 ## WebSocket and realtime not working
 
 1. Verify reverse proxy routes `/socket.io` to the realtime service (default port 3002). `NEXT_PUBLIC_SOCKET_URL` is only needed if realtime is on a separate host.
-2. Verify realtime service is running: `docker compose ps realtime`
+2. Verify realtime service is running: `docker compose -f docker-compose.prod.yml ps realtime`
 3. Ensure reverse proxy passes WebSocket upgrades (see [Docker guide](/platform/self-hosting/docker))
 
 ## 502 Bad Gateway
 
 ```bash
-# Check app is running
-docker compose ps simstudio
-docker compose logs simstudio
+# Check app is running — use the file that started your install
+docker compose -f docker-compose.prod.yml ps simstudio
+docker compose -f docker-compose.prod.yml logs simstudio
 
 # Common causes: out of memory, database not ready
 ```
@@ -157,7 +161,7 @@ app:
 1. Check browser console for errors
 2. Verify `NEXT_PUBLIC_APP_URL` matches your actual domain
 3. Clear browser cookies and local storage
-4. Check that all services are running: `docker compose ps`
+4. Check that all services are running: `docker compose -f docker-compose.prod.yml ps`
 
 ## Windows-specific issues
 
@@ -209,7 +213,7 @@ Wrap it in `sh -c` with single quotes so `$CRON_SECRET` expands **inside the pod
 
 ## Gmail, Drive, and Outlook triggers never fire
 
-These are **polling** triggers, driven by the per-minute `/api/webhooks/poll/*` jobs. Check the scheduler is running them — `docker compose logs cron`, or `kubectl get cronjobs -n simstudio` for a recent `LAST SCHEDULE`.
+These are **polling** triggers, driven by the per-minute `/api/webhooks/poll/*` jobs. Check the scheduler is running them — `docker compose -f docker-compose.prod.yml logs cron`, or `kubectl get cronjobs -n simstudio` for a recent `LAST SCHEDULE`.
 
 Microsoft Teams chat triggers are the different case: they use a Microsoft Graph subscription capped at about three days, renewed by the twice-daily `renew-subscriptions` job. If Teams triggers work for a couple of days and then stop, that job is not running. See [Background Jobs](/platform/self-hosting/background-jobs).
 

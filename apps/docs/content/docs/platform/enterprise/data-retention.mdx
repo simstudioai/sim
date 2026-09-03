@@ -216,7 +216,8 @@ PII redaction runs against a standalone [Presidio](https://microsoft.github.io/p
 # Helm — setting pii.enabled wires this for you. Set it by hand only for an
 # external Presidio, substituting your release name and namespace.
 PII_URL=http://<release>-pii.<namespace>.svc.cluster.local:5001
-# Docker Compose — the PII service name on your network
+# Docker Compose — no shipped file defines a PII service. Add one to the
+# same project, then use its service name.
 # PII_URL=http://pii:5001
 ```
 

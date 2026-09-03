@@ -257,7 +257,7 @@ The service bundles ~2.2 GB of spaCy models, so first start takes around three m
 ## The shipped Compose file publishes Postgres
 
 <Callout type="error">
-  `docker-compose.prod.yml` maps the database to the host: `${POSTGRES_PORT:-5432}:5432`, with `POSTGRES_USER` and `POSTGRES_PASSWORD` both defaulting to `postgres`. A plain `docker compose up -d` against that file, on a machine with a public interface, therefore exposes an open Postgres on 5432 with credentials anyone can guess. The Ollama stack maps the database the same way, so apply the fix to whichever file started your install.
+  `docker-compose.prod.yml` maps the database to the host: `${POSTGRES_PORT:-5432}:5432`, with `POSTGRES_USER` and `POSTGRES_PASSWORD` both defaulting to `postgres`. A plain `docker compose up -d` against that file, on a machine with a public interface, therefore exposes an open Postgres on 5432 with credentials anyone can guess. The local and Ollama stacks map the database the same way, so apply the fix to whichever file started your install.
 
   The [Docker guide](/platform/self-hosting/docker#1-configure-environment) tells you to generate `POSTGRES_PASSWORD` before the first start — do that, and additionally close the port:
 

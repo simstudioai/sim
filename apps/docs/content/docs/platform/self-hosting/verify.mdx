@@ -106,7 +106,7 @@ All six should be present on Compose: `simstudio`, `realtime`, `db`, `redis`, `c
 
 **Step 9 fails — no email arrives.** With no provider configured, emails are written to the app logs instead of sent — check there first to confirm the message was generated, then debug the provider.
 
-**Step 11 fails — schedule never fires.** Read the scheduler's logs (`docker compose logs cron`, or `kubectl get cronjobs -n simstudio`). A `401` there means the app and the scheduler disagree on `CRON_SECRET`.
+**Step 11 fails — schedule never fires.** Read the scheduler's logs (`docker compose -f docker-compose.prod.yml logs cron`, or `kubectl get cronjobs -n simstudio`). A `401` there means the app and the scheduler disagree on `CRON_SECRET`.
 
 ## After an upgrade
 

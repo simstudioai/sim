@@ -197,7 +197,7 @@ install uses:
 
 Inspect the result with `npx sim-setup logs`, which targets whichever Compose file the install uses.
 
-The CLI detects only those two files. An install started from `docker-compose.ollama.yml` is invisible to it — `update`, `logs`, and `status` all report no install — so upgrade that stack directly:
+The CLI detects only those two files. An install started from `docker-compose.ollama.yml` is invisible to it: `update`, `logs`, and `status` report no install, or — in a source checkout that also carries per-application env files — report that checkout's dev install instead. Upgrade that stack directly:
 
 ```bash
 # That file builds the app, realtime server, and migrator from source, so the
@@ -216,7 +216,7 @@ docker compose -f docker-compose.ollama.yml --profile "$PROFILE" up -d
   - **Kubernetes** — it does not upgrade Helm releases. Use `helm upgrade` after reading the chart and release notes.
   - **Source / dev** — update the checkout with git, run `bun install`, and restart `bun run dev:full`.
 
-  It also refuses to overwrite a managed Compose file you have edited by hand: preserve or remove your customizations first.
+  On a standalone `docker-compose.prod.yml` install it also refuses to overwrite its managed Compose file if you have edited it by hand, comparing the file against the hash it recorded in `.sim-setup.json`: preserve or remove your customizations first.
 </Callout>
 
 There is a short window where the app is unavailable while containers restart. Compose has no rolling-update mechanism — plan a maintenance window, or run Kubernetes if you need zero-downtime upgrades.
@@ -245,6 +245,7 @@ kubectl logs -n simstudio deploy/sim-app -c migrations --tail=200
 ```
 
 ```bash
+# Or the file that started your install.
 docker compose -f docker-compose.prod.yml logs migrations
 ```
 
@@ -269,9 +270,9 @@ helm rollback sim -n simstudio
 ```
 
 ```bash
-# Production Compose — edit .env so the pin persists, then restart.
-# Substitute the previous release tag from the releases page.
-echo "SIM_VERSION=<previous-release-tag>" >> .env
+# Production Compose — set SIM_VERSION in .env so the pin persists, replacing
+# any existing line rather than appending a second one. Substitute the previous
+# release tag from the releases page.
 docker compose -f docker-compose.prod.yml up -d
 ```
 

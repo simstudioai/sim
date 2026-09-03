@@ -127,7 +127,7 @@ To drop a job you do not need, comment out its line in `docker/crontab` and rest
 
 Create a workflow with a Schedule trigger set to every minute, deploy it, and watch the Logs view. An execution should appear within ~2 minutes. If nothing appears:
 
-1. Check the scheduler's own logs — `docker compose logs cron`, or `kubectl get cronjobs -n simstudio` for a recent `LAST SCHEDULE`.
+1. Check the scheduler's own logs — `docker compose -f docker-compose.prod.yml logs cron`, or `kubectl get cronjobs -n simstudio` for a recent `LAST SCHEDULE`.
 2. Confirm the app and the scheduler share the same `CRON_SECRET`. A mismatch shows up as `401` in the scheduler log.
 3. A `202` means the endpoint accepted the run; it does not confirm a schedule was due, so check the Logs view.
 

@@ -183,7 +183,9 @@ export function renderManifest(input: {
 # that path, override that one image with the BARE repository:
 # \`ollama.gpu.devicePlugin.image.repository=nvidia/k8s-device-plugin\`. Global
 # rewriting still prepends your registry, so including it in the override would
-# render it twice.
+# render it twice. That override also CHANGES where the chart pulls from, to
+# \`<your-registry>/nvidia/k8s-device-plugin\` — mirror the device plugin there
+# instead of to the \`mirror\` path listed below, or the pull fails.
 appVersion: ${input.appVersion}
 images:
 ${entries}
