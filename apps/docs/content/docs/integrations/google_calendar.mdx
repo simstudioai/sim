@@ -43,7 +43,7 @@ Connecting Google Calendar requests these scopes.
 | `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
 | `https://www.googleapis.com/auth/calendar` | View and manage calendar |
 
-Google Calendar also accepts a credential you create yourself. Sim cannot request scopes on one, so its access is whatever the credential carries: some providers let you select these permissions when you create the token, others give it the creating user's access.
+Google Calendar also accepts a Google service account. Its access comes from the key and the domain-wide delegation you grant it in Google Workspace, not from this table, and Sim cannot add to it. The two `userinfo` scopes apply only to an OAuth connection: Google rejects them for a service account, so Sim leaves them out of that token.
 
 
 ## Actions

@@ -7,7 +7,12 @@ import { isVersionedType, stripVersionSuffix } from '@sim/utils/string'
 import { glob } from 'glob'
 import type { BlockCategory } from '../apps/sim/blocks/types'
 import { IntegrationType } from '../apps/sim/blocks/types'
-import { ENV_GATED_SCOPES, getScopeDescription, OAUTH_SCOPES } from '../apps/sim/lib/oauth/scopes'
+import {
+  ENV_GATED_SCOPES,
+  getScopeDescription,
+  OAUTH_SCOPES,
+  SERVICE_ACCOUNT_EXCLUDED_SCOPES,
+} from '../apps/sim/lib/oauth/scopes'
 import type { ToolOutputProperty } from '../apps/sim/tools/types'
 
 /**
@@ -1328,8 +1333,14 @@ interface OAuthServiceConnectInfo {
   name: string
   /** Base provider key, which is also the OAuth-client capability id. */
   baseProvider: string
-  /** Set when the service also accepts a credential the user issues themselves. */
-  acceptsSelfIssuedCredential: boolean
+  /**
+   * Provider id of the self-issued credential the service also accepts, or
+   * `null`. Which one it is decides what is true about the credential's access:
+   * a Google service account is a JSON key whose scope set is fixed by
+   * domain-wide delegation, while a pasted token generally carries whatever its
+   * creating user can do.
+   */
+  serviceAccountProviderId: string | null
   /** True for services that have no OAuth flow, so no app registration covers them. */
   serviceAccountOnly: boolean
 }
@@ -1391,7 +1402,7 @@ export function loadOAuthConnectCatalog(): OAuthConnectCatalog {
         providerId: serviceId,
         name: serviceId,
         baseProvider,
-        acceptsSelfIssuedCredential: false,
+        serviceAccountProviderId: null,
         serviceAccountOnly: false,
       }
       services.set(serviceId, service)
@@ -1412,7 +1423,17 @@ export function loadOAuthConnectCatalog(): OAuthConnectCatalog {
       continue
     }
     if (/^ {8}serviceAccountProviderId: /.test(line)) {
-      service.acceptsSelfIssuedCredential = true
+      const literal = /^ {8}serviceAccountProviderId: '([^']+)',$/.exec(line)
+      // Every declaration is a string literal today. One written through an
+      // imported constant would leave the docs describing the wrong credential
+      // model, which is worse than refusing to generate.
+      if (!literal) {
+        throw new Error(
+          `${serviceId} declares serviceAccountProviderId in a form this scraper ` +
+            `cannot read: ${line.trim()}`
+        )
+      }
+      service.serviceAccountProviderId = literal[1]
       continue
     }
     if (/^ {8}authType: 'service_account',$/.test(line)) {
@@ -1432,6 +1453,43 @@ export function loadOAuthConnectCatalog(): OAuthConnectCatalog {
 
   oauthConnectCatalogCache = { services, providers }
   return oauthConnectCatalogCache
+}
+
+/**
+ * Sentence describing a self-issued credential's access, chosen by which kind
+ * the service accepts.
+ *
+ * One sentence cannot cover these. A Google service account is a JSON key whose
+ * access comes from domain-wide delegation, and `getServiceAccountToken` strips
+ * {@link SERVICE_ACCOUNT_EXCLUDED_SCOPES} from its JWT, so naming the identity
+ * scopes beside it describes access that credential can never hold. A pasted
+ * token is the opposite problem: most have no permission picker at all and
+ * simply carry their creating user's access, so an instruction to grant
+ * anything sends the reader hunting for a setting that does not exist.
+ *
+ * Neither sentence tells the reader to match the table. The table is what the
+ * OAuth flow requests, and that is all it is.
+ */
+function renderSelfIssuedCredentialNote(
+  serviceAccountProviderId: string | null,
+  name: string
+): string {
+  if (!serviceAccountProviderId) return ''
+
+  if (serviceAccountProviderId === 'google-service-account') {
+    return (
+      `\n${name} also accepts a Google service account. Its access comes from the key and the ` +
+      `domain-wide delegation you grant it in Google Workspace, not from this table, and Sim ` +
+      `cannot add to it. The two \`userinfo\` scopes apply only to an OAuth connection: Google ` +
+      `rejects them for a service account, so Sim leaves them out of that token.\n`
+    )
+  }
+
+  return (
+    `\n${name} also accepts a credential you create yourself. Sim cannot request scopes on one, ` +
+    `so its access is fixed when you create it, and it is generally whatever the account that ` +
+    `created it can already do.\n`
+  )
 }
 
 /**
@@ -1466,16 +1524,7 @@ export function buildScopesSection(serviceId: string | undefined, name: string):
     })
     .join('\n')
 
-  // Only some self-issued credentials have permissions to pick: an Airtable PAT
-  // and a Slack custom bot do, while a Wealthbox or Monday token simply carries
-  // its creating user's access and a Google service account uses domain-wide
-  // delegation over a filtered set. Telling every reader to "grant the same
-  // scopes" sends most of them looking for a picker that does not exist.
-  const selfIssued = connectInfo.acceptsSelfIssuedCredential
-    ? `\n${name} also accepts a credential you create yourself. Sim cannot request scopes on ` +
-      `one, so its access is whatever the credential carries: some providers let you select ` +
-      `these permissions when you create the token, others give it the creating user's access.\n`
-    : ''
+  const selfIssued = renderSelfIssuedCredentialNote(connectInfo.serviceAccountProviderId, name)
 
   const gatedNote = renderEnvGatedScopeNote(serviceId)
 
@@ -1616,7 +1665,16 @@ function buildSelfHostingOAuthReference(): string {
     )
   })
 
-  return sections.join('\n')
+  // Says once, at the top, what every table below is: the OAuth flow's request.
+  // Without it a reader who connects with a Google service account instead reads
+  // the identity scopes as something to grant, and `getServiceAccountToken`
+  // strips exactly those from that token.
+  const preamble =
+    `Each table is what the OAuth flow requests, so it is what the app registration has to ` +
+    `allow. A credential someone issues themselves instead (a service account, a pasted API ` +
+    `token) carries its own access, which these do not govern.\n`
+
+  return `${preamble}\n${sections.join('\n')}`
 }
 
 /**

@@ -578,6 +578,19 @@ export const OAUTH_SCOPES = {
 export type OAuthScopedService = keyof typeof OAUTH_SCOPES
 
 /**
+ * Scopes a Google service-account credential cannot carry.
+ *
+ * A service account is not a user, so Google rejects a token request that asks
+ * for user identity. `getServiceAccountToken` filters these out of the JWT,
+ * which means a page listing them next to a service-account credential is
+ * describing access that credential can never have.
+ */
+export const SERVICE_ACCOUNT_EXCLUDED_SCOPES = [
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+] as const
+
+/**
  * Scopes a service requests only where the deployment has opted in, keyed by
  * service id.
  *

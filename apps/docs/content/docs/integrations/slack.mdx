@@ -82,7 +82,7 @@ Connecting Slack requests these scopes.
 
 With `SLACK_EXTENDED_SCOPES` set, Sim also requests `assistant:write`, `app_mentions:read`, `im:history`. Add them to the app as well, or leave the flag unset.
 
-Slack also accepts a credential you create yourself. Sim cannot request scopes on one, so its access is whatever the credential carries: some providers let you select these permissions when you create the token, others give it the creating user's access.
+Slack also accepts a credential you create yourself. Sim cannot request scopes on one, so its access is fixed when you create it, and it is generally whatever the account that created it can already do.
 
 
 ## Actions
