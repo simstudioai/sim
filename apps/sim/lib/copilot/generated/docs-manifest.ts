@@ -128,6 +128,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/dynatrace.mdx',
   'integrations/elasticsearch.mdx',
   'integrations/elevenlabs.mdx',
+  'integrations/eloqua.mdx',
   'integrations/emailbison.mdx',
   'integrations/embeddings.mdx',
   'integrations/enrich.mdx',
