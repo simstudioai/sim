@@ -469,6 +469,18 @@ const emittedByPath = new Map<string, string>()
  */
 const wouldDeletePaths: string[] = []
 
+function getErrorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * Per-block failures, collected so a run cannot report success after skipping a
+ * page. {@link generateBlockDoc} catches its own errors so one unreadable block
+ * does not abandon the other 300, but a swallowed error still means a page went
+ * missing or stale, and the exit code is what CI reads.
+ */
+const blockGenerationFailures: string[] = []
+
 /** Writes a generated artifact, or in check mode records its final content for the end-of-run comparison. */
 function emitGeneratedFile(filePath: string, content: string): void {
   if (CHECK_ONLY) {
@@ -1463,7 +1475,7 @@ export function buildScopesSection(serviceId: string | undefined, name: string):
 
   return (
     `## Scopes\n\n` +
-    `Connecting ${name} requests these scopes.\n\n` +
+    `Connecting ${name} through OAuth requests these scopes.\n\n` +
     `| Scope | Description |\n| ----- | ----------- |\n${rows}\n` +
     (gatedNote ? `\n${gatedNote}\n` : '')
   )
@@ -4478,6 +4490,7 @@ async function generateBlockDoc(blockPath: string) {
     }
   } catch (error) {
     console.error(`Error processing ${blockPath}:`, error)
+    blockGenerationFailures.push(`${path.relative(rootDir, blockPath)}: ${getErrorText(error)}`)
   }
 }
 
@@ -5357,6 +5370,13 @@ if (import.meta.main) {
     .then((success) => {
       if (!success) {
         console.error('Documentation generation failed')
+        process.exit(1)
+      }
+      if (blockGenerationFailures.length > 0) {
+        console.error(
+          `Documentation generation failed for ${blockGenerationFailures.length} block(s):\n` +
+            `- ${blockGenerationFailures.join('\n- ')}`
+        )
         process.exit(1)
       }
       if (CHECK_ONLY) {

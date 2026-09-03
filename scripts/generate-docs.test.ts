@@ -950,6 +950,17 @@ describe('template interpolation is lexed rather than brace-counted', () => {
 })
 
 describe('the generated Scopes section', () => {
+  /**
+   * A service account or a pasted API token connects the same integration
+   * without this flow, and neither is governed by the table, so the sentence
+   * names the flow rather than the integration.
+   */
+  it('attributes the table to the OAuth flow rather than to the integration', () => {
+    expect(buildScopesSection('sharepoint', 'SharePoint')).toContain(
+      'Connecting SharePoint through OAuth requests these scopes.'
+    )
+  })
+
   it('lists every scope the service requests, with a label for each', () => {
     const section = buildScopesSection('sharepoint', 'SharePoint')
 
