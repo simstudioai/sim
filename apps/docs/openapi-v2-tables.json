@@ -2753,7 +2753,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The enrichment run detail, or null when none was recorded.",
+            "description": "The run state, output cells, and provider cascade for the group on the row.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -10491,10 +10491,29 @@
         "title": "Enrichment provider outcome",
         "description": "One provider's result within an enrichment cascade."
       },
-      "V2RowEnrichmentResponse": {
+      "V2RowGroupEnrichment": {
         "type": "object",
         "properties": {
-          "data": {
+          "groupId": {
+            "type": "string",
+            "description": "Workflow or enrichment group this answers for."
+          },
+          "runState": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/V2TableRowRunState"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most recent run of this group on this row — the same shape `includeRunState` reports — or null when the group has never run for the row."
+          },
+          "outputs": {
+            "description": "The group's output cells keyed by column name. A column the run has not populated is null.",
+            "$ref": "#/components/schemas/V2TableRowData"
+          },
+          "cascade": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/V2EnrichmentRunDetail"
@@ -10503,13 +10522,26 @@
                 "type": "null"
               }
             ],
-            "description": "Response data."
+            "description": "Provider cascade behind the cell, or null when none was recorded — a manual workflow group, a group that has not run, or a run predating the breakdown."
+          }
+        },
+        "required": ["groupId", "runState", "outputs", "cascade"],
+        "additionalProperties": false,
+        "title": "Row group enrichment",
+        "description": "Run state, output cells, and provider cascade for one group on one row."
+      },
+      "V2RowEnrichmentResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2RowGroupEnrichment"
           }
         },
         "required": ["data"],
         "additionalProperties": false,
         "title": "Row enrichment response",
-        "description": "Provider cascade, cost, and timing for one enrichment cell."
+        "description": "Run state, output cells, and provider cascade for one group on one row."
       },
       "V2TableRunDispatch": {
         "type": "object",

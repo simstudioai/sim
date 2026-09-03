@@ -79,6 +79,12 @@ export function resolveLogStatsWindow(
 
 export interface BuildDashboardStatsOptions {
   /**
+   * Whether `handledErrorRuns` is published. Only meaningful when the rows were
+   * read with the count; otherwise it would publish a zero that means "not
+   * counted", which reads as "none".
+   */
+  includeHandledErrors?: boolean
+  /**
    * Largest number of per-workflow series to return. Omitted means every
    * workflow, which is what the first-party dashboard reads.
    */
@@ -202,6 +208,8 @@ export function buildDashboardStats(
   let totalErrors = 0
   let weightedLatencySum = 0
   let latencyCount = 0
+  /** Summed straight from the rows: it is a total, not a series. */
+  const handledErrorRuns = rows.reduce((sum, row) => sum + Number(row.handledErrorRuns || 0), 0)
 
   for (let i = 0; i < segmentCount; i++) {
     let segTotal = 0
@@ -283,6 +291,7 @@ export function buildDashboardStats(
       aggregateSegments,
       totalRuns,
       totalErrors,
+      ...(options.includeHandledErrors ? { handledErrorRuns } : {}),
       avgLatency: latencyCount > 0 ? weightedLatencySum / latencyCount : 0,
       timeBounds: { start: startTime.toISOString(), end: endTime.toISOString() },
       segmentMs,

@@ -27,6 +27,7 @@ export const GET = defineV2JsonRoute({
       workflowIds: parseUnorderedList(query.workflowIds),
       triggers: parseUnorderedList(query.triggers),
       level: query.level,
+      includeHandledErrors: query.includeHandledErrors,
       startDate: query.startDate ? new Date(query.startDate) : undefined,
       endDate: query.endDate ? new Date(query.endDate) : undefined,
     },

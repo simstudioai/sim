@@ -375,6 +375,28 @@ export function projectBlockTriggers(block: BlockConfig): CatalogBlockTrigger[] 
 }
 
 /**
+ * The summary a detail is built on, with the block's lifecycle state made
+ * impossible to miss.
+ *
+ * A sunset block is still readable by id — a placed instance keeps executing —
+ * but `blocks get table` handed an agent a detail whose `sunset` sat below the
+ * operations and tools it had already read, and it built with the superseded
+ * block. So on a detail the `sunset` field comes first, and the description
+ * itself opens with the lifecycle state and the successor to migrate to.
+ */
+function summaryWithSunsetFirst(block: BlockConfig): CatalogBlockSummary {
+  const summary = projectBlockSummary(block)
+  if (!summary.sunset) return summary
+  const label = summary.sunset.status === 'deprecated' ? 'Deprecated' : 'Legacy'
+  const successor = summary.sunset.replacedBy ? ` — replaced by ${summary.sunset.replacedBy}` : ''
+  return {
+    sunset: summary.sunset,
+    ...summary,
+    description: `${label}${successor}. ${summary.description}`,
+  }
+}
+
+/**
  * A custom (deploy-as-block) block's detail.
  *
  * A custom block runs a bound workflow through an internal executor, so it has
@@ -386,7 +408,7 @@ function projectCustomBlockDetail(block: BlockConfig): CatalogBlockDetail {
     (subBlock) => !subBlock.hidden && !subBlock.hideFromCopilot
   )
   return {
-    ...projectBlockSummary(block),
+    ...summaryWithSunsetFirst(block),
     inputSchema: visibleFields.map(projectSubBlock),
     operationInputSchema: {},
     inputDefinitions: {},
@@ -453,7 +475,7 @@ export function projectBlockDetail(
   }
 
   return {
-    ...projectBlockSummary(block),
+    ...summaryWithSunsetFirst(block),
     inputSchema: commonFields,
     operationInputSchema: operationFields,
     inputDefinitions,

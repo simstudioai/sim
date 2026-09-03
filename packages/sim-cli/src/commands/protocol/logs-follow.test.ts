@@ -51,6 +51,7 @@ function row(runId: string, startedAt: string): LogRow {
     totalDurationMs: 12,
     cost: { total: 0.5 },
     files: null,
+    hasHandledErrors: false,
     workflow: { id: 'wf_1', name: 'Nightly sync', description: null, deleted: false },
   }
 }
