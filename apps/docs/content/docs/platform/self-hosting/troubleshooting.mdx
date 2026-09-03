@@ -61,9 +61,11 @@ Sim identifies dynamically discovered LM Studio and vLLM models by their `vllm/`
 
 1. Set `VLLM_BASE_URL`, and `VLLM_API_KEY` too if you enabled LM Studio's API authentication — without the key, discovery requests omit the bearer token and fail. No Compose file sets either for you — `docker-compose.ollama.yml` only sets `OLLAMA_URL` — so add them to the `simstudio` service's `environment:` block (or to `.env` and interpolate them), then recreate the service and confirm it landed:
 
+   Use the Compose file that started your installation — `docker-compose.prod.yml` for the documented production setup:
+
    ```bash
-   docker compose -f docker-compose.ollama.yml up -d --force-recreate simstudio
-   docker compose -f docker-compose.ollama.yml exec simstudio printenv VLLM_BASE_URL
+   docker compose -f docker-compose.prod.yml up -d --force-recreate simstudio
+   docker compose -f docker-compose.prod.yml exec simstudio printenv VLLM_BASE_URL
    ```
 
    An empty result means the variable never reached the container, and model discovery cannot run.

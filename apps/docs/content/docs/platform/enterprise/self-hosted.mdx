@@ -69,7 +69,7 @@ See [Sandboxes](/platform/self-hosting/sandboxes) for the provider credentials, 
 
 ## Schedule the background jobs
 
-Two enterprise features do their work from a cron-driven HTTP endpoint rather than from the app process. All four endpoints authenticate with a bearer token equal to `CRON_SECRET`, and all four return `401` when it is unset:
+Two enterprise features are started by a cron-driven HTTP endpoint rather than by the app on its own schedule. What happens next differs: retention's cleanup runs inline in the app process, while each due data drain is handed to a background job. All four endpoints authenticate with a bearer token equal to `CRON_SECRET`, and all four return `401` when it is unset:
 
 ```bash
 openssl rand -hex 32

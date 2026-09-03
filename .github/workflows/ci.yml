@@ -673,20 +673,26 @@ jobs:
           # "absent" when the registry actually says the manifest is unknown.
           # Anything else fails the step.
           digest_of() {
-            local ref="$1" attempt raw err
+            local ref="$1" attempt raw err absent=0
             for attempt in 1 2 3; do
               if raw="$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' 2>/tmp/inspect.err)"; then
                 printf '%s' "$raw" | jq -r '.digest // empty'
                 return 0
               fi
               err="$(cat /tmp/inspect.err)"
+              # Absence is retried like any other failure: GHCR can report a
+              # just-published alias as unknown for a moment, and accepting that
+              # on the first attempt would skip a tag this run did publish.
               case "$err" in
-                *"not found"*|*MANIFEST_UNKNOWN*|*"no such manifest"*|*"NAME_UNKNOWN"*)
-                  return 0
-                  ;;
+                *"not found"*|*MANIFEST_UNKNOWN*|*"no such manifest"*|*"NAME_UNKNOWN"*) absent=1 ;;
+                *) absent=0 ;;
               esac
               sleep "$((attempt * 3))"
             done
+            # Only call it absent if the registry said so on the final attempt.
+            if [ "$absent" -eq 1 ]; then
+              return 0
+            fi
             echo "::error::Could not inspect ${ref} after 3 attempts: ${err}" >&2
             return 1
           }
