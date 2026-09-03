@@ -87,6 +87,7 @@ function runChild(
         JENKINS_URL: '0',
         NODE_USE_ENV_PROXY: '0',
         NO_PROXY: '127.0.0.1,localhost',
+        npm_command: '',
         TEAMCITY_VERSION: '0',
         ...options.env,
         SIM_CONFIG_DIR: configDir,
@@ -364,11 +365,12 @@ it.skipIf(!SUPPORTS_PROXY_FLAG)(
   10_000
 )
 
-it('keeps a configured registry credential out of probe argv and environment', async () => {
+it('keeps CLI credentials out of probe argv and environment', async () => {
   const inspectionPath = join(temporaryDir, 'probe-inspection.json')
   const preloadDir = join(temporaryDir, 'probe preload')
   const preloadPath = join(preloadDir, 'inspect-probe.cjs')
-  const sentinel = 'registry-secret-sentinel'
+  const registrySentinel = 'registry-secret-sentinel'
+  const apiKeySentinel = 'api-key-secret-sentinel'
   let requestPath: string | undefined
   mkdirSync(preloadDir)
   writeFileSync(
@@ -395,24 +397,27 @@ it('keeps a configured registry credential out of probe argv and environment', a
       response.end(JSON.stringify({ latest: '2.1.5' }))
     },
     async (origin) => {
-      const registry = `${origin}?token=${sentinel}`
+      const registry = `${origin}?token=${registrySentinel}`
       const result = await runChild(entrypoint, registry, join(temporaryDir, 'config-credential'), {
         env: {
           NODE_OPTIONS: `--require="${preloadPath}"`,
           NPM_CONFIG_REGISTRY: registry,
           PROBE_INSPECTION_PATH: inspectionPath,
+          SIM_API_KEY: apiKeySentinel,
         },
         useProcessEnv: true,
       })
 
       expect(result).toMatchObject({ code: 0, signal: null, stderr: '' })
-      expect(requestPath).toBe(`/-/package/sim/dist-tags?token=${sentinel}`)
+      expect(requestPath).toBe(`/-/package/sim/dist-tags?token=${registrySentinel}`)
       const inspection = JSON.parse(readFileSync(inspectionPath, 'utf8')) as {
         argv: string[]
         environmentValues: string[]
         execArgv: string[]
       }
-      expect(JSON.stringify(inspection)).not.toContain(sentinel)
+      const serializedInspection = JSON.stringify(inspection)
+      expect(serializedInspection).not.toContain(registrySentinel)
+      expect(serializedInspection).not.toContain(apiKeySentinel)
     }
   )
 }, 10_000)

@@ -272,9 +272,10 @@ Apart from the configured registry URL, it sends only its own version and never
 your Sim API key. If `npm_config_registry` points at a private mirror, its query
 string is preserved, including any query-string credentials. Registry URLs
 containing username/password userinfo are rejected. Set
-`SIM_NO_UPDATE_CHECK=1` to turn it off; malformed or non-HTTP(S) configured
-registry values also fail closed. The full list of cases where it stays quiet
-is in the [configuration guide](https://docs.sim.ai/cli/configuration).
+`SIM_NO_UPDATE_CHECK=1` to turn it off. Empty or whitespace-only registry values
+use the public default; non-empty malformed or non-HTTP(S) values fail closed.
+The full list of cases where it stays quiet is in the
+[configuration guide](https://docs.sim.ai/cli/configuration).
 
 ## Documentation
 

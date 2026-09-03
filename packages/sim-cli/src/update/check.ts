@@ -87,6 +87,8 @@ interface UpdateCacheEntry {
 const CACHE_VERSION = 1
 
 export interface UpdateCheckOptions {
+  /** Current working directory. Injected so project-local installation detection is testable. */
+  cwd?: string
   currentVersion?: string
   env?: NodeJS.ProcessEnv
   /** Whether stderr is a terminal. Injected so the suppression rule is testable. */
@@ -117,10 +119,26 @@ function isEnabled(value: string | undefined): boolean {
   return normalized !== '' && normalized !== '0' && normalized !== 'false'
 }
 
-/** Skips npx, which resolves latest, and checkouts, whose manifest trails npm. */
-function isUnadvisableInstall(modulePath: string): boolean {
+/** Whether the package is installed in a node_modules tree above the working directory. */
+function isProjectLocalInstall(modulePath: string, cwd: string): boolean {
+  const normalizedModulePath = normalizeModulePath(modulePath)
+  const nodeModulesIndex = normalizedModulePath.indexOf('/node_modules/')
+  if (nodeModulesIndex < 0) return false
+
+  const installRoot = normalizedModulePath.slice(0, nodeModulesIndex)
+  const workingDirectory = normalizeModulePath(cwd).replace(/\/+$/, '')
+  return workingDirectory === installRoot || workingDirectory.startsWith(`${installRoot}/`)
+}
+
+/** Skips ephemeral, project-local, and checkout installs that global advice cannot update. */
+function isUnadvisableInstall(modulePath: string, env: NodeJS.ProcessEnv, cwd: string): boolean {
   const normalized = normalizeModulePath(modulePath)
-  return normalized.includes('/_npx/') || normalized.includes('/packages/sim-cli/')
+  return (
+    env.npm_command === 'exec' ||
+    normalized.includes('/_npx/') ||
+    normalized.includes('/packages/sim-cli/') ||
+    isProjectLocalInstall(modulePath, cwd)
+  )
 }
 
 /** Normalizes separators and case before installation-path comparisons. */
@@ -185,11 +203,12 @@ try {
 }
 `
 
-/** Preserves proxy/TLS settings without copying the registry credential into the probe. */
+/** Preserves proxy/TLS settings without copying CLI credentials into the probe. */
 function registryProcessEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env }
   for (const key of Object.keys(env)) {
-    if (key.toLowerCase() === 'npm_config_registry') delete env[key]
+    const normalized = key.toLowerCase()
+    if (normalized === 'npm_config_registry' || normalized === 'sim_api_key') delete env[key]
   }
   return env
 }
@@ -421,12 +440,13 @@ export async function announceUpdateIfAvailable(options: UpdateCheckOptions = {}
     const env = options.env ?? process.env
     const isTty = options.isTty ?? process.stderr.isTTY === true
     const modulePath = options.modulePath ?? fileURLToPath(import.meta.url)
+    const cwd = options.cwd ?? process.cwd()
     const now = options.now ?? new Date()
 
     if (isEnabled(env.SIM_NO_UPDATE_CHECK)) return
     if (!isTty) return
     if (CI_VARIABLES.some((variable) => isEnabled(env[variable]))) return
-    if (isUnadvisableInstall(modulePath)) return
+    if (isUnadvisableInstall(modulePath, env, cwd)) return
 
     const currentVersion = options.currentVersion ?? CLI_VERSION
     const current = parseStableVersion(currentVersion)

@@ -177,8 +177,34 @@ describe('when the notice is suppressed', () => {
   it.each([
     '/Users/x/.npm/_npx/a1b2/node_modules/sim/dist/index.js',
     'C:\\Users\\x\\AppData\\Local\\npm-cache\\_npx\\a1b2\\node_modules\\sim\\dist\\index.js',
-  ])('says nothing under npx, which resolves the tag on every run (%s)', async (modulePath) => {
+  ])('says nothing for an npx cache installation (%s)', async (modulePath) => {
     await run({ modulePath })
+    expect(fetched).toEqual([])
+    expect(notices).toEqual([])
+  })
+
+  it.each([
+    '/Users/x/project/node_modules/sim/dist/index.js',
+    'C:\\Users\\x\\project\\node_modules\\sim\\dist\\index.js',
+  ])('says nothing when npm exec resolves a project-local dependency (%s)', async (modulePath) => {
+    await run({ env: { npm_command: 'exec' }, modulePath })
+    expect(fetched).toEqual([])
+    expect(notices).toEqual([])
+  })
+
+  it.each([
+    {
+      cwd: '/Users/x/project/packages/app',
+      modulePath: '/Users/x/project/node_modules/sim/dist/index.js',
+    },
+    {
+      cwd: 'C:\\Users\\x\\project\\packages\\app',
+      modulePath:
+        'C:\\Users\\x\\project\\node_modules\\.pnpm\\sim@2.1.2\\node_modules\\sim\\dist\\index.js',
+    },
+  ])('says nothing from a project-local install at $modulePath', async ({ cwd, modulePath }) => {
+    await run({ cwd, modulePath })
+    expect(fetched).toEqual([])
     expect(notices).toEqual([])
   })
 

@@ -147,8 +147,9 @@ containing username/password userinfo, such as
 `https://user:password@registry.example`, is rejected and no update check is
 made.
 
-Malformed and non-HTTP(S) configured registry values also disable the update
-check rather than making an unexpected request to the public registry.
+An empty or whitespace-only `npm_config_registry` is treated as unset, so the
+public registry remains the default. Non-empty malformed and non-HTTP(S) values
+disable the update check rather than making an unexpected public request.
 
 The notice is skipped entirely when:
 
@@ -156,7 +157,8 @@ The notice is skipped entirely when:
 - stderr is not a terminal, so redirected and piped output is never affected
 - a CI environment variable is present (`CI`, `GITHUB_ACTIONS`, `JENKINS_URL`,
   `TEAMCITY_VERSION`, `BUILDKITE`)
-- the CLI is running under `npx`, which resolves the newest version every time
+- the CLI is running under `npm exec` or `npx`, which may use a project-local or
+  ephemeral package where global-install advice is inappropriate
 - the CLI is running from a checkout of the sim repository, whose version
   deliberately trails the published one
 - the installed version is a prerelease
