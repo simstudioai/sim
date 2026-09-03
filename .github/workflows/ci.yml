@@ -554,6 +554,11 @@ jobs:
     permissions:
       contents: read
       packages: write
+    # Every matrix leg evaluates the same guard against the same commit, so the
+    # value is identical whichever leg reports it last. attest-subjects needs it
+    # to tell "the guard withheld latest" from "the registry read was stale".
+    outputs:
+      latest_fresh: ${{ steps.guard.outputs.fresh }}
     strategy:
       matrix:
         include:
@@ -661,6 +666,7 @@ jobs:
           IS_RELEASE: ${{ needs.detect-version.outputs.is_release }}
           VERSION: ${{ needs.detect-version.outputs.version }}
           SHA: ${{ github.sha }}
+          LATEST_FRESH: ${{ needs.create-ghcr-manifests.outputs.latest_fresh }}
         run: |
           set -euo pipefail
 
@@ -759,11 +765,16 @@ jobs:
               done
 
               if [ "$alias_index" != "$sha_index" ]; then
-                # `latest` is legitimately allowed to lag: the monotonic guard in
-                # create-ghcr-manifests holds it back when the branch has moved
-                # on, and it then belongs to an older run that attested it.
+                # `latest` is allowed to lag, but only when the guard actually
+                # withheld it. If the guard published latest this run, a mismatch
+                # here is a stale read, not a deliberate skip — and silently
+                # dropping it would leave a published tag unsigned.
                 if [ "$alias" = "latest" ]; then
-                  echo "Skipping latest* for ${image}: it does not point at this run's index."
+                  if [ "${LATEST_FRESH}" = "true" ]; then
+                    echo "::error::${image}:latest was published by this run but resolves to ${alias_index:-nothing}"
+                    exit 1
+                  fi
+                  echo "Skipping latest* for ${image}: the monotonic guard withheld it this run."
                   continue
                 fi
                 # A version tag has no such carve-out. This run published it, so

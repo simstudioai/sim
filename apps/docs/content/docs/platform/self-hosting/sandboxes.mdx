@@ -17,7 +17,7 @@ Until the base image is configured, those languages fail with an explicit config
 | `SANDBOXES_ENABLED` | Grants the server-side self-hosted entitlement |
 | `NEXT_PUBLIC_SANDBOXES_ENABLED` | Projects provider readiness to the browser and exposes Shell plus custom sandbox management |
 
-Set the public flag only after the selected provider has credentials and a valid immutable Function base. It advertises a capability to the browser; setting it early surfaces controls that cannot work.
+`NEXT_PUBLIC_SANDBOXES_ENABLED` is a browser gate only: it shows or hides Shell, the sandbox picker, and **Settings → Sandboxes**. Whether Python or a selected sandbox actually runs depends on the server-side provider and Function image. Set it only after those work, or you surface controls that cannot.
 
 ## Building the Function base
 
@@ -83,6 +83,9 @@ Use E2B as the release baseline before building or promoting Daytona.
 
 ```bash
 # 1. Verify the exact E2B Function build and capture its accepted package/runtime surface.
+# SANDBOX_PROVIDER is set explicitly: an exported `daytona` would otherwise make
+# this step select Daytona and exit before writing the manifest.
+SANDBOX_PROVIDER=e2b \
 E2B_ENABLED=true \
 E2B_API_KEY=... \
 E2B_FUNCTION_TEMPLATE_ID=<sim-function-template>:<sim-function-build-id> \
@@ -110,7 +113,7 @@ SANDBOX_PARITY_MANIFEST_BASELINE=/tmp/function-sandbox-manifest.json \
 
 ## Code tools in Chat
 
-The `function_execute` and `run_code` tools use a separate shell image, including for JavaScript without imports. If your deployment uses those tools, configure that image for the selected provider as well:
+Chat's public `run_function` and `run_code` tools use a separate shell image, including for JavaScript without imports. The workflow-internal `function_execute` path uses the Function image instead. If your deployment uses those tools, configure that image for the selected provider as well:
 
 ```bash
 # E2B

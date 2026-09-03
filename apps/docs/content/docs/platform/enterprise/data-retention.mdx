@@ -213,7 +213,8 @@ PII redaction runs against a standalone [Presidio](https://microsoft.github.io/p
 
 ```bash
 # The Presidio service exposing /analyze and /anonymize
-# Helm — substitute your release name and namespace
+# Helm — setting pii.enabled wires this for you. Set it by hand only for an
+# external Presidio, substituting your release name and namespace.
 PII_URL=http://<release>-pii.<namespace>.svc.cluster.local:5001
 # Docker Compose — the PII service name on your network
 # PII_URL=http://pii:5001

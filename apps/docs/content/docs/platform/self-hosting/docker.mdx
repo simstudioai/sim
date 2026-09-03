@@ -159,7 +159,7 @@ docker compose -f docker-compose.prod.yml up -d --force-recreate simstudio
 
 ## The `sim-setup` CLI
 
-`npx sim-setup` also manages an existing install. Run it from the directory holding your `.env` and Compose file.
+`npx sim-setup` also manages an existing install created from the production or local-development Compose files. It does not detect or manage an Ollama-stack install. Run it from the directory holding your `.env` and Compose file.
 
 | Command | What it does |
 |---|---|
@@ -167,7 +167,7 @@ docker compose -f docker-compose.prod.yml up -d --force-recreate simstudio
 | `sim-setup status` | Show what is installed and healthy |
 | `sim-setup logs` | Follow logs |
 | `sim-setup start` / `stop` / `restart` | Bring the install up, down, or cycle it |
-| `sim-setup update` | Pull or rebuild images and apply them |
+| `sim-setup update` | Pull or rebuild images and apply them. Compose installs only — it refuses on source checkouts and Kubernetes, which update through git and `helm upgrade` |
 | `sim-setup down` | Remove containers, keep the data |
 | `sim-setup reset` | Archive `.env` and wipe managed data |
 | `sim-setup config` | Show configured capabilities and integrations |

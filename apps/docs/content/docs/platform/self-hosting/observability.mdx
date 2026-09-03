@@ -161,7 +161,7 @@ If you enable the chart's Jaeger export, point `telemetry.jaeger.endpoint` at Ja
 
 Until an application metrics endpoint ships, build alerting from the signals that do exist:
 
-- **Kubernetes state** — pod restarts, `CrashLoopBackOff`, OOMKills, replica count vs desired, PVC utilization (kube-state-metrics). For a point-in-time read on resource pressure, `kubectl top pods -n simstudio` shows CPU and memory against the limits — the first thing to check when a pod is being OOMKilled.
+- **Kubernetes state** — pod restarts, `CrashLoopBackOff`, OOMKills, replica count vs desired, PVC utilization (kube-state-metrics). For a point-in-time read on resource pressure, `kubectl top pods -n simstudio` shows current CPU and memory usage — compare it against the limits from `kubectl describe pod`. It is the first thing to check when a pod is being OOMKilled.
 - **Ingress/load balancer** — request rate, 5xx rate, p99 latency, websocket connection count.
 - **PostgreSQL** — connection count vs `max_connections`, replication lag, disk usage, long-running queries.
 - **Redis** — memory usage, evictions, connected clients.

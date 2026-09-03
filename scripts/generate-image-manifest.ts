@@ -180,9 +180,10 @@ export function renderManifest(input: {
 # to once redirected. Copy \`source\` to \`<your-registry>/<mirror>\` — they differ:
 # \`ghcr.io/\` is the default registry and is replaced, while the device plugin's
 # \`nvcr.io/\` is part of its repository and is kept. If your registry cannot nest
-# that path, override that one image:
-# \`ollama.gpu.devicePlugin.image.repository=<your-registry>/nvidia/k8s-device-plugin\`
-# with global rewriting left on, since the override is used verbatim.
+# that path, override that one image with the BARE repository:
+# \`ollama.gpu.devicePlugin.image.repository=nvidia/k8s-device-plugin\`. Global
+# rewriting still prepends your registry, so including it in the override would
+# render it twice.
 appVersion: ${input.appVersion}
 images:
 ${entries}

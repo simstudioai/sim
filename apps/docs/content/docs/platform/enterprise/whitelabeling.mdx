@@ -106,7 +106,7 @@ Once enabled, configure branding through **Settings → Organization → White-l
 
 ## Instance-wide branding
 
-Instance-wide branding is a separate mechanism from the organization settings above. It is read from environment variables at every render, needs **no organization** and **no** `WHITELABELING_ENABLED`, and applies to the whole deployment — including the surfaces organization white-labeling never reaches: the login modal, the PWA manifest, and public file-share pages.
+Instance-wide branding is a separate mechanism from the organization settings above. It is read from environment variables at every render, needs **no organization** and **no** `WHITELABELING_ENABLED`, and applies across the deployment, including surfaces organization settings never reach — though not uniformly: the PWA manifest ignores the configured logo and favicon URLs, and public file-share pages drop the Sim logo without substituting yours. It covers the surfaces organization white-labeling never reaches: the login modal, the PWA manifest, and public file-share pages.
 
 Where both are set, an organization's saved settings take precedence for members of that organization; the instance-wide values are the deployment's baseline.
 

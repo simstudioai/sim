@@ -14,7 +14,7 @@ A custom block always runs the **latest deployed version** of its source workflo
 
 ## Common uses
 
-The block's author keeps the credentials and the workflow logic; by default consumers see only the inputs and outputs, unless the author enables **Trace runs in consumer logs**. Common patterns:
+Consumers see only the inputs and outputs by default, unless the author enables **Trace runs in consumer logs**. Identity splits at execution: the source workflow's owner supplies personal variables and delegated calls, and the source workspace supplies workspace variables and carries the billing. Common patterns:
 
 - **Internal API gateway.** Wrap an authenticated internal or partner endpoint — "Create Ticket", "Charge Account", "Provision User" — behind a block that takes only the business inputs. Teammates call it without the base URL, API key, or auth headers, and when the endpoint changes you update one workflow instead of every consumer's.
 - **Blessed knowledge lookup.** Package a vetted retrieval pipeline — chunking, filters, reranking — as "Search Company Docs" with a single query input, so teams reuse the approved retrieval instead of each rebuilding it.

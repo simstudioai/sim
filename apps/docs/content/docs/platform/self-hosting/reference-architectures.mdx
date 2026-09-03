@@ -110,10 +110,10 @@ Use `helm/sim/examples/values-gcp.yaml` as a starting point. It configures Persi
 | Memorystore | Optional |
 
 <Callout type="warn">
-  With a ManagedCertificate, keep `ingress.tls.enabled: false`. GCLB, like ALB, cannot serve a Kubernetes TLS Secret — leaving chart TLS on points the ingress at a Secret nothing creates, and the GKE controller reports sync errors for it. cert-manager only applies if you replace the `gce` ingress with an in-cluster controller such as NGINX.
+  With a ManagedCertificate, keep `ingress.tls.enabled: false`. Leaving chart TLS on points the ingress at a Secret nothing creates, and the GKE controller reports sync errors for it. GCE Ingress *can* terminate TLS from a Secret you provision — including one cert-manager issues — so that is a supported alternative to a ManagedCertificate; what does not work is enabling both.
 </Callout>
 
-**Identity.** Workload Identity binds the ServiceAccount to a Google service account. Grant it object access to your buckets only.
+**Identity.** Workload Identity binds the ServiceAccount to a Google service account. Grant it object access to your buckets — and, because there is no private key in that mode, `roles/iam.serviceAccountTokenCreator` **on itself**, or signed upload and download URLs cannot be generated. Setting `GCS_CREDENTIALS_JSON` instead signs locally and needs no extra role. See [Object storage](/platform/self-hosting/object-storage).
 
 **Timeouts.** GCLB's default backend timeout closes websockets every 30 seconds. See [Networking](/platform/self-hosting/networking) for the `BackendConfig` fix.
 

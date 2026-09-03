@@ -197,7 +197,7 @@ Both lists are validated when Sim starts, and a malformed entry stops it with a 
 
 On Sim Cloud, plain HTTP is refused for every provenance, self-hosted services included — nothing is vouched there, so a credential would cross the wire in the clear. The only exception is the proxy, whose scheme is fixed by protocol.
 
-Naming a destination permits plain HTTP to it and lifts the blocked-port list for it, since those are the same decision about the same host. The loopback carve-out lifts neither: it is granted without being asked for, so `http://localhost:5432` stays refused until `localhost` is named. A database, cache, or mail connector's host carries no scheme or port of its own, so naming one of those only lifts the private-address block. Cloud metadata endpoints stay blocked no matter how broad the allowlist is, and both variables are ignored entirely on Sim Cloud.
+Naming a destination permits plain HTTP to it and lifts the blocked-port list for it, since those are the same decision about the same host. The loopback carve-out lifts plain HTTP and the private-address block, but not the port list — it is granted without being asked for, so `http://localhost:5432` stays refused until `localhost` is named. A database, cache, or mail connector's host carries no scheme or port of its own, so naming one of those only lifts the private-address block. Cloud metadata endpoints stay blocked no matter how broad the allowlist is, and both variables are ignored entirely on Sim Cloud.
 
 To reach a service on the Docker host, pair the allowlist with the host alias that Compose already sets up:
 
@@ -225,7 +225,7 @@ The allowlist replaces four separate escape hatches, so a few deployments that w
 
 ### Response size cap
 
-Every guarded outbound response is bounded. A caller that does not set its own limit gets the default of **100 MB**; exceeding it rejects the request with a payload-size error and destroys the socket rather than buffering the rest.
+Every response on the one-shot guarded fetch path is bounded. The pinned fetch that provider SDKs use sets no cap. A caller that does not set its own limit gets the default of **100 MB**; exceeding it rejects the request with a payload-size error and destroys the socket rather than buffering the rest.
 
 This is an easily misread cause of "a large download from an integration fails" — the failure looks like a broken connection to the third-party service rather than a limit Sim imposed. It applies to the guarded provenances above, not to the presigned object-storage upload path, and not to MCP's standalone SSE stream, which is deliberately unbounded so a long-lived stream is not cut off.
 

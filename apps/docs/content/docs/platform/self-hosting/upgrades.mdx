@@ -104,7 +104,7 @@ Behavior that is fixed in the migrator and not configurable, but that explains w
 |---|---|
 | Advisory-lock acquire deadline | 30 minutes, retried every 5s |
 | `lock_timeout` on the migration session | 5 seconds for ordinary DDL — a statement that waits longer fails with SQLSTATE `55P03`. An individual migration can set it to `0` for statements that must not be interrupted, such as `CREATE INDEX CONCURRENTLY`. `statement_timeout` is `0` on the same session, so a long migration is never cut off once it holds its locks |
-| Migration retry attempts | 8, with exponential backoff and jitter |
+| SQL migration retry attempts | 8, with exponential backoff and jitter, and only for a lock timeout (`55P03`). Script (data) migrations run once — a failure there exits immediately |
 | Connection attempts at startup | 10, for transient failures — `53300` (`too_many_connections`), `53400`, the `08xxx` connection-exception class, and socket-level errors such as `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`, `EHOSTUNREACH`, and `ENOTFOUND`. A database that is simply down is retried with backoff, not failed immediately |
 
 The `lock_timeout` deliberately trades a failed migration for a table-wide stall: without it, DDL waiting on an `AccessExclusiveLock` queues every other query on that table behind it for the whole wait.
@@ -190,6 +190,8 @@ install uses:
 |---|---|
 | `docker-compose.prod.yml` | Refreshes its managed copy of the Compose file, then `docker compose pull` — the versions configured by `SIM_VERSION`, or `latest` when unset |
 | `docker-compose.local.yml` | `docker compose build --pull` — rebuilds from source against refreshed base images, no pull of published images |
+
+Inspect the result with `npx sim-setup logs`, which targets whichever Compose file the install uses.
 
 <Callout type="warn">
   `sim-setup update` refuses two install kinds outright rather than doing something surprising:

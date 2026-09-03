@@ -121,7 +121,7 @@ image: pgvector/pgvector:pg17  # NOT postgres:17
 
 Rule out expiry and clock drift first: the endpoint's certificate may genuinely have expired, or the host's clock may have drifted far enough to put a valid certificate outside its window. Check the certificate dates and the host date before changing any trust configuration — no CA bundle fixes either.
 
-That leaves two cases a bundle does address: the endpoint is signed by a private CA — a corporate TLS-inspecting proxy, or an internal service — or it serves an incomplete chain, omitting an intermediate. Adding the private root, or the missing intermediate, to `NODE_EXTRA_CA_CERTS` resolves both, though repairing the server's chain is the better fix when it is yours to repair.
+That leaves two cases a bundle does address: the endpoint is signed by a private CA — a corporate TLS-inspecting proxy, or an internal service — or it serves an incomplete chain, omitting an intermediate. Adding the private root to `NODE_EXTRA_CA_CERTS` resolves the first. An incomplete chain is different: Node still fails with `UNABLE_TO_GET_ISSUER_CERT` because the missing intermediate has to be served by the endpoint, so repair the server's chain rather than expecting a bundle to cover it.
 
 In either case, the image already ships current CA certificates and runs as a non-root user, so installing packages inside it is not the fix. Mount your CA bundle and point Node at it:
 

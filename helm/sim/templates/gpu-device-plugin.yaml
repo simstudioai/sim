@@ -79,6 +79,10 @@ spec:
         - name: nvidia-device-plugin-config
           configMap:
             name: {{ include "sim.fullname" . }}-nvidia-device-plugin-config
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: nvidia-device-plugin
           image: {{ include "sim.image" (dict "imageRoot" .Values.ollama.gpu.devicePlugin.image "global" .Values.global) }}

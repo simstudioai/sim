@@ -56,7 +56,7 @@ DISABLE_MICROSOFT_AUTH=true
 ```
 
 <Callout type="info">
-  `GOOGLE_CLIENT_ID` and `MICROSOFT_CLIENT_ID` are shared with the integration connectors. One app registration can serve both login and integrations — register the login callback (`/api/auth/callback/google`) alongside the connector callbacks (`/api/auth/oauth2/callback/google-email` and friends) on the same OAuth client. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
+  `GOOGLE_CLIENT_ID` and `MICROSOFT_CLIENT_ID` are shared with the integration connectors. One app registration can serve both login and integrations — register that provider's own login callback — `/api/auth/callback/google` for Google, `/api/auth/callback/microsoft` for Microsoft — alongside the connector callbacks (`/api/auth/oauth2/callback/google-email` and friends) on the same OAuth client. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
 </Callout>
 
 ## SSO (SAML and OIDC)
