@@ -29,7 +29,6 @@ import {
 } from '@/lib/oauth/microsoft'
 import { refreshOAuthToken } from '@/lib/oauth/oauth'
 import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
-import { SERVICE_ACCOUNT_EXCLUDED_SCOPES } from '@/lib/oauth/scopes'
 import {
   extractSlackTeamId,
   fanOutSlackTokenChain,
@@ -164,7 +163,10 @@ export async function resolveOAuthAccountId(
  * and cannot request user identity information. Google rejects token requests
  * that include these scopes for service account credentials.
  */
-const SA_EXCLUDED_SCOPES = new Set<string>(SERVICE_ACCOUNT_EXCLUDED_SCOPES)
+const SA_EXCLUDED_SCOPES = new Set([
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+])
 
 /**
  * Generates a short-lived access token for a Google service account credential

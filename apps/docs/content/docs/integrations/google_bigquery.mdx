@@ -39,9 +39,6 @@ Connecting Google BigQuery requests these scopes.
 | `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
 | `https://www.googleapis.com/auth/bigquery` | View and manage data in Google BigQuery |
 
-Google BigQuery also accepts a Google service account. Its access comes from the key and the domain-wide delegation you grant it in Google Workspace, not from this table, and Sim cannot add to it. The two `userinfo` scopes apply only to an OAuth connection: Google rejects them for a service account, so Sim leaves them out of that token.
-
-
 ## Actions
 
 ### BigQuery Run Query

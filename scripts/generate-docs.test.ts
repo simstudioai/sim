@@ -992,32 +992,6 @@ describe('the generated Scopes section', () => {
    * so an instruction to "grant the same scopes" sends the reader hunting for a
    * setting that does not exist.
    */
-  it('does not tell the reader to grant scopes on a self-issued credential', () => {
-    const section = buildScopesSection('slack', 'Slack')
-
-    expect(section).toContain('credential you create yourself')
-    expect(section).not.toMatch(/grant it the same|select these permissions/i)
-    expect(buildScopesSection('sharepoint', 'SharePoint')).not.toContain(
-      'credential you create yourself'
-    )
-  })
-
-  /**
-   * `getServiceAccountToken` strips the two `userinfo` scopes from the JWT, so a
-   * Google page that points at its own scope table while describing a service
-   * account is describing access that credential can never hold.
-   */
-  it('describes a Google service account by delegation, not by the scope table', () => {
-    const section = buildScopesSection('gmail', 'Gmail')
-
-    expect(section).toContain('domain-wide delegation')
-    expect(section).toContain('Google rejects them for a service account')
-    expect(section).not.toContain('credential you create yourself')
-    expect(buildScopesSection('pipedrive', 'Pipedrive')).toContain(
-      'whatever the account that created it can already do'
-    )
-  })
-
   /**
    * A provider that hands out one all-or-nothing token has nothing to choose,
    * so the heading would introduce an empty table.

@@ -44,9 +44,6 @@ Connecting Google Slides requests these scopes.
 | `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files |
 | `https://www.googleapis.com/auth/drive` | Access all Google Drive files |
 
-Google Slides also accepts a Google service account. Its access comes from the key and the domain-wide delegation you grant it in Google Workspace, not from this table, and Sim cannot add to it. The two `userinfo` scopes apply only to an OAuth connection: Google rejects them for a service account, so Sim leaves them out of that token.
-
-
 ## Actions
 
 ### Read Google Slides Presentation
