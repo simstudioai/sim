@@ -1,38 +1,47 @@
 /**
  * @vitest-environment node
  */
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import {
+  linkSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CLI_VERSION } from '../version'
-import { announceUpdateIfAvailable, resetUpdateCheck, upgradeCommand } from './check'
+import { announceUpdateIfAvailable, type UpdateCheckOptions, upgradeCommand } from './check'
 
 /** A global install, which is the only shape that gets advised at all. */
 const INSTALLED = '/usr/local/lib/node_modules/sim/dist/index.js'
 
 let configDir: string
+let previousConfigDir: string | undefined
 let notices: string[]
 let fetched: URL[]
-let inits: RequestInit[]
+type RegistryRequest = NonNullable<UpdateCheckOptions['registryRequest']>
+let inits: Parameters<RegistryRequest>[1][]
+let registryRequest: RegistryRequest
 
 /** Answers the dist-tags request the way the registry does. */
 function stubRegistry(
   tags: Record<string, unknown> | 'reject' | 'not-found' | 'html' | 'oversized'
 ): void {
-  vi.stubGlobal('fetch', (input: URL, init: RequestInit) => {
+  registryRequest = async (input, init) => {
     fetched.push(input)
     inits.push(init)
     if (tags === 'oversized') {
-      return Promise.resolve(
-        Response.json({ latest: '2.1.5' }, { headers: { 'content-length': String(1024 * 1024) } })
-      )
+      return `${JSON.stringify({ latest: '2.1.5' })}${' '.repeat(64 * 1024)}`
     }
-    if (tags === 'reject') return Promise.reject(new Error('getaddrinfo ENOTFOUND'))
-    if (tags === 'not-found') return Promise.resolve(new Response('', { status: 404 }))
-    if (tags === 'html') return Promise.resolve(new Response('<html>nope</html>', { status: 200 }))
-    return Promise.resolve(Response.json(tags))
-  })
+    if (tags === 'reject') throw new Error('getaddrinfo ENOTFOUND')
+    if (tags === 'not-found') return null
+    if (tags === 'html') return '<html>nope</html>'
+    return JSON.stringify(tags)
+  }
 }
 
 async function run(overrides: Parameters<typeof announceUpdateIfAvailable>[0] = {}) {
@@ -41,6 +50,7 @@ async function run(overrides: Parameters<typeof announceUpdateIfAvailable>[0] = 
     env: {},
     isTty: true,
     modulePath: INSTALLED,
+    registryRequest,
     write: (message) => notices.push(message),
     ...overrides,
   })
@@ -51,7 +61,7 @@ function cachePath(): string {
 }
 
 beforeEach(() => {
-  resetUpdateCheck()
+  previousConfigDir = process.env.SIM_CONFIG_DIR
   configDir = mkdtempSync(join(tmpdir(), 'sim-cli-update-'))
   process.env.SIM_CONFIG_DIR = configDir
   notices = []
@@ -61,10 +71,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
-  // `= undefined` would store the literal string "undefined", leaving later
-  // tests pointed at a relative `./undefined` config directory.
-  process.env.SIM_CONFIG_DIR = undefined
+  if (previousConfigDir === undefined) Reflect.deleteProperty(process.env, 'SIM_CONFIG_DIR')
+  else process.env.SIM_CONFIG_DIR = previousConfigDir
   rmSync(configDir, { recursive: true, force: true })
 })
 
@@ -91,9 +99,16 @@ describe('announcing a newer release', () => {
     expect(notices).toEqual([])
   })
 
+  it.each([
+    ['minor', '2.2.0'],
+    ['major', '3.0.0'],
+  ])('announces a newer %s version', async (_difference, latest) => {
+    stubRegistry({ latest })
+    await run()
+    expect(notices.join('')).toContain(`2.1.2 → ${latest}`)
+  })
+
   it('writes through the real default: stderr yes, stdout never', async () => {
-    // Deliberately without the `write` override, so the production default is
-    // the thing under test. stdout may be a pipeline feeding jq.
     const realOut = process.stdout.write
     const realErr = process.stderr.write
     const seen = { out: [] as string[], err: [] as string[] }
@@ -111,6 +126,7 @@ describe('announcing a newer release', () => {
         env: {},
         isTty: true,
         modulePath: INSTALLED,
+        registryRequest,
       })
     } finally {
       process.stdout.write = realOut
@@ -120,20 +136,14 @@ describe('announcing a newer release', () => {
     expect(seen.err.join('')).toContain('Update available: sim 2.1.2 → 2.1.5')
   })
 
-  it('sends only its own version, and refuses to follow a redirect', async () => {
+  it('sends only its own version and gives the request a one-second deadline', async () => {
     await run()
-    const headers = inits[0]?.headers as Record<string, string>
-    // The reduced agent is the privacy property: the exported USER_AGENT in
-    // version.ts also carries node version, platform and arch.
+    const headers = inits[0]?.headers
     expect(headers['user-agent']).toBe(`sim-cli/${CLI_VERSION}`)
     expect(headers.accept).toBe('application/json')
     expect(headers.authorization).toBeUndefined()
-    expect(inits[0]?.redirect).toBe('error')
-  })
-
-  it('bounds the request so a hung registry cannot stall the command', async () => {
-    await run()
-    expect(inits[0]?.signal).toBeInstanceOf(AbortSignal)
+    expect(inits[0]?.maxResponseBytes).toBe(64 * 1024)
+    expect(inits[0]?.timeoutMs).toBe(1000)
   })
 })
 
@@ -174,9 +184,6 @@ describe('when the notice is suppressed', () => {
 
   it.each([
     '/Users/x/sim/packages/sim-cli/dist/index.js',
-    // Windows, and mixed case: a checkout is a checkout on a case-insensitive
-    // volume too, and this is the guard that stops every Sim engineer being
-    // nagged daily by their own build.
     'C:\\Users\\x\\Sim\\Packages\\Sim-CLI\\dist\\index.js',
   ])(
     'says nothing from a checkout, whose manifest trails npm by design (%s)',
@@ -187,43 +194,36 @@ describe('when the notice is suppressed', () => {
   )
 
   it('says nothing to a prerelease install', async () => {
-    stubRegistry({ latest: '2.1.5', staging: '2.1.6-preview.812.1' })
+    stubRegistry({ latest: '2.1.5' })
     await run({ currentVersion: '2.1.3-preview.44.1' })
     expect(fetched).toEqual([])
     expect(notices).toEqual([])
+  })
+
+  it('ignores stable build metadata when comparing versions', async () => {
+    await run({ currentVersion: '2.1.2+local.1' })
+    expect(notices).toHaveLength(1)
   })
 
   it('says nothing when the running version cannot be read', async () => {
     await run({ currentVersion: 'not-a-version' })
     expect(notices).toEqual([])
   })
-
-  it('speaks only once per process', async () => {
-    await run()
-    rmSync(cachePath(), { force: true })
-    await run()
-    expect(notices).toHaveLength(1)
-  })
 })
 
 describe('the once-a-day cache', () => {
-  it('records the check, and what it found', async () => {
+  it('records when the check ran', async () => {
     const now = new Date('2026-09-02T10:00:00.000Z')
     await run({ now })
     expect(JSON.parse(readFileSync(cachePath(), 'utf8'))).toEqual({
       version: 1,
       checkedAt: '2026-09-02T10:00:00.000Z',
-      latestVersion: '2.1.5',
     })
-    // Assert the property, not the literal mode: writeFileSync's mode is
-    // masked by the ambient umask, so an exact comparison fails under
-    // `umask 077` for reasons that have nothing to do with this code.
     expect(statSync(cachePath()).mode & 0o022).toBe(0)
   })
 
   it('does not contact the registry again within the day', async () => {
     await run({ now: new Date('2026-09-02T10:00:00.000Z') })
-    resetUpdateCheck()
     fetched = []
     notices = []
     await run({ now: new Date('2026-09-02T22:00:00.000Z') })
@@ -233,17 +233,13 @@ describe('the once-a-day cache', () => {
 
   it('checks again once the day is up', async () => {
     await run({ now: new Date('2026-09-02T10:00:00.000Z') })
-    resetUpdateCheck()
     notices = []
     await run({ now: new Date('2026-09-03T11:00:00.000Z') })
     expect(notices).toHaveLength(1)
   })
 
   it('checks again when the clock has moved backwards', async () => {
-    // A stamp in the future would otherwise suppress the notice until the clock
-    // caught up, which after a one-off jump forward is permanently.
     await run({ now: new Date('2026-09-02T10:00:00.000Z') })
-    resetUpdateCheck()
     notices = []
     await run({ now: new Date('2026-09-01T10:00:00.000Z') })
     expect(notices).toHaveLength(1)
@@ -259,6 +255,49 @@ describe('the once-a-day cache', () => {
     writeFileSync(cachePath(), JSON.stringify({ version: 99, checkedAt: new Date().toISOString() }))
     await run()
     expect(notices).toHaveLength(1)
+  })
+
+  it('re-checks rather than trusting an oversized valid fresh cache', async () => {
+    const now = new Date('2026-09-02T10:00:00.000Z')
+    writeFileSync(
+      cachePath(),
+      JSON.stringify({
+        version: 1,
+        checkedAt: now.toISOString(),
+        padding: 'x'.repeat(1024 * 1024),
+      })
+    )
+
+    await run({ now })
+
+    expect(fetched).toHaveLength(1)
+    expect(notices).toHaveLength(1)
+  })
+
+  it('replaces a hard-linked cache without modifying its other name', async () => {
+    const victimPath = join(configDir, 'victim')
+    writeFileSync(victimPath, 'do not overwrite')
+    linkSync(victimPath, cachePath())
+
+    await run()
+
+    expect(readFileSync(victimPath, 'utf8')).toBe('do not overwrite')
+    expect(JSON.parse(readFileSync(cachePath(), 'utf8'))).toMatchObject({
+      version: 1,
+      checkedAt: expect.any(String),
+    })
+  })
+
+  it('re-checks rather than following a cache symlink', async () => {
+    const victimPath = join(configDir, 'victim')
+    writeFileSync(victimPath, JSON.stringify({ version: 1, checkedAt: new Date().toISOString() }))
+    symlinkSync(victimPath, cachePath())
+
+    await run()
+
+    expect(fetched).toHaveLength(1)
+    expect(notices).toHaveLength(1)
+    expect(readFileSync(victimPath, 'utf8')).toContain('"version":1')
   })
 
   it('still runs the command when the cache cannot be written', async () => {
@@ -302,7 +341,6 @@ describe('when the registry does not answer', () => {
     await run()
     expect(notices).toEqual([])
 
-    resetUpdateCheck()
     rmSync(cachePath(), { force: true })
     stubRegistry({ latest: 'nonsense' })
     await run()
@@ -312,7 +350,10 @@ describe('when the registry does not answer', () => {
   it('still records the attempt, so a dead registry costs one request a day', async () => {
     stubRegistry('reject')
     await run({ now: new Date('2026-09-02T10:00:00.000Z') })
-    expect(JSON.parse(readFileSync(cachePath(), 'utf8')).latestVersion).toBeNull()
+    expect(JSON.parse(readFileSync(cachePath(), 'utf8'))).toEqual({
+      version: 1,
+      checkedAt: '2026-09-02T10:00:00.000Z',
+    })
   })
 
   it('asks a configured mirror instead of the default', async () => {
@@ -320,18 +361,27 @@ describe('when the registry does not answer', () => {
     expect(fetched.map(String)).toEqual(['https://npm.internal/api/npm/-/package/sim/dist-tags'])
   })
 
+  it('refuses registry URLs with username/password userinfo', async () => {
+    await run({ env: { npm_config_registry: 'https://user:secret@npm.internal/api/npm' } })
+    expect(fetched).toEqual([])
+    expect(notices).toEqual([])
+  })
+
   it.each([
-    ['a value that is not a url', 'not a url'],
-    ['a non-http protocol', 'file:///var/tmp/registry'],
-    ['whitespace', '   '],
-  ])('falls back to the default registry for %s', async (_label, configured) => {
+    ['a value that is not a URL', 'not a url'],
+    ['a non-HTTP protocol', 'file:///var/tmp/registry'],
+  ])('makes no request for %s', async (_label, configured) => {
     await run({ env: { npm_config_registry: configured } })
+    expect(fetched).toEqual([])
+    expect(notices).toEqual([])
+  })
+
+  it('uses the default registry when the configured value is only whitespace', async () => {
+    await run({ env: { npm_config_registry: '   ' } })
     expect(fetched.map(String)).toEqual(['https://registry.npmjs.org/-/package/sim/dist-tags'])
   })
 
   it("keeps a token-authenticated mirror's own path and query", async () => {
-    // Artifactory and Nexus bases carry both. Resolving the path as a relative
-    // URL would drop them and ask the mirror a question it answers with a 404.
     await run({ env: { npm_config_registry: 'https://npm.internal/api/npm/repo?token=abc' } })
     expect(fetched.map(String)).toEqual([
       'https://npm.internal/api/npm/repo/-/package/sim/dist-tags?token=abc',
@@ -354,16 +404,12 @@ describe('the upgrade command', () => {
       'pnpm add -g sim@latest',
     ],
   ])('reads %s as the installation it is', (modulePath, expected) => {
-    expect(upgradeCommand('latest', modulePath, {})).toBe(expected)
+    expect(upgradeCommand(modulePath, {})).toBe(expected)
   })
 
   it('falls back to the invoking package manager when the path says nothing', () => {
-    expect(
-      upgradeCommand('latest', INSTALLED, { npm_config_user_agent: 'pnpm/9.1.0 npm/? node/v22' })
-    ).toBe('pnpm add -g sim@latest')
-  })
-
-  it('names the channel it is advising, not always the stable one', () => {
-    expect(upgradeCommand('staging', INSTALLED, {})).toBe('npm install -g sim@staging')
+    expect(upgradeCommand(INSTALLED, { npm_config_user_agent: 'pnpm/9.1.0 npm/? node/v22' })).toBe(
+      'pnpm add -g sim@latest'
+    )
   })
 })

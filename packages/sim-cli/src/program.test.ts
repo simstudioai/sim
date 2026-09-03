@@ -198,15 +198,15 @@ describe('the update check', () => {
     await parse(['--help'], program)
     expect(fired).toBe(0)
 
-    // And the sentinel is not inert: the same hook does fire for a real action,
-    // which is what makes the assertion above mean something.
     const dir = mkdtempSync(join(tmpdir(), 'sim-cli-program-'))
+    const previousConfigDir = process.env.SIM_CONFIG_DIR
     process.env.SIM_CONFIG_DIR = dir
     try {
       await parse(['configure', '--set-output', 'json'], program)
       expect(fired).toBe(1)
     } finally {
-      process.env.SIM_CONFIG_DIR = undefined
+      if (previousConfigDir === undefined) Reflect.deleteProperty(process.env, 'SIM_CONFIG_DIR')
+      else process.env.SIM_CONFIG_DIR = previousConfigDir
       rmSync(dir, { recursive: true, force: true })
     }
   })
@@ -227,8 +227,6 @@ describe('the update check', () => {
     const preAction = preActionHooks(program)
 
     expect(preAction).toHaveLength(1)
-    // Invoking it must resolve, never throw: it runs in front of the user's
-    // command, and a rejection here would fail the command itself.
     await expect(preAction[0](program, program)).resolves.toBeUndefined()
   })
 })

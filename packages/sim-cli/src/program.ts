@@ -152,9 +152,6 @@ export function buildProgram(options: { version?: boolean } = {}): Command {
 
   program.addHelpText('after', HELP_EPILOGUE)
 
-  // Root hooks are inherited by the whole tree, and commander answers `--help`
-  // and `--version` during parsing without ever reaching an action — so the two
-  // invocations that must stay instant are excluded by construction.
   program.hook('preAction', () => announceUpdateIfAvailable())
 
   refuseHelpAfterUnknownCommand(program)
