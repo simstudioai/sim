@@ -1103,3 +1103,33 @@ describe('destructive operations are gated', () => {
     }
   })
 })
+
+describe('transport', () => {
+  it('sends every request through the profile transport when one is set', async () => {
+    // An embedding server answers its own v2 routes in-process by supplying the
+    // transport; the request it receives carries the same URL, key, and headers the
+    // network path would have sent.
+    const transport = vi.fn(async () =>
+      Response.json({ data: { id: 'agent' } }, { headers: { 'content-type': 'application/json' } })
+    )
+    const inProcess = new SimClient({
+      name: 'embedded',
+      endpoint: 'http://internal',
+      apiKey: 'key',
+      workspaceId: 'ws-1',
+      output: 'json',
+      transport,
+      sources: { endpoint: 'flag', apiKey: 'flag', workspaceId: 'flag', output: 'flag' },
+    })
+
+    const result = await inProcess.request<{ data: { id: string } }>('/api/v2/blocks/agent', {
+      query: { workspaceId: 'ws-1' },
+    })
+
+    expect(result).toEqual({ data: { id: 'agent' } })
+    expect(transport).toHaveBeenCalledTimes(1)
+    const [url, init] = transport.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('http://internal/api/v2/blocks/agent?workspaceId=ws-1')
+    expect((init.headers as Record<string, string>)['x-api-key']).toBe('key')
+  })
+})

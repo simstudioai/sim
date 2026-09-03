@@ -62,17 +62,16 @@ describe('universal grep', () => {
     expect(count.stdout).toMatch(/^\d+ \(blocks=\d+\)$/)
   })
 
-  it('resolves a bare --in against the listings and fetches only what it names', async () => {
-    // `grep x --in agent` used to materialize every searched world to find one block —
+  it('settles a bare --in that is a block id without listing any workspace world', async () => {
+    // `grep x --in file_v5` used to materialize every searched world to find one block —
     // 65 block details plus every workflow state; on dev that took 18-34s per call and
-    // tripped the per-user rate limit. Now the listings resolve the selector and only
-    // the matching resources are fetched.
+    // tripped the per-user rate limit. An exact platform id now resolves from the
+    // memoized catalog alone.
     const requested: string[] = []
     const runtime = runtimeWith(
       {
         ...CATALOG,
         '/api/v2/workflows': { data: [{ id: 'wf-1', name: 'Agent runner' }], nextCursor: null },
-        '/api/v2/workflows/wf-1/state': { data: { blocks: { b1: { type: 'agent' } } } },
       },
       requested
     )
@@ -83,9 +82,39 @@ describe('universal grep', () => {
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('blocks/agent:')
     expect(requested).toContain('/api/v2/blocks/agent')
-    expect(requested).not.toContain('/api/v2/blocks/slack_v2')
-    // A workflow whose NAME contains the selector is a match too, fetched by the same rule.
+    expect(requested).not.toContain('/api/v2/workflows')
+  })
+
+  it('resolves a bare --in name fragment against the listings and fetches only the matches', async () => {
+    const requested: string[] = []
+    const runtime = runtimeWith(
+      {
+        ...CATALOG,
+        '/api/v2/workflows': {
+          data: [
+            { id: 'wf-1', name: 'Agent runner' },
+            { id: 'wf-2', name: 'Nightly digest' },
+          ],
+          nextCursor: null,
+        },
+        '/api/v2/workflows/wf-1/state': { data: { blocks: { b1: { type: 'agent' } } } },
+      },
+      requested
+    )
+    const result = await runEngine('grep', ['type'], runtime, {
+      scope: 'blocks,workflows',
+      in: 'runner',
+    })
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('workflows/Agent runner (wf-1):')
     expect(requested).toContain('/api/v2/workflows/wf-1/state')
+    expect(requested).not.toContain('/api/v2/workflows/wf-2/state')
+    // The platform corpus is built once per workspace and reused: a second grep pays no
+    // block detail requests at all.
+    const listed = () => requested.filter((path) => path === '/api/v2/blocks').length
+    expect(listed()).toBe(1)
+    await runEngine('grep', ['type'], runtime, { scope: 'blocks,workflows', in: 'runner' })
+    expect(listed()).toBe(1)
   })
 
   it('accepts the world/resource path a match line prints as --in', async () => {

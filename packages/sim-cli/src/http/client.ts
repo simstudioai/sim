@@ -506,7 +506,7 @@ export class SimClient {
 
     let response: Response
     try {
-      response = await fetch(url, {
+      response = await (this.profile.transport ?? fetch)(url, {
         method,
         headers: {
           ...(apiKey ? { 'x-api-key': apiKey } : {}),

@@ -109,6 +109,11 @@ export interface ResolvedProfile {
   apiKey: string | null
   workspaceId: string | null
   output: OutputFormat
+  /**
+   * Replaces global `fetch` for every request. Only an embedding server sets it, to
+   * answer its own v2 routes in-process; the installed CLI never does.
+   */
+  transport?: typeof fetch
   /** Where each value came from, for `sim whoami` to explain surprising results. */
   sources: {
     endpoint: SettingSource

@@ -41,6 +41,8 @@
     "check:cli-api": "bun run scripts/generate-v2-cli-api.ts --check",
     "generate:cli-docs": "bun run scripts/generate-cli-docs.ts",
     "check:cli-docs": "bun run scripts/generate-cli-docs.ts --check",
+    "generate:v2-route-table": "bun run scripts/generate-v2-route-table.ts",
+    "check:v2-route-table": "bun run scripts/generate-v2-route-table.ts --check",
     "check:canonical-index": "bun run scripts/check-canonical-index-surface.ts",
     "check:cron-parity": "bun run scripts/check-cron-parity.ts",
     "check:api-validation:strict": "bun run scripts/check-api-validation-contracts.ts --check --enforce-boundary-baseline",
