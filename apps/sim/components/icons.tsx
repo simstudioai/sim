@@ -3196,6 +3196,52 @@ export function LemlistIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * The four brand fills are hardcoded rather than `currentColor`: this is a
+ * multi-color mark, so it stays legible on the white tile and bare on a neutral
+ * page in both themes. No `iconColor` is set for the same reason — there is no
+ * single brand tint to adopt.
+ *
+ * The source SVG carried its fills through `.st0`–`.st3` CSS classes; those are
+ * inlined here so the mark cannot depend on (or leak) global styles.
+ */
+export function ManageEngineIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 120.2 118.8'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
+    >
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        fill='#FFCD22'
+        d='M83.1,3.9c46.2,32.2,27,106.8-22.5,114.9l0,0C124.1,118.8,144.8,32.7,83.1,3.9'
+      />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        fill='#0078B6'
+        d='M33.9,3.4c55.2-8.1,77.8,60,53.6,91.5C127.5,54.7,95.5-16.4,33.9,3.4'
+      />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        fill='#009A50'
+        d='M1.3,36.7C28.5-3.6,85,21.3,90.7,62C97.2,11.7,30.8-16.2,1.3,36.7'
+      />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        fill='#CA2031'
+        d='M0,66.8C6.6,25,61,20.6,80.6,49.9C64.6,8.3,1.1,13.4,0,66.8'
+      />
+    </svg>
+  )
+}
+
 export function TelegramIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

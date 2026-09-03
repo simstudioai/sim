@@ -89,6 +89,7 @@ export type OAuthProvider =
   | 'spotify'
   | 'calcom'
   | 'docusign'
+  | 'manageengine-sdp'
   | 'zoho-desk'
 
 export type OAuthService =
@@ -150,6 +151,7 @@ export type OAuthService =
   | 'docusign'
   | 'github'
   | 'monday'
+  | 'manageengine-sdp'
   | 'zoho-desk'
 
 export interface OAuthProviderConfig {

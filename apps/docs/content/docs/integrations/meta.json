@@ -157,6 +157,7 @@
     "mailchimp",
     "mailgun",
     "managed_agent",
+    "manageengine_sdp",
     "mem0",
     "memory",
     "microsoft_ad",
