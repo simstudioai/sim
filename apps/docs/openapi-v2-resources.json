@@ -2373,7 +2373,7 @@
       "delete": {
         "operationId": "deleteSandbox",
         "summary": "Delete Sandbox",
-        "description": "Delete a sandbox. Function blocks that still select it fail closed at run time until they are re-pointed. Any prebuilt image is released once nothing else shares it. Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Delete a sandbox. Function blocks that still select it fail closed at run time until they are re-pointed. Where the deployment prebuilds dependency images, the sandbox's image is released once nothing else shares it; a runtime-install deployment, or a spec with nothing to install, had no image and nothing is released. Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Sandboxes"],
         "parameters": [
           {
@@ -4774,7 +4774,7 @@
             "example": {
               "error": {
                 "code": "CONFLICT",
-                "message": "A resource with this name already exists in this workspace"
+                "message": "The request conflicts with the current state of the resource"
               }
             }
           }
@@ -6809,7 +6809,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Package specifiers installed into the sandbox, one per entry. An entry starting with `#` is a comment and is skipped."
+            "description": "Package specifiers installed into the sandbox, one per entry."
           },
           "cliTools": {
             "type": "array",
@@ -7044,7 +7044,7 @@
           },
           "dependencies": {
             "default": [],
-            "description": "Package specifiers installed into the sandbox, one per entry. An entry starting with `#` is a comment and is skipped.",
+            "description": "Package specifiers installed into the sandbox, one per entry.",
             "maxItems": 1000,
             "type": "array",
             "items": {

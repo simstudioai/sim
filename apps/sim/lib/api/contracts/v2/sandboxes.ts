@@ -33,8 +33,7 @@ import {
 
 const LANGUAGE_DESCRIPTION =
   'Dependency ecosystem: `javascript` installs from npm, `python` from PyPI.'
-const DEPENDENCIES_DESCRIPTION =
-  'Package specifiers installed into the sandbox, one per entry. An entry starting with `#` is a comment and is skipped.'
+const DEPENDENCIES_DESCRIPTION = 'Package specifiers installed into the sandbox, one per entry.'
 const CLI_TOOLS_DESCRIPTION =
   'Pinned managed CLI ids installed into the sandbox, at most 10, no duplicates.'
 const SYSTEM_PACKAGES_DESCRIPTION = 'Debian packages installed into the sandbox, one per entry.'

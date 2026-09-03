@@ -1371,7 +1371,7 @@ const declaredRoutes = [
     resourceOperation('Sandboxes', {
       operationId: 'deleteSandbox',
       summary: 'Delete Sandbox',
-      description: `Delete a sandbox. Function blocks that still select it fail closed at run time until they are re-pointed. Any prebuilt image is released once nothing else shares it. ${SANDBOX_ADMIN_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Delete a sandbox. Function blocks that still select it fail closed at run time until they are re-pointed. Where the deployment prebuilds dependency images, the sandbox's image is released once nothing else shares it; a runtime-install deployment, or a spec with nothing to install, had no image and nothing is released. ${SANDBOX_ADMIN_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The sandbox was deleted.' },
     }),
@@ -2157,13 +2157,12 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   headers: V2_COMMON_HEADERS,
   errorSchema: V2_ERROR_SCHEMA,
   /**
-   * Every `409` in this document is a name collision — an MCP server, skill,
-   * custom tool, sandbox, credential, or secret whose name is already taken in
-   * the workspace — so the shared example names that remedy rather than one
-   * resource's.
+   * Most `409`s in this document are name collisions, but MCP tool discovery
+   * raises one for a stored OAuth grant that must be reauthorized, so the shared
+   * example stays generic and each operation's description names its own cause.
    */
   errorResponses: withErrorExamples({
-    Conflict: { message: 'A resource with this name already exists in this workspace' },
+    Conflict: { message: 'The request conflicts with the current state of the resource' },
   }),
   routes,
 })

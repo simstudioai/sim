@@ -10383,8 +10383,7 @@ export const V2_OPERATIONS = {
       dependencies: {
         kind: 'array',
         default: [],
-        describe:
-          'Package specifiers installed into the sandbox, one per entry. An entry starting with `#` is a comment and is skipped.',
+        describe: 'Package specifiers installed into the sandbox, one per entry.',
       },
       cliTools: {
         kind: 'array',
