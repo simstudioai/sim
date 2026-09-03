@@ -3,9 +3,7 @@ title: Background Jobs
 description: Scheduled workflows, polling triggers, and the cron endpoints that drive them
 ---
 
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
 
 A large part of Sim runs on a schedule rather than in response to a user request: scheduled workflows, every polling trigger, connector syncs, the outbox, data drains, and retention. All of it is driven by **HTTP endpoints that something external must call on a timer**.
 
@@ -48,10 +46,14 @@ Point cron at an **internal** address where possible (the in-cluster Service, or
 | HubSpot poll | `/api/webhooks/poll/hubspot` | `*/1 * * * *` | HubSpot trigger |
 | Time pause/resume | `/api/resume/poll` | `*/1 * * * *` | Workflows paused on a timer |
 | Outbox processing | `/api/webhooks/outbox/process` | `*/1 * * * *` | Transactional-outbox retries for billing, membership, enterprise issuance, and workflow-deployment side effects |
+| Workspace file search dispatch | `/api/cron/workspace-file-search-dispatch` | `*/1 * * * *` | Dispatches indexing work for workspace file search |
 | Connector sync | `/api/knowledge/connectors/sync` | `*/5 * * * *` | Knowledge base connector syncs |
+| Connector member sync | `/api/knowledge/connectors/member-sync` | `*/5 * * * *` | Per-member access sync for permission-aware connectors |
 | Workspace events poll | `/api/workspace-events/poll` | `*/15 * * * *` | Workspace event triggers |
+| Table row TTL cleanup | `/api/cron/cleanup-table-row-ttl` | `*/15 * * * *` | Deletes table rows whose TTL column has expired |
 | Data drains | `/api/cron/run-data-drains` | `0 * * * *` | Enterprise data drains |
 | Renew subscriptions | `/api/cron/renew-subscriptions` | `0 */12 * * *` | Renews Microsoft Teams chat subscriptions (Graph caps them at ~3 days) |
+| Billing cycle close | `/api/cron/billing-cycle-close` | `0 */6 * * *` | Billing only — final overage collection and per-period tracker reset |
 | Reconcile billing seats | `/api/cron/reconcile-billing-seats` | `0 * * * *` | Billing only — safe to disable when self-hosted |
 | Reconcile inbox entitlement | `/api/cron/reconcile-inbox-entitlement` | `0 3 * * *` | Inbox access reconciliation |
 | Cleanup sandbox images | `/api/cron/cleanup-sandbox-images` | `30 4 * * *` | Reclaims sandbox images |
@@ -69,7 +71,7 @@ cronjobs:
   enabled: true
 ```
 
-Each job runs a small `curlimages/curl` pod that calls the app's **in-cluster Service** (not the ingress), with `concurrencyPolicy: Forbid` so a slow run never overlaps itself, and up to three retries.
+Each job runs a small `curlimages/curl` pod that calls the app's **in-cluster Service** (not the ingress), with `concurrencyPolicy: Forbid` so a slow run never overlaps itself. The Service load-balances that single call to one replica, so a job never fans out across pods. The chart keeps three completed and one failed Job per CronJob, but `ttlSecondsAfterFinished` defaults to 600, so a finished Job is deleted ten minutes after it ends — inspect a failure promptly or collect the logs. It sets no `backoffLimit`, so the Kubernetes default of six applies and the chart exposes no key to change it. `cronjobs.activeDeadlineSeconds` (default `300`) bounds the **whole Job** — retries and the controller's back-off included — so a persistently failing job is usually marked `DeadlineExceeded` after four or five attempts rather than six. The same deadline cuts off a single hung request. One attempt is already several HTTP calls: the container retries three times, ten seconds apart, with `curl --retry 2` inside each.
 
 Disable individual jobs you do not need — billing reconciliation is the obvious one on a self-hosted install:
 
@@ -79,6 +81,8 @@ cronjobs:
     reconcileBillingSeats:
       enabled: false
 ```
+
+Do not disable schedule execution, outbox processing, or subscription renewal unless you know you do not use the features behind them.
 
 Check they are running:
 
@@ -140,10 +144,3 @@ Scheduled execution volume is bounded per app instance by:
 </Callout>
 
 Raise the schedule limit only alongside memory headroom: concurrent executions run in the app process, so throughput is bounded by the pod's memory before it is bounded by this number.
-
-<FAQ items={[
-  { question: "Do scheduled workflows work on Docker Compose?", answer: "Yes. The cron service runs the same 18 jobs on the same schedules the Helm chart uses, from docker/crontab. It needs CRON_SECRET; without it the service prints what to set and exits while the rest of the stack keeps running."},
-  { question: "Should the cron endpoints be reachable from the internet?", answer: "No. Point cron at the in-cluster Service or localhost. If the endpoints are internet-reachable, CRON_SECRET is the only control protecting them."},
-  { question: "Can I disable jobs I do not need?", answer: "Yes — set cronjobs.jobs.<name>.enabled: false in Helm, or omit the crontab line. Billing-seat reconciliation is the usual candidate on a self-hosted install. Do not disable schedule execution, outbox processing, or subscription renewal unless you know you do not use the corresponding features."},
-  { question: "Do the jobs run against every replica?", answer: "No. Each CronJob makes one HTTP call to the app Service, which load-balances to a single replica. concurrencyPolicy: Forbid prevents a slow run from overlapping the next tick." },
-]} />

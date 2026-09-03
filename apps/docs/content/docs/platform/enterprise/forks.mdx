@@ -29,7 +29,7 @@ On Sim Cloud, your organization may also need the feature turned on for your acc
 
 ### 1. Open Forks
 
-Go to **Settings → Enterprise → Workspace Forks** in the workspace you want to fork from (or manage).
+Go to **Settings → Organization → Workspace forks** in the workspace you want to fork from (or manage).
 
 <Image src="/static/enterprise/forks-list.png" alt="Workspace Forks settings page showing Parent and Forks sections with Docs, See activity, and Create fork actions" width={900} height={369} />
 
@@ -62,7 +62,7 @@ Click **Fork**. The child workspace is created immediately. Deployed workflows l
 
 ### 3. Open the parent edge (from the child)
 
-Open the **child** workspace → **Settings → Enterprise → Workspace Forks**. On the **Parent** row, open the menu and choose **Edit mappings**.
+Open the **child** workspace → **Settings → Organization → Workspace forks**. On the **Parent** row, open the menu and choose **Edit mappings**.
 
 Child rows (when you are on the parent) only offer **Open workspace** and **Disconnect** — mapping and sync are owned by the child configuring how it relates to its parent.
 
@@ -361,7 +361,7 @@ Schedules, webhooks, and triggers are not live in the child until you **deploy**
 
 ## Edge cases to keep in mind
 
-- **Force overwrite** — Sync does not merge canvas changes. Anything only on the target that conflicts with the source’s deployed workflows can be lost. Use the confirm dialog’s archive list carefully.
+- **Force overwrite** — Sync does not merge editor changes. Anything only on the target that conflicts with the source’s deployed workflows can be lost. Use the confirm dialog’s archive list carefully.
 - **Deselect on fork** — Cleared references are intentional. Prefer copying the resource, or plan to reconnect it in the child.
 - **Background copy** — Right after fork, large tables / knowledge bases / files may still be copying. Check **Activity** if something looks empty.
 - **OAuth MCP** — Expect a reconnect in the child (and after a copied server on sync).
@@ -373,13 +373,8 @@ Schedules, webhooks, and triggers are not live in the child until you **deploy**
 
 <FAQ items={[
   { question: "Why is Sync greyed out?", answer: "Usually a blocking reference, an unmapped credential or secret, or a required dependent field (label, channel, document, …) still empty. Open Blocking sync and the mapping sections — each row explains what to fix. Sync also stays disabled while details are loading or if loading failed (reload the page)." },
-  { question: "Why weren’t my credentials copied into the fork?", answer: "Credentials are never copied, for security. Fields are cleared on fork. On sync you map each source credential to a credential that already exists in the target, then re-pick dependent fields." },
-  { question: "Do secret values get copied?", answer: "No. Only names like {{API_KEY}} appear in workflow text. Create the values under Secrets in each workspace, and map key names on sync if they differ." },
-  { question: "Can I sync with a grandparent or another fork?", answer: "No. Sync only works along a direct parent↔child edge." },
-  { question: "What if I deselect resources when creating a fork?", answer: "References to those resources in the forked workflows are cleared in the child. You will see a warning in the modal before you confirm." },
   { question: "Is sync a merge?", answer: "No. Deploy is like a commit; sync is a force push or force pull of deployed workflows onto the target. Use Rollback only for the last sync into a workspace, and remember copied resources may remain." },
-  { question: "What happens to chat URLs?", answer: "Deployed chats are carried with a new URL on fork. On sync, a chat is created on the target only if that workflow does not already have one. Existing target chats are not replaced." },
-  { question: "Who can disconnect a fork I cannot open?", answer: "Any admin on your side of the edge. Disconnect does not require access to the other workspace — so you are not stuck if the other side lost membership." },
+  { question: "Who can disconnect a fork I cannot open?", answer: "Any admin on your side of the edge. Disconnect does not require access to the other workspace — so you are not stuck if the other side lost membership." }
 ]} />
 
 ---
@@ -392,4 +387,4 @@ Self-hosted deployments turn Forks on with an environment variable instead of th
 |----------|-------------|
 | `FORKING_ENABLED`, `NEXT_PUBLIC_FORKING_ENABLED` | Enables workspace forking when billing is not used as the entitlement gate |
 
-Once enabled, use the same **Settings → Enterprise → Workspace Forks** UI as Sim Cloud. Only workspace admins can manage forks.
+Once enabled, use the same **Settings → Organization → Workspace forks** UI as Sim Cloud. Only workspace admins can manage forks.

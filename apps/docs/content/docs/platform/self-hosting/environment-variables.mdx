@@ -10,13 +10,13 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | Variable | Description |
 |----------|-------------|
 | `DATABASE_URL` | PostgreSQL connection string |
-| `BETTER_AUTH_SECRET` | Auth secret (32 hex chars): `openssl rand -hex 32`. **Must be identical on the app and realtime services** |
+| `BETTER_AUTH_SECRET` | Auth secret, at least 32 characters: `openssl rand -hex 32`. **Must be identical on the app and realtime services** |
 | `BETTER_AUTH_URL` | Your app URL — must be the real public origin, not `localhost` |
-| `ENCRYPTION_KEY` | Encryption key (32 hex chars): `openssl rand -hex 32` |
-| `INTERNAL_API_SECRET` | Internal API secret (32 hex chars): `openssl rand -hex 32` |
+| `ENCRYPTION_KEY` | Encryption key, exactly 64 hex characters (32 bytes): `openssl rand -hex 32` |
+| `INTERNAL_API_SECRET` | Internal API secret, at least 32 characters: `openssl rand -hex 32` |
 | `NEXT_PUBLIC_APP_URL` | Public app URL |
-| `CRON_SECRET` | Bearer token for the background job endpoints (32 hex chars). **Required whenever background jobs are enabled** — the Helm chart's default, and the chart will not render without it. See [Background Jobs](/platform/self-hosting/background-jobs) |
-| `API_ENCRYPTION_KEY` | Encrypts user-generated API keys at rest (32 hex chars). Required to create API keys |
+
+`openssl rand -hex 32` prints 64 hex characters. `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` must be exactly that — a value of any other shape throws the first time Sim encrypts or decrypts, not at startup. The rest are secrets of no fixed shape and only need 32 characters or more. The Sim app never checks — it runs its env schema with validation skipped — but the realtime service validates `BETTER_AUTH_SECRET` and `INTERNAL_API_SECRET` at boot and refuses to start if either is shorter.
 
 <Callout type="error">
   `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` cannot be rotated or recovered. Losing either makes the data it protects permanently unreadable — workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets in the first case, user-generated Sim API keys in the second. Back them up separately from the database.
@@ -26,12 +26,14 @@ import { Callout } from 'fumadocs-ui/components/callout'
 
 | Variable | Description |
 |----------|-------------|
+| `API_ENCRYPTION_KEY` | Encrypts user-generated Sim API keys at rest, exactly 64 hex characters (32 bytes): `openssl rand -hex 32`. **When unset, API keys are stored in plain text** — the app logs one warning and keeps working |
+| `CRON_SECRET` | Bearer token for the background job endpoints: `openssl rand -hex 32`. **Required whenever background jobs are enabled** — the Helm chart's default, and the chart will not render without it, unless it comes from `app.secrets.existingSecret` or External Secrets. See [Background Jobs](/platform/self-hosting/background-jobs) |
 | `REDIS_URL` | Redis connection string. Optional on a single replica; **required** past one app or realtime replica — see [Redis](/platform/self-hosting/redis) |
-| `REDIS_TLS_SERVERNAME` | TLS SNI override. Required when `REDIS_URL` uses `rediss://` with a bare IP, or the app throws at startup |
+| `REDIS_TLS_SERVERNAME` | TLS SNI override. Required when `REDIS_URL` uses `rediss://` with a bare IP, or the app throws the first time it opens a Redis connection |
 | `NEXT_PUBLIC_SOCKET_URL` | WebSocket URL — defaults to the page origin; set only if realtime is on a separate host |
 | `TRUSTED_ORIGINS` | Comma-separated additional origins to trust for auth (apex + `www`, alias domains) |
 | `AUTH_TRUSTED_PROXIES` | Comma-separated reverse-proxy IPs/CIDRs so the client IP cannot be forged through `X-Forwarded-For` |
-| `INTERNAL_API_BASE_URL` | Internal URL for server-side self-calls, e.g. `http://sim-app.simstudio.svc.cluster.local:3000`. Required for PII log redaction; defaults to `NEXT_PUBLIC_APP_URL` |
+| `INTERNAL_API_BASE_URL` | Internal URL for server-side self-calls, e.g. `http://sim-app.simstudio.svc.cluster.local:3000`. Optional — falls back to the public base URL. Deliberately ignored inside the Trigger.dev worker runtime, where a cluster-internal address resolves to the worker itself |
 | `DATABASE_REPLICA_URL` | Read-replica connection string for log listing, audit logs, and dashboard aggregations. Falls back to the primary when unset |
 
 ## AI Providers
@@ -50,6 +52,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `BASETEN_API_KEY` | Baseten |
 | `COHERE_API_KEY` | Cohere — required for the Knowledge block reranker |
 | `OLLAMA_URL` | Ollama (default: `http://localhost:11434`) |
+| `VERTEX_PROJECT` / `VERTEX_LOCATION` | Google Vertex AI — GCP project ID and region (region defaults to `us-central1`) |
 
 <Callout type="warn">
   **Knowledge bases require a hosted embedding provider.** Three are supported, selected with `KB_EMBEDDING_MODEL`: `text-embedding-3-small` (default) and `text-embedding-3-large` on OpenAI or Azure OpenAI, and `gemini-embedding-001` on Gemini. There is no local embedding backend — configuring Ollama or vLLM does not substitute, because embeddings do not route through the configured chat model.
@@ -67,6 +70,14 @@ import { Callout } from 'fumadocs-ui/components/callout'
   **Agent tool-call depth.** An Agent block ends its run after 20 model round trips of tool calling. Raise the ceiling with `MAX_TOOL_ITERATIONS` (for example `MAX_TOOL_ITERATIONS=50`). Every extra iteration is another model call, so raise it deliberately.
 </Callout>
 
+### Catalog visibility
+
+| Variable | Description |
+|----------|-------------|
+| `BLACKLISTED_PROVIDERS` | Comma-separated provider IDs to hide from the model pickers, e.g. `openai,anthropic` |
+| `BLACKLISTED_MODELS` | Comma-separated model names or prefixes to hide, e.g. `gpt-4,claude-*` |
+| `PREVIEW_BLOCKS` | Comma-separated preview block types to reveal, e.g. `gmail_v2`. Empty or unset hides every preview block |
+
 ### AWS Bedrock
 
 | Variable | Description |
@@ -80,6 +91,24 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `AZURE_OPENAI_API_KEY` | Azure OpenAI API key |
 | `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint URL |
 | `AZURE_OPENAI_API_VERSION` | API version (e.g., `2024-02-15-preview`) |
+| `KB_OPENAI_MODEL_NAME` | Azure deployment name serving the knowledge base embedding model. Optional — defaults to the model id, which is only correct when the deployment is named after the model |
+
+### Azure Anthropic
+
+| Variable | Description |
+|----------|-------------|
+| `AZURE_ANTHROPIC_ENDPOINT` | Azure Anthropic service endpoint URL |
+| `AZURE_ANTHROPIC_API_KEY` | Azure Anthropic API key |
+| `AZURE_ANTHROPIC_API_VERSION` | API version (e.g., `2023-06-01`) |
+
+### Document OCR
+
+| Variable | Description |
+|----------|-------------|
+| `OCR_PROVIDER` | PDF OCR backend: `local`, `mistral`, or `azure-mistral`. Leave it unset and Sim picks the first provider whose credentials are present, falling back to the local parser |
+| `OCR_AZURE_ENDPOINT` | Azure Mistral OCR endpoint URL |
+| `OCR_AZURE_API_KEY` | Azure Mistral OCR API key |
+| `OCR_AZURE_MODEL_NAME` | Azure Mistral OCR model name |
 
 ### Self-hosted OpenAI-compatible endpoints
 
@@ -92,14 +121,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 
 ## Login Providers
 
-| Variable | Description |
-|----------|-------------|
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google — also powers all Google integrations |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub |
-| `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` | Microsoft — also powers all Microsoft integrations |
-| `DISABLE_GOOGLE_AUTH` / `DISABLE_GITHUB_AUTH` / `DISABLE_MICROSOFT_AUTH` | Hide a provider from the login page without removing its credentials |
-
-See [Authentication](/platform/self-hosting/authentication).
+Google, GitHub, and Microsoft sign-in, their callback URLs, and the `DISABLE_*_AUTH` switches are documented in [Authentication](/platform/self-hosting/authentication#social-login).
 
 ## Integration Credentials
 
@@ -109,22 +131,7 @@ See [Authentication](/platform/self-hosting/authentication).
 
 ## Access Control
 
-| Variable | Description |
-|----------|-------------|
-| `DISABLE_REGISTRATION` | Set `true` to block all new accounts, including social sign-in. Invitations still work for people who already have an account. SSO is unaffected |
-| `DISABLE_EMAIL_SIGNUP` | Block new email/password registrations; existing email login keeps working |
-| `ALLOWED_LOGIN_DOMAINS` | Restrict signups to domains (comma-separated) |
-| `ALLOWED_LOGIN_EMAILS` | Restrict signups to specific emails (comma-separated) |
-| `BLOCKED_SIGNUP_DOMAINS` | Block specific domains from signing up (comma-separated) |
-| `SIGNUP_MX_VALIDATION_ENABLED` | Reject domains with no MX record or a denylisted mail backend |
-| `BLOCKED_EMAIL_MX_HOSTS` | MX-host substrings to block; used only with the above |
-| `DISABLE_INVITATIONS` / `NEXT_PUBLIC_DISABLE_INVITATIONS` | Disable workspace invitations globally |
-| `DISABLE_PUBLIC_API` / `NEXT_PUBLIC_DISABLE_PUBLIC_API` | Disable the public API globally |
-| `DISABLE_AUTH` | Bypass authentication entirely, creating an anonymous session for every request |
-
-<Callout type="error">
-  `DISABLE_AUTH=true` makes everyone who can reach the instance a fully privileged user. Use it only for a single-user instance on a private network, never behind an internet-facing ingress.
-</Callout>
+Who may sign up and sign in — the allowlists, blocklists, `DISABLE_REGISTRATION`, `DISABLE_INVITATIONS`, `DISABLE_PUBLIC_API`, and `DISABLE_AUTH` — is documented in [Authentication](/platform/self-hosting/authentication).
 
 ## Code Execution
 
@@ -133,12 +140,16 @@ See [Authentication](/platform/self-hosting/authentication).
 | `SANDBOX_PROVIDER` | Remote sandbox provider: `e2b` (default) or `daytona` |
 | `E2B_ENABLED` / `E2B_API_KEY` | Enable E2B remote execution |
 | `DAYTONA_API_KEY` | Daytona API key (used when `SANDBOX_PROVIDER=daytona`) |
+| `E2B_FUNCTION_TEMPLATE_ID` | Immutable `<template>:<build-id>` ref for the Function base image. Required for E2B; a mutable tag is refused |
+| `E2B_FUNCTION_TEMPLATE_GENERATION` | Monotonic release generation printed by the same build. Required for E2B |
+| `DAYTONA_FUNCTION_SNAPSHOT_ID` | Immutable snapshot **ID** (not a name) for the Function base image. Required for Daytona |
+| `SANDBOXES_ENABLED` / `NEXT_PUBLIC_SANDBOXES_ENABLED` | Enable custom sandboxes on a self-hosted deployment, bypassing the hosted-plan requirement. Neither is sufficient on its own — a provider key **and** an immutable Function base must also be configured. Set the `NEXT_PUBLIC_` twin only after the server side works; it asserts readiness to the browser rather than enabling anything |
 | `IVM_MAX_EXECUTIONS_PER_WORKER` | Executions before an isolated-vm worker is recycled |
 | `IVM_MAX_BROKERS_PER_EXECUTION` | Host-call brokers per execution |
 | `IVM_MAX_BROKER_ARGS_JSON_CHARS` | Max argument payload size |
 | `IVM_MAX_BROKER_RESULT_JSON_CHARS` | Max result payload size |
 
-Without a remote provider, user code runs in an in-process V8 isolate inside the app container. See [Security](/platform/self-hosting/security).
+Without a remote provider, user code runs in an in-process V8 isolate inside the app container. See [Sandboxes](/platform/self-hosting/sandboxes) for the base-image build and [Security](/platform/self-hosting/security) for the isolation comparison.
 
 ## Networking & Limits
 
@@ -179,6 +190,7 @@ See [Observability](/platform/self-hosting/observability).
 | Variable | Description |
 |----------|-------------|
 | `KB_EMBEDDING_MODEL` | Embedding model for new knowledge bases. Defaults to `text-embedding-3-small`; an unsupported value falls back to the default |
+| `OPENROUTER_API_KEY` | Fallback route for the OpenAI embedding models — used when it is set and `OPENAI_API_KEY` is not the chosen path |
 | `COHERE_API_KEY` | Enables the Knowledge block reranker |
 
 ## Chat & PII
@@ -187,7 +199,8 @@ See [Observability](/platform/self-hosting/observability).
 |----------|-------------|
 | `COPILOT_API_KEY` | API key for Chat. Without it the Sim Chat block, scheduled prompt jobs, and Inbox cannot run |
 | `NEXT_PUBLIC_CHAT_DISABLED` | Set to `true` to hide the Chat module: the workspace lands on your first workflow, with no chats list, scheduled tasks, or editor Chat panel. Chat is shown when unset; `npx sim-setup` sets it for you if you skip the chat key |
-| `DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES` | Durable stores where a value whose secret provenance was never recorded fails the run instead of logging a warning. `all`, or a comma-separated subset of `memory`, `table-row`, `knowledge`. Unset (nothing enforced) by default |
+| `PII_URL` | Base URL of the Presidio service backing PII detection and redaction. The Helm chart wires it to its own `pii` Service when `pii.enabled`; on Compose point it at the PII service on your network. The default `http://localhost:5001` exists only in local development, and leaving it makes redaction fail |
+| `DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES` | Durable stores where a value whose secret provenance was never recorded fails the run instead of logging a warning. `all`, or a comma-separated subset of `memory`, `table-row`, `knowledge`, `workspace-file`. Unset (nothing enforced) by default |
 | `ADMIN_API_KEY` | Admin API key for GitOps operations and organization provisioning |
 
 ## Enterprise Features
@@ -197,6 +210,7 @@ Enterprise features are unlocked by configuration rather than billing on self-ho
 | Variable | Description |
 |----------|-------------|
 | `ENTERPRISE_ENABLED`, `NEXT_PUBLIC_ENTERPRISE_ENABLED` | Enable the whole enterprise feature set |
+| `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | Enable SAML and OIDC single sign-on on its own. See [Authentication](/platform/self-hosting/authentication#sso-saml-and-oidc) |
 | `INSTANCE_ORG_NAME` | Name of the organization every user joins automatically at signup |
 | `INSTANCE_ORG_SLUG` | Slug for that organization (derived from the name when omitted) |
 | `INSTANCE_ORG_OWNER_EMAIL` | Owner of that organization (defaults to the first user to sign up) |
@@ -212,6 +226,7 @@ By default Sim writes uploads to local disk. For production, point it at AWS S3,
 | `AWS_REGION` | AWS region — set with `S3_BUCKET_NAME` to enable S3 |
 | `AWS_ACCESS_KEY_ID` | AWS access key. Omit to use the instance/IRSA credential chain |
 | `AWS_SECRET_ACCESS_KEY` | AWS secret key. Omit to use the instance/IRSA credential chain |
+| `STORAGE_PROVIDER` | Selects the backend explicitly: `local`, `s3`, `azure`, or `gcs`. Unset means the first fully configured backend wins |
 | `S3_BUCKET_NAME` | General workspace files bucket — set with `AWS_REGION` to enable S3 |
 | `AZURE_STORAGE_CONTAINER_NAME` | General files container — set with Azure credentials to enable Blob (takes precedence over S3) |
 | `AZURE_CONNECTION_STRING` | Azure connection string, or use `AZURE_ACCOUNT_NAME` + `AZURE_ACCOUNT_KEY` |
@@ -221,16 +236,7 @@ By default Sim writes uploads to local disk. For production, point it at AWS S3,
 
 ## Email Providers
 
-Configure at least one. Every configured provider stays active and is tried in order — **Resend → AWS SES → SMTP → Azure Communication Services → Gmail** — falling through only on failure. With none configured, mail is silently not sent. Setup, verification, and troubleshooting are in [Email](/platform/self-hosting/email).
-
-| Provider | Variables |
-|----------|-----------|
-| Shared | `FROM_EMAIL_ADDRESS`, `EMAIL_DOMAIN`, `EMAIL_VERIFICATION_ENABLED` |
-| Resend | `RESEND_API_KEY` |
-| AWS SES | `AWS_SES_REGION` (credentials via the AWS provider chain) |
-| SMTP | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `SMTP_EHLO_NAME` |
-| Azure ACS | `AZURE_ACS_CONNECTION_STRING` |
-| Gmail | `GMAIL_CREDENTIALS_JSON`, `GMAIL_SENDER` |
+Configure at least one. Every configured provider stays active and is tried in order — **Resend → AWS SES → SMTP → Azure Communication Services → Gmail** — falling through only on failure. With none configured, mail is silently not sent. The variables for each provider, plus setup, verification, and troubleshooting, are in [Email](/platform/self-hosting/email).
 
 ## Limits
 

@@ -1,0 +1,123 @@
+---
+title: Sandboxes
+description: Configure the remote execution provider and Function base image that Python, Shell, and imported JavaScript run on
+---
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Function blocks run in one of two places. JavaScript with no `import` or `require` runs in a local isolated VM and needs nothing configured — unless the block selects a sandbox, or references a file path from another block or a sandbox output path. Selecting a sandbox with no provider configured is refused with a **503**; the file-path cases need the sandbox filesystem and are refused with a **422**. Failing user code is also 422, so a 503 always means the deployment rather than the code. Python, Shell, JavaScript that imports, and custom workspace sandboxes run on a remote provider, and that provider needs both credentials and a dedicated Function base image.
+
+Until the base image is configured, those languages fail with an explicit configuration error rather than falling back. A saved Python block is never silently serialized or executed as JavaScript.
+
+## Flags
+
+| Variable | Purpose |
+| --- | --- |
+| `SANDBOXES_ENABLED` | Grants the server-side self-hosted entitlement |
+| `NEXT_PUBLIC_SANDBOXES_ENABLED` | Projects provider readiness to the browser and exposes Shell plus custom sandbox management |
+
+Set the public flag only after the selected provider has credentials and a valid immutable Function base. It advertises a capability to the browser; setting it early surfaces controls that cannot work.
+
+## Building the Function base
+
+Build the base image before enabling the UI. Custom workspace sandboxes layer their packages on top of it.
+
+<Tabs items={['E2B', 'Daytona']}>
+  <Tab value="E2B">
+
+```bash
+E2B_API_KEY=... \
+  bun run apps/sim/scripts/build-function-e2b-template.ts \
+  --name sim-function
+```
+
+The builder uses E2B's maintained `code-interpreter-v1` base, assigns a fresh release generation, and prints both runtime values:
+
+```bash
+SANDBOX_PROVIDER=e2b
+E2B_ENABLED=true
+E2B_API_KEY=...
+E2B_FUNCTION_TEMPLATE_ID=<sim-function-template>:<sim-function-build-id>
+E2B_FUNCTION_TEMPLATE_GENERATION=<release-epoch-ms>
+SANDBOXES_ENABLED=true
+NEXT_PUBLIC_SANDBOXES_ENABLED=true
+```
+
+`--generation` remains available for release automation, and `--base-template` accepts an immutable base override when a deployment deliberately owns one.
+
+  </Tab>
+  <Tab value="Daytona">
+
+The API key needs `write:snapshots` to build and `write:sandboxes` to execute.
+
+The builder pins Daytona's packages to an accepted E2B manifest, so build the E2B template first and capture its manifest with the verification step under [Promoting a build](#promoting-a-build) — `--parity-manifest` expects that file to exist.
+
+```bash
+DAYTONA_API_KEY=... \
+  bun run apps/sim/scripts/build-function-daytona-snapshot.ts \
+  --name sim-function-2026-08-03 \
+  --parity-manifest /tmp/function-sandbox-manifest.json
+```
+
+Use the immutable snapshot ID the builder prints:
+
+```bash
+SANDBOX_PROVIDER=daytona
+DAYTONA_API_KEY=...
+DAYTONA_FUNCTION_SNAPSHOT_ID=<snapshot-uuid>
+SANDBOXES_ENABLED=true
+NEXT_PUBLIC_SANDBOXES_ENABLED=true
+```
+
+  </Tab>
+</Tabs>
+
+<Callout type="warn">
+  `E2B_FUNCTION_TEMPLATE_ID` and `DAYTONA_FUNCTION_SNAPSHOT_ID` fail closed when unset or mutable. The E2B value must be an exact `<template>:<build-id>` ref, and `E2B_FUNCTION_TEMPLATE_GENERATION` must be the monotonic value printed by the same build. The Daytona value must be a snapshot ID, not a name.
+</Callout>
+
+## Promoting a build
+
+Use E2B as the release baseline before building or promoting Daytona.
+
+```bash
+# 1. Verify the exact E2B Function build and capture its accepted package/runtime surface.
+E2B_ENABLED=true \
+E2B_API_KEY=... \
+E2B_FUNCTION_TEMPLATE_ID=<sim-function-template>:<sim-function-build-id> \
+E2B_FUNCTION_TEMPLATE_GENERATION=<release-epoch-ms> \
+SANDBOX_PARITY_MANIFEST_OUT=/tmp/function-sandbox-manifest.json \
+  bun run apps/sim/scripts/verify-sandbox-parity.ts
+
+# 2. Pin Daytona's reconstructed packages to that accepted E2B manifest.
+DAYTONA_API_KEY=... \
+  bun run apps/sim/scripts/build-function-daytona-snapshot.ts \
+  --name sim-function-2026-08-03 \
+  --parity-manifest /tmp/function-sandbox-manifest.json
+
+# 3. Verify the immutable Daytona snapshot against the same baseline before promotion.
+SANDBOX_PROVIDER=daytona \
+DAYTONA_API_KEY=... \
+DAYTONA_FUNCTION_SNAPSHOT_ID=<snapshot-uuid> \
+SANDBOX_PARITY_MANIFEST_BASELINE=/tmp/function-sandbox-manifest.json \
+  bun run apps/sim/scripts/verify-sandbox-parity.ts
+```
+
+<Callout type="info">
+  Assign every promoted E2B Function base a generation greater than every prior deployment. A rollback is a new promotion and therefore also needs a new, higher generation — do not reuse the generation from the older release.
+</Callout>
+
+## Code tools in Chat
+
+The `function_execute` and `run_code` tools use a separate shell image, including for JavaScript without imports. If your deployment uses those tools, configure that image for the selected provider as well:
+
+```bash
+# E2B
+MOTHERSHIP_E2B_TEMPLATE_ID=<shell-template-ref>
+
+# Daytona
+DAYTONA_SHELL_SNAPSHOT_ID=<shell-snapshot-ref>
+```
+
+These values are selected only for code-tool calls. They never replace or act as a fallback for `E2B_FUNCTION_TEMPLATE_ID` or `DAYTONA_FUNCTION_SNAPSHOT_ID` — the shell, Function, document, and Pi images have separate package contracts and release cadences.

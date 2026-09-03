@@ -4,7 +4,6 @@ description: Login providers, SSO, and controlling who can sign up
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
 
 ## Required configuration
 
@@ -57,7 +56,7 @@ DISABLE_MICROSOFT_AUTH=true
 ```
 
 <Callout type="info">
-  `GOOGLE_CLIENT_ID` and `MICROSOFT_CLIENT_ID` are shared with the integration connectors. One app registration can serve both login and integrations — just register both sets of redirect URIs. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
+  `GOOGLE_CLIENT_ID` and `MICROSOFT_CLIENT_ID` are shared with the integration connectors. One app registration can serve both login and integrations — register the login callback (`/api/auth/callback/google`) alongside the connector callbacks (`/api/auth/oauth2/callback/google-email` and friends) on the same OAuth client. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
 </Callout>
 
 ## SSO (SAML and OIDC)
@@ -76,7 +75,7 @@ SSO_ENABLED=true
 NEXT_PUBLIC_SSO_ENABLED=true
 ```
 
-Providers are then registered in the app under **Settings → Enterprise → Single Sign-On**. A provider can be scoped to an organization or registered without one. Most other enterprise features do read their settings from the organization that owns a workspace, so a deployment using them still needs an organization model — set `INSTANCE_ORG_NAME` to place every user in one shared organization, or provision organizations through the Admin API.
+Providers are then registered in the app under **Settings → Organization → SSO**. A provider can be scoped to an organization or registered without one. Most other enterprise features do read their settings from the organization that owns a workspace, so a deployment using them still needs an organization model — set `INSTANCE_ORG_NAME` to place every user in one shared organization, or provision organizations through the Admin API.
 
 See the [SSO guide](/platform/enterprise/sso) for identity-provider setup and the [self-hosted enterprise guide](/platform/enterprise/self-hosted) for the organization patterns.
 
@@ -89,6 +88,7 @@ See the [SSO guide](/platform/enterprise/sso) for identity-provider setup and th
 | `ALLOWED_LOGIN_DOMAINS` | Comma-separated domain allowlist, e.g. `acme.com,acme.co.uk`. Gates email sign-**in** as well as signup |
 | `ALLOWED_LOGIN_EMAILS` | Comma-separated address allowlist, applied the same way |
 | `BLOCKED_SIGNUP_DOMAINS` | Comma-separated domain blocklist |
+| `BLOCKED_EMAILS` | Comma-separated address blocklist. Bans the address from the platform outright — signup, sign-in, and workflow executions |
 | `SIGNUP_MX_VALIDATION_ENABLED=true` | Reject domains with no MX record or a denylisted mail backend |
 | `BLOCKED_EMAIL_MX_HOSTS` | MX-host substrings to block; used only with the above |
 
@@ -140,10 +140,3 @@ Bypasses authentication and creates an anonymous session for every request.
 | `ADMIN_API_KEY` | Enables the Admin API for GitOps operations and organization provisioning |
 
 The `NEXT_PUBLIC_` twin controls what the UI shows; the server-side variable enforces it. Set both.
-
-<FAQ items={[
-  { question: "Sign-in redirects in a loop. What is wrong?", answer: "BETTER_AUTH_URL or NEXT_PUBLIC_APP_URL does not match the origin users are browsing. Both must be the exact public URL including scheme, with no trailing slash. This is the single most common authentication misconfiguration."},
-  { question: "Realtime rejects my session even though I am logged in.", answer: "BETTER_AUTH_SECRET differs between the app and realtime services. They share sessions through the database, so the secret must be byte-identical on both."},
-  { question: "Can I use one Google app for both login and the Gmail integration?", answer: "Yes. GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET power both. Register the login callback (/api/auth/callback/google) alongside the connector callbacks (/api/auth/oauth2/callback/google-email and friends) on the same OAuth client."},
-  { question: "Why do some settings have a NEXT_PUBLIC_ twin?", answer: "The server-side variable enforces the behavior; the NEXT_PUBLIC_ variable tells the browser UI what to render. Setting only one produces a UI that disagrees with the server, so set both." },
-]} />

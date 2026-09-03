@@ -18,7 +18,7 @@ Both are configured once at the **organization level** and apply to every worksp
 
 ## Setup
 
-Go to **Settings → Enterprise → Data Retention** in your workspace.
+Go to **Settings → Organization → Data retention** in your workspace.
 
 <Image src="/static/enterprise/data-retention.png" alt="Data Retention settings showing the Retention policies list with the Organization default row and its summary of retention periods and PII stages" width={900} height={537} />
 
@@ -97,12 +97,12 @@ The **Workflow input** and **Block outputs** stages alter what the workflow comp
 
 For each stage, choose the **entity types** to redact from the searchable grid. They are grouped as:
 
-- **Common** — person name, email, phone, credit card, IP address, URL, IBAN, crypto wallet, medical license, VIN
+- **Common** — person name, email, phone, credit card, IP address, location, date or time, URL, IBAN, crypto wallet, nationality/religious/political group, medical license, VIN
 - **United States** — SSN, passport, driver's license, bank account, ITIN
 - **United Kingdom** — NHS number, National Insurance number
-- **Other regions** — Singapore, Australian, and Indian identifiers
+- **Other regions** — Spanish (NIF, NIE), Italian (fiscal code, driver's licence, VAT code, passport, identity card), Polish (PESEL), Singaporean (NRIC/FIN, UEN), Australian (ABN, ACN, TFN, Medicare), Indian (PAN, Aadhaar, vehicle registration, voter ID, passport), and Finnish (personal identity code) identifiers
 
-The **Block outputs** stage is restricted to regex- and checksum-based recognizers, so it can run in-flight over large payloads without a performance penalty. Types that need name-model detection — person name, location, date or time — are not offered for that stage.
+The **Block outputs** stage is restricted to regex- and checksum-based recognizers, so it can run in-flight over large payloads without a performance penalty. Types that need name-model detection — person name, location, date or time, and nationality/religious/political group — are not offered for that stage.
 
 Detection is language-aware: pick the **language** whose recognizers should apply. English, Spanish, Italian, Polish, and Finnish are supported, and the grid filters to the identifiers available for the selected language.
 
@@ -167,7 +167,7 @@ By default, retention settings are unconfigured — no data is automatically del
   },
   {
     question: "What is the maximum retention period?",
-    answer: "5 years."
+    answer: "5 years, or Forever — the same option list applies to all three settings."
   }
 ]} />
 
@@ -182,7 +182,30 @@ NEXT_PUBLIC_DATA_RETENTION_ENABLED=true
 DATA_RETENTION_ENABLED=true
 ```
 
-Once enabled, retention settings are configurable through **Settings → Enterprise → Data Retention** the same way as Sim Cloud.
+Once enabled, retention settings are configurable through **Settings → Organization → Data retention** the same way as Sim Cloud.
+
+### Scheduling the deletion pass
+
+`DATA_RETENTION_ENABLED` permits deletion; it does not perform it. Deletion runs when a scheduled request reaches one of three endpoints, each authenticated with a bearer token equal to `CRON_SECRET`:
+
+| Category | Endpoint |
+|----------|----------|
+| Execution and job logs | `GET /api/logs/cleanup` |
+| Soft-deleted resources | `GET /api/cron/cleanup-soft-deletes` |
+| Chats and Chat runs | `GET /api/cron/cleanup-tasks` |
+
+<Callout type="warn">
+Neither shipped deployment schedules these three endpoints — not the Helm chart, not Docker Compose's `cron` service. An operator who sets `DATA_RETENTION_ENABLED=true` alone still deletes nothing. Add them to `cronjobs.jobs`, or call them daily from an external scheduler.
+</Callout>
+
+```bash
+# Use the value already configured as CRON_SECRET on the app — a token
+# generated here and not installed there returns 401.
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  https://sim.example.com/api/logs/cleanup
+```
+
+Each call fans the work out as background jobs. Trigger.dev is not required: when it is not configured the dispatcher runs the cleanup chunks inline instead of enqueuing them, so deletion completes on a default self-host.
 
 ### PII redaction
 
@@ -190,7 +213,10 @@ PII redaction runs against a standalone [Presidio](https://microsoft.github.io/p
 
 ```bash
 # The Presidio service exposing /analyze and /anonymize
-PII_URL=http://localhost:5001
+# Helm — substitute your release name and namespace
+PII_URL=http://<release>-pii.<namespace>.svc.cluster.local:5001
+# Docker Compose — the PII service name on your network
+# PII_URL=http://pii:5001
 ```
 
-All PII stages are configurable under **Settings → Enterprise → Data Retention**.
+All PII stages are configurable under **Settings → Organization → Data retention**.

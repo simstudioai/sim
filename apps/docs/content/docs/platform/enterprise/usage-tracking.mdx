@@ -45,7 +45,7 @@ Selecting a workspace opens its detail view, which splits that workspace's usage
 
 <Image src="/static/enterprise/usage-tracking-workspace-detail.png" alt="A workspace's detail view with a Sources section listing Sim Chat and Workflow, and a Workflows section ranking individual workflows by credits" width={900} height={598} />
 
-The two sections answer different questions, and the difference is the point: **Sources** adds up to the workspace's total, while **Workflows** covers only the workflow-run part of it. In the example above, Sources totals 4,435 credits but the workflows list only accounts for the 161 credits under Workflow — the other 4,274 came from Chat, which no workflow produced.
+**Sources** adds up to the workspace's total, while **Workflows** covers only the workflow-run part of it. In the example above, Sources totals 4,435 credits but the workflows list only accounts for the 161 credits under Workflow — the other 4,274 came from Chat, which no workflow produced.
 
 ---
 
@@ -63,6 +63,7 @@ A **source** is the part of the platform that consumed the credits. Every charge
 | **Enrichment** | Table column enrichment |
 | **Voice input** | Voice sessions |
 | **Voice output** | Spoken responses in deployed chats |
+| **API tool call** | A hosted-key tool invoked directly through the tool execution API, outside any workflow run |
 | **Sim Chat (MCP)** | Retired. Appears only for historical periods |
 
 ### Nuances worth knowing
@@ -77,11 +78,13 @@ These follow from how charges are recorded, and they explain most questions abou
 
 **Only workflow runs carry workflow attribution.** Chat, Agent block, Wand, Knowledge Base, and voice usage are not produced by a workflow and have no workflow attached. That is the gap between a workspace's **Sources** and **Workflows** sections shown above.
 
+**Hosted-key tool calls bill in two places, depending on who made them.** A hosted-key tool called *inside* a workflow run is folded into that run and appears under **Workflow**. The same tool called directly through the tool execution API belongs to no run, so it records under **API tool call** instead.
+
 **Some usage has no workspace.** Agent calls made through the API may not name a workspace, particularly from headless or self-hosted callers. That usage is grouped under **No workspace** on the Workspaces tab. It is still counted in your total.
 
 **Models excludes non-model charges.** The Models tab covers model usage only, so it will read lower than your period total — the difference is per-run base charges, hosted-key tool charges, and fixed charges such as voice sessions.
 
-<Callout type="warning">
+<Callout type="warn">
   Each tab is a different slice of the same charges, not an additional set of them. Members, Workspaces, and Sources each add up to your period total on their own; adding two tabs together double-counts.
 </Callout>
 

@@ -5,15 +5,8 @@ description: Deploy Sim on your own infrastructure
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
 
 Deploy Sim on your own infrastructure with Docker or Kubernetes.
-
-<div className="flex gap-2 my-4">
-  <a href="https://cursor.com/link/prompt?text=Help%20me%20set%20up%20Sim%20locally.%20Follow%20these%20steps%3A%0A%0A1.%20First%2C%20verify%20Docker%20is%20installed%20and%20running%3A%0A%20%20%20docker%20--version%0A%20%20%20docker%20info%0A%0A2.%20Clone%20the%20repository%3A%0A%20%20%20git%20clone%20https%3A%2F%2Fgithub.com%2Fsimstudioai%2Fsim.git%0A%20%20%20cd%20sim%0A%0A3.%20Generate%20required%20secrets%20%28the%20stack%20will%20not%20start%20without%20them%29%3A%0A%20%20%20cat%20%3E%20.env%20%3C%3C%20EOF%0A%20%20%20BETTER_AUTH_SECRET%3D%24%28openssl%20rand%20-hex%2032%29%0A%20%20%20ENCRYPTION_KEY%3D%24%28openssl%20rand%20-hex%2032%29%0A%20%20%20INTERNAL_API_SECRET%3D%24%28openssl%20rand%20-hex%2032%29%0A%20%20%20CRON_SECRET%3D%24%28openssl%20rand%20-hex%2032%29%0A%20%20%20EOF%0A%0A4.%20Start%20the%20services%20with%20Docker%20Compose%3A%0A%20%20%20docker%20compose%20-f%20docker-compose.prod.yml%20up%20-d%0A%0A4.%20Wait%20for%20all%20containers%20to%20be%20healthy%20(this%20may%20take%201-2%20minutes)%3A%0A%20%20%20docker%20compose%20-f%20docker-compose.prod.yml%20ps%0A%0A5.%20Verify%20the%20app%20is%20accessible%20at%20http%3A%2F%2Flocalhost%3A3000%0A%0AIf%20there%20are%20any%20errors%2C%20help%20me%20troubleshoot%20them.%20Common%20issues%3A%0A-%20Port%203000%2C%203002%2C%20or%205432%20already%20in%20use%0A-%20Docker%20not%20running%0A-%20Insufficient%20memory%20(needs%2012GB%2B%20RAM)%0A%0AFor%20local%20AI%20models%20with%20Ollama%2C%20use%20this%20instead%20of%20step%203%3A%0A%20%20%20docker%20compose%20-f%20docker-compose.ollama.yml%20--profile%20setup%20up%20-d">
-    <img src="https://img.shields.io/badge/Set%20Up%20with-Cursor-000000?logo=cursor&logoColor=white" alt="Set Up with Cursor" />
-  </a>
-</div>
 
 ## Requirements
 
@@ -29,7 +22,7 @@ Deploy Sim on your own infrastructure with Docker or Kubernetes.
 **Production**: Large teams (50+ users), high availability, heavy workflow execution
 
 <Callout type="info">
-Resource requirements are driven by workflow execution (isolated-vm sandboxing), file processing (in-memory document parsing), and vector operations (pgvector). Memory is typically the constraining factor rather than CPU — both the Helm chart and the compose file request 4 Gi for the app and cap it at 8 Gi.
+Resource requirements are driven by workflow execution (isolated-vm sandboxing), file processing (in-memory document parsing), and vector operations (pgvector). Memory is typically the constraining factor rather than CPU. The Helm chart requests 4 Gi for the app and caps it at 8 Gi; `docker-compose.prod.yml` sets only an 8 GB limit, with no reservation.
 </Callout>
 
 ## Quick Start
@@ -41,6 +34,7 @@ cat > .env << EOF
 BETTER_AUTH_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 INTERNAL_API_SECRET=$(openssl rand -hex 32)
+API_ENCRYPTION_KEY=$(openssl rand -hex 32)
 CRON_SECRET=$(openssl rand -hex 32)
 EOF
 
@@ -69,12 +63,12 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ### Which one to pick
 
-Both deploy the same feature set. Docker Compose is the fastest way to evaluate Sim and is fine for a single-node team install; Kubernetes is the path for high availability and managed secrets.
+Docker Compose and Kubernetes run the same application; what differs is the operational envelope around it, which the table below sets out. Cloud Platforms covers provider-specific notes for either. Docker Compose is the fastest way to evaluate Sim and is fine for a single-node team install; Kubernetes is the path for high availability and managed secrets.
 
 | Capability | Docker Compose | Kubernetes (Helm) |
 |---|---|---|
 | App, realtime, migrations, Postgres, Redis | Yes | Yes |
-| Scheduled workflows and polling triggers | Yes — `cron` service | Yes — 18 CronJobs |
+| Scheduled workflows and polling triggers | Yes — `cron` service | Yes — 22 CronJobs |
 | Horizontal scaling / HA | No (single node) | Yes (`replicaCount`, HPA, PDB) |
 | Managed secrets (Vault, ESO, cloud KMS) | Manual `.env` | Yes |
 | Network policy, Pod Security Standards | Host-level only | Yes |
@@ -119,10 +113,4 @@ Sim is self-contained for the core editor and execution engine. A few features r
 | **Agent blocks** | An API key for at least one model provider | Or a self-hosted OpenAI-compatible endpoint: Ollama, vLLM, LM Studio, or LiteLLM. |
 | **Chat module** | `COPILOT_API_KEY` from sim.ai | Set `NEXT_PUBLIC_CHAT_DISABLED=true` to hide the module instead. |
 | **Integrations** | Your own OAuth app per service | See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). |
-| **Remote Function / Pi execution** | Optional E2B or Daytona key | Without one, JavaScript Function code that has no `import` or `require` still runs in the in-process isolated VM. Python, Shell, JavaScript with external imports, custom Function Sandboxes, and Pi require a configured remote provider. See [Security](/platform/self-hosting/security). |
-
-<FAQ items={[
-  { question: "What are the minimum requirements to self-host Sim?", answer: "At minimum you need 2 CPU cores, 12 GB RAM, 20 GB SSD storage, and Docker 20.10 or later. Memory is typically the constraining factor due to workflow execution (isolated-vm sandboxing), file processing, and vector operations (pgvector)."},
-  { question: "What are the required environment variables for production?", answer: "Three secrets are required: BETTER_AUTH_SECRET (authentication), ENCRYPTION_KEY (data encryption), and INTERNAL_API_SECRET (service-to-service auth). Generate each with openssl rand -hex 32. You also need to set NEXT_PUBLIC_APP_URL and BETTER_AUTH_URL to your domain."},
-  { question: "Can I use Sim with local AI models?", answer: "Yes. Sim supports Ollama for local model inference. Use docker-compose.ollama.yml instead of docker-compose.prod.yml. It offers both GPU (with NVIDIA support) and CPU-only profiles, and automatically pulls gemma3:4b as a starter model." },
-]} />
+| **Remote Function / Pi execution** | Optional E2B or Daytona key, plus a Function base image | Plain JavaScript — no `import` or `require` — runs in the in-process isolated VM with nothing configured. Everything else needs both a provider key and an immutable Function base image: Python, Shell, imported JavaScript, custom Function Sandboxes, and any block that selects a sandbox or references a file path. Pi uses a separate image again, pinned with `E2B_PI_TEMPLATE_ID` or `DAYTONA_PI_SNAPSHOT_ID`. See [Sandboxes](/platform/self-hosting/sandboxes). |

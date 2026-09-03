@@ -13,7 +13,7 @@ Access Control lets organization admins define permission groups that restrict w
 
 ## How it works
 
-Access control is built around **permission groups**. Each group belongs to a specific organization and has a name, an optional description, a **workspace scope**, an optional **member** list, and a configuration that defines what its members can and cannot do. The organization's single **default group** is org-wide; every other group targets a **specific set of workspaces**. A non-default group with **no members** governs **all members** of its workspaces (including external members); adding members narrows it to only those people. Personal workspaces that do not belong to an organization have no permission groups.
+Each group belongs to a specific organization and has a name, an optional description, a **workspace scope**, an optional **member** list, and a configuration that defines what its members can and cannot do. Personal or grandfathered workspaces that do not belong to an organization have no permission groups.
 
 Sim resolves the governing group for a user in a workspace deterministically:
 
@@ -27,15 +27,15 @@ Assignment-time checks keep this unambiguous: a workspace has at most one all-me
 When a user runs a workflow or uses Chat, Sim reads the resolved group's configuration and applies it:
 
 - **In the executor:** If a workflow uses a disallowed block type or model provider, execution halts immediately with an error. This applies to both manual runs and scheduled or API-triggered deployments.
-- **In Chat:** Disallowed blocks are filtered out of the block list so they cannot be added to a workflow. Disallowed tool types (MCP, custom tools, skills) are skipped if Sim attempts to use them.
+- **In Chat:** Disallowed blocks are filtered out of the block list so they cannot be added to a workflow. Disallowed tool types (MCP, custom tools, skills) are **not** filtered during generation — Sim is told about the restriction but may still produce a step that uses one. Such a run fails at execution with an error naming the restriction.
 
 ---
 
 ## Setup
 
-### 1. Open Access Control settings
+### 1. Open Permission groups settings
 
-Go to **Settings → Enterprise → Access Control** from any workspace in your organization. Permission groups are defined once at the organization level and apply to every workspace under it. Only organization owners and admins can manage them.
+Go to **Settings → Organization → Permission groups** from any workspace in your organization. Permission groups are defined once at the organization level and apply to every workspace under it. Only organization owners and admins can manage them.
 
 <Image src="/static/enterprise/access-control-groups.png" alt="Access Control settings showing a list of permission groups: Contractors, Sales, Engineering, and Marketing, each with Details and Delete actions" width={900} height={477} />
 
@@ -45,29 +45,41 @@ Click **+ Create** and enter a name (required) and optional description. A group
 
 ### 3. Configure permissions
 
-Click **Details** on a group, then open **Configure Permissions**. Non-default groups have a **Members** tab plus three restriction tabs; the default group has only the restriction tabs.
+Click **Details** on a group to open its configuration. It has four tabs — **General**, **Model Providers**, **Blocks**, and **Platform**. Name, description, and the permission settings are buffered until you save; the workspace scope, the default-group switch, and member changes are applied immediately, so **Discard** does not undo them.
 
-#### Members
+Throughout the editor, a **checked** box means allowed. Clearing a checkbox is what applies a restriction.
 
-A workspace-scoped group with **no members** applies to everyone in its workspaces (including external members). Add members here — searching your organization by name or email — to restrict the group to only those people; removing every member returns it to governing everyone. The default group ignores members and has no Members tab.
+#### General
+
+Holds the group's **Name** and **Description**, the **Default group** switch, the **Workspaces** the group governs, and its **Members**.
+
+A workspace-scoped group with **no members** applies to everyone in its workspaces (including external members). Add members here — searching your organization by name or email — to restrict the group to only those people; removing every member returns it to governing everyone. The default group ignores members and governs every workspace in the organization.
 
 #### Model Providers
 
 Controls which AI model providers members of this group can use.
 
-<Image src="/static/enterprise/access-control-model-providers.png" alt="Model Providers tab showing a grid of AI providers including Ollama, vLLM, OpenAI, Anthropic, Google, Azure OpenAI, and others with checkboxes to allow or restrict access" width={900} height={430} /> The list shows all providers available in Sim.
+<Image src="/static/enterprise/access-control-model-providers.png" alt="Model Providers tab showing a grid of AI providers including Ollama, vLLM, OpenAI, Anthropic, Google, Azure OpenAI, and others with checkboxes to allow or restrict access" width={900} height={430} />
+
+The list shows all providers available in Sim.
 
 - **All checked (default):** All providers are allowed.
 - **Subset checked:** Only the selected providers are allowed. Any workflow block or agent using a provider not on the list will fail at execution time.
+
+Expand a provider row to reach its **model denylist**. Clearing individual models blocks exactly those models while leaving the rest of the provider available — useful when a provider is sanctioned but a specific model is not.
 
 #### Blocks
 
 Controls which workflow blocks members can place and execute.
 
-<Image src="/static/enterprise/access-control-blocks.png" alt="Blocks tab showing Core Blocks (Agent, API, Condition, Function, Knowledge, etc.) and Tools (integrations like 1Password, Ahrefs, Airtable, and more) with checkboxes to allow or restrict each" width={900} height={634} /> Blocks are split into two sections: **Core Blocks** (Agent, API, Condition, Function, etc.) and **Tools** (all integration blocks).
+<Image src="/static/enterprise/access-control-blocks.png" alt="Blocks tab showing Core Blocks (Agent, API, Condition, Function, Knowledge, etc.) and Tools (integrations like 1Password, Ahrefs, Airtable, and more) with checkboxes to allow or restrict each" width={900} height={634} />
+
+Blocks are split into two sections: **Core Blocks** (Agent, API, Condition, Function, etc.) and **Tools** (all integration blocks).
 
 - **All checked (default):** All blocks are allowed.
 - **Subset checked:** Only the selected blocks are allowed. Workflows that already contain a disallowed block will fail when run — they are not automatically modified.
+
+Expand an integration block to reach its **tool denylist**. Clearing individual tools blocks those operations while leaving the rest of the integration usable — for example, allowing a member to read from a service but not to delete in it.
 
 <Callout type="info">
   The `start_trigger` block (the entry point of every workflow) is always allowed and cannot be restricted.
@@ -75,75 +87,106 @@ Controls which workflow blocks members can place and execute.
 
 #### Platform
 
-Controls visibility of platform features and modules.
+Controls the modules, actions, and credentials available to group members. Every row refuses at the API, not only in the UI — clearing a box revokes the access; it does not merely hide a tab.
 
-<Image src="/static/enterprise/access-control-platform.png" alt="Platform tab showing feature toggles grouped by category: Sidebar (Knowledge Base, Tables), Workflow Panel (Copilot), Settings Tabs, Tools, Deploy Tabs, Features, Logs, and Collaboration" width={900} height={566} /> Each checkbox maps to a specific feature; checking it hides or disables that feature for group members.
+<Image src="/static/enterprise/access-control-platform.png" alt="Platform tab showing feature toggles grouped by category" width={900} height={566} />
 
-**Sidebar**
+**Modules**
 
-| Feature | Effect when checked |
-|---------|-------------------|
-| Knowledge Base | Hides the Knowledge Base section from the sidebar |
-| Tables | Hides the Tables section from the sidebar |
+| Feature | What clearing it withholds |
+|---------|---------------------------|
+| Chat | Revokes Chat. Members cannot ask Sim to build or edit anything. |
+| Sim Mailer | Revokes the Sim Mailer inbox. Members cannot read or send mail. |
 
-**Workflow Panel**
+**Knowledge Base**
 
-| Feature | Effect when checked |
-|---------|-------------------|
-| Copilot | Hides the Copilot panel inside the workflow editor |
+| Feature | What clearing it withholds |
+|---------|---------------------------|
+| Knowledge Base | Revokes the Knowledge Base module. Members cannot open, search, or query any knowledge base. |
+| Knowledge Base Creation | Prevents creating knowledge bases, leaving existing ones queryable. |
+| Knowledge Base Uploads | Prevents uploading local documents, leaving sanctioned connectors as the only source. |
 
-**Settings Tabs**
+The **Knowledge Base** row also carries a **connector allowlist** — *Connectors knowledge bases may sync from*. Leave it untouched to allow every connector, or select a subset to limit which external sources a knowledge base may sync.
 
-| Feature | Effect when checked |
-|---------|-------------------|
-| Integrations | Hides the Integrations tab in Settings |
-| Secrets | Hides the Secrets tab in Settings |
-| API Keys | Hides the Sim Keys tab in Settings |
-| Files | Hides the Files tab in Settings |
+**Tables**
+
+| Feature | What clearing it withholds |
+|---------|---------------------------|
+| Tables | Revokes the Tables module. Members cannot read or write any table. |
+| Table Creation | Prevents creating tables, leaving existing ones usable. |
+| Table Export | Prevents downloading a whole table as CSV or JSON. |
+
+**Files**
+
+| Feature | What clearing it withholds |
+|---------|---------------------------|
+| Files | Revokes the Files module. Members cannot list, upload, or download workspace files. |
+| Public Sharing | Revokes public file sharing. Members cannot create a share link. |
+| Bulk Download | Prevents downloading folders as an archive. |
+
+The **Public Sharing** row also carries an **auth-mode allowlist** — *Auth modes public file-share links may use* (Anyone with link, Password, Email, SSO). Select a subset to force share links onto stronger authentication.
+
+**Deployment**
+
+| Feature | What clearing it withholds |
+|---------|---------------------------|
+| Public API | Revokes public API access. Calls to a deployed workflow are refused. |
+| API Deployment | Prevents deploying a workflow as an API endpoint. |
+| MCP Server | Prevents exposing a workflow as an MCP server. |
+| Chat Deployment | Prevents publishing a workflow as a chat. |
+| Webhook Triggers | Prevents making a workflow reachable from an inbound webhook. |
+
+The **Chat Deployment** row also carries an **auth-mode allowlist** — *Auth modes chat deployments may use* (Public, Password, Email, SSO).
 
 **Tools**
 
-| Feature | Effect when checked |
-|---------|-------------------|
-| MCP Tools | Disables the use of MCP tools in workflows and agents |
-| Custom Tools | Disables the use of custom tools in workflows and agents |
-| Skills | Disables the use of Sim Skills in workflows and agents |
-
-**Deploy Tabs**
-
-| Feature | Effect when checked |
-|---------|-------------------|
-| API | Hides the API deployment tab |
-| MCP | Hides the MCP deployment tab |
-| Chat | Hides the Chat deployment tab |
-| Template | Hides the Template deployment tab |
-
-**Features**
-
-| Feature | Effect when checked |
-|---------|-------------------|
-| Sim Mailer | Hides the Sim Mailer (Inbox) feature |
-| Public API | Disables public API access for deployed workflows |
+| Feature | What clearing it withholds |
+|---------|---------------------------|
+| MCP Tools | Blocks agents from calling MCP tools. |
+| Custom Tools | Blocks agents from calling user-defined custom tools. |
+| Skills | Blocks agents from loading skills. |
+| Tool Auto-Approval | Prevents auto-approving tool calls, so every call must be confirmed. |
 
 **Logs**
 
-| Feature | Effect when checked |
-|---------|-------------------|
-| Trace Spans | Hides trace span details in execution logs |
+| Feature | What clearing it withholds |
+|---------|---------------------------|
+| Trace Spans | Withholds per-block trace spans from logs and from the API. |
+| Log Export | Prevents downloading execution logs as a CSV. |
+| Execution Cost | Withholds execution cost. Logs and member exports omit cost and token spend; organization-level data drains, configurable by org admins only, are not projected. |
 
 **Collaboration**
 
-| Feature | Effect when checked |
-|---------|-------------------|
-| Invitations | Disables the ability to invite new members to the workspace |
+| Feature | What clearing it withholds |
+|---------|---------------------------|
+| Invitations | Prevents inviting anyone to a workspace or to the organization. |
+| Workspace Creation | Prevents creating new workspaces. A new one is not covered by any workspace-scoped group until you add it, though the organization's default group still governs it. |
+| Member Directory | Withholds the member directory. Members cannot see the names or email addresses of other members. Organization owners and admins keep access — the roster routes exempt those roles. |
+
+**Credentials & Access**
+
+| Feature | What clearing it withholds |
+|---------|---------------------------|
+| Integrations | Revokes integration connections. Members cannot view, add, or remove an OAuth connection. |
+| Secrets | Revokes secrets. Members cannot read, add, or change a workspace environment variable. |
+| API Keys | Revokes workspace API keys. Members cannot list, create, or revoke one. |
+| Personal API Keys | Prevents members from using a personal API key against this workspace. |
+| Personal Credentials | Prevents connecting personal credentials, leaving only workspace-shared ones. |
+| CLI Access | Prevents approving a CLI login, which mints a key for the public API. |
+
+##### Rows read from the organization default group
+
+Two rows — **Workspace Creation** and **Member Directory** — are read only from the organization's **default group**, because the act they govern names no workspace. On any other group the editor renders them inert, tags them **Organization**, and skips them in **Select All**. Set them on the default group.
+
+Five more rows — **Integrations**, **API Keys**, **Invitations**, **Personal API Keys**, and **CLI Access** — apply on the group in front of you for anything scoped to one of its workspaces. The account-level path of the same action falls back to the default group: minting a personal key, an organization-wide invitation, an account-level CLI login. To close one of these completely, set it on the default group as well.
 
 ### 4. Choose who it applies to
 
-A workspace-scoped group applies to **all members of its workspaces by default** — including external members. To restrict it to specific people instead, open **Configure Permissions → Members** and add members by searching your organization by name or email. Removing every member returns the group to governing everyone in its workspaces.
-
 A user is governed by one group per workspace, so adding a user is rejected when it would conflict with another of their groups on a shared workspace (skipped rather than added in bulk). The default group ignores members entirely — it always governs everyone not covered by a workspace group.
 
-Manage which workspaces a group governs from the **Workspaces** list in the group's **Details** view (Add and Remove). A non-default group is created targeting at least one workspace, but you can later remove all of them — a group with no workspaces simply governs nothing until you add one back.
+A workspace also has at most one all-members group. Adding a workspace to a group, or removing a group's last member, is rejected when doing so would violate that — memberships and scopes are never silently moved.
+
+Manage which workspaces a group governs from the **Workspaces** list on the same **General** tab. A non-default group is created targeting at least one workspace, but you can later remove all of them — a group with no workspaces simply governs nothing until you add one back.
 
 External workspace members (people who have access to a workspace but belong to a different organization) can't be added as named members, but a workspace-scoped group with no members — and the organization default group — still governs them.
 
@@ -166,46 +209,18 @@ This applies regardless of how the workflow is triggered — manually, via API, 
 When a user opens Chat, their permission group is read before any block or tool suggestions are made:
 
 - Blocks not in the allowed list are filtered out of the block picker entirely — they do not appear as options.
-- If Sim generates a workflow step that would use a disallowed tool (MCP, custom, or skills), that step is skipped and the reason is noted.
-
----
-
-## User membership rules
-
-- A user can belong to **multiple** permission groups, but **at most one** group governs them in any given workspace.
-- For a given workspace, a non-default group the user is an **explicit member** of takes precedence over a non-default **all-members** group (one with no members) targeting that workspace, which takes precedence over the organization's **default group**.
-- A workspace has **at most one all-members group**, and a user is an explicit member of **at most one** group per workspace. Adding a user, adding a workspace, or removing a group's last member is rejected when it would violate this — memberships and scopes are never silently moved.
-- A workspace-scoped group with **no members** governs everyone in its workspaces (including external members); add members to narrow it to specific people.
-- Users not covered by any workspace group fall under the organization's **default group** if one is set; otherwise no restrictions are applied to them.
-- Only one group per organization can be the **default group**; it always applies to all workspaces, ignores members, and also governs external workspace members.
-- Personal or grandfathered workspaces that do not belong to an organization have no permission groups.
+- Generation is not gated for these three tool kinds, so Sim can still produce a step that uses one. The restriction is enforced when the run reaches it: execution fails with an error naming it.
 
 ---
 
 <FAQ items={[
   {
     question: "Who can create and manage permission groups?",
-    answer: "Any organization owner or admin on an Enterprise-entitled organization can create, edit, and delete permission groups. The organization must be on the Enterprise plan."
+    answer: "Any organization owner or admin on an Enterprise-entitled organization can create, edit, and delete permission groups. On Sim Cloud that means the organization must be on the Enterprise plan; self-hosted deployments use environment variables instead of the plan check."
   },
   {
     question: "What happens to a workflow that was built before a block was restricted?",
     answer: "The workflow is not modified — it still exists and can be edited. However, any run that reaches a disallowed block will halt immediately with an error. The block must be removed or the user's group configuration must be updated before the workflow can run successfully."
-  },
-  {
-    question: "Can a user be in multiple permission groups?",
-    answer: "Yes. A user can belong to multiple permission groups, but only one governs them in any given workspace. A group they're an explicit member of takes precedence over an all-members group (one with no members) on that workspace, which takes precedence over the organization's default group. A workspace has at most one all-members group, and a user is an explicit member of at most one group per workspace."
-  },
-  {
-    question: "Does a permission group apply to everyone in its workspaces, or specific people?",
-    answer: "By default, a workspace-scoped group applies to all members of its workspaces, including external members. To restrict it to specific people, open Configure Permissions → Members and add them; the group then governs only those members. Removing every member returns it to governing everyone in its workspaces."
-  },
-  {
-    question: "Can a permission group apply to only some workspaces?",
-    answer: "Every non-default group targets a specific set of workspaces — choose them when you create the group or from the Workspaces list in its Details view. Only the organization default group is org-wide."
-  },
-  {
-    question: "What governs a user who has no permission group assigned?",
-    answer: "In a workspace targeted by an all-members group (one with no members), that group governs them. Otherwise the organization's default group governs them if one is set. If neither applies, they have no restrictions — all blocks, model providers, and platform features are available."
   },
   {
     question: "Does Chat respect the same restrictions as the executor?",
@@ -214,10 +229,6 @@ When a user opens Chat, their permission group is read before any block or tool 
   {
     question: "Can I apply different restrictions to different people or workspaces?",
     answer: "Yes. Scope each group to the workspaces it should govern, and either let it apply to everyone there or add members to target specific people. A workspace can have one all-members group plus additional groups that target specific people, who are governed by their own group instead. Who can access a given workspace is still controlled separately by workspace invitations and permissions."
-  },
-  {
-    question: "What is the default group?",
-    answer: "The default group is the single org-wide group that governs everyone not covered by a workspace group, including external workspace members. It always applies to all workspaces and ignores members. Only one per organization; if none is set, ungrouped users have no restrictions."
   }
 ]} />
 
@@ -241,4 +252,4 @@ You can also set a server-level block allowlist using the `ALLOWED_INTEGRATIONS`
 ALLOWED_INTEGRATIONS=slack,gmail,agent,function,condition
 ```
 
-Once enabled, permission groups are managed through **Settings → Enterprise → Access Control** the same way as Sim Cloud.
+Once enabled, permission groups are managed through **Settings → Organization → Permission groups** the same way as Sim Cloud.

@@ -20,12 +20,34 @@ Every Sim deployment exposes two public endpoints:
 
 | Endpoint | What it does |
 |---|---|
-| `/api/desktop/update/download` | Redirects to the newest installer for this deployment's release channel — stable, for a self-hosted install |
+| `/api/desktop/update/download` | Redirects (302) to the newest installer for this deployment's release channel |
 | `/api/desktop/update/latest-mac.yml` | The update manifest installed apps poll |
 
 Both resolve against Sim's public GitHub releases, and the installers themselves are downloaded from GitHub. Nothing is built, signed, or hosted by you: your deployment decides *which* release its clients are offered and serves the manifest, so installed apps poll your server instead of sim.ai — but they cannot be served artifacts of your own from this path. To ship your own build, see [Building your own shell](#building-your-own-shell).
 
+Both endpoints cache their GitHub lookups for **5 minutes**, and both respond the same way when they cannot answer:
+
+| Status | Meaning |
+|---|---|
+| `302` | Success on `/download` — a redirect to the release asset. The update feed answers `200` with `text/yaml` instead |
+| `404` | GitHub answered, but this channel has no release |
+| `502` | GitHub could not be read — unreachable, rate-limited, or every candidate release lacked valid desktop artifacts |
+
 The Sim server needs outbound access to `api.github.com` and `github.com` for these to resolve. Unauthenticated GitHub API requests are capped at 60/hour per IP; set `GITHUB_TOKEN` on the Sim server to raise that to 5000/hour.
+
+### Which channel your deployment serves
+
+The channel is chosen by `APPCONFIG_ENVIRONMENT`, not by whether you are self-hosting:
+
+| `APPCONFIG_ENVIRONMENT` | Channel | Release repository |
+|---|---|---|
+| `dev` | `dev` | `simstudioai/sim-desktop-releases` |
+| `staging` | `staging` | `simstudioai/sim-desktop-releases` |
+| anything else, including unset | `latest` | `simstudioai/sim` |
+
+<Callout type="warn">
+  A self-hosted deployment that sets `APPCONFIG_ENVIRONMENT=dev` or `staging` — a reasonable thing to do for a non-production environment — serves its users **prereleases** from the desktop prerelease repository, silently and with no other symptom. Leave it unset on any deployment whose users install the desktop app.
+</Callout>
 
 ## Install and connect
 
@@ -39,9 +61,17 @@ The Sim server needs outbound access to `api.github.com` and `github.com` for th
 npx sim-setup desktop
 ```
 
-This reads your deployment URL from your configuration, checks that the installer and update feed both resolve, and prints the download link plus the server URL to enter.
+This reads your deployment URL from your Compose and Helm configuration, resolves the installer, and prints the download link plus the server URL to enter. It then offers to open the download in your browser — pass `--no-open` to skip the prompt, for scripts and CI.
 
-Pass `--url https://sim.example.com` when running the CLI somewhere that reaches Sim at a different address — or when the machine has more than one Sim configuration, in which case the command lists what it found and asks you to say which deployment you mean rather than guessing.
+The two probes are not weighted the same. **The installer probe is fatal**: if `/api/desktop/update/download` does not resolve, the command prints why and exits `1`. A failing update feed is only a warning — the command tells you the app will install but will not auto-update from this deployment, and still exits `0`. Read the output; do not rely on the exit code alone to prove the feed works.
+
+Pass `--url https://sim.example.com` when running the CLI somewhere that reaches Sim at a different address. It also **skips discovery entirely**, which is worth using deliberately: discovery shells out to `docker compose` and `helm`, so it costs seconds that `--url` avoids.
+
+<Callout type="warn">
+  If the machine holds more than one Sim configuration naming different `NEXT_PUBLIC_APP_URL` values, the command does **not** prompt you to pick — it errors, lists what it found, and tells you to re-run with `--url`. There is no interactive picker.
+
+  In the opposite case, where no configuration sets `NEXT_PUBLIC_APP_URL` at all, it falls back to `http://localhost:3000` without saying so. If the printed deployment URL is `localhost` and you expected your real domain, that fallback is why.
+</Callout>
 
 Without the CLI, open `https://your-sim-url/api/desktop/update/download` in a browser.
 
@@ -111,7 +141,17 @@ cd apps/desktop
 SIM_DESKTOP_DEFAULT_ORIGIN=https://sim.example.com bun run package:mac
 ```
 
-This bakes your origin in as the default for fresh installs, so nobody has to set the server by hand (the picker stays available in the menu). Artifacts land in `apps/desktop/release/`, named `Sim-<version>-<arch>.dmg`. Add `-c.appId=com.example.sim` if you want your own bundle identifier rather than Sim's.
+This bakes your origin in as the default for fresh installs, so nobody has to set the server by hand (the picker stays available in the menu). The mac target builds a single universal binary, so artifacts land in `apps/desktop/release/` as `Sim-<version>-universal.dmg` and `Sim-<version>-universal.zip`. Add `-c.appId=com.example.sim` if you want your own bundle identifier rather than Sim's.
+
+<Callout type="warn">
+  The origin you bake in also decides the app's **identity**. A loopback origin, or a `dev.sim.ai` / `staging.sim.ai` hostname, produces a differently named app with its own bundle identifier, its own userData directory, and its own single-instance lock — deliberately, so those installs can sit alongside a production one. Any other origin, including your own domain, is treated as production and shares the plain `Sim` identity. Baking in `http://localhost:3000` to test therefore does not produce a build your users can later repoint; it produces a separate app.
+</Callout>
+
+`package:share` overrides both the output directory and the artifact name — builds land in `apps/desktop/release/<channel-slug>/` as `<channel-slug>-<version>-<arch>.<ext>`, not the names above.
+
+### Overriding the server at runtime
+
+`SIM_DESKTOP_ORIGIN` overrides the stored server for a single launch, which is useful for testing a build against another deployment without changing its saved setting. It is validated the same way the picker's input is; an invalid value is logged and ignored rather than applied.
 
 <Callout type="warn">
   Signing and notarization become your responsibility with this route, and macOS quarantines anything downloaded that is not notarized.
