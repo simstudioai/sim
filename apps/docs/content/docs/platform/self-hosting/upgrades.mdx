@@ -250,8 +250,9 @@ helm rollback sim -n simstudio
 ```
 
 ```bash
-# Docker Compose — edit .env so the pin persists, then restart
-echo "SIM_VERSION=v1.2.2" >> .env
+# Docker Compose — edit .env so the pin persists, then restart.
+# Substitute the previous release tag from the releases page.
+echo "SIM_VERSION=<previous-release-tag>" >> .env
 docker compose -f docker-compose.prod.yml up -d
 ```
 

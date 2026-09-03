@@ -664,21 +664,51 @@ jobs:
           set -euo pipefail
 
           IMAGES="simstudio migrations realtime pii cron"
-          TAGS="${SHA} ${SHA}-amd64 ${SHA}-arm64 latest latest-amd64 latest-arm64"
-          if [ "${IS_RELEASE}" = "true" ]; then
-            TAGS="${TAGS} ${VERSION} ${VERSION}-amd64 ${VERSION}-arm64"
-          fi
+
+          # Prints the digest, or nothing when the tag is not published. The
+          # explicit `if !` matters: under `set -e` a failing inspect inside a
+          # command substitution aborts the step before the caller can treat an
+          # absent tag as "skip".
+          digest_of() {
+            local raw
+            if ! raw="$(docker buildx imagetools inspect "$1" --format '{{json .Manifest}}' 2>/dev/null)"; then
+              return 0
+            fi
+            printf '%s' "$raw" | jq -r '.digest // empty'
+          }
 
           : > /tmp/subjects.jsonl
           for name in $IMAGES; do
             image="ghcr.io/simstudioai/${name}"
+
+            # The sha tags are this run's own output and always exist.
+            sha_index="$(digest_of "${image}:${SHA}")"
+            if [ -z "$sha_index" ]; then
+              echo "::error::No index published for ${image}:${SHA}"
+              exit 1
+            fi
+            tags="${SHA} ${SHA}-amd64 ${SHA}-arm64"
+
+            # A moving alias is only ours if it resolves to the index this run
+            # published. create-ghcr-manifests holds the latest tags back when
+            # its monotonic guard sees a newer commit, and they then still point
+            # at an older build — attesting those would put this run's signature
+            # and provenance on an image it did not produce. The per-arch
+            # aliases are published in the same guarded block as `latest`, so
+            # that one comparison gates all three.
+            if [ "$(digest_of "${image}:latest")" = "$sha_index" ]; then
+              tags="${tags} latest latest-amd64 latest-arm64"
+            else
+              echo "Skipping latest tags for ${image}: they do not point at this run's index."
+            fi
+
+            if [ "${IS_RELEASE}" = "true" ] && [ "$(digest_of "${image}:${VERSION}")" = "$sha_index" ]; then
+              tags="${tags} ${VERSION} ${VERSION}-amd64 ${VERSION}-arm64"
+            fi
+
             seen=""
-            for tag in $TAGS; do
-              # A tag that this run did not publish (no release, or the latest
-              # guard held it back) is expected to be missing — skip it rather
-              # than fail the run.
-              digest="$(docker buildx imagetools inspect "${image}:${tag}" \
-                --format '{{json .Manifest}}' 2>/dev/null | jq -r '.digest // empty')"
+            for tag in $tags; do
+              digest="$(digest_of "${image}:${tag}")"
               [ -n "$digest" ] || continue
               case " $seen " in *" $digest "*) continue ;; esac
               seen="$seen $digest"

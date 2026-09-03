@@ -131,7 +131,10 @@ Workflows can execute user-authored JavaScript and Python. Know which sandbox yo
 | **Daytona** | `SANDBOX_PROVIDER=daytona`, `DAYTONA_API_KEY`, `DAYTONA_FUNCTION_SNAPSHOT_ID` | Remote sandbox per execution. |
 
 Python, Shell, JavaScript with external imports, and tooling-dependent blocks
-require a remote sandbox provider. JavaScript without `import` or `require`
+require a remote sandbox provider. On a billing-free self-host the provider and
+Function base are not sufficient on their own: `SANDBOXES_ENABLED` grants the
+server-side entitlement, and without it Shell and the Sandboxes settings stay
+hidden even when the provider is configured correctly. JavaScript without `import` or `require`
 continues to run in the in-process isolate when no remote provider is configured.
 
 <Callout type="warn">
@@ -149,7 +152,7 @@ Two browser-side variables project server state into the UI, and neither is deri
 | Variable | Effect when unset |
 |---|---|
 | `NEXT_PUBLIC_SANDBOXES_ENABLED` | The Function block's Shell language, its Sandbox picker, and **Settings → Sandboxes** stay hidden, even with a working provider. Python stays selectable and fails at execution |
-| `NEXT_PUBLIC_E2B_ENABLED` | The E2B-backed Pi block modes stay hidden; `sim-setup doctor` reports it as a mismatch against `E2B_ENABLED` |
+| `NEXT_PUBLIC_E2B_ENABLED` | The E2B-backed Pi block modes stay hidden; `sim-setup doctor` reports it as a mismatch against `E2B_ENABLED`. Revealing them is not enough to make them run — Pi executes on its own image, pinned with `E2B_PI_TEMPLATE_ID` or `DAYTONA_PI_SNAPSHOT_ID`, and fails closed without it |
 
 Set the public values only **after** the server-side configuration above is complete — they are assertions about readiness, not switches, and the server-side check has its own conditions beyond them. See [Sandboxes](/platform/self-hosting/sandboxes) for the base-image build and promotion procedure. `npx sim-setup doctor` reports a mismatch in either direction.
 

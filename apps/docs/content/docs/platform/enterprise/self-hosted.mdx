@@ -72,15 +72,17 @@ See [Sandboxes](/platform/self-hosting/sandboxes) for the provider credentials, 
 Two enterprise features do their work from a cron-driven HTTP endpoint rather than from the app process. All four endpoints authenticate with a bearer token equal to `CRON_SECRET`, and both return `401` when `CRON_SECRET` is unset:
 
 ```bash
-CRON_SECRET=$(openssl rand -hex 32)
+openssl rand -hex 32
 ```
 
-| Feature | Endpoint | Suggested schedule | Scheduled by the Helm chart |
-|---------|----------|--------------------|-----------------------------|
-| Data drains | `GET /api/cron/run-data-drains` | Hourly | Yes |
-| Retention — logs | `GET /api/logs/cleanup` | Daily | **No** |
-| Retention — soft deletes | `GET /api/cron/cleanup-soft-deletes` | Daily | **No** |
-| Retention — Chat tasks | `GET /api/cron/cleanup-tasks` | Daily | **No** |
+Persist that value as `CRON_SECRET` on the app **and** on whatever calls these endpoints. Generating it in a shell configures neither, and a mismatch returns `401`, so the work silently never runs.
+
+| Feature | Endpoint | Suggested schedule | Scheduled for you |
+|---------|----------|--------------------|-------------------|
+| Data drains | `GET /api/cron/run-data-drains` | Hourly | Yes — Helm and Docker Compose both call it |
+| Retention — logs | `GET /api/logs/cleanup` | Daily | **No** — schedule it yourself |
+| Retention — soft deletes | `GET /api/cron/cleanup-soft-deletes` | Daily | **No** — schedule it yourself |
+| Retention — Chat tasks | `GET /api/cron/cleanup-tasks` | Daily | **No** — schedule it yourself |
 
 <Callout type="warn">
   The Helm chart schedules the data-drain dispatcher but **not** the three retention cleanup endpoints. Setting `DATA_RETENTION_ENABLED=true` on the chart alone deletes nothing — the windows are evaluated only when one of those endpoints is called. Add them to `cronjobs.jobs` yourself, or drive them from an external scheduler.
