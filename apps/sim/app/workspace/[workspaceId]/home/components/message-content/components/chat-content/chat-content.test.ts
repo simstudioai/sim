@@ -6,6 +6,48 @@ import { sanitizeChatDisplayContent } from '@/app/workspace/[workspaceId]/home/c
 import { scalingRatioOver4x } from '@/app/workspace/[workspaceId]/home/components/message-content/components/scaling-test-helpers'
 
 describe('sanitizeChatDisplayContent', () => {
+  it.each(['source', 'workspace_resource'])(
+    'unwraps %s JSON that mentions the other chip tag',
+    (name) => {
+      const otherTag = name === 'source' ? 'workspace_resource' : 'source'
+      const tag = `<${name}>${JSON.stringify({ title: `Use <${otherTag}>` })}</${name}>`
+
+      expect(sanitizeChatDisplayContent(`\`${tag}\``)).toBe(tag)
+    }
+  )
+
+  it.each([2, 3, 4])('preserves a %i-backtick code span containing a chip', (length) => {
+    const delimiter = '`'.repeat(length)
+    const tag = '<source>{"url":"https://example.com","title":"Use `config`"}</source>'
+    const content = `${delimiter}${tag}${delimiter}`
+
+    expect(sanitizeChatDisplayContent(content)).toBe(content)
+    expect(sanitizeChatDisplayContent(`${delimiter}json\n\`${tag}\`\n${delimiter}`)).toBe(
+      `${delimiter}json\n\`${tag}\`\n${delimiter}`
+    )
+    expect(sanitizeChatDisplayContent(`${content} then \`${tag}\``)).toBe(`${content} then ${tag}`)
+  })
+
+  it('does not let an unmatched backtick run suppress later citations', () => {
+    const prefix = 'Use `` for two backticks.\n'
+    const tag = '<source>{"url":"https://example.com"}</source>'
+
+    expect(sanitizeChatDisplayContent(`${prefix}\`${tag}\``)).toBe(`${prefix}${tag}`)
+  })
+
+  it('preserves fences closed by a longer run and unwraps citations after them', () => {
+    const tag = '<source>{"url":"https://example.com"}</source>'
+    const block = `\`\`\`json\n\`${tag}\`\n\`\`\`\`\n`
+
+    expect(sanitizeChatDisplayContent(`${block}\`${tag}\``)).toBe(`${block}${tag}`)
+  })
+
+  it('leaves an unclosed streaming fence literal', () => {
+    const content = '```json\n`<source>{"url":"https://example.com"}</source>`'
+
+    expect(sanitizeChatDisplayContent(content)).toBe(content)
+  })
+
   it('unwraps workspace resource tags from inline code spans', () => {
     const content =
       '`I updated <workspace_resource>{"type":"workflow","id":"wf-1","title":"Workflow"}</workspace_resource>.`'
@@ -159,4 +201,24 @@ describe('sanitizeChatDisplayContent', () => {
       '<workspace_resource>{"type":"file","path":"a.md","title":"a"}</workspace_resource> done'
     )
   })
+
+  it.each(['source', 'workspace_resource'])(
+    'stays linear on repeated %s tags with unterminated JSON strings',
+    (name) => {
+      expect(
+        scalingRatioOver4x(sanitizeChatDisplayContent, (times) =>
+          `<${name}>{${String.fromCharCode(92, 34)}`.repeat(times)
+        )
+      ).toBeLessThan(8)
+    }
+  )
+
+  it.each(['<source>"', '<source>{"key":"'])(
+    'stays linear on repeated quoted payload prefix %s',
+    (prefix) => {
+      expect(
+        scalingRatioOver4x(sanitizeChatDisplayContent, (times) => prefix.repeat(times))
+      ).toBeLessThan(8)
+    }
+  )
 })
