@@ -270,6 +270,23 @@ describe('automatic Copilot tool-output table persistence', () => {
     expect(result.output).toBeUndefined()
   })
 
+  it('keeps what the code printed beside the table write', async () => {
+    const context = buildContext()
+    const rows = [{ name: 'Ada' }]
+
+    const result = await maybeWriteOutputToTable(
+      RunFunction.id,
+      { outputTable: 'table-1' },
+      { success: true, output: { result: rows, stdout: 'fetched 1 record' } },
+      context
+    )
+
+    expect(result.output).toMatchObject({
+      message: 'Wrote 1 rows to table table-1',
+      stdout: 'fetched 1 record',
+    })
+  })
+
   it('keeps the export receipt beside the table write when the run also exported files', async () => {
     const context = buildContext()
     const rows = [{ name: 'Ada' }, { name: 'Grace' }]

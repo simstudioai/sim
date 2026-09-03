@@ -354,6 +354,8 @@ export const dashboardStatsResponseSchema = z.object({
   aggregateSegments: z.array(segmentStatsSchema),
   totalRuns: z.number(),
   totalErrors: z.number(),
+  /** Runs holding a handled block error; present only when the read counted them. */
+  handledErrorRuns: z.number().optional(),
   avgLatency: z.number(),
   timeBounds: z.object({
     start: z.string(),

@@ -64,6 +64,7 @@ function logCursorFilters(query: {
   status?: string
   workflowName?: string
   includeJobRuns?: boolean
+  includeHandledErrors?: boolean
 }) {
   return cursorScopeKey(cursorRoute(v2ListLogsContract), {
     workspaceId: query.workspaceId,
@@ -88,6 +89,9 @@ function logCursorFilters(query: {
     // the field existed — including on unfiltered walks, which is precisely what
     // `folderScopeVersion` above is careful not to do.
     includeJobRuns: query.includeJobRuns || undefined,
+    // Same rule: it widens what `level=error` selects, so it is bound, and only
+    // stamped when on so cursors minted before it existed still decode.
+    includeHandledErrors: query.includeHandledErrors || undefined,
   })
 }
 
@@ -103,6 +107,7 @@ export const GET = defineV2JsonRoute({
       workflowIds: parseUnorderedList(query.workflowIds),
       triggers: parseUnorderedList(query.triggers),
       level: query.level,
+      includeHandledErrors: query.includeHandledErrors,
       statuses: parseUnorderedList(query.status)?.filter(isPersistedWorkflowExecutionStatus),
       workflowName: query.workflowName,
       startDate: query.startDate ? new Date(query.startDate) : undefined,
@@ -159,6 +164,7 @@ export const GET = defineV2JsonRoute({
           totalDurationMs: log.totalDurationMs,
           cost: jobCostTotal(log.cost),
           files: null,
+          hasHandledErrors: false,
         }
       }
 
@@ -175,6 +181,7 @@ export const GET = defineV2JsonRoute({
         totalDurationMs: log.totalDurationMs,
         cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
         files: projectLogFiles(log),
+        hasHandledErrors: log.hasHandledErrors === true,
       }
       if (includeFullDetails) {
         item.workflow = {

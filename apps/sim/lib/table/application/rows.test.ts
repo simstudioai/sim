@@ -1733,6 +1733,7 @@ describe('enrichment detail id validation', () => {
     mockResolvePermission.mockResolvedValue('read')
     mockResolveContext.mockResolvedValue(contextFor(ENRICHED_TABLE))
     mockLoadEnrichmentDetail.mockResolvedValue(null)
+    mockLoadExecutionsForRow.mockResolvedValue({})
   })
 
   it('404s on a row id the table does not have', async () => {
@@ -1759,7 +1760,8 @@ describe('enrichment detail id validation', () => {
     expect(mockLoadEnrichmentDetail).not.toHaveBeenCalled()
   })
 
-  it('still answers null for a real row and group with no recorded run', async () => {
+  /** A row that exists always answers; "never ran" is a null run state, not a null answer. */
+  it('answers the row and group with a null run state when the group has never run', async () => {
     mockGetRowSummaryById.mockResolvedValue({ id: 'row-1', data: {} })
 
     const result = await readTableRowEnrichmentDetail.execute({
@@ -1767,6 +1769,36 @@ describe('enrichment detail id validation', () => {
       input: { tableId: ENRICHED_TABLE.id, rowId: 'row-1', groupId: 'group-1' },
     })
 
+    expect(result.row).toEqual({ id: 'row-1', data: {} })
+    expect(result.group.id).toBe('group-1')
+    expect(result.runState).toBeNull()
     expect(result.detail).toBeNull()
+  })
+
+  it('answers the group’s own run state for a populated row', async () => {
+    mockGetRowSummaryById.mockResolvedValue({ id: 'row-1', data: { 'column-name': 'Ada' } })
+    const groupRun = {
+      status: 'error',
+      executionId: 'exec-1',
+      jobId: null,
+      workflowId: 'workflow-1',
+      error: 'boom',
+    }
+    mockLoadExecutionsForRow.mockResolvedValue({
+      'group-1': groupRun,
+      'group-2': { ...groupRun, status: 'completed' },
+    })
+
+    const result = await readTableRowEnrichmentDetail.execute({
+      principal: PRINCIPAL,
+      input: { tableId: ENRICHED_TABLE.id, rowId: 'row-1', groupId: 'group-1' },
+    })
+
+    expect(result.runState).toEqual(groupRun)
+    expect(mockLoadExecutionsForRow).toHaveBeenCalledWith(
+      expect.anything(),
+      'row-1',
+      expect.objectContaining({ budgetBytes: expect.any(Number) })
+    )
   })
 })

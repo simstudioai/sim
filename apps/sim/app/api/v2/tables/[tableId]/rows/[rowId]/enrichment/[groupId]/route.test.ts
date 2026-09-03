@@ -154,6 +154,39 @@ describe('GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]', () =>
     ],
   }
 
+  const TABLE = {
+    id: 'table-1',
+    schema: {
+      columns: [
+        { id: 'col-email', name: 'email', type: 'text' },
+        { id: 'col-name', name: 'name', type: 'text' },
+        { id: 'col-title', name: 'title', type: 'text' },
+      ],
+    },
+  }
+  const GROUP = {
+    id: 'group-1',
+    workflowId: 'workflow-1',
+    type: 'enrichment' as const,
+    outputs: [
+      { blockId: 'b1', path: 'email', columnName: 'email' },
+      { blockId: 'b1', path: 'title', columnName: 'title' },
+    ],
+  }
+  const ROW = {
+    id: 'row-1',
+    data: { 'col-email': 'ada@example.com', 'col-name': 'Ada' },
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:02.000Z'),
+  }
+  const RUN_STATE = {
+    status: 'completed' as const,
+    executionId: 'exec-1',
+    jobId: null,
+    workflowId: 'workflow-1',
+    error: null,
+  }
+
   function read() {
     const request = new NextRequest(
       `http://localhost/api/v2/tables/table-1/rows/row-1/enrichment/group-1?workspaceId=${WORKSPACE_ID}`,
@@ -172,15 +205,37 @@ describe('GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]', () =>
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.readEnrichment.mockResolvedValue({ table: { id: 'table-1' }, detail: DETAIL })
+    mocks.readEnrichment.mockResolvedValue({
+      table: TABLE,
+      row: ROW,
+      group: GROUP,
+      runState: RUN_STATE,
+      detail: DETAIL,
+    })
   })
 
-  it('delegates the canonical row and group scope and publishes the cascade', async () => {
+  it('delegates the canonical row and group scope and publishes run state, outputs, and cascade', async () => {
     const invocation = read()
     const response = await invocation.response
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: DETAIL })
+    expect(await response.json()).toEqual({
+      data: {
+        groupId: 'group-1',
+        runState: {
+          status: 'completed',
+          executionId: 'exec-1',
+          workflowId: 'workflow-1',
+          error: null,
+          runningBlockIds: [],
+          blockErrors: {},
+          canceledAt: null,
+        },
+        /** Keyed by column name; the declared-but-unwritten output is null, not absent. */
+        outputs: { email: 'ada@example.com', title: null },
+        cascade: DETAIL,
+      },
+    })
     expect(mocks.readEnrichment).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
@@ -193,14 +248,63 @@ describe('GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]', () =>
     })
   })
 
-  /** A cell that never ran is a real answer, not a missing resource. */
-  it('answers null for a cell with no recorded run', async () => {
-    mocks.readEnrichment.mockResolvedValue({ table: { id: 'table-1' }, detail: null })
+  /** A row that exists always answers; a group that never ran is `runState: null`, not a bare null. */
+  it('answers the row with a null run state when the group has never run for it', async () => {
+    mocks.readEnrichment.mockResolvedValue({
+      table: TABLE,
+      row: ROW,
+      group: GROUP,
+      runState: null,
+      detail: null,
+    })
 
     const response = await read().response
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: null })
+    expect(await response.json()).toEqual({
+      data: {
+        groupId: 'group-1',
+        runState: null,
+        outputs: { email: 'ada@example.com', title: null },
+        cascade: null,
+      },
+    })
+  })
+
+  it('publishes a failed run with its error and the canceled spelling', async () => {
+    mocks.readEnrichment.mockResolvedValue({
+      table: TABLE,
+      row: ROW,
+      group: GROUP,
+      runState: {
+        ...RUN_STATE,
+        status: 'cancelled',
+        error: 'boom',
+        blockErrors: { b1: 'boom' },
+        cancelledAt: '2026-01-01T00:00:03.000Z',
+      },
+      detail: null,
+    })
+
+    const body = await (await read().response).json()
+
+    expect(body.data.runState).toMatchObject({
+      status: 'canceled',
+      error: 'boom',
+      blockErrors: { b1: 'boom' },
+      canceledAt: '2026-01-01T00:00:03.000Z',
+    })
+  })
+
+  it('answers not found for a row or group that does not exist', async () => {
+    mocks.readEnrichment.mockRejectedValue(
+      new OrchestrationError('not_found', 'Workflow group not found')
+    )
+
+    const response = await read().response
+
+    expect(response.status).toBe(404)
+    expect((await response.json()).error.code).toBe('NOT_FOUND')
   })
 
   it('rejects an unauthenticated read', async () => {

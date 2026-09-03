@@ -113,12 +113,17 @@ export function attachKnowledgeDocumentUpload(documents: Command): void {
         if (!completed.document) {
           throw new Error(`Knowledge upload ${session.id} completed without a document`)
         }
+        // The created row, under the names `knowledge documents get` and `list`
+        // publish: a caller reading `filename` / `processingStatus` off this
+        // result used to get nulls because it was printed as `name` / `status`.
         printProtocolResult(profile.output, {
           id: completed.document.id,
           knowledgeBaseId: completed.document.knowledgeBaseId,
-          name: completed.document.filename,
-          size: completed.document.fileSize,
-          status: completed.document.processingStatus,
+          filename: completed.document.filename,
+          fileSize: completed.document.fileSize,
+          mimeType: completed.document.mimeType,
+          processingStatus: completed.document.processingStatus,
+          chunkCount: completed.document.chunkCount,
         })
       }
     )

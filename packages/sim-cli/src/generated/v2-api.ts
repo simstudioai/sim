@@ -4439,6 +4439,7 @@ export type GetLogStatsQuery = {
   folderPaths?: string
   triggers?: string
   level?: 'info' | 'error'
+  includeHandledErrors?: boolean
   startDate?: string
   endDate?: string
   segmentCount?: number
@@ -4479,6 +4480,7 @@ type GetLogStatsResponseRef2 = {
   aggregateSegments: Array<GetLogStatsResponseRef1>
   totalRuns: number
   totalErrors: number
+  handledErrorRuns?: number
   avgLatency: number
   timeBounds: {
     start: string
@@ -4574,16 +4576,28 @@ export type GetRowEnrichmentQuery = {
 }
 
 type GetRowEnrichmentResponseRef0 = {
+  status: string
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  canceledAt: string | null
+}
+
+type GetRowEnrichmentResponseRef1 = Record<string, unknown>
+
+type GetRowEnrichmentResponseRef2 = {
   startedAt: string | null
   completedAt: string | null
   durationMs: number
   totalCost: number
   matchedProvider: string | null
   aborted: boolean
-  providers: Array<GetRowEnrichmentResponseRef1>
+  providers: Array<GetRowEnrichmentResponseRef3>
 }
 
-type GetRowEnrichmentResponseRef1 = {
+type GetRowEnrichmentResponseRef3 = {
   id: string
   label: string
   toolId: string
@@ -4593,8 +4607,15 @@ type GetRowEnrichmentResponseRef1 = {
   error: string | null
 }
 
+type GetRowEnrichmentResponseRef4 = {
+  groupId: string
+  runState: GetRowEnrichmentResponseRef0 | null
+  outputs: GetRowEnrichmentResponseRef1
+  cascade: GetRowEnrichmentResponseRef2 | null
+}
+
 export type GetRowEnrichmentResponse = {
-  data: GetRowEnrichmentResponseRef0 | null
+  data: GetRowEnrichmentResponseRef4
 }
 
 /** `GET /api/v2/sandboxes/[sandboxId]` */
@@ -5517,6 +5538,7 @@ export type ListBlocksQuery = {
   category?: 'blocks' | 'tools' | 'triggers'
   capability?: 'trigger'
   source?: 'builtin' | 'custom'
+  includeSunset?: boolean
   sortBy?: 'id' | 'name' | 'category'
   sortOrder?: 'asc' | 'desc'
   limit?: number
@@ -6164,6 +6186,7 @@ export type ListLogsQuery = {
   includeFinalOutput?: boolean
   limit?: number
   cursor?: string
+  includeHandledErrors?: boolean
   status?: string
   workflowName?: string
   includeJobRuns?: boolean
@@ -6188,6 +6211,7 @@ type ListLogsResponseRef0 = {
     total: number
   } | null
   files: Array<ListLogsResponseRef1> | null
+  hasHandledErrors: boolean
   workflow?: {
     id: string | null
     name: string
@@ -11891,6 +11915,11 @@ export const V2_OPERATIONS = {
         values: ['info', 'error'] as const,
         describe: 'Severity level to include.',
       },
+      includeHandledErrors: {
+        kind: 'boolean',
+        describe:
+          'Whether runs with a handled block error are counted as `handledErrorRuns`, and whether `level=error` also selects them. Off by default: counting them scans each run’s stored trace.',
+      },
       startDate: {
         kind: 'string',
         describe:
@@ -11984,7 +12013,7 @@ export const V2_OPERATIONS = {
       groupId: 'Workflow or enrichment group to run.',
     },
     responseMode: 'json',
-    summary: 'Get Enrichment Run Detail',
+    summary: 'Get Row Group Run',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
@@ -12405,6 +12434,11 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['builtin', 'custom'] as const,
         describe: 'Restrict to shipped blocks or to this workspace’s deployed custom blocks.',
+      },
+      includeSunset: {
+        kind: 'boolean',
+        describe:
+          'Include `legacy` and `deprecated` blocks. Off by default: a sunset block keeps executing where it is already placed, but it is not offered for new authoring. Each returned entry carries `sunset.replacedBy`, the block to build with instead.',
       },
       sortBy: {
         kind: 'enum',
@@ -13149,6 +13183,11 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      includeHandledErrors: {
+        kind: 'boolean',
+        describe:
+          'Whether `level=error` also selects runs that finished at `info` after a block error was recovered by an error path. Off by default: such a run succeeded, so it is an error only to a caller auditing error handling. Every row reports `hasHandledErrors` whether or not this is set. Job runs carry no block trace, so the flag never widens that branch.',
       },
       status: {
         kind: 'string',

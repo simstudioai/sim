@@ -208,6 +208,11 @@ export const v2LogListItemSchema = z
       .describe('Total execution duration in milliseconds, or null while unavailable.'),
     cost: v2LogCostSchema,
     files: v2LogFilesSchema,
+    hasHandledErrors: z
+      .boolean()
+      .describe(
+        'Whether a block in the run errored and was recovered by an error path. Such a run keeps `level: info`, so this is the only place the handled error shows at run level; pass `includeHandledErrors=true` with `level=error` to list these runs. Always false for a job run.'
+      ),
     /** Present only when `details=full`. */
     workflow: v2LogWorkflowSummarySchema
       .describe('Workflow summary for a full-detail result.')
@@ -546,6 +551,12 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       V2_LOG_TRIGGERS_MAX
     ).optional(),
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
+    includeHandledErrors: booleanQueryFlagSchema
+      .describe(
+        'Whether `level=error` also selects runs that finished at `info` after a block error was recovered by an error path. Off by default: such a run succeeded, so it is an error only to a caller auditing error handling. Every row reports `hasHandledErrors` whether or not this is set. Job runs carry no block trace, so the flag never widens that branch.'
+      )
+      .optional()
+      .default(false),
     status: v2LogStatusFilterSchema.optional(),
     workflowName: v2WorkflowNameFilterSchema.optional(),
     includeJobRuns: booleanQueryFlagSchema

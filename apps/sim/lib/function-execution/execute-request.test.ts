@@ -979,6 +979,56 @@ describe('Function execution request', () => {
       expect(data.resources).toEqual([expect.objectContaining({ path: 'files/report.txt' })])
     })
 
+    it('keeps the export receipt and stdout beside returned rows on the JavaScript sandbox path', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const rows = [{ name: 'Ada' }, { name: 'Grace' }]
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: rows,
+        stdout: 'wrote 2 rows\n',
+        sandboxId: 'sandbox-123',
+        exportedFiles: { '/home/user/report.csv': 'name\nAda\nGrace\n' },
+      })
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'console.log("wrote 2 rows"); return [{ name: "Ada" }, { name: "Grace" }]',
+          language: 'javascript',
+          workspaceId: 'workspace-1',
+          outputs: {
+            files: [
+              {
+                path: 'files/report.csv',
+                sandboxPath: '/home/user/report.csv',
+                mimeType: 'text/csv',
+              },
+            ],
+          },
+        })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(mockExecuteInSandbox).toHaveBeenCalledWith(
+        expect.objectContaining({
+          language: 'javascript',
+          outputSandboxPaths: ['/home/user/report.csv'],
+        })
+      )
+      // Both outputs survive: the table writer reads `result`, the receipt
+      // rides in `exported`, and stdout is the agent's only diagnostic.
+      expect(data.output.result).toEqual(rows)
+      expect(data.output.exported.files).toHaveLength(1)
+      expect(data.output.exported.files[0]).toEqual(
+        expect.objectContaining({
+          vfsPath: 'files/report.csv',
+          sandboxPath: '/home/user/report.csv',
+        })
+      )
+      expect(data.output.stdout).toBe('wrote 2 rows')
+      expect(data.output.message).toBe(data.output.exported.message)
+    })
+
     it('atomically classifies text exports and acknowledges the durable v2 capability', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
       mockExecuteInSandbox.mockResolvedValueOnce({

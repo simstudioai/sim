@@ -1991,12 +1991,42 @@ export const v2EnrichmentRunDetailSchema = z
 export type V2EnrichmentRunDetail = z.output<typeof v2EnrichmentRunDetailSchema>
 
 /**
+ * One workflow/enrichment group's outcome on one row: the run state
+ * `includeRunState` reports on the row reads, the output cells that run
+ * populated, and — for an enrichment group — the provider cascade behind them.
+ *
+ * Never a bare `null` for a row that exists: an existing row and group always
+ * answer with this shape, and a group that has never run for the row reports
+ * `runState: null` with its output cells still present. A 404 means the table,
+ * row, or group does not exist.
+ */
+export const v2RowGroupEnrichmentSchema = z
+  .object({
+    groupId: z.string().describe('Workflow or enrichment group this answers for.'),
+    runState: v2RowRunStateSchema
+      .nullable()
+      .describe(
+        'Most recent run of this group on this row — the same shape `includeRunState` reports — or null when the group has never run for the row.'
+      ),
+    outputs: v2RowDataSchema.describe(
+      "The group's output cells keyed by column name. A column the run has not populated is null."
+    ),
+    cascade: v2EnrichmentRunDetailSchema
+      .nullable()
+      .describe(
+        'Provider cascade behind the cell, or null when none was recorded — a manual workflow group, a group that has not run, or a run predating the breakdown.'
+      ),
+  })
+  .meta({
+    id: 'V2RowGroupEnrichment',
+    title: 'Row group enrichment',
+    description: 'Run state, output cells, and provider cascade for one group on one row.',
+  })
+export type V2RowGroupEnrichment = z.output<typeof v2RowGroupEnrichmentSchema>
+
+/**
  * The deep read deliberately kept off the paged row surface: `includeRunState`
  * on the row reads reports the cell's status, this reports how it got there.
- *
- * `null` is a real answer — the cell has never run, or it ran before the
- * cascade breakdown was recorded — and is distinct from a 404, which means the
- * table, row, or group does not exist.
  */
 export const v2GetRowEnrichmentContract = defineRouteContract({
   method: 'GET',
@@ -2005,7 +2035,7 @@ export const v2GetRowEnrichmentContract = defineRouteContract({
   query: v2TableWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2EnrichmentRunDetailSchema.nullable()),
+    schema: v2DataResponse(v2RowGroupEnrichmentSchema),
   },
 })
 

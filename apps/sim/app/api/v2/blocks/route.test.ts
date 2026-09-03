@@ -71,6 +71,7 @@ function blockCursor({
   category,
   capability,
   source,
+  includeSunset = false,
   sortBy = 'id',
   sortOrder = 'asc',
 }: {
@@ -79,6 +80,7 @@ function blockCursor({
   category?: string
   capability?: string
   source?: string
+  includeSunset?: boolean
   sortBy?: string
   sortOrder?: string
 }): string {
@@ -90,6 +92,7 @@ function blockCursor({
       category,
       capability,
       source,
+      includeSunset,
     }),
     offset
   )
@@ -123,6 +126,7 @@ describe('/api/v2/blocks', () => {
         category: undefined,
         capability: undefined,
         source: undefined,
+        includeSunset: false,
         sortBy: 'id',
         sortOrder: 'asc',
         limit: 50,
@@ -131,6 +135,25 @@ describe('/api/v2/blocks', () => {
       },
       request: expect.anything(),
     })
+  })
+
+  it('asks for sunset blocks only when includeSunset is set, and stamps it into the cursor', async () => {
+    const response = await GET(
+      request(`/api/v2/blocks?workspaceId=${WORKSPACE_ID}&includeSunset=true`)
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ includeSunset: true }) })
+    )
+
+    const cursor = blockCursor({ offset: 2 })
+    const replayed = await GET(
+      request(
+        `/api/v2/blocks?workspaceId=${WORKSPACE_ID}&includeSunset=true&cursor=${encodeURIComponent(cursor)}`
+      )
+    )
+    expect(replayed.status).toBe(400)
   })
 
   it('resumes from the offset cursor and mints the next one while pages remain', async () => {
