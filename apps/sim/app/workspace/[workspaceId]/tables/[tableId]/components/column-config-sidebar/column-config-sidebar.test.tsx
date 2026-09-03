@@ -145,6 +145,8 @@ describe('ColumnConfigSidebar', () => {
           config={{ mode: 'create', proposedName: 'Related row', type: 'reference' }}
           onClose={vi.fn()}
           existingColumn={null}
+          allColumns={[]}
+          tableRowTtlEnabled={false}
           workspaceId='workspace-1'
           tableId='table-current'
           referenceColumnsEnabled
@@ -182,6 +184,8 @@ describe('ColumnConfigSidebar', () => {
           config={{ mode: 'create', proposedName: 'Related row', type: 'reference' }}
           onClose={vi.fn()}
           existingColumn={null}
+          allColumns={[]}
+          tableRowTtlEnabled={false}
           workspaceId='workspace-1'
           tableId='table-current'
           referenceColumnsEnabled
@@ -209,6 +213,8 @@ describe('ColumnConfigSidebar', () => {
             type: 'reference',
             referenceTableId: 'table-current',
           }}
+          allColumns={[]}
+          tableRowTtlEnabled={false}
           workspaceId='workspace-1'
           tableId='table-current'
           onColumnRename={onColumnRename}
@@ -248,6 +254,8 @@ describe('ColumnConfigSidebar', () => {
             type: 'reference',
             referenceTableId: 'table-current',
           }}
+          allColumns={[]}
+          tableRowTtlEnabled={false}
           workspaceId='workspace-1'
           tableId='table-current'
           referenceColumnsEnabled={false}
@@ -275,6 +283,8 @@ describe('ColumnConfigSidebar', () => {
           config={{ mode: 'create', proposedName: 'Related row', type: 'reference' }}
           onClose={vi.fn()}
           existingColumn={null}
+          allColumns={[]}
+          tableRowTtlEnabled={false}
           workspaceId='workspace-1'
           tableId='table-current'
           referenceColumnsEnabled
@@ -297,6 +307,8 @@ describe('ColumnConfigSidebar', () => {
             type: 'select',
             options: [{ id: 'option-ready', name: 'Ready' }],
           }}
+          allColumns={[]}
+          tableRowTtlEnabled={false}
           workspaceId='workspace-1'
           tableId='table-current'
           referenceColumnsEnabled
