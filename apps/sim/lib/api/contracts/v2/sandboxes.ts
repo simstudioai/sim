@@ -37,8 +37,7 @@ const DEPENDENCIES_DESCRIPTION =
   'Package specifiers installed into the sandbox, one per entry. Blank entries and `#` comments are ignored.'
 const CLI_TOOLS_DESCRIPTION =
   'Pinned managed CLI ids installed into the sandbox, at most 10, no duplicates.'
-const SYSTEM_PACKAGES_DESCRIPTION =
-  'Debian packages installed into the sandbox image, one per entry.'
+const SYSTEM_PACKAGES_DESCRIPTION = 'Debian packages installed into the sandbox, one per entry.'
 
 export const v2SandboxSchema = z
   .object({

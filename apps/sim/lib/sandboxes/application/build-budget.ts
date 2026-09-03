@@ -35,9 +35,10 @@ export class SandboxBuildBudgetExceededError extends HttpError {
 }
 
 /**
- * Consumes one token of the workspace's build budget or throws.
+ * Consumes one token of the workspace's sandbox write budget or throws.
  *
- * Builds cost provider compute, so every mutation shares one per-workspace
+ * Saves cost provider work — a prebuilt image, or a re-install on the next run
+ * under a runtime provider — so creates and updates share one per-workspace
  * budget rather than each admin getting a full allowance. This is cost
  * admission, not request-rate limiting: it runs inside the use case so the
  * internal API, the public API, and Copilot all draw on the same bucket, and it

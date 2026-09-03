@@ -10394,7 +10394,7 @@ export const V2_OPERATIONS = {
       systemPackages: {
         kind: 'array',
         default: [],
-        describe: 'Debian packages installed into the sandbox image, one per entry.',
+        describe: 'Debian packages installed into the sandbox, one per entry.',
       },
     },
   },

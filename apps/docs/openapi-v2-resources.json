@@ -2143,7 +2143,7 @@
       "post": {
         "operationId": "createSandbox",
         "summary": "Create Sandbox",
-        "description": "Create a sandbox. The name must be unique within the workspace. Where the deployment prebuilds dependency images, the build is scheduled and reported through `buildStatus`; a deployment that installs at run time, or a sandbox with nothing to install, has no build and reports `buildStatus: null`. A dependency or system-package entry the builder cannot accept is a `400` whose `error.details` names the field and the offending entries. Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Builds cost compute, so every write in a workspace draws on one shared budget, and a burst is refused with `429` and a `Retry-After` header. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Create a sandbox. The name must be unique within the workspace. Where the deployment prebuilds dependency images, the build is scheduled and reported through `buildStatus`; a deployment that installs at run time, or a sandbox with nothing to install, has no build and reports `buildStatus: null`. A dependency or system-package entry the builder cannot accept is a `400` whose `error.details` names the field and the offending entries. Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Creates and updates in a workspace share one write budget, whatever the install strategy, and a burst is refused with `429` and a `Retry-After` header. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Sandboxes"],
         "requestBody": {
           "required": true,
@@ -2290,7 +2290,7 @@
       "patch": {
         "operationId": "updateSandbox",
         "summary": "Update Sandbox",
-        "description": "Update the supplied sandbox fields. Omitted fields retain their stored values; a supplied list replaces the whole list; names must remain unique within the workspace. Where the deployment prebuilds dependency images, a changed spec is rebuilt and re-sending an unchanged spec after a failed build retries it; a deployment that installs at run time, or a spec with nothing to install, has no build and reports `buildStatus: null`. Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Builds cost compute, so every write in a workspace draws on one shared budget, and a burst is refused with `429` and a `Retry-After` header. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Update the supplied sandbox fields. Omitted fields retain their stored values; a supplied list replaces the whole list; names must remain unique within the workspace. Where the deployment prebuilds dependency images, a changed spec is rebuilt and re-sending an unchanged spec after a failed build retries it; a deployment that installs at run time, or a spec with nothing to install, has no build and reports `buildStatus: null`. Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Creates and updates in a workspace share one write budget, whatever the install strategy, and a burst is refused with `429` and a `Retry-After` header. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Sandboxes"],
         "parameters": [
           {
@@ -2373,7 +2373,7 @@
       "delete": {
         "operationId": "deleteSandbox",
         "summary": "Delete Sandbox",
-        "description": "Delete a sandbox. Function blocks that still select it fail closed at run time until they are re-pointed. Any prebuilt image is released once nothing else shares it. Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Builds cost compute, so every write in a workspace draws on one shared budget, and a burst is refused with `429` and a `Retry-After` header. A workspace API key is rejected with `403`; use a personal API key.",
+        "description": "Delete a sandbox. Function blocks that still select it fail closed at run time until they are re-pointed. Any prebuilt image is released once nothing else shares it. Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Sandboxes"],
         "parameters": [
           {
@@ -6849,7 +6849,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Debian packages installed into the sandbox image, one per entry."
+            "description": "Debian packages installed into the sandbox, one per entry."
           },
           "buildStatus": {
             "anyOf": [
@@ -7089,7 +7089,7 @@
           },
           "systemPackages": {
             "default": [],
-            "description": "Debian packages installed into the sandbox image, one per entry.",
+            "description": "Debian packages installed into the sandbox, one per entry.",
             "maxItems": 1000,
             "type": "array",
             "items": {

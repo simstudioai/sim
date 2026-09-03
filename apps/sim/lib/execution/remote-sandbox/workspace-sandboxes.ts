@@ -47,7 +47,8 @@ import type { SandboxDependencyStrategy } from '@/lib/execution/remote-sandbox/t
 export const WORKSPACE_SANDBOX_NAME_INDEX = 'workspace_sandbox_workspace_name_unique'
 
 /**
- * Builds cost provider compute, so every mutation shares one per-workspace
+ * Saves cost provider work — a prebuilt image, or a re-install on the next run
+ * under a runtime provider — so creates and updates share one per-workspace
  * budget rather than giving each admin a full allowance of their own.
  */
 export const SANDBOX_MUTATION_LIMIT = {

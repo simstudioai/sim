@@ -396,8 +396,12 @@ const SANDBOX_EXAMPLE = {
   updatedAt: '2026-06-20T14:02:11.000Z',
 } as const
 
-const SANDBOX_PLAN_NOTE =
-  'Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Builds cost compute, so every write in a workspace draws on one shared budget, and a burst is refused with `429` and a `Retry-After` header.'
+const SANDBOX_ADMIN_PLAN_NOTE =
+  'Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`.'
+
+/** Creates and updates only: deleting builds nothing and is never refused on budget. */
+const SANDBOX_BUILD_BUDGET_NOTE =
+  'Creates and updates in a workspace share one write budget, whatever the install strategy, and a burst is refused with `429` and a `Retry-After` header.'
 
 const CREDENTIAL_EXAMPLE = {
   id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
@@ -1255,7 +1259,7 @@ const declaredRoutes = [
     resourceOperation('Sandboxes', {
       operationId: 'createSandbox',
       summary: 'Create Sandbox',
-      description: `Create a sandbox. The name must be unique within the workspace. Where the deployment prebuilds dependency images, the build is scheduled and reported through \`buildStatus\`; a deployment that installs at run time, or a sandbox with nothing to install, has no build and reports \`buildStatus: null\`. A dependency or system-package entry the builder cannot accept is a \`400\` whose \`error.details\` names the field and the offending entries. ${SANDBOX_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create a sandbox. The name must be unique within the workspace. Where the deployment prebuilds dependency images, the build is scheduled and reported through \`buildStatus\`; a deployment that installs at run time, or a sandbox with nothing to install, has no build and reports \`buildStatus: null\`. A dependency or system-package entry the builder cannot accept is a \`400\` whose \`error.details\` names the field and the offending entries. ${SANDBOX_ADMIN_PLAN_NOTE} ${SANDBOX_BUILD_BUDGET_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
         description:
@@ -1325,7 +1329,7 @@ const declaredRoutes = [
     resourceOperation('Sandboxes', {
       operationId: 'updateSandbox',
       summary: 'Update Sandbox',
-      description: `Update the supplied sandbox fields. Omitted fields retain their stored values; a supplied list replaces the whole list; names must remain unique within the workspace. Where the deployment prebuilds dependency images, a changed spec is rebuilt and re-sending an unchanged spec after a failed build retries it; a deployment that installs at run time, or a spec with nothing to install, has no build and reports \`buildStatus: null\`. ${SANDBOX_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Update the supplied sandbox fields. Omitted fields retain their stored values; a supplied list replaces the whole list; names must remain unique within the workspace. Where the deployment prebuilds dependency images, a changed spec is rebuilt and re-sending an unchanged spec after a failed build retries it; a deployment that installs at run time, or a spec with nothing to install, has no build and reports \`buildStatus: null\`. ${SANDBOX_ADMIN_PLAN_NOTE} ${SANDBOX_BUILD_BUDGET_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated sandbox.' },
     }),
@@ -1367,7 +1371,7 @@ const declaredRoutes = [
     resourceOperation('Sandboxes', {
       operationId: 'deleteSandbox',
       summary: 'Delete Sandbox',
-      description: `Delete a sandbox. Function blocks that still select it fail closed at run time until they are re-pointed. Any prebuilt image is released once nothing else shares it. ${SANDBOX_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Delete a sandbox. Function blocks that still select it fail closed at run time until they are re-pointed. Any prebuilt image is released once nothing else shares it. ${SANDBOX_ADMIN_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The sandbox was deleted.' },
     }),

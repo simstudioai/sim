@@ -64,9 +64,15 @@ async function requireSandboxPlan(workspaceId: string): Promise<void> {
 }
 
 /**
- * The build budget, handed to the manager as its admission hook so it is spent
+ * The write budget, handed to the manager as its admission hook so it is spent
  * only once the spec has validated and the name is free — a refused line or a
- * collision builds nothing and must not drain what a real build needs.
+ * collision builds nothing and must not drain what a real save needs.
+ *
+ * Charged whatever the install strategy. A prebuilt image costs provider
+ * compute; under a runtime-install provider every saved spec is installed again
+ * on the next execution, and every save invalidates resolution. It is also the
+ * only per-workspace admission the internal routes have, which is why neither
+ * a runtime provider nor an empty spec is exempt.
  */
 function spendBuildBudget(workspaceId: string) {
   return { admit: () => assertSandboxBuildBudget(workspaceId) }
@@ -215,9 +221,12 @@ export const deleteWorkspaceSandboxUseCase = defineAuthorizedWorkspaceUseCase({
   resolveContext: ({ input }: { input: DeleteWorkspaceSandboxInput }) =>
     resolveSandboxContext(input.workspaceId, input.sandboxId),
   authorizationOptions,
+  /**
+   * No budget: deleting builds nothing, and a workspace that spent its budget
+   * on saves must still be able to clean up.
+   */
   async execute({ context }) {
     await requireSandboxPlan(context.workspaceId)
-    await assertSandboxBuildBudget(context.workspaceId)
     await deleteWorkspaceSandbox(context.workspaceId, context.sandbox.id)
     return { sandbox: context.sandbox }
   },

@@ -441,6 +441,22 @@ describe('sandbox application use cases', () => {
       )
     })
 
+    /**
+     * Deleting builds nothing, and a workspace that spent its budget on saves
+     * must still be able to clean up.
+     */
+    it('never spends the write budget on a delete', async () => {
+      mocks.budget.mockResolvedValue({ allowed: false, remaining: 0, resetAt: new Date() })
+
+      await expect(
+        deleteWorkspaceSandboxUseCase.execute({
+          principal: session,
+          input: { workspaceId: workspace.workspaceId, sandboxId: sandbox.id },
+        })
+      ).resolves.toEqual({ sandbox })
+      expect(mocks.budget).not.toHaveBeenCalled()
+    })
+
     it('does not audit a delete the manager refused', async () => {
       mocks.remove.mockRejectedValue(new OrchestrationError('not_found', 'Sandbox not found'))
 
