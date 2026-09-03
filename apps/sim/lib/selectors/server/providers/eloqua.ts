@@ -169,8 +169,8 @@ async function executeEloquaSelector(
       }
     )
     const parsed = eloquaSelectorItemSchema.safeParse(body)
-    if (!parsed.success) throw new SelectorOptionsUnavailableError()
-    return detailSelectorResult(selectorOption(parsed.data))
+    if (!parsed.success || parsed.data.id !== id) throw new SelectorOptionsUnavailableError()
+    return detailSelectorResult({ ...selectorOption(parsed.data), id })
   }
 
   const page = cursorPage(args.request.cursor)

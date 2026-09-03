@@ -150,6 +150,18 @@ describe('Oracle Eloqua server selector adapter', () => {
     expect(new URL(String(mockFetch.mock.calls[0]?.[0])).pathname).toBe(path)
   })
 
+  it('rejects a detail response whose ID differs from the requested asset', async () => {
+    mockFetch.mockResolvedValueOnce(
+      Response.json({ id: '999', name: 'Different asset', type: 'Asset' })
+    )
+
+    await expect(
+      eloquaSelectorAttachments['eloqua.forms'].execute(
+        args({ kind: 'detail', id: '123' }, 'eloqua.forms')
+      )
+    ).rejects.toThrow('Options unavailable')
+  })
+
   it('rejects a credential with an unsafe destination before fetching', async () => {
     mockGetCredential.mockResolvedValue({
       providerId: 'eloqua',
@@ -203,15 +215,35 @@ describe('Oracle Eloqua server selector adapter', () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it('fails closed on malformed provider responses and forwards cancellation', async () => {
-    const controller = new AbortController()
+  it('fails closed on malformed provider responses', async () => {
     mockFetch.mockResolvedValueOnce(Response.json({ elements: 'not-an-array' }))
 
     await expect(
-      eloquaSelectorAttachments['eloqua.emails'].execute(
-        args({ kind: 'list' }, 'eloqua.emails', controller.signal)
-      )
-    ).rejects.toThrow()
-    expect(mockFetch.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal)
+      eloquaSelectorAttachments['eloqua.emails'].execute(args({ kind: 'list' }, 'eloqua.emails'))
+    ).rejects.toThrow('Options unavailable')
+  })
+
+  it('forwards caller cancellation to the provider request', async () => {
+    const controller = new AbortController()
+    const abortError = new DOMException('The operation was aborted', 'AbortError')
+    let markFetchStarted: (() => void) | undefined
+    const fetchStarted = new Promise<void>((resolve) => {
+      markFetchStarted = resolve
+    })
+    mockFetch.mockImplementationOnce((_input: RequestInfo | URL, init?: RequestInit) => {
+      markFetchStarted?.()
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+      })
+    })
+
+    const pending = eloquaSelectorAttachments['eloqua.emails'].execute(
+      args({ kind: 'list' }, 'eloqua.emails', controller.signal)
+    )
+    await fetchStarted
+    controller.abort(abortError)
+
+    await expect(pending).rejects.toBe(abortError)
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 })
