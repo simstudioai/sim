@@ -147,11 +147,15 @@ externalDatabase:
   port: 6432
   database: simstudio
   sslMode: require
+  # Replace with your real password. It must match ^[a-zA-Z0-9._-]+$ — the
+  # chart rejects anything else, including the angle brackets a placeholder
+  # would normally use.
+  #
   # Required unless you use externalDatabase.existingSecret or External
-  # Secrets, either of which skips this check. Under External Secrets, map
+  # Secrets, either of which skips both checks. Under External Secrets, map
   # externalSecrets.remoteRefs.externalDatabase.password — an omitted mapping
   # renders no Secret and the pod cannot start.
-  password: "<password>"
+  password: "replace-with-your-password"
 
 autoscaling:
   enabled: true
