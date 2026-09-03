@@ -849,6 +849,17 @@ describe('Oracle Fusion Financials provider', () => {
     expect(url.searchParams.has('totalResults')).toBe(false)
   })
 
+  it.each([
+    'https://attacker.example/fscmRestApi/resources/11.13.18.05/invoices',
+    '//attacker.example/fscmRestApi/resources/11.13.18.05/invoices',
+    `https://user:password@vision.fa.us2.oraclecloud.com${RESOURCE_PATH}/invoices`,
+  ])('rejects request paths that leave the credential-bound origin: %s', async (path) => {
+    await expect(requestOracleFusionJson(AUTH, { path })).rejects.toThrow(
+      'Oracle Fusion request path must remain on the credential-bound origin'
+    )
+    expect(mockSecureFetch).not.toHaveBeenCalled()
+  })
+
   it('encodes every opaque parent key in nested resource paths', async () => {
     const invoiceUniqId = 'INVOICE key+1'
     const invoiceLineUniqId = 'LINE key+2'

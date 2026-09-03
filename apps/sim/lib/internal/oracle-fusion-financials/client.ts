@@ -229,6 +229,9 @@ export interface OracleFusionRequest {
 
 function buildRequestUrl(origin: string, request: OracleFusionRequest): string {
   const url = new URL(request.path, origin)
+  if (url.origin !== origin || url.username || url.password) {
+    throw new Error('Oracle Fusion request path must remain on the credential-bound origin')
+  }
   for (const [key, value] of Object.entries(request.query ?? {})) {
     if (value !== undefined) url.searchParams.set(key, String(value))
   }
