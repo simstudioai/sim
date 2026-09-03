@@ -5,6 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   ChevronDown,
+  cn,
   disclosureChevronClass,
   handleKeyboardActivation,
   Popover,
@@ -16,7 +17,6 @@ import {
 import { ArrowDown, ArrowUp, Download, MoreHorizontal, Palette, Trash } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import clsx from 'clsx'
 import Link from 'next/link'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { sendMothershipMessage } from '@/lib/mothership/events'
@@ -129,7 +129,7 @@ const BlockRow = memo(function BlockRow({
           {entry.blockName}
         </span>
       </div>
-      <span className={clsx(ROW_STYLES.status, !isRunning && ROW_STYLES.statusIdle)}>
+      <span className={cn(ROW_STYLES.status, !isRunning && ROW_STYLES.statusIdle)}>
         <StatusDisplay
           isRunning={isRunning}
           isCanceled={isCanceled}
@@ -190,10 +190,10 @@ const IterationNodeRow = memo(function IterationNodeRow({
             {iterationLabel}
           </span>
           {hasChildren && (
-            <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
+            <ChevronDown className={cn(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
         </div>
-        <span className={clsx(ROW_STYLES.status, !hasRunningChild && ROW_STYLES.statusIdle)}>
+        <span className={cn(ROW_STYLES.status, !hasRunningChild && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningChild}
             isCanceled={hasCanceledChild}
@@ -274,10 +274,10 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
           <EntryBlockTile blockType={entry.blockType} />
           <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>{displayName}</span>
           {hasChildren && (
-            <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
+            <ChevronDown className={cn(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
         </div>
-        <span className={clsx(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
+        <span className={cn(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningDescendant}
             isCanceled={hasCanceledDescendant}
@@ -373,10 +373,10 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
             {entry.blockName}
           </span>
           {hasChildren && (
-            <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
+            <ChevronDown className={cn(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
         </div>
-        <span className={clsx(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
+        <span className={cn(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningDescendant}
             isCanceled={hasCanceledDescendant}
@@ -1201,7 +1201,7 @@ export const Terminal = memo(function Terminal() {
     <>
       <aside
         ref={terminalRef}
-        className={clsx(
+        className={cn(
           'terminal-container relative shrink-0 overflow-hidden border-[var(--border)] border-t bg-[var(--bg)]',
           isToggling && 'transition-[height] duration-100 ease-out'
         )}
@@ -1223,7 +1223,7 @@ export const Terminal = memo(function Terminal() {
         <div className='relative flex h-full'>
           {/* Left Section - Logs */}
           <div
-            className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
+            className={cn('flex flex-col', !selectedEntry && 'flex-1')}
             style={selectedEntry ? { width: 'calc(100% - var(--output-panel-width))' } : undefined}
           >
             {/* Header */}

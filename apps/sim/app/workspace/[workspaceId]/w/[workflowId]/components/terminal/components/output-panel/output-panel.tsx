@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   Code,
+  cn,
   Input,
   Popover,
   PopoverContent,
@@ -23,7 +24,6 @@ import {
   Trash,
   X,
 } from '@sim/emcn/icons'
-import clsx from 'clsx'
 import Link from 'next/link'
 import {
   AgentStreamThinkingChrome,
@@ -313,7 +313,7 @@ export const OutputPanel = React.memo(function OutputPanel({
           <div className='flex items-center'>
             <Button
               variant='ghost'
-              className={clsx(
+              className={cn(
                 'px-2 py-1.5 text-small',
                 !showInput ? 'text-[var(--text-primary)]!' : 'text-[var(--text-icon)]!'
               )}
@@ -325,7 +325,7 @@ export const OutputPanel = React.memo(function OutputPanel({
             {hasInputData && (
               <Button
                 variant='ghost'
-                className={clsx(
+                className={cn(
                   'px-2 py-1.5 text-small',
                   showInput ? 'text-[var(--text-primary)]!' : 'text-[var(--text-icon)]!'
                 )}
@@ -503,7 +503,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               className='mr-0.5 h-[23px] w-[94px] text-caption'
             />
             <span
-              className={clsx(
+              className={cn(
                 'w-[58px] text-xs',
                 matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
               )}
@@ -541,7 +541,7 @@ export const OutputPanel = React.memo(function OutputPanel({
 
         {/* Content */}
         <div
-          className={clsx('flex-1 overflow-y-auto', !wrapText && 'overflow-x-auto')}
+          className={cn('flex-1 overflow-y-auto', !wrapText && 'overflow-x-auto')}
           onContextMenu={handleOutputPanelContextMenu}
         >
           {!showInput &&

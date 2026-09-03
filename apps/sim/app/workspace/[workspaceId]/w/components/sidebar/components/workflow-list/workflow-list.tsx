@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import clsx from 'clsx'
+import { cn } from '@sim/emcn'
 import { useShallow } from 'zustand/react/shallow'
 import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
 import { EmptyAreaContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/empty-area-context-menu'
@@ -445,7 +445,7 @@ export const WorkflowList = memo(function WorkflowList({
         <div key={folder.id} className='relative'>
           <DropIndicatorLine show={showBefore} level={level} position='before' />
           <div
-            className={clsx(
+            className={cn(
               'pointer-events-none absolute inset-0 z-10 rounded-sm',
               showInside && isDragging ? 'bg-[var(--text-subtle)] opacity-10' : 'hidden'
             )}
@@ -570,12 +570,12 @@ export const WorkflowList = memo(function WorkflowList({
         data-empty-area
       >
         <div
-          className={clsx('relative flex-1 rounded-sm', !hasRootItems && 'min-h-[26px]')}
+          className={cn('relative flex-1 rounded-sm', !hasRootItems && 'min-h-[26px]')}
           {...rootDropZoneHandlers}
           data-empty-area
         >
           <div
-            className={clsx(
+            className={cn(
               'pointer-events-none absolute inset-0 z-10 rounded-sm',
               showRootInside && isDragging ? 'bg-[var(--text-subtle)] opacity-10' : 'hidden'
             )}

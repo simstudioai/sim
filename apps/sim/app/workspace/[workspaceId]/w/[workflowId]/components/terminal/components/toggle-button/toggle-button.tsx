@@ -2,9 +2,8 @@
 
 import type React from 'react'
 import { memo } from 'react'
-import { Button } from '@sim/emcn'
+import { Button, cn } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
-import clsx from 'clsx'
 
 export interface ToggleButtonProps {
   isExpanded: boolean
@@ -23,7 +22,7 @@ export const ToggleButton = memo(function ToggleButton({ isExpanded, onClick }: 
       aria-label='Toggle terminal'
     >
       <ChevronDown
-        className={clsx(
+        className={cn(
           'size-[14px] shrink-0 transition-transform duration-100',
           !isExpanded && 'rotate-180'
         )}

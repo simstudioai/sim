@@ -22,7 +22,6 @@ import {
   OverflowText,
 } from '@sim/emcn'
 import { ChevronDown, Search } from '@sim/emcn/icons'
-import clsx from 'clsx'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
@@ -319,7 +318,7 @@ const ToolbarSection = memo(function ToolbarSection({
         >
           <span className='text-[var(--text-muted)] text-small'>{label}</span>
           <ChevronDown
-            className={clsx(
+            className={cn(
               'size-[14px] text-[var(--text-icon)] transition-transform duration-150',
               !expanded && '-rotate-90'
             )}

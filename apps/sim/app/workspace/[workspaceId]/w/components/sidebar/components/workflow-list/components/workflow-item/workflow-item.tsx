@@ -3,7 +3,6 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { chipVariants, cn, OverflowText } from '@sim/emcn'
 import { Lock, MoreHorizontal } from '@sim/emcn/icons'
-import clsx from 'clsx'
 import Link from 'next/link'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -454,7 +453,7 @@ export const WorkflowItem = memo(function WorkflowItem({
               <span
                 role='img'
                 aria-label='Workflow is locked'
-                className={clsx(
+                className={cn(
                   'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
                   !isAnyDragActive && 'group-hover:opacity-0',
                   isContextMenuOpen && 'opacity-0'
@@ -468,10 +467,19 @@ export const WorkflowItem = memo(function WorkflowItem({
               aria-label='Workflow options'
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
-              className={clsx(
+              className={cn(
                 'pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
                 !isAnyDragActive && 'group-hover:pointer-events-auto group-hover:opacity-100',
-                isContextMenuOpen && 'pointer-events-auto opacity-100'
+                /**
+                 * `opacity-100` only. `pointer-events-auto` belongs here too,
+                 * but it has never applied: under `clsx` both it and the base
+                 * `pointer-events-none` shipped, and Tailwind emits
+                 * `pointer-events-none` last, so it won. Adding it back under
+                 * `cn` (where the last argument wins) would make the button
+                 * clickable for the first time — a real fix, but a behaviour
+                 * change that does not belong in a rendering-neutral upgrade.
+                 */
+                isContextMenuOpen && 'opacity-100'
               )}
             >
               <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />

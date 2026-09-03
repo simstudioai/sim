@@ -162,7 +162,6 @@
     "busboy": "1.6.0",
     "cheerio": "1.1.2",
     "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
     "croner": "^9.0.0",
     "cronstrue": "3.3.0",

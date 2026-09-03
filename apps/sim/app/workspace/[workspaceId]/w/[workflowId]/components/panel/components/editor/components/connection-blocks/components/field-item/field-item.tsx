@@ -1,10 +1,9 @@
 'use client'
 
 import { useCallback } from 'react'
-import { Badge, handleKeyboardActivation } from '@sim/emcn'
+import { Badge, cn, handleKeyboardActivation } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import clsx from 'clsx'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 import { normalizeName } from '@/executor/constants'
 
@@ -83,13 +82,13 @@ export function FieldItem({
         if (!hasChildren) return
         handleKeyboardActivation(event, handleClick)
       }}
-      className={clsx(
+      className={cn(
         'group flex h-[26px] cursor-grab items-center gap-2 rounded-lg px-1.5 text-sm hover-hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover-hover:bg-[var(--surface-5)]',
         hasChildren && 'cursor-pointer'
       )}
     >
       <span
-        className={clsx(
+        className={cn(
           'min-w-0 flex-1 truncate',
           'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
         )}
@@ -99,7 +98,7 @@ export function FieldItem({
       <Badge className='shrink-0 rounded-sm px-1.5 py-[1px] font-mono text-xs'>{field.type}</Badge>
       {hasChildren && (
         <ChevronDown
-          className={clsx(
+          className={cn(
             'size-[14px] shrink-0 transition-transform duration-100',
             'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
             isExpanded && 'rotate-180'
