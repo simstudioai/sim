@@ -175,6 +175,30 @@ describe('universal grep', () => {
     expect(requested.filter((path) => path === '/api/v2/files/wf_1/text')).toHaveLength(2)
   })
 
+  it('honours -A and -B as asymmetric context, not only -C', async () => {
+    const runtime = runtimeWith({
+      '/api/v2/blocks': { data: [{ id: 'agent' }], nextCursor: null },
+      '/api/v2/blocks/agent': {
+        data: { id: 'agent', name: 'Agent', inputSchema: [{ id: 'model' }, { id: 'files' }] },
+      },
+    })
+    const after = await runEngine('grep', ['"id": "model"'], runtime, {
+      scope: 'blocks',
+      in: 'agent',
+      A: '4',
+    })
+    expect(after.stdout).toContain('"id": "model"')
+    expect(after.stdout).toContain('"id": "files"')
+    const before = await runEngine('grep', ['"id": "files"'], runtime, {
+      scope: 'blocks',
+      in: 'agent',
+      B: '4',
+    })
+    expect(before.stdout).toContain('"id": "model"')
+    const bad = await runEngine('grep', ['x'], runtime, { scope: 'blocks', A: 'lots' })
+    expect(bad.stderr).toContain('-A needs a non-negative number')
+  })
+
   it('accepts the world/resource path a match line prints as --in', async () => {
     const byPath = await runEngine('grep', ['id'], runtimeWith(CATALOG), { in: 'blocks/agent' })
     expect(byPath.exitCode).toBe(0)
