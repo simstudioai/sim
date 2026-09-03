@@ -77,6 +77,7 @@ import {
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
+import { ELOQUA_OAUTH_TOKEN_URL } from '@/lib/oauth/eloqua'
 import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import { MONDAY_OAUTH_TOKEN_URL, resolveMondayAccessTokenExpiresAt } from '@/lib/oauth/monday'
 import {
@@ -118,6 +119,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'claude-platform',
+  },
+  eloqua: {
+    name: 'Oracle Eloqua',
+    icon: NetSuiteIcon,
+    services: {
+      eloqua: {
+        name: 'Oracle Eloqua',
+        description: 'Manage contacts, accounts, marketing assets, and Bulk API syncs.',
+        providerId: 'eloqua',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: ['full'],
+      },
+    },
+    defaultService: 'eloqua',
   },
   google: {
     name: 'Google',
@@ -1443,6 +1459,21 @@ function getConfiguredClientCredentials<const TCapabilityId extends OAuthClientC
  */
 function getProviderAuthConfig(provider: string): ProviderAuthConfig {
   switch (provider) {
+    case 'eloqua': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'eloqua',
+        'ELOQUA_CLIENT_ID',
+        'ELOQUA_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: ELOQUA_OAUTH_TOKEN_URL,
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        useJsonBody: true,
+        supportsRefreshTokenRotation: true,
+      }
+    }
     case 'google': {
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'google',

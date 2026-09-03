@@ -480,6 +480,9 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
 
 /** Scope labels that cannot be keyed by scope alone because providers reuse names. */
 const PROVIDER_SCOPE_DESCRIPTIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  eloqua: {
+    full: 'Access Oracle Eloqua data and marketing assets',
+  },
   /**
    * Word documents are ordinary drive items, so the integration asks for the
    * generic Files permissions. The shared labels name OneDrive specifically,

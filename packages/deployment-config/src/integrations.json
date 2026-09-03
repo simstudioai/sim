@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-03",
   "integrations": [
     {
       "type": "onepassword",
@@ -16007,6 +16007,146 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "eloqua",
+      "slug": "oracle-eloqua",
+      "name": "Oracle Eloqua",
+      "description": "Manage Eloqua contacts, accounts, marketing assets, and Bulk API syncs",
+      "longDescription": "Connect Oracle Eloqua to list and manage contacts and accounts, inspect campaigns and marketing assets, activate campaigns, and run explicit Bulk API import and export lifecycles. Results are returned one bounded page at a time. Contact and account updates use Eloqua full-representation PUT semantics, so retrieve and preserve fields before updating. Bulk jobs remain explicit: create a definition, upload import data when applicable, start a sync, inspect its status, and retrieve results, logs, or rejects.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/eloqua",
+      "operations": [
+        {
+          "name": "List Contacts",
+          "description": "Retrieve one bounded page of contacts from Oracle Eloqua."
+        },
+        {
+          "name": "Get Contact",
+          "description": "Retrieve one contact by ID from Oracle Eloqua."
+        },
+        {
+          "name": "Create Contact",
+          "description": "Create a contact in Oracle Eloqua."
+        },
+        {
+          "name": "Update Contact",
+          "description": "Update a contact in Oracle Eloqua. PUT expects a complete contact representation; retrieve the contact first and preserve fields that must not be cleared."
+        },
+        {
+          "name": "List Accounts",
+          "description": "Retrieve one bounded page of accounts from Oracle Eloqua."
+        },
+        {
+          "name": "Get Account",
+          "description": "Retrieve one account by ID from Oracle Eloqua."
+        },
+        {
+          "name": "Create Account",
+          "description": "Create an account in Oracle Eloqua."
+        },
+        {
+          "name": "Update Account",
+          "description": "Update an account in Oracle Eloqua. PUT expects a complete account representation; retrieve the account first and preserve fields that must not be cleared."
+        },
+        {
+          "name": "List Campaigns",
+          "description": "Retrieve one bounded page of campaigns from Oracle Eloqua."
+        },
+        {
+          "name": "Get Campaign",
+          "description": "Retrieve one campaign by ID from Oracle Eloqua."
+        },
+        {
+          "name": "Activate Campaign",
+          "description": "Activate or schedule an Oracle Eloqua campaign."
+        },
+        {
+          "name": "Deactivate Campaign",
+          "description": "Return an active Oracle Eloqua campaign to draft status."
+        },
+        {
+          "name": "List Contact Lists",
+          "description": "Retrieve one bounded page of contact lists from Oracle Eloqua."
+        },
+        {
+          "name": "Get Contact List",
+          "description": "Retrieve one contact list by ID from Oracle Eloqua."
+        },
+        {
+          "name": "List Segments",
+          "description": "Retrieve one bounded page of contact segments from Oracle Eloqua."
+        },
+        {
+          "name": "Get Segment",
+          "description": "Retrieve one contact segment by ID from Oracle Eloqua."
+        },
+        {
+          "name": "List Emails",
+          "description": "Retrieve one bounded page of email assets from Oracle Eloqua."
+        },
+        {
+          "name": "Get Email",
+          "description": "Retrieve one email asset by ID from Oracle Eloqua."
+        },
+        {
+          "name": "List Forms",
+          "description": "Retrieve one bounded page of form assets from Oracle Eloqua."
+        },
+        {
+          "name": "Get Form",
+          "description": "Retrieve one form asset by ID from Oracle Eloqua."
+        },
+        {
+          "name": "List Contact Fields (Bulk)",
+          "description": "Retrieve one bounded page of Bulk API contact field definitions."
+        },
+        {
+          "name": "Create Contact Import (Bulk)",
+          "description": "Create a Bulk API contact import definition with up to 100 field aliases."
+        },
+        {
+          "name": "Upload Contact Import Data (Bulk)",
+          "description": "Stage one bounded JSON batch for a contact import definition. The serialized body must stay within Sim's 10 MiB request limit."
+        },
+        {
+          "name": "Create Contact Export (Bulk)",
+          "description": "Create a Bulk API contact export definition with dynamic field aliases."
+        },
+        {
+          "name": "List Syncs (Bulk)",
+          "description": "Retrieve one bounded page of Bulk API synchronizations."
+        },
+        {
+          "name": "Start Sync (Bulk)",
+          "description": "Start a Bulk API synchronization for an existing contact import or export."
+        },
+        {
+          "name": "Get Sync (Bulk)",
+          "description": "Retrieve the current status and timestamps of one Bulk API synchronization."
+        },
+        {
+          "name": "Get Sync Data (Bulk)",
+          "description": "Retrieve one bounded page of dynamic contact export rows from a completed sync."
+        },
+        {
+          "name": "Get Sync Logs (Bulk)",
+          "description": "Retrieve one bounded page of logs for a Bulk API synchronization."
+        },
+        {
+          "name": "Get Sync Rejects (Bulk)",
+          "description": "Retrieve one bounded page of rejected records for a Bulk API import sync."
+        }
+      ],
+      "operationCount": 30,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "eloqua",
+      "category": "tools",
+      "integrationType": "marketing",
+      "tags": ["marketing", "automation", "email-marketing", "forms"]
     },
     {
       "type": "netsuite",

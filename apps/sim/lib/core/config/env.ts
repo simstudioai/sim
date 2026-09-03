@@ -504,6 +504,8 @@ export const env = createEnv({
     MICROSOFT_CLIENT_SECRET:               z.string().optional(),                  // Microsoft OAuth client secret
     HUBSPOT_CLIENT_ID:                     z.string().optional(),                  // HubSpot OAuth client ID
     HUBSPOT_CLIENT_SECRET:                 z.string().optional(),                  // HubSpot OAuth client secret
+    ELOQUA_CLIENT_ID:                      z.string().optional(),                  // Oracle Eloqua OAuth client ID
+    ELOQUA_CLIENT_SECRET:                  z.string().optional(),                  // Oracle Eloqua OAuth client secret
     SALESFORCE_CLIENT_ID:                  z.string().optional(),                  // Salesforce OAuth client ID
     SALESFORCE_CLIENT_SECRET:              z.string().optional(),                  // Salesforce OAuth client secret
     ZOHO_CLIENT_ID:                        z.string().optional(),                  // Zoho OAuth client ID (Zoho Desk)

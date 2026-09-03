@@ -72,6 +72,7 @@ import { DynamoDBBlock, DynamoDBBlockMeta } from '@/blocks/blocks/dynamodb'
 import { DynatraceBlock, DynatraceBlockMeta } from '@/blocks/blocks/dynatrace'
 import { ElasticsearchBlock, ElasticsearchBlockMeta } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock, ElevenLabsBlockMeta } from '@/blocks/blocks/elevenlabs'
+import { EloquaBlock, EloquaBlockMeta } from '@/blocks/blocks/eloqua'
 import { EmailBisonBlock, EmailBisonBlockMeta } from '@/blocks/blocks/emailbison'
 import { EmbeddingsBlock, EmbeddingsBlockMeta } from '@/blocks/blocks/embeddings'
 import { EnrichBlock, EnrichBlockMeta } from '@/blocks/blocks/enrich'
@@ -450,6 +451,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   dynatrace: DynatraceBlock,
   elasticsearch: ElasticsearchBlock,
   elevenlabs: ElevenLabsBlock,
+  eloqua: EloquaBlock,
   emailbison: EmailBisonBlock,
   embeddings: EmbeddingsBlock,
   enrich: EnrichBlock,
@@ -798,6 +800,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   dynatrace: DynatraceBlockMeta,
   elasticsearch: ElasticsearchBlockMeta,
   elevenlabs: ElevenLabsBlockMeta,
+  eloqua: EloquaBlockMeta,
   emailbison: EmailBisonBlockMeta,
   embeddings: EmbeddingsBlockMeta,
   enrich: EnrichBlockMeta,
