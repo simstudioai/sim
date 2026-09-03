@@ -525,40 +525,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'manageengine-sdp',
         icon: ManageEngineIcon,
         baseProviderIcon: ManageEngineIcon,
-        // ServiceDesk Plus Cloud scopes are `SDPOnDemand.<module>.<operation>`
-        // (getting-started/oauth-2.0.html). Enumerated per operation rather
-        // than requested as the broader `.ALL` group scopes, so the consent
-        // screen names exactly what the block can do.
-        //
-        // The five modules here are the ones the tools cover. Notably absent:
-        // the standalone Tasks module (/api/v3/tasks). Its endpoints are
-        // documented but the scope table publishes no `tasks` entry, and
-        // guessing one would put an unverified scope on every user's consent
-        // screen - so those tools are deliberately not implemented.
-        scopes: [
-          'SDPOnDemand.requests.CREATE',
-          'SDPOnDemand.requests.READ',
-          'SDPOnDemand.requests.UPDATE',
-          'SDPOnDemand.requests.DELETE',
-          'SDPOnDemand.problems.CREATE',
-          'SDPOnDemand.problems.READ',
-          'SDPOnDemand.problems.UPDATE',
-          'SDPOnDemand.problems.DELETE',
-          'SDPOnDemand.changes.CREATE',
-          'SDPOnDemand.changes.READ',
-          'SDPOnDemand.changes.UPDATE',
-          'SDPOnDemand.changes.DELETE',
-          'SDPOnDemand.assets.CREATE',
-          'SDPOnDemand.assets.READ',
-          'SDPOnDemand.assets.UPDATE',
-          'SDPOnDemand.assets.DELETE',
-          'SDPOnDemand.solutions.CREATE',
-          'SDPOnDemand.solutions.READ',
-          'SDPOnDemand.solutions.UPDATE',
-          'SDPOnDemand.solutions.DELETE',
-          // Zoho account profile, used by getUserInfo to label the credential.
-          'aaaserver.profile.READ',
-        ],
+        scopes: [...OAUTH_SCOPES['manageengine-sdp']],
       },
     },
     defaultService: 'manageengine-sdp',

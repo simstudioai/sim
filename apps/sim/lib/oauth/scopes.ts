@@ -514,6 +514,35 @@ export const OAUTH_SCOPES = {
     'instagram_business_manage_insights',
   ],
   salesforce: ['api', 'refresh_token', 'openid'],
+  /**
+   * ServiceDesk Plus Cloud scopes are `SDPOnDemand.<module>.<operation>`,
+   * enumerated per operation rather than requested as the broader `.ALL` group
+   * scopes, so the consent screen names exactly what the block can do.
+   */
+  'manageengine-sdp': [
+    'SDPOnDemand.requests.CREATE',
+    'SDPOnDemand.requests.READ',
+    'SDPOnDemand.requests.UPDATE',
+    'SDPOnDemand.requests.DELETE',
+    'SDPOnDemand.problems.CREATE',
+    'SDPOnDemand.problems.READ',
+    'SDPOnDemand.problems.UPDATE',
+    'SDPOnDemand.problems.DELETE',
+    'SDPOnDemand.changes.CREATE',
+    'SDPOnDemand.changes.READ',
+    'SDPOnDemand.changes.UPDATE',
+    'SDPOnDemand.changes.DELETE',
+    'SDPOnDemand.assets.CREATE',
+    'SDPOnDemand.assets.READ',
+    'SDPOnDemand.assets.UPDATE',
+    'SDPOnDemand.assets.DELETE',
+    'SDPOnDemand.solutions.CREATE',
+    'SDPOnDemand.solutions.READ',
+    'SDPOnDemand.solutions.UPDATE',
+    'SDPOnDemand.solutions.DELETE',
+    // Zoho account profile, used by getUserInfo to label the credential.
+    'aaaserver.profile.READ',
+  ],
   'zoho-desk': [
     // READ + UPDATE rather than tickets.ALL: no tool creates or deletes a
     // ticket, and ALL additionally grants ticket DELETE. Threads, comments
@@ -626,6 +655,27 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Desk.webhooks.CREATE': 'Create webhooks',
   'Desk.webhooks.DELETE': 'Delete webhooks',
   'aaaserver.profile.READ': 'View your Zoho profile',
+  // ManageEngine ServiceDesk Plus Cloud scopes
+  'SDPOnDemand.requests.CREATE': 'Create requests',
+  'SDPOnDemand.requests.READ': 'View requests and their notes',
+  'SDPOnDemand.requests.UPDATE': 'Update requests and add notes',
+  'SDPOnDemand.requests.DELETE': 'Delete requests',
+  'SDPOnDemand.problems.CREATE': 'Create problems',
+  'SDPOnDemand.problems.READ': 'View problems and their notes',
+  'SDPOnDemand.problems.UPDATE': 'Update problems and add notes',
+  'SDPOnDemand.problems.DELETE': 'Delete problems',
+  'SDPOnDemand.changes.CREATE': 'Create changes',
+  'SDPOnDemand.changes.READ': 'View changes and their notes',
+  'SDPOnDemand.changes.UPDATE': 'Update changes and add notes',
+  'SDPOnDemand.changes.DELETE': 'Delete changes',
+  'SDPOnDemand.assets.CREATE': 'Create assets',
+  'SDPOnDemand.assets.READ': 'View assets',
+  'SDPOnDemand.assets.UPDATE': 'Update assets',
+  'SDPOnDemand.assets.DELETE': 'Delete assets',
+  'SDPOnDemand.solutions.CREATE': 'Create knowledge base solutions',
+  'SDPOnDemand.solutions.READ': 'View knowledge base solutions',
+  'SDPOnDemand.solutions.UPDATE': 'Update knowledge base solutions',
+  'SDPOnDemand.solutions.DELETE': 'Delete knowledge base solutions',
   // Google scopes
   'https://www.googleapis.com/auth/gmail.send': 'Send emails',
   'https://www.googleapis.com/auth/gmail.labels': 'View and manage email labels',
