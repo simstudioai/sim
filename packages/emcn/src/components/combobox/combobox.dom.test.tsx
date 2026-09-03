@@ -12,7 +12,12 @@
 import { act, type ReactNode, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { InsideModalContext } from '../modal/modal'
 import { Combobox } from './combobox'
+
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/workspace/workspace-1/home',
+}))
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
@@ -42,6 +47,12 @@ function click(node: HTMLElement) {
   })
 }
 
+function mouseDown(node: HTMLElement) {
+  act(() => {
+    node.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+  })
+}
+
 function press(node: HTMLElement, key: string) {
   act(() => {
     node.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
@@ -60,6 +71,7 @@ afterEach(() => {
   container?.remove()
   root = null
   container = null
+  document.body.removeAttribute('style')
   vi.restoreAllMocks()
 })
 
@@ -70,6 +82,28 @@ describe('Combobox onOpenChange', () => {
     click(trigger())
 
     expect(container?.querySelector('[role="listbox"]')).not.toBeNull()
+  })
+
+  it('keeps portaled options interactive inside modal content', () => {
+    const onChange = vi.fn()
+    render(
+      <InsideModalContext.Provider value>
+        <Combobox options={OPTIONS} onChange={onChange} />
+      </InsideModalContext.Provider>
+    )
+
+    click(trigger())
+
+    const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(
+      ({ textContent }) => textContent === 'Alpha'
+    )
+    if (!option) throw new Error('Alpha option was not rendered')
+    expect(document.body.style.pointerEvents).toBe('none')
+    expect(getComputedStyle(option).pointerEvents).toBe('auto')
+
+    mouseDown(option)
+
+    expect(onChange).toHaveBeenCalledWith('alpha')
   })
 
   it('uses the overlay label for the interactive overflow layer', () => {
@@ -97,6 +131,7 @@ describe('Combobox onOpenChange', () => {
     click(trigger())
 
     expect(onOpenChange).toHaveBeenCalledWith(true)
+    expect(document.body.style.pointerEvents).toBe('')
   })
 
   it('reports the close a second trigger click causes', () => {
