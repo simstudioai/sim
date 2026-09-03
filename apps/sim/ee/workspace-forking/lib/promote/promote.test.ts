@@ -159,6 +159,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 import { db } from '@sim/db'
+import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
 import { getBlock } from '@/blocks/registry'
 import {
   recordBackgroundWork,
@@ -227,6 +228,39 @@ function promoteParams() {
     userId: 'user-1',
     otherWorkspaceName: 'Parent',
   }
+}
+
+/** One deployed source workflow the sync writes (replace mode) and then deploys. */
+function arrangeWrittenWorkflow() {
+  mockComputePlan.mockResolvedValue(
+    makePlan({
+      items: [
+        {
+          sourceWorkflowId: 'wf-src',
+          targetWorkflowId: 'wf-tgt',
+          targetName: 'Flow',
+          mode: 'replace' as const,
+          sourceMeta: { name: 'Flow', description: null, folderId: null, sortOrder: 0 },
+        },
+      ],
+    })
+  )
+  mockLoadSourceDeployedStates.mockResolvedValue({
+    deployedWorkflows: [],
+    sourceStates: new Map([
+      ['wf-src', { blocks: {}, edges: [], loops: {}, parallels: {}, variables: {} }],
+    ]),
+  })
+  vi.mocked(copyWorkflowStateIntoTarget).mockResolvedValue({
+    targetWorkflowId: 'wf-tgt',
+    mode: 'replace',
+    name: 'Flow',
+    blocksCount: 0,
+    edgesCount: 0,
+    subflowsCount: 0,
+    clearedDependents: [],
+    blockIdMapping: new Map(),
+  })
 }
 
 /** A copy result carrying no content/id maps, for tests that only need the copy to run. */
@@ -830,6 +864,27 @@ describe('promoteFork trigger URLs', () => {
 })
 
 describe('promoteFork activity', () => {
+  it('records a deploy that succeeded with a warning as a sync with warnings', async () => {
+    arrangeWrittenWorkflow()
+    vi.mocked(performFullDeploy).mockResolvedValueOnce({
+      success: true,
+      warnings: ['prior workflow version remains active'],
+    } as never)
+
+    const result = await promoteFork(promoteParams())
+
+    expect(result.deployWarnings).toEqual(['Flow — prior workflow version remains active'])
+    expect(recordBackgroundWork).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        status: 'completed_with_warnings',
+        metadata: expect.objectContaining({
+          deployWarnings: ['Flow — prior workflow version remains active'],
+        }),
+      })
+    )
+  })
+
   it('records the sync as one terminal Activity row when nothing is left to fill', async () => {
     await promoteFork(promoteParams())
 
@@ -882,6 +937,8 @@ describe('promoteFork activity', () => {
           tables: 1,
           knowledgeBases: 0,
           files: 0,
+          skills: 0,
+          documents: 0,
         }),
       })
     )

@@ -220,6 +220,55 @@ describe('ForkActivityPanel sync report', () => {
     expect(container.textContent).toContain('2 tables, 1 file')
   })
 
+  it('shows a fill of only skills and documents, which carry no table or file count', () => {
+    renderJobs([
+      makeJob({
+        kind: 'fork_sync',
+        workspaceId: WORKSPACE_ID,
+        status: 'processing',
+        metadata: { ...syncMetadata, tables: 0, files: 0, skills: 1, documents: 2 },
+      }),
+    ])
+
+    expandRow()
+    expect(container.textContent).toContain('Copying')
+    expect(container.textContent).toContain('2 documents, 1 skill')
+  })
+
+  it('does not call a fill copied when the row failed before it finished', () => {
+    renderJobs([
+      makeJob({
+        kind: 'fork_sync',
+        workspaceId: WORKSPACE_ID,
+        status: 'failed',
+        error: 'Background resource copy failed',
+        metadata: syncMetadata,
+      }),
+    ])
+
+    expandRow()
+    expect(container.textContent).toContain('Copy failed')
+    expect(container.textContent).toContain('2 tables, 1 file')
+    expect(container.textContent).not.toContain('Copied')
+  })
+
+  it('surfaces a deploy that succeeded with its cutover still pending', () => {
+    renderJobs([
+      makeJob({
+        kind: 'fork_sync',
+        workspaceId: WORKSPACE_ID,
+        status: 'completed_with_warnings',
+        metadata: {
+          ...syncMetadata,
+          deployWarnings: ['Flow A — prior workflow version remains active'],
+        },
+      }),
+    ])
+
+    expandRow()
+    expect(container.textContent).toContain('Flow A — prior workflow version remains active')
+  })
+
   it('reports the finished copy and what it lost on the same row', () => {
     renderJobs([
       makeJob({

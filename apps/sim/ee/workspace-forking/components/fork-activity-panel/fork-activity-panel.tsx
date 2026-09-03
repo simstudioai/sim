@@ -38,10 +38,29 @@ function countList(pairs: Array<[number | undefined, string]>): string {
 function contentFillCounts(m: NonNullable<BackgroundWorkMetadata>): string[] {
   const kinds: Array<[number | undefined, string]> = [
     [m.knowledgeBases, 'knowledge base'],
+    [m.documents, 'document'],
     [m.tables, 'table'],
     [m.files, 'file'],
+    [m.skills, 'skill'],
   ]
   return kinds.filter(([n]) => (n ?? 0) > 0).map(([n, noun]) => plural(n as number, noun))
+}
+
+/**
+ * Label for a sync's background content fill, by where the row is in it. A failed row keeps
+ * the counts it planned, so they must not read as copied: the fill was never scheduled, or
+ * died before finishing, and the row's error says which.
+ */
+function contentFillLabel(status: BackgroundWorkItem['status']): string {
+  switch (status) {
+    case 'pending':
+    case 'processing':
+      return 'Copying'
+    case 'failed':
+      return 'Copy failed'
+    default:
+      return 'Copied'
+  }
 }
 
 /** A named group (one resource kind or change action) of a job's report. */
@@ -188,7 +207,7 @@ function jobReport(job: BackgroundWorkItem): JobReport {
     addGroup('Created', m.createdNames)
     addGroup('Archived', m.archivedNames)
     // Resources the sync copied have their content filled in the background on this same row.
-    addGroup(job.status === 'processing' ? 'Copying' : 'Copied', contentFillCounts(m))
+    addGroup(contentFillLabel(job.status), contentFillCounts(m))
     // Pre-names entries fall back to the count summary (redeployed mirrors updated).
     if (groups.length === 0) {
       const counts = countList([
@@ -216,6 +235,7 @@ function jobReport(job: BackgroundWorkItem): JobReport {
     if (m.deployFailed && m.deployFailed > 0) {
       notes.push({ value: `${plural(m.deployFailed, 'workflow')} failed to deploy`, warning: true })
     }
+    for (const warning of m.deployWarnings ?? []) notes.push({ value: warning, warning: true })
     addContentFillWarnings()
     return { groups, notes }
   }

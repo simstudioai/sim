@@ -165,6 +165,12 @@ export interface PromoteForkResult {
    * until a redeploy. Surfaced (rather than swallowed) so the caller can warn.
    */
   deployFailed: number
+  /**
+   * Deploys that succeeded but left something pending - a cutover still activating, a side
+   * effect still queued - as `<workflow> — <warning>`. The target is not yet running what the
+   * sync wrote, so the sync's Activity row must not read as clean.
+   */
+  deployWarnings: string[]
   unmappedRequired: Array<Pick<ForkReference, 'kind' | 'sourceId' | 'required' | 'blockName'>>
   /**
    * References the sync would have cleared in the target, so it was blocked without writing
@@ -225,6 +231,7 @@ function buildSyncActivity(
   const { direction, sourceWorkspaceId, targetWorkspaceId, otherWorkspaceName, actorName } = params
   const warnings =
     result.deployFailed > 0 ||
+    result.deployWarnings.length > 0 ||
     result.needsConfiguration.length > 0 ||
     result.clearedOptional.length > 0 ||
     result.droppedReferences.length > 0 ||
@@ -246,6 +253,7 @@ function buildSyncActivity(
       archived: result.archived,
       redeployed: result.redeployed,
       deployFailed: result.deployFailed,
+      deployWarnings: result.deployWarnings,
       updatedNames: result.updatedNames,
       createdNames: result.createdNames,
       archivedNames: result.archivedNames,
@@ -1059,6 +1067,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       archived: 0,
       redeployed: 0,
       deployFailed: 0,
+      deployWarnings: [],
       unmappedRequired: txResult.blocked === 'unmapped' ? txResult.unmappedRequired : [],
       blockers: txResult.blocked === 'cleared-refs' ? txResult.blockers : [],
       blocked: txResult.blocked,
@@ -1117,7 +1126,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
         // sync). Surface those instead of swallowing them into a clean success.
         if (result.warnings?.length) {
           const name = txResult.writtenNames[targetWorkflowId] ?? targetWorkflowId
-          for (const warning of result.warnings) deployWarnings.push(`${name}: ${warning}`)
+          for (const warning of result.warnings) deployWarnings.push(`${name} — ${warning}`)
         }
       } else {
         deployFailures.push(targetWorkflowId)
@@ -1142,6 +1151,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     archived: txResult.archived,
     redeployed,
     deployFailed: deployFailures.length,
+    deployWarnings,
     unmappedRequired: [],
     blockers: [],
     blocked: null,
@@ -1197,6 +1207,8 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
           tables: contentFill.contentPlan.tables.length,
           knowledgeBases: contentFill.contentPlan.knowledgeBases.length,
           files: contentFill.blobTasks.length,
+          skills: contentFill.contentPlan.skills.length,
+          documents: contentFill.contentPlan.documents.length,
         },
       })
     } else {
