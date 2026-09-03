@@ -6,7 +6,12 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
-import { redactExactSensitiveValues } from '@/lib/core/security/redaction'
+import {
+  isSensitiveKey,
+  REDACTED_MARKER,
+  redactApiKeys,
+  redactExactSensitiveValues,
+} from '@/lib/core/security/redaction'
 import { consumeOrCancelBody } from '@/lib/core/utils/stream-limits'
 import { normalizeOracleFusionApplicationOrigin } from '@/lib/credentials/client-credential-accounts/descriptors'
 import type { OracleFusionAuthInput } from '@/lib/internal/oracle-fusion-financials/schema'
@@ -23,6 +28,10 @@ const TRANSIENT_TRANSPORT_CODES = new Set([
   'EPIPE',
   'ETIMEDOUT',
 ])
+const MAX_STRUCTURED_DIAGNOSTIC_DEPTH = 8
+const UNSAFE_DIAGNOSTIC = Symbol('unsafe-oracle-diagnostic')
+const DIAGNOSTIC_KEY_VALUE_PATTERN =
+  /(?:"([^"\r\n]{1,128})"|'([^'\r\n]{1,128})'|([A-Za-z][A-Za-z0-9 _-]{0,127}))\s*(?::|=)/g
 const LOSSLESS_DECIMAL_FIELDS = new Set([
   'InvoiceId',
   'InvoiceDistributionId',
@@ -82,15 +91,92 @@ function collectOracleErrorMessages(payload: unknown, depth = 0): string[] {
   return messages
 }
 
+function isSensitiveDiagnosticKey(key: string): boolean {
+  return isSensitiveKey(key.trim().replaceAll(/\s+/g, '_'))
+}
+
+function containsSensitiveDiagnosticKey(value: string): boolean {
+  for (const match of value.matchAll(DIAGNOSTIC_KEY_VALUE_PATTERN)) {
+    if (isSensitiveDiagnosticKey(match[1] ?? match[2] ?? match[3] ?? '')) return true
+  }
+  return false
+}
+
+function sanitizeStructuredDiagnosticValue(
+  value: unknown,
+  accessToken: string,
+  depth: number
+): unknown | typeof UNSAFE_DIAGNOSTIC {
+  if (depth > MAX_STRUCTURED_DIAGNOSTIC_DEPTH) return UNSAFE_DIAGNOSTIC
+  if (typeof value === 'string') {
+    return sanitizeOracleDiagnostic(value, accessToken, depth) ?? UNSAFE_DIAGNOSTIC
+  }
+  if (Array.isArray(value)) {
+    const sanitized: unknown[] = []
+    for (const item of value) {
+      const result = sanitizeStructuredDiagnosticValue(item, accessToken, depth + 1)
+      if (result === UNSAFE_DIAGNOSTIC) return UNSAFE_DIAGNOSTIC
+      sanitized.push(result)
+    }
+    return sanitized
+  }
+  if (value && typeof value === 'object') {
+    const sanitized: Record<string, unknown> = {}
+    for (const [key, item] of Object.entries(value)) {
+      if (isSensitiveDiagnosticKey(key)) {
+        sanitized[key] = REDACTED_MARKER
+        continue
+      }
+      const result = sanitizeStructuredDiagnosticValue(item, accessToken, depth + 1)
+      if (result === UNSAFE_DIAGNOSTIC) return UNSAFE_DIAGNOSTIC
+      sanitized[key] = result
+    }
+    return sanitized
+  }
+  return value
+}
+
+function sanitizeOracleDiagnostic(message: string, accessToken: string, depth = 0): string | null {
+  const trimmed = message.trim()
+  if (trimmed === REDACTED_MARKER) return trimmed
+  if (!trimmed.includes('{') && !trimmed.includes('[')) {
+    const redacted = redactExactSensitiveValues(trimmed, [accessToken])
+    return containsSensitiveDiagnosticKey(redacted) ? null : redacted
+  }
+  if (depth >= MAX_STRUCTURED_DIAGNOSTIC_DEPTH) return null
+
+  try {
+    const structured = JSON.parse(trimmed)
+    if (!structured || typeof structured !== 'object') return null
+    const sanitized = sanitizeStructuredDiagnosticValue(
+      redactApiKeys(structured),
+      accessToken,
+      depth + 1
+    )
+    if (sanitized === UNSAFE_DIAGNOSTIC) return null
+    return redactExactSensitiveValues(JSON.stringify(sanitized), [accessToken])
+  } catch {
+    // Provider-controlled text that resembles embedded structured data is not
+    // reflected unless the complete diagnostic can be parsed and redacted.
+    return null
+  }
+}
+
 function sanitizeOracleError(body: string, accessToken: string, status: number): string {
   let messages: string[] = []
   try {
-    messages = collectOracleErrorMessages(JSON.parse(body))
+    messages = collectOracleErrorMessages(redactApiKeys(JSON.parse(body)))
   } catch {
     // Non-JSON proxy pages are intentionally not reflected to tool callers.
   }
-  const unique = [...new Set(messages)]
-  const safe = truncate(redactExactSensitiveValues(unique.join(' — '), [accessToken]), 1_000)
+  const unique = [
+    ...new Set(
+      messages
+        .map((message) => sanitizeOracleDiagnostic(message, accessToken))
+        .filter((message): message is string => Boolean(message))
+    ),
+  ]
+  const safe = truncate(unique.join(' — '), 1_000)
   return safe || `Oracle Fusion Financials request failed with HTTP ${status}`
 }
 

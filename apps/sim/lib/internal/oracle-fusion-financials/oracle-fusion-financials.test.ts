@@ -1171,6 +1171,74 @@ describe('Oracle Fusion Financials provider', () => {
     expect(mockSecureFetch).toHaveBeenCalledTimes(3)
   })
 
+  it('recursively redacts credentials from structured Oracle diagnostics', async () => {
+    mockSecureFetch.mockResolvedValueOnce(
+      response(400, {
+        title: 'validation failed',
+        detail: JSON.stringify({
+          context: {
+            client_secret: 'provider-nested-secret-canary',
+            'api key': 'provider-spaced-api-key-canary',
+            ' private key ': 'provider-spaced-private-key-canary',
+            'proxy authorization': 'provider-spaced-proxy-auth-canary',
+            entries: [{ access_token: 'provider-nested-token-canary' }],
+            serialized: JSON.stringify({
+              private_key: 'provider-double-serialized-secret-canary',
+            }),
+          },
+          reason: 'invalid request',
+        }),
+      })
+    )
+
+    const error = await requestOracleFusionJson(AUTH, {
+      path: `${RESOURCE_PATH}/invoices`,
+    }).catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(OracleFusionFinancialsProviderError)
+    expect(error).toMatchObject({ status: 400 })
+    expect((error as Error).message).toContain('validation failed')
+    expect((error as Error).message).toContain('invalid request')
+    expect((error as Error).message).toContain('[REDACTED]')
+    expect((error as Error).message).not.toContain('provider-nested-secret-canary')
+    expect((error as Error).message).not.toContain('provider-spaced-api-key-canary')
+    expect((error as Error).message).not.toContain('provider-spaced-private-key-canary')
+    expect((error as Error).message).not.toContain('provider-spaced-proxy-auth-canary')
+    expect((error as Error).message).not.toContain('provider-nested-token-canary')
+    expect((error as Error).message).not.toContain('provider-double-serialized-secret-canary')
+  })
+
+  it('does not reflect ambiguous structured Oracle diagnostics', async () => {
+    mockSecureFetch.mockResolvedValueOnce(
+      response(400, {
+        detail: 'validation failed {"client_secret":"provider-ambiguous-secret-canary"}',
+      })
+    )
+
+    await expect(
+      requestOracleFusionJson(AUTH, { path: `${RESOURCE_PATH}/invoices` })
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Oracle Fusion Financials request failed with HTTP 400',
+    })
+  })
+
+  it('does not reflect credential-shaped Oracle diagnostic fragments', async () => {
+    mockSecureFetch.mockResolvedValueOnce(
+      response(400, {
+        detail: 'api key: "provider-fragment-secret-canary"',
+        message: 'client_secret: "provider-fragment-client-secret-canary"',
+      })
+    )
+
+    await expect(
+      requestOracleFusionJson(AUTH, { path: `${RESOURCE_PATH}/invoices` })
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Oracle Fusion Financials request failed with HTTP 400',
+    })
+  })
+
   it('propagates cancellation before a request and while waiting to retry', async () => {
     const preAborted = new AbortController()
     preAborted.abort(new DOMException('cancelled', 'AbortError'))
