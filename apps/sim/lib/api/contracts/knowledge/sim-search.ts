@@ -5,7 +5,7 @@ import { SLACK_SEARCH_MAX_LIMIT } from '@/lib/slack-search/client'
 
 export const MAX_SIM_SEARCH_SLACK_QUERY_LENGTH = 2000
 
-const slackSearchBodySchema = z.object({
+export const slackSearchBodySchema = z.object({
   workspaceId: workspaceIdSchema,
   query: z
     .string()
@@ -17,7 +17,7 @@ const slackSearchBodySchema = z.object({
   limit: z.number().int().min(1).max(SLACK_SEARCH_MAX_LIMIT).optional(),
 })
 
-const slackSearchResultSchema = z.object({
+export const slackSearchResultSchema = z.object({
   channelId: z.string(),
   messageTs: z.string(),
   channelName: z.string(),
@@ -33,7 +33,12 @@ const slackSearchResultSchema = z.object({
  * `needs_reauth` is its own state because reconnecting is a real action they
  * can take, where `unavailable` is nothing they can fix.
  */
-const slackSearchStatusSchema = z.enum(['ok', 'not_connected', 'needs_reauth', 'unavailable'])
+export const slackSearchStatusSchema = z.enum([
+  'ok',
+  'not_connected',
+  'needs_reauth',
+  'unavailable',
+])
 
 /**
  * Searching Slack for the person asking, live, under their own Slack account.
