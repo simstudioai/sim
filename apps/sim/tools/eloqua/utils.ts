@@ -520,6 +520,33 @@ export function eloquaResourceId(value: unknown): string {
   return id
 }
 
+export function eloquaPositiveInteger(value: unknown, label: string): number | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+    throw new Error(`${label} must be a positive integer`)
+  }
+  return value
+}
+
+export function validateEloquaBulkDefinition(
+  value: unknown,
+  kind: EloquaBulkDefinitionKind
+): Record<string, unknown> {
+  const definition = requireEloquaObject(value, 'definition')
+  const fields = requireEloquaObject(definition.fields, 'definition.fields')
+  const maximum = kind === 'contactImport' ? 100 : 250
+  const entries = Object.entries(fields)
+  if (entries.length === 0 || entries.length > maximum) {
+    throw new Error(`Eloqua ${kind} definitions must contain 1 to ${maximum} field aliases`)
+  }
+  if (
+    entries.some(([alias, statement]) => alias.trim().length === 0 || typeof statement !== 'string')
+  ) {
+    throw new Error('Eloqua Bulk field aliases must map non-empty aliases to string statements')
+  }
+  return definition
+}
+
 export function eloquaResourceUri(value: unknown): string {
   const uri = requireNonEmptyString(value, 'Eloqua Bulk resource URI')
   if (!/^\/contacts\/(imports|exports)\/\d+$/.test(uri)) {

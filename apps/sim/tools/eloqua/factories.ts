@@ -38,11 +38,13 @@ import {
   eloquaCampaignSchedule,
   eloquaHeaders,
   eloquaJsonObject,
+  eloquaPositiveInteger,
   eloquaResourceId,
   eloquaResourceUri,
   requireEloquaObject,
   validateApplicationPagination,
   validateBulkPagination,
+  validateEloquaBulkDefinition,
   validateEloquaSync,
   validateInlineImportData,
 } from '@/tools/eloqua/utils'
@@ -433,7 +435,9 @@ export function createEloquaCampaignActionTool(
           ...(isActivate && params.scheduledFor !== undefined
             ? { scheduledFor: eloquaCampaignSchedule(params.scheduledFor) }
             : {}),
-          runAsUserId: isActivate ? params.runAsUserId : undefined,
+          runAsUserId: isActivate
+            ? eloquaPositiveInteger(params.runAsUserId, 'Eloqua run-as user ID')
+            : undefined,
           activateNow: isActivate ? params.activateNow : undefined,
         }),
       method: 'POST',
@@ -500,7 +504,7 @@ export function createEloquaBulkDefinitionTool<TKind extends EloquaBulkDefinitio
       url: (params) => buildEloquaUrl(params, options.path),
       method: 'POST',
       headers: eloquaHeaders,
-      body: (params) => requireEloquaObject(params.definition, 'definition'),
+      body: (params) => validateEloquaBulkDefinition(params.definition, options.definitionKind),
       stripAuthOnRedirect: true,
     },
     transformResponse: async (response) => {

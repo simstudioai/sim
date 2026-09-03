@@ -10,6 +10,7 @@ import { EloquaBlock } from '@/blocks/blocks/eloqua'
 import * as eloquaToolExports from '@/tools/eloqua'
 import {
   eloquaActivateCampaignTool,
+  eloquaCreateContactExportTool,
   eloquaCreateContactImportTool,
   eloquaGetBulkSyncDataTool,
   eloquaGetBulkSyncTool,
@@ -523,6 +524,87 @@ describe('Oracle Eloqua tool contracts', () => {
       callbackUrl: 'https://example.com/eloqua/callback',
     })
     expect(eloquaStartBulkSyncTool.request.retry).toBeUndefined()
+  })
+
+  it('enforces the documented Bulk definition field limits', () => {
+    const fields = (count: number) =>
+      Object.fromEntries(
+        Array.from({ length: count }, (_, index) => [
+          `Field${index}`,
+          `{{Contact.Field(C_Field${index})}}`,
+        ])
+      )
+
+    expect(() =>
+      eloquaCreateContactImportTool.request.body?.({
+        ...AUTH,
+        definition: { fields: fields(100) },
+      })
+    ).not.toThrow()
+    expect(() =>
+      eloquaCreateContactImportTool.request.body?.({ ...AUTH, definition: { fields: {} } })
+    ).toThrow('1 to 100 field aliases')
+    expect(() =>
+      eloquaCreateContactImportTool.request.body?.({
+        ...AUTH,
+        definition: { fields: fields(101) },
+      })
+    ).toThrow('1 to 100 field aliases')
+
+    expect(() =>
+      eloquaCreateContactExportTool.request.body?.({
+        ...AUTH,
+        definition: { fields: fields(250) },
+      })
+    ).not.toThrow()
+    expect(() =>
+      eloquaCreateContactExportTool.request.body?.({
+        ...AUTH,
+        definition: { fields: fields(251) },
+      })
+    ).toThrow('1 to 250 field aliases')
+    expect(() =>
+      eloquaCreateContactImportTool.request.body?.({
+        ...AUTH,
+        definition: { fields: [] as unknown as Record<string, string> },
+      })
+    ).toThrow('definition.fields must be a JSON object')
+    expect(() =>
+      eloquaCreateContactImportTool.request.body?.({
+        ...AUTH,
+        definition: { fields: { Email: 42 as unknown as string } },
+      })
+    ).toThrow('must map non-empty aliases to string statements')
+  })
+
+  it.each([
+    ['eloqua_list_contacts', 'viewId'],
+    ['eloqua_get_contact', 'viewId'],
+    ['eloqua_list_accounts', 'viewId'],
+    ['eloqua_list_accounts', 'ownedByUserId'],
+    ['eloqua_get_account', 'viewId'],
+    ['eloqua_list_campaigns', 'externalSystemId'],
+    ['eloqua_get_campaign', 'externalSystemId'],
+    ['eloqua_activate_campaign', 'runAsUserId'],
+  ] as const)('%s validates %s as a positive safe integer', (id, field) => {
+    for (const invalid of [0, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => requestUrl(tools[id], { ...toolParams(id), [field]: invalid })).toThrow(
+        'must be a positive integer'
+      )
+    }
+  })
+
+  it('keeps selector-backed asset targets core in basic and advanced canvas modes', () => {
+    const sentences = EloquaBlock.canvasPresentation?.sentences.byOperation
+    expect(sentences).toMatchObject({
+      get_campaign: [{ field: ['campaignSelector', 'campaignIdInput'], core: true }],
+      activate_campaign: [{ field: ['campaignSelector', 'campaignIdInput'], core: true }],
+      deactivate_campaign: [{ field: ['campaignSelector', 'campaignIdInput'], core: true }],
+      get_contact_list: [{ field: ['contactListSelector', 'contactListIdInput'], core: true }],
+      get_segment: [{ field: ['segmentSelector', 'segmentIdInput'], core: true }],
+      get_email: [{ field: ['emailSelector', 'emailIdInput'], core: true }],
+      get_form: [{ field: ['formSelector', 'formIdInput'], core: true }],
+    })
   })
 
   it('handles a 204 import upload and enforces the 10 MiB inline ceiling', async () => {

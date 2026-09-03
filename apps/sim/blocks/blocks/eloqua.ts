@@ -194,17 +194,47 @@ export const EloquaBlock: BlockConfig<EloquaResponse> = {
         create_account: ['Create an Eloqua account'],
         update_account: [{ text: 'Update Eloqua account', field: 'accountId', core: true }],
         list_campaigns: ['List Eloqua campaigns', { text: ', matching', field: 'search' }],
-        get_campaign: ['Read an Eloqua campaign'],
-        activate_campaign: ['Activate an Eloqua campaign'],
-        deactivate_campaign: ['Deactivate an Eloqua campaign'],
+        get_campaign: [
+          {
+            text: 'Read Eloqua campaign',
+            field: ['campaignSelector', 'campaignIdInput'],
+            core: true,
+          },
+        ],
+        activate_campaign: [
+          {
+            text: 'Activate Eloqua campaign',
+            field: ['campaignSelector', 'campaignIdInput'],
+            core: true,
+          },
+        ],
+        deactivate_campaign: [
+          {
+            text: 'Deactivate Eloqua campaign',
+            field: ['campaignSelector', 'campaignIdInput'],
+            core: true,
+          },
+        ],
         list_contact_lists: ['List Eloqua contact lists', { text: ', matching', field: 'search' }],
-        get_contact_list: ['Read an Eloqua contact list'],
+        get_contact_list: [
+          {
+            text: 'Read Eloqua contact list',
+            field: ['contactListSelector', 'contactListIdInput'],
+            core: true,
+          },
+        ],
         list_segments: ['List Eloqua segments', { text: ', matching', field: 'search' }],
-        get_segment: ['Read an Eloqua segment'],
+        get_segment: [
+          { text: 'Read Eloqua segment', field: ['segmentSelector', 'segmentIdInput'], core: true },
+        ],
         list_emails: ['List Eloqua emails', { text: ', matching', field: 'search' }],
-        get_email: ['Read an Eloqua email'],
+        get_email: [
+          { text: 'Read Eloqua email', field: ['emailSelector', 'emailIdInput'], core: true },
+        ],
         list_forms: ['List Eloqua forms', { text: ', matching', field: 'search' }],
-        get_form: ['Read an Eloqua form'],
+        get_form: [
+          { text: 'Read Eloqua form', field: ['formSelector', 'formIdInput'], core: true },
+        ],
         list_contact_fields: ['List Eloqua Bulk contact fields'],
         create_contact_import: ['Create an Eloqua contact import definition'],
         upload_contact_import_data: [

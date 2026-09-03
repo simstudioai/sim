@@ -1,4 +1,5 @@
 import { createEloquaApplicationItemTool } from '@/tools/eloqua/factories'
+import { eloquaPositiveInteger } from '@/tools/eloqua/utils'
 
 export const eloquaGetContactTool = createEloquaApplicationItemTool({
   id: 'eloqua_get_contact',
@@ -14,5 +15,7 @@ export const eloquaGetContactTool = createEloquaApplicationItemTool({
       description: 'Contact view ID used to project the response',
     },
   },
-  query: (params) => ({ viewId: params.viewId }),
+  query: (params) => ({
+    viewId: eloquaPositiveInteger(params.viewId, 'Eloqua contact view ID'),
+  }),
 })

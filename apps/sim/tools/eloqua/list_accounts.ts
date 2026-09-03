@@ -1,4 +1,5 @@
 import { createEloquaApplicationListTool } from '@/tools/eloqua/factories'
+import { eloquaPositiveInteger } from '@/tools/eloqua/utils'
 
 export const eloquaListAccountsTool = createEloquaApplicationListTool({
   id: 'eloqua_list_accounts',
@@ -21,5 +22,8 @@ export const eloquaListAccountsTool = createEloquaApplicationListTool({
       description: 'Return accounts owned by this Eloqua user ID',
     },
   },
-  query: (params) => ({ viewId: params.viewId, ownedByUserId: params.ownedByUserId }),
+  query: (params) => ({
+    viewId: eloquaPositiveInteger(params.viewId, 'Eloqua account view ID'),
+    ownedByUserId: eloquaPositiveInteger(params.ownedByUserId, 'Eloqua account owner user ID'),
+  }),
 })

@@ -1,4 +1,5 @@
 import { createEloquaApplicationItemTool } from '@/tools/eloqua/factories'
+import { eloquaPositiveInteger } from '@/tools/eloqua/utils'
 
 export const eloquaGetCampaignTool = createEloquaApplicationItemTool({
   id: 'eloqua_get_campaign',
@@ -21,7 +22,7 @@ export const eloquaGetCampaignTool = createEloquaApplicationItemTool({
     },
   },
   query: (params) => ({
-    externalSystemId: params.externalSystemId,
+    externalSystemId: eloquaPositiveInteger(params.externalSystemId, 'Eloqua external system ID'),
     includeCrmIdsMapping: params.includeCrmIdsMapping,
   }),
 })

@@ -1,4 +1,5 @@
 import { createEloquaApplicationListTool } from '@/tools/eloqua/factories'
+import { eloquaPositiveInteger } from '@/tools/eloqua/utils'
 
 export const eloquaListContactsTool = createEloquaApplicationListTool({
   id: 'eloqua_list_contacts',
@@ -15,5 +16,7 @@ export const eloquaListContactsTool = createEloquaApplicationListTool({
       description: 'Contact view ID used to filter and project the results',
     },
   },
-  query: (params) => ({ viewId: params.viewId }),
+  query: (params) => ({
+    viewId: eloquaPositiveInteger(params.viewId, 'Eloqua contact view ID'),
+  }),
 })

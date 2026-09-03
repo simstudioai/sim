@@ -1,4 +1,5 @@
 import { createEloquaApplicationListTool } from '@/tools/eloqua/factories'
+import { eloquaPositiveInteger } from '@/tools/eloqua/utils'
 
 export const eloquaListCampaignsTool = createEloquaApplicationListTool({
   id: 'eloqua_list_campaigns',
@@ -21,7 +22,7 @@ export const eloquaListCampaignsTool = createEloquaApplicationListTool({
     },
   },
   query: (params) => ({
-    externalSystemId: params.externalSystemId,
+    externalSystemId: eloquaPositiveInteger(params.externalSystemId, 'Eloqua external system ID'),
     includeCrmIdsMapping: params.includeCrmIdsMapping,
   }),
 })

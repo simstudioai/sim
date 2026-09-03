@@ -1,4 +1,5 @@
 import { createEloquaApplicationItemTool } from '@/tools/eloqua/factories'
+import { eloquaPositiveInteger } from '@/tools/eloqua/utils'
 
 export const eloquaGetAccountTool = createEloquaApplicationItemTool({
   id: 'eloqua_get_account',
@@ -14,5 +15,7 @@ export const eloquaGetAccountTool = createEloquaApplicationItemTool({
       description: 'Account view ID used to project the response',
     },
   },
-  query: (params) => ({ viewId: params.viewId }),
+  query: (params) => ({
+    viewId: eloquaPositiveInteger(params.viewId, 'Eloqua account view ID'),
+  }),
 })

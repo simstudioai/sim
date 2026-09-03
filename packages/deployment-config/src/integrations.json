@@ -16112,7 +16112,7 @@
         },
         {
           "name": "Create Contact Export (Bulk)",
-          "description": "Create a Bulk API contact export definition with dynamic field aliases."
+          "description": "Create a Bulk API contact export definition with up to 250 field aliases."
         },
         {
           "name": "List Syncs (Bulk)",
