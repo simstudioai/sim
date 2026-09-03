@@ -100,7 +100,7 @@ For nginx, Traefik, or a cloud load balancer — and for the GKE websocket timeo
 
 ## Ollama
 
-`docker-compose.ollama.yml` is a **development** stack, not a drop-in swap for `docker-compose.prod.yml`. It builds `simstudio`, `realtime`, and `migrations` from the source checkout instead of pulling published images, and it ships neither a `redis` service nor a `cron` service — so live cross-process status and every [background job](/platform/self-hosting/background-jobs) are missing. For production with local models, keep `docker-compose.prod.yml` and point `OLLAMA_URL` at an Ollama instance, as under [External Ollama](#external-ollama) below.
+`docker-compose.ollama.yml` is a **development** stack, not a drop-in swap for `docker-compose.prod.yml`. It builds `simstudio`, `realtime`, and `migrations` from the source checkout instead of pulling published images, and it ships neither a `redis` service nor a `cron` service. Without an external Redis, pub/sub falls back to a process-local emitter and CLI authentication stops working entirely, since its approval store has no fallback; the idempotency store and execution progress markers do fall back to Postgres. And with no cron service, live cross-process status and every [background job](/platform/self-hosting/background-jobs) are missing. For production with local models, keep `docker-compose.prod.yml` and point `OLLAMA_URL` at an Ollama instance, as under [External Ollama](#external-ollama) below.
 
 Always pass a server profile alongside `setup`. With `--profile setup` on its own no Ollama server starts and `model-setup` waits forever.
 

@@ -27,7 +27,7 @@ Set `STORAGE_PROVIDER` to `local`, `s3`, `azure`, or `gcs` to select a backend e
 1. **Azure Blob** — used if `AZURE_STORAGE_CONTAINER_NAME` is set **and** either (`AZURE_ACCOUNT_NAME` + `AZURE_ACCOUNT_KEY`) or `AZURE_CONNECTION_STRING` is set.
 2. **AWS S3** — used if `S3_BUCKET_NAME` **and** `AWS_REGION` are set (and Azure is not configured).
 3. **Google Cloud Storage** — used if `GCS_BUCKET_NAME` is set (and neither Azure nor S3 is configured).
-4. **Local disk** — used only when no cloud backend has *any* of its variables set.
+4. **Local disk** — used unless a cloud backend's activating variables are set: `S3_BUCKET_NAME` with `AWS_REGION` for S3, `AZURE_STORAGE_CONTAINER_NAME` for Blob, `GCS_BUCKET_NAME` for GCS. Credentials alone activate nothing.
 
 If `STORAGE_PROVIDER` is unset, Sim uses the first backend whose configuration is complete, in that order. An explicit `STORAGE_PROVIDER` takes precedence and must be valid and complete.
 

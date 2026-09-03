@@ -1284,7 +1284,9 @@ branding:
   enabled: false
 
   # Mount path in the container where branding files will be available
-  mountPath: "/app/public/branding"
+  # Must sit inside the image's public directory, which the standalone build
+  # places at /app/apps/sim/public — a path outside it serves nothing.
+  mountPath: "/app/apps/sim/public/branding"
 
   # Text files (CSS, JSON, HTML, etc.) - values are plain text
   # Example:

@@ -26,7 +26,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 
 | Variable | Description |
 |----------|-------------|
-| `API_ENCRYPTION_KEY` | Encrypts user-generated Sim API keys at rest, exactly 64 hex characters (32 bytes): `openssl rand -hex 32`. **When unset, API keys are stored in plain text** — the app logs one warning and keeps working |
+| `API_ENCRYPTION_KEY` | Encrypts user-generated Sim API keys at rest, exactly 64 hex characters (32 bytes): `openssl rand -hex 32`. **When unset, API keys are stored in plain text** — the app logs a warning each time it encrypts or decrypts one and keeps working |
 | `CRON_SECRET` | Bearer token for the background job endpoints: `openssl rand -hex 32`. **Required whenever background jobs are enabled** — the Helm chart's default, and the chart will not render without it, unless it comes from `app.secrets.existingSecret` or External Secrets. See [Background Jobs](/platform/self-hosting/background-jobs) |
 | `REDIS_URL` | Redis connection string. Optional on a single replica; **required** past one app or realtime replica — see [Redis](/platform/self-hosting/redis) |
 | `REDIS_TLS_SERVERNAME` | TLS SNI override. Required when `REDIS_URL` uses `rediss://` with a bare IP, or the app throws the first time it opens a Redis connection |

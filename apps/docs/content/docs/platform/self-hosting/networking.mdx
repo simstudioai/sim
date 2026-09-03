@@ -83,6 +83,10 @@ When `realtime.host` equals `app.host`, the realtime paths are folded into the a
 Both `ingress` and `ingressInternal` accept an optional `copilot` block, commented out in `values.yaml` because the `copilot` service is off by default. It follows the same host-sharing rule:
 
 ```yaml
+# The route renders only when the service itself is enabled.
+copilot:
+  enabled: true
+
 ingress:
   copilot:
     host: sim.yourdomain.com

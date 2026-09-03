@@ -85,7 +85,7 @@ spec:
       {{- end }}
       containers:
         - name: nvidia-device-plugin
-          image: {{ include "sim.image" (dict "imageRoot" .Values.ollama.gpu.devicePlugin.image "global" .Values.global) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.ollama.gpu.devicePlugin.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.ollama.gpu.devicePlugin.image.pullPolicy }}
           args:
             - "--config-file=/etc/device-plugin/config.yaml"
