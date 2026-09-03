@@ -13,7 +13,7 @@ npx sim-setup doctor --fix     # repair what it safely can
 npx sim-setup doctor --json    # machine-readable, for CI
 ```
 
-Run it from the directory holding your `.env` and Compose file. It exits `1` if anything failed, so it drops straight into a script. See [Verify Your Install](/platform/self-hosting/verify#sim-setup-doctor) for what each group of checks covers.
+On a standalone Compose install, run it from the directory holding your `.env` and Compose file. From a source checkout, run it there — it resolves the per-application env files itself and needs no root `.env`. It exits `1` if anything failed, so it drops straight into a script. See [Verify Your Install](/platform/self-hosting/verify#sim-setup-doctor) for what each group of checks covers.
 
 ## Database connection failed
 
@@ -61,11 +61,12 @@ Sim identifies dynamically discovered LM Studio and vLLM models by their `vllm/`
 
 1. Set `VLLM_BASE_URL`, and `VLLM_API_KEY` too if you enabled LM Studio's API authentication — without the key, discovery requests omit the bearer token and fail. No Compose file sets either for you — `docker-compose.ollama.yml` only sets `OLLAMA_URL` — so add them to the `simstudio` service's `environment:` block (or to `.env` and interpolate them), then recreate the service and confirm it landed:
 
-   Use the Compose file that started your installation — `docker-compose.prod.yml` for the documented production setup:
+   Use the Compose file that started your installation — `docker-compose.prod.yml` for the documented production setup, or `docker-compose.ollama.yml` if you started from the Ollama stack:
 
    ```bash
-   docker compose -f docker-compose.prod.yml up -d --force-recreate simstudio
-   docker compose -f docker-compose.prod.yml exec simstudio printenv VLLM_BASE_URL
+   COMPOSE_FILE=docker-compose.prod.yml   # or docker-compose.ollama.yml
+   docker compose -f "$COMPOSE_FILE" up -d --force-recreate simstudio
+   docker compose -f "$COMPOSE_FILE" exec simstudio printenv VLLM_BASE_URL
    ```
 
    An empty result means the variable never reached the container, and model discovery cannot run.
@@ -118,9 +119,11 @@ image: pgvector/pgvector:pg17  # NOT postgres:17
 
 ## Certificate errors (CERT_HAS_EXPIRED)
 
-Rule out the ordinary causes first: the endpoint's certificate really has expired, its chain is incomplete, or the host's clock has drifted far enough to put a valid certificate outside its window. Check the certificate and the host date before changing any trust configuration — `NODE_EXTRA_CA_CERTS` does not fix any of them.
+Rule out expiry and clock drift first: the endpoint's certificate may genuinely have expired, or the host's clock may have drifted far enough to put a valid certificate outside its window. Check the certificate dates and the host date before changing any trust configuration — no CA bundle fixes either.
 
-If the certificate is valid and current, the endpoint is presenting one signed by a private CA — a corporate TLS-inspecting proxy, or an internal service. The image already ships current CA certificates and runs as a non-root user, so installing packages inside it is not the fix. Mount your CA bundle and point Node at it:
+That leaves two cases a bundle does address: the endpoint is signed by a private CA — a corporate TLS-inspecting proxy, or an internal service — or it serves an incomplete chain, omitting an intermediate. Adding the private root, or the missing intermediate, to `NODE_EXTRA_CA_CERTS` resolves both, though repairing the server's chain is the better fix when it is yours to repair.
+
+In either case, the image already ships current CA certificates and runs as a non-root user, so installing packages inside it is not the fix. Mount your CA bundle and point Node at it:
 
 ```yaml
 # docker-compose.prod.yml

@@ -744,8 +744,17 @@ jobs:
             for alias in $alias_groups; do
               alias_index="$(digest_of "${image}:${alias}")"
               if [ "$alias_index" != "$sha_index" ]; then
-                echo "Skipping ${alias}* for ${image}: it does not point at this run's index."
-                continue
+                # `latest` is legitimately allowed to lag: the monotonic guard in
+                # create-ghcr-manifests holds it back when the branch has moved
+                # on, and it then belongs to an older run that attested it.
+                if [ "$alias" = "latest" ]; then
+                  echo "Skipping latest* for ${image}: it does not point at this run's index."
+                  continue
+                fi
+                # A version tag has no such carve-out. This run published it, so
+                # a release must not ship a version image nothing has attested.
+                echo "::error::${image}:${alias} does not resolve to this run's index (${sha_index:-none}); refusing to publish an unattested release image"
+                exit 1
               fi
               for tag in "${alias}" "${alias}-amd64" "${alias}-arm64"; do
                 digest="$(digest_of "${image}:${tag}")"

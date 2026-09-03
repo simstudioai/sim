@@ -101,6 +101,13 @@ export function renderManifest(input: { appVersion: string; images: readonly str
 # rewrites the \`simstudioai/*\` images, leaving the third-party ones pointing at
 # their public registries. Pin each image's \`digest\` to what your mirror
 # resolved.
+#
+# Mirror to \`<your-registry>/<reference exactly as listed below>\`. The chart
+# prepends your registry to the repository verbatim, so the device plugin lands
+# at \`<your-registry>/nvcr.io/nvidia/k8s-device-plugin\` — the \`nvcr.io/\`
+# segment is part of the path, not a source host to strip. If your registry
+# cannot nest that path, override the one image directly instead:
+# \`ollama.gpu.devicePlugin.image.repository=<your-registry>/nvidia/k8s-device-plugin\`.
 appVersion: ${input.appVersion}
 images:
 ${entries}
