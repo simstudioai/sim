@@ -310,6 +310,8 @@ sim blocks list [options]
 | `--category <value>` | No | Restrict to one toolbar category. Accepted values: `blocks`, `tools`, `triggers`. |
 | `--capability <value>` | No | Restrict to blocks that can start a workflow — the `triggers` category, blocks declaring `triggerAllowed`, and blocks with trigger-mode fields. Accepted values: `trigger`. |
 | `--source <value>` | No | Restrict to shipped blocks or to this workspace’s deployed custom blocks. Accepted values: `builtin`, `custom`. |
+| `--include-sunset` | No | Include `legacy` and `deprecated` blocks. Off by default: a sunset block keeps executing where it is already placed, but it is not offered for new authoring. Each returned entry carries `sunset.replacedBy`, the block to build with instead. |
+| `--no-include-sunset` | No | Send --include-sunset as false. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `id`, `name`, `category`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
@@ -997,7 +999,7 @@ sim files read <fileId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `fileId` | Yes | File identifier. |
+| `fileId` | Yes | File identifier, or the file’s VFS path: `files/&lt;folder&gt;/&lt;name&gt;`, or `uploads/&lt;name&gt;` for a Chat upload. |
 
 </CommandTable>
 
@@ -2441,6 +2443,8 @@ sim logs stats [options]
 | `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
+| `--include-handled-errors` | No | Whether runs with a handled block error are counted as `handledErrorRuns`, and whether `level=error` also selects them. Off by default: counting them scans each run’s stored trace. |
+| `--no-include-handled-errors` | No | Send --include-handled-errors as false. |
 | `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--segment-count <value>` | No | Number of equal time buckets to divide the window into, from 1 to 500. It is the ceiling on how many buckets a series carries: with `includeEmpty=true` exactly this many are returned, otherwise only the buckets holding at least one run. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty. |
@@ -2476,6 +2480,8 @@ sim logs list [options]
 | `--include-trace-spans` | No | Include trace spans in JSON or YAML output (implies full detail). |
 | `--include-final-output` | No | Include final output in JSON or YAML output (implies full detail). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--include-handled-errors` | No | Whether `level=error` also selects runs that finished at `info` after a block error was recovered by an error path. Off by default: such a run succeeded, so it is an error only to a caller auditing error handling. Every row reports `hasHandledErrors` whether or not this is set. Job runs carry no block trace, so the flag never widens that branch. |
+| `--no-include-handled-errors` | No | Send --include-handled-errors as false. |
 | `--status <value>` | No | Comma-separated execution statuses to include, from `pending` \| `running` \| `paused` \| `redacting` \| `completed` \| `failed` \| `cancelled`. An empty entry is rejected. ANDed with `level`, which reports severity rather than lifecycle. |
 | `--workflow-name <value>` | No | Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable. |
 | `--include-job-runs` | No | Whether Chat and Sim-agent job runs join the sequence alongside workflow runs. Job runs report `kind: "job"`, carry no `workflow` summary, and never carry a cost ledger. They are dropped entirely — not partially matched — whenever a filter they cannot answer is set: by workflow, workflow name, folder, model, or status. A filter therefore never means two different things across the union. Accepted only when sorting by `startedAt`: job runs record cost as a document and no comparable status, so they cannot participate in the other orderings. |
@@ -4108,7 +4114,7 @@ sim tables delete <tableId> [options]
 
 ### sim tables enrichment get
 
-Get Enrichment Run Detail
+Get Row Group Run
 
 ```bash
 sim tables enrichment get <tableId> <rowId> <groupId>

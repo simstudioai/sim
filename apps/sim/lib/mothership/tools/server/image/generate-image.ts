@@ -1,7 +1,8 @@
 import { GoogleGenAI, type Part } from '@google/genai'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import {
   executeCopilotFileUseCase,
@@ -13,11 +14,9 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
-import {
-  assertOpaqueWorkspaceFileModelSafe,
-  ServerToolModelInputError,
-} from '@/lib/mothership/tools/server/model-input'
+import { assertOpaqueWorkspaceFileModelSafe } from '@/lib/mothership/tools/server/model-input'
 import { writeCopilotWorkspaceFileByPath } from '@/lib/mothership/vfs/resource-writer'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
@@ -58,6 +57,51 @@ interface GenerateImageResult {
   _serviceCost?: { service: string; cost: number }
 }
 
+/**
+ * Loads one declared reference image, or fails the whole call. Rendering from the
+ * remaining inputs would hand back an image silently missing what the user attached and
+ * report it as a success; a miss instead names the path so the model can correct it
+ * rather than hunt for the file. Model-safety refusals keep their own message.
+ */
+async function loadReferenceImage(
+  context: ServerToolContext,
+  workspaceId: string,
+  filePath: string
+): Promise<{ file: WorkspaceFileRecord; buffer: Buffer }> {
+  let file: WorkspaceFileRecord
+  try {
+    file = await resolveCopilotWorkspaceFileReference(context, fileOperations.readContent, {
+      workspaceId,
+      reference: filePath,
+    })
+  } catch (error) {
+    if (error instanceof OrchestrationError && error.code === 'not_found') {
+      throw new Error(
+        `Reference image "${filePath}" was not found. Pass the exact canonical VFS path copied from glob/read (e.g. "files/photo.png"), or the "uploads/<name>" path from the upload notice.`
+      )
+    }
+    throw error
+  }
+  await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file })
+  try {
+    const { content } = await executeCopilotFileUseCase(
+      context,
+      readWorkspaceFileContent,
+      {
+        fileId: file.id,
+        assertedWorkspaceId: workspaceId,
+        maxBytes: MAX_MEDIA_BYTES,
+      },
+      { fileId: file.id }
+    )
+    return { file, buffer: content }
+  } catch (error) {
+    throw new Error(
+      `Reference image "${filePath}" could not be read: ${getErrorMessage(error, 'unknown error')}`
+    )
+  }
+}
+
 export const generateImageServerTool: BaseServerTool<GenerateImageArgs, GenerateImageResult> = {
   name: GenerateImage.id,
 
@@ -89,47 +133,16 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
 
       const referencePaths = params.inputs?.files?.map((file) => file.path) ?? []
 
-      if (referencePaths.length) {
-        for (const filePath of referencePaths) {
-          try {
-            const fileRecord = await resolveCopilotWorkspaceFileReference(
-              context,
-              fileOperations.readContent,
-              {
-                workspaceId,
-                reference: filePath,
-              }
-            )
-            await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord })
-            const { content: buffer } = await executeCopilotFileUseCase(
-              context,
-              readWorkspaceFileContent,
-              {
-                fileId: fileRecord.id,
-                assertedWorkspaceId: workspaceId,
-                maxBytes: MAX_MEDIA_BYTES,
-              },
-              { fileId: fileRecord.id }
-            )
-            const base64 = buffer.toString('base64')
-            const mime = fileRecord.type || 'image/png'
-            parts.push({
-              inlineData: { mimeType: mime, data: base64 },
-            })
-            logger.info('Loaded reference image', {
-              filePath,
-              name: fileRecord.name,
-              size: buffer.length,
-              mimeType: mime,
-            })
-          } catch (err) {
-            if (err instanceof ServerToolModelInputError) throw err
-            logger.warn('Failed to load reference image, skipping', {
-              filePath,
-              error: toError(err).message,
-            })
-          }
-        }
+      for (const filePath of referencePaths) {
+        const { file, buffer } = await loadReferenceImage(context, workspaceId, filePath)
+        const mime = file.type || 'image/png'
+        parts.push({ inlineData: { mimeType: mime, data: buffer.toString('base64') } })
+        logger.info('Loaded reference image', {
+          filePath,
+          name: file.name,
+          size: buffer.length,
+          mimeType: mime,
+        })
       }
 
       const sizeInstruction = sizeHint

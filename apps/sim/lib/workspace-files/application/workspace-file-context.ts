@@ -10,6 +10,11 @@ export interface WorkspaceFileContextInput {
   fileId: string
   assertedWorkspaceId?: string
   includeDeleted?: boolean
+  /**
+   * Admit a chat upload (`context = 'mothership'`) addressed by its own id. Only read
+   * use cases set this: chat uploads stay out of listings and closed to writes.
+   */
+  includeChatUploads?: boolean
 }
 
 export async function resolveActiveWorkspaceFileContext(
@@ -17,6 +22,7 @@ export async function resolveActiveWorkspaceFileContext(
 ): Promise<ActiveWorkspaceFileContext> {
   const canonical = await loadActiveWorkspaceFileContext(input.fileId, {
     includeDeleted: input.includeDeleted,
+    includeChatUploads: input.includeChatUploads,
   })
   if (
     !canonical ||

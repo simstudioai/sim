@@ -2,9 +2,11 @@ import type { Principal } from '@sim/auth/principal'
 import type { OperationUseCase, WorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  type ActiveWorkspaceFileContext,
   fetchWorkspaceFileBuffer,
   loadActiveWorkspaceFileContext,
   resolveWorkspaceFileReference as resolveStoredWorkspaceFileReference,
+  type WorkspaceFileLookupOptions,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
@@ -30,24 +32,47 @@ interface WorkspaceFileReferenceReadInput extends WorkspaceFileReferenceInput {
   maxBytes: number
 }
 
-async function resolveWorkspaceFileReferenceContext({
-  input,
-}: {
-  input: WorkspaceFileReferenceInput
-}) {
-  const file = await resolveStoredWorkspaceFileReference(input.workspaceId, input.reference)
+/** Canonical file context plus the record the reference resolved to. */
+export interface ReferencedWorkspaceFileContext extends ActiveWorkspaceFileContext {
+  file: WorkspaceFileRecord
+}
+
+/**
+ * Reads may reach a chat upload through its explicit `uploads/<name>` reference (or its
+ * own id); every other file operation resolves workspace files only, so no write, move,
+ * rename, delete, or share can land on one.
+ */
+const CHAT_UPLOAD_LOOKUP: WorkspaceFileLookupOptions = { includeChatUploads: true }
+
+/**
+ * Resolves a VFS reference to its canonical authorization context, carrying the resolved
+ * record so the caller needs no second load. Chat uploads are reachable only on opt-in.
+ */
+export async function resolveReferencedWorkspaceFileContext(
+  input: WorkspaceFileReferenceInput,
+  options?: WorkspaceFileLookupOptions
+): Promise<ReferencedWorkspaceFileContext> {
+  const file = await resolveStoredWorkspaceFileReference(
+    input.workspaceId,
+    input.reference,
+    options
+  )
   if (!file) throw new OrchestrationError('not_found', 'File not found')
-  const canonical = await loadActiveWorkspaceFileContext(file.id)
+  const canonical = await loadActiveWorkspaceFileContext(file.id, options)
   if (!canonical || canonical.workspaceId !== input.workspaceId) {
     throw new OrchestrationError('not_found', 'File not found')
   }
   return { ...canonical, file }
 }
 
-function defineWorkspaceFileReferenceUseCase<const O extends WorkspaceOperation>(operation: O) {
+function defineWorkspaceFileReferenceUseCase<const O extends WorkspaceOperation>(
+  operation: O,
+  options?: WorkspaceFileLookupOptions
+) {
   return defineAuthorizedWorkspaceFileUseCase({
     operation,
-    resolveContext: resolveWorkspaceFileReferenceContext,
+    resolveContext: ({ input }: { input: WorkspaceFileReferenceInput }) =>
+      resolveReferencedWorkspaceFileContext(input, options),
     async execute({ context }): Promise<WorkspaceFileReferenceResult> {
       return { file: context.file }
     },
@@ -61,7 +86,10 @@ type WorkspaceFileReferenceUseCase = OperationUseCase<
 >
 
 const workspaceFileReferenceUseCases = {
-  [fileOperations.readContent.id]: defineWorkspaceFileReferenceUseCase(fileOperations.readContent),
+  [fileOperations.readContent.id]: defineWorkspaceFileReferenceUseCase(
+    fileOperations.readContent,
+    CHAT_UPLOAD_LOOKUP
+  ),
   [fileOperations.create.id]: defineWorkspaceFileReferenceUseCase(fileOperations.create),
   [fileOperations.rename.id]: defineWorkspaceFileReferenceUseCase(fileOperations.rename),
   [fileOperations.updateContent.id]: defineWorkspaceFileReferenceUseCase(
@@ -102,7 +130,7 @@ export interface ReadWorkspaceFileReferenceInput
 const readWorkspaceFileReferenceUseCase = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
   resolveContext: ({ input }: { input: WorkspaceFileReferenceReadInput }) =>
-    resolveWorkspaceFileReferenceContext({ input }),
+    resolveReferencedWorkspaceFileContext(input, CHAT_UPLOAD_LOOKUP),
   async execute({ input, context }): Promise<{ file: WorkspaceFileRecord; content: Buffer }> {
     return {
       file: context.file,

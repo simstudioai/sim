@@ -21,7 +21,7 @@ import {
 } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
-import { and, eq, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
 import type { ListSortOrder } from '@/lib/api/list-query'
@@ -145,6 +145,11 @@ export interface WorkspaceFileRecord {
   contentUpdatedAt?: Date | null
   /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads). */
   storageContext?: 'workspace' | 'mothership'
+  /**
+   * Set on chat uploads (`context = 'mothership'`), which the VFS addresses as
+   * `uploads/<name>` rather than `files/…`; `name` then carries the upload's display name.
+   */
+  vfsNamespace?: 'uploads'
   /** Public share state, attached at the API boundary. `null` when never shared. */
   share?: ShareRecord | null
 }
@@ -1153,10 +1158,30 @@ function mapUploadedWorkspaceFileRecord(
   }
 }
 
+/**
+ * A chat upload keeps the collision-suffixed display name its upload notice told the
+ * model as `name`, sits under `uploads/` rather than in a folder, and reads through the
+ * `mothership` storage context its row is bound to.
+ */
+function mapChatUploadRecord(file: WorkspaceFileRow, workspaceId: string): WorkspaceFileRecord {
+  return {
+    ...mapWorkspaceFileRecord(file, workspaceId, new Map()),
+    name: file.displayName ?? file.originalName,
+    path: `${getServePathPrefix()}${encodeURIComponent(file.key)}?context=mothership`,
+    folderId: null,
+    folderPath: null,
+    storageContext: 'mothership',
+    vfsNamespace: 'uploads',
+  }
+}
+
 async function mapSingleWorkspaceFileRecord(
   file: WorkspaceFileRow,
   workspaceId: string
 ): Promise<WorkspaceFileRecord> {
+  if (file.context === 'mothership') {
+    return mapChatUploadRecord(file, workspaceId)
+  }
   if (!file.folderId) {
     return mapWorkspaceFileRecord(file, workspaceId, new Map())
   }
@@ -1231,6 +1256,22 @@ export async function getWorkspaceFileByName(
   if (files.length === 0) return null
 
   return mapSingleWorkspaceFileRecord(files[0], workspaceId)
+}
+
+/**
+ * Chat uploads (`context = 'mothership'`) are hidden from every listing and closed to
+ * writes. A read may opt in to one by explicit reference only — its `uploads/<name>`
+ * VFS path or its own id — which is what this option grants.
+ */
+export interface WorkspaceFileLookupOptions {
+  includeChatUploads?: boolean
+}
+
+/** Row context a single-file lookup admits: workspace files, plus chat uploads on opt-in. */
+function workspaceFileContextCondition(includeChatUploads?: boolean) {
+  return includeChatUploads
+    ? inArray(workspaceFiles.context, ['workspace', 'mothership'])
+    : eq(workspaceFiles.context, 'workspace')
 }
 
 /** Workspace-file rows for one scope: live, Recently Deleted, or both. */
@@ -1444,12 +1485,67 @@ function normalizeWorkspaceFileReferenceSegments(fileReference: string): string[
 }
 
 /**
+ * Canonical VFS path of a stored record: `uploads/<name>` for a chat upload, else the
+ * `files/…` path of its folder and name.
+ */
+export function workspaceFileVfsPath(
+  file: Pick<WorkspaceFileRecord, 'folderPath' | 'name' | 'vfsNamespace'>
+): string {
+  return canonicalWorkspaceFilePath({
+    folderPath: file.folderPath,
+    name: file.name,
+    prefix: file.vfsNamespace,
+  })
+}
+
+/**
  * Canonical sandbox mount path for an existing workspace file.
  */
 export function getSandboxWorkspaceFilePath(
-  file: Pick<WorkspaceFileRecord, 'folderPath' | 'name'>
+  file: Pick<WorkspaceFileRecord, 'folderPath' | 'name' | 'vfsNamespace'>
 ): string {
-  return `/home/user/${canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name })}`
+  return `/home/user/${workspaceFileVfsPath(file)}`
+}
+
+/**
+ * Display name addressed by an `uploads/<name>` reference (percent-encoded per the VFS
+ * convention), or null for any other shape. Only the two-segment form names a chat
+ * upload: `files/uploads/…` is an ordinary folder path and keeps its meaning.
+ */
+export function parseChatUploadReference(fileReference: string): string | null {
+  const trimmed = fileReference.trim().replace(/^\/+/, '')
+  if (!trimmed.startsWith('uploads/')) return null
+  const segments = decodeVfsPathSegments(trimmed)
+  return segments.length === 2 ? segments[1] : null
+}
+
+/**
+ * Newest active chat upload in the workspace whose display name is `name` (legacy rows
+ * without one match on their original name). Display names are unique per chat, not
+ * per workspace, so the latest upload wins — the one the model was told about last.
+ */
+async function getChatUploadByName(
+  workspaceId: string,
+  name: string
+): Promise<WorkspaceFileRecord | null> {
+  const [file] = await db
+    .select(workspaceFileColumns)
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.context, 'mothership'),
+        or(
+          eq(workspaceFiles.displayName, name),
+          and(isNull(workspaceFiles.displayName), eq(workspaceFiles.originalName, name))
+        ),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
+    .orderBy(desc(workspaceFiles.uploadedAt))
+    .limit(1)
+
+  return file ? mapChatUploadRecord(file, workspaceId) : null
 }
 
 /**
@@ -1499,15 +1595,31 @@ async function getWorkspaceFileByExactReference(
 
 /**
  * Resolve a workspace file record from either its id or a VFS/name reference.
+ *
+ * With `includeChatUploads`, an `uploads/<name>` path (or a chat upload's own id) reaches
+ * the chat upload it names; chat uploads are never found through the listing fallback.
  */
 export async function resolveWorkspaceFileReference(
   workspaceId: string,
-  fileReference: string
+  fileReference: string,
+  options?: WorkspaceFileLookupOptions
 ): Promise<WorkspaceFileRecord | null> {
+  const includeChatUploads = options?.includeChatUploads === true
+  if (includeChatUploads) {
+    const uploadName = parseChatUploadReference(fileReference)
+    if (uploadName !== null) {
+      const upload = await getChatUploadByName(workspaceId, uploadName)
+      if (upload) return upload
+    }
+  }
+
   const referenceSegments = normalizeWorkspaceFileReferenceSegments(fileReference)
   const normalizedReference = referenceSegments.join('/')
   if (normalizedReference.startsWith('wf_')) {
-    const file = await getWorkspaceFile(workspaceId, normalizedReference, { throwOnError: true })
+    const file = await getWorkspaceFile(workspaceId, normalizedReference, {
+      throwOnError: true,
+      includeChatUploads,
+    })
     if (file) return file
   }
 
@@ -1521,10 +1633,11 @@ export async function resolveWorkspaceFileReference(
 /**
  * Load the canonical authorization context for an active workspace file by resource ID.
  * Database failures propagate so callers never confuse unavailable state with a missing file.
+ * Chat uploads are admitted only on explicit opt-in (see {@link WorkspaceFileLookupOptions}).
  */
 export async function loadActiveWorkspaceFileContext(
   fileId: string,
-  options?: { includeDeleted?: boolean }
+  options?: WorkspaceFileLookupOptions & { includeDeleted?: boolean }
 ): Promise<ActiveWorkspaceFileContext | null> {
   const [context] = await db
     .select({
@@ -1539,7 +1652,7 @@ export async function loadActiveWorkspaceFileContext(
     .where(
       and(
         eq(workspaceFiles.id, fileId),
-        eq(workspaceFiles.context, 'workspace'),
+        workspaceFileContextCondition(options?.includeChatUploads),
         ...(options?.includeDeleted ? [] : [isNull(workspaceFiles.deletedAt)]),
         isNull(workspace.archivedAt)
       )
@@ -1605,11 +1718,13 @@ export async function loadActiveWorkspaceContext(
  * distinguish a genuinely-absent file (`null`) from a transient read failure (throws): the
  * collaborative-doc seed builder relies on this so a DB blip never looks like an empty file and gets
  * seeded as blank content over the real document.
+ *
+ * Chat uploads are admitted only on explicit opt-in (see {@link WorkspaceFileLookupOptions}).
  */
 export async function getWorkspaceFile(
   workspaceId: string,
   fileId: string,
-  options?: { includeDeleted?: boolean; throwOnError?: boolean }
+  options?: WorkspaceFileLookupOptions & { includeDeleted?: boolean; throwOnError?: boolean }
 ): Promise<WorkspaceFileRecord | null> {
   try {
     const { includeDeleted = false } = options ?? {}
@@ -1617,18 +1732,12 @@ export async function getWorkspaceFile(
       .select(workspaceFileColumns)
       .from(workspaceFiles)
       .where(
-        includeDeleted
-          ? and(
-              eq(workspaceFiles.id, fileId),
-              eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'workspace')
-            )
-          : and(
-              eq(workspaceFiles.id, fileId),
-              eq(workspaceFiles.workspaceId, workspaceId),
-              eq(workspaceFiles.context, 'workspace'),
-              isNull(workspaceFiles.deletedAt)
-            )
+        and(
+          eq(workspaceFiles.id, fileId),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          workspaceFileContextCondition(options?.includeChatUploads),
+          ...(includeDeleted ? [] : [isNull(workspaceFiles.deletedAt)])
+        )
       )
       .limit(1)
 

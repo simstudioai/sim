@@ -2,6 +2,7 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { PrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
 import {
@@ -39,6 +40,7 @@ import { getOrCreateTableSnapshot, SNAPSHOT_MAX_BYTES } from '@/lib/table/snapsh
 import {
   findWorkspaceFileRecord,
   getSandboxWorkspaceFilePath,
+  parseChatUploadReference,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { importWorkspaceFileSecretProvenanceForRuntime } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -50,8 +52,10 @@ import {
 import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
+import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import {
   buildWorkspaceFileFolderDisplayPath,
@@ -191,7 +195,7 @@ function unmountableNamespaceReason(filePath: string): string | null {
   const path = `${filePath.replace(/^\/+|\/+$/g, '')}/`
 
   if (path.startsWith('uploads/')) {
-    return 'uploads/ files are not mountable into the sandbox. Use save_upload to save it to a files/... path first, then mount that canonical path.'
+    return 'uploads/ holds chat uploads addressed as "uploads/<name>" with no folders beneath it. Copy the exact "uploads/<name>" path from the upload notice.'
   }
   if (path.startsWith('internal/tool-results/')) {
     return 'tool-result artifacts are stored by the copilot backend, not in workspace storage, so read and grep reach them but the sandbox cannot. This path is correct — searching for a different one will not find anything. Either read or grep the artifact and inline the values you need in code, or re-run the tool that produced it with an output path under files/ (run_function: outputs.files[].path, user_table: outputPath) and mount that files/... path.'
@@ -261,6 +265,46 @@ async function resolveTableRef(
   return tablePathLookup?.get(tableName) ?? null
 }
 
+/**
+ * Locates one `inputs.files[].path`. Chat uploads are absent from the workspace listing
+ * by design, so an `uploads/<name>` reference resolves through the read-content
+ * reference use case — the only path that may reach a chat upload — and a miss there
+ * is the honest not-found rather than a hint to go looking elsewhere.
+ */
+async function resolveMountableWorkspaceFile(
+  allFiles: WorkspaceFileRecord[],
+  filePath: string,
+  workspaceId: string,
+  principal: Principal
+): Promise<WorkspaceFileRecord> {
+  const listed = findWorkspaceFileRecord(allFiles, filePath)
+  if (listed) return listed
+
+  if (parseChatUploadReference(filePath) !== null) {
+    try {
+      return await resolveWorkspaceFileReference({
+        principal,
+        operation: fileOperations.readContent,
+        workspaceId,
+        reference: filePath,
+      })
+    } catch (error) {
+      if (!(error instanceof OrchestrationError && error.code === 'not_found')) throw error
+      throw new Error(
+        `Input file not found: "${filePath}". Copy the exact "uploads/<name>" path from the upload notice.`
+      )
+    }
+  }
+
+  const unmountable = unmountableNamespaceReason(filePath)
+  if (unmountable) {
+    throw new Error(`Cannot mount "${filePath}": ${unmountable}`)
+  }
+  throw new Error(
+    `Input file not found: "${filePath}". Pass the exact canonical VFS path copied from glob/read (e.g. "files/Reports/data.csv").`
+  )
+}
+
 export async function resolveInputFiles(
   workspaceId: string,
   inputFiles?: unknown[],
@@ -288,16 +332,12 @@ export async function resolveInputFiles(
     for (const fileRef of inputFiles) {
       const filePath = refField(fileRef, 'path')
       if (!filePath) continue
-      const record = findWorkspaceFileRecord(allFiles, filePath)
-      if (!record) {
-        const unmountable = unmountableNamespaceReason(filePath)
-        if (unmountable) {
-          throw new Error(`Cannot mount "${filePath}": ${unmountable}`)
-        }
-        throw new Error(
-          `Input file not found: "${filePath}". Pass the exact canonical VFS path copied from glob/read (e.g. "files/Reports/data.csv").`
-        )
-      }
+      const record = await resolveMountableWorkspaceFile(
+        allFiles,
+        filePath,
+        workspaceId,
+        filePrincipal
+      )
       const mountPath = refField(fileRef, 'sandboxPath') ?? getSandboxWorkspaceFilePath(record)
       await pushWorkspaceFileMount(
         sandboxFiles,

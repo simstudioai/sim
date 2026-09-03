@@ -167,8 +167,17 @@ async function leaseSandbox(
       })
       if (existing) {
         await refresh(existing)
+        // Priced like a Function block's sandbox, over this call's wall time on the
+        // sandbox (acquire to release). The idle window between calls is the
+        // platform's overhead, not the user's.
         return {
-          created: { sandbox: existing, providerId: provider.id, startedAtMs: Date.now() },
+          created: {
+            sandbox: existing,
+            providerId: provider.id,
+            startedAtMs: Date.now(),
+            effectiveLifetimeMs: provider.resolveLifetimeMs(SESSION_SANDBOX_IDLE_MS),
+            pricing: createSandboxPricing(provider.id),
+          },
           session: 'reused',
           release: () => refresh(existing),
         }
@@ -179,12 +188,14 @@ async function leaseSandbox(
         error: getErrorMessage(error),
       })
     }
+    // Metered from the provider request, as a Function block's one-shot sandbox is:
+    // the first call of a chat pays for the boot it caused.
     const created = await createSelectedSandbox(
       kind,
       { ...options, lifetimeMs: SESSION_SANDBOX_IDLE_MS, sessionKey: session.key },
       selected,
       signal,
-      false
+      true
     )
     const bootstrapCommand = session.bootstrapCommand
     if (bootstrapCommand) {
@@ -380,7 +391,7 @@ function calculateSandboxCost(
     cleanupStartedAtMs - created.startedAtMs,
     created.effectiveLifetimeMs
   )
-  return { input: 0, output: 0, total: usage.billedCost }
+  return { input: 0, output: 0, total: usage.billedCost, raw: usage.rawCost }
 }
 
 /**
