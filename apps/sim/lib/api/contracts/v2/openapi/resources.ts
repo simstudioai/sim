@@ -2156,8 +2156,14 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
   headers: V2_COMMON_HEADERS,
   errorSchema: V2_ERROR_SCHEMA,
+  /**
+   * Every `409` in this document is a name collision — an MCP server, skill,
+   * custom tool, sandbox, credential, or secret whose name is already taken in
+   * the workspace — so the shared example names that remedy rather than one
+   * resource's.
+   */
   errorResponses: withErrorExamples({
-    Conflict: { message: 'API key name already exists' },
+    Conflict: { message: 'A resource with this name already exists in this workspace' },
   }),
   routes,
 })
