@@ -20,6 +20,21 @@ const {
   mockTrackChatUpload: vi.fn(),
 }))
 
+// The inventory reads nine application worlds; these suites exercise the request shape, not the reads.
+vi.mock('@/lib/mothership/chat/workspace-inventory', () => ({
+  buildWorkspaceInventory: vi.fn(async () => ({
+    workflows: [],
+    tables: [],
+    knowledgeBases: [],
+    files: [],
+    skills: [],
+    customTools: [],
+    mcpServers: [],
+    credentials: [],
+    secrets: [],
+    truncated: [],
+  })),
+}))
 vi.mock('@/lib/billing/core/subscription', () => ({
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
 }))
