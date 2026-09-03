@@ -12,7 +12,7 @@ import {
   redactApiKeys,
   redactExactSensitiveValues,
 } from '@/lib/core/security/redaction'
-import { consumeOrCancelBody } from '@/lib/core/utils/stream-limits'
+import { consumeOrCancelBody, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { normalizeOracleFusionApplicationOrigin } from '@/lib/credentials/client-credential-accounts/descriptors'
 import type { OracleFusionAuthInput } from '@/lib/internal/oracle-fusion-financials/schema'
 
@@ -29,9 +29,11 @@ const TRANSIENT_TRANSPORT_CODES = new Set([
   'ETIMEDOUT',
 ])
 const MAX_STRUCTURED_DIAGNOSTIC_DEPTH = 8
+const MAX_DIAGNOSTIC_KEY_ENCODING_DEPTH = 3
 const UNSAFE_DIAGNOSTIC = Symbol('unsafe-oracle-diagnostic')
+const ENCODED_DIAGNOSTIC_KEY_COMPONENT = /%[0-9A-F]{2}/i
 const DIAGNOSTIC_KEY_VALUE_PATTERN =
-  /(?:"([^"\r\n]{1,128})"|'([^'\r\n]{1,128})'|([A-Za-z][A-Za-z0-9 _-]{0,127}))\s*(?::|=)/g
+  /(?:"([^"\r\n]{1,128})"|'([^'\r\n]{1,128})'|([A-Za-z%][A-Za-z0-9% _-]{0,127}))\s*(?::|=)/g
 const LOSSLESS_DECIMAL_FIELDS = new Set([
   'InvoiceId',
   'InvoiceDistributionId',
@@ -92,7 +94,18 @@ function collectOracleErrorMessages(payload: unknown, depth = 0): string[] {
 }
 
 function isSensitiveDiagnosticKey(key: string): boolean {
-  return isSensitiveKey(key.trim().replaceAll(/\s+/g, '_'))
+  let normalized = key.trim()
+  for (let depth = 0; depth < MAX_DIAGNOSTIC_KEY_ENCODING_DEPTH; depth++) {
+    if (!normalized.includes('%')) break
+    if (!ENCODED_DIAGNOSTIC_KEY_COMPONENT.test(normalized)) return true
+    try {
+      normalized = decodeURIComponent(normalized)
+    } catch {
+      return true
+    }
+  }
+  if (normalized.includes('%')) return true
+  return isSensitiveKey(normalized.replaceAll(/[^A-Za-z0-9]+/g, '_'))
 }
 
 function containsSensitiveDiagnosticKey(value: string): boolean {
@@ -270,6 +283,12 @@ export async function requestOracleFusionJson(
       response = await fetchAttempt(url, validation.resolvedIP, auth.accessToken, signal)
     } catch (error) {
       signal?.throwIfAborted()
+      if (isPayloadSizeLimitError(error)) {
+        throw new OracleFusionFinancialsProviderError(
+          'Oracle Fusion Financials response could not be read',
+          502
+        )
+      }
       if (isTransientTransportError(error) && attempt < MAX_RETRIES) {
         await waitForRetry(attempt, signal)
         continue

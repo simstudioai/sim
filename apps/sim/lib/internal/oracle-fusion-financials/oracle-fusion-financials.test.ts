@@ -20,6 +20,7 @@ vi.mock('@sim/utils/retry', () => ({
   parseRetryAfter: vi.fn((value: string | null) => (value === '2' ? 2_000 : null)),
 }))
 
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   OracleFusionFinancialsProviderError,
   requestOracleFusionJson,
@@ -1064,9 +1065,39 @@ describe('Oracle Fusion Financials provider', () => {
     })
   })
 
+  it('maps a pinned-fetch response size rejection to a sanitized 502', async () => {
+    mockSecureFetch.mockRejectedValueOnce(
+      new PayloadSizeLimitError({
+        label: 'response body',
+        maxBytes: 5 * 1024 * 1024,
+        observedBytes: 5 * 1024 * 1024 + 1,
+      })
+    )
+
+    await expect(
+      requestOracleFusionJson(AUTH, { path: `${RESOURCE_PATH}/invoices` })
+    ).rejects.toMatchObject({
+      name: 'OracleFusionFinancialsProviderError',
+      status: 502,
+      message: 'Oracle Fusion Financials response could not be read',
+    })
+    expect(mockSecureFetch).toHaveBeenCalledTimes(1)
+    expect(mockSleep).not.toHaveBeenCalled()
+  })
+
   it('retries 429, 503, and 504 at most twice and honors Retry-After', async () => {
+    const retryBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('retry response'))
+        controller.close()
+      },
+    })
+    const getReader = vi.spyOn(retryBody, 'getReader')
     mockSecureFetch
-      .mockResolvedValueOnce(response(429, { title: 'slow down' }, { 'retry-after': '2' }))
+      .mockResolvedValueOnce({
+        ...response(429, { title: 'slow down' }, { 'retry-after': '2' }),
+        body: retryBody,
+      })
       .mockResolvedValueOnce(response(503, { title: 'unavailable' }))
       .mockResolvedValueOnce(response(200, page([])))
 
@@ -1078,6 +1109,13 @@ describe('Oracle Fusion Financials provider', () => {
       maxMs: 5_000,
     })
     expect(mockSleep).toHaveBeenCalledTimes(2)
+    expect(getReader).toHaveBeenCalledTimes(1)
+    expect(getReader.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSleep.mock.invocationCallOrder[0]
+    )
+    const drainedReader = retryBody.getReader()
+    await expect(drainedReader.read()).resolves.toEqual({ done: true, value: undefined })
+    drainedReader.releaseLock()
   })
 
   it('retries classified transient transport failures within the existing bound', async () => {
@@ -1181,6 +1219,9 @@ describe('Oracle Fusion Financials provider', () => {
             'api key': 'provider-spaced-api-key-canary',
             ' private key ': 'provider-spaced-private-key-canary',
             'proxy authorization': 'provider-spaced-proxy-auth-canary',
+            'api%255Fkey': 'provider-encoded-api-key-canary',
+            'api%ZZkey': 'provider-malformed-key-canary',
+            'api%2525255Fkey': 'provider-overencoded-key-canary',
             entries: [{ access_token: 'provider-nested-token-canary' }],
             serialized: JSON.stringify({
               private_key: 'provider-double-serialized-secret-canary',
@@ -1204,6 +1245,9 @@ describe('Oracle Fusion Financials provider', () => {
     expect((error as Error).message).not.toContain('provider-spaced-api-key-canary')
     expect((error as Error).message).not.toContain('provider-spaced-private-key-canary')
     expect((error as Error).message).not.toContain('provider-spaced-proxy-auth-canary')
+    expect((error as Error).message).not.toContain('provider-encoded-api-key-canary')
+    expect((error as Error).message).not.toContain('provider-malformed-key-canary')
+    expect((error as Error).message).not.toContain('provider-overencoded-key-canary')
     expect((error as Error).message).not.toContain('provider-nested-token-canary')
     expect((error as Error).message).not.toContain('provider-double-serialized-secret-canary')
   })
@@ -1228,6 +1272,7 @@ describe('Oracle Fusion Financials provider', () => {
       response(400, {
         detail: 'api key: "provider-fragment-secret-canary"',
         message: 'client_secret: "provider-fragment-client-secret-canary"',
+        title: 'api%255Fkey: "provider-encoded-fragment-secret-canary"',
       })
     )
 
