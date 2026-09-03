@@ -20,7 +20,7 @@ import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 export const workflowLintCommand: AgentCliEngine = {
   async execute(rest, runtime) {
     const workflowId = rest[0]
-    if (!workflowId) return agentCliFail('Usage: sim workflow lint <workflowId>')
+    if (!workflowId) return agentCliFail('Usage: sim workflows lint <workflowId>')
     const state = await fetchWorkflowState(runtime, workflowId)
     // double-cast-allowed: the v2 export's `state` is the serialized WorkflowState;
     // the lint engine reads it structurally (blocks/edges only)
