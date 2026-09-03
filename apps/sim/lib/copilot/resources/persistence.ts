@@ -25,6 +25,32 @@ const logger = createLogger('CopilotResources')
 
 type ChatResource = MothershipResource
 
+const CHAT_RESOURCE_STATEMENT_TIMEOUT_MS = 10_000
+const CHAT_RESOURCE_LOCK_TIMEOUT_MS = 3_000
+const CHAT_RESOURCE_IDLE_TIMEOUT_MS = 5_000
+
+/**
+ * Bounds the `copilot_chats` row-lock wait every resource writer takes.
+ *
+ * {@link serializeChatResourceWrite} only serializes writers inside one process.
+ * Another pod's write — and `finalizeAssistantTurn`, which holds this same row
+ * `FOR UPDATE` across an assistant-message append — are outside it. Without
+ * `lock_timeout` a waiter inherits the full statement clock, which the
+ * deployment does not set either, so one stuck holder can drain the pool.
+ *
+ * Safe under pgBouncer transaction pooling: `SET LOCAL` is transaction-scoped
+ * and clears at COMMIT/ROLLBACK before the session returns to the pool.
+ */
+export async function setChatResourceTxTimeouts(trx: Pick<typeof db, 'execute'>): Promise<void> {
+  await trx.execute(
+    sql.raw(`SET LOCAL statement_timeout = '${CHAT_RESOURCE_STATEMENT_TIMEOUT_MS}ms'`)
+  )
+  await trx.execute(sql.raw(`SET LOCAL lock_timeout = '${CHAT_RESOURCE_LOCK_TIMEOUT_MS}ms'`))
+  await trx.execute(
+    sql.raw(`SET LOCAL idle_in_transaction_session_timeout = '${CHAT_RESOURCE_IDLE_TIMEOUT_MS}ms'`)
+  )
+}
+
 const chatResourceWriteChain = new Map<string, Promise<unknown>>()
 
 export async function serializeChatResourceWrite<T>(
@@ -55,6 +81,7 @@ export async function persistChatResources(
   try {
     await serializeChatResourceWrite(chatId, async () => {
       await db.transaction(async (tx) => {
+        await setChatResourceTxTimeouts(tx)
         const [chat] = await tx
           .select({ resources: copilotChats.resources })
           .from(copilotChats)
@@ -103,6 +130,7 @@ export async function removeChatResources(chatId: string, toRemove: ChatResource
   try {
     await serializeChatResourceWrite(chatId, async () => {
       await db.transaction(async (tx) => {
+        await setChatResourceTxTimeouts(tx)
         const [chat] = await tx
           .select({ resources: copilotChats.resources })
           .from(copilotChats)

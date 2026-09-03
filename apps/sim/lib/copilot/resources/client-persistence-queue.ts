@@ -6,7 +6,6 @@ interface ResourcePersistenceQueueOptions {
   onError: (error: unknown) => void
 }
 
-const UNSCOPED_QUEUE_ID = 'unscoped'
 const QUEUE_KEY_SEPARATOR = '\u0000'
 
 export interface RemovedResourcePersistence {
@@ -40,11 +39,18 @@ export class ResourcePersistenceQueue {
     this.onError = onError
   }
 
+  /**
+   * Records the newest desired state for a resource and starts writing it when
+   * a chat id is known. `scopeId` buckets the write: it is the chat id once the
+   * chat exists, and the provisional pending-chat key before that, which
+   * {@link flush} later adopts. `base` is the resource as the server already
+   * holds it, when the caller knows.
+   */
   enqueue(
     update: MothershipResourceUpdate,
     chatId: string | undefined,
-    base?: MothershipResource,
-    scopeId: string | undefined = chatId
+    scopeId: string,
+    base?: MothershipResource
   ): void {
     const key = this.getKey(scopeId, update.type, update.id)
     const trackedLocally =
@@ -79,7 +85,7 @@ export class ResourcePersistenceQueue {
   remove(
     type: string,
     id: string,
-    scopeId: string | undefined,
+    scopeId: string,
     assumePersisted = false
   ): RemovedResourcePersistence {
     const key = this.getKey(scopeId, type, id)
@@ -110,36 +116,30 @@ export class ResourcePersistenceQueue {
     }
   }
 
-  getPendingUpdates(scopeId?: string): MothershipResourceUpdate[] {
-    return this.getScopedKeys(this.pendingKeys, scopeId).flatMap((key) => {
-      const update = this.desiredUpdates.get(key)
-      return update ? [update] : []
-    })
+  /**
+   * Whether a pending write would add a resource the server does not store yet.
+   *
+   * Only these may hold a reorder back — the server rejects an order naming a
+   * resource it has never seen. A pending UPDATE to a resource it already
+   * stores (a saved-view pin) must not: that write can fail indefinitely, and
+   * gating on it would park tab ordering for the rest of the session.
+   */
+  hasUnpersistedWrites(scopeId: string): boolean {
+    return this.getScopedKeys(this.pendingKeys, scopeId).some((key) => !this.persistedKeys.has(key))
   }
 
-  getPendingResourceKeys(scopeId?: string): Set<string> {
+  getPendingResourceKeys(scopeId: string): Set<string> {
     const prefix = this.getScopePrefix(scopeId)
     return new Set(
       this.getScopedKeys(this.pendingKeys, scopeId).map((key) => key.slice(prefix.length))
     )
   }
 
-  getInFlightWrites(scopeId?: string): Promise<unknown>[] {
+  getInFlightWrites(scopeId: string): Promise<unknown>[] {
     return this.getScopedKeys(this.inFlight, scopeId).flatMap((key) => {
       const write = this.inFlight.get(key)
       return write ? [write] : []
     })
-  }
-
-  clear(): void {
-    this.pendingKeys.clear()
-    this.inFlight.clear()
-    this.desiredUpdates.clear()
-    this.failedKeys.clear()
-    this.pendingRemovals.clear()
-    this.persistedKeys.clear()
-    this.removalTokens.clear()
-    this.writeTokens.clear()
   }
 
   private startPending(chatId: string): void {
@@ -213,7 +213,10 @@ export class ResourcePersistenceQueue {
         return result
       })
       .catch((error) => {
+        // Superseded by a newer write for the same key, which owns the retry.
         if (this.writeTokens.get(key) !== token) return
+        // The resource was removed while this write was in flight. Nothing is
+        // left to retry, and `onError` would report a retry that never comes.
         if (!this.desiredUpdates.has(key)) return
         this.pendingKeys.add(key)
         this.failedKeys.add(key)
@@ -243,9 +246,11 @@ export class ResourcePersistenceQueue {
       const sourceUpdate = this.desiredUpdates.get(sourceKey)
       const targetUpdate = this.desiredUpdates.get(targetKey)
       if (sourceUpdate) {
+        // The source scope is the provisional pre-chat-id bucket, so its update
+        // is the OLDER of the two: it is `prev`, and the target's is `next`.
         this.desiredUpdates.set(
           targetKey,
-          targetUpdate ? mergePendingChatResourceUpdate(targetUpdate, sourceUpdate) : sourceUpdate
+          targetUpdate ? mergePendingChatResourceUpdate(sourceUpdate, targetUpdate) : sourceUpdate
         )
       }
       this.desiredUpdates.delete(sourceKey)
@@ -258,17 +263,17 @@ export class ResourcePersistenceQueue {
 
   private getScopedKeys(
     collection: ReadonlySet<string> | ReadonlyMap<string, unknown>,
-    scopeId?: string
+    scopeId: string
   ): string[] {
     const prefix = this.getScopePrefix(scopeId)
     return Array.from(collection.keys()).filter((key) => key.startsWith(prefix))
   }
 
-  private getScopePrefix(scopeId?: string): string {
-    return `${scopeId ?? UNSCOPED_QUEUE_ID}${QUEUE_KEY_SEPARATOR}`
+  private getScopePrefix(scopeId: string): string {
+    return `${scopeId}${QUEUE_KEY_SEPARATOR}`
   }
 
-  private getKey(scopeId: string | undefined, type: string, id: string): string {
+  private getKey(scopeId: string, type: string, id: string): string {
     return `${this.getScopePrefix(scopeId)}${type}:${id}`
   }
 }

@@ -209,13 +209,19 @@ export function extractResourcesFromToolResult(
       const tableId = (data.tableId as string) ?? (args.tableId as string)
       if (!tableId) return []
       const viewId = data.viewId
+      // Pin and unpin are mutually exclusive: the wire contract rejects the
+      // pair, and a merge handed both would apply neither. A delete unpins
+      // regardless of any view id its result happens to carry.
       return [
         {
           type: 'table',
           id: tableId,
           title: (data.tableName as string) || 'Table',
-          ...(typeof viewId === 'string' && viewId ? { viewId } : {}),
-          ...(operation === 'delete_view' ? { clearViewId: true as const } : {}),
+          ...(operation === 'delete_view'
+            ? { clearViewId: true as const }
+            : typeof viewId === 'string' && viewId
+              ? { viewId }
+              : {}),
         },
       ]
     }

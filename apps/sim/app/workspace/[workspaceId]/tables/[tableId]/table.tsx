@@ -666,7 +666,11 @@ export function Table({
       return
     }
 
-    if (activeView && activeViewId === null) {
+    // Embedded tables record the adopted id BEFORE the revision guard can bail:
+    // `resolveTableViewSelection` resolves a null param to the restored view, so
+    // leaving the param unwritten lets a later render drift back to the default.
+    // Standalone tables have no restored view and keep writing it below.
+    if (embedded && activeView && activeViewId === null) {
       setTableParams({ view: activeView.id })
     }
     const nextViewRevision = getTableViewRevision(activeView)
@@ -685,7 +689,7 @@ export function Table({
     if (preserved && preserved.viewId !== nextViewId) {
       preservedViewStateRef.current = null
     }
-    if (activeView && activeViewId === ALL_VIEW_PARAM) {
+    if (activeView && (activeViewId === null || activeViewId === ALL_VIEW_PARAM)) {
       setTableParams({ view: activeView.id })
     }
     const keep = preserved?.viewId === nextViewId ? preserved.keep : undefined
@@ -737,7 +741,21 @@ export function Table({
     if (!transition.nextViewId) return
     preservedViewStateRef.current = null
     setTableParams({ view: transition.nextViewId })
-  }, [embedded, viewPin, views, activeViewId, tableId, consumeViewPin, setTableParams])
+    // `viewsAvailable`/`tableAvailable` are what gate first adoption, and
+    // adoption records itself in a ref, which re-renders nothing. Without them
+    // a pin that arrives before the table is ready is never reconsidered — the
+    // restore path has no query invalidation to nudge `views` and rescue it.
+  }, [
+    embedded,
+    viewPin,
+    views,
+    activeViewId,
+    tableId,
+    viewsAvailable,
+    tableAvailable,
+    consumeViewPin,
+    setTableParams,
+  ])
 
   /**
    * Live state pruned the same way `pruneViewConfig` prunes the stored config on

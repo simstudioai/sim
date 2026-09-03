@@ -219,13 +219,19 @@ export function reorderStoredChatResources(
 ): MothershipResource[] | null {
   const stored = sanitizeChatResources(storedResources)
   const requested = sanitizeChatResources(requestedOrder)
-  if (stored.length !== requested.length) return null
 
+  // Compared as key SETS, not lengths: a chat that already holds a duplicated
+  // row (nothing writes one today, but stored data predates the merge-by-key
+  // writers) sends one fewer entry from the deduplicated client. Matching on
+  // sets keeps that reorder valid and collapses the duplicate on write, where
+  // a length check would reject every reorder for that chat forever.
   const storedByKey = new Map(
     stored.map((resource) => [`${resource.type}:${resource.id}`, resource])
   )
-  const requestedKeys = requested.map((resource) => `${resource.type}:${resource.id}`)
-  if (new Set(requestedKeys).size !== storedByKey.size) return null
+  const requestedKeys = Array.from(
+    new Set(requested.map((resource) => `${resource.type}:${resource.id}`))
+  )
+  if (requestedKeys.length !== storedByKey.size) return null
 
   const reordered: MothershipResource[] = []
   for (const key of requestedKeys) {
@@ -247,6 +253,22 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
 ])
 
 /**
+ * Every field {@link mergeChatResource} carries over from the newcomer. `type`
+ * and `id` identify the entry and can never differ; `title` has its own
+ * placeholder rule. Declared once so a field added to {@link MothershipResource}
+ * fails to compile here rather than being silently dropped from both the merge
+ * and its no-op check.
+ */
+const MERGED_FIELDS = {
+  title: true,
+  path: true,
+  viewId: true,
+  executionId: true,
+} as const satisfies Record<Exclude<keyof MothershipResource, 'type' | 'id'>, true>
+
+const MERGED_FIELD_NAMES = Object.keys(MERGED_FIELDS) as (keyof typeof MERGED_FIELDS)[]
+
+/**
  * Folds a re-added resource into the stored entry with the same type+id. The
  * stored title wins unless it was a placeholder. Every other field the
  * newcomer defines replaces the stored one — a file's `path`, a log's
@@ -260,7 +282,8 @@ export function mergeChatResource(
   next: MothershipResourceUpdate
 ): MothershipResource {
   if (!prev) {
-    if (next.clearViewId !== true) return next
+    // Copied, never aliased: the result lands in React state, the query cache
+    // and the pending-write queue at once, and `next` is the caller's object.
     const { clearViewId: _clearViewId, ...resource } = next
     return resource
   }
@@ -275,11 +298,7 @@ export function mergeChatResource(
         ? next.title
         : prev.title,
   }
-  const unchanged =
-    merged.title === prev.title &&
-    merged.path === prev.path &&
-    merged.viewId === prev.viewId &&
-    merged.executionId === prev.executionId
+  const unchanged = MERGED_FIELD_NAMES.every((field) => merged[field] === prev[field])
   return unchanged ? prev : merged
 }
 

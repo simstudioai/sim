@@ -16,7 +16,11 @@ import {
   createNotFoundResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
-import { type ChatResource, serializeChatResourceWrite } from '@/lib/copilot/resources/persistence'
+import {
+  type ChatResource,
+  serializeChatResourceWrite,
+  setChatResourceTxTimeouts,
+} from '@/lib/copilot/resources/persistence'
 import type { MothershipResourceUpdate } from '@/lib/copilot/resources/types'
 import {
   canonicalizeDesktopSessionResource,
@@ -57,6 +61,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const merged = await serializeChatResourceWrite(chatId, () =>
       db.transaction(async (tx) => {
+        await setChatResourceTxTimeouts(tx)
         const scope = and(
           eq(copilotChats.id, chatId),
           eq(copilotChats.userId, userId),
@@ -125,6 +130,7 @@ export const PATCH = withRouteHandler(async (req: NextRequest) => {
 
     const canonicalOrder = await serializeChatResourceWrite(chatId, () =>
       db.transaction(async (tx): Promise<ChatResource[] | null | undefined> => {
+        await setChatResourceTxTimeouts(tx)
         const scope = and(
           eq(copilotChats.id, chatId),
           eq(copilotChats.userId, userId),
@@ -191,6 +197,7 @@ export const DELETE = withRouteHandler(async (req: NextRequest) => {
 
     const merged = await serializeChatResourceWrite(chatId, () =>
       db.transaction(async (tx) => {
+        await setChatResourceTxTimeouts(tx)
         const scope = and(
           eq(copilotChats.id, chatId),
           eq(copilotChats.userId, userId),

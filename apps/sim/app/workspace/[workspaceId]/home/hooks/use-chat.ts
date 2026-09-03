@@ -18,6 +18,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   addMothershipChatResourceContract,
@@ -1706,7 +1707,7 @@ export function useChat(
         while (true) {
           const pendingOrder = pendingResourceReordersRef.current.get(chatId)
           if (!pendingOrder) return
-          if (resourcePersistenceQueue.getPendingResourceKeys(chatId).size > 0) return
+          if (resourcePersistenceQueue.hasUnpersistedWrites(chatId)) return
 
           const inFlightWrites = resourcePersistenceQueue.getInFlightWrites(chatId)
           if (inFlightWrites.length > 0) {
@@ -1721,10 +1722,21 @@ export function useChat(
               body: { chatId, resources: pendingOrder },
             })
           } catch (error) {
-            if (!pendingResourceReordersRef.current.has(chatId)) {
+            // 400 is the server rejecting the body's identity set — a tab was
+            // closed after this order was captured. Replaying it verbatim can
+            // only fail again, so drop it and let the next reorder or hydration
+            // re-establish the order. Everything else (offline, 401, 5xx) is
+            // transient and keeps the body for the next retry.
+            const unsatisfiable = isApiClientError(error) && error.status === 400
+            if (!unsatisfiable && !pendingResourceReordersRef.current.has(chatId)) {
               pendingResourceReordersRef.current.set(chatId, pendingOrder)
             }
-            logger.warn('Failed to persist resource reorder; will retry on next hydration', error)
+            logger.warn(
+              unsatisfiable
+                ? 'Discarded a resource reorder the server rejected'
+                : 'Failed to persist resource reorder; will retry on next hydration',
+              error
+            )
             return
           }
         }
@@ -1891,7 +1903,7 @@ export function useChat(
       }
 
       const persistenceScopeId = persistChatId ?? pendingChatKeyRef.current
-      resourcePersistenceQueue.enqueue(resourceUpdate, persistChatId, existing, persistenceScopeId)
+      resourcePersistenceQueue.enqueue(resourceUpdate, persistChatId, persistenceScopeId, existing)
       return existing === undefined
     },
     [queryClient, resourcePersistenceQueue]

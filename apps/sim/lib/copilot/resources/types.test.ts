@@ -184,8 +184,12 @@ describe('unaddressable resources', () => {
 describe('mergeChatResource', () => {
   const stored = resource({ type: 'table', id: 'tbl-1', title: 'Invoices' })
 
-  it('adds a resource the chat does not have yet', () => {
-    expect(mergeChatResource(undefined, stored)).toBe(stored)
+  it('adds a resource the chat does not have yet as a copy', () => {
+    const added = mergeChatResource(undefined, stored)
+    expect(added).toEqual(stored)
+    // Copied, not aliased: the result is handed to React state, the query cache
+    // and the pending-write queue, and the caller keeps mutating its own object.
+    expect(added).not.toBe(stored)
   })
 
   it('keeps the stored entry when the newcomer changes nothing', () => {
@@ -286,5 +290,12 @@ describe('reorderStoredChatResources', () => {
     expect(reorderStoredChatResources([table, file], [table])).toBeNull()
     expect(reorderStoredChatResources([table], [table, file])).toBeNull()
     expect(reorderStoredChatResources([table, file], [table, table])).toBeNull()
+  })
+
+  it('collapses a duplicated stored row instead of rejecting the reorder', () => {
+    // Nothing writes a duplicate today, but a chat stored before the writers
+    // merged by key can hold one. The client sends its deduplicated list, so a
+    // length comparison would reject every reorder for that chat forever.
+    expect(reorderStoredChatResources([table, table, file], [file, table])).toEqual([file, table])
   })
 })
