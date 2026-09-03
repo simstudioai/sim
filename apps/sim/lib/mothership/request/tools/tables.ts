@@ -33,6 +33,14 @@ function exportedFiles(rawOutput: unknown): Record<string, unknown>[] {
   return Array.isArray(files) ? files.filter(isRecordLike) : []
 }
 
+/** What the code printed, when it printed anything. */
+function printedStdout(rawOutput: unknown): string | undefined {
+  if (!isRecordLike(rawOutput)) return undefined
+  return typeof rawOutput.stdout === 'string' && rawOutput.stdout.length > 0
+    ? rawOutput.stdout
+    : undefined
+}
+
 /**
  * Declared output files are written before the table step runs, so a table
  * failure after them is a partial success. The error result keeps the written
@@ -172,6 +180,7 @@ export async function maybeWriteOutputToTable(
          * or the agent has to `files list` to confirm a write it already made.
          */
         const exported = exportedFiles(rawOutput)
+        const stdout = printedStdout(rawOutput)
         const exportNote =
           exported.length > 0
             ? ` and exported ${exported.length} ${exported.length === 1 ? 'file' : 'files'}: ${exported
@@ -189,6 +198,8 @@ export async function maybeWriteOutputToTable(
             tableId: outputTable,
             rowCount: replaceResult.insertedCount,
             ...(exported.length > 0 ? { exported: { files: exported } } : {}),
+            /** What the code printed is the only diagnostic the agent has once rows replace the result. */
+            ...(stdout !== undefined ? { stdout } : {}),
           },
         }
       } catch (err) {

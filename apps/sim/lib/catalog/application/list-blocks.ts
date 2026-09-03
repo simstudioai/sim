@@ -27,6 +27,8 @@ export interface ListCatalogBlocksInput {
   category?: 'blocks' | 'tools' | 'triggers'
   capability?: 'trigger'
   source?: 'builtin' | 'custom'
+  /** Whether `legacy` / `deprecated` blocks appear. Off by default. */
+  includeSunset?: boolean
   sortBy: 'id' | 'name' | 'category'
   sortOrder: V2SortOrder
   offset: number
@@ -48,6 +50,7 @@ function matchesFilters(block: CatalogBlockSummary, input: ListCatalogBlocksInpu
   if (input.category && block.category !== input.category) return false
   if (input.capability === 'trigger' && !block.triggerCapable) return false
   if (input.source && block.source !== input.source) return false
+  if (!input.includeSunset && block.sunset !== undefined) return false
   return true
 }
 
@@ -58,6 +61,11 @@ function matchesFilters(block: CatalogBlockSummary, input: ListCatalogBlocksInpu
  * either by `type`, so "what may I place?" must be answerable in one call. The
  * `source` field tells them apart, and `capability=trigger` narrows to the
  * blocks that can start a workflow rather than needing a second endpoint.
+ *
+ * A sunset block (`legacy` or `deprecated`) is left out unless `includeSunset`
+ * is set: it stays readable by id and keeps executing where it is already
+ * placed, but a list of "what may I place?" must not offer a superseded block
+ * alongside its replacement.
  *
  * No audit is projected — reading a catalog is not a semantic event, and no
  * shipped v2 read records one.
@@ -73,7 +81,9 @@ export const listCatalogBlocks = defineAuthorizedWorkspaceUseCase({
 
     const summaries = await withCatalogBlockScope(gate, async () => [
       ...getAllBlocks()
-        .filter((block) => isBlockVisibleToCaller(block, gate))
+        .filter((block) =>
+          isBlockVisibleToCaller(block, gate, { includeSunset: input.includeSunset === true })
+        )
         .map(projectBlockSummary),
       // Containers are authorable types (add_block accepts them) that live outside
       // the registry — the catalog speaks the same vocabulary as authoring.

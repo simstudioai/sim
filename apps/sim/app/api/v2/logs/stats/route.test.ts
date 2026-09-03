@@ -147,6 +147,41 @@ describe('GET /api/v2/logs/stats', () => {
     )
   })
 
+  it('forwards includeHandledErrors and publishes the handled-error count when asked', async () => {
+    mocks.execute.mockResolvedValueOnce({
+      stats: { ...stats, handledErrorRuns: 3 },
+      workflowsTruncated: false,
+    })
+
+    const response = await GET(request('&level=error&includeHandledErrors=true'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.handledErrorRuns).toBe(3)
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          filters: expect.objectContaining({ level: 'error', includeHandledErrors: true }),
+        }),
+      })
+    )
+  })
+
+  it('leaves handledErrorRuns out by default rather than publishing an uncounted zero', async () => {
+    const response = await GET(request())
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data).not.toHaveProperty('handledErrorRuns')
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          filters: expect.objectContaining({ includeHandledErrors: false }),
+        }),
+      })
+    )
+  })
+
   it('conceals a workspace the caller cannot reach', async () => {
     mocks.execute.mockRejectedValueOnce(new OrchestrationError('not_found', 'Workspace not found'))
 
