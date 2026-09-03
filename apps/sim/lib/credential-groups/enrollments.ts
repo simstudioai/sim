@@ -193,9 +193,22 @@ export class CredentialGroupEnrollmentError extends Error {
  */
 export function rethrowEnrollmentErrorAsOrchestrationError(error: unknown): never {
   if (error instanceof CredentialGroupEnrollmentError) {
-    if (error.status === 404) throw new OrchestrationError('not_found', error.message)
-    if (error.status === 409) throw new OrchestrationError('conflict', error.message)
-    if (error.status === 400) throw new OrchestrationError('validation', error.message)
+    /**
+     * Every status the error can carry is mapped, so none falls through to a
+     * bare rethrow and loses its message to a generic internal failure. A 502
+     * is upstream rather than the caller's fault, but saying which upstream
+     * step failed is still the useful half of the answer.
+     */
+    switch (error.status) {
+      case 400:
+        throw new OrchestrationError('validation', error.message)
+      case 404:
+        throw new OrchestrationError('not_found', error.message)
+      case 409:
+        throw new OrchestrationError('conflict', error.message)
+      case 502:
+        throw new OrchestrationError('internal', error.message)
+    }
   }
   throw error
 }
