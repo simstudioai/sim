@@ -181,7 +181,7 @@ describe('OCI request client', () => {
       code: 'NotAuthenticated',
       opcRequestId: 'request-401',
     })
-    expect((failure as Error).message).toContain('[redacted]')
+    expect((failure as Error).message).toContain('[REDACTED]')
     expect((failure as Error).message).not.toContain('client-secret-passphrase')
     expect((failure as Error).message).not.toContain('BEGIN PRIVATE KEY')
     expect((failure as Error).message).not.toContain('objectstorage.us-ashburn-1')
@@ -232,10 +232,147 @@ describe('OCI request client', () => {
       maxResponseBytes: 65_536,
     }).catch((error: unknown) => error)
     expect(failure).toBeInstanceOf(OciRequestError)
-    expect((failure as Error).message).toContain('[redacted]')
+    expect((failure as Error).message).toContain('[REDACTED]')
     expect((failure as Error).message).not.toContain('provider-echo')
     expect((failure as Error).message).not.toContain('(request-target)')
     expect((failure as Error).message).not.toContain('tenant/user/fingerprint')
+  })
+
+  it('redacts encoded credentials and request URLs echoed by the provider', async () => {
+    const encodedFingerprint = encodeURIComponent(credentials.fingerprint)
+    const requestUrl = `${destination.origin}/n/`
+    const encodedRequestUrl = encodeURIComponent(requestUrl)
+    const escapedPassphrase = 'secret "pass"'
+    const escapedPassphraseEcho = JSON.stringify(escapedPassphrase).slice(1, -1)
+    secureFetchMock.mockResolvedValueOnce(
+      secureResponse({
+        ok: false,
+        status: 401,
+        body: JSON.stringify({
+          code: 'NotAuthenticated',
+          message: `provider echoed ${encodedFingerprint} ${encodedRequestUrl} ${escapedPassphraseEcho}`,
+        }),
+      })
+    )
+    const failure = await sendOciRequest({
+      destination,
+      credentials: { ...credentials, passphrase: escapedPassphrase },
+      method: 'GET',
+      encodedPath: '/n/',
+      timeout: 10_000,
+      maxResponseBytes: 65_536,
+    }).catch((error: unknown) => error)
+    expect((failure as Error).message).not.toContain(encodedFingerprint)
+    expect((failure as Error).message).not.toContain(encodedRequestUrl)
+    expect((failure as Error).message).not.toContain(escapedPassphraseEcho)
+    expect((failure as Error).message).not.toContain(escapedPassphrase)
+  })
+
+  it('redacts a maximum-size passphrase before bounding an encoded diagnostic', async () => {
+    const longPassphrase = ' '.repeat(4096)
+    const encodedPassphrase = new URLSearchParams({ value: longPassphrase })
+      .toString()
+      .slice('value='.length)
+    secureFetchMock.mockResolvedValueOnce(
+      secureResponse({
+        ok: false,
+        status: 401,
+        body: JSON.stringify({
+          code: 'NotAuthenticated',
+          message: `provider echoed ${encodedPassphrase}`,
+        }),
+      })
+    )
+    const failure = await sendOciRequest({
+      destination,
+      credentials: { ...credentials, passphrase: longPassphrase },
+      method: 'GET',
+      encodedPath: '/n/',
+      timeout: 10_000,
+      maxResponseBytes: 65_536,
+    }).catch((error: unknown) => error)
+    expect((failure as Error).message).toContain('[REDACTED]')
+    expect((failure as Error).message).not.toContain('+'.repeat(1024))
+  })
+
+  it.each([
+    encodeURIComponent('-----BEGIN PRIVATE KEY-----\ntruncated'),
+    encodeURIComponent(`${destination.origin}/n/truncated`),
+  ])('fails closed for encoded key or URL prefixes', async (message) => {
+    secureFetchMock.mockResolvedValueOnce(
+      secureResponse({
+        ok: false,
+        status: 401,
+        body: JSON.stringify({ code: 'NotAuthenticated', message }),
+      })
+    )
+    const failure = await sendOciRequest({
+      destination,
+      credentials,
+      method: 'GET',
+      encodedPath: '/n/',
+      timeout: 10_000,
+      maxResponseBytes: 65_536,
+    }).catch((error: unknown) => error)
+    expect((failure as Error).message).toBe('OCI request failed with status 401')
+  })
+
+  it('redacts generic and percent-encoded sensitive JSON fields', async () => {
+    const echoedSecrets = [
+      'access-value',
+      'token-value',
+      'secret-value',
+      'password-value',
+      '(request-target) host x-date',
+    ]
+    secureFetchMock.mockResolvedValueOnce(
+      secureResponse({
+        ok: false,
+        status: 401,
+        body: JSON.stringify({
+          code: 'NotAuthenticated',
+          message: JSON.stringify({
+            access_token: echoedSecrets[0],
+            token: echoedSecrets[1],
+            secret: echoedSecrets[2],
+            'pass%70hrase': echoedSecrets[3],
+            signing_string: echoedSecrets[4],
+          }),
+        }),
+      })
+    )
+    const failure = await sendOciRequest({
+      destination,
+      credentials,
+      method: 'GET',
+      encodedPath: '/n/',
+      timeout: 10_000,
+      maxResponseBytes: 65_536,
+    }).catch((error: unknown) => error)
+    for (const secret of echoedSecrets) expect((failure as Error).message).not.toContain(secret)
+  })
+
+  it.each([
+    '{"authorization":"Signature version=\\"1\\",signature=\\"echoed\\"',
+    JSON.stringify({ level1: { level2: { level3: { authorization: 'echoed' } } } }),
+    JSON.stringify({ 'pass%25252570hrase': 'echoed' }),
+  ])('fails closed for malformed or over-depth structured diagnostics', async (message) => {
+    secureFetchMock.mockResolvedValueOnce(
+      secureResponse({
+        ok: false,
+        status: 401,
+        body: JSON.stringify({ code: 'NotAuthenticated', message }),
+      })
+    )
+    const failure = await sendOciRequest({
+      destination,
+      credentials,
+      method: 'GET',
+      encodedPath: '/n/',
+      timeout: 10_000,
+      maxResponseBytes: 65_536,
+    }).catch((error: unknown) => error)
+    expect((failure as Error).message).toBe('OCI request failed with status 401')
   })
 
   it.each([
