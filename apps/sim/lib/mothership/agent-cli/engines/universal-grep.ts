@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { LRUCache } from 'lru-cache'
 import type { ReadFileTextResponse } from 'sim/embed'
+import { listCatalogTools } from '@/lib/catalog/application/list-tools'
 import {
   type AgentCliEngine,
   type AgentCliFlags,
@@ -39,6 +40,8 @@ const DEFAULT_MATCH_LIMIT = 100
 const MAX_MATCH_LIMIT = 500
 const MAX_LINE_CHARS = 2_000
 const FETCH_CONCURRENCY = 8
+/** Past any catalog's size: the use case builds the full list in memory and slices it. */
+const CATALOG_ALL = 100_000
 const MAX_FILES = 300
 const FILE_READ_CONCURRENCY = 5
 const MAX_BYTES_PER_FILE = 262_144
@@ -195,10 +198,28 @@ const INDEXERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<IndexEntry[]
     (await listAll(runtime, '/api/v2/blocks')).map((b) =>
       entry(str(b.id) ?? '', str(b.id) ?? '', b)
     ),
-  tools: async (runtime) =>
-    (await listAll(runtime, '/api/v2/tools')).map((t) =>
+  tools: async (runtime) => {
+    // 5,000 built-in tools at the v2 page cap is fifty round trips through the route
+    // stack, each re-resolving the gate and walking the registry — the whole cold cost of
+    // a world-wide grep. With the caller's principal the catalog use case the route itself
+    // runs answers in one call, same authorization, same projection.
+    if (runtime.principal) {
+      const page = await listCatalogTools.execute({
+        principal: runtime.principal,
+        input: {
+          workspaceId: runtime.workspaceId,
+          sortBy: 'id',
+          sortOrder: 'asc',
+          offset: 0,
+          limit: CATALOG_ALL,
+        },
+      })
+      return page.entries.map((t) => entry(t.id, t.id, t))
+    }
+    return (await listAll(runtime, '/api/v2/tools')).map((t) =>
       entry(str(t.id) ?? '', str(t.id) ?? '', t)
-    ),
+    )
+  },
   tables: async (runtime) =>
     (await listAll(runtime, '/api/v2/tables')).map((t) =>
       entry(str(t.id) ?? '', str(t.name) ?? str(t.id) ?? '', t)

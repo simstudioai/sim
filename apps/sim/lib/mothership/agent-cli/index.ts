@@ -1,4 +1,8 @@
+import type { Principal } from '@sim/auth/principal'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { createEmbeddedClient, type EmbeddedCliIdentity } from 'sim/embed'
+import { authenticateV2ApiKey } from '@/lib/api/server/routes/v2-api-key-auth'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 import { runEngine } from '@/lib/mothership/agent-cli/engines'
@@ -49,6 +53,7 @@ export async function executeAgentCliRequest(
         client: createEmbeddedClient(identity),
         workspaceId: context.workspaceId,
         userId: context.userId,
+        principal: await principalForDelegation(apiKey),
       },
       request.invocation.flags
     )
@@ -59,4 +64,22 @@ export async function executeAgentCliRequest(
     }
   }
   return request.sink ? applySink(request.sink, sessionKey, result) : result
+}
+
+/**
+ * The delegation key resolved exactly as the v2 surface resolves it. Null when the key
+ * does not authenticate (expired mid-command): the engine then keeps the client path,
+ * whose own requests fail the same honest way.
+ */
+const logger = createLogger('AgentCli')
+
+async function principalForDelegation(apiKey: string): Promise<Principal | undefined> {
+  try {
+    return (await authenticateV2ApiKey(apiKey)).principal
+  } catch (error) {
+    logger.warn('Delegation key did not resolve to a principal for the engine', {
+      error: getErrorMessage(error),
+    })
+    return undefined
+  }
 }

@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+const { mockListCatalogTools } = vi.hoisted(() => ({ mockListCatalogTools: vi.fn() }))
+vi.mock('@/lib/catalog/application/list-tools', () => ({
+  listCatalogTools: { execute: mockListCatalogTools },
+}))
+
 import { runEngine } from '@/lib/mothership/agent-cli/engines'
 import type { AgentCliRuntime } from '@/lib/mothership/agent-cli/types'
 
@@ -317,5 +323,41 @@ describe('universal grep', () => {
     expect(result.stdout).toContain('files/xp-runbook.md (file-root):')
     expect(result.stdout).toContain('files/Ops/notes.md (file-ops):')
     expect(result.stdout).not.toContain('files//')
+  })
+})
+
+describe('tools world', () => {
+  it('reads the whole catalog in one use-case call when the runtime carries a principal', async () => {
+    mockListCatalogTools.mockResolvedValueOnce({
+      entries: [{ id: 'slack_send', name: 'Send message', description: 'Post to Slack' }],
+      hasMore: false,
+      offset: 0,
+      limit: 100_000,
+    })
+    const requested: string[] = []
+    const runtime = {
+      ...runtimeWith({}, requested),
+      principal: { kind: 'session', userId: 'user-1', sessionId: 's-1' } as const,
+    }
+    const result = await runEngine('grep', ['Slack'], runtime, { scope: 'tools' })
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('tools/slack_send:')
+    expect(requested).toEqual([])
+    expect(mockListCatalogTools).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ workspaceId: runtime.workspaceId }),
+      })
+    )
+  })
+
+  it('pages the catalog through the client when no principal is present', async () => {
+    const requested: string[] = []
+    const runtime = runtimeWith(
+      { '/api/v2/tools': { data: [{ id: 'slack_send', name: 'Send message' }], nextCursor: null } },
+      requested
+    )
+    const result = await runEngine('grep', ['slack_send'], runtime, { scope: 'tools' })
+    expect(result.stdout).toContain('tools/slack_send:')
+    expect(requested).toContain('/api/v2/tools')
   })
 })

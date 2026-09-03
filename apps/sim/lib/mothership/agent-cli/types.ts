@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 /**
  * Sim's half of the mothership↔CLI translation layer: generic execution PRIMITIVES.
  * The worker owns the grammar (what commands exist, how argv parses, pipes, help, the
@@ -19,6 +20,13 @@ export interface AgentCliClient {
 export interface AgentCliRuntime {
   client: AgentCliClient
   workspaceId: string
+  /**
+   * The caller as the v2 surface resolved it from the embedded credential. Present, an
+   * engine may read a platform catalog through its application use case in one call
+   * instead of paging it through the client; absent, the client is the only path.
+   */
+  principal?: Principal
+
   /** The human the command acts as — reference resolution and grants scope to them. */
   userId: string
 }
