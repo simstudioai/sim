@@ -1,13 +1,21 @@
+import { SALESFORCE_ADDITIONAL_PROVIDER_IDS } from './salesforce'
+
 /**
  * Canonical OAuth scope data: the scope set each service requests, and the
  * human-readable label for an individual scope.
  *
- * Kept import-free on purpose. Three callers need this data and no single
- * environment suits all of them — `oauth.ts` pulls in React icons and `env`,
- * and `scripts/generate-docs.ts` runs outside Next and can import neither. A
- * module with no dependencies is the only shape all three can consume, which is
- * what keeps the published `## Scopes` tables and the scopes actually requested
- * at authorization time from drifting apart.
+ * Dependency-free on purpose, and it only ever imports modules that are too.
+ * Three callers need this data and no single environment suits all of them:
+ * `oauth.ts` pulls in React icons and `env`, and `scripts/generate-docs.ts`
+ * runs outside Next and can import neither. A module whose whole graph is free
+ * of them is the only shape all three can consume, which is what keeps the
+ * published `## Scopes` tables and the grant actually requested at
+ * authorization time from drifting apart.
+ *
+ * It is also the one module a build script reads OAuth data from. Where a
+ * provider module owns something the docs need, it is re-exported here rather
+ * than imported provider-by-provider, so the generator never learns any
+ * individual provider's name.
  */
 
 /**
@@ -605,6 +613,23 @@ export const OAUTH_SCOPES = {
 
 /** Service ids that declare a scope set. */
 export type OAuthScopedService = keyof typeof OAUTH_SCOPES
+
+/**
+ * Further provider ids a service authenticates through, keyed by service id.
+ *
+ * A provider running more than one authorization server needs a separate
+ * connector registration per host, and each registration is its own redirect
+ * URI. Documenting only the primary sends a self-hoster off to register half of
+ * what they need.
+ *
+ * Derived from the provider module rather than restated here: Salesforce's
+ * `SALESFORCE_AUTH_SERVERS` is already the single source for its registrations,
+ * refresh endpoints and environment-picker labels, and a second copy of that
+ * list would be the one that goes stale.
+ */
+export const ADDITIONAL_PROVIDER_IDS = {
+  salesforce: SALESFORCE_ADDITIONAL_PROVIDER_IDS,
+} as const satisfies Record<string, readonly string[]>
 
 /**
  * A caveat the scope rows of one service cannot carry on their own, keyed by

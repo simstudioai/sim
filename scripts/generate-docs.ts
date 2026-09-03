@@ -7,8 +7,8 @@ import { isVersionedType, stripVersionSuffix } from '@sim/utils/string'
 import { glob } from 'glob'
 import type { BlockCategory } from '../apps/sim/blocks/types'
 import { IntegrationType } from '../apps/sim/blocks/types'
-import { SALESFORCE_ADDITIONAL_PROVIDER_IDS } from '../apps/sim/lib/oauth/salesforce'
 import {
+  ADDITIONAL_PROVIDER_IDS,
   ENV_GATED_SCOPES,
   getScopeDescription,
   OAUTH_SCOPES,
@@ -1386,6 +1386,7 @@ export function loadOAuthConnectCatalog(): OAuthConnectCatalog {
 
   const services = new Map<string, OAuthServiceConnectInfo>()
   const providers = new Map<string, OAuthProviderConnectInfo>()
+  const declaresAdditionalProviderIds = new Set<string>()
   const lines = readSourceFile(OAUTH_CONFIG_PATH).split('\n')
 
   let baseProvider: string | null = null
@@ -1434,22 +1435,35 @@ export function loadOAuthConnectCatalog(): OAuthConnectCatalog {
       service.providerId = servicePropviderMatch[1]
       continue
     }
-    // Declared through an imported constant rather than a literal, so the value
-    // is imported here rather than scraped. Anything else in that slot would go
-    // undocumented, which for a redirect URI means a broken connect flow.
-    if (/^ {8}additionalProviderIds: SALESFORCE_ADDITIONAL_PROVIDER_IDS,$/.test(line)) {
-      service.additionalProviderIds = SALESFORCE_ADDITIONAL_PROVIDER_IDS
-      continue
-    }
+    // The value comes from ADDITIONAL_PROVIDER_IDS; this only records that the
+    // service claims to have extras, so a service that grows a second
+    // authorization server without the map following is caught below.
     if (/^ {8}additionalProviderIds: /.test(line)) {
-      throw new Error(
-        `${serviceId} declares additionalProviderIds in a form this scraper cannot read: ` +
-          `${line.trim()}. Its extra redirect URIs would go undocumented.`
-      )
+      declaresAdditionalProviderIds.add(serviceId)
+      continue
     }
     if (/^ {8}authType: 'service_account',$/.test(line)) {
       service.serviceAccountOnly = true
     }
+  }
+
+  for (const [serviceId, additional] of Object.entries(ADDITIONAL_PROVIDER_IDS)) {
+    const service = services.get(serviceId)
+    if (service) service.additionalProviderIds = additional
+  }
+
+  // A redirect URI that goes undocumented is a connect flow that fails for
+  // whoever picks that authorization server, so the two sides have to agree in
+  // both directions rather than only where the map happens to have an entry.
+  const declaredExtras = [...declaresAdditionalProviderIds].sort()
+  const mappedExtras = Object.keys(ADDITIONAL_PROVIDER_IDS).sort()
+  if (declaredExtras.join() !== mappedExtras.join()) {
+    throw new Error(
+      `Services with additionalProviderIds in lib/oauth/oauth.ts and lib/oauth/scopes.ts ` +
+        `disagree.\n` +
+        `  only in oauth.ts: ${declaredExtras.filter((id) => !mappedExtras.includes(id)).join(', ') || 'none'}\n` +
+        `  only in scopes.ts: ${mappedExtras.filter((id) => !declaredExtras.includes(id)).join(', ') || 'none'}`
+    )
   }
 
   const scoped = Object.keys(OAUTH_SCOPES).sort()
