@@ -7292,6 +7292,7 @@ export type ReadFileTextQuery = {
 type ReadFileTextResponseRef0 = {
   fileId: string
   name: string
+  path: string
   type: string
   text: string
   truncated: boolean
@@ -14020,7 +14021,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/files/[fileId]/text',
     pathParams: ['fileId'] as const,
-    pathParamDocs: { fileId: 'File identifier.' },
+    pathParamDocs: {
+      fileId:
+        'File identifier, or the file’s VFS path: `files/<folder>/<name>`, or `uploads/<name>` for a Chat upload.',
+    },
     responseMode: 'json',
     summary: 'Read File Text',
     query: {

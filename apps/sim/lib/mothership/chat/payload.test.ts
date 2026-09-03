@@ -400,6 +400,7 @@ describe('buildCopilotRequestPayload', () => {
           content: [
             'File "payroll.xlsx" (application/octet-stream, 1 bytes) uploaded to workspace files.',
             'Read it with: sim --output json files read "uploads/payroll.xlsx"',
+            'Pass the same path "uploads/payroll.xlsx" as inputs.files[].path to mount it in run_code or use it as a reference image in generate_image.',
           ].join('\n'),
         },
       ])
@@ -441,6 +442,7 @@ describe('buildCopilotRequestPayload', () => {
           content: [
             'File "photo.png" (image/png, 10 bytes) uploaded to workspace files.',
             'Read it with: sim --output json files read "uploads/photo.png"',
+            'Pass the same path "uploads/photo.png" as inputs.files[].path to mount it in run_code or use it as a reference image in generate_image.',
           ].join('\n'),
         },
       ])

@@ -91,6 +91,15 @@ function fakeSandbox(id: string): { handle: SandboxHandle; calls: FakeSandboxCal
   return { handle, calls }
 }
 
+/** A fake executes instantly; a priced call needs measurable wall time. */
+function slowDown(handle: SandboxHandle): void {
+  const original = handle.runCode.bind(handle)
+  handle.runCode = async (code, options) => {
+    await new Promise((resolve) => setTimeout(resolve, 25))
+    return original(code, options)
+  }
+}
+
 const CODE_REQUEST = {
   code: 'print(1)',
   language: 'python' as never,
@@ -140,6 +149,40 @@ describe('session sandbox lease', () => {
     expect(calls.runCommand.map((c) => c.command)).not.toContain('install-cli')
     expect(calls.killed).toBe(false)
     expect(calls.extendLifetime.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('prices a reused session call like a Function block sandbox and reports the raw cost', async () => {
+    // The copilot bills sandbox time per call: acquire-to-release on the live sandbox,
+    // priced at the provider rates, with the raw (unmarked) amount beside the billed one
+    // so the worker's settlement applies its multiplier exactly once.
+    const { handle } = fakeSandbox('sb-priced')
+    slowDown(handle)
+    mockFindSessionSandbox.mockResolvedValue(handle)
+    const result = await executeInSandbox({
+      ...CODE_REQUEST,
+      sandboxKind: 'mothership',
+      session: { key: 'mothership-chat:c1' },
+    })
+    expect(result.sandboxSession).toBe('reused')
+    expect(result.cost).toBeDefined()
+    expect(result.cost?.raw).toBeGreaterThan(0)
+    // The billed figure is the raw one times the platform multiplier, rounded; both
+    // are present and positive — the worker settles on `raw`, workflows on `total`.
+    expect(result.cost?.total).toBeGreaterThan(0)
+  })
+
+  it('prices a freshly created session sandbox from its provider request', async () => {
+    const { handle } = fakeSandbox('sb-priced-fresh')
+    slowDown(handle)
+    mockFindSessionSandbox.mockResolvedValue(null)
+    mockCreate.mockResolvedValue(handle)
+    const result = await executeInSandbox({
+      ...CODE_REQUEST,
+      sandboxKind: 'mothership',
+      session: { key: 'mothership-chat:c2' },
+    })
+    expect(result.sandboxSession).toBe('created')
+    expect(result.cost?.raw).toBeGreaterThan(0)
   })
 
   it('injects session envs into code executions', async () => {
