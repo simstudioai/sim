@@ -35,7 +35,8 @@ export function classifyLoadError(errorCode: number): LoadErrorKind {
 }
 
 export interface LoadHealthDeps {
-  offlinePagePath: string
+  /** URL of the bundled offline page, carrying the failure it should explain. */
+  offlinePageUrl: (query: { kind: LoadErrorKind; detail: string }) => string
   getStartUrl: () => string
   isOnline: () => boolean
   events: EventRecorder
@@ -48,8 +49,8 @@ export interface LoadHealthHandle {
 
 /**
  * Branded recovery for a fully remote renderer: on main-frame load failures
- * the window swaps to the bundled offline page (a local file, never wrapping
- * the origin), auto-retries when the network returns, and a first-paint
+ * the window swaps to the bundled offline page (served from the shell's own
+ * scheme, never wrapping the origin), auto-retries when the network returns, and a first-paint
  * watchdog catches servers that accept connections but never respond.
  */
 export function attachLoadHealth(win: BrowserWindow, deps: LoadHealthDeps): LoadHealthHandle {
@@ -107,7 +108,7 @@ export function attachLoadHealth(win: BrowserWindow, deps: LoadHealthDeps): Load
     }
     showingOffline = true
     deps.events.record('load_failure', { kind, detail })
-    void win.loadFile(deps.offlinePagePath, { query: { kind, detail } })
+    void win.loadURL(deps.offlinePageUrl({ kind, detail }))
     startAutoRetry()
   }
 
@@ -120,6 +121,17 @@ export function attachLoadHealth(win: BrowserWindow, deps: LoadHealthDeps): Load
       clearTimeout(watchdogTimer)
       const kind = classifyLoadError(errorCode)
       if (kind === 'ignored') {
+        return
+      }
+      // Only the origin is retried through the offline page. If the bundled
+      // page itself failed there is nothing left to swap to, and showing it
+      // again would loop.
+      if (showingOffline && !validatedURL?.startsWith('http')) {
+        logger.error('Bundled offline page failed to load', {
+          errorCode,
+          errorDescription,
+          url: scrubUrl(validatedURL ?? ''),
+        })
         return
       }
       if (validatedURL?.startsWith('http')) {

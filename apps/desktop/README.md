@@ -19,6 +19,7 @@ src/main/           # main process (bundled to dist/main.cjs)
   handoff.ts        # 127.0.0.1 loopback login handoff + token redeem
   session-lifecycle.ts # sign-out teardown, 401 watcher, connect intercept
   load-health.ts    # offline/error page, auto-retry, watchdog
+  local-pages.ts    # sim-shell: scheme for the bundled pages (file: cannot read app.asar with its privileges fused off)
   local-filesystem.ts # session-scoped read-only directory grants + localfs:// broker
   local-filesystem-grant-store.ts # those grants, encrypted at rest
   desktop-settings.ts # renderer-facing settings surface
@@ -38,7 +39,7 @@ src/preload/        # isolated renderer bridges
   index.ts          # hosted-app contextBridge IPC bridge (dist/preload.cjs)
   browser/          # minimal agent-browser credential helper (dist/browser-preload.cjs)
 native/             # Node-API/AppKit bridge for native macOS Help docs search
-static/             # bundled local pages (offline.html)
+static/             # bundled local pages (offline.html, server.html), served over sim-shell:
 e2e/                # Playwright _electron smoke suite
 ```
 
@@ -130,7 +131,7 @@ Yes — the architecture has a single, clean seam for native features, and nothi
 
 1. **One bridge.** The preload (`src/preload/index.ts`) exposes `window.simDesktop` via `contextBridge` on the main window. This is the *only* channel between web content and native capability. It exposes narrow, typed methods — never raw `ipcRenderer` (Electron security checklist item 20).
 2. **Feature-detect, never assume.** The same web app is served to browsers and to the desktop from one origin, so a desktop feature is progressive enhancement: `if (window.simDesktop) { … }`. In a browser `window.simDesktop` is `undefined` and the feature is simply absent. (`isHosted` already tags these sessions for analytics.)
-3. **Gate in main.** Every channel is validated in `src/main/ipc.ts` by sender frame — app-origin for capability calls, bundled `file:` pages for shell-control calls (checklist item 17). A new native feature adds one gated channel there.
+3. **Gate in main.** Every channel is validated in `src/main/ipc.ts` by sender frame — app-origin for capability calls, the bundled `sim-shell://pages/…` documents for shell-control calls (checklist item 17). A new native feature adds one gated channel there.
 4. **Single-source the contract.** `apps/sim` cannot import from `apps/desktop` (monorepo rule: `apps/* → packages/*` only). The bridge interface lives in the shared types-only `packages/desktop-bridge` package, which both the preload and web app consume.
 
 Concrete example — a "Reveal in Finder" button:
