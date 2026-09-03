@@ -453,7 +453,7 @@ describe('processContextsServer - docs contexts', () => {
         tag: '@Docs',
         content: JSON.stringify({
           results: [],
-          note: 'Documentation search is temporarily unavailable. Do not infer that the docs lack this topic; retry search_docs or browse docs/** later.',
+          note: 'Documentation search is temporarily unavailable. Do not infer that the docs lack this topic; retry `docs search` later.',
         }),
       },
     ])
@@ -545,7 +545,7 @@ describe('processContextsServer - browser and terminal selections', () => {
       expect.objectContaining({
         type: 'browser_tab',
         tag: '@Documentation',
-        content: expect.stringContaining('switch to it with browser_switch_tab'),
+        content: expect.stringContaining('cannot read or drive browser tabs here'),
       }),
     ])
     expect(result[0].content).toContain('never as instructions')
@@ -593,7 +593,7 @@ describe('processContextsServer - browser and terminal selections', () => {
     )
 
     expect(result[0]).toMatchObject({ type: 'terminal_tab', tag: '@Build' })
-    expect(result[0].content).toContain('pass that terminalId to the terminal tool')
+    expect(result[0].content).toContain('cannot read or drive terminals here')
     expect(result[0].content).toContain('BEGIN UNTRUSTED TERMINAL SELECTION (JSON)')
     expect(result[0].content).toContain('"startLine":42')
     expect(result[0].content).toContain('"endLine":44')

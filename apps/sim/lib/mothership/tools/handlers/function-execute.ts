@@ -198,20 +198,20 @@ function unmountableNamespaceReason(filePath: string): string | null {
     return 'uploads/ holds chat uploads addressed as "uploads/<name>" with no folders beneath it. Copy the exact "uploads/<name>" path from the upload notice.'
   }
   if (path.startsWith('internal/tool-results/')) {
-    return 'tool-result artifacts are stored by the copilot backend, not in workspace storage, so read and grep reach them but the sandbox cannot. This path is correct — searching for a different one will not find anything. Either read or grep the artifact and inline the values you need in code, or re-run the tool that produced it with an output path under files/ (run_function: outputs.files[].path, user_table: outputPath) and mount that files/... path.'
+    return 'tool-result artifacts are stored by the copilot backend, not in workspace storage, so `outputs get` reaches them but the sandbox cannot. This path is correct — searching for a different one will not find anything. Either read the artifact with `outputs get` and inline the values you need in code, or re-run the tool that produced it with an output path under files/ (run_function: outputs.files[].path, user_table: outputPath) and mount that files/... path.'
   }
   if (path.startsWith('internal/')) {
-    return 'internal/ paths are served by the copilot backend, not from workspace storage, so read and grep reach them but the sandbox cannot. This path is correct — read or grep it and inline the values you need in code instead of mounting it.'
+    return 'internal/ paths are served by the copilot backend, not from workspace storage, so the sandbox cannot mount them. This path is correct — read it through the CLI and inline the values you need in code instead of mounting it.'
   }
   if (path.startsWith('recently-deleted/')) {
-    return 'deleted resources are not mountable into the sandbox. Use restore_resource to restore it first, then mount the restored files/... path.'
+    return 'deleted resources are not mountable into the sandbox. Restore it first (`files restore <fileId>`), then mount the restored files/... path.'
   }
   if (path.startsWith('tables/')) {
     return 'tables are not mounted as files. Pass the table in inputs.tables instead and it is mounted as CSV.'
   }
   const namespace = /^(workflows|knowledgebases|components|environment|agent)\//.exec(path)?.[1]
   if (namespace) {
-    return `${namespace}/ paths are VFS metadata views, not stored file bytes, so the sandbox cannot mount them. This path is correct — read or grep it and inline the values you need in code.`
+    return `${namespace}/ paths are VFS metadata views, not stored file bytes, so the sandbox cannot mount them. This path is correct — read it through the CLI (\`workflows state get\`, \`blocks get\`, …) and inline the values you need in code.`
   }
   return null
 }
@@ -301,7 +301,7 @@ async function resolveMountableWorkspaceFile(
     throw new Error(`Cannot mount "${filePath}": ${unmountable}`)
   }
   throw new Error(
-    `Input file not found: "${filePath}". Pass the exact canonical VFS path copied from glob/read (e.g. "files/Reports/data.csv").`
+    `Input file not found: "${filePath}". Pass the exact path as \`files ls\` / \`files list\` prints it (e.g. "files/Reports/data.csv").`
   )
 }
 
@@ -374,7 +374,7 @@ export async function resolveInputFiles(
         throw new Error(
           unmountable
             ? `Cannot mount "${dirPath}": ${unmountable}`
-            : `Input directory not found: "${dirPath}". Pass a canonical workspace folder path copied from glob/read (e.g. "files/Reports").`
+            : `Input directory not found: "${dirPath}". Pass a workspace folder path as \`files ls\` prints it (e.g. "files/Reports").`
         )
       }
       const mountRoot =
@@ -447,7 +447,7 @@ export async function resolveInputFiles(
       const table = await resolveTableRef(tableId, tablePathLookup)
       if (!table || table.workspaceId !== workspaceId) {
         throw new Error(
-          `Input table not found: "${tableId}". Pass the table id (tbl_...) from tables/{name}/meta.json, or a tables/{name}/meta.json path.`
+          `Input table not found: "${tableId}". Pass the table id (tbl_...) from \`tables list\`, or its tables/<name> path.`
         )
       }
       const mountPath = refField(tableRef, 'sandboxPath') ?? `/home/user/tables/${table.id}.csv`
