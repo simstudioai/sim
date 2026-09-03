@@ -179,9 +179,7 @@ export const ResourceContent = memo(function ResourceContent({
   visible = true,
   onBrowserOverlayControllerChange,
 }: ResourceContentProps) {
-  const observedTableViewRef = useRef(
-    resource.type === 'table' ? { tableId: resource.id, viewId: resource.viewId } : null
-  )
+  const observedTableViewRef = useRef<{ tableId: string; viewId?: string } | null>(null)
 
   useEffect(() => {
     const previous = observedTableViewRef.current
@@ -192,8 +190,13 @@ export const ResourceContent = memo(function ResourceContent({
       return
     }
     /**
-     * `initialViewId` owns the first table adoption. If refreshed chat data
-     * supplies it later, use the same one-shot handoff as live stream events.
+     * Pinned on mount as well as on later changes. `initialViewId` alone is not
+     * enough: the table honours it only while its views query already carries
+     * that id, and a cached list from before the agent wrote the view resolves
+     * it to nothing. Adoption then settles on the default and never revisits
+     * the id, so the restored view is lost until the tab is reopened. The pin
+     * waits for the refetch instead, and costs nothing when adoption already
+     * applied the same view — the table consumes it without touching the URL.
      */
     useTableViewPinStore.getState().pin(next.tableId, next.viewId)
   }, [resource.id, resource.type, resource.viewId])
