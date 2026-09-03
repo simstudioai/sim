@@ -210,6 +210,34 @@ describe('OCI request client', () => {
     expect((failure as OciRequestError).opcRequestId).toBe('request-502')
   })
 
+  it('redacts authorization material embedded in a serialized JSON message', async () => {
+    const echoedAuthorization =
+      'Signature version="1",keyId="tenant/user/fingerprint",headers="(request-target) host x-date",signature="provider-echo"'
+    secureFetchMock.mockResolvedValueOnce(
+      secureResponse({
+        ok: false,
+        status: 401,
+        body: JSON.stringify({
+          code: 'NotAuthenticated',
+          message: JSON.stringify({ authorization: echoedAuthorization }),
+        }),
+      })
+    )
+    const failure = await sendOciRequest({
+      destination,
+      credentials,
+      method: 'GET',
+      encodedPath: '/n/',
+      timeout: 10_000,
+      maxResponseBytes: 65_536,
+    }).catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(OciRequestError)
+    expect((failure as Error).message).toContain('[redacted]')
+    expect((failure as Error).message).not.toContain('provider-echo')
+    expect((failure as Error).message).not.toContain('(request-target)')
+    expect((failure as Error).message).not.toContain('tenant/user/fingerprint')
+  })
+
   it.each([
     '//attacker.example/path',
     '/safe//attacker',
