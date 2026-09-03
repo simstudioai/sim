@@ -23,6 +23,9 @@ const EXCLUDED: Record<string, string> = {
 /**
  * Generated-artifact checks that live outside the `check:*` namespace. Listed explicitly
  * because the `*:check` namespace also holds checks that need a sibling repo or network.
+ *
+ * `images:check` is deliberately absent: it renders the chart, and this job has no Helm.
+ * It runs in `.github/workflows/helm.yml`, whose path filter covers its generator.
  */
 const EXTRA_AUDITS = [
   'tool-metadata:check',

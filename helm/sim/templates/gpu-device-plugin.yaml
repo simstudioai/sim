@@ -81,8 +81,8 @@ spec:
             name: {{ include "sim.fullname" . }}-nvidia-device-plugin-config
       containers:
         - name: nvidia-device-plugin
-          image: nvcr.io/nvidia/k8s-device-plugin:v0.18.2
-          imagePullPolicy: Always
+          image: {{ include "sim.image" (dict "imageRoot" .Values.ollama.gpu.devicePlugin.image "global" .Values.global) }}
+          imagePullPolicy: {{ .Values.ollama.gpu.devicePlugin.image.pullPolicy }}
           args:
             - "--config-file=/etc/device-plugin/config.yaml"
           {{- if eq .Values.ollama.gpu.strategy "mig" }}
