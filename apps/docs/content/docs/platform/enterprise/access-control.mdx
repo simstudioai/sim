@@ -13,7 +13,7 @@ Access Control lets organization admins define permission groups that restrict w
 
 ## How it works
 
-Access control is built around **permission groups**. Each group belongs to a specific organization and has a name, an optional description, a **workspace scope**, an optional **member** list, and a configuration that defines what its members can and cannot do. The organization's single **default group** is org-wide; every other group targets a **specific set of workspaces**. A non-default group with **no members** governs **all members** of its workspaces (including external members); adding members narrows it to only those people. Personal or grandfathered workspaces that do not belong to an organization have no permission groups.
+Each group belongs to a specific organization and has a name, an optional description, a **workspace scope**, an optional **member** list, and a configuration that defines what its members can and cannot do. Personal or grandfathered workspaces that do not belong to an organization have no permission groups.
 
 Sim resolves the governing group for a user in a workspace deterministically:
 
@@ -59,7 +59,9 @@ A workspace-scoped group with **no members** applies to everyone in its workspac
 
 Controls which AI model providers members of this group can use.
 
-<Image src="/static/enterprise/access-control-model-providers.png" alt="Model Providers tab showing a grid of AI providers including Ollama, vLLM, OpenAI, Anthropic, Google, Azure OpenAI, and others with checkboxes to allow or restrict access" width={900} height={430} /> The list shows all providers available in Sim.
+<Image src="/static/enterprise/access-control-model-providers.png" alt="Model Providers tab showing a grid of AI providers including Ollama, vLLM, OpenAI, Anthropic, Google, Azure OpenAI, and others with checkboxes to allow or restrict access" width={900} height={430} />
+
+The list shows all providers available in Sim.
 
 - **All checked (default):** All providers are allowed.
 - **Subset checked:** Only the selected providers are allowed. Any workflow block or agent using a provider not on the list will fail at execution time.
@@ -70,7 +72,9 @@ Expand a provider row to reach its **model denylist**. Clearing individual model
 
 Controls which workflow blocks members can place and execute.
 
-<Image src="/static/enterprise/access-control-blocks.png" alt="Blocks tab showing Core Blocks (Agent, API, Condition, Function, Knowledge, etc.) and Tools (integrations like 1Password, Ahrefs, Airtable, and more) with checkboxes to allow or restrict each" width={900} height={634} /> Blocks are split into two sections: **Core Blocks** (Agent, API, Condition, Function, etc.) and **Tools** (all integration blocks).
+<Image src="/static/enterprise/access-control-blocks.png" alt="Blocks tab showing Core Blocks (Agent, API, Condition, Function, Knowledge, etc.) and Tools (integrations like 1Password, Ahrefs, Airtable, and more) with checkboxes to allow or restrict each" width={900} height={634} />
+
+Blocks are split into two sections: **Core Blocks** (Agent, API, Condition, Function, etc.) and **Tools** (all integration blocks).
 
 - **All checked (default):** All blocks are allowed.
 - **Subset checked:** Only the selected blocks are allowed. Workflows that already contain a disallowed block will fail when run — they are not automatically modified.
@@ -83,7 +87,7 @@ Expand an integration block to reach its **tool denylist**. Clearing individual 
 
 #### Platform
 
-Controls the modules, actions, and credentials available to group members. Every row refuses at the API, not only in the UI — clearing a box revokes the access, it does not merely hide a tab.
+Controls the modules, actions, and credentials available to group members. Every row refuses at the API, not only in the UI — clearing a box revokes the access; it does not merely hide a tab.
 
 <Image src="/static/enterprise/access-control-platform.png" alt="Platform tab showing feature toggles grouped by category" width={900} height={566} />
 
@@ -141,7 +145,7 @@ The **Chat Deployment** row also carries an **auth-mode allowlist** — *Auth mo
 | MCP Tools | Blocks agents from calling MCP tools. |
 | Custom Tools | Blocks agents from calling user-defined custom tools. |
 | Skills | Blocks agents from loading skills. |
-| Tool Auto-Approval | Prevents silencing a tool confirmation, so every call is confirmed again. |
+| Tool Auto-Approval | Prevents auto-approving tool calls, so every call must be confirmed. |
 
 **Logs**
 
@@ -156,7 +160,7 @@ The **Chat Deployment** row also carries an **auth-mode allowlist** — *Auth mo
 | Feature | What clearing it withholds |
 |---------|---------------------------|
 | Invitations | Prevents inviting anyone to a workspace or to the organization. |
-| Workspace Creation | Prevents creating new workspaces, which no existing group would govern. |
+| Workspace Creation | Prevents creating new workspaces. A new workspace falls outside every existing group's scope. |
 | Member Directory | Withholds the member directory. Members cannot see the names or email addresses of other members. |
 
 **Credentials & Access**
@@ -174,11 +178,9 @@ The **Chat Deployment** row also carries an **auth-mode allowlist** — *Auth mo
 
 Two rows — **Workspace Creation** and **Member Directory** — are read only from the organization's **default group**, because the act they govern names no workspace. On any other group the editor renders them inert, tags them **Organization**, and skips them in **Select All**. Set them on the default group.
 
-Five more rows — **Integrations**, **API Keys**, **Invitations**, **Personal API Keys**, and **CLI Access** — apply on the group in front of you for anything scoped to one of its workspaces, but fall back to the default group for the account-level path of the same action (minting a personal key, an organization-wide invitation, an account-level CLI login). To close one of these completely, set it on the default group as well.
+Five more rows — **Integrations**, **API Keys**, **Invitations**, **Personal API Keys**, and **CLI Access** — apply on the group in front of you for anything scoped to one of its workspaces. The account-level path of the same action falls back to the default group: minting a personal key, an organization-wide invitation, an account-level CLI login. To close one of these completely, set it on the default group as well.
 
 ### 4. Choose who it applies to
-
-A workspace-scoped group applies to **all members of its workspaces by default** — including external members. To restrict it to specific people instead, open the group's **Details → General** tab and add members by searching your organization by name or email. Removing every member returns the group to governing everyone in its workspaces.
 
 A user is governed by one group per workspace, so adding a user is rejected when it would conflict with another of their groups on a shared workspace (skipped rather than added in bulk). The default group ignores members entirely — it always governs everyone not covered by a workspace group.
 

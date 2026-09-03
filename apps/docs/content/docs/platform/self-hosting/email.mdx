@@ -169,4 +169,3 @@ kubectl logs -n simstudio -l app.kubernetes.io/component=app --tail=100 | grep -
 
 **SMTP fails at the greeting with `421-4.7.0 Try again later, closing connection. (EHLO)`** — the relay rejected how the client identified itself, not your credentials or IP allowlist. Strict relays, Google Workspace's among them, refuse a greeting that is not a fully-qualified domain name. Sim greets with the domain it is served from, so this should not occur; if it does, set `SMTP_EHLO_NAME` to a dotted hostname the relay accepts. Older releases always greeted as `[127.0.0.1]` on Kubernetes — upgrade rather than working around it.
 
-**Nothing at all happens and no error appears** — no provider is configured. The logs will show one line naming the recipient and subject.

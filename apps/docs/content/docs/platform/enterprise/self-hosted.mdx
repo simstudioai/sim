@@ -25,8 +25,7 @@ NEXT_PUBLIC_ENTERPRISE_ENABLED=true
 
 That turns on organizations, permission groups, SSO, white-labeling, audit logs,
 usage tracking, custom blocks, session policies, data retention, data drains, workspace
-forks, the Sandbox entitlement, and the inbox. Sandboxes remain unavailable until their
-remote provider and dedicated Function base are configured.
+forks, the Sandbox entitlement, and the inbox.
 
 ### Turning one feature off
 
@@ -64,13 +63,13 @@ JavaScript without `import` or `require` does not use the remote provider and co
 
 See [Sandboxes](/platform/self-hosting/sandboxes) for the provider credentials, the Function base-image build, and the promotion procedure.
 
-<Callout type="warning">
+<Callout type="warn">
   Data retention is the one feature that deletes data. Its flag controls the cleanup pass, not the settings screen — retention windows are always configurable. Nothing is ever deleted until you enable it, and even then only against windows you configured explicitly. Sim never applies the hosted plan defaults to a self-hosted deployment.
 </Callout>
 
 ## Schedule the background jobs
 
-Two enterprise features do their work from a cron-driven HTTP endpoint rather than from the app process. Both endpoints authenticate with a bearer token equal to `CRON_SECRET`, and both return `401` when `CRON_SECRET` is unset:
+Two enterprise features do their work from a cron-driven HTTP endpoint rather than from the app process. All four endpoints authenticate with a bearer token equal to `CRON_SECRET`, and both return `401` when `CRON_SECRET` is unset:
 
 ```bash
 CRON_SECRET=$(openssl rand -hex 32)
@@ -83,7 +82,7 @@ CRON_SECRET=$(openssl rand -hex 32)
 | Retention — soft deletes | `GET /api/cron/cleanup-soft-deletes` | Daily | **No** |
 | Retention — Chat tasks | `GET /api/cron/cleanup-tasks` | Daily | **No** |
 
-<Callout type="warning">
+<Callout type="warn">
   The Helm chart schedules the data-drain dispatcher but **not** the three retention cleanup endpoints. Setting `DATA_RETENTION_ENABLED=true` on the chart alone deletes nothing — the windows are evaluated only when one of those endpoints is called. Add them to `cronjobs.jobs` yourself, or drive them from an external scheduler.
 </Callout>
 
@@ -92,7 +91,7 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
   https://sim.example.com/api/logs/cleanup
 ```
 
-Both features also fan work out as background jobs, so the deployment needs `TRIGGER_DEV_ENABLED` with a configured Trigger.dev project, and a configured Trigger.dev project. Without it the dispatcher still claims the work and enqueues it to the database, but nothing drains that queue for this job type, so the runs stay pending and never execute. See [background jobs](/platform/self-hosting/background-jobs).
+Both features also fan work out as background jobs, so the deployment needs `TRIGGER_DEV_ENABLED` and a configured Trigger.dev project. Without it the dispatcher still claims the work and enqueues it to the database, but nothing drains that queue for this job type, so the runs stay pending and never execute. See [background jobs](/platform/self-hosting/background-jobs).
 
 ## Choose an organization model
 

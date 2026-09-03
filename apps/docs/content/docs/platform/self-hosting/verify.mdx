@@ -42,7 +42,7 @@ The full command list is in the [Docker guide](/platform/self-hosting/docker#the
 |---|---|---|---|
 | 1 | Open your Sim URL and create an account | App, database, TLS, migrations | `kubectl logs deploy/sim-app` — and check the `migrations` init container |
 | 2 | Sign out and sign back in | Session handling, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | URLs must match your real origin exactly |
-| 3 | Open a workflow and drag two blocks onto the canvas | Realtime websocket connection | Browser console for socket errors; see [Networking](/platform/self-hosting/networking) |
+| 3 | Open a workflow and drag two blocks into the editor | Realtime websocket connection | Browser console for socket errors; see [Networking](/platform/self-hosting/networking) |
 | 4 | Open the same workflow in a second browser window and edit | Cross-replica collaboration | With >1 replica this needs [Redis](/platform/self-hosting/redis) |
 | 5 | Paste a model API key in settings and run a two-block workflow | Execution engine, credential encryption, outbound network | App logs; check `ENCRYPTION_KEY` is set and outbound egress is allowed |
 | 6 | Upload a small file in Files | File storage end to end | With object storage configured: presigned URL + bucket CORS. On local disk: the upload proxies through the app |
@@ -59,7 +59,7 @@ The full command list is in the [Docker guide](/platform/self-hosting/docker#the
 
 ## Infrastructure checks
 
-Before the UI walkthrough, confirm the deployment itself is healthy.
+After the checklist, confirm the deployment itself is healthy.
 
 ```bash
 # Everything running?
@@ -75,7 +75,7 @@ curl -fsS https://sim.yourdomain.com/api/health
 kubectl get cronjobs -n simstudio
 
 # Redis configured (multi-replica deployments) — confirms the variable is set,
-# not that Redis answers. Steps 3 and 4 below are the real reachability test.
+# not that Redis answers. Checklist steps 3 and 4 above are the real reachability test.
 kubectl exec -n simstudio deploy/sim-app -- printenv REDIS_URL
 ```
 

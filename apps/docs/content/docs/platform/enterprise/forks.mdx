@@ -361,7 +361,7 @@ Schedules, webhooks, and triggers are not live in the child until you **deploy**
 
 ## Edge cases to keep in mind
 
-- **Force overwrite** — Sync does not merge canvas changes. Anything only on the target that conflicts with the source’s deployed workflows can be lost. Use the confirm dialog’s archive list carefully.
+- **Force overwrite** — Sync does not merge editor changes. Anything only on the target that conflicts with the source’s deployed workflows can be lost. Use the confirm dialog’s archive list carefully.
 - **Deselect on fork** — Cleared references are intentional. Prefer copying the resource, or plan to reconnect it in the child.
 - **Background copy** — Right after fork, large tables / knowledge bases / files may still be copying. Check **Activity** if something looks empty.
 - **OAuth MCP** — Expect a reconnect in the child (and after a copied server on sync).

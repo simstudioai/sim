@@ -39,7 +39,7 @@ app:
 
 The `resources` block above is the chart's default — it is shown so the numbers are visible, not because it changes anything. Only `replicaCount` needs setting unless you are raising the ceiling.
 
-**Memory is the constraint, not CPU.** Workflow executions run inside the app process in isolated-vm sandboxes, and file parsing happens in memory. Production telemetry shows 4–8 GB steady with peaks to 12 GB under heavy execution load. Under-provision memory and you get OOMKills that terminate in-flight workflow runs.
+**Memory is the constraint, not CPU.** Workflow executions run inside the app process in isolated-vm sandboxes, and file parsing happens in memory. Production telemetry shows 4–8 GB steady with peaks to 12 GB under heavy execution load. Under-provision memory and you get OOMKills that terminate in-flight workflow runs — so raise `limits.memory` above the 8 Gi default if your workload shows those peaks.
 
 A PodDisruptionBudget is created automatically once `replicaCount > 1` (`maxUnavailable: 25%`). Tighten it with `podDisruptionBudget.minAvailable` if you need to.
 

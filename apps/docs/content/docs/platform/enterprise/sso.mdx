@@ -14,7 +14,7 @@ Single Sign-On lets your team sign in to Sim through your company's identity pro
 
 ## Before you start
 
-<Callout type="warning">
+<Callout type="warn">
   [Verify your email domain](/platform/enterprise/verified-domains) first. SSO cannot be saved until the domain shows as **Verified**, and DNS changes take time to propagate.
 
   The verified domain is what authorizes your identity provider. Removing it later immediately disables SSO sign-in for everyone on that domain until it is verified again.
@@ -274,7 +274,7 @@ Once SSO is configured, users with your domain (`company.com`) can sign in throu
 
 With **Automatic** provisioning, no invitation is required for organization membership. The join follows the organization's seat policy and does not infer a role from IdP claims: every newly provisioned user starts as a Member. Team subscriptions grow their billed seat count with membership; fixed-seat plans reject the join when capacity is full. With **Invite only**, SSO proves identity but does not create new membership or workspace access; new access must be granted separately, while existing organization membership and workspace access remain available.
 
-<Callout type="warning">
+<Callout type="warn">
   Sign-in must start from Sim. Launching from your identity provider's app portal (Microsoft's **My Apps**, Okta's dashboard tile) sends an unsolicited assertion, which Sim rejects. This is deliberate — accepting them would let anyone replay an assertion into your tenant — but it means an IdP-initiated test fails even when the configuration is correct.
 </Callout>
 
@@ -386,7 +386,7 @@ SSO_ENABLED=true \
 NEXT_PUBLIC_APP_URL=https://your-instance.com \
 SSO_PROVIDER_TYPE=saml \
 SSO_PROVIDER_ID=adfs \
-SSO_ISSUER=https://your-instance.com \
+SSO_ISSUER=https://adfs.company.com/adfs/services/trust \
 SSO_DOMAIN=company.com \
 SSO_USER_EMAIL=admin@company.com \
 SSO_SAML_ENTRY_POINT=https://adfs.company.com/adfs/ls \

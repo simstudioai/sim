@@ -133,11 +133,11 @@ OLLAMA_URL=http://host.docker.internal:11434 docker compose -f docker-compose.pr
 OLLAMA_URL=http://192.168.1.100:11434 docker compose -f docker-compose.prod.yml up -d
 ```
 
-<Callout type="warning">
+<Callout type="warn">
   Inside Docker, `localhost` refers to the container, not your host. Use `host.docker.internal` or your host's IP.
 </Callout>
 
-### LM Studio
+## LM Studio
 
 [LM Studio exposes an OpenAI-compatible API](https://lmstudio.ai/docs/developer/openai-compat). Start its local server, load a model, and enable **Serve on Local Network** so the Docker container can reach it. [Enable API authentication](https://lmstudio.ai/docs/developer/core/authentication), then set the endpoint and token in the `.env` file next to your Compose file:
 
@@ -154,7 +154,7 @@ VLLM_API_KEY=your_lm_studio_api_token
 Both the server root shown above and a URL ending in `/v1` are accepted. After recreating the `simstudio` service, its models appear in the model picker with a `vllm/` prefix; Sim removes that prefix before sending the model identifier to LM Studio.
 
 ```bash
-docker compose -f docker-compose.ollama.yml up -d --force-recreate simstudio
+docker compose -f docker-compose.prod.yml up -d --force-recreate simstudio
 ```
 
 ## The `sim-setup` CLI

@@ -250,7 +250,8 @@ helm rollback sim -n simstudio
 ```
 
 ```bash
-# Docker Compose — set the previous tag and restart
+# Docker Compose — set the previous tag in .env, then restart
+SIM_VERSION=v1.2.2
 docker compose -f docker-compose.prod.yml up -d
 ```
 

@@ -187,7 +187,7 @@ The **last 10 runs** for each drain are visible by expanding its row in the sett
 
 ## Pairing with Data Retention
 
-Drains and [Data Retention](/platform/enterprise/data-retention) are independent modules. Sim does **not** gate retention on drain progress — if a drain is failing, retention will still purge data on its own schedule. This matches the model used by Datadog Archives and AWS CloudWatch + S3 Export: keep the two configurations orthogonal and let the customer pair them deliberately.
+Drains and [Data Retention](/platform/enterprise/data-retention) are independent modules. Sim does **not** gate retention on drain progress — if a drain is failing, retention will still purge data on its own schedule. Keep the two configurations independent and pair them deliberately.
 
 To safely use both together, set the drain cadence shorter than the retention period for the same data category:
 
@@ -260,4 +260,4 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
   https://sim.example.com/api/cron/run-data-drains
 ```
 
-Each due drain is then fanned out as a `run-data-drain` background job, so the deployment also needs `TRIGGER_DEV_ENABLED` with a configured Trigger.dev project, and a configured Trigger.dev project. Without it the dispatcher still claims the work and enqueues it to the database, but nothing drains that queue for this job type, so the runs stay pending and never execute. See [background jobs](/platform/self-hosting/background-jobs).
+Each due drain is then fanned out as a `run-data-drain` background job, so the deployment also needs `TRIGGER_DEV_ENABLED` and a configured Trigger.dev project. Without it the dispatcher still claims the work and enqueues it to the database, but nothing drains that queue for this job type, so the runs stay pending and never execute. See [background jobs](/platform/self-hosting/background-jobs).

@@ -3,7 +3,7 @@ title: Enterprise
 description: Enterprise features for business organizations
 ---
 
-Sim Enterprise adds fine-grained access control, SSO, audit logging, compliance features, and workspace forking on top of Team plans.
+Sim Enterprise adds permission groups, SSO, audit logs, usage tracking, data retention and drains, white-labeling, and workspace forks on top of Team plans.
 
 ---
 
@@ -21,7 +21,7 @@ External workspace members can be governed by permission groups just like intern
 
 ### Setup
 
-1. Navigate to **Settings** → **Organization** → **Permission groups** from any workspace in your organization
+1. Navigate to **Settings → Organization → Permission groups** from any workspace in your organization
 2. Create a permission group with your desired restrictions
 3. Scope it to workspaces, and optionally add named members
 
@@ -65,7 +65,7 @@ Configure how long execution logs, soft-deleted resources, and Chat data are kep
 
 ## Data Drains
 
-Continuously export workflow logs, audit logs, and Chat data to a customer-owned S3 bucket or HTTPS webhook on a schedule. See the [data drains guide](/platform/enterprise/data-drains).
+Continuously export workflow logs, audit logs, and Chat data to a destination you control — object storage, a data warehouse, Datadog, or an HTTPS webhook — on a schedule. See the [data drains guide](/platform/enterprise/data-drains).
 
 ---
 

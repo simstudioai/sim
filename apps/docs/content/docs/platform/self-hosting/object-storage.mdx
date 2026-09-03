@@ -16,7 +16,7 @@ Sim stores every uploaded file — knowledge base documents, chat attachments, e
 | **[Azure Blob](https://learn.microsoft.com/azure/storage/blobs/)** | Production on Azure |
 | **[Google Cloud Storage](https://cloud.google.com/storage)** | Production on GCP |
 
-<Callout type="warning">
+<Callout type="warn">
   Local disk writes to `/app/apps/sim/uploads` inside the container. Neither `docker-compose.prod.yml` nor the Helm chart mounts a volume there, so every uploaded file is lost the moment the container is recreated — and files are **not** shared across replicas. Mount your own volume at that path if you must stay on local disk; for any multi-replica or production deployment, use S3, Azure Blob, or Google Cloud Storage.
 </Callout>
 
@@ -39,7 +39,7 @@ If `STORAGE_PROVIDER` is unset, Sim skips incomplete backends and uses the first
 
 ### Create the buckets
 
-Sim separates files into purpose-specific buckets. **Sim never creates buckets** — create each one yourself before configuring it. Most S3 bucket variables do **not** fall back to `S3_BUCKET_NAME`: leave `S3_KB_BUCKET_NAME`, `S3_CHAT_BUCKET_NAME`, `S3_COPILOT_BUCKET_NAME`, or `S3_PROFILE_PICTURES_BUCKET_NAME` unset and it resolves to an empty bucket name, so that file type fails to store. Three behave differently — `S3_OG_IMAGES_BUCKET_NAME` and `S3_WORKSPACE_LOGOS_BUCKET_NAME` fall back to `S3_BUCKET_NAME`, and `S3_EXECUTION_FILES_BUCKET_NAME` falls back to the literal name `sim-execution-files`, which you almost certainly do not own.
+Sim separates files into purpose-specific buckets. **Sim never creates buckets** — create each one yourself before configuring it. Most S3 bucket variables do **not** fall back to `S3_BUCKET_NAME`: leave `S3_KB_BUCKET_NAME`, `S3_CHAT_BUCKET_NAME`, `S3_COPILOT_BUCKET_NAME`, or `S3_PROFILE_PICTURES_BUCKET_NAME` unset and it resolves to an empty bucket name, so that file type fails to store. Three behave differently — `S3_OG_IMAGES_BUCKET_NAME` and `S3_WORKSPACE_LOGOS_BUCKET_NAME` fall back to `S3_BUCKET_NAME`, and `S3_EXECUTION_FILES_BUCKET_NAME` falls back to a literal default name (see the reference table below).
 
 ```bash
 # Set your region once
@@ -233,7 +233,7 @@ AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME=og-images
 AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME=workspace-logos
 ```
 
-<Callout type="warning">
+<Callout type="warn">
   Set every container name. Like the S3 variables, the knowledge-base, chat, Chat-attachment, and profile-picture containers do not fall back to `AZURE_STORAGE_CONTAINER_NAME` — an unset one resolves to an empty container name and that file type fails to store. The OpenGraph and workspace-logo containers do fall back to it, and `AZURE_STORAGE_EXECUTION_FILES_CONTAINER_NAME` falls back to the literal name `sim-execution-files`.
 </Callout>
 
@@ -412,7 +412,7 @@ Sim works with any S3-compatible store by pointing the S3 client at a custom end
   `S3_ENDPOINT` is trusted operator configuration, so it is used as-is — `http://` and private hosts are accepted (no SSRF/HTTPS gate). Don't wire it to untrusted input.
 </Callout>
 
-<Callout type="warning">
+<Callout type="warn">
   **The endpoint must be reachable from your users' browsers, and the bucket needs CORS.** Uploads use presigned `PUT` requests sent **directly from the browser** to `S3_ENDPOINT` (downloads are proxied back through the app, so they only need server-side reachability). This means:
 
   - A purely internal endpoint (e.g. `https://minio.internal:9000` that only the app pods can resolve) will let the server start cleanly but **uploads will fail in the browser**. Use an endpoint your users can reach.
@@ -488,7 +488,7 @@ state that outlives its database row:
 The provider window should exceed the 24-hour upload-session lifetime so an in-progress completion
 can still recover. Do not add an object-expiration rule for final upload keys.
 
-<Callout type="warning">
+<Callout type="warn">
   Object expiration and incomplete-multipart cleanup are different lifecycle operations. Configure
   the incomplete-multipart operation; expiring objects does not remove abandoned multipart parts.
 </Callout>

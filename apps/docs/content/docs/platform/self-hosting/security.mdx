@@ -220,7 +220,7 @@ The allowlist replaces four separate escape hatches, so a few deployments that w
 
 Every guarded outbound response is bounded. A caller that does not set its own limit gets the default of **100 MB**; exceeding it rejects the request with a payload-size error and destroys the socket rather than buffering the rest.
 
-This is a plausible and easily misread cause of "a large download from an integration fails" — the failure looks like a broken connection to the third-party service rather than a limit Sim imposed. It applies to the guarded provenances above, not to the presigned object-storage upload path.
+This is an easily misread cause of "a large download from an integration fails" — the failure looks like a broken connection to the third-party service rather than a limit Sim imposed. It applies to the guarded provenances above, not to the presigned object-storage upload path.
 
 ## Client IP and forwarded headers
 

@@ -16,7 +16,7 @@ Understanding what runs where makes every other operational decision — scaling
 | **realtime** | `ghcr.io/simstudioai/realtime` | 3002 | Yes | Yes |
 | **migrations** | `ghcr.io/simstudioai/migrations` | — | Yes (runs once) | Yes |
 | **postgresql** | `pgvector/pgvector:pg17` | 5432 | **No** | Yes |
-| **redis** | `redis:7-alpine` | 6379 | Mostly | Bundled by both; swap for a managed instance in production |
+| **redis** | `redis:7-alpine` | 6379 | Mostly | Yes (bundled) |
 | **cron** | `ghcr.io/simstudioai/cron` (Compose) / `curlimages/curl` (CronJobs) | — | Yes | Yes |
 | **pii** | `ghcr.io/simstudioai/pii` | 5001 | Yes | Optional |
 | **ollama** | `ollama/ollama` | 11434 | **No** (model cache) | Optional |
@@ -52,7 +52,7 @@ This holds essentially all durable state: workflows, runs, logs, users, organiza
 
 ### redis
 
-Backs pub/sub, the Socket.IO adapter, the idempotency store, execution progress markers, distributed execution limits, and the CLI-auth approval store. The storage-like uses fall back to Postgres or in-process state. Pub/sub falls back to a **process-local** emitter, which is fine on one replica and drops every cross-pod event on more than one. See [Redis](/platform/self-hosting/redis).
+Backs pub/sub, the Socket.IO adapter, the idempotency store, execution progress markers, distributed execution limits, and the CLI-auth approval store. The idempotency store, progress markers, and approval store fall back to Postgres or in-process state. Pub/sub falls back to a **process-local** emitter, which is fine on one replica and drops every cross-pod event on more than one. See [Redis](/platform/self-hosting/redis).
 
 ### cron
 
