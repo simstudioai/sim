@@ -62,7 +62,8 @@ function validateRequestLimits(timeout: number, maxResponseBytes: number): void 
 
 function sensitiveRequestValues(
   credentials: OciSigningCredentials,
-  authorization: string | undefined
+  authorization: string | undefined,
+  requestUrl: string
 ): string[] {
   return [
     credentials.tenancyId,
@@ -71,6 +72,7 @@ function sensitiveRequestValues(
     credentials.privateKey,
     credentials.passphrase ?? '',
     authorization ?? '',
+    requestUrl,
   ].filter(Boolean)
 }
 
@@ -116,7 +118,11 @@ export async function sendOciRequest(params: {
   const opcRequestId = response.headers.get('opc-request-id') ?? undefined
   if (response.ok) return { response, opcRequestId }
 
-  const sensitiveValues = sensitiveRequestValues(params.credentials, signed.headers.authorization)
+  const sensitiveValues = sensitiveRequestValues(
+    params.credentials,
+    signed.headers.authorization,
+    signed.url
+  )
   const body = await response.text()
   const error = parseOciErrorBody(body, sensitiveValues)
   throw new OciRequestError({
