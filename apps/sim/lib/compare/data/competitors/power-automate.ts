@@ -966,10 +966,11 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          'HIPAA/HITECH (Microsoft will sign a BAA as a business associate) and inclusion in the broader Office 365/Azure compliance program, which separately covers ISO 27001, FedRAMP, and other certifications at the Azure/Office 365 platform level. The SOC 2 Type 2 report also incorporates the Cloud Security Alliance CCM and German BSI C5:2020 criteria.',
+          'SOC 2 Type 2 in-scope for Commercial and GCC environments only; HIPAA/HITECH (Microsoft will sign a BAA as a business associate); and inclusion in the broader Office 365/Azure compliance program, which separately covers ISO 27001, FedRAMP, and other certifications at the Azure/Office 365 platform level. The SOC 2 Type 2 report also incorporates the Cloud Security Alliance CCM and German BSI C5:2020 criteria.',
         detail:
           "HIPAA/BAA support and CSA CCM/BSI C5:2020 coverage are documented directly in Microsoft's SOC 2 documentation. No Power Automate-specific ISO 27001/FedRAMP attestation page exists, so treat those two as platform-level coverage rather than product-specific certification.",
-        shortValue: 'HIPAA/BAA, CSA CCM, BSI C5:2020; ISO/FedRAMP at platform level',
+        shortValue:
+          'SOC 2 Type 2 (Commercial/GCC), HIPAA/BAA, CSA CCM, BSI C5; ISO/FedRAMP platform-level',
         confidence: 'estimated',
         sources: [
           {

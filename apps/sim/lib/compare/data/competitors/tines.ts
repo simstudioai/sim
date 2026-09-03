@@ -842,8 +842,8 @@ export const tinesProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          'ISO 27001, ISO 27701, and ISO 42001 (AI management systems), announced April 14, 2026 as the "ISO trifecta." No HIPAA, PCI, or FedRAMP certification; Tines says self-hosting can help meet regimes like FedRAMP, not that it holds FedRAMP certification',
-        shortValue: 'ISO 27001, 27701, and 42001 certified',
+          'SOC 2 Type II, audited annually, plus ISO 27001, ISO 27701, and ISO 42001 (AI management systems), announced April 14, 2026 as the "ISO trifecta." No HIPAA, PCI, or FedRAMP certification; Tines says self-hosting can help meet regimes like FedRAMP, not that it holds FedRAMP certification',
+        shortValue: 'SOC 2 Type II; ISO 27001, 27701, and 42001 certified',
         confidence: 'verified',
         sources: [
           {

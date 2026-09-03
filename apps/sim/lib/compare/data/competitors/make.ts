@@ -923,7 +923,7 @@ export const makeProfile: CompetitorProfile = {
           'SOC 2 Type II, SOC 3, and ISO 27001 certified, plus GDPR adherence; no HIPAA, PCI, or FedRAMP mentioned',
         detail:
           "Make's Security page states the company operates an ISO 27001-certified information security program and runs infrastructure compliant with SOC 3 and SOC 2 Type II audits, alongside GDPR adherence (Make also has a dedicated GDPR page). HIPAA compliance is not mentioned or offered.",
-        shortValue: 'No HIPAA, PCI, or FedRAMP',
+        shortValue: 'SOC 2 Type II, SOC 3, ISO 27001, GDPR; no HIPAA, PCI, or FedRAMP',
         confidence: 'verified',
         sources: [
           {

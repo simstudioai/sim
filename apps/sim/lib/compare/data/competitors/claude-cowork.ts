@@ -809,15 +809,20 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          'ISO 27001:2022, ISO/IEC 42001:2023, HIPAA-ready (BAA via sales-assisted Enterprise)',
+          'SOC 2 Type I and Type II (company-wide, not Cowork-specific), ISO 27001:2022, ISO/IEC 42001:2023, HIPAA-ready (BAA via sales-assisted Enterprise)',
         detail: 'Company-wide Anthropic certifications, not Cowork-scoped.',
-        shortValue: 'ISO 27001, ISO 42001, HIPAA-ready',
+        shortValue: 'SOC 2 Type I/II, ISO 27001, ISO 42001, HIPAA-ready',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/10015870-what-certifications-has-anthropic-obtained',
             label: 'What Certifications has Anthropic obtained?',
             asOf: '2026-07-08',
+          },
+          {
+            url: 'https://trust.anthropic.com/',
+            label: 'Anthropic Trust Center',
+            asOf: '2026-07-02',
           },
         ],
       },

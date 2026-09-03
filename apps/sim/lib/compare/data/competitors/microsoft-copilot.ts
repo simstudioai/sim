@@ -976,10 +976,11 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          'HIPAA (Business Associate Agreement), HITRUST CSF, FedRAMP, multiple ISO standards (9001, 20000-1, 22301, 27001, 27017, 27018, 27701), PCI DSS, CSA STAR, UK G-Cloud, Singapore MTCS Level 3, Korea K-ISMS, and Spain ENS, each with an audit report on the Microsoft Service Trust Portal',
+          'SOC 2 Type 2 (Copilot Studio is named in scope), HIPAA (Business Associate Agreement), HITRUST CSF, FedRAMP, multiple ISO standards (9001, 20000-1, 22301, 27001, 27017, 27018, 27701), PCI DSS, CSA STAR, UK G-Cloud, Singapore MTCS Level 3, Korea K-ISMS, and Spain ENS, each with an audit report on the Microsoft Service Trust Portal',
         detail:
           "This is the full list from Copilot Studio's admin-certification documentation. Each certification links to a corresponding audit report or certificate.",
-        shortValue: 'HIPAA, HITRUST, FedRAMP, multiple ISO standards, PCI DSS, CSA STAR, and more',
+        shortValue:
+          'SOC 2 Type 2, HIPAA, HITRUST, FedRAMP, multiple ISO standards, PCI DSS, and more',
         confidence: 'verified',
         sources: [
           {
@@ -987,6 +988,11 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             label:
               'Review ISO, SOC, and HIPAA compliance - Microsoft Copilot Studio | Microsoft Learn',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/compliance/regulatory/offering-soc-2',
+            label: 'SOC 2 Type 2 - Microsoft Compliance | Microsoft Learn',
+            asOf: '2026-07-04',
           },
         ],
       },
