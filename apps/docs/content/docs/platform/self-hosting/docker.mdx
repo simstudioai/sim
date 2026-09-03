@@ -112,7 +112,7 @@ docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d
 docker compose -f docker-compose.ollama.yml --profile cpu --profile setup up -d
 ```
 
-Pull additional models — the service name differs by profile:
+The `setup` profile pulls `gemma3:4b` as a starter model. Pull additional models — the service name differs by profile:
 ```bash
 # GPU profile
 docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
@@ -173,6 +173,7 @@ docker compose -f docker-compose.ollama.yml up -d --force-recreate simstudio
 | `sim-setup config` | Show configured capabilities and integrations |
 | `sim-setup doctor` | Check the setup. `--fix` repairs what it can, `--json` prints machine-readable output |
 | `sim-setup add <feature>` | Configure one capability: `email`, `storage`, `sandbox`, `jobs`, `cache`, `knowledge`, `knowledge-embeddings`, `chat`, `llm`, or `integration <slug>` |
+| `sim-setup desktop` | Resolve the desktop installer for this deployment. `--url <url>` skips discovery, `--no-open` prints the link instead of opening it |
 
 ## Commands
 

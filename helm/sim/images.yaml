@@ -5,7 +5,6 @@
 # registry before installing, then point the chart at your registry with
 # `global.imageRegistry` and pin each image's `digest` to what your mirror
 # resolved.
-chartVersion: 1.8.0
 appVersion: v0.8.18
 images:
   - busybox:1.36

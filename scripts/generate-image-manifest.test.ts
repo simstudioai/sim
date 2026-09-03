@@ -72,20 +72,24 @@ describe('collectImages', () => {
 })
 
 describe('renderManifest', () => {
-  it('renders versions and a sorted image list', () => {
+  it('renders the app version and a sorted image list', () => {
     const manifest = renderManifest({
-      chartVersion: '1.8.0',
       appVersion: 'v0.8.18',
       images: ['busybox:1.36', 'redis:7-alpine'],
     })
 
-    expect(manifest).toContain('chartVersion: 1.8.0')
     expect(manifest).toContain('appVersion: v0.8.18')
     expect(manifest).toContain('  - busybox:1.36\n  - redis:7-alpine\n')
   })
 
+  it('omits the chart version so a chart-only bump does not fail the check', () => {
+    const manifest = renderManifest({ appVersion: 'v1', images: ['a:1'] })
+
+    expect(manifest).not.toContain('chartVersion')
+  })
+
   it('ends with a trailing newline so the checked-in file is POSIX-clean', () => {
-    const manifest = renderManifest({ chartVersion: '1.0.0', appVersion: 'v1', images: ['a:1'] })
+    const manifest = renderManifest({ appVersion: 'v1', images: ['a:1'] })
 
     expect(manifest.endsWith('\n')).toBe(true)
     expect(manifest.endsWith('\n\n')).toBe(false)

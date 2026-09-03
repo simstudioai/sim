@@ -151,11 +151,11 @@ NEXT_PUBLIC_AUDIT_LOGS_ENABLED=true
 
 Once enabled, audit logs are viewable in **Settings → Organization → Audit logs** and accessible via the API.
 
-`GET /api/v1/audit-logs` requires a session and an organization on an Enterprise plan, so it is unreachable on a deployment that has no organization yet. The admin-key equivalent has neither requirement:
+`GET /api/v1/audit-logs` authenticates with an `x-api-key` whose owner is an admin or owner of an organization, so it is unreachable on a deployment where nobody belongs to one yet. On Sim Cloud it additionally requires an active Enterprise subscription; self-hosted, `AUDIT_LOGS_ENABLED` takes that role. The admin-key equivalent needs neither an organization nor a plan:
 
 ```http
 GET /api/v1/admin/audit-logs
 x-admin-key: <admin-api-key>
 ```
 
-It accepts the same filters as the organization endpoint plus `limit` (max 250) and `offset`, and returns entries across the whole deployment rather than one organization. `GET /api/v1/admin/audit-logs/<id>` returns a single entry. Set `ADMIN_API_KEY` to use it — see the [self-hosted enterprise guide](/platform/enterprise/self-hosted).
+It accepts the same filters plus `actorEmail`, drops `includeDeparted`, and paginates with `limit` (max 250) and `offset` instead of the organization endpoint's `limit` (max 100) and `cursor`. It returns entries across the whole deployment rather than one organization. `GET /api/v1/admin/audit-logs/<id>` returns a single entry. Set `ADMIN_API_KEY` to use it — see the [self-hosted enterprise guide](/platform/enterprise/self-hosted).

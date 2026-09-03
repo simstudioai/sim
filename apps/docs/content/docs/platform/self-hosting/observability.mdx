@@ -80,7 +80,7 @@ See [Security](/platform/self-hosting/security) for the `INTERNAL_API_BASE_URL` 
 
 ## Anonymous telemetry
 
-Whether anonymous telemetry runs depends on how you deploy.
+Whether anonymous telemetry runs depends on how you deploy. A Docker Compose or source deployment sends it unless you turn it off, so a deployment with an egress policy should decide about this deliberately rather than inherit the default.
 
 | Deployment | Default | Why |
 |---|---|---|
@@ -88,12 +88,12 @@ Whether anonymous telemetry runs depends on how you deploy.
 | Docker Compose | **On** | Nothing sets the variable; the runtime image does not carry it |
 | From source | **On** | Same |
 
-When it runs, OpenTelemetry traces go to `https://telemetry.simstudio.ai/v1/traces`. What is collected: feature-usage statistics, error rates, performance metrics (sampled at 10%), and AI/LLM operation traces. What is **not** collected: personal information, workflow content or outputs, API keys or tokens, and IP addresses or geolocation.
+When it runs, OpenTelemetry traces go to `https://telemetry.simstudio.ai/v1/traces`. What is collected: feature-usage statistics, error rates, performance metrics, and AI/LLM operation traces. What is **not** collected: personal information, workflow content or outputs, API keys or tokens, and IP addresses or geolocation.
 
-`NEXT_TELEMETRY_DISABLED=1` is a hard off switch — the OpenTelemetry SDK returns before it initializes, so it disables *all* OTLP export, not just the export to Sim. Users can also opt out individually under **Settings → Privacy → Allow anonymous telemetry**.
+`NEXT_TELEMETRY_DISABLED=1` is a hard off switch for the server's OpenTelemetry SDK, which returns before it initializes — so it stops the app's own OTLP export to any endpoint, not just the export to Sim. It does not affect Trigger.dev task telemetry, which is configured separately below. The **Settings → Privacy → Allow anonymous telemetry** toggle is browser-side only and does not stop server spans.
 
 <Callout type="warn">
-  On Helm, `NEXT_TELEMETRY_DISABLED` is what you must **clear** before any tracing works — including tracing to your own collector. Override it with `null` to remove the key entirely; setting it to `""` does not remove it.
+  On Helm, `NEXT_TELEMETRY_DISABLED` is what you must **clear** before any tracing works — including tracing to your own collector. Override it with `null` to remove the key entirely.
 
   ```yaml
   app:
@@ -156,19 +156,15 @@ If you enable the chart's Jaeger export, point `telemetry.jaeger.endpoint` at Ja
 
 Until an application metrics endpoint ships, build alerting from the signals that do exist:
 
-- **Kubernetes state** — pod restarts, `CrashLoopBackOff`, OOMKills, replica count vs desired, PVC utilization (kube-state-metrics).
+- **Kubernetes state** — pod restarts, `CrashLoopBackOff`, OOMKills, replica count vs desired, PVC utilization (kube-state-metrics). For a point-in-time read on resource pressure, `kubectl top pods -n simstudio` shows CPU and memory against the limits — the first thing to check when a pod is being OOMKilled.
 - **Ingress/load balancer** — request rate, 5xx rate, p99 latency, websocket connection count.
 - **PostgreSQL** — connection count vs `max_connections`, replication lag, disk usage, long-running queries.
 - **Redis** — memory usage, evictions, connected clients.
 - **CronJobs** — last successful completion per job.
 
-### Unintended CloudWatch metrics
+### CloudWatch metrics
 
-<Callout type="warn">
-  Sim's hosted-key metrics recorder turns itself on when `AWS_ACCESS_KEY_ID` is present — nothing else gates it. A self-hoster who sets AWS credentials for S3 object storage silently starts sending `PutMetricData` calls to CloudWatch in the `Sim/HostedKey` namespace, in `AWS_REGION` (defaulting to `us-east-1`). That is outbound traffic you did not ask for and a CloudWatch bill line you did not plan for.
-
-  If you use S3 but not CloudWatch, deny `cloudwatch:PutMetricData` on the IAM identity behind those credentials, or use a role or instance profile rather than static keys.
-</Callout>
+Sim's hosted-key metrics recorder arms itself whenever `AWS_ACCESS_KEY_ID` is present, but every call site is additionally gated on the deployment being Sim Cloud. A self-hosted deployment emits no `PutMetricData` calls, even with AWS credentials configured for S3. If you want defence in depth against that gate ever changing, deny `cloudwatch:PutMetricData` on the IAM identity behind those credentials.
 
 ## What to alert on
 

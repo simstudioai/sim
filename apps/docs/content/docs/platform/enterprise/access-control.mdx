@@ -13,7 +13,7 @@ Access Control lets organization admins define permission groups that restrict w
 
 ## How it works
 
-Access control is built around **permission groups**. Each group belongs to a specific organization and has a name, an optional description, a **workspace scope**, an optional **member** list, and a configuration that defines what its members can and cannot do. The organization's single **default group** is org-wide; every other group targets a **specific set of workspaces**. A non-default group with **no members** governs **all members** of its workspaces (including external members); adding members narrows it to only those people. Personal workspaces that do not belong to an organization have no permission groups.
+Access control is built around **permission groups**. Each group belongs to a specific organization and has a name, an optional description, a **workspace scope**, an optional **member** list, and a configuration that defines what its members can and cannot do. The organization's single **default group** is org-wide; every other group targets a **specific set of workspaces**. A non-default group with **no members** governs **all members** of its workspaces (including external members); adding members narrows it to only those people. Personal or grandfathered workspaces that do not belong to an organization have no permission groups.
 
 Sim resolves the governing group for a user in a workspace deterministically:
 
@@ -85,7 +85,7 @@ Expand an integration block to reach its **tool denylist**. Clearing individual 
 
 Controls the modules, actions, and credentials available to group members. Every row refuses at the API, not only in the UI — clearing a box revokes the access, it does not merely hide a tab.
 
-<Image src="/static/enterprise/access-control-platform.png" alt="Platform tab showing feature toggles grouped by category: Modules, Knowledge Base, Tables, Files, Deployment, Tools, Logs, Collaboration, and Credentials & Access" width={900} height={566} />
+<Image src="/static/enterprise/access-control-platform.png" alt="Platform tab showing feature toggles grouped by category" width={900} height={566} />
 
 **Modules**
 
@@ -182,6 +182,8 @@ A workspace-scoped group applies to **all members of its workspaces by default**
 
 A user is governed by one group per workspace, so adding a user is rejected when it would conflict with another of their groups on a shared workspace (skipped rather than added in bulk). The default group ignores members entirely — it always governs everyone not covered by a workspace group.
 
+A workspace also has at most one all-members group. Adding a workspace to a group, or removing a group's last member, is rejected when doing so would violate that — memberships and scopes are never silently moved.
+
 Manage which workspaces a group governs from the **Workspaces** list on the same **General** tab. A non-default group is created targeting at least one workspace, but you can later remove all of them — a group with no workspaces simply governs nothing until you add one back.
 
 External workspace members (people who have access to a workspace but belong to a different organization) can't be added as named members, but a workspace-scoped group with no members — and the organization default group — still governs them.
@@ -212,7 +214,7 @@ When a user opens Chat, their permission group is read before any block or tool 
 <FAQ items={[
   {
     question: "Who can create and manage permission groups?",
-    answer: "Any organization owner or admin on an Enterprise-entitled organization can create, edit, and delete permission groups. The organization must be on the Enterprise plan."
+    answer: "Any organization owner or admin on an Enterprise-entitled organization can create, edit, and delete permission groups. On Sim Cloud that means the organization must be on the Enterprise plan; self-hosted deployments use environment variables instead of the plan check."
   },
   {
     question: "What happens to a workflow that was built before a block was restricted?",

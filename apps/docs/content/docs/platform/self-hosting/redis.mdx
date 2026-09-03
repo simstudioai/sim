@@ -12,7 +12,7 @@ Sim uses Redis as a message bus and shared cache. Both deployments ship it by de
 
 | Use | Without Redis |
 |---|---|
-| **Pub/sub** — live Chat task status, table events, execution cancellation, MCP tool-change notifications, copilot tool confirmations | Falls back to a **process-local** emitter: events never leave the pod that produced them |
+| **Pub/sub** — live Chat task status, table events, execution cancellation, MCP tool-change notifications, Chat tool confirmations | Falls back to a **process-local** emitter: events never leave the pod that produced them |
 | **Socket.IO adapter** (realtime) | Collaboration events are not delivered across realtime pods |
 | Idempotency store | Falls back to PostgreSQL |
 | Execution progress markers | Falls back to PostgreSQL |

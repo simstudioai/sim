@@ -75,7 +75,7 @@ SSO_ENABLED=true
 NEXT_PUBLIC_SSO_ENABLED=true
 ```
 
-Providers are then registered in the app under **Settings → Enterprise → Single Sign-On**. A provider can be scoped to an organization or registered without one. Most other enterprise features do read their settings from the organization that owns a workspace, so a deployment using them still needs an organization model — set `INSTANCE_ORG_NAME` to place every user in one shared organization, or provision organizations through the Admin API.
+Providers are then registered in the app under **Settings → Organization → SSO**. A provider can be scoped to an organization or registered without one. Most other enterprise features do read their settings from the organization that owns a workspace, so a deployment using them still needs an organization model — set `INSTANCE_ORG_NAME` to place every user in one shared organization, or provision organizations through the Admin API.
 
 See the [SSO guide](/platform/enterprise/sso) for identity-provider setup and the [self-hosted enterprise guide](/platform/enterprise/self-hosted) for the organization patterns.
 

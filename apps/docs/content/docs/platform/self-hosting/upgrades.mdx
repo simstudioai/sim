@@ -72,6 +72,8 @@ Migrations are Drizzle SQL files applied by a dedicated image.
 
 Migrations are **forward-only**. There are no down-migrations, which is why the pre-upgrade backup below is not optional.
 
+Migrations apply in sequence, so skipping several releases at once generally works mechanically. It is riskier — those combinations get less testing, and you take several releases' worth of behavior changes in one step. Upgrade in smaller increments where you can.
+
 ### How concurrent replicas are handled
 
 Every app replica runs the full migrator — there is no leader. They are serialized by a **Postgres session advisory lock**, taken with a bounded try-lock loop rather than a blocking wait:
@@ -99,9 +101,9 @@ Behavior that is fixed in the migrator and not configurable, but that explains w
 | Behavior | Value |
 |---|---|
 | Advisory-lock acquire deadline | 30 minutes, retried every 5s |
-| `lock_timeout` on DDL | 5 seconds — a statement that waits longer fails with SQLSTATE `55P03` |
+| `lock_timeout` on the migration session | 5 seconds — a statement that waits longer fails with SQLSTATE `55P03`. `statement_timeout` is set to `0` on the same session, so a long migration is never cut off once it holds its locks |
 | Migration retry attempts | 8, with exponential backoff and jitter |
-| Connection retries at startup | 10, for transient failures only — `53300` (`too_many_connections`) and the `08xxx` connection-exception class. Anything else fails immediately |
+| Connection attempts at startup | 10, for transient failures — `53300` (`too_many_connections`), `53400`, the `08xxx` connection-exception class, and socket-level errors such as `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`, `EHOSTUNREACH`, and `ENOTFOUND`. A database that is simply down is retried with backoff, not failed immediately |
 
 The `lock_timeout` deliberately trades a failed migration for a table-wide stall: without it, DDL waiting on an `AccessExclusiveLock` queues every other query on that table behind it for the whole wait.
 

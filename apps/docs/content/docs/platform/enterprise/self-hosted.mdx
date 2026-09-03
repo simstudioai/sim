@@ -92,7 +92,7 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
   https://sim.example.com/api/logs/cleanup
 ```
 
-Both features also fan work out as background jobs, so the deployment needs `TRIGGER_DEV_ENABLED` with a configured Trigger.dev project, or the local job backend. See [background jobs](/platform/self-hosting/background-jobs).
+Both features also fan work out as background jobs, so the deployment needs `TRIGGER_DEV_ENABLED` with a configured Trigger.dev project, or the default database-backed job queue, which both deployments use out of the box. See [background jobs](/platform/self-hosting/background-jobs).
 
 ## Choose an organization model
 
@@ -233,7 +233,7 @@ curl "https://sim.example.com/api/v1/admin/access-control?organizationId=$ORG_ID
   -H "x-admin-key: $ADMIN_API_KEY"
 ```
 
-The organization-scoped `/api/v1/audit-logs` endpoint documented in the [audit logs guide](/platform/enterprise/audit-logs) requires a session and an organization on an Enterprise plan, so reach for the admin endpoints when neither exists yet.
+The organization-scoped `/api/v1/audit-logs` endpoint documented in the [audit logs guide](/platform/enterprise/audit-logs) needs an API key whose owner is an admin or owner of an organization, so reach for the admin endpoints when no organization exists yet.
 
 Deleting an organization requires echoing its slug, because the delete cascades to members, invitations, and permission groups, and detaches its workspaces:
 

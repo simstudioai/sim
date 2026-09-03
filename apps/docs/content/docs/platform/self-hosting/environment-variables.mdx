@@ -17,7 +17,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `NEXT_PUBLIC_APP_URL` | Public app URL |
 | `CRON_SECRET` | Bearer token for the background job endpoints: `openssl rand -hex 32`. **Required whenever background jobs are enabled** — the Helm chart's default, and the chart will not render without it. See [Background Jobs](/platform/self-hosting/background-jobs) |
 
-`openssl rand -hex 32` prints 64 hex characters. `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` must be exactly that — the app rejects any other length. The rest are secrets of no fixed shape and only need 32 characters or more.
+`openssl rand -hex 32` prints 64 hex characters. `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` must be exactly that — a value of any other shape throws the first time Sim encrypts or decrypts, not at startup. The rest are secrets of no fixed shape and only need 32 characters or more.
 
 <Callout type="error">
   `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY` cannot be rotated or recovered. Losing either makes the data it protects permanently unreadable — workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets in the first case, user-generated Sim API keys in the second. Back them up separately from the database.
@@ -91,7 +91,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `AZURE_OPENAI_API_KEY` | Azure OpenAI API key |
 | `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint URL |
 | `AZURE_OPENAI_API_VERSION` | API version (e.g., `2024-02-15-preview`) |
-| `KB_OPENAI_MODEL_NAME` | Azure deployment name serving the knowledge base embedding model. Required on the Azure embedding path — the deployment name rarely matches the model id |
+| `KB_OPENAI_MODEL_NAME` | Azure deployment name serving the knowledge base embedding model. Optional — defaults to the model id, which is only correct when the deployment is named after the model |
 
 ### Azure Anthropic
 
@@ -105,7 +105,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 
 | Variable | Description |
 |----------|-------------|
-| `OCR_PROVIDER` | PDF OCR backend: `local`, `mistral`, or `azure-mistral`. Legacy installs infer it from the configured credentials |
+| `OCR_PROVIDER` | PDF OCR backend: `local`, `mistral`, or `azure-mistral`. Leave it unset and Sim picks the first provider whose credentials are present, falling back to the local parser |
 | `OCR_AZURE_ENDPOINT` | Azure Mistral OCR endpoint URL |
 | `OCR_AZURE_API_KEY` | Azure Mistral OCR API key |
 | `OCR_AZURE_MODEL_NAME` | Azure Mistral OCR model name |
@@ -131,7 +131,7 @@ Google, GitHub, and Microsoft sign-in, their callback URLs, and the `DISABLE_*_A
 
 ## Access Control
 
-Who may sign up and sign in — the allowlists, blocklists, `DISABLE_REGISTRATION`, `DISABLE_INVITATIONS`, `DISABLE_PUBLIC_API`, and `DISABLE_AUTH` — is documented in [Authentication](/platform/self-hosting/authentication#controlling-who-can-sign-up).
+Who may sign up and sign in — the allowlists, blocklists, `DISABLE_REGISTRATION`, `DISABLE_INVITATIONS`, `DISABLE_PUBLIC_API`, and `DISABLE_AUTH` — is documented in [Authentication](/platform/self-hosting/authentication).
 
 ## Code Execution
 
@@ -140,13 +140,16 @@ Who may sign up and sign in — the allowlists, blocklists, `DISABLE_REGISTRATIO
 | `SANDBOX_PROVIDER` | Remote sandbox provider: `e2b` (default) or `daytona` |
 | `E2B_ENABLED` / `E2B_API_KEY` | Enable E2B remote execution |
 | `DAYTONA_API_KEY` | Daytona API key (used when `SANDBOX_PROVIDER=daytona`) |
-| `SANDBOXES_ENABLED` / `NEXT_PUBLIC_SANDBOXES_ENABLED` | Enable custom sandboxes on a self-hosted deployment, bypassing the hosted-plan requirement. Set both — the server-side one grants access, the `NEXT_PUBLIC_` twin renders the UI |
+| `E2B_FUNCTION_TEMPLATE_ID` | Immutable `<template>:<build-id>` ref for the Function base image. Required for E2B; a mutable tag is refused |
+| `E2B_FUNCTION_TEMPLATE_GENERATION` | Monotonic release generation printed by the same build. Required for E2B |
+| `DAYTONA_FUNCTION_SNAPSHOT_ID` | Immutable snapshot **ID** (not a name) for the Function base image. Required for Daytona |
+| `SANDBOXES_ENABLED` / `NEXT_PUBLIC_SANDBOXES_ENABLED` | Enable custom sandboxes on a self-hosted deployment, bypassing the hosted-plan requirement. Neither is sufficient on its own — a provider key **and** an immutable Function base must also be configured. Set the `NEXT_PUBLIC_` twin only after the server side works; it asserts readiness to the browser rather than enabling anything |
 | `IVM_MAX_EXECUTIONS_PER_WORKER` | Executions before an isolated-vm worker is recycled |
 | `IVM_MAX_BROKERS_PER_EXECUTION` | Host-call brokers per execution |
 | `IVM_MAX_BROKER_ARGS_JSON_CHARS` | Max argument payload size |
 | `IVM_MAX_BROKER_RESULT_JSON_CHARS` | Max result payload size |
 
-Without a remote provider, user code runs in an in-process V8 isolate inside the app container. See [Security](/platform/self-hosting/security).
+Without a remote provider, user code runs in an in-process V8 isolate inside the app container. See [Sandboxes](/platform/self-hosting/sandboxes) for the base-image build and [Security](/platform/self-hosting/security) for the isolation comparison.
 
 ## Networking & Limits
 
@@ -187,7 +190,6 @@ See [Observability](/platform/self-hosting/observability).
 | Variable | Description |
 |----------|-------------|
 | `KB_EMBEDDING_MODEL` | Embedding model for new knowledge bases. Defaults to `text-embedding-3-small`; an unsupported value falls back to the default |
-| `KB_OPENAI_MODEL_NAME` | Azure deployment name for that model, when embeddings run through Azure OpenAI |
 | `OPENROUTER_API_KEY` | Fallback route for the OpenAI embedding models — used when it is set and `OPENAI_API_KEY` is not the chosen path |
 | `COHERE_API_KEY` | Enables the Knowledge block reranker |
 

@@ -101,14 +101,14 @@ They are not equally firm, and it is worth knowing which is which.
 
 | Layer | What it blocks | Can an operator lift it? |
 |---|---|---|
-| NetworkPolicy | The CIDRs in `networkPolicy.egressExceptCidrs`, defaulting to `169.254.169.254/32` and `169.254.170.2/32`, are excluded from the broad egress rule | **Yes** — it is an ordinary value. Setting it to `[]` removes the exclusion, and adding your own list without those two entries silently drops them |
+| NetworkPolicy | The CIDRs in `networkPolicy.egressExceptCidrs`, defaulting to `169.254.169.254/32` and `169.254.170.2/32`, are excluded from the broad egress rule | **Yes** — it is an ordinary value. Setting it to `[]` keeps the defaults (Helm's `default` treats an empty list as unset), but supplying your own non-empty list without those two entries silently drops them |
 | Application | AWS/Azure/GCP IMDS, ECS task metadata, Alibaba, Oracle, the Azure WireServer, and IMDS over IPv6 | **No** — refused in code regardless of `EGRESS_ALLOWED_HOSTS` or `EGRESS_ALLOWED_IP_RANGES`, so allowlisting a broad range such as `169.254.0.0/16` cannot re-expose them |
 
 So a workflow can never reach instance metadata, but the pod-level block is only as good as the value you leave in place. If you override `egressExceptCidrs` to add your cluster's API server CIDR, keep both defaults in the list.
 
 ### The `copilot` deployment ships no NetworkPolicy
 
-The `copilot` and `copilot-postgres` workloads deliberately have no policy of their own. Copilot requires `REDIS_URL` on a non-443 port, and the chart cannot know your Redis host at render time — a default egress rule would block Redis on most installs. If you run `networkPolicy.enabled: true` with Copilot enabled, those two pods are unisolated until you write policies for them or add the matching rules to `networkPolicy.egress`.
+The `copilot` and `copilot-postgresql` workloads deliberately have no policy of their own. The `copilot` service requires `REDIS_URL` on a non-443 port, and the chart cannot know your Redis host at render time — a default egress rule would block Redis on most installs. If you run `networkPolicy.enabled: true` with `copilot.enabled: true`, those two pods are unisolated until you write policies for them or add the matching rules to `networkPolicy.egress`.
 
 ### Pod Security Standards
 
@@ -135,7 +135,7 @@ require a remote sandbox provider. JavaScript without `import` or `require`
 continues to run in the in-process isolate when no remote provider is configured.
 
 <Callout type="warn">
-  **The credential alone does not enable a remote sandbox.** Each provider also needs an *immutable* reference to the dedicated Function image, and Sim validates the format at startup — an old shell template or snapshot name is deliberately not accepted as a fallback:
+  **The credential alone does not enable a remote sandbox.** Each provider also needs an *immutable* reference to the dedicated Function image, and Sim validates the format before it will use it — an old shell template or snapshot name is deliberately not accepted as a fallback:
 
   - `E2B_FUNCTION_TEMPLATE_ID` must be `<template>:<build-id>`, where the build id is a UUID. A human-readable tag is rejected because E2B lets tags be reassigned.
   - `E2B_FUNCTION_TEMPLATE_GENERATION` must be a positive integer release generation.
@@ -148,10 +148,10 @@ Two browser-side variables project server state into the UI, and neither is deri
 
 | Variable | Effect when unset |
 |---|---|
-| `NEXT_PUBLIC_SANDBOXES_ENABLED` | The Function block's remote-language selector and the custom-sandbox settings stay hidden, even with a working provider |
+| `NEXT_PUBLIC_SANDBOXES_ENABLED` | The Function block's Shell language, its Sandbox picker, and **Settings → Sandboxes** stay hidden, even with a working provider. Python stays selectable and fails at execution |
 | `NEXT_PUBLIC_E2B_ENABLED` | The E2B-backed Pi block modes stay hidden; `sim-setup doctor` reports it as a mismatch against `E2B_ENABLED` |
 
-Set the public values only **after** the server-side configuration above is complete — they are assertions about readiness, not switches. `npx sim-setup doctor` reports a mismatch in either direction.
+Set the public values only **after** the server-side configuration above is complete — they are assertions about readiness, not switches, and the server-side check has its own conditions beyond them. See [Sandboxes](/platform/self-hosting/sandboxes) for the base-image build and promotion procedure. `npx sim-setup doctor` reports a mismatch in either direction.
 
 <Callout type="warn">
   With the default in-process sandbox, treat everyone who can author a workflow as someone running code in your app container's security context. If your Sim instance is open to a wide or partly-trusted audience, use a remote sandbox provider and enable the NetworkPolicy egress restrictions.

@@ -29,9 +29,9 @@ Both endpoints cache their GitHub lookups for **5 minutes**, and both respond th
 
 | Status | Meaning |
 |---|---|
-| `302` | Success — redirect to the release asset |
+| `302` | Success on `/download` — a redirect to the release asset. The update feed answers `200` with `text/yaml` instead |
 | `404` | GitHub answered, but this channel has no release |
-| `502` | GitHub was unreachable, or every candidate release lacked valid desktop artifacts |
+| `502` | GitHub could not be read — unreachable, rate-limited, or every candidate release lacked valid desktop artifacts |
 
 The Sim server needs outbound access to `api.github.com` and `github.com` for these to resolve. Unauthenticated GitHub API requests are capped at 60/hour per IP; set `GITHUB_TOKEN` on the Sim server to raise that to 5000/hour.
 

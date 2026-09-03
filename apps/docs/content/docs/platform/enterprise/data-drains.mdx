@@ -4,6 +4,7 @@ description: Continuously export workflow logs, audit logs, and Chat data to you
 ---
 
 import { FAQ } from '@/components/ui/faq'
+import { Image } from '@/components/ui/image'
 
 Data Drains let organization owners and admins on Enterprise plans continuously export Sim data to a destination they control — a customer-owned S3 bucket, Google Cloud Storage bucket, Azure Blob container, BigQuery table, Snowflake table, Datadog logs intake, or an HTTPS webhook. A drain runs on a schedule, picks up only new rows since its last successful run, and writes them to the destination. Viewing drain configuration and run history is restricted to owners and admins as well, since destinations expose internal bucket names, table identifiers, and webhook URLs.
 
@@ -15,9 +16,9 @@ Drains are independent of [Data Retention](/platform/enterprise/data-retention) 
 
 Go to **Settings → Organization → Data drains** in your workspace, then click **New drain**.
 
-![Data Drains settings page showing two configured drains — one exporting workflow logs to Amazon S3 daily, another exporting Copilot chats to an HTTPS webhook hourly](/static/enterprise/data-drains-list.png)
+<Image src="/static/enterprise/data-drains-list.png" alt="Data Drains settings page showing two configured drains — one exporting workflow logs to Amazon S3 daily, another exporting Chat conversations to an HTTPS webhook hourly" width={900} height={477} />
 
-![New data drain dialog with fields for name, source, cadence, destination, and S3 credentials](/static/enterprise/data-drains-new.png)
+<Image src="/static/enterprise/data-drains-new.png" alt="New data drain dialog with fields for name, source, cadence, destination, and S3 credentials" width={900} height={566} />
 
 Each drain has four pieces:
 
@@ -259,4 +260,4 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
   https://sim.example.com/api/cron/run-data-drains
 ```
 
-Each due drain is then fanned out as a `run-data-drain` background job, so the deployment also needs `TRIGGER_DEV_ENABLED` with a configured Trigger.dev project, or the local job backend. See [background jobs](/platform/self-hosting/background-jobs).
+Each due drain is then fanned out as a `run-data-drain` background job, so the deployment also needs `TRIGGER_DEV_ENABLED` with a configured Trigger.dev project, or the default database-backed job queue, which both deployments use out of the box. See [background jobs](/platform/self-hosting/background-jobs).
