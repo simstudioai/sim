@@ -1787,11 +1787,13 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.readRow,
       operationId: 'getRowEnrichment',
-      summary: 'Get Enrichment Run Detail',
+      summary: 'Get Row Group Run',
       description:
-        "Get an enrichment cell's provider attempts, statuses, hosted-key costs, durations, and matching provider. Null means no run detail was recorded; `404` means the table, row, or group does not exist.",
+        "Retrieve one workflow or enrichment group's outcome on one row: the run state `includeRunState` reports on the row endpoints (`status`, `error`, `workflowId`, `executionId`, …), the group's output cells keyed by column name, and — for an enrichment group — the provider cascade behind them: every configured provider in cascade order, each one's status, hosted-key cost, and duration, plus which provider produced the match. A row that exists always answers; `runState: null` means the group has never run for it, and `cascade: null` that no provider breakdown was recorded. A `404` means the table, row, or group does not exist.",
       errors: RESOURCE_ERRORS,
-      success: { description: 'The enrichment run detail, or null when none was recorded.' },
+      success: {
+        description: 'The run state, output cells, and provider cascade for the group on the row.',
+      },
     }),
     {
       params: documentedSchema(
@@ -1810,7 +1812,7 @@ const declaredRoutes = [
         v2GetRowEnrichmentContract.response.schema,
         'V2RowEnrichmentResponse',
         'Row enrichment response',
-        'Provider cascade, cost, and timing for one enrichment cell.'
+        'Run state, output cells, and provider cascade for one group on one row.'
       ),
     }
   ),

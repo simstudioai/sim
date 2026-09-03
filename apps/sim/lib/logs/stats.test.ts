@@ -21,6 +21,7 @@ function row(overrides: Partial<LogStatsSegmentRow> = {}): LogStatsSegmentRow {
     totalExecutions: 1,
     successfulExecutions: 1,
     avgDurationMs: 100,
+    handledErrorRuns: 0,
     ...overrides,
   }
 }
@@ -326,5 +327,36 @@ describe('buildDashboardStats', () => {
       start: '2026-01-15T00:00:00.000Z',
       end: '2026-01-15T02:00:00.000Z',
     })
+  })
+})
+
+describe('buildDashboardStats handled errors', () => {
+  const window = {
+    startTime: new Date('2026-08-06T00:00:00.000Z'),
+    endTime: new Date('2026-08-06T02:00:00.000Z'),
+    segmentMs: 3_600_000,
+  }
+
+  it('sums handled-error runs across every workflow and bucket when asked', () => {
+    const { stats } = buildDashboardStats(
+      [
+        row({ handledErrorRuns: 2 }),
+        row({ segmentIndex: 1, handledErrorRuns: 1 }),
+        row({ workflowId: 'wf-2', workflowName: 'Beta', handledErrorRuns: 0 }),
+      ],
+      window,
+      2,
+      { includeHandledErrors: true }
+    )
+
+    expect(stats.handledErrorRuns).toBe(3)
+    /** A handled error is still a successful run in every other figure. */
+    expect(stats.totalErrors).toBe(0)
+  })
+
+  it('publishes no handled-error count unless the rows were counted', () => {
+    const { stats } = buildDashboardStats([row({ handledErrorRuns: 2 })], window, 2)
+
+    expect(stats).not.toHaveProperty('handledErrorRuns')
   })
 })
