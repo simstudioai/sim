@@ -99,7 +99,8 @@ export function useConnectorMemberGroupOptions({
     for (const group of settings.credentialGroups) {
       if (group.status !== 'active') continue
       for (const option of group.options) {
-        if (option.status !== 'active') continue
+        /** Mirrors member provisioning, which skips anything not `ready`. */
+        if (option.status !== 'active' || option.configurationStatus !== 'ready') continue
         if (!isCredentialGroupProvider(option.provider)) continue
         if (getCredentialGroupProviderId(option.provider) !== providerId) continue
         entries.push({

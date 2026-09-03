@@ -26,7 +26,7 @@ Sim uses Redis as a message bus and shared cache. Both deployments ship it by de
 
 Everything Sim keeps in Redis is cache, coordination state, or an in-flight event — never committed data, which lives in PostgreSQL and object storage. Losing or restarting the instance costs active runs their streaming, and a cancellation issued across the gap may not land.
 
-It also costs webhook deduplication. Webhook idempotency markers live wherever the cache does, with a 7-day TTL sized to the longest provider retry window, so a redelivery arriving after a restart can re-run a workflow that already completed — with its real side effects. Billing, checkout, and Chat-send idempotency are pinned to PostgreSQL and are never at risk. The bundled Redis runs without persistence, which is fine for coordination state; if duplicate webhook side effects would be unacceptable for your deployment, point `REDIS_URL` at a managed instance with persistence enabled.
+It also costs webhook deduplication. Webhook idempotency markers live wherever the cache does, with a 7-day TTL sized to the longest provider retry window, so a redelivery arriving after a restart can re-run a workflow that already completed — with its real side effects. Billing, checkout, and Chat-send idempotency are pinned to PostgreSQL and are never at risk. The chart's bundled Redis runs with persistence off entirely, so any restart drops the markers. The Compose stack leaves Redis on its default snapshotting with no mounted volume, so they survive a restart but not recreating the container. If duplicate webhook side effects would be unacceptable for your deployment, point `REDIS_URL` at a managed instance with persistence enabled.
 
 ## Configuration
 

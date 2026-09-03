@@ -585,7 +585,9 @@ realtime:
 # Redis — pub/sub, the Socket.IO adapter, and the idempotency/progress stores.
 # Bundled by default so a chart install matches the Docker Compose stack.
 # REQUIRED once app.replicaCount or realtime.replicaCount exceeds 1: without it
-# cross-pod events are silently dropped. For production prefer a managed
+# cross-pod events are silently dropped. CLI authentication requires it at any
+# replica count — its approval store has no fallback and throws without Redis.
+# For production prefer a managed
 # instance (ElastiCache, Memorystore, Azure Cache) — set enabled: false and put
 # its connection string in app.env.REDIS_URL, which then takes over.
 redis:
