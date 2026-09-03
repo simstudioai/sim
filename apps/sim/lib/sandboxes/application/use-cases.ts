@@ -54,16 +54,22 @@ async function resolveSandboxContext(
 }
 
 /**
- * The admission every write shares, in the order the legacy routes applied it
- * after the role check: the plan gate first, because its refusal is actionable
- * and costs nothing, then the per-workspace build budget, which is consumed
- * only by a request that would otherwise proceed.
+ * The plan gate every write shares, checked right after the role check as the
+ * legacy routes did: its refusal is actionable and costs nothing.
  */
-async function admitSandboxMutation(workspaceId: string): Promise<void> {
+async function requireSandboxPlan(workspaceId: string): Promise<void> {
   if (!(await hasWorkspaceSandboxAccess(workspaceId))) {
     throw new ForbiddenOperationError('WORKSPACE_PLAN_CAPABILITY_REQUIRED', MAX_PLAN_REQUIRED)
   }
-  await assertSandboxBuildBudget(workspaceId)
+}
+
+/**
+ * The build budget, handed to the manager as its admission hook so it is spent
+ * only once the spec has validated and the name is free — a refused line or a
+ * collision builds nothing and must not drain what a real build needs.
+ */
+function spendBuildBudget(workspaceId: string) {
+  return { admit: () => assertSandboxBuildBudget(workspaceId) }
 }
 
 const authorizationOptions = { delegation: sandboxDelegationPolicy }
@@ -131,7 +137,7 @@ export const createWorkspaceSandboxUseCase = defineAuthorizedWorkspaceUseCase({
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
   async execute({ principal, input, context }) {
-    await admitSandboxMutation(context.workspaceId)
+    await requireSandboxPlan(context.workspaceId)
     const sandbox = await createWorkspaceSandbox(
       context.workspaceId,
       requirePrincipalSubjectUserId(principal),
@@ -141,7 +147,8 @@ export const createWorkspaceSandboxUseCase = defineAuthorizedWorkspaceUseCase({
         dependencies: input.dependencies,
         cliTools: input.cliTools ?? [],
         systemPackages: input.systemPackages ?? [],
-      }
+      },
+      spendBuildBudget(context.workspaceId)
     )
     return { sandbox }
   },
@@ -172,14 +179,19 @@ export const updateWorkspaceSandboxUseCase = defineAuthorizedWorkspaceUseCase({
     resolveSandboxContext(input.workspaceId, input.sandboxId),
   authorizationOptions,
   async execute({ input, context }) {
-    await admitSandboxMutation(context.workspaceId)
-    const sandbox = await updateWorkspaceSandbox(context.workspaceId, context.sandbox.id, {
-      name: input.name,
-      language: input.language,
-      dependencies: input.dependencies,
-      cliTools: input.cliTools,
-      systemPackages: input.systemPackages,
-    })
+    await requireSandboxPlan(context.workspaceId)
+    const sandbox = await updateWorkspaceSandbox(
+      context.workspaceId,
+      context.sandbox.id,
+      {
+        name: input.name,
+        language: input.language,
+        dependencies: input.dependencies,
+        cliTools: input.cliTools,
+        systemPackages: input.systemPackages,
+      },
+      spendBuildBudget(context.workspaceId)
+    )
     return { sandbox }
   },
   projectAudit: ({ input, result }) => ({
@@ -204,7 +216,8 @@ export const deleteWorkspaceSandboxUseCase = defineAuthorizedWorkspaceUseCase({
     resolveSandboxContext(input.workspaceId, input.sandboxId),
   authorizationOptions,
   async execute({ context }) {
-    await admitSandboxMutation(context.workspaceId)
+    await requireSandboxPlan(context.workspaceId)
+    await assertSandboxBuildBudget(context.workspaceId)
     await deleteWorkspaceSandbox(context.workspaceId, context.sandbox.id)
     return { sandbox: context.sandbox }
   },

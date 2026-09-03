@@ -54,8 +54,17 @@ export const internalSandboxErrorPolicy = extendInternalErrorPolicy(
   }
 )
 
-/** The item routes conceal a caller with no reach into the workspace as a missing sandbox. */
+/**
+ * The item routes answer every absence, and every concealed refusal, as a
+ * missing sandbox. A missing or archived workspace must not read differently
+ * from a workspace the caller has no reach into, or the message becomes an
+ * oracle for which workspace ids exist.
+ */
 export const internalSandboxResourceErrorPolicy = createInternalResourceConcealmentPolicy({
-  base: internalSandboxErrorPolicy,
+  base: extendInternalErrorPolicy(internalSandboxErrorPolicy, (error) =>
+    asOrchestrationError(error)?.code === 'not_found'
+      ? internalErrorResponse(404, { error: SANDBOX_NOT_FOUND_MESSAGE })
+      : null
+  ),
   notFoundMessage: SANDBOX_NOT_FOUND_MESSAGE,
 })

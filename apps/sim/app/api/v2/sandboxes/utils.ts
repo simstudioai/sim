@@ -37,9 +37,21 @@ export function renderSandboxError(error: unknown) {
   return v2CaughtOrchestrationError(error)
 }
 
+/**
+ * The item routes answer every absence as a missing sandbox. A missing or
+ * archived workspace must not read differently from a workspace the caller has
+ * no reach into, or the message becomes an oracle for which workspace ids exist.
+ */
+function renderSandboxResourceError(error: unknown) {
+  if (asOrchestrationError(error)?.code === 'not_found') {
+    return v2Error('NOT_FOUND', SANDBOX_NOT_FOUND_MESSAGE)
+  }
+  return renderSandboxError(error)
+}
+
 export const sandboxCollectionErrorPolicy: V2ErrorPolicy = { render: renderSandboxError }
 
 export const sandboxResourceErrorPolicy = createV2ResourceConcealmentPolicy({
   notFoundMessage: SANDBOX_NOT_FOUND_MESSAGE,
-  render: renderSandboxError,
+  render: renderSandboxResourceError,
 })

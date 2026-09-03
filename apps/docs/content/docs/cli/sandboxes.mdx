@@ -25,9 +25,9 @@ Create Sandbox (personal API key required)
 | --- | --- | --- |
 | `--name <value>` | Yes | Display name, unique within the workspace; 1 to 64 characters. |
 | `--language <value>` | Yes | Dependency ecosystem: `javascript` installs from npm, `python` from PyPI. Accepted values: `javascript`, `python`. |
-| `--dependencies <value...>` | No | Package specifiers installed into the sandbox, one per entry. Blank entries and `#` comments are ignored. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--dependencies <value...>` | No | Package specifiers installed into the sandbox, one per entry. Blank entries and `#` comments are ignored. (space-separated, or @path / @- with one value per line, blank lines and # comments ignored; @@value for a literal leading @). |
 | `--cli-tools <value...>` | No | Pinned managed CLI ids installed into the sandbox, at most 10, no duplicates. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--system-packages <value...>` | No | Debian packages installed into the sandbox image, one per entry. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--system-packages <value...>` | No | Debian packages installed into the sandbox image, one per entry. (space-separated, or @path / @- with one value per line, blank lines and # comments ignored; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -120,8 +120,8 @@ Update Sandbox (personal API key required)
 | --- | --- | --- |
 | `--name <value>` | No | New display name, unique within the workspace; 1 to 64 characters. |
 | `--language <value>` | No | Replacement dependency ecosystem. The whole spec is revalidated against it, so a Python dependency list does not survive a switch to JavaScript. Accepted values: `javascript`, `python`. |
-| `--dependencies <value...>` | No | Replacement package list; replaces the whole list. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--dependencies <value...>` | No | Replacement package list; replaces the whole list. (space-separated, or @path / @- with one value per line, blank lines and # comments ignored; @@value for a literal leading @). |
 | `--cli-tools <value...>` | No | Replacement managed CLI list; replaces the whole list. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--system-packages <value...>` | No | Replacement Debian package list; replaces the whole list. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--system-packages <value...>` | No | Replacement Debian package list; replaces the whole list. (space-separated, or @path / @- with one value per line, blank lines and # comments ignored; @@value for a literal leading @). |
 
 </CommandTable>

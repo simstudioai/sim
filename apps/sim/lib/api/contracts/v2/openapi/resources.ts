@@ -1255,9 +1255,12 @@ const declaredRoutes = [
     resourceOperation('Sandboxes', {
       operationId: 'createSandbox',
       summary: 'Create Sandbox',
-      description: `Create a sandbox and schedule its image build. The name must be unique within the workspace. A dependency or system-package entry the builder cannot accept is a \`400\` whose \`error.details\` names the field and the offending entries. ${SANDBOX_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create a sandbox. The name must be unique within the workspace. Where the deployment prebuilds dependency images, the build is scheduled and reported through \`buildStatus\`; a deployment that installs at run time, or a sandbox with nothing to install, has no build and reports \`buildStatus: null\`. A dependency or system-package entry the builder cannot accept is a \`400\` whose \`error.details\` names the field and the offending entries. ${SANDBOX_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
-      success: { description: 'The sandbox was created and its build scheduled.' },
+      success: {
+        description:
+          'The sandbox was created; a build is scheduled where the deployment prebuilds images.',
+      },
     }),
     {
       query: v2CreateSandboxContract.query,
@@ -1280,7 +1283,7 @@ const declaredRoutes = [
         v2CreateSandboxContract.response.schema,
         'CreateSandboxResponse',
         'Create sandbox response',
-        'The created sandbox, with its build still pending.',
+        'The created sandbox. `buildStatus` is `pending` while an image builds and `null` where nothing is built.',
         [{ data: { ...SANDBOX_EXAMPLE, buildStatus: 'pending', builtAt: null } }]
       ),
     }
@@ -1322,7 +1325,7 @@ const declaredRoutes = [
     resourceOperation('Sandboxes', {
       operationId: 'updateSandbox',
       summary: 'Update Sandbox',
-      description: `Update the supplied sandbox fields and rebuild the image. Omitted fields retain their stored values; a supplied list replaces the whole list; names must remain unique within the workspace. Re-sending an unchanged spec after a failed build retries the build. ${SANDBOX_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Update the supplied sandbox fields. Omitted fields retain their stored values; a supplied list replaces the whole list; names must remain unique within the workspace. Where the deployment prebuilds dependency images, a changed spec is rebuilt and re-sending an unchanged spec after a failed build retries it; a deployment that installs at run time, or a spec with nothing to install, has no build and reports \`buildStatus: null\`. ${SANDBOX_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated sandbox.' },
     }),
@@ -1345,7 +1348,7 @@ const declaredRoutes = [
         v2UpdateSandboxContract.response.schema,
         'UpdateSandboxResponse',
         'Update sandbox response',
-        'The updated sandbox, with its rebuild pending.',
+        'The updated sandbox. `buildStatus` is `pending` while an image rebuilds and `null` where nothing is built.',
         [
           {
             data: {
@@ -1364,7 +1367,7 @@ const declaredRoutes = [
     resourceOperation('Sandboxes', {
       operationId: 'deleteSandbox',
       summary: 'Delete Sandbox',
-      description: `Delete a sandbox. Function blocks that still select it fail closed at run time until they are re-pointed, and the image is released once nothing else shares it. ${SANDBOX_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Delete a sandbox. Function blocks that still select it fail closed at run time until they are re-pointed. Any prebuilt image is released once nothing else shares it. ${SANDBOX_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The sandbox was deleted.' },
     }),

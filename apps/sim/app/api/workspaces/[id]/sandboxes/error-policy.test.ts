@@ -118,4 +118,22 @@ describe('internal sandbox error policy', () => {
       internalSandboxResourceErrorPolicy.project(new InsufficientWorkspacePermissionsError())
     ).toMatchObject({ status: 403 })
   })
+
+  /**
+   * A missing workspace and a workspace the caller cannot reach are both a
+   * missing sandbox on item routes; a distinct message would tell a probe which
+   * workspace ids exist. The collection policy keeps the specific message.
+   */
+  it('answers a missing workspace on item routes as a missing sandbox', () => {
+    const missingWorkspace = new OrchestrationError('not_found', 'Workspace not found')
+
+    expect(internalSandboxResourceErrorPolicy.project(missingWorkspace)).toMatchObject({
+      status: 404,
+      body: { error: 'Sandbox not found' },
+    })
+    expect(internalSandboxErrorPolicy.project(missingWorkspace)).toMatchObject({
+      status: 404,
+      body: { error: 'Workspace not found' },
+    })
+  })
 })

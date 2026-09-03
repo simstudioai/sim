@@ -699,19 +699,21 @@ export const CLI_CONTRACT: CliContract = {
   updateCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
   // A dependency set is typed one specifier at a time or pasted from a
   // requirements file, so each list takes space-separated values or `@path`
-  // with one entry per line rather than a JSON array.
+  // with one entry per line rather than a JSON array. The package lists are
+  // manifests: a requirements file carries blank lines and `#` comments, which
+  // the API ignores, so the reader drops them instead of refusing the file.
   createSandbox: {
     flags: {
-      dependencies: { list: true },
+      dependencies: { list: true, manifest: true },
       cliTools: { list: true },
-      systemPackages: { list: true },
+      systemPackages: { list: true, manifest: true },
     },
   },
   updateSandbox: {
     flags: {
-      dependencies: { list: true },
+      dependencies: { list: true, manifest: true },
       cliTools: { list: true },
-      systemPackages: { list: true },
+      systemPackages: { list: true, manifest: true },
     },
   },
 

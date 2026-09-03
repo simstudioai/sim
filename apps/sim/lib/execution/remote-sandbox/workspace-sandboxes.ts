@@ -100,6 +100,16 @@ export interface SandboxSpecUpdate {
   specHash: string
 }
 
+export interface SandboxWriteOptions {
+  /**
+   * Runs once the spec has validated and the name is known to be free,
+   * immediately before the write that schedules a build. The build budget is
+   * spent here rather than up front so a refused line or a name collision,
+   * which build nothing, cannot drain it.
+   */
+  admit?: () => Promise<void>
+}
+
 /**
  * Validates a submitted list against the target language and returns the
  * canonical spec. Called on every write, including a language change, so a list
@@ -351,7 +361,8 @@ export function isWorkspaceSandboxNameConflictError(error: unknown): boolean {
 export async function createWorkspaceSandbox(
   workspaceId: string,
   createdBy: string,
-  input: CreateSandboxBody
+  input: CreateSandboxBody,
+  options: SandboxWriteOptions = {}
 ): Promise<Sandbox> {
   const spec = buildSpecUpdate(
     input.language,
@@ -363,6 +374,7 @@ export async function createWorkspaceSandbox(
   if (await isSandboxNameTaken(workspaceId, input.name)) {
     throw new WorkspaceSandboxNameConflictError(input.name)
   }
+  await options.admit?.()
 
   const id = generateId()
   try {
@@ -398,7 +410,8 @@ export async function createWorkspaceSandbox(
 export async function updateWorkspaceSandbox(
   workspaceId: string,
   sandboxId: string,
-  input: UpdateSandboxBody
+  input: UpdateSandboxBody,
+  options: SandboxWriteOptions = {}
 ): Promise<Sandbox> {
   const [existing] = await db
     .select({
@@ -431,6 +444,7 @@ export async function updateWorkspaceSandbox(
     input.cliTools ?? existing.cliTools ?? [],
     input.systemPackages ?? existing.systemPackages ?? []
   )
+  await options.admit?.()
 
   try {
     await db

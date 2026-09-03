@@ -166,6 +166,18 @@ describe('/api/v2/sandboxes/[sandboxId]', () => {
     })
   })
 
+  it('answers a missing workspace as a missing sandbox, not as a missing workspace', async () => {
+    mocks.get.mockRejectedValue(new OrchestrationError('not_found', 'Workspace not found'))
+
+    const response = await GET(request('GET'), context)
+
+    expect(response.status).toBe(404)
+    expect((await response.json()).error).toEqual({
+      code: 'NOT_FOUND',
+      message: 'Sandbox not found',
+    })
+  })
+
   it('keeps an in-workspace role refusal a 403 with its remedy', async () => {
     mocks.update.mockRejectedValue(new InsufficientWorkspacePermissionsError())
 

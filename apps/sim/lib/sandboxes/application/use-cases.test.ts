@@ -136,8 +136,14 @@ describe('sandbox application use cases', () => {
     mocks.budget.mockResolvedValue(BUDGET_OK)
     mocks.listPage.mockResolvedValue({ data: [sandbox], nextCursorKeys: null })
     mocks.read.mockResolvedValue(sandbox)
-    mocks.create.mockResolvedValue(sandbox)
-    mocks.update.mockResolvedValue(sandbox)
+    mocks.create.mockImplementation(async (_workspaceId, _createdBy, _input, options) => {
+      await options?.admit?.()
+      return sandbox
+    })
+    mocks.update.mockImplementation(async (_workspaceId, _sandboxId, _input, options) => {
+      await options?.admit?.()
+      return sandbox
+    })
     mocks.remove.mockResolvedValue(undefined)
   })
 
@@ -221,13 +227,18 @@ describe('sandbox application use cases', () => {
         'route:sandbox-mutations:workspace:workspace-1',
         expect.objectContaining({ maxTokens: 20 })
       )
-      expect(mocks.create).toHaveBeenCalledWith(workspace.workspaceId, 'user-1', {
-        name: 'data-tools',
-        language: 'python',
-        dependencies: ['pandas'],
-        cliTools: [],
-        systemPackages: [],
-      })
+      expect(mocks.create).toHaveBeenCalledWith(
+        workspace.workspaceId,
+        'user-1',
+        {
+          name: 'data-tools',
+          language: 'python',
+          dependencies: ['pandas'],
+          cliTools: [],
+          systemPackages: [],
+        },
+        { admit: expect.any(Function) }
+      )
       expect(mocks.audit).toHaveBeenCalledWith(
         expect.objectContaining({
           workspaceId: workspace.workspaceId,
@@ -304,7 +315,23 @@ describe('sandbox application use cases', () => {
       await expect(
         createWorkspaceSandboxUseCase.execute({ principal: session, input: createInput })
       ).rejects.toBeInstanceOf(SandboxBuildBudgetExceededError)
-      expect(mocks.create).not.toHaveBeenCalled()
+      expect(mocks.audit).not.toHaveBeenCalled()
+    })
+
+    /**
+     * The budget is the manager's admission hook, not an up-front charge: a
+     * spec the manager refuses, or a name it finds taken, never reaches the
+     * hook, so a stream of rejected requests cannot drain what a real build
+     * needs. The manager test pins where the hook fires; this pins that the
+     * use case spends nothing on its own.
+     */
+    it('spends the budget only through the admission hook the manager owns', async () => {
+      mocks.create.mockRejectedValue(new OrchestrationError('validation', 'invalid package name'))
+
+      await expect(
+        createWorkspaceSandboxUseCase.execute({ principal: session, input: createInput })
+      ).rejects.toMatchObject({ code: 'validation' })
+      expect(mocks.budget).not.toHaveBeenCalled()
       expect(mocks.audit).not.toHaveBeenCalled()
     })
 
@@ -335,7 +362,8 @@ describe('sandbox application use cases', () => {
       expect(mocks.create).toHaveBeenCalledWith(
         workspace.workspaceId,
         'user-1',
-        expect.objectContaining({ name: 'data-tools' })
+        expect.objectContaining({ name: 'data-tools' }),
+        { admit: expect.any(Function) }
       )
     })
 
@@ -363,13 +391,19 @@ describe('sandbox application use cases', () => {
       })
 
       expect(result).toEqual({ sandbox })
-      expect(mocks.update).toHaveBeenCalledWith(workspace.workspaceId, sandbox.id, {
-        name: undefined,
-        language: undefined,
-        dependencies: ['pandas', 'numpy'],
-        cliTools: undefined,
-        systemPackages: undefined,
-      })
+      expect(mocks.update).toHaveBeenCalledWith(
+        workspace.workspaceId,
+        sandbox.id,
+        {
+          name: undefined,
+          language: undefined,
+          dependencies: ['pandas', 'numpy'],
+          cliTools: undefined,
+          systemPackages: undefined,
+        },
+        { admit: expect.any(Function) }
+      )
+      expect(mocks.budget).toHaveBeenCalledTimes(1)
       expect(mocks.audit).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'sandbox.updated', resourceId: sandbox.id })
       )
