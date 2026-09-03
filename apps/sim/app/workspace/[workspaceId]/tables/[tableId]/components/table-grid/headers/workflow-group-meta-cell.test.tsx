@@ -1,13 +1,19 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, type ReactNode } from 'react'
+import { act, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ColumnDefinition } from '@/lib/table'
 
 vi.mock('@sim/emcn', () => ({
+  Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props}>{children}</button>
+  ),
   cn: (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' '),
+  FloatingTooltip: () => null,
+  isTextClipped: () => false,
+  useFloatingTooltip: () => ({ state: {}, handlers: {} }),
   DropdownMenu: ({ children, open }: { children: ReactNode; open: boolean }) =>
     open ? <>{children}</> : null,
   DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -28,6 +34,7 @@ vi.mock('@sim/emcn/icons', () => ({
   ArrowLeft: () => null,
   ArrowRight: () => null,
   ArrowUp: () => null,
+  ChevronDown: () => null,
   Eye: () => null,
   EyeOff: () => null,
   Fingerprint: () => null,
@@ -39,10 +46,12 @@ vi.mock('@sim/emcn/icons', () => ({
   SquareArrowUpRight: () => null,
   Trash: () => null,
   Workflow: () => null,
+  WorkflowX: () => null,
   X: () => null,
 }))
 
 vi.mock('@/lib/table/column-types', () => ({
+  columnTypeById: () => ({ icon: () => null }),
   columnTypeOf: (column: ColumnDefinition) => ({
     icon: () => null,
     label: column.type === 'reference' ? 'Reference' : 'Text',
@@ -55,6 +64,7 @@ vi.mock('@/app/workspace/[workspaceId]/tables/[tableId]/components/column-config
 
 vi.mock('@/enrichments/registry', () => ({ getEnrichment: () => undefined }))
 
+import { ColumnHeaderMenu } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/column-header-menu'
 import { ColumnOptionsMenu } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/workflow-group-meta-cell'
 
 let container: HTMLDivElement
@@ -132,5 +142,57 @@ describe('ColumnOptionsMenu Reference navigation', () => {
     renderMenu({ id: 'col-account', name: 'Account', type: 'reference' }, vi.fn())
 
     expect(findButton('Go to Reference Table')).toBeUndefined()
+  })
+})
+
+describe('ColumnHeaderMenu read-only Reference navigation', () => {
+  it('keeps a direct navigation action available without exposing the options menu', () => {
+    const onGoToReferenceTable = vi.fn()
+
+    act(() => {
+      root.render(
+        <ColumnHeaderMenu
+          column={{
+            id: 'col-account',
+            key: 'col-account',
+            name: 'Account',
+            type: 'reference',
+            referenceTableId: 'table-accounts',
+            groupSize: 1,
+            groupStartColIndex: 0,
+            headerLabel: 'Account',
+            isGroupStart: true,
+          }}
+          colIndex={0}
+          readOnly
+          isRenaming={false}
+          isColumnSelected={false}
+          renameValue=''
+          onRenameValueChange={vi.fn()}
+          onRenameSubmit={vi.fn()}
+          onRenameCancel={vi.fn()}
+          onColumnSelect={vi.fn()}
+          onInsertLeft={vi.fn()}
+          onInsertRight={vi.fn()}
+          onGoToReferenceTable={onGoToReferenceTable}
+          onDeleteColumn={vi.fn()}
+          onResizeStart={vi.fn()}
+          onResize={vi.fn()}
+          onResizeEnd={vi.fn()}
+          onAutoResize={vi.fn()}
+          onOpenConfig={vi.fn()}
+        />
+      )
+    })
+
+    const navigationButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Go to Reference Table"]'
+    )
+    expect(navigationButton).not.toBeNull()
+
+    act(() => navigationButton?.click())
+
+    expect(onGoToReferenceTable).toHaveBeenCalledWith('table-accounts')
+    expect(container.querySelector('button[aria-label="Column options"]')).toBeNull()
   })
 })
