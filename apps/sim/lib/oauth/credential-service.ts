@@ -8,7 +8,10 @@ import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { env } from '@/lib/core/config/env'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { isClientCredentialAccountProviderId } from '@/lib/credentials/client-credential-accounts/descriptors'
+import {
+  isClientCredentialAccountProviderId,
+  ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID,
+} from '@/lib/credentials/client-credential-accounts/descriptors'
 import {
   getClientCredentialAccountMinter,
   parseClientCredentialAccountSecretBlob,
@@ -466,11 +469,13 @@ interface FailedClientCredentialMint {
 
 /**
  * Per-instance cache of minted client-credential access tokens (Zoom S2S,
- * Box CCG, Salesforce, NetSuite), keyed by credential id. Entries are
+ * Box CCG, Salesforce, NetSuite, Oracle Fusion), keyed by credential id. Entries are
  * served while more than {@link CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS} of
  * validity remains, so a hot credential mints roughly once per token TTL
  * (~1h for Zoom/Box/NetSuite; Salesforce reports a conservative 10-minute TTL
- * because its responses never carry an expiry) per instance.
+ * because its responses never carry an expiry) per instance. Oracle Fusion's
+ * locally derived, non-expiring Basic value instead uses its complete
+ * five-minute synthetic lifetime.
  *
  * Every resolution re-reads the credential row (a cheap indexed PK select —
  * the mint is the expensive part) and validates the cached entry's secret
@@ -550,7 +555,10 @@ async function resolveClientCredentialAccountToken(
     if (
       cached &&
       cached.secretFingerprint === secretFingerprint &&
-      cached.expiresAtMs - Date.now() > CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS
+      cached.expiresAtMs - Date.now() >
+        (providerId === ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
+          ? 0
+          : CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS)
     ) {
       return {
         accessToken: cached.accessToken,

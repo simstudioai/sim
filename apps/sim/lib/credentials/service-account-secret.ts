@@ -299,7 +299,7 @@ async function buildClientCredentialAccountSecret(
       ? fields.certificateId?.trim() || undefined
       : undefined,
     orgId: fields.orgId?.trim() ?? '',
-    dataCenter: fields.dataCenter?.trim() || undefined,
+    dataCenter: usesField('dataCenter') ? fields.dataCenter?.trim() || undefined : undefined,
     authMethod: resolvedAuthMethod,
     clientSecret: usesField('clientSecret') ? fields.clientSecret?.trim() || undefined : undefined,
     privateKey: usesField('privateKey') ? fields.privateKey?.trim() || undefined : undefined,

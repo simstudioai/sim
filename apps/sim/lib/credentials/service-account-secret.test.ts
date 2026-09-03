@@ -43,7 +43,8 @@ vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
   getClientCredentialAccountMinter: (providerId: string) =>
     providerId === 'zoom-service-account' ||
     providerId === 'box-service-account' ||
-    providerId === 'netsuite-service-account'
+    providerId === 'netsuite-service-account' ||
+    providerId === 'oracle-fusion-service-account'
       ? mockClientCredentialMinter
       : undefined,
 }))
@@ -258,6 +259,63 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       providerId: 'netsuite-service-account',
       certificateId: 'certificate-id',
       privateKey: '-----BEGIN PRIVATE KEY-----key',
+    })
+  })
+
+  it('encrypts only the Oracle Fusion fields and captures no unverified principal', async () => {
+    mockClientCredentialMinter.mockResolvedValue({
+      accessToken: 'opaque-basic',
+      expiresInSeconds: 300,
+      instanceUrl: 'https://vision.fa.us2.oraclecloud.com',
+      identity: {
+        displayName: 'Oracle Fusion vision',
+        principal: null,
+        auditMetadata: {
+          oracleFusionApplicationOrigin: 'https://vision.fa.us2.oraclecloud.com',
+        },
+        storedMetadata: { applicationOrigin: 'https://vision.fa.us2.oraclecloud.com' },
+      },
+    })
+
+    const result = await verifyAndBuildServiceAccountSecret('oracle-fusion-service-account', {
+      orgId: ' https://vision.fa.us2.oraclecloud.com/ ',
+      clientId: ' integration-user ',
+      clientSecret: ' password ',
+      certificateId: 'discard-me',
+      dataCenter: 'discard-me',
+      authMethod: 'discard-me',
+      privateKey: 'discard-me',
+      username: 'discard-me',
+    })
+
+    expect(mockClientCredentialMinter).toHaveBeenCalledWith({
+      orgId: 'https://vision.fa.us2.oraclecloud.com/',
+      clientId: 'integration-user',
+      clientSecret: 'password',
+      certificateId: undefined,
+      dataCenter: undefined,
+      authMethod: undefined,
+      privateKey: undefined,
+      username: undefined,
+    })
+    expect(result).toMatchObject({
+      displayName: 'Oracle Fusion vision',
+      principal: null,
+      auditMetadata: {
+        oracleFusionApplicationOrigin: 'https://vision.fa.us2.oraclecloud.com',
+        principalKind: 'none',
+      },
+    })
+    expect(JSON.parse(result.encryptedServiceAccountKey)).toEqual({
+      type: 'client_credential_account',
+      providerId: 'oracle-fusion-service-account',
+      clientId: 'integration-user',
+      clientSecret: 'password',
+      orgId: 'https://vision.fa.us2.oraclecloud.com/',
+      metadata: {
+        applicationOrigin: 'https://vision.fa.us2.oraclecloud.com',
+        principalKind: 'none',
+      },
     })
   })
 
