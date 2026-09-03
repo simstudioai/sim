@@ -175,7 +175,7 @@ export function KnowledgeBasePanel({
   return (
     <div
       className={cn(
-        'w-full max-w-[420px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)]',
+        'w-full max-w-[420px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px]',
         'animate-hero-modal-in motion-reduce:animate-none'
       )}
     >

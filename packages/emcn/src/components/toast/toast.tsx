@@ -405,7 +405,7 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
         width: TOAST_WIDTH,
         borderRadius: cornerRadius,
       }}
-      className='pointer-events-auto absolute right-0 bottom-0 m-0 overflow-hidden border border-[var(--border-1)] bg-[var(--bg)] shadow-[var(--shadow-overlay)]'
+      className='pointer-events-auto absolute right-0 bottom-0 m-0 overflow-hidden border border-[var(--border-1)] bg-[var(--bg)]'
     >
       <div ref={contentRef} className='flex flex-col gap-2 p-2'>
         <div className='flex items-start gap-2'>

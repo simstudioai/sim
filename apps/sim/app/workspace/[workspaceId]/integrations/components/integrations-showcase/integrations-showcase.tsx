@@ -101,10 +101,7 @@ export function IntegrationTile({ blockType, icon: Icon, framed = false }: Integ
  */
 export function IntegrationsShowcase() {
   return (
-    <div
-      aria-hidden
-      className='relative h-[144px] w-full overflow-hidden rounded-xl shadow-[var(--shadow-overlay)]'
-    >
+    <div aria-hidden className='relative h-[144px] w-full overflow-hidden rounded-xl'>
       <div
         className='absolute inset-0 bg-[var(--surface-4)] dark:bg-[var(--surface-5)]'
         style={{
