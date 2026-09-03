@@ -8,6 +8,8 @@ import {
   evaluateSubBlockCondition,
   getCanonicalSubBlocksForSurface,
   reindexToolCanonicalModes,
+  resolveActiveDependencyValue,
+  resolveDependencyValue,
   scopeCanonicalModesForTool,
 } from './visibility'
 
@@ -387,5 +389,68 @@ describe('canonical index scoping by surface', () => {
     const group = buildCanonicalIndexForSurface(triggerPair, true).groupsById.calId
     expect(group.basicId).toBe('calendarId')
     expect(group.advancedIds).toEqual(['manualCalendarId'])
+  })
+})
+
+describe('resolveActiveDependencyValue', () => {
+  /** The File block's folder scope: a multi-select picker paired with a typed list. */
+  const SCOPE_PAIR: SubBlockConfig[] = [
+    {
+      id: 'folderSelection',
+      type: 'folder-selector',
+      canonicalParamId: 'folderScopeRef',
+      mode: 'basic',
+    },
+    {
+      id: 'manualFolderSelection',
+      type: 'short-input',
+      canonicalParamId: 'folderScopeRef',
+      mode: 'advanced',
+    },
+    { id: 'query', type: 'short-input' },
+  ] as SubBlockConfig[]
+  const index = buildCanonicalIndexForSurface(SCOPE_PAIR, false)
+
+  it.concurrent(
+    'answers with the active half whether addressed by a member or the canonical id',
+    () => {
+      const values = { folderSelection: ['/Reports'], manualFolderSelection: '/Archive' }
+      const advanced = { folderScopeRef: 'advanced' as const }
+      const basic = { folderScopeRef: 'basic' as const }
+
+      expect(resolveActiveDependencyValue('folderSelection', values, index, advanced)).toBe(
+        '/Archive'
+      )
+      expect(resolveActiveDependencyValue('folderScopeRef', values, index, advanced)).toBe(
+        '/Archive'
+      )
+      expect(resolveActiveDependencyValue('manualFolderSelection', values, index, basic)).toEqual([
+        '/Reports',
+      ])
+    }
+  )
+
+  // A picker scoped by the dormant half would offer a set the run then ignores: the
+  // serializer publishes only the active member, so the strict reading is the one that
+  // matches execution. The dependency fallback exists for `dependsOn` gating and reaches
+  // for the other half whenever the active one was never touched.
+  it.concurrent('never leaks a dormant half, unlike the dependency fallback', () => {
+    const untouched = { manualFolderSelection: '/Archive' }
+    const cleared = { folderSelection: '', manualFolderSelection: '/Archive' }
+    const basic = { folderScopeRef: 'basic' as const }
+
+    expect(resolveActiveDependencyValue('folderSelection', untouched, index, basic)).toBeUndefined()
+    expect(resolveActiveDependencyValue('folderSelection', cleared, index, basic)).toBe('')
+    expect(resolveDependencyValue('folderSelection', untouched, index, basic)).toBe('/Archive')
+  })
+
+  it.concurrent('follows the value heuristic when no mode was chosen', () => {
+    const values = { manualFolderSelection: '/Archive' }
+
+    expect(resolveActiveDependencyValue('folderSelection', values, index)).toBe('/Archive')
+  })
+
+  it.concurrent('reads a field outside any pair as itself', () => {
+    expect(resolveActiveDependencyValue('query', { query: 'commitment' }, index)).toBe('commitment')
   })
 })

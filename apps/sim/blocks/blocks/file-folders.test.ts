@@ -19,8 +19,9 @@ import { FileV4Block, FileV5Block } from '@/blocks/blocks/file'
  * rejects as a malformed path rather than reading as "not supplied".
  *
  * Every folder field is a canonical pair, so these pass the CANONICAL id
- * (`folderRef`, not `folderPath`): the serializer deletes the subblock ids and
- * republishes whichever member is active under the canonical one.
+ * (`folderRef`, not `folderPath`; `folderScopeRef`, not `folderSelection`): the
+ * serializer deletes the subblock ids and republishes whichever member is
+ * active under the canonical one.
  */
 function paramsFor(operation: string, extra: Record<string, unknown> = {}) {
   const transform = FileV5Block.tools.config?.params
@@ -199,7 +200,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       const params = paramsFor('file_append', {
         appendFileInput: { id: 'wf_abc', name: 'notes.md' },
         appendContent: 'more',
-        folderSelection: '/Reports',
+        folderScopeRef: '/Reports',
       })
 
       expect(params.folderPath).toBeUndefined()
@@ -215,7 +216,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       const params = paramsFor('file_append', {
         appendFileInput: 'notes.md',
         appendContent: 'more',
-        folderSelection: '/Reports',
+        folderScopeRef: '/Reports',
       })
 
       expect(params.folderPath).toBe('/Reports')
@@ -225,7 +226,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       const params = paramsFor('file_append', {
         appendFileInput: 'notes.md',
         appendContent: 'more',
-        folderSelection: ['/Reports', '/Archive'],
+        folderScopeRef: ['/Reports', '/Archive'],
       })
 
       expect(params.folderPath).toBeUndefined()
@@ -237,7 +238,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
         paramsFor('file_append', {
           appendFileInput: 'notes.md',
           appendContent: 'more',
-          folderSelection: '/Reports',
+          folderScopeRef: '/Reports',
           folderIncludeSubfolders: 'false',
         }).includeSubfolders
       ).toBe(false)
@@ -248,7 +249,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
         paramsFor('file_append', {
           appendFileInput: { id: 'wf_abc', name: 'notes.md' },
           appendContent: 'more',
-          folderSelection: '/Reports',
+          folderScopeRef: '/Reports',
         }).folderPath
       ).toBeUndefined()
     })
@@ -307,7 +308,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
     ])('%s sends the picked files alone', (operation, inputId) => {
       const params = paramsFor(operation, {
         [inputId]: '["wf_a","wf_b"]',
-        folderSelection: '/Reports',
+        folderScopeRef: '/Reports',
       })
 
       expect(params.fileId).toEqual(['wf_a', 'wf_b'])
@@ -317,7 +318,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
     it.each(['file_read', 'file_get_content', 'file_compress'])(
       '%s stands for the folder when no file is picked',
       (operation) => {
-        const params = paramsFor(operation, { folderSelection: '/Reports' })
+        const params = paramsFor(operation, { folderScopeRef: '/Reports' })
 
         expect(params.folderPaths).toEqual(['/Reports'])
         expect(params.fileId).toBeUndefined()
@@ -327,7 +328,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
 
     it('sends every selected folder for a folder-only read', () => {
       expect(
-        paramsFor('file_read', { folderSelection: ['/Reports', '/Archive'] }).folderPaths
+        paramsFor('file_read', { folderScopeRef: ['/Reports', '/Archive'] }).folderPaths
       ).toEqual(['/Reports', '/Archive'])
     })
 
@@ -339,7 +340,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
     })
 
     it('reads the workspace root as no scope at all', () => {
-      expect(() => paramsFor('file_read', { folderSelection: '/' })).toThrow(
+      expect(() => paramsFor('file_read', { folderScopeRef: '/' })).toThrow(
         /File or folder is required/
       )
     })
@@ -350,11 +351,11 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
      */
     it('says nothing about scope while subfolders are included', () => {
       expect(
-        paramsFor('file_read', { folderSelection: '/Reports' }).includeSubfolders
+        paramsFor('file_read', { folderScopeRef: '/Reports' }).includeSubfolders
       ).toBeUndefined()
       expect(
         paramsFor('file_read', {
-          folderSelection: '/Reports',
+          folderScopeRef: '/Reports',
           folderIncludeSubfolders: 'true',
         }).includeSubfolders
       ).toBeUndefined()
@@ -365,7 +366,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       (operation) => {
         expect(
           paramsFor(operation, {
-            folderSelection: '/Reports',
+            folderScopeRef: '/Reports',
             folderIncludeSubfolders: 'false',
           }).includeSubfolders
         ).toBe(false)
@@ -374,9 +375,58 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
 
     it('carries the archive name on compress', () => {
       expect(
-        paramsFor('file_compress', { folderSelection: '/Reports', archiveName: 'reports.zip' })
+        paramsFor('file_compress', { folderScopeRef: '/Reports', archiveName: 'reports.zip' })
           .archiveName
       ).toBe('reports.zip')
+    })
+  })
+
+  /*
+   * The advanced half of the scope pair is typed, so the scope can arrive as
+   * text: one path, a comma-separated list, or the JSON array an earlier picker
+   * revision serialized. All three have to resolve to the canonical scopes a
+   * picked folder produces, on every operation the scope applies to.
+   */
+  describe('a typed scope reads like a picked one', () => {
+    it('reads a comma-separated list on a folder-only read', () => {
+      expect(paramsFor('file_read', { folderScopeRef: '/Reports, /Archive' }).folderPaths).toEqual([
+        '/Reports',
+        '/Archive',
+      ])
+    })
+
+    it('confines a search to every typed folder', () => {
+      expect(
+        paramsFor('file_search', {
+          query: 'commitment',
+          folderScopeRef: '/memory/user-a,/memory/user-b',
+        }).folderPaths
+      ).toEqual(['/memory/user-a', '/memory/user-b'])
+    })
+
+    it('scopes a named edit to the typed folders', () => {
+      const params = paramsFor('file_edit', {
+        editFileInput: 'self.md',
+        editMode: 'search_replace',
+        editSearch: 'a',
+        editContent: 'b',
+        folderScopeRef: '/memory/user-a, /memory/shared',
+      })
+
+      expect(params.folderPath).toBeUndefined()
+      expect(params.folderPaths).toEqual(['/memory/user-a', '/memory/shared'])
+    })
+
+    it('keeps a percent-encoded comma inside one folder name', () => {
+      expect(paramsFor('file_read', { folderScopeRef: '/Q3%2CQ4' }).folderPaths).toEqual([
+        '/Q3%2CQ4',
+      ])
+    })
+
+    it('still reads the array an earlier picker revision serialized', () => {
+      expect(
+        paramsFor('file_read', { folderScopeRef: '["/Reports","/Archive"]' }).folderPaths
+      ).toEqual(['/Reports', '/Archive'])
     })
   })
 
@@ -411,26 +461,30 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       }
     )
 
-    it('keeps the folder scope visible and allows several folders', () => {
+    /*
+     * The scope is a basic/advanced pair like every other folder field, so a
+     * path can be typed or come from an earlier block. A per-user memory folder
+     * such as /memory/<start.userId> is only expressible that way.
+     */
+    it('pairs the multi-folder picker with a typed twin', () => {
       const folder = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'folderSelection')
+      const typed = FileV5Block.subBlocks.find((s) => s.id === 'manualFolderSelection')
 
-      expect(folder?.mode).toBe('both')
+      expect(folder?.mode).toBe('basic')
       expect(folder?.multiSelect).toBe(true)
-      expect(folder?.canonicalParamId).toBeUndefined()
+      expect(folder?.canonicalParamId).toBe('folderScopeRef')
+      expect(typed?.mode).toBe('advanced')
+      expect(typed?.type).toBe('short-input')
+      expect(typed?.canonicalParamId).toBe('folderScopeRef')
+      expect(typed?.condition).toEqual(folder?.condition)
     })
 
-    it('has no manual twin, since the scope is not a canonical pair', () => {
-      const ids = FileV5Block.subBlocks.map((subBlock) => subBlock.id)
-
-      expect(ids).not.toContain('manualFolderSelection')
-    })
-
-    it('keeps only the recursion switch in additional fields', () => {
+    it('keeps the recursion switch out of the pair, in additional fields', () => {
       const folder = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'folderSelection')
       const recursive = FileV5Block.subBlocks.find((s) => s.id === 'folderIncludeSubfolders')
 
-      expect(folder?.mode).toBe('both')
       expect(recursive?.mode).toBe('advanced')
+      expect(recursive?.canonicalParamId).toBeUndefined()
       expect(recursive?.condition).toEqual(folder?.condition)
     })
 
@@ -462,7 +516,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
           editMode: 'search_replace',
           editSearch: 'a',
           editContent: 'b',
-          folderSelection: '/memory/user-a',
+          folderScopeRef: '/memory/user-a',
           folderIncludeSubfolders: 'false',
         })
 
@@ -526,10 +580,10 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
           },
         ],
       ])('keeps the root on %s, so a duplicate name is refused not guessed', (operation, extra) => {
-        const recursive = paramsFor(operation, { ...extra, folderSelection: '/' })
+        const recursive = paramsFor(operation, { ...extra, folderScopeRef: '/' })
         const shallow = paramsFor(operation, {
           ...extra,
-          folderSelection: '/',
+          folderScopeRef: '/',
           folderIncludeSubfolders: 'false',
         })
 
@@ -543,7 +597,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
         const params = paramsFor('file_append', {
           appendFileInput: { id: 'wf_abc', name: 'self.md' },
           appendContent: 'x',
-          folderSelection: '/',
+          folderScopeRef: '/',
         })
 
         expect(params.folderPath).toBeUndefined()
@@ -561,7 +615,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       it('confines the search to a chosen folder', () => {
         const params = paramsFor('file_search', {
           query: 'commitment',
-          folderSelection: '/memory/user-a',
+          folderScopeRef: '/memory/user-a',
         })
 
         expect(params.folderPaths).toEqual(['/memory/user-a'])
@@ -570,14 +624,14 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       it('confines the search to every chosen folder', () => {
         const params = paramsFor('file_search', {
           query: 'commitment',
-          folderSelection: ['/memory/user-a', '/memory/user-b'],
+          folderScopeRef: ['/memory/user-a', '/memory/user-b'],
         })
 
         expect(params.folderPaths).toEqual(['/memory/user-a', '/memory/user-b'])
       })
 
       it('treats the workspace root as no scope at all', () => {
-        const params = paramsFor('file_search', { query: 'commitment', folderSelection: '/' })
+        const params = paramsFor('file_search', { query: 'commitment', folderScopeRef: '/' })
 
         expect(params.folderPaths).toBeUndefined()
       })
@@ -585,11 +639,11 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
       it('sends the narrow scope only when subfolders are switched off', () => {
         const recursive = paramsFor('file_search', {
           query: 'commitment',
-          folderSelection: '/memory/user-a',
+          folderScopeRef: '/memory/user-a',
         })
         const shallow = paramsFor('file_search', {
           query: 'commitment',
-          folderSelection: '/memory/user-a',
+          folderScopeRef: '/memory/user-a',
           folderIncludeSubfolders: 'false',
         })
 
@@ -608,7 +662,13 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
     })
 
     it('leaves neither half of the choice individually required', () => {
-      for (const pickerId of ['readFile', 'getContentFile', 'compressFile', 'folderSelection']) {
+      for (const pickerId of [
+        'readFile',
+        'getContentFile',
+        'compressFile',
+        'folderSelection',
+        'manualFolderSelection',
+      ]) {
         expect(
           FileV5Block.subBlocks.find((subBlock) => subBlock.id === pickerId)?.required
         ).toBeUndefined()
@@ -629,17 +689,10 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
         'writeFolderPath',
       ])
       /**
-       * Every picker that names an operand is half of a basic/advanced pair, so a
-       * path can also be typed. The scope is the unpaired exception because it
-       * is a visible multi-select refinement rather than one destination.
+       * Every picker is half of a basic/advanced pair, so a path can also be
+       * typed.
        */
       for (const picker of pickers) {
-        if (picker.id === 'folderSelection') {
-          expect(picker.canonicalParamId).toBeUndefined()
-          expect(picker.mode).toBe('both')
-          expect(picker.multiSelect).toBe(true)
-          continue
-        }
         const pair = FileV5Block.subBlocks.filter(
           (subBlock) => subBlock.canonicalParamId === picker.canonicalParamId
         )

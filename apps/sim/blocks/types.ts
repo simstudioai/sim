@@ -291,6 +291,10 @@ export interface SubBlockConfig {
   /**
    * Narrows this control's options to a folder chosen elsewhere on the block,
    * and identifies the sibling deciding whether that scope reaches nested folders.
+   *
+   * `fieldId` may be the basic half of a basic/advanced pair. The control
+   * resolves the pair's active half, the same one the run reads, so a scope
+   * typed into the advanced half narrows the picker just as a picked one does.
    */
   folderScope?: { fieldId: string; recursiveFieldId?: string }
   /** Controls parameter visibility in agent/tool-input context */

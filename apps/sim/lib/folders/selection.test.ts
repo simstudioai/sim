@@ -21,6 +21,14 @@ describe('folder selector persistence', () => {
     expect(readFolderPaths('["/Reports","/Archive"]')).toEqual(['/Reports', '/Archive'])
   })
 
+  it('reads a typed comma-separated list, dropping blanks and repeats', () => {
+    expect(readFolderPaths('/Reports, /Archive,, /Reports')).toEqual(['/Reports', '/Archive'])
+  })
+
+  it('keeps a percent-encoded comma inside one folder name', () => {
+    expect(readFolderPaths('/Q3%2CQ4')).toEqual(['/Q3%2CQ4'])
+  })
+
   it('replaces a single folder path without changing scalar storage', () => {
     expect(replaceFolderPath('/Reports', '/Reports', '/Target')).toBe('/Target')
     expect(replaceFolderPath('/Archive', '/Reports', '/Target')).toBe('/Archive')

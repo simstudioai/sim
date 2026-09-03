@@ -22,6 +22,7 @@ import { isFileInFolderScope } from '@/lib/workspace-files/folder-path-selection
 import { findSelectedWorkspaceFile } from '@/lib/workspace-files/selection'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useActiveCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
 import { useResourceFolders } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-resource-folders'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
@@ -56,7 +57,7 @@ interface FileUploadProps {
    * A sibling folder field that narrows what this picker offers, and the switch
    * saying whether that scope descends. See `SubBlockConfig.folderScope`.
    */
-  folderScope?: { fieldId: string; manualFieldId?: string; recursiveFieldId?: string }
+  folderScope?: { fieldId: string; recursiveFieldId?: string }
   /**
    * Controlled value. When `onValueChange` is provided the component reads from
    * this prop and writes through `onValueChange` instead of the subblock store,
@@ -353,20 +354,19 @@ export function FileUpload({
    * a picker with no folder scope; its own value is never a folder path, so the
    * scope reads as absent.
    */
-  const [folderScopeValue] = useSubBlockValue<unknown>(blockId, folderScope?.fieldId ?? subBlockId)
-  /*
-   * Through `readFolderPaths` rather than a string check so current arrays and
-   * legacy serialized arrays resolve to the same canonical scopes.
-   */
-  const [manualFolderScopeValue] = useSubBlockValue<unknown>(
+  const folderScopeValue = useActiveCanonicalSubBlockValue<unknown>(
     blockId,
-    folderScope?.manualFieldId ?? folderScope?.fieldId ?? subBlockId
+    folderScope?.fieldId ?? subBlockId
   )
-  const folderScopePaths = useMemo(() => {
-    if (!folderScope) return []
-    const selectedPaths = readFolderPaths(folderScopeValue)
-    return selectedPaths.length > 0 ? selectedPaths : readFolderPaths(manualFolderScopeValue)
-  }, [folderScope, folderScopeValue, manualFolderScopeValue])
+  /*
+   * Through `readFolderPaths` rather than a string check so a picked array, a
+   * legacy serialized array, and a typed comma-separated list all resolve to
+   * the same canonical scopes.
+   */
+  const folderScopePaths = useMemo(
+    () => (folderScope ? readFolderPaths(folderScopeValue) : []),
+    [folderScope, folderScopeValue]
+  )
 
   const [folderScopeRecursive] = useSubBlockValue<unknown>(
     blockId,
