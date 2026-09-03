@@ -87,10 +87,10 @@ export const COMPARISON_SECTIONS: ComparisonSectionDef[] = [
     group: 'security',
     title: 'Security & compliance',
     rows: [
+      { key: 'additionalCompliance', label: 'Compliance' },
       { key: 'dataResidency', label: 'Data residency' },
       { key: 'rbac', label: 'Role-based access control' },
       { key: 'auditLogging', label: 'Audit logging' },
-      { key: 'additionalCompliance', label: 'Compliance' },
       { key: 'modelAndToolGovernance', label: 'Model & tool governance' },
       { key: 'credentialGovernance', label: 'Credential governance' },
       { key: 'sso', label: 'Single sign-on (SSO)' },
