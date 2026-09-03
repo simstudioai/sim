@@ -162,7 +162,7 @@ docker compose -f "$COMPOSE_FILE" up -d --force-recreate simstudio
 
 ## The `sim-setup` CLI
 
-`npx sim-setup` also manages an existing install created from the production or local-development Compose files. It does not detect or manage an Ollama-stack install. Run it from the directory holding your `.env` and Compose file.
+`npx sim-setup` also manages an existing install created from the production or local-development Compose files. It does not detect or manage an Ollama-stack install. Run it from the directory holding your `.env` and Compose file. The table drops the `npx` prefix for brevity — keep it unless you installed the package globally.
 
 | Command | What it does |
 |---|---|
@@ -172,7 +172,7 @@ docker compose -f "$COMPOSE_FILE" up -d --force-recreate simstudio
 | `sim-setup start` / `stop` / `restart` | Bring the install up, down, or cycle it. On a source checkout this covers only the managed Postgres and Redis containers — the dev server is yours to start and stop. On Kubernetes it prints the equivalent `kubectl` commands instead of acting |
 | `sim-setup update` | Pull or rebuild images and apply them. Compose installs only — it refuses on source checkouts and Kubernetes, which update through git and `helm upgrade` |
 | `sim-setup down` | Remove containers, keep the data |
-| `sim-setup reset` | Archive `.env` and wipe managed data |
+| `sim-setup reset` | Archive `.env` and wipe managed data. On Kubernetes it runs `helm uninstall`, which leaves the Postgres volumes behind — they come from a StatefulSet's `volumeClaimTemplates`, which Kubernetes never deletes. Delete those PVCs yourself to reset the data |
 | `sim-setup config` | Show configured capabilities and integrations |
 | `sim-setup doctor` | Check the setup. `--fix` repairs what it can, `--json` prints machine-readable output |
 | `sim-setup add <feature>` | Configure one capability: `email`, `storage`, `sandbox`, `jobs`, `cache`, `knowledge`, `knowledge-embeddings`, `chat`, `llm`, or `integration <slug>` |

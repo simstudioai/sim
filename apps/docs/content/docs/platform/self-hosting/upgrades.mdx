@@ -196,10 +196,11 @@ Inspect the result with `npx sim-setup logs`, which targets whichever Compose fi
 The CLI detects only those two files. An install started from `docker-compose.ollama.yml` is invisible to it — `update`, `logs`, and `status` all report no install — so upgrade that stack directly:
 
 ```bash
-# Same --profile you installed with: gpu or cpu. The Ollama service is
-# profile-scoped, so an unprofiled command silently skips it.
-docker compose -f docker-compose.ollama.yml --profile gpu pull
-docker compose -f docker-compose.ollama.yml --profile gpu up -d
+# The Ollama service is profile-scoped, so an unprofiled command silently
+# skips it. Use the profile you installed with.
+PROFILE=gpu  # or cpu
+docker compose -f docker-compose.ollama.yml --profile "$PROFILE" pull
+docker compose -f docker-compose.ollama.yml --profile "$PROFILE" up -d
 ```
 
 <Callout type="warn">
