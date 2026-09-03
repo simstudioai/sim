@@ -127,6 +127,8 @@ describe('useTableNames', () => {
       enabled: true,
       queryKey: tableKeys.names(WORKSPACE_ID, [TABLE_ID, 'tbl-2']),
     })
+    expect(options.queryKey.slice(0, tableKeys.namesRoot().length)).toEqual(tableKeys.namesRoot())
+    expect(options.queryKey.slice(0, tableKeys.lists().length)).not.toEqual(tableKeys.lists())
     expect(requestJson).toHaveBeenCalledWith(listTableNamesContract, {
       body: { workspaceId: WORKSPACE_ID, tableIds: [TABLE_ID, 'tbl-2'] },
       signal,
@@ -580,7 +582,7 @@ describe('useDeleteColumn optimistic update', () => {
     expect(getCache(ROWS_KEY)).toEqual(originalRows)
   })
 
-  it('invalidates schema, rows, and lists in onSettled', () => {
+  it('invalidates schema, rows, lists, and mounted reference previews in onSettled', () => {
     const hook = useDeleteColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
     hook.onSettled?.(undefined, null, 'age', undefined)
 
@@ -590,6 +592,7 @@ describe('useDeleteColumn optimistic update', () => {
         tableKeys.detail(TABLE_ID),
         tableKeys.rowsRoot(TABLE_ID),
         tableKeys.lists(),
+        tableKeys.referencePreviewsForTable(TABLE_ID),
       ])
     )
   })
@@ -648,6 +651,15 @@ describe('useUpdateColumn optimistic update', () => {
     )
     expect(detail?.schema.columns[0]).toMatchObject({ id: 'age', name: 'years' })
   })
+
+  it('invalidates mounted previews when the referenced table schema changes', () => {
+    const hook = useUpdateColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+    hook.onSettled?.(undefined, null, { columnName: 'age', updates: { name: 'years' } }, undefined)
+
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: tableKeys.referencePreviewsForTable(TABLE_ID),
+    })
+  })
 })
 
 describe('useRestoreTable cache invalidation', () => {
@@ -674,7 +686,7 @@ describe('useRestoreTable cache invalidation', () => {
     })
   })
 
-  it('invalidates lists, table detail, and row data for the restored table', () => {
+  it('invalidates names, previews, lists, table detail, and row data for the restored table', () => {
     const hook = useRestoreTable()
     hook.onSettled?.(undefined, null, TABLE_ID, undefined)
 
@@ -682,8 +694,10 @@ describe('useRestoreTable cache invalidation', () => {
     expect(calls).toEqual(
       expect.arrayContaining([
         tableKeys.lists(),
+        tableKeys.namesRoot(),
         tableKeys.detail(TABLE_ID),
         tableKeys.rowsRoot(TABLE_ID),
+        tableKeys.referencePreviewsForTable(TABLE_ID),
       ])
     )
   })

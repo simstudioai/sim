@@ -286,6 +286,17 @@ function invalidateReferencePreviews(
   })
 }
 
+function invalidateTableNames(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: tableKeys.namesRoot() })
+}
+
+function invalidateReferenceTablePreviews(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string
+) {
+  queryClient.invalidateQueries({ queryKey: tableKeys.referencePreviewsForTable(tableId) })
+}
+
 /**
  * Invalidate only the row-count surfaces — the table detail and the tables
  * list, both of which carry the unfiltered `rowCount`. Deliberately leaves
@@ -310,6 +321,7 @@ function invalidateTableSchema(queryClient: ReturnType<typeof useQueryClient>, t
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+  invalidateReferenceTablePreviews(queryClient, tableId)
 }
 
 /**
@@ -327,6 +339,7 @@ function invalidateTableSchemaOnly(
 ) {
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+  invalidateReferenceTablePreviews(queryClient, tableId)
 }
 
 /**
@@ -736,6 +749,7 @@ export function useCreateTable(workspaceId: string) {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      invalidateTableNames(queryClient)
     },
   })
 }
@@ -785,6 +799,8 @@ export function useRenameTable(workspaceId: string) {
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.detail(variables.tableId) })
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      invalidateTableNames(queryClient)
+      invalidateReferenceTablePreviews(queryClient, variables.tableId)
     },
   })
 }
@@ -895,6 +911,8 @@ export function useDeleteTable(workspaceId: string) {
     },
     onSettled: (_data, _error, tableId) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      invalidateTableNames(queryClient)
+      invalidateReferenceTablePreviews(queryClient, tableId)
       queryClient.removeQueries({ queryKey: tableKeys.detail(tableId) })
       queryClient.removeQueries({ queryKey: tableKeys.rowsRoot(tableId) })
     },
@@ -1986,8 +2004,12 @@ export function useRestoreTable() {
     onSettled: (_data, _error, tableId) => {
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: tableKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: tableKeys.namesRoot() }),
         queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) }),
         queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) }),
+        queryClient.invalidateQueries({
+          queryKey: tableKeys.referencePreviewsForTable(tableId),
+        }),
       ])
     },
   })
@@ -2105,6 +2127,7 @@ export function useImportCsv() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      invalidateTableNames(queryClient)
     },
   })
 }
@@ -2149,6 +2172,7 @@ export function useImportFileAsTable() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      invalidateTableNames(queryClient)
     },
   })
 }
@@ -2816,6 +2840,8 @@ export function useBulkDeleteTables(workspaceId: string) {
     },
     onSettled: (_data, _error, { tableIds = [] }) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      invalidateTableNames(queryClient)
+      queryClient.invalidateQueries({ queryKey: tableKeys.referencePreviews() })
       queryClient.invalidateQueries({ queryKey: folderKeys.resource('table') })
       for (const tableId of tableIds) {
         queryClient.removeQueries({ queryKey: tableKeys.detail(tableId) })

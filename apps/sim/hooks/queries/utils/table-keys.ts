@@ -20,16 +20,19 @@ export const tableKeys = {
   lists: () => [...tableKeys.all, 'list'] as const,
   list: (workspaceId?: string, scope: TableQueryScope = 'active') =>
     [...tableKeys.lists(), workspaceId ?? '', scope] as const,
+  namesRoot: () => [...tableKeys.all, 'names'] as const,
   names: (workspaceId: string | undefined, tableIds: readonly string[]) =>
-    [...tableKeys.lists(), 'names', workspaceId ?? '', tableIds] as const,
+    [...tableKeys.namesRoot(), workspaceId ?? '', tableIds] as const,
   details: () => [...tableKeys.all, 'detail'] as const,
   detail: (tableId: string) => [...tableKeys.details(), tableId] as const,
   exportJobs: (workspaceId?: string) =>
     [...tableKeys.all, 'export-jobs', workspaceId ?? ''] as const,
   rowsRoot: (tableId: string) => [...tableKeys.detail(tableId), 'rows'] as const,
   referencePreviews: () => [...tableKeys.all, 'reference-preview'] as const,
+  referencePreviewsForTable: (tableId: string) =>
+    [...tableKeys.referencePreviews(), tableId] as const,
   referencePreview: (tableId: string, rowId: string, sourceRowId = '', sourceColumnKey = '') =>
-    [...tableKeys.referencePreviews(), tableId, rowId, sourceRowId, sourceColumnKey] as const,
+    [...tableKeys.referencePreviewsForTable(tableId), rowId, sourceRowId, sourceColumnKey] as const,
   /**
    * Prefix covering only the paged row lists. `rowsRoot` is a shared parent — `find`
    * hangs off it holding a different shape — so anything walking the cache for row

@@ -99,8 +99,8 @@ function childFilter(config: FolderResourceConfig, workspaceId: string, folderId
  * also reviving siblings that were deleted independently.
  *
  * Folders are stamped BEFORE their children, which is what makes a failed cascade
- * recoverable. `archiveChildren` hooks walk resources one at a time through their canonical
- * delete, so a mid-loop failure can leave some children archived and some not. With the
+ * recoverable. `archiveChildren` hooks may walk resources through their canonical deletes, so
+ * a mid-cascade failure can leave some children archived and some not. With the
  * folder already stamped, `deleteFolder` reuses that same `deletedAt` on the retry and the
  * stragglers join the original snapshot. Stamping children first would leave the folder
  * active, so a retry would mint a fresh timestamp and the partially-archived children could

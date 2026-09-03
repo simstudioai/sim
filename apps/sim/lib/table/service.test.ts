@@ -746,6 +746,35 @@ describe('deleteTables reference guard', () => {
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 
+  it('archives a reference cycle atomically when it will be restored as one cohort', async () => {
+    queueTableRows(schemaMock.userTableDefinitions, [
+      batchTable('tbl_accounts', 'Accounts', ['tbl_contacts']),
+      batchTable('tbl_contacts', 'Contacts', ['tbl_accounts']),
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'tbl_accounts', name: 'Accounts', workspaceId: WORKSPACE_ID },
+      { id: 'tbl_contacts', name: 'Contacts', workspaceId: WORKSPACE_ID },
+    ])
+
+    await expect(
+      deleteTables(['tbl_accounts', 'tbl_contacts'], 'folder-cascade-folder-1', {
+        expectedWorkspaceId: WORKSPACE_ID,
+        skipNotify: true,
+        archiveAsCohort: true,
+      })
+    ).resolves.toEqual({
+      archived: [
+        { id: 'tbl_accounts', name: 'Accounts', workspaceId: WORKSPACE_ID },
+        { id: 'tbl_contacts', name: 'Contacts', workspaceId: WORKSPACE_ID },
+      ],
+      failed: [],
+      notFound: [],
+    })
+
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+  })
+
   it('allows a self-referencing table to archive', async () => {
     queueTableRows(schemaMock.userTableDefinitions, [
       batchTable('tbl_categories', 'Categories', ['tbl_categories']),
