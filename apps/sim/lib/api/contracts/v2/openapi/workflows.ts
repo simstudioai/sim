@@ -974,12 +974,7 @@ const declaredRoutes = [
       success: jsonSuccess('The workflow export payload.'),
     }),
     {
-      query: documentedSchema(
-        v2ExportWorkflowContract.query,
-        'ExportWorkflowQuery',
-        'Export workflow query',
-        'Export reference options.'
-      ),
+      query: v2ExportWorkflowContract.query,
       params: v2ExportWorkflowContract.params,
       response: documentedSchema(
         v2ExportWorkflowContract.response.schema,

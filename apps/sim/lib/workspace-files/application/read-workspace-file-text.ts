@@ -6,9 +6,7 @@ import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isSupportedFileType } from '@/lib/file-parsers'
 import { getFileParserErrorCode } from '@/lib/file-parsers/errors'
 import {
-  type ActiveWorkspaceFileContext,
   fetchWorkspaceFileBuffer,
-  getWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
 import {
@@ -20,13 +18,18 @@ import {
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
 import { sliceFileTextLines } from '@/lib/workspace-files/text-lines'
+import {
+  type ReferencedWorkspaceFileContext,
+  resolveReferencedWorkspaceFileContext,
+} from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 
 export interface ReadWorkspaceFileTextInput {
-  fileId: string
-  assertedWorkspaceId?: string
+  /** Workspace the reference is resolved in. */
+  workspaceId: string
+  /** File id, or its VFS path: `files/<folder>/<name>`, or `uploads/<name>` for a chat upload. */
+  reference: string
   maxBytes?: number
   /** First line to return, 1-based. Absent starts at the first line. */
   offset?: number
@@ -91,14 +94,11 @@ async function executeReadWorkspaceFileText({
 }: AuthorizedWorkspaceUseCaseContext<
   typeof fileOperations.readContent,
   ReadWorkspaceFileTextInput,
-  ActiveWorkspaceFileContext
+  ReferencedWorkspaceFileContext
 >): Promise<ReadWorkspaceFileTextResult> {
   const signal = request?.signal
   signal?.throwIfAborted()
-  const file = await getWorkspaceFile(context.workspaceId, context.fileId, { throwOnError: true })
-  signal?.throwIfAborted()
-  if (!file) throw new OrchestrationError('not_found', 'File not found')
-  return extractWorkspaceFileRecordText(file, input, principal, signal)
+  return extractWorkspaceFileRecordText(context.file, input, principal, signal)
 }
 
 /**
@@ -212,9 +212,14 @@ async function parseFileText(
  * Runs on `files.read_content` unchanged: extracting text reads exactly the
  * bytes that operation already authorizes, and turning them into text grants
  * no further reach. No audit is projected, matching the existing content read.
+ *
+ * The file is addressed by reference rather than id so a chat upload — which no
+ * listing shows — is readable by the `uploads/<name>` path its upload notice
+ * names, and any file by the `files/…` path `glob` prints.
  */
 export const readWorkspaceFileText = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
-  resolveContext: ({ input }) => resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({ input }) =>
+    resolveReferencedWorkspaceFileContext(input, { includeChatUploads: true }),
   execute: executeReadWorkspaceFileText,
 })

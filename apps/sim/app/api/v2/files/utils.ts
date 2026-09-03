@@ -1,3 +1,4 @@
+import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { V2FileVersion } from '@/lib/api/contracts/v2/file-versions'
 import type { V2File, V2FileText } from '@/lib/api/contracts/v2/files'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -80,6 +81,7 @@ export function toV2FileText({
   return {
     fileId: file.id,
     name: file.name,
+    path: workspaceFileVfsPath(file),
     type: file.type,
     text,
     truncated,

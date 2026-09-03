@@ -415,7 +415,7 @@ const declaredRoutes = [
       operationId: 'readFileText',
       summary: 'Read File Text',
       description:
-        'Extract text without changing the file. Use Unzip File to unpack archives or Download File for original bytes. Unsupported types return `400`, compiling documents return `409`, and oversized files return `413`. `degraded: true` indicates incomplete or synthesized text, such as the legacy `.pptx` fallback; `truncated: true` indicates a parser limit.',
+        'Extract text without changing the file. Accepts its ID or canonical path (`files/<folder>/<name>` or `uploads/<name>` for an unlisted chat upload); the response echoes the read path. Use Unzip File to unpack archives or Download File for original bytes. Unsupported types return `400`, compiling documents return `409`, and oversized files return `413`. `degraded: true` indicates incomplete or synthesized text, such as the legacy `.pptx` fallback; `truncated: true` indicates a parser limit.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The extracted text and its extraction-quality flags.' },
     }),

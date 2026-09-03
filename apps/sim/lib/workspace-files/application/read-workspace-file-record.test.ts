@@ -60,9 +60,13 @@ describe('workspace file record reads', () => {
       ).resolves.toEqual({ file })
 
       expect(useCase.operation.id).toBe(operationId)
-      expect(mocks.loadContext).toHaveBeenCalledWith('file-1', { includeDeleted: undefined })
+      expect(mocks.loadContext).toHaveBeenCalledWith('file-1', {
+        includeDeleted: undefined,
+        includeChatUploads: true,
+      })
       expect(mocks.getFile).toHaveBeenCalledWith('workspace-1', 'file-1', {
         throwOnError: true,
+        includeChatUploads: true,
       })
     }
   )

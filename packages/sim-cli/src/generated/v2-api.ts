@@ -3812,6 +3812,7 @@ export type ExportWorkflowParams = {
 
 export type ExportWorkflowQuery = {
   includeReferences?: boolean
+  includeWorkspaceBindings?: boolean
 }
 
 type ExportWorkflowResponseRef0 = {
@@ -5933,6 +5934,8 @@ type ImportWorkflowResponseRef1 = {
   folderPath: string
   createdAt: string
   updatedAt: string
+  blocks: Array<ImportWorkflowResponseRef0>
+  warnings: Array<string>
   operationId?: string
   requestId?: string
   kind?: 'workflow_import' | 'workspace_fork' | 'workspace_push' | 'workspace_pull'
@@ -5971,8 +5974,6 @@ type ImportWorkflowResponseRef1 = {
     copied: number
     failed: number
   }
-  blocks: Array<ImportWorkflowResponseRef0>
-  warnings: Array<string>
 }
 
 export type ImportWorkflowResponse = {
@@ -8763,6 +8764,7 @@ export type ReadFileTextQuery = {
 type ReadFileTextResponseRef0 = {
   fileId: string
   name: string
+  path: string
   type: string
   text: string
   truncated: boolean
@@ -11805,7 +11807,7 @@ export const V2_OPERATIONS = {
       filter: {
         kind: 'unknown',
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       excludeRowIds: { kind: 'array', describe: 'Rows excluded from an all-scope cancellation.' },
     },
@@ -12492,7 +12494,7 @@ export const V2_OPERATIONS = {
       filter: {
         kind: 'unknown',
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       excludeRowIds: { kind: 'array', describe: 'Rows excluded from a select-all run scope.' },
       limit: { kind: 'object', describe: 'Optional cap on eligible rows to run.' },
@@ -13047,7 +13049,7 @@ export const V2_OPERATIONS = {
       filter: {
         kind: 'unknown',
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       limit: { kind: 'integer', describe: 'Maximum matching rows to delete.' },
       rowIds: { kind: 'array', describe: 'Explicit row identifiers to delete.' },
@@ -13395,6 +13397,11 @@ export const V2_OPERATIONS = {
         describe:
           'Include non-secret resource identifiers and source field occurrences for mapped imports.',
       },
+      includeWorkspaceBindings: {
+        kind: 'boolean',
+        describe:
+          'Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way.',
+      },
     },
   },
   forkWorkspace: {
@@ -13681,7 +13688,27 @@ export const V2_OPERATIONS = {
         kind: 'integer',
         default: 72,
         describe:
-          'Number of time buckets, up to 500. Exactly this many are returned, each at least one minute wide. Short windows extend past the requested end and include empty trailing buckets.',
+          'Number of equal time buckets to divide the window into, from 1 to 500. It is the ceiling on how many buckets a series carries: with `includeEmpty=true` exactly this many are returned, otherwise only the buckets holding at least one run. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty.',
+      },
+      includeEmpty: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        default: false,
+        describe:
+          'Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.',
       },
     },
   },
@@ -14386,7 +14413,7 @@ export const V2_OPERATIONS = {
       source: {
         kind: 'enum',
         values: ['builtin', 'custom'] as const,
-        describe: "Restrict to built-in blocks or this workspace's deployed custom blocks.",
+        describe: 'Restrict to shipped blocks or to this workspace’s deployed custom blocks.',
       },
       includeSunset: {
         kind: 'boolean',
@@ -16495,7 +16522,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/files/[fileId]/text',
     pathParams: ['fileId'] as const,
-    pathParamDocs: { fileId: 'File identifier.' },
+    pathParamDocs: {
+      fileId:
+        'File identifier, or the file’s VFS path: `files/<folder>/<name>`, or `uploads/<name>` for a Chat upload.',
+    },
     responseMode: 'json',
     summary: 'Read File Text',
     query: {
@@ -17029,7 +17059,7 @@ export const V2_OPERATIONS = {
       predicate: {
         kind: 'unknown',
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
     },
@@ -17513,7 +17543,7 @@ export const V2_OPERATIONS = {
         kind: 'unknown',
         required: true,
         describe:
-          'Recursive non-empty `all`/`any` groups containing groups or conditions; the root cannot be a condition. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
+          'One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.',
       },
       data: {
         kind: 'object',
