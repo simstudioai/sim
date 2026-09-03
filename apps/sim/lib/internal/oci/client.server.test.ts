@@ -232,7 +232,7 @@ describe('OCI request client', () => {
       maxResponseBytes: 65_536,
     }).catch((error: unknown) => error)
     expect(failure).toBeInstanceOf(OciRequestError)
-    expect((failure as Error).message).toContain('[REDACTED]')
+    expect((failure as Error).message).toBe('OCI request failed with status 401')
     expect((failure as Error).message).not.toContain('provider-echo')
     expect((failure as Error).message).not.toContain('(request-target)')
     expect((failure as Error).message).not.toContain('tenant/user/fingerprint')
@@ -298,6 +298,8 @@ describe('OCI request client', () => {
   it.each([
     encodeURIComponent('-----BEGIN PRIVATE KEY-----\ntruncated'),
     encodeURIComponent(`${destination.origin}/n/truncated`),
+    '----%2DBEGIN PRIVATE KEY-----',
+    'https:%2F%2Fobjectstorage.us-ashburn-1.oraclecloud.com/n/',
   ])('fails closed for encoded key or URL prefixes', async (message) => {
     secureFetchMock.mockResolvedValueOnce(
       secureResponse({
@@ -324,6 +326,8 @@ describe('OCI request client', () => {
       'secret-value',
       'password-value',
       '(request-target) host x-date',
+      'private-key-value',
+      'api-key-value',
     ]
     secureFetchMock.mockResolvedValueOnce(
       secureResponse({
@@ -337,6 +341,8 @@ describe('OCI request client', () => {
             secret: echoedSecrets[2],
             'pass%70hrase': echoedSecrets[3],
             signing_string: echoedSecrets[4],
+            'private key': echoedSecrets[5],
+            'api key': echoedSecrets[6],
           }),
         }),
       })
@@ -350,6 +356,50 @@ describe('OCI request client', () => {
       maxResponseBytes: 65_536,
     }).catch((error: unknown) => error)
     for (const secret of echoedSecrets) expect((failure as Error).message).not.toContain(secret)
+  })
+
+  it('fails closed when structured JSON follows a plain-text prefix', async () => {
+    const message = `provider failed: ${JSON.stringify({ authorization: 'provider-echo' })}`
+    secureFetchMock.mockResolvedValueOnce(
+      secureResponse({
+        ok: false,
+        status: 401,
+        body: JSON.stringify({ code: 'NotAuthenticated', message }),
+      })
+    )
+    const failure = await sendOciRequest({
+      destination,
+      credentials,
+      method: 'GET',
+      encodedPath: '/n/',
+      timeout: 10_000,
+      maxResponseBytes: 65_536,
+    }).catch((error: unknown) => error)
+    expect((failure as Error).message).toBe('OCI request failed with status 401')
+  })
+
+  it.each([
+    `provider failed: ${JSON.stringify(JSON.stringify({ authorization: 'provider-echo' }))}`,
+    'provider failed: \\"authorization\\":\\"provider-echo\\"',
+    'signed headers: (request-target) host x-date',
+    'signed headers: host x-content-sha256',
+  ])('fails closed for escaped structured or signing diagnostics', async (message) => {
+    secureFetchMock.mockResolvedValueOnce(
+      secureResponse({
+        ok: false,
+        status: 401,
+        body: JSON.stringify({ code: 'NotAuthenticated', message }),
+      })
+    )
+    const failure = await sendOciRequest({
+      destination,
+      credentials,
+      method: 'GET',
+      encodedPath: '/n/',
+      timeout: 10_000,
+      maxResponseBytes: 65_536,
+    }).catch((error: unknown) => error)
+    expect((failure as Error).message).toBe('OCI request failed with status 401')
   })
 
   it.each([
