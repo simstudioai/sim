@@ -1,4 +1,6 @@
-import { envNumber } from '@/lib/core/config/env'
+// Relative on purpose: next.config.ts loads env-flags (and so this module) outside the
+// app's alias resolution — see env-flags's own './env' import.
+import { envNumber } from './env'
 
 /**
  * `COST_MULTIPLIER` arrives as a raw string under `skipValidation` (see `envNumber`).
