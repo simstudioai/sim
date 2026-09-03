@@ -15,6 +15,7 @@ import {
   getDisplayValue,
   resolveDropdownLabel,
   resolveFilterFieldLabel,
+  resolveFolderPathLabel,
   resolveSandboxLabel,
   resolveSkillsLabel,
   resolveToolsLabel,
@@ -295,5 +296,64 @@ describe('getDisplayValue', () => {
 
     expect(getDisplayValue(messages)).toBe(content)
     expect(getDisplayValue(serializedMessages)).toBe(content)
+  })
+})
+
+/**
+ * A type listed in SELECTOR_TYPES_HYDRATION_REQUIRED with no resolver renders
+ * as the unset placeholder, so a folder picked in the editor showed as "-" on
+ * the canvas, indistinguishable from having picked nothing.
+ */
+describe('resolveFolderPathLabel', () => {
+  const folderSubBlock = {
+    id: 'createParentPath',
+    type: 'folder-selector',
+    resourceType: 'file',
+  } as any
+
+  it('names a folder from its canonical path', () => {
+    expect(resolveFolderPathLabel(folderSubBlock, '/Other')).toBe('Other')
+  })
+
+  it('reads a nested path as its names', () => {
+    expect(resolveFolderPathLabel(folderSubBlock, '/Other/Vik')).toBe('Other / Vik')
+  })
+
+  it('decodes an encoded name rather than showing the escape', () => {
+    expect(resolveFolderPathLabel(folderSubBlock, '/Reports/Q3%20Results')).toBe(
+      'Reports / Q3 Results'
+    )
+  })
+
+  it('keeps a slash inside a name out of the separator', () => {
+    expect(resolveFolderPathLabel(folderSubBlock, '/Q3%2FQ4')).toBe('Q3/Q4')
+  })
+
+  it('leaves an unset value to the placeholder', () => {
+    expect(resolveFolderPathLabel(folderSubBlock, '')).toBeNull()
+    expect(resolveFolderPathLabel(folderSubBlock, null)).toBeNull()
+    expect(resolveFolderPathLabel(folderSubBlock, '/')).toBeNull()
+  })
+
+  it('reads an array-shaped value the other readers accept', () => {
+    expect(resolveFolderPathLabel(folderSubBlock, ['/Other/Vik'])).toBe('Other / Vik')
+    expect(resolveFolderPathLabel(folderSubBlock, '["/Other/Vik"]')).toBe('Other / Vik')
+  })
+
+  it('summarizes every selected folder', () => {
+    expect(resolveFolderPathLabel(folderSubBlock, ['/One', '/Two', '/Three'])).toBe('One, Two +1')
+  })
+
+  it('leaves an empty array to the placeholder', () => {
+    expect(resolveFolderPathLabel(folderSubBlock, [])).toBeNull()
+    expect(resolveFolderPathLabel(folderSubBlock, '[]')).toBeNull()
+  })
+
+  it('ignores a subblock of another type', () => {
+    expect(resolveFolderPathLabel({ id: 'x', type: 'short-input' } as any, '/Other')).toBeNull()
+  })
+
+  it('shows a hand-typed path that will not parse as typed', () => {
+    expect(resolveFolderPathLabel(folderSubBlock, 'Other')).toBe('Other')
   })
 })

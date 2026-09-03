@@ -8,7 +8,9 @@ import {
 } from 'better-auth/oauth2'
 import {
   type ConnectorProviderConfig,
+  getManagedOAuthConnectorPolicy,
   getManagedOAuthConnectorProviderConfig,
+  type ManagedOAuthConnectorConfig,
 } from '@/lib/auth/connectors/managed-oauth'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { credentialGroupOAuthNonceMatches } from '@/lib/credential-groups/oauth-state'
@@ -132,6 +134,24 @@ async function resolveOAuthEndpoints(
     authorizationEndpoint: connector.authorizationUrl,
     tokenEndpoint: connector.tokenUrl,
   }
+}
+
+/**
+ * The provider's scope policy on its own. Comparing scopes needs no OAuth
+ * client, so a saved option can be validated against a connector wherever the
+ * client is not configured, which `getCurrentProvider` would refuse.
+ */
+function getScopePolicy(
+  provider: CredentialGroupStandardOAuthProvider
+): ManagedOAuthConnectorConfig {
+  const service = getCredentialGroupProviderService(provider)
+  const policy = getManagedOAuthConnectorPolicy(service.providerId)
+  if (!policy) {
+    throw new CredentialGroupProviderConfigurationError(
+      `Managed ${service.name} authorization is not configured`
+    )
+  }
+  return policy
 }
 
 function getCurrentProvider(
@@ -357,10 +377,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
       }
     },
     hasRequiredScopes(grantedScopes, requiredScopes) {
-      return getCurrentProvider(provider).connector.managedOAuth.hasRequiredScopes(
-        grantedScopes,
-        requiredScopes
-      )
+      return getScopePolicy(provider).hasRequiredScopes(grantedScopes, requiredScopes)
     },
     async refreshToken(refreshToken) {
       return refreshOAuthToken(getCurrentProvider(provider).policy.providerId, refreshToken)

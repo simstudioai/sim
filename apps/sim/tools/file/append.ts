@@ -2,6 +2,9 @@ import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface FileAppendParams {
   fileName: string
+  folderPath?: string
+  folderPaths?: string[]
+  includeSubfolders?: boolean
   content: string
   workspaceId?: string
 }
@@ -20,6 +23,28 @@ export const fileAppendTool: InternalToolConfig<FileAppendParams, ToolResponse> 
       visibility: 'user-or-llm',
       description: 'Name of an existing workspace file to append to.',
     },
+    folderPath: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: `Single folder in which to resolve the file name. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". Use folderPaths for multiple folders; do not provide both fields.`,
+    },
+    folderPaths: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      maxItems: 64,
+      items: { type: 'string' },
+      description:
+        'Folders to search for the named file. The name must resolve to exactly one file across the selected scopes. Do not provide folderPath as well.',
+    },
+    includeSubfolders: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether the folder scope includes nested folders. Defaults to true; set false to target only files directly in the folder.',
+    },
     content: {
       type: 'string',
       required: true,
@@ -32,6 +57,9 @@ export const fileAppendTool: InternalToolConfig<FileAppendParams, ToolResponse> 
     input: (params) => ({
       operation: 'append',
       fileName: params.fileName,
+      folderPath: params.folderPath?.trim() || undefined,
+      folderPaths: params.folderPaths,
+      includeSubfolders: params.includeSubfolders,
       content: params.content,
       workspaceId: params.workspaceId,
     }),

@@ -789,7 +789,7 @@ describe('persistSkippedDocuments', () => {
         'workspace',
         lease
       )
-    ).resolves.toBe(1)
+    ).resolves.toHaveLength(1)
 
     expect(dbChainMockFns.values).toHaveBeenCalledWith([
       expect.objectContaining({
@@ -835,7 +835,7 @@ describe('persistSkippedDocuments', () => {
         'workspace',
         lease
       )
-    ).resolves.toBe(1)
+    ).resolves.toHaveLength(1)
 
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1026,6 +1026,32 @@ describe('chunkOpsByByteBudget', () => {
     // 40 + 40 = 80 MB exceeds the 64 MB budget, so they split.
     const chunks = chunkOpsByByteBudget([addOp(40 * MB), addOp(40 * MB)], 64 * MB, 5)
     expect(chunks.map((c) => c.length)).toEqual([1, 1])
+  })
+
+  it('hydrates deferred documents together when the listing estimates their size', async () => {
+    const { chunkOpsByByteBudget } = await import('@/lib/knowledge/connectors/sync-primitives')
+    const deferred = (estimatedBytes?: number) => ({
+      type: 'add' as const,
+      extDoc: {
+        externalId: `d-${generateShortId()}`,
+        title: 'f',
+        content: '',
+        contentDeferred: true,
+        contentHash: 'h',
+        mimeType: 'text/plain',
+        ...(estimatedBytes != null ? { estimatedBytes } : {}),
+      },
+    })
+    // Without an estimate each unknown download is assumed to fill the budget and runs alone.
+    expect(chunkOpsByByteBudget([deferred(), deferred(), deferred()], 64 * MB, 5)).toHaveLength(3)
+    // A mail thread that says it is small shares a batch with its neighbours.
+    expect(
+      chunkOpsByByteBudget(
+        [deferred(256 * 1024), deferred(256 * 1024), deferred(256 * 1024)],
+        64 * MB,
+        5
+      )
+    ).toHaveLength(1)
   })
 
   it('treats skip ops as zero bytes so they do not consume the budget', async () => {

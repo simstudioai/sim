@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   admit: vi.fn(),
+  editContent: vi.fn(),
   updateContent: vi.fn(),
   getUserEmailsByIds: vi.fn(),
 }))
@@ -30,6 +31,13 @@ vi.mock('@/lib/workspace-files/application/update-workspace-file-content', () =>
   },
 }))
 
+vi.mock('@/lib/workspace-files/application/edit-workspace-file-content', () => ({
+  editWorkspaceFileContent: {
+    operation: { id: 'files.update_content', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mocks.editContent,
+  },
+}))
+
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
@@ -40,7 +48,7 @@ vi.mock('@/lib/users/queries', () => ({
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { PUT } from '@/app/api/v2/files/[fileId]/content/route'
+import { PATCH, PUT } from '@/app/api/v2/files/[fileId]/content/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -81,6 +89,19 @@ const callPut = (body: unknown, contentLength?: number) =>
     { params: Promise.resolve({ fileId: FILE_ID }) }
   )
 
+const callPatch = (body: unknown, contentLength?: number) =>
+  PATCH(
+    new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}/content`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(contentLength === undefined ? {} : { 'Content-Length': String(contentLength) }),
+      },
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    }),
+    { params: Promise.resolve({ fileId: FILE_ID }) }
+  )
+
 describe('PUT /api/v2/files/[fileId]/content', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -88,6 +109,7 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.admit.mockResolvedValue(undefined)
+    mocks.editContent.mockResolvedValue({ file: record, lineCount: 1 })
     mocks.updateContent.mockResolvedValue({ file: record })
     mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
@@ -128,6 +150,23 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
     })
     expect(mocks.admit).toHaveBeenCalled()
     expect(mocks.updateContent).not.toHaveBeenCalled()
+  })
+
+  it('applies the same oversized-body admission limit to partial edits', async () => {
+    const response = await callPatch(
+      {
+        workspaceId: WORKSPACE_ID,
+        edit: { mode: 'search_replace', search: 'old', content: 'new' },
+      },
+      70 * 1024 * 1024 + 1
+    )
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large' },
+    })
+    expect(mocks.admit).toHaveBeenCalled()
+    expect(mocks.editContent).not.toHaveBeenCalled()
   })
 
   it('replaces content through the shared use case and returns the v2 projection', async () => {

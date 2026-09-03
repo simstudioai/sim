@@ -1016,6 +1016,7 @@ describe('destructive operations are gated', () => {
     // path of every tool.
     'executeTool',
     'executeWorkflow',
+    'editFileContent',
     'unzipFile',
     'searchTableRows',
     'grantSkillEditor',

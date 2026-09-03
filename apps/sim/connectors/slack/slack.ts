@@ -1,14 +1,27 @@
+import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_MESSAGES, slackConnectorMeta } from '@/connectors/slack/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseMultiValue, parseTagDate } from '@/connectors/utils'
+import {
+  BoundedLines,
+  CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
+  parseMultiValue,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('SlackConnector')
 
 const SLACK_API_BASE = 'https://slack.com/api'
 const MESSAGES_PER_PAGE = 200
+/** Page size for `conversations.list`; Slack recommends staying well under its 1000 maximum. */
+const CHANNELS_PER_PAGE = 200
+/** The conversation kinds a channel listing walks; DMs need scopes the connector does not request. */
+const LISTED_CHANNEL_TYPES = 'public_channel,private_channel'
+/** `syncContext` key holding this run's listing token when the engine supplies no run id. */
+const LISTING_TOKEN_KEY = '_slackListingToken'
 
 /**
  * Message subtypes that carry no user-authored text (channel events, bot
@@ -373,14 +386,18 @@ function walkBlockText(node: unknown, out: string[]): void {
  * Each entry: "[ISO timestamp] username: message text" (text may span lines
  * when the message has rich attachment/block content).
  */
-async function formatMessages(
+/**
+ * Appends the messages to the transcript oldest first. The transcript keeps
+ * its newest messages when the window does not fit, so a message is skipped
+ * only when it cannot fit on its own.
+ */
+async function appendMessages(
   accessToken: string,
+  lines: BoundedLines,
   messages: SlackMessage[],
   syncContext?: Record<string, unknown>
-): Promise<string> {
-  const lines: string[] = []
-
-  // Process in reverse so oldest messages come first
+): Promise<void> {
+  /** Slack returns newest first; the transcript reads oldest first. */
   const chronological = [...messages].reverse()
 
   for (const msg of chronological) {
@@ -402,8 +419,6 @@ async function formatMessages(
 
     lines.push(`[${timestamp}] ${userName}: ${content}`)
   }
-
-  return lines.join('\n')
 }
 
 /**
@@ -488,8 +503,79 @@ async function resolveTeamId(
   }
 }
 
+function channelUrl(channel: SlackChannel, teamId: string | undefined): string {
+  return teamId
+    ? `https://app.slack.com/client/${teamId}/${channel.id}`
+    : `https://app.slack.com/client/${channel.id}`
+}
+
 /**
- * Builds a channel document payload shared by `listDocuments` and `getDocument`.
+ * A token that is stable for one sync run and different on the next. A channel
+ * listing carries no signal of new messages (`conversations.list` returns no
+ * last-message timestamp, and reading one per channel would cost a Tier 3 call
+ * per channel per listing), so every listed channel is hydrated each run and
+ * the real hash `getDocument` computes decides whether anything is re-indexed:
+ * an unchanged channel costs one history page and no embedding. The member
+ * engine sets `syncRunId` on every member's context, so members listing the
+ * same channel agree on its stub.
+ */
+function listingToken(syncContext?: Record<string, unknown>): string {
+  const runId = syncContext?.syncRunId
+  if (typeof runId === 'string' && runId) return runId
+  const cached = syncContext?.[LISTING_TOKEN_KEY]
+  if (typeof cached === 'string') return cached
+  const token = generateId()
+  if (syncContext) syncContext[LISTING_TOKEN_KEY] = token
+  return token
+}
+
+/** The deferred listing stub for a channel; its transcript is fetched in `getDocument`. */
+function channelToStub(
+  channel: SlackChannel,
+  teamId: string | undefined,
+  syncContext?: Record<string, unknown>
+): ExternalDocument {
+  return {
+    externalId: channel.id,
+    title: `#${channel.name}`,
+    content: '',
+    contentDeferred: true,
+    estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
+    mimeType: 'text/plain',
+    sourceUrl: channelUrl(channel, teamId),
+    contentHash: `slack-listing:${channel.id}:${listingToken(syncContext)}`,
+    metadata: {
+      channelName: channel.name,
+      topic: channel.topic?.value,
+      purpose: channel.purpose?.value,
+    },
+  }
+}
+
+/** One page of every unarchived channel the token can read. */
+async function listChannelsPage(
+  accessToken: string,
+  cursor: string | undefined
+): Promise<{ channels: SlackChannel[]; nextCursor: string | undefined }> {
+  const params: Record<string, string> = {
+    types: LISTED_CHANNEL_TYPES,
+    limit: String(CHANNELS_PER_PAGE),
+    exclude_archived: 'true',
+  }
+  if (cursor) params.cursor = cursor
+  const data = await slackApiGet('conversations.list', accessToken, params)
+  const responseMeta = data.response_metadata as { next_cursor?: string } | undefined
+  return {
+    channels: (data.channels as SlackChannel[]) || [],
+    nextCursor: responseMeta?.next_cursor || undefined,
+  }
+}
+
+/**
+ * Builds a channel's document: a header naming the channel, its topic and its
+ * purpose, then the newest `maxMessages` messages oldest first. The header
+ * means a channel with no messages in the window is still a live document, so
+ * the sync engine never mistakes an empty channel for a deleted one.
  *
  * The `contentHash` is derived from stable Slack metadata — channel ID, the
  * newest message `ts`, and the message count — rather than the formatted text.
@@ -517,8 +603,17 @@ async function buildSlackChannelDocument(
     maxMessages
   )
 
-  const content = await formatMessages(accessToken, messages, syncContext)
-  const messageCount = messages.length
+  const header = [`Channel: #${channel.name}`]
+  const topic = channel.topic?.value?.trim()
+  if (topic) header.push(`Topic: ${topic}`)
+  const purpose = channel.purpose?.value?.trim()
+  if (purpose) header.push(`Purpose: ${purpose}`)
+
+  /** The newest messages survive when the window does not fit; the header always does. */
+  const lines = new BoundedLines(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES, 'last')
+  lines.pin(...header, '')
+  await appendMessages(accessToken, lines, messages, syncContext)
+  const messageCount = lines.count
 
   /**
    * Edit/thread fingerprint: max(edited.ts) and max(latest_reply) across the
@@ -540,39 +635,56 @@ async function buildSlackChannelDocument(
    * `latest_reply` alone misses reply edits and deletes. Folding `reply_count`
    * in catches deletes (count drops) but still cannot detect reply edits
    * without fetching `conversations.replies` for each parent.
+   *
+   * The header is digested into the hash because it is part of the document:
+   * renaming a channel or editing its topic changes the indexed text without
+   * touching a single message, and the sync engine drops a refresh whose hash
+   * matches the stored one. A digest keeps the hash bounded and free of the
+   * delimiter collisions raw topic text would bring.
+   *
+   * The `slack-v3` prefix forces a one-time re-index of channels indexed
+   * before the document gained its header and size ceiling; `slack-v2` did the
+   * same when attachment and Block Kit content started being extracted.
+   * Per-message `ts` and the window are unchanged by either, so without the
+   * bump the hash would match and the richer content would never be embedded.
    */
-  /**
-   * `slack-v2` prefix forces a one-time re-sync for channels indexed before
-   * we started extracting attachment + Block Kit content from bot messages.
-   * Per-message `ts` and `messageCount` are unchanged, so without the version
-   * bump the hash would match and richer content would not be re-embedded.
-   */
-  const contentHash = `slack-v2:${channel.id}:${oldestTs ?? 'empty'}:${lastActivityTs ?? 'empty'}:${messageCount}:${maxEditTs || 'noedit'}:${maxReplyTs || 'noreply'}:${totalReplies}`
+  const headerDigest = createHash('sha256').update(header.join('\n')).digest('hex').slice(0, 16)
+  const contentHash = `slack-v3:${channel.id}:${headerDigest}:${oldestTs ?? 'empty'}:${lastActivityTs ?? 'empty'}:${messages.length}:${maxEditTs || 'noedit'}:${maxReplyTs || 'noreply'}:${totalReplies}`
 
-  return { content, contentHash, messageCount, lastActivityTs }
+  return { content: lines.join(), contentHash, messageCount, lastActivityTs }
 }
 
 export const slackConnector: ConnectorConfig = {
   ...slackConnectorMeta,
 
+  /**
+   * Lists the configured channels, or, when none are configured, every channel
+   * the token can read. A members-mode crawl clears the channel selection, so
+   * each member's listing is their whole view of the workspace. Listing stubs
+   * are deferred: the transcript is fetched in `getDocument`, once per channel
+   * per run, however many members list it.
+   */
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    _cursor?: string,
+    cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const channelInputs = parseMultiValue(sourceConfig.channel)
+    const teamId = await resolveTeamId(accessToken, syncContext)
+
     if (channelInputs.length === 0) {
-      throw new Error('At least one channel is required')
+      logger.info('Listing every readable Slack channel', { hasCursor: Boolean(cursor) })
+      const page = await listChannelsPage(accessToken, cursor)
+      return {
+        documents: page.channels.map((channel) => channelToStub(channel, teamId, syncContext)),
+        nextCursor: page.nextCursor,
+        hasMore: page.nextCursor !== undefined,
+      }
     }
 
-    const maxMessages = resolveMaxMessages(sourceConfig.maxMessages)
-
-    logger.info('Syncing Slack channels', { channels: channelInputs, maxMessages })
-
-    const teamId = await resolveTeamId(accessToken, syncContext)
+    logger.info('Listing configured Slack channels', { channels: channelInputs })
     const documents: ExternalDocument[] = []
-
     for (const channelInput of channelInputs) {
       const channel = await resolveChannel(accessToken, channelInput)
       if (!channel) {
@@ -585,45 +697,15 @@ export const slackConnector: ConnectorConfig = {
          */
         throw new Error(`Channel not found: ${channelInput}`)
       }
-
-      const { content, contentHash, messageCount, lastActivityTs } =
-        await buildSlackChannelDocument(accessToken, channel, maxMessages, syncContext)
-      if (!content.trim()) {
-        logger.info(`No messages found in channel: #${channel.name}`)
-        continue
-      }
-
-      const sourceUrl = teamId
-        ? `https://app.slack.com/client/${teamId}/${channel.id}`
-        : `https://app.slack.com/client/${channel.id}`
-
-      documents.push({
-        externalId: channel.id,
-        title: `#${channel.name}`,
-        content,
-        mimeType: 'text/plain',
-        sourceUrl,
-        contentHash,
-        metadata: {
-          channelName: channel.name,
-          messageCount,
-          lastActivity: lastActivityTs ? formatSlackTimestamp(lastActivityTs) : undefined,
-          topic: channel.topic?.value,
-          purpose: channel.purpose?.value,
-        },
-      })
+      documents.push(channelToStub(channel, teamId, syncContext))
     }
 
     /**
-     * All channels are processed in one call — the multi-select UI keeps the
-     * count small, and each channel is an independent document with its own
-     * `externalId` and `contentHash`, so the sync engine treats them as
-     * independent documents.
+     * Configured channels are listed in one call — the multi-select UI keeps
+     * the count small, and each channel is an independent document with its
+     * own `externalId` and `contentHash`.
      */
-    return {
-      documents,
-      hasMore: false,
-    }
+    return { documents, hasMore: false }
   },
 
   getDocument: async (
@@ -640,19 +722,14 @@ export const slackConnector: ConnectorConfig = {
 
       const { content, contentHash, messageCount, lastActivityTs } =
         await buildSlackChannelDocument(accessToken, channel, maxMessages, syncContext)
-      if (!content.trim()) return null
-
       const teamId = await resolveTeamId(accessToken, syncContext)
-      const sourceUrl = teamId
-        ? `https://app.slack.com/client/${teamId}/${channel.id}`
-        : `https://app.slack.com/client/${channel.id}`
 
       return {
         externalId: channel.id,
         title: `#${channel.name}`,
         content,
         mimeType: 'text/plain',
-        sourceUrl,
+        sourceUrl: channelUrl(channel, teamId),
         contentHash,
         metadata: {
           channelName: channel.name,

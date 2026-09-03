@@ -139,18 +139,20 @@ function buildFolderTx(
   return { tx, insertedRows }
 }
 
-function resolveMapping(params: {
+async function resolveMapping(params: {
   tx: DbOrTx
   contentFolderIds: ReadonlyArray<string | null>
 }): Promise<Map<string, string>> {
-  return resolveForkFolderMapping({
+  const { folderIdMap } = await resolveForkFolderMapping({
     tx: params.tx,
     sourceWorkspaceId: 'ws-source',
     targetWorkspaceId: 'ws-target',
     userId: 'target-user',
     now: new Date('2026-07-01'),
+    resourceType: 'workflow',
     contentFolderIds: params.contentFolderIds,
   })
+  return folderIdMap
 }
 
 describe('resolveForkFolderMapping', () => {
@@ -212,6 +214,27 @@ describe('resolveForkFolderMapping', () => {
 
     expect(insertedRows).toHaveLength(0)
     expect(map.size).toBe(0)
+  })
+
+  it('mirrors an empty folder selected by canonical path and returns its path mapping', async () => {
+    const { tx, insertedRows } = buildFolderTx([
+      folderRow('A', 'Reports'),
+      folderRow('B', 'Empty', 'A'),
+    ])
+
+    const result = await resolveForkFolderMapping({
+      tx,
+      sourceWorkspaceId: 'ws-source',
+      targetWorkspaceId: 'ws-target',
+      userId: 'target-user',
+      now: new Date('2026-07-01'),
+      resourceType: 'workflow',
+      contentFolderIds: [],
+      contentFolderPaths: ['/Reports/Empty'],
+    })
+
+    expect(insertedRows.map((row) => row.name)).toEqual(['Reports', 'Empty'])
+    expect(result.folderPathMap).toEqual(new Map([['/Reports/Empty', '/Reports/Empty']]))
   })
 
   it('reuses an existing target folder for a kept folder instead of duplicating it', async () => {

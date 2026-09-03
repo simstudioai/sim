@@ -34,7 +34,7 @@ interface MessageActionsProps {
   getCopyContent?: () => string
   hasCopyContent?: boolean
   prepareContentForCopy?: (content: string) => ClipboardContent
-  userQuery?: string
+  userQuery: string | undefined
   requestId?: string
   messageId?: string
 }

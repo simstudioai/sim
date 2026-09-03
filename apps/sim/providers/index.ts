@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
+import { env, envNumber } from '@/lib/core/config/env'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { StreamingExecution } from '@/executor/types'
 import {
@@ -76,11 +77,21 @@ async function omitUnsafeProviderFileAttachments(
   }
 }
 
+/** Round trips an Agent block's tool loop takes before it is forced to answer. */
+const DEFAULT_MAX_TOOL_ITERATIONS = 20
+
 /**
  * Maximum number of iterations for tool call loops to prevent infinite loops.
  * Used across all providers that support tool/function calling.
+ *
+ * Self-hosted deployments that need longer agent runs raise it with the
+ * `MAX_TOOL_ITERATIONS` env var; a value that is not a positive integer falls
+ * back to {@link DEFAULT_MAX_TOOL_ITERATIONS}.
  */
-export const MAX_TOOL_ITERATIONS = 20
+export const MAX_TOOL_ITERATIONS = envNumber(env.MAX_TOOL_ITERATIONS, DEFAULT_MAX_TOOL_ITERATIONS, {
+  min: 1,
+  integer: true,
+})
 
 /**
  * Normalizes a model-tuning level that may have arrived from a variable or block reference

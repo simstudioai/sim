@@ -4,7 +4,8 @@ import {
   workspaceFileSearchSegment,
   workspaceFiles,
 } from '@sim/db/schema'
-import { and, desc, eq, isNull, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lte, or, type SQL, sql } from 'drizzle-orm'
+import type { FolderIdScope } from '@/lib/folders/scope'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   FILE_SEARCH_LOCK_TIMEOUT_MS,
@@ -49,6 +50,8 @@ interface SearchWorkspaceFileIndexInput {
   workspaceId: string
   pattern: CompiledFileSearchPattern
   maxResults: number
+  /** Restricts the search to one folder scope. Absent searches the workspace. */
+  folderScope?: FolderIdScope
   signal?: AbortSignal
 }
 
@@ -195,13 +198,39 @@ function buildSurroundingContext(
   )`
 }
 
+/**
+ * The `workspaceFiles` predicate for a resolved folder scope.
+ *
+ * A root scope selects the files that carry no folder id, so the two halves are
+ * OR-ed rather than folded into one list. An empty scope selects nothing: it
+ * means every path resolved to a folder holding no subtree, and answering it
+ * with an unrestricted search would leak the whole workspace.
+ */
+function buildFolderPredicate(scope: FolderIdScope): SQL | undefined {
+  const ids = [...scope.folderIds]
+  const inScope = ids.length > 0 ? inArray(workspaceFiles.folderId, ids) : undefined
+  const atRoot = scope.includeRootItems ? isNull(workspaceFiles.folderId) : undefined
+  if (inScope && atRoot) return or(inScope, atRoot)
+  return inScope ?? atRoot ?? sql`false`
+}
+
 export async function searchWorkspaceFileIndex({
   workspaceId,
   pattern,
   maxResults,
+  folderScope,
   signal,
 }: SearchWorkspaceFileIndexInput): Promise<WorkspaceFileSearchResult> {
   signal?.throwIfAborted()
+
+  /**
+   * The segment table carries no folder id, so a scope has to travel through
+   * the `workspaceFiles` join both queries already make. A scope that resolved
+   * to nothing must match nothing: `inArray` with an empty list would be a
+   * SQL error, and omitting the predicate would silently search everything,
+   * which for a per-user folder tree is a cross-user read.
+   */
+  const folderPredicate = folderScope ? buildFolderPredicate(folderScope) : undefined
 
   const content = workspaceFileSearchSegment.content
   const matchExpression = buildMatchExpression(content, pattern)
@@ -284,7 +313,8 @@ export async function searchWorkspaceFileIndex({
             eq(workspaceFiles.workspaceId, workspaceId),
             eq(workspaceFiles.context, 'workspace'),
             isNull(workspaceFiles.deletedAt),
-            eq(workspaceFiles.contentUpdatedAt, workspaceFileSearchSegment.sourceContentUpdatedAt)
+            eq(workspaceFiles.contentUpdatedAt, workspaceFileSearchSegment.sourceContentUpdatedAt),
+            folderPredicate
           )
         )
         .where(and(segmentScope, matchExpression))
@@ -317,7 +347,8 @@ export async function searchWorkspaceFileIndex({
           and(
             eq(workspaceFiles.workspaceId, workspaceId),
             eq(workspaceFiles.context, 'workspace'),
-            isNull(workspaceFiles.deletedAt)
+            isNull(workspaceFiles.deletedAt),
+            folderPredicate
           )
         )
 

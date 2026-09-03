@@ -1307,6 +1307,10 @@ describe('copyForkResourceContainers table views', () => {
 
     const copiedTableId = result.idMap.get('table')?.get('table-with-view')
     const legacyTableId = result.idMap.get('table')?.get('legacy-table')
+    // A copied table's id has the same shape as a created one, so nothing downstream can
+    // tell which path minted it.
+    expect(copiedTableId).toMatch(/^tbl_[0-9a-f]{32}$/)
+    expect(legacyTableId).toMatch(/^tbl_[0-9a-f]{32}$/)
     const copiedViews = inserted.get(tableViews)
     expect(copiedViews).toEqual(
       expect.arrayContaining([

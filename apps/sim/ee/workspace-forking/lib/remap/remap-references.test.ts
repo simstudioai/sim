@@ -337,6 +337,104 @@ const blockWith = (subBlocks: SubBlockConfig[]): BlockConfig =>
 
 const entry = (id: string, type: string, value: unknown) => ({ id, type, value })
 
+describe('workspace file-folder fork remap', () => {
+  const fileBlock = () =>
+    blockWith([
+      {
+        id: 'folderSelection',
+        title: 'Folder',
+        type: 'folder-selector',
+        resourceType: 'file',
+        multiSelect: true,
+      },
+    ])
+
+  it('remaps each selected path and records an unresolved path as required', () => {
+    vi.mocked(getBlock).mockReturnValue(fileBlock())
+    const result = remapForkSubBlocks(
+      {
+        folderSelection: entry('folderSelection', 'folder-selector', ['/Reports', '/Archive']),
+      },
+      (kind, sourceId) =>
+        kind === 'file-folder' && sourceId === '/Reports' ? '/Production' : null,
+      'promote',
+      { blockType: 'file' }
+    )
+
+    expect(result.subBlocks.folderSelection.value).toEqual(['/Production'])
+    expect(
+      result.references.map(({ kind, sourceId, required }) => ({
+        kind,
+        sourceId,
+        required,
+      }))
+    ).toEqual([
+      { kind: 'file-folder', sourceId: '/Reports', required: true },
+      { kind: 'file-folder', sourceId: '/Archive', required: true },
+    ])
+    expect(result.unmapped.map((reference) => reference.sourceId)).toEqual(['/Archive'])
+  })
+
+  it('preserves serialized multi-select storage while remapping paths', () => {
+    vi.mocked(getBlock).mockReturnValue(fileBlock())
+    const result = remapForkSubBlocks(
+      {
+        folderSelection: entry('folderSelection', 'folder-selector', '["/Reports","/Archive"]'),
+      },
+      (kind, sourceId) =>
+        kind === 'file-folder' && sourceId === '/Reports' ? '/Production' : null,
+      'create',
+      { blockType: 'file' }
+    )
+
+    expect(result.subBlocks.folderSelection.value).toBe('["/Production"]')
+  })
+
+  it('leaves provider folder selectors unchanged', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([{ id: 'folder', title: 'Folder', type: 'folder-selector', serviceId: 'gmail' }])
+    )
+    const result = remapForkSubBlocks(
+      { folder: entry('folder', 'folder-selector', 'INBOX') },
+      () => null,
+      'promote',
+      { blockType: 'gmail' }
+    )
+
+    expect(result.subBlocks.folder.value).toBe('INBOX')
+    expect(result.references).toEqual([])
+  })
+
+  it('remaps a workspace folder nested in a tool-input param', () => {
+    const tool = {
+      type: 'filetool',
+      toolId: 'filetool_run',
+      params: { folderSelection: ['/Reports', '/Archive'] },
+    }
+    const result = remapToolBlockResources(tool, {
+      resolve: (kind, sourceId) =>
+        kind === 'file-folder' && sourceId === '/Reports' ? '/Production' : null,
+      resolveFileKey: () => null,
+      clearUnresolved: true,
+      blockConfigs: {
+        filetool: {
+          subBlocks: [
+            {
+              id: 'folderSelection',
+              title: 'Folder',
+              type: 'folder-selector',
+              resourceType: 'file',
+              multiSelect: true,
+            },
+          ],
+        },
+      },
+    })
+
+    expect(result.params).toEqual({ folderSelection: ['/Production'] })
+  })
+})
+
 describe('createForkBootstrapTransform document-selector remap', () => {
   const docBlock = () =>
     blockWith([
@@ -1735,6 +1833,75 @@ describe('canonical mode policy (fork/promote)', () => {
       () => null
     )
     expect(scan.references).toEqual([])
+  })
+
+  it('does NOT detect {{ENV}} in a Note block (an annotation never executes)', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([{ id: 'content', title: 'Content', type: 'long-input' }])
+    )
+    const scan = scanWorkflowReferences(
+      [
+        {
+          id: 'b1',
+          name: 'Setup notes',
+          type: 'note',
+          subBlocks: {
+            content: entry('content', 'long-input', 'Set {{OPENAI_API_KEY}} before running.'),
+          },
+        },
+      ],
+      () => null
+    )
+    expect(scan.references).toEqual([])
+    expect(scan.unmapped).toEqual([])
+  })
+
+  it('still detects {{ENV}} named by both a Note and an executing block, attributed to the executing block', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        { id: 'content', title: 'Content', type: 'long-input' },
+        { id: 'apiKey', title: 'API Key', type: 'short-input' },
+      ])
+    )
+    const scan = scanWorkflowReferences(
+      [
+        {
+          id: 'b1',
+          name: 'Setup notes',
+          type: 'note',
+          subBlocks: {
+            content: entry('content', 'long-input', 'Set {{OPENAI_API_KEY}} before running.'),
+          },
+        },
+        {
+          id: 'b2',
+          name: 'Agent',
+          type: 'agent',
+          subBlocks: { apiKey: entry('apiKey', 'short-input', '{{OPENAI_API_KEY}}') },
+        },
+      ],
+      () => null
+    )
+    expect(
+      scan.references.map((ref) => [ref.kind, ref.sourceId, ref.blockId, ref.subBlockKey])
+    ).toEqual([['env-var', 'OPENAI_API_KEY', 'b2', 'apiKey']])
+    expect(scan.unmapped.map((ref) => ref.sourceId)).toEqual(['OPENAI_API_KEY'])
+  })
+
+  it('still rewrites a mapped {{ENV}} inside a Note on promote, so the note names the target key', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([{ id: 'content', title: 'Content', type: 'long-input' }])
+    )
+    const result = remapForkSubBlocks(
+      { content: entry('content', 'long-input', 'Set {{OPENAI_API_KEY}} before running.') },
+      (kind, sourceId) =>
+        kind === 'env-var' && sourceId === 'OPENAI_API_KEY' ? 'OPENAI_KEY_PROD' : null,
+      'promote',
+      { blockType: 'note' }
+    )
+    expect(result.subBlocks.content.value).toBe('Set {{OPENAI_KEY_PROD}} before running.')
+    expect(result.references).toEqual([])
+    expect(result.unmapped).toEqual([])
   })
 
   it('an active manual member keeps its RESOURCE-id escape hatch while its {{ENV}} is detected', () => {

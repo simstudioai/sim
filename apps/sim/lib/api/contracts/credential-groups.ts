@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  MAX_OAUTH_CODE_LENGTH,
+  workflowIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   CREDENTIAL_GROUP_MCP_SERVER_LIMIT,
@@ -234,7 +238,7 @@ export const startCredentialGroupMcpOAuthParamsSchema =
 export const credentialGroupOAuthCallbackQuerySchema = z
   .object({
     state: z.string().min(1, 'OAuth state is required').max(512),
-    code: z.string().min(1).max(2048).optional(),
+    code: z.string().min(1).max(MAX_OAUTH_CODE_LENGTH, 'Authorization code is too long').optional(),
     error: z.string().min(1).max(256).optional(),
     error_description: z.string().max(1000).optional(),
   })

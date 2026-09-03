@@ -124,4 +124,55 @@ describe('edit_content', () => {
       { fileId: 'pdf-1' }
     )
   })
+
+  it('applies anchored patch intent through the shared edit engine', async () => {
+    waitForLatestFileIntentMock.mockResolvedValue({
+      operation: 'patch',
+      fileId: 'text-1',
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      chatId: 'chat-1',
+      messageId: 'message-1',
+      fileRecord: { id: 'text-1', name: 'notes.md' },
+      existingContent: 'before\nold\nafter\n',
+      edit: {
+        strategy: 'anchored',
+        mode: 'replace_between',
+        before_anchor: 'before',
+        after_anchor: 'after',
+      },
+      createdAt: Date.now(),
+    })
+
+    await expect(editContentServerTool.execute({ content: 'new' }, context)).resolves.toMatchObject(
+      {
+        success: true,
+      }
+    )
+    expect(compileDocForWriteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'before\nnew\nafter\n' })
+    )
+  })
+
+  it('honors replaceAll with literal replacement content for exact patch intent', async () => {
+    waitForLatestFileIntentMock.mockResolvedValue({
+      operation: 'patch',
+      fileId: 'text-1',
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      chatId: 'chat-1',
+      messageId: 'message-1',
+      fileRecord: { id: 'text-1', name: 'notes.md' },
+      existingContent: 'old old',
+      edit: { strategy: 'search_replace', search: 'old', replaceAll: true },
+      createdAt: Date.now(),
+    })
+
+    await expect(editContentServerTool.execute({ content: '$&' }, context)).resolves.toMatchObject({
+      success: true,
+    })
+    expect(compileDocForWriteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ source: '$& $&' })
+    )
+  })
 })

@@ -90,6 +90,36 @@ export async function getSharesForResources(
 }
 
 /**
+ * Batch-fetch shares for resources after constraining them to one workspace.
+ * Application use cases that authorize at workspace scope use this form so a
+ * caller-supplied resource id cannot reach a share from another workspace.
+ */
+export async function getWorkspaceSharesForResources(
+  resourceType: ShareResourceType,
+  workspaceId: string,
+  resourceIds: string[]
+): Promise<Map<string, ShareRecord>> {
+  const result = new Map<string, ShareRecord>()
+  if (resourceIds.length === 0) return result
+
+  const rows = await db
+    .select()
+    .from(publicShare)
+    .where(
+      and(
+        eq(publicShare.resourceType, resourceType),
+        eq(publicShare.workspaceId, workspaceId),
+        inArray(publicShare.resourceId, resourceIds)
+      )
+    )
+
+  for (const row of rows) {
+    result.set(row.resourceId, mapShareRecord(row))
+  }
+  return result
+}
+
+/**
  * All shares of a type within a workspace, keyed by `resourceId`.
  *
  * Preferred over {@link getSharesForResources} when enriching a workspace-wide

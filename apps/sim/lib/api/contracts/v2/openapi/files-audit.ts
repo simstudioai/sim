@@ -11,6 +11,7 @@ import {
   v2DeleteFileContract,
   v2DeleteFileFolderContract,
   v2DownloadFileContract,
+  v2EditFileContentContract,
   v2GetFileContract,
   v2GetFileShareContract,
   v2GetFileUploadContract,
@@ -22,6 +23,7 @@ import {
   v2RenameFileContract,
   v2RestoreFileContract,
   v2RestoreFileFolderContract,
+  v2SearchFileContentContract,
   v2UnzipFileContract,
   v2UpdateFileContentContract,
   v2UpsertFileShareContract,
@@ -787,6 +789,103 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2EditFileContentContract,
+    filesOperation({
+      operationId: 'editFileContent',
+      summary: 'Edit File Content',
+      description: `Change part of a text file in place, leaving the rest untouched. \`PUT\` on this path replaces the whole file; this is the partial counterpart. \`search_replace\` matches exact text and requires one match unless \`replaceAll\` is true. \`replace_between\`, \`insert_after\`, and \`delete_between\` match complete lines after trimming surrounding whitespace, so edits remain stable when unrelated changes move the target to another line. Anchored replacement preserves both boundary lines; insertion preserves its anchor; deletion removes the start anchor and preserves the end anchor. Use \`occurrence\` when an anchor line repeats. Only files whose stored bytes are UTF-8 text can be edited: a PDF or DOCX answers \`400\`. A concurrent write answers \`409\`, and retrying means re-reading first.`,
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'Locked'],
+      success: { description: 'The edited file and its new line count.' },
+    }),
+    {
+      query: v2EditFileContentContract.query,
+      params: documentedSchema(
+        v2EditFileContentContract.params,
+        'EditFileContentParams',
+        'Edit file content path parameters',
+        'File whose contents should be edited.'
+      ),
+      body: documentedSchema(
+        v2EditFileContentContract.body,
+        'EditFileContentRequest',
+        'Edit file content request',
+        'Workspace scope and the change to apply.',
+        [
+          {
+            workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64',
+            edit: {
+              mode: 'search_replace',
+              search: '- based in NYC',
+              content: '- based in SF',
+            },
+          },
+          {
+            workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64',
+            edit: {
+              mode: 'insert_after',
+              anchor: '## Preferences',
+              content: '- prefers async updates',
+            },
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2EditFileContentContract.response.schema,
+        'V2EditedFileResponse',
+        'Edited file response',
+        'A workspace file after an in-place content edit.',
+        [{ data: { file: FILE_EXAMPLE, lineCount: 5 } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2SearchFileContentContract,
+    filesOperation({
+      operationId: 'searchFileContent',
+      summary: 'Search File Content',
+      description: `Search the indexed text of active workspace files and return each matching line with its file id and line number. \`folderPaths\` confines the search to one or more folder trees, which also narrows the reported coverage, so \`complete\` and \`indexStatus\` describe the folders searched rather than the whole workspace. Coverage matters: the index is built asynchronously, so when \`complete\` is \`false\` a term that was not found is **unknown rather than absent**, and acting on the absence risks creating a duplicate of something already stored. \`truncated\` separately reports that more matches exist beyond \`maxResults\`.`,
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Locked'],
+      success: { description: 'Matching lines and the index coverage they were drawn from.' },
+    }),
+    {
+      query: documentedSchema(
+        v2SearchFileContentContract.query,
+        'SearchFileContentQuery',
+        'Search file content query',
+        'Workspace scope, the query, and an optional folder scope.'
+      ),
+      response: documentedSchema(
+        v2SearchFileContentContract.response.schema,
+        'V2FileSearchResultsResponse',
+        'File search results response',
+        'Matching lines from indexed workspace file content.',
+        [
+          {
+            data: {
+              results: [
+                {
+                  fileId: 'wf_V1StGXR8z5jdHi6BmyT91',
+                  lineNumber: 4,
+                  text: '- based in NYC',
+                },
+              ],
+              count: 1,
+              truncated: false,
+              complete: true,
+              indexStatus: {
+                readyFiles: 12,
+                pendingFiles: 0,
+                failedFiles: 0,
+                skippedFiles: 0,
+                partialFiles: 0,
+              },
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2UpdateFileContentContract,
     filesOperation({
       operationId: 'updateFileContent',
@@ -1030,8 +1129,22 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
   securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
   headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
+  /*
+   * One example serves every route in this document, and the routes raise 409
+   * for unrelated reasons: a name already taken, a write that lost a race, a
+   * generated document still compiling. Enumerating them is wrong for whichever
+   * cases the list omits, so this states the SHAPE of the conflict instead.
+   * Per-operation examples would need an override on `defineOpenApiRoute`.
+   */
   errorResponses: withErrorExamples({
-    Conflict: { message: 'File already exists' },
+    Conflict: { message: 'The request conflicts with the current resource state' },
+    /*
+     * The shared example names a workflow, which was accurate while workflows
+     * and tables were the only documents carrying a 423. The in-place content
+     * edit and content search both do now, so this names what is actually
+     * locked here without enumerating the reasons it can be.
+     */
+    Locked: { message: 'The file or its search index is temporarily locked; retry the request' },
   }),
   routes,
 })

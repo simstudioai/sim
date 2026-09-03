@@ -1754,6 +1754,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       pkce: true,
       authentication: 'post',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/monday`,
+      authorizationUrlParams: { force_install_if_needed: 'true' },
       getToken: async ({ code, codeVerifier, redirectURI }) => {
         if (!codeVerifier) {
           throw new Error('Monday OAuth token exchange requires a PKCE verifier')

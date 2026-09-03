@@ -59,7 +59,10 @@ import {
   SyncLockLostException,
   stillHoldsMemberSyncLock,
 } from '@/lib/knowledge/connectors/sync-lock'
-import type { KnowledgeBaseOwner } from '@/lib/knowledge/connectors/sync-persistence'
+import type {
+  KnowledgeBaseOwner,
+  PersistedDocument,
+} from '@/lib/knowledge/connectors/sync-persistence'
 import {
   addSourcePagePayloadBytes,
   ConnectorDeletedException,
@@ -167,6 +170,27 @@ interface MemberListingOutcome {
   suspect: boolean
   /** Cursor to store when this outcome lands: a value, null to close the feed, undefined to leave it. */
   changeCursor: string | null | undefined
+}
+
+/**
+ * The documents a batch wrote, grouped by each member who listed them, so a
+ * grant can be recorded per observer the moment the row exists. A document
+ * nobody in the union listed (it cannot happen for a persisted one, but the
+ * map is the source of truth) grants nothing.
+ */
+export function persistedDocumentsByObserver(
+  persisted: readonly PersistedDocument[],
+  union: ReadonlyMap<string, Pick<UnionEntry, 'observers'>>
+): Map<string, string[]> {
+  const byMember = new Map<string, string[]>()
+  for (const { externalId, documentId } of persisted) {
+    for (const memberId of union.get(externalId)?.observers ?? []) {
+      const documentIds = byMember.get(memberId)
+      if (documentIds) documentIds.push(documentId)
+      else byMember.set(memberId, [documentId])
+    }
+  }
+  return byMember
 }
 
 interface UnionEntry {
@@ -1550,6 +1574,33 @@ export async function executeMemberSync(
       },
       lease: run.lease,
       documentAccess: 'members',
+      /**
+       * Grants surface as each batch lands: every member who listed a document
+       * observes it the moment its row exists, and its ACL is materialised in
+       * the same lease-proved transaction. The listing's own pass below records
+       * the same observations again, idempotently, and is still what decides
+       * removals; this only brings the additions forward from the end of the
+       * run to the moment they are indexed.
+       */
+      onBatchPersisted: async (persisted) => {
+        const byMember = persistedDocumentsByObserver(persisted, union)
+        if (byMember.size === 0) return
+        await withMemberLease(run, async (tx) => {
+          for (const [memberId, documentIds] of byMember) {
+            result.observationsAdded += await recordMemberObservations(
+              tx,
+              memberId,
+              documentIds,
+              runId
+            )
+          }
+          await materializeDocumentAcls(
+            connectorId,
+            persisted.map(({ documentId }) => documentId),
+            tx
+          )
+        })
+      },
     })
 
     const documentIdByExternalId = await loadDocumentIdsByExternalId(connectorId)

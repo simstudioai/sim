@@ -3,6 +3,8 @@ title: Troubleshooting
 description: The failures whose cause is not obvious from the error message
 ---
 
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
 Errors print one line to stderr, prefixed `Error:`, and exit `1` — except
 `sim whoami`, which exits `2` when it could not reach the API to check at all.
 Most say what to do next; the cases below are the ones that do not.
@@ -83,6 +85,50 @@ editing the file by hand:
 
 ```bash
 sim --output table configure --set-output json
+```
+
+## A command is missing that the documentation describes
+
+The docs track the current release, so a command that exists here and not in
+`sim --help` usually means the installed CLI is older than the feature. Compare
+`sim --version` against the published version and upgrade:
+
+```bash
+sim --version
+```
+
+Then upgrade with the package manager you installed it with — using a different
+one installs a second copy instead of replacing the executable on your `PATH`:
+
+<Tabs items={['npm', 'pnpm', 'bun']}>
+  <Tab value="npm">
+    ```bash
+    npm install -g sim@latest
+    ```
+  </Tab>
+  <Tab value="pnpm">
+    ```bash
+    pnpm add -g sim@latest
+    ```
+  </Tab>
+  <Tab value="bun">
+    ```bash
+    bun add -g sim@latest
+    ```
+  </Tab>
+</Tabs>
+
+The CLI can also tell you this through a cached daily check on eligible
+invocations, and the command it prints already matches your installation. It
+stays quiet when stderr is redirected, in CI, and under `npm exec` or `npx`.
+
+## An update notice appears in output I am parsing
+
+It should not: the notice is written to stderr, never stdout, so `--output json`
+piped to `jq` is unaffected. If something merges the two streams, silence it:
+
+```bash
+export SIM_NO_UPDATE_CHECK=1
 ```
 
 ## Anything else
