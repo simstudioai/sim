@@ -97,13 +97,19 @@ export function sanitizeChatDisplayContent(content: string): string {
   const parts: string[] = []
   let cursor = 0
   let fenceStart: number | null = null
-  let fenceLength = 0
+  let fence = ''
 
-  for (const line of content.matchAll(/^ {0,3}(`{3,})([^`\n]*)(?:\n|$)/gm)) {
+  for (const line of content.matchAll(/^ {0,3}(`{3,}|~{3,})([^\n]*)(?:\n|$)/gm)) {
+    const [, delimiter, info] = line
     if (fenceStart === null) {
+      if (delimiter[0] === '`' && info.includes('`')) continue
       fenceStart = line.index
-      fenceLength = line[1].length
-    } else if (line[1].length >= fenceLength && line[2].trim() === '') {
+      fence = delimiter
+    } else if (
+      delimiter[0] === fence[0] &&
+      delimiter.length >= fence.length &&
+      /^[\t \r]*$/.test(info)
+    ) {
       const end = line.index + line[0].length
       parts.push(
         unwrapInlineChips(content.slice(cursor, fenceStart)),

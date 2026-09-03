@@ -60,17 +60,48 @@ describe('sanitizeChatDisplayContent', () => {
     expect(sanitizeChatDisplayContent(`\`${tag}\``)).toBe(tag)
   })
 
-  it('preserves fences closed by a longer run and unwraps citations after them', () => {
-    const tag = '<source>{"url":"https://example.com"}</source>'
-    const block = `\`\`\`json\n\`${tag}\`\n\`\`\`\`\n`
+  it.each(['```', '~~~'])(
+    'preserves a %s fence closed by a longer run and unwraps citations after it',
+    (fence) => {
+      const tag = '<source>{"url":"https://example.com"}</source>'
+      const block = `${fence}json\n\`${tag}\`\n${fence}${fence[0]}\n`
 
-    expect(sanitizeChatDisplayContent(`${block}\`${tag}\``)).toBe(`${block}${tag}`)
-  })
+      expect(sanitizeChatDisplayContent(`${block}\`${tag}\``)).toBe(`${block}${tag}`)
+    }
+  )
 
-  it('leaves an unclosed streaming fence literal', () => {
-    const content = '```json\n`<source>{"url":"https://example.com"}</source>`'
+  it.each(['```', '~~~'])('leaves an unclosed %s streaming fence literal', (fence) => {
+    const content = `${fence}json\n\`<source>{"url":"https://example.com"}</source>\``
 
     expect(sanitizeChatDisplayContent(content)).toBe(content)
+  })
+
+  it.each(['source', 'workspace_resource'])(
+    'preserves tilde-fenced %s chips with backticks in the info string',
+    (name) => {
+      const tag = `<${name}>{"title":"Example"}</${name}>`
+      const block = `~~~example \`code\`\n\`${tag}\`\n~~~\n`
+
+      expect(sanitizeChatDisplayContent(`${block}\`${tag}\``)).toBe(`${block}${tag}`)
+    }
+  )
+
+  it.each(['```', '~~~'])(
+    'does not close a %s fence with a different character or a shorter run',
+    (fence) => {
+      const tag = '<source>{"url":"https://example.com"}</source>'
+      const otherFence = fence === '```' ? '~~~~' : '````'
+      const block = `${fence}${fence[0]}\n${otherFence}\n\`${tag}\`\n${fence}\n\`${tag}\`\n${fence}${fence[0]}\n`
+
+      expect(sanitizeChatDisplayContent(`${block}\`${tag}\``)).toBe(`${block}${tag}`)
+    }
+  )
+
+  it('does not open a backtick fence with backticks in its info string', () => {
+    const prefix = '```example `code`\n\n'
+    const tag = '<source>{"url":"https://example.com"}</source>'
+
+    expect(sanitizeChatDisplayContent(`${prefix}\`${tag}\``)).toBe(`${prefix}${tag}`)
   })
 
   it('unwraps workspace resource tags from inline code spans', () => {
