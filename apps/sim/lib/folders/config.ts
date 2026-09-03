@@ -336,21 +336,46 @@ async function archiveTableChildren(context: CascadeChildrenContext): Promise<nu
 /**
  * Restores the tables this cascade archived, through the canonical table restore so a table
  * whose name was taken while it was gone is renamed instead of tripping the active-name
- * unique index.
+ * unique index. If a later member fails, the successful prefix is re-archived under the
+ * original timestamp so no active referrer can point at a still-archived cohort target.
  */
 async function restoreTableChildren(context: CascadeChildrenContext): Promise<number> {
-  const { restoreTable } = await import('@/lib/table/service')
+  const { deleteTables, restoreTable } = await import('@/lib/table/service')
   const ids = await selectChildIds(FOLDER_RESOURCES.table, context, 'archived')
   const restoringFolderIds = new Set(context.folderIds)
   const restoringTableIds = new Set(ids)
+  const restoredIds: string[] = []
 
-  for (const id of ids) {
-    // restoreFolder fires one folder-level live-list notify for the whole subtree.
-    await restoreTable(id, `folder-cascade-${context.folderIds[0]}`, {
-      restoringFolderIds,
-      restoringTableIds,
-      skipNotify: true,
-    })
+  try {
+    for (const id of ids) {
+      // restoreFolder fires one folder-level live-list notify for the whole subtree.
+      await restoreTable(id, `folder-cascade-${context.folderIds[0]}`, {
+        restoringFolderIds,
+        restoringTableIds,
+        skipNotify: true,
+      })
+      restoredIds.push(id)
+    }
+  } catch (error) {
+    const rollback = await deleteTables(
+      restoredIds,
+      `folder-restore-rollback-${context.folderIds[0]}`,
+      {
+        expectedWorkspaceId: context.workspaceId,
+        archivedAt: context.timestamp,
+        skipNotify: true,
+        archiveAsCohort: true,
+      }
+    )
+    if (rollback.terminalError) throw rollback.terminalError
+    if (
+      rollback.failed.length > 0 ||
+      rollback.notFound.length > 0 ||
+      rollback.archived.length !== restoredIds.length
+    ) {
+      throw new OrchestrationError('internal', 'Failed to roll back the table restore cohort')
+    }
+    throw error
   }
 
   return ids.length

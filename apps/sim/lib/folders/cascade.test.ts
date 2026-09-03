@@ -26,10 +26,12 @@ import { folderMutationStatus } from '@/lib/folders/status'
 
 const tableServiceMocks = vi.hoisted(() => ({
   deleteTables: vi.fn(),
+  restoreTable: vi.fn(),
 }))
 
 vi.mock('@/lib/table/service', () => ({
   deleteTables: tableServiceMocks.deleteTables,
+  restoreTable: tableServiceMocks.restoreTable,
 }))
 
 interface SelectCall {
@@ -613,6 +615,42 @@ describe('knowledge_base and table folder resources', () => {
         timestamp: TIMESTAMP,
       })
     ).rejects.toMatchObject({ code: 'locked', message: 'Table deletion is locked' })
+  })
+
+  it('re-archives a successful restore prefix when a later cohort table fails', async () => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.userTableDefinitions, [
+      { id: 'tbl_accounts' },
+      { id: 'tbl_contacts' },
+    ])
+    const restoreError = new Error('restore failed')
+    tableServiceMocks.restoreTable
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(restoreError)
+    tableServiceMocks.deleteTables.mockResolvedValueOnce({
+      archived: [{ id: 'tbl_accounts', name: 'Accounts', workspaceId: 'ws-1' }],
+      failed: [],
+      notFound: [],
+    })
+
+    await expect(
+      tableConfig.restoreChildren?.({
+        workspaceId: 'ws-1',
+        folderIds: ['folder-1'],
+        timestamp: TIMESTAMP,
+      })
+    ).rejects.toBe(restoreError)
+
+    expect(tableServiceMocks.deleteTables).toHaveBeenCalledWith(
+      ['tbl_accounts'],
+      'folder-restore-rollback-folder-1',
+      {
+        expectedWorkspaceId: 'ws-1',
+        archivedAt: TIMESTAMP,
+        skipNotify: true,
+        archiveAsCohort: true,
+      }
+    )
   })
 })
 
