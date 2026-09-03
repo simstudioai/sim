@@ -11,7 +11,13 @@ export const microsoftExcelConnectorMeta: ConnectorMeta = {
   auth: {
     mode: 'oauth',
     provider: 'microsoft-excel',
-    requiredScopes: ['Files.ReadWrite'],
+    /**
+     * `Files.ReadWrite` alone reaches only the user's own OneDrive, so a
+     * connector pointed at a `driveId` needs the `.All` grant as well. Both are
+     * listed so a credential predating that scope is reported as needing
+     * reauthorization instead of failing at sync time.
+     */
+    requiredScopes: ['Files.ReadWrite', 'Files.ReadWrite.All'],
   },
 
   /**

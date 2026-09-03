@@ -262,7 +262,7 @@ Every connector below also requests `openid`, `profile`, `email`, `offline_acces
 | OneDrive | `onedrive` | `Files.Read`, `Files.ReadWrite` |
 | SharePoint | `sharepoint` | `Sites.Read.All`, `Sites.ReadWrite.All`, `Sites.Manage.All` |
 
-Connecting a specific environment requests `<environment-url>/.default` instead of the resource scope above, so the scope Sim asks for depends on the environment you pick.
+Connecting a specific environment requests that environment's `/.default` scope instead of the resource scope above. The host is normalized to its `.api` form first, so `https://contoso.crm.dynamics.com` is requested as `https://contoso.api.crm.dynamics.com/.default`.
 
 ### Monday.com
 
@@ -302,7 +302,7 @@ Connecting a specific environment requests `<environment-url>/.default` instead 
 
 | Connector | Provider ID | Scopes to grant |
 | --- | --- | --- |
-| Salesforce | `salesforce` | `api`, `refresh_token`, `openid` |
+| Salesforce | `salesforce`<br />`salesforce-sandbox` | `api`, `refresh_token`, `openid` |
 
 ### Shopify
 

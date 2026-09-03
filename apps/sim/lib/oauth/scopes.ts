@@ -617,8 +617,10 @@ export type OAuthScopedService = keyof typeof OAUTH_SCOPES
  */
 export const SERVICE_SCOPE_NOTES = {
   'microsoft-dataverse':
-    'Connecting a specific environment requests `<environment-url>/.default` instead of the ' +
-    'resource scope above, so the scope Sim asks for depends on the environment you pick.',
+    "Connecting a specific environment requests that environment's `/.default` scope instead " +
+    'of the resource scope above. The host is normalized to its `.api` form first, so ' +
+    '`https://contoso.crm.dynamics.com` is requested as ' +
+    '`https://contoso.api.crm.dynamics.com/.default`.',
 } as const satisfies Record<string, string>
 
 /**

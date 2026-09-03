@@ -996,7 +996,9 @@ describe('the generated Scopes section', () => {
   it('carries a service caveat the rows cannot state on their own', () => {
     const section = buildScopesSection('microsoft-dataverse', 'Microsoft Dataverse')
 
-    expect(section).toContain('`<environment-url>/.default`')
+    // The host is normalized to its `.api` form before the request, so the
+    // example has to be the audience Sim actually asks for.
+    expect(section).toContain('`https://contoso.api.crm.dynamics.com/.default`')
     expect(buildScopesSection('sharepoint', 'SharePoint')).not.toContain('.default')
   })
 
@@ -1087,6 +1089,19 @@ describe('the self-hosting OAuth app reference', () => {
 
     expect(sharedScopesAcrossConnectors([['openid', 'email']])).toEqual([])
     expect(sharedScopesAcrossConnectors([['openid'], ['email']])).toEqual([])
+  })
+
+  /**
+   * Salesforce runs a second authorization server for sandboxes under its own
+   * provider id, and each provider id is its own redirect URI. Listing only the
+   * primary sends a self-hoster to register half of what they need, and the
+   * sandbox connect flow then fails redirect-URI validation.
+   */
+  it('lists every provider id a service authenticates through', () => {
+    const salesforce = loadOAuthConnectCatalog().services.get('salesforce')
+
+    expect(salesforce?.additionalProviderIds).toContain('salesforce-sandbox')
+    expect(loadOAuthConnectCatalog().services.get('sharepoint')?.additionalProviderIds).toEqual([])
   })
 
   it('reads each service display name and provider id', () => {

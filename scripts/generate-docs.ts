@@ -7,6 +7,7 @@ import { isVersionedType, stripVersionSuffix } from '@sim/utils/string'
 import { glob } from 'glob'
 import type { BlockCategory } from '../apps/sim/blocks/types'
 import { IntegrationType } from '../apps/sim/blocks/types'
+import { SALESFORCE_ADDITIONAL_PROVIDER_IDS } from '../apps/sim/lib/oauth/salesforce'
 import {
   ENV_GATED_SCOPES,
   getScopeDescription,
@@ -1345,6 +1346,13 @@ interface OAuthServiceConnectInfo {
   name: string
   /** Base provider key, which is also the OAuth-client capability id. */
   baseProvider: string
+  /**
+   * Further provider ids whose credentials authenticate this same service,
+   * because the provider runs more than one authorization server. Each is its
+   * own redirect URI, so a reference listing only the primary sends a
+   * self-hoster off to register half of what they need.
+   */
+  additionalProviderIds: readonly string[]
   /** True for services that have no OAuth flow, so no app registration covers them. */
   serviceAccountOnly: boolean
 }
@@ -1406,6 +1414,7 @@ export function loadOAuthConnectCatalog(): OAuthConnectCatalog {
         providerId: serviceId,
         name: serviceId,
         baseProvider,
+        additionalProviderIds: [],
         serviceAccountOnly: false,
       }
       services.set(serviceId, service)
@@ -1424,6 +1433,19 @@ export function loadOAuthConnectCatalog(): OAuthConnectCatalog {
     if (servicePropviderMatch) {
       service.providerId = servicePropviderMatch[1]
       continue
+    }
+    // Declared through an imported constant rather than a literal, so the value
+    // is imported here rather than scraped. Anything else in that slot would go
+    // undocumented, which for a redirect URI means a broken connect flow.
+    if (/^ {8}additionalProviderIds: SALESFORCE_ADDITIONAL_PROVIDER_IDS,$/.test(line)) {
+      service.additionalProviderIds = SALESFORCE_ADDITIONAL_PROVIDER_IDS
+      continue
+    }
+    if (/^ {8}additionalProviderIds: /.test(line)) {
+      throw new Error(
+        `${serviceId} declares additionalProviderIds in a form this scraper cannot read: ` +
+          `${line.trim()}. Its extra redirect URIs would go undocumented.`
+      )
     }
     if (/^ {8}authType: 'service_account',$/.test(line)) {
       service.serviceAccountOnly = true
@@ -1601,7 +1623,10 @@ function buildSelfHostingOAuthReference(): string {
           : scopes.length
             ? 'The shared scopes above, nothing further'
             : 'None to select'
-        return `| ${escapeMdxCell(service.name)} | \`${service.providerId}\` | ${rendered} |`
+        const providerIds = [service.providerId, ...service.additionalProviderIds]
+          .map((id) => `\`${id}\``)
+          .join('<br />')
+        return `| ${escapeMdxCell(service.name)} | ${providerIds} | ${rendered} |`
       })
       .join('\n')
 
