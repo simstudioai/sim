@@ -383,7 +383,12 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
         meterUsage: true,
       })
 
-      expect(res.cost).toEqual({ input: 0, output: 0, total: expect.any(Number) })
+      expect(res.cost).toEqual({
+        input: 0,
+        output: 0,
+        total: expect.any(Number),
+        raw: expect.any(Number),
+      })
       expect(res.cost?.total).toBeGreaterThan(0)
     } finally {
       nowSpy.mockRestore()
@@ -403,7 +408,12 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
         meterUsage: true,
       })
 
-      expect(res.cost).toEqual({ input: 0, output: 0, total: expect.any(Number) })
+      expect(res.cost).toEqual({
+        input: 0,
+        output: 0,
+        total: expect.any(Number),
+        raw: expect.any(Number),
+      })
       expect(res.cost?.total).toBeGreaterThan(0)
     } finally {
       nowSpy.mockRestore()
@@ -587,7 +597,12 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     expect(res.error).toBe('ValueError: boom')
     expect(res.stdout).toContain('ValueError: boom')
     expect(res.result).toBeNull()
-    expect(res.cost).toEqual({ input: 0, output: 0, total: expect.any(Number) })
+    expect(res.cost).toEqual({
+      input: 0,
+      output: 0,
+      total: expect.any(Number),
+      raw: expect.any(Number),
+    })
   })
 
   it('normalizes Python code budget expiry to a typed timeout abort', async () => {
@@ -739,6 +754,7 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       input: 0,
       output: 0,
       total: expect.any(Number),
+      raw: expect.any(Number),
     })
   })
 
@@ -1160,7 +1176,12 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     expect(res.result).toBeNull()
     expect(res.error).toContain('boom detail')
     expect(res.stdout).toContain('boom detail')
-    expect(res.cost).toEqual({ input: 0, output: 0, total: expect.any(Number) })
+    expect(res.cost).toEqual({
+      input: 0,
+      output: 0,
+      total: expect.any(Number),
+      raw: expect.any(Number),
+    })
   })
 
   it('terminates shell execution when streamed process output exceeds the byte budget', async () => {
@@ -1279,6 +1300,7 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       input: 0,
       output: 0,
       total: expect.any(Number),
+      raw: expect.any(Number),
     })
 
     expect(provider === 'e2b' ? mockE2BFilesRead : mockDownloadFileStream).not.toHaveBeenCalled()
@@ -1345,6 +1367,7 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       input: 0,
       output: 0,
       total: expect.any(Number),
+      raw: expect.any(Number),
     })
     expect(provider === 'e2b' ? mockE2BFilesRead : mockDownloadFileStream).not.toHaveBeenCalled()
   })
@@ -1377,6 +1400,7 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
         input: 0,
         output: 0,
         total: expect.any(Number),
+        raw: expect.any(Number),
       })
     }
   )

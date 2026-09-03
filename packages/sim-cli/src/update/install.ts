@@ -7,7 +7,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { lock } from 'proper-lockfile'
 import { upgradeCommand } from '#sim-cli/update/check'
-import { CLI_VERSION } from '#sim-cli/version'
+import { cliVersion } from '#sim-cli/version'
 
 export class CliUpdateError extends Error {}
 
@@ -189,7 +189,7 @@ export async function installUpdate(options: InstallUpdateOptions = {}): Promise
   }
   const packageManager = manager as PackageManager
   const run = options.run ?? runPackageManager
-  const currentVersion = options.currentVersion ?? CLI_VERSION
+  const currentVersion = options.currentVersion ?? cliVersion()
   const current = parseReleaseVersion(currentVersion)
   const target = current.channel
   const write = options.write ?? ((message: string) => void process.stderr.write(message))

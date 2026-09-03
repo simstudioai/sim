@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   isCanonicalBase64,
   noInputSchema,
+  requiredFieldSchema,
   workspaceFileIdSchema,
   workspaceFileNameSchema,
   workspaceIdSchema,
@@ -39,7 +40,7 @@ import {
   v2UploadTokenHeadersSchema,
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
-import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
+import { MAX_FOLDER_PATH_BYTES, MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
@@ -254,6 +255,21 @@ export const v2FileParamsSchema = z.object({
 })
 
 export type V2FileParams = z.output<typeof v2FileParamsSchema>
+
+/**
+ * The text read also takes the file's VFS path, so a Chat upload — which no listing
+ * shows — is readable by the `uploads/<name>` path its upload notice names, and any
+ * file by the `files/…` path `glob` prints, with no listing round-trip first.
+ */
+export const v2FileReferenceParamsSchema = z.object({
+  fileId: requiredFieldSchema('File reference is required')
+    .max(MAX_FOLDER_PATH_BYTES, 'File reference is too long')
+    .describe(
+      'File identifier, or the file’s VFS path: `files/<folder>/<name>`, or `uploads/<name>` for a Chat upload.'
+    ),
+})
+
+export type V2FileReferenceParams = z.output<typeof v2FileReferenceParamsSchema>
 
 export const v2CreateFileBodySchema = z
   .object({
@@ -815,6 +831,11 @@ export const v2FileTextSchema = z
   .object({
     fileId: workspaceFileIdSchema.describe('File the text was extracted from.'),
     name: z.string().describe('File name, including its extension.'),
+    path: z
+      .string()
+      .describe(
+        'Canonical VFS path of the file that was read: `files/…`, or `uploads/<name>` for a Chat upload.'
+      ),
     type: z.string().describe('Stored MIME type of the source file.'),
     text: z.string().describe('Extracted text.'),
     truncated: z
@@ -871,7 +892,7 @@ export type V2FileText = z.output<typeof v2FileTextSchema>
 export const v2ReadFileTextContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/files/[fileId]/text',
-  params: v2FileParamsSchema,
+  params: v2FileReferenceParamsSchema,
   query: v2ReadFileTextQuerySchema,
   response: {
     mode: 'json',

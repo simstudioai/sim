@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { CLI_VERSION } from '../version'
+import { cliVersion } from '#sim-cli/version'
 import { clientInfoHeader } from './client-info'
 
 let dir: string
@@ -20,7 +20,7 @@ afterEach(() => {
 describe('clientInfoHeader', () => {
   it('names the CLI, its runtime, the platform, and the driving agent', () => {
     expect(clientInfoHeader({ CLAUDECODE: '1' })).toBe(
-      `cli/${CLI_VERSION}; node/${process.versions.node}; os/${process.platform}; arch/${process.arch}; agent/claude-code`
+      `cli/${cliVersion()}; node/${process.versions.node}; os/${process.platform}; arch/${process.arch}; agent/claude-code`
     )
   })
 
@@ -31,6 +31,6 @@ describe('clientInfoHeader', () => {
   it('withholds the agent when usage reporting is opted out', () => {
     const header = clientInfoHeader({ CLAUDECODE: '1', DO_NOT_TRACK: '1' })
     expect(header).not.toContain('agent/')
-    expect(header).toContain(`cli/${CLI_VERSION}`)
+    expect(header).toContain(`cli/${cliVersion()}`)
   })
 })

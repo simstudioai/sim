@@ -351,7 +351,7 @@
       "put": {
         "operationId": "replaceWorkflowState",
         "summary": "Replace Workflow State",
-        "description": "Replace the draft graph atomically; concurrent writes are last-write-wins. Recompute containers from blocks and preserve omitted variables. Foreign IDs return `409`; lint is advisory. The live deployment is unchanged. `dryRun=true` validates without saving, auditing, or notifying; `needsRedeployment` describes the pre-write state. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Replace a workflow’s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state. Ids are the one conflict that is detected: block, edge, and subflow ids are globally unique, so a body carrying an id another workflow already owns is refused with `409` rather than written.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{workflowId}/deploy` publishes the draft.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — including the warnings the write’s own preparation step raises, and the same `409` when an id is already owned by another workflow. Two things differ: `needsRedeployment` describes the state before the write, and block ids are previews — `mintedBlockIds` is empty and the provisional ids come back under `previewBlockIds` with a warning, because the real apply mints new ones.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.state.replace",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -1593,7 +1593,7 @@
       "get": {
         "operationId": "getWorkflowDeployment",
         "summary": "Get Workflow Deployment",
-        "description": "Get the live version, latest deployment attempt, readiness, draft changes (`needsRedeployment`), and public API access. With `isPublicApi: true`, anyone with the execution URL can run the workflow and consume billed usage without an API key. Hosted chat is managed separately.\n\nOAuth scope: `api:read`.",
+        "description": "Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, whether the editable draft has since diverged from the live version, and the public delivery URL of every webhook the live version registered. This is the only operation that publishes `needsRedeployment`, `isPublicApi`, and `webhooks`.\n\n`webhooks` is where a caller learns the URL a webhook-triggered deploy started serving: the block's own URL field is computed in the editor and reads back empty through the API. Trigger blocks that receive events through a shared endpoint with no per-workflow URL are omitted.\n\n`isPublicApi` is the security-relevant one: while it is `true` the deployed workflow executes without an API key, so anyone holding the execution URL can run it — and consume the workspace’s billed usage — anonymously. It is set through `PATCH /workflows/{workflowId}/deployment`, and this read is the only way to audit whether it is on.\n\n`/workflows/{workflowId}/deployment` controls overall API executability; `/deployments/chat` controls only the hosted-chat surface. A workflow can remain deployed without a chat.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -1998,7 +1998,7 @@
       "get": {
         "operationId": "exportWorkflow",
         "summary": "Export Workflow",
-        "description": "Export a portable, secret-sanitized workflow; Set includeReferences=true to include non-secret source reference identities for mapped import; default exports keep their existing sanitized shape. Exporting records an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "description": "Export a portable, secret-sanitized workflow. Use includeReferences=true for non-secret source identities and field occurrences used by mapped imports. Use includeWorkspaceBindings=true to retain non-secret workspace bindings for a same-workspace round trip; default exports clear those bindings. Credentials and secrets are cleared either way. Exporting records an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.export",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -2022,6 +2022,16 @@
             "description": "Include non-secret resource identifiers and source field occurrences for mapped imports.",
             "schema": {
               "description": "Include non-secret resource identifiers and source field occurrences for mapped imports.",
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "includeWorkspaceBindings",
+            "in": "query",
+            "required": false,
+            "description": "Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way.",
+            "schema": {
+              "description": "Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way.",
               "type": "boolean"
             }
           }
@@ -3196,7 +3206,7 @@
       "post": {
         "operationId": "cancelRunV2",
         "summary": "Cancel Workflow Run",
-        "description": "Request cancellation of a running, queued, or paused workflow run. Terminal runs return successfully without changes. A table workflow-group run returns `409` if its cell can no longer accept cancellation.\n\nOAuth scope: `api:write`.",
+        "description": "Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state is a `200` no-op answered with `success: false` and an `already_*` reason. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.runs.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Workflow Runs"],
@@ -5746,7 +5756,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Lifetime count of successful runs, excluding failed, canceled, and paused runs. Log retention does not reduce this count; it may differ from the number returned by List Workflow Runs."
+            "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the size of `GET /api/v2/workflows/{workflowId}/runs`."
           },
           "lastRunAt": {
             "anyOf": [
@@ -5918,7 +5928,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Lifetime count of successful runs, excluding failed, canceled, and paused runs. Log retention does not reduce this count; it may differ from the number returned by List Workflow Runs."
+            "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the size of `GET /api/v2/workflows/{workflowId}/runs`."
           },
           "lastRunAt": {
             "anyOf": [
@@ -7675,7 +7685,18 @@
               "type": "string",
               "description": "The id the block was actually given."
             },
-            "description": "Minted block ids keyed by requested `block_id`, present only when they differ. References within this batch are remapped automatically; later requests must use the minted id. Supply a UUID when the requested id must survive unchanged."
+            "description": "The id each newly created block was actually given, keyed by the `block_id` you asked for, and present only for the ones that differ. A `block_id` on an `add` or `insert_into_subflow` that is not already a UUID is replaced with a minted one, so this is how you learn what to reference afterwards. Within a single batch you can keep using your own ids — references between operations are remapped for you — but a later request must use the minted id, so send your own UUIDs when you want an id you chose to survive. Always empty on a dry run, which reports its provisional ids under `previewBlockIds` instead."
+          },
+          "previewBlockIds": {
+            "description": "Dry run only: the provisional id the evaluation assigned to each block whose `block_id` was not already a UUID, keyed by the `block_id` you asked for. These are not the ids a committed apply produces — the real apply mints new ones — so never wire a later request against them. Wire edges by `block_id` within one batch, or by the `mintedBlockIds` the real apply returns.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "description": "The provisional id the dry run assigned."
+            }
           },
           "lint": {
             "$ref": "#/components/schemas/WorkflowLintReport"
@@ -8830,7 +8851,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Lifetime count of successful runs, excluding failed, canceled, and paused runs. Log retention does not reduce this count; it may differ from the number returned by List Workflow Runs."
+            "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the size of `GET /api/v2/workflows/{workflowId}/runs`."
           },
           "lastRunAt": {
             "anyOf": [
@@ -9836,6 +9857,13 @@
           "isPublicApi": {
             "type": "boolean",
             "description": "Whether anyone with the execution URL can run the deployed workflow and consume billed usage without an API key. Change this with Update Workflow Public API Access."
+          },
+          "webhooks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowDeploymentWebhook"
+            },
+            "description": "Public delivery URL of every webhook the live version registered, one per trigger block. Empty while nothing is deployed, and omits trigger blocks that receive events through a shared endpoint with no per-workflow URL."
           }
         },
         "required": [
@@ -10563,6 +10591,20 @@
             "type": "string",
             "description": "ISO 8601 timestamp when the workflow was last updated.",
             "format": "date-time"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportedWorkflowBlock"
+            },
+            "description": "Blocks the import created, in payload order. A summary only; the workflow state read returns the full graph."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "One line per required workspace binding — a table, knowledge base, document, or other selector — that the payload carried empty, as `<block name>: <field> was stripped by export; set it before running`. Export clears those bindings unless `includeWorkspaceBindings=true` was sent, so a round-tripped workflow arrives unable to run until they are set again. Empty when nothing is missing."
           },
           "operationId": {
             "type": "string",
