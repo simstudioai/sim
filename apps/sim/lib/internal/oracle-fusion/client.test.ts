@@ -186,6 +186,14 @@ describe('requestOracleFusionJson', () => {
     })
   })
 
+  it('recognizes a large negative exponent absorbed by coefficient trailing zeroes', async () => {
+    const token = `9007199254740993${'0'.repeat(1_000_000)}e-1000000`
+    mockSecureFetch.mockResolvedValueOnce(response(200, `{"id":${token}}`))
+    await expect(
+      requestOracleFusionJson(CREDENTIAL, { family: 'hcm', path: 'workers' })
+    ).resolves.toEqual({ id: token })
+  })
+
   it('returns fixed provider errors without credential or body reflection', async () => {
     const password = 'provider-reflected-password'
     const accessToken = Buffer.from(`integration-user:${password}`).toString('base64')

@@ -47,6 +47,22 @@ export interface OracleFusionRequest {
   query?: Record<string, string | number | boolean | undefined>
 }
 
+function compareDecimalMagnitudeToInteger(magnitude: string, value: number): number {
+  const normalizedMagnitude = magnitude.replace(/^0+/, '') || '0'
+  const integer = String(value)
+  if (normalizedMagnitude.length !== integer.length) {
+    return normalizedMagnitude.length < integer.length ? -1 : 1
+  }
+  if (normalizedMagnitude === integer) return 0
+  return normalizedMagnitude < integer ? -1 : 1
+}
+
+function trailingZeroCount(value: string): number {
+  let count = 0
+  for (let index = value.length - 1; index >= 0 && value[index] === '0'; index--) count++
+  return count
+}
+
 function validateBasicCredential(accessToken: string): void {
   if (
     !accessToken ||
@@ -105,16 +121,17 @@ function isIntegralJsonNumberToken(source: string): boolean {
 
   const fractionDigits = match[2]?.length ?? 0
   const exponentSource = match[3] ?? '0'
-  const exponentDigits = exponentSource.replace(/^[+-]/, '').replace(/^0+/, '') || '0'
-  if (exponentDigits.length > 6) return !exponentSource.startsWith('-')
-  const exponent = Number(exponentSource)
-  const remainingFractionDigits = fractionDigits - exponent
-  if (remainingFractionDigits <= 0) return true
-  if (remainingFractionDigits > coefficient.length) return false
-  return coefficient
-    .slice(-remainingFractionDigits)
-    .split('')
-    .every((digit) => digit === '0')
+  const exponentMagnitude = exponentSource.replace(/^[+-]/, '').replace(/^0+/, '') || '0'
+  const availableTrailingZeros = trailingZeroCount(coefficient)
+
+  if (exponentSource.startsWith('-')) {
+    if (compareDecimalMagnitudeToInteger(exponentMagnitude, availableTrailingZeros) > 0) {
+      return false
+    }
+    return fractionDigits + Number(exponentMagnitude) <= availableTrailingZeros
+  }
+  if (compareDecimalMagnitudeToInteger(exponentMagnitude, fractionDigits) >= 0) return true
+  return fractionDigits - Number(exponentMagnitude) <= availableTrailingZeros
 }
 
 function parseOracleFusionJson(body: string): unknown {
