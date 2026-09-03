@@ -16,7 +16,7 @@ There are two parts to getting this right, and skipping the second is the most c
 
 ## Enable the feature set
 
-Set the master switch and its client twin. Both are required — the server value decides access, and the `NEXT_PUBLIC_` value decides what the settings UI shows.
+Set the master switch and its client twin. Both are required. The server value decides access and what a workspace shows: settings sections and block fields read the deployment's server-resolved configuration, so the sidebar and the API answer the same question. The `NEXT_PUBLIC_` value covers what renders before a workspace loads — the SSO entry point on the login page — and `npx sim-setup doctor` reports any pair that disagrees.
 
 ```bash
 ENTERPRISE_ENABLED=true
@@ -59,7 +59,7 @@ Three features do not need a flag at all: **custom branding**, **session policie
 | Sim Mailer inbox — on by default | `INBOX_ENABLED` | `NEXT_PUBLIC_INBOX_ENABLED` |
 | Sandboxes | `SANDBOXES_ENABLED` | `NEXT_PUBLIC_SANDBOXES_ENABLED` |
 
-Sandboxes also need a remote execution provider and a dedicated Function base image before they can run anything. `SANDBOXES_ENABLED` grants the server-side entitlement; `NEXT_PUBLIC_SANDBOXES_ENABLED` projects provider readiness to the browser and exposes Shell plus custom Sandbox management. Set the public flag only after the selected provider has credentials and a valid immutable Function base configured.
+Sandboxes also need a remote execution provider and a dedicated Function base image before they can run anything. `SANDBOXES_ENABLED` grants the server-side entitlement, and Shell and **Settings → Sandboxes** appear only once the server has also verified the provider credentials and an immutable Function base. `NEXT_PUBLIC_SANDBOXES_ENABLED` is the browser's copy of that readiness: it reveals the Function block's Sandbox selector, and `npx sim-setup doctor` checks it against the server. Set it only after the selected provider has credentials and a valid immutable Function base configured.
 
 JavaScript without `import` or `require` does not use the remote provider and continues to run in the local isolated VM when all Sandbox flags are off. Python, Shell, JavaScript with external imports, and selected custom Sandboxes fail with an explicit configuration error until the remote Function base is ready.
 
@@ -249,9 +249,9 @@ curl -X DELETE "https://sim.example.com/api/v1/admin/organizations/$ORG_ID?confi
 
 If a feature is enabled but nothing appears, check these in order.
 
-**The settings section is missing.** The `NEXT_PUBLIC_` twin is not set, or the app was not restarted after adding it. Client variables are read at boot from the container environment, so a restart is enough — no rebuild.
+**The settings section is missing.** The server-side variable is not set, or the app was not restarted after adding it. Variables are read at boot from the container environment, so a restart is enough — no rebuild.
 
-**The section appears but the API returns 403.** The server-side variable is missing while its client twin is set. Set both.
+**The section appears but the login page has no SSO option, or the Function block has no Sandbox selector.** The `NEXT_PUBLIC_` twin is missing while the server-side variable is set. A workspace follows the server, but the login page renders before any workspace loads and reads the twin, and the Sandbox selector does too. Set both; `npx sim-setup doctor` reports the pair disagreeing.
 
 **The feature is on but has no effect inside a workspace.** The workspace is not owned by an organization. Check `workspace_mode` and `organization_id`:
 

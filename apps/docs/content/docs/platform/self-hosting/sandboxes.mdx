@@ -15,9 +15,9 @@ Until the base image is configured, those languages fail with an explicit config
 | Variable | Purpose |
 | --- | --- |
 | `SANDBOXES_ENABLED` | Grants the server-side self-hosted entitlement |
-| `NEXT_PUBLIC_SANDBOXES_ENABLED` | Projects provider readiness to the browser and exposes Shell plus custom sandbox management |
+| `NEXT_PUBLIC_SANDBOXES_ENABLED` | The browser's copy of provider readiness. Reveals the Function block's Sandbox selector; `sim-setup doctor` checks it against the server |
 
-`NEXT_PUBLIC_SANDBOXES_ENABLED` is a browser gate only: it shows or hides Shell, the sandbox picker, and **Settings → Sandboxes**. Whether Python or a selected sandbox actually runs depends on the server-side provider and Function image. Set it only after those work, or you surface controls that cannot.
+Shell and **Settings → Sandboxes** follow the server: a workspace shows them only when `SANDBOXES_ENABLED` is set and the server has verified the provider credentials and an immutable Function base. `NEXT_PUBLIC_SANDBOXES_ENABLED` is a browser gate for one control, the Function block's Sandbox selector. Whether Python or a selected sandbox actually runs depends on the server-side provider and Function image, so set it only after those work, or you surface a selector for sandboxes that cannot run.
 
 ## Building the Function base
 
