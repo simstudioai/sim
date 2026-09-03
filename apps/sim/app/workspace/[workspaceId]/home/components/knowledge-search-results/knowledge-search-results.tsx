@@ -9,6 +9,7 @@ import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowled
 import { matchSnippet } from '@/lib/knowledge/search/snippet'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { searchedKnowledgeBases } from '@/lib/sim-search/knowledge-bases'
+import { SlackSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/slack-search-results'
 import {
   highlightTerms,
   SOURCE_ROW_CLASSES,
@@ -225,28 +226,28 @@ export function KnowledgeSearchResults({
   }, [documents, filtersActive, filters.source, filters.updated])
 
   const failure = basesError ?? error
-  if (failure) {
-    return <p className='px-2 py-2 text-[var(--text-error)] text-caption'>{failure.message}</p>
-  }
-  if (!basesPending && knowledgeBaseIds.length === 0) {
-    return (
-      <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>
-        Nothing to search yet. Clear the query and connect a source to index what you can open.
-      </p>
-    )
-  }
-  /** Kept results belong to the previous query; a new query shows its own state. */
-  if (isPending || isPlaceholderData || (isFetching && !results)) {
-    return <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>Searching…</p>
-  }
-
   const indexingNote =
     indexing.length > 0
       ? `Still indexing ${indexing.join(', ')}; results grow as documents land.`
       : null
 
-  return (
-    <div className='flex flex-col'>
+  /**
+   * The indexed half of the page, in whatever state it is in. It is a branch
+   * rather than an early return because a federated source is searched even
+   * where there is nothing indexed at all — a workspace whose only source is
+   * Slack has no knowledge base, and its failures are not Slack's.
+   */
+  const knowledgeSection = failure ? (
+    <p className='px-2 py-2 text-[var(--text-error)] text-caption'>{failure.message}</p>
+  ) : !basesPending && knowledgeBaseIds.length === 0 ? (
+    <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>
+      No indexed sources yet. Connect one to index what you can open.
+    </p>
+  ) : /** Kept results belong to the previous query; a new query shows its own state. */
+  isPending || isPlaceholderData || (isFetching && !results) ? (
+    <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>Searching…</p>
+  ) : (
+    <>
       <div className='flex items-center gap-2 px-2 py-2'>
         <span className='min-w-0 flex-1 text-[var(--text-muted)] text-caption'>
           <span className='tabular-nums'>
@@ -298,7 +299,7 @@ export function KnowledgeSearchResults({
             : 'No documents match these filters.'}
         </p>
       ) : (
-        <div className='flex flex-col' onKeyDown={handleResultsKeyDown}>
+        <div className='flex flex-col'>
           {visible.map((result) => {
             const source = toSource(result, query)
             return source ? (
@@ -316,6 +317,14 @@ export function KnowledgeSearchResults({
           })}
         </div>
       )}
+    </>
+  )
+
+  /** One keyboard container over both groups, so the arrows walk every result. */
+  return (
+    <div className='flex flex-col' onKeyDown={handleResultsKeyDown}>
+      {knowledgeSection}
+      <SlackSearchResults workspaceId={workspaceId} query={query} onSummarize={onSummarize} />
     </div>
   )
 }

@@ -18,6 +18,7 @@ import {
   useWorkspaceMemberConnectors,
   type WorkspaceMemberConnector,
 } from '@/hooks/queries/kb/connectors'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { CONNECTABLE_MEMBERSHIPS, useMemberEnrollment } from '@/hooks/use-member-enrollment'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -169,7 +170,15 @@ export function SearchSources({ workspaceId }: SearchSourcesProps) {
       ),
     [memberConnectors]
   )
-  const membershipQueryKeys = useMemo(() => [memberConnectorKeys.list(workspaceId)], [workspaceId])
+  /**
+   * What a finished connection changes. The federated Slack search is here
+   * too: it holds its answer briefly, and someone who just reconnected Slack
+   * should stop being told to reconnect it rather than wait that out.
+   */
+  const membershipQueryKeys = useMemo(
+    () => [memberConnectorKeys.list(workspaceId), knowledgeKeys.slackSearches()],
+    [workspaceId]
+  )
   const {
     connectSource,
     connectSearchSource,
