@@ -2,7 +2,7 @@
 
 import { memo, type RefObject } from 'react'
 import { Popover, PopoverAnchor, PopoverContent, PopoverDivider, PopoverItem } from '@sim/emcn'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type {
   ContextMenuPosition,
   TerminalFilters,
@@ -40,6 +40,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   onClearConsole,
   onFixInCopilot,
 }: LogRowContextMenuProps) {
+  const { chatEnabled } = useDeploymentShape()
   const hasRunId = entry?.executionId != null
 
   const isBlockFiltered = entry ? filters.blockIds.has(entry.blockId) : false
@@ -74,7 +75,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
         )}
 
         {/* Fix in Chat - only for error rows */}
-        {isChatEnabled && entry && !entry.success && (
+        {chatEnabled && entry && !entry.success && (
           <>
             <PopoverItem
               onClick={() => {

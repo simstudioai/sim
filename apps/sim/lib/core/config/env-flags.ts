@@ -35,16 +35,18 @@ export const isTest = env.NODE_ENV === 'test'
 /**
  * Is this the hosted version of the application.
  * True for sim.ai and any subdomain of sim.ai (e.g. staging.sim.ai, dev.sim.ai).
- * The browser hostname remains available when an error document boots without
- * the root layout's runtime environment, before client rendering recovers it.
- * A valid configured URL takes precedence; server detection stays env-only.
+ *
+ * Workspace surfaces in the browser read `hosted` from the deployment shape the
+ * workspace host context carries (`@/lib/core/config/deployment-shape`), not this
+ * constant: it is computed once from the `NEXT_PUBLIC_*` transport the root layout
+ * emits, which a `global-error` or bare 404 document never provides.
  */
 const appUrl = getEnv('NEXT_PUBLIC_APP_URL')
-let appHostname = typeof window === 'undefined' ? '' : window.location.hostname
+let appHostname = ''
 try {
-  if (appUrl) appHostname = new URL(appUrl).hostname
+  appHostname = appUrl ? new URL(appUrl).hostname : ''
 } catch {
-  /** Keep the document hostname when the configured URL cannot be parsed. */
+  /** An unparseable configured URL reads as self-hosted. */
 }
 /**
  * Local-development escape hatch for exercising hosted-only paths (the sim-auto

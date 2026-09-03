@@ -33,7 +33,7 @@ import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import { sendMothershipMessage } from '@/lib/mothership/events'
@@ -640,6 +640,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const contentRef = useRef<HTMLDivElement>(null)
 
   const params = useParams()
+  const { chatEnabled } = useDeploymentShape()
   const workspaceId = params.workspaceId as string
 
   const {
@@ -1287,7 +1288,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       }}
       sunsetStatus={sunset?.status}
       sunsetTooltip={sunset?.tooltip}
-      canFixSunset={canEditWorkflow && isChatEnabled}
+      canFixSunset={canEditWorkflow && chatEnabled}
       onFixSunset={onFixSunset}
       shouldShowScheduleBadge={shouldShowScheduleBadge}
       scheduleIsDisabled={Boolean(scheduleInfo?.isDisabled)}

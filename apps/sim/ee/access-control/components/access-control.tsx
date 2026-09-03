@@ -18,7 +18,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
-import { isAccessControlEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   groupIdParam,
   groupIdUrlKeys,
@@ -56,6 +56,7 @@ interface AccessControlProps {
 
 export function AccessControl({ isOrganizationAdmin, organizationId }: AccessControlProps) {
   const params = useParams()
+  const { features } = useDeploymentShape()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
 
   /**
@@ -74,7 +75,7 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
     isPending: organizationBillingLoading,
     error: organizationBillingError,
   } = useOrganizationBilling(organizationId, {
-    enabled: !isAccessControlEnabled && !userPermissionConfig?.entitled,
+    enabled: !features.accessControl && !userPermissionConfig?.entitled,
   })
   const currentUserIsOrgAdmin = isOrganizationAdmin
 
@@ -92,12 +93,12 @@ export function AccessControl({ isOrganizationAdmin, organizationId }: AccessCon
    * set show the section and then refuse to manage it.
    */
   const isEntitled =
-    isAccessControlEnabled ||
+    features.accessControl ||
     !!userPermissionConfig?.entitled ||
     isEnterprise(organizationBillingData?.data?.subscriptionPlan)
   const canManage = isEntitled && currentUserIsOrgAdmin && !!organizationId
   const organizationEntitlementLoading =
-    !isAccessControlEnabled && !userPermissionConfig?.entitled && organizationBillingLoading
+    !features.accessControl && !userPermissionConfig?.entitled && organizationBillingLoading
 
   const isLoading =
     (workspaceId ? entitlementLoading : false) ||

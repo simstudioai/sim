@@ -10,8 +10,9 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -287,7 +288,9 @@ vi.mock('@/components/ui', () => ({
   ),
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({ isSsoEnabled: true }))
+/** SSO is a deployment feature, read through the deployment shape at render time. */
+beforeAll(() => setEnvFlags({ isSsoEnabled: true }))
+afterAll(resetEnvFlagsMock)
 vi.mock('@/lib/messaging/email/validation', () => ({
   validateAllowlistEntry: () => null,
 }))

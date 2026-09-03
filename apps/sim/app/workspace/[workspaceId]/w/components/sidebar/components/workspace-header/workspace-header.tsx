@@ -25,7 +25,7 @@ import { MoreHorizontal, PanelLeft, Pin, Search } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -160,6 +160,7 @@ function WorkspaceHeaderImpl({
   onExpandSidebar,
 }: WorkspaceHeaderProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const { billingEnabled } = useDeploymentShape()
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isViewInvitationsOpen, setIsViewInvitationsOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -840,7 +841,7 @@ function WorkspaceHeaderImpl({
                       onClick={() => {
                         setIsWorkspaceMenuOpen(false)
                         if (isInvitationsDisabled) {
-                          if (isBillingEnabled) navigateToSettings({ section: 'billing' })
+                          if (billingEnabled) navigateToSettings({ section: 'billing' })
                           return
                         }
                         setIsInviteModalOpen(true)

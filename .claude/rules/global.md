@@ -68,6 +68,9 @@ const clone = structuredClone(obj)
 const filtered = filterUndefined(obj)
 ```
 
+## Deployment flags in the browser
+Client code inside a workspace reads `hosted`, `billingEnabled`, `chatEnabled`, and the enterprise feature set through `useDeploymentShape()` (components) or `getDeploymentShape()` (block conditions, stores, helpers) from `@/lib/core/config/deployment-shape`, never the `isHosted`/`isBillingEnabled` constants from `env-flags`. Those constants freeze at module init from the root layout's `NEXT_PUBLIC_*` transport, which Next's bare 404 shell and `global-error` never emit, so a tab recovered from one would render Sim Cloud as self-hosted. The reader is seeded from the server-resolved workspace host context. Server code keeps reading `env-flags`.
+
 ## Package Manager
 Use `bun` and `bunx`, not `npm` and `npx`.
 

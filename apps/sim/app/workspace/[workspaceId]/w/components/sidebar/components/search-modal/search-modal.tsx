@@ -41,7 +41,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { supportsAtomicBrowserPanelOcclusion } from '@/lib/browser-agent/transport'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { getFolderPathNames } from '@/lib/folders/tree'
 import { sendMothershipMessage } from '@/lib/mothership/events'
@@ -154,6 +154,7 @@ function SearchModalContent({
 }: SearchModalContentProps) {
   const params = useParams()
   const router = useRouter()
+  const { chatEnabled } = useDeploymentShape()
   const workspaceId = params.workspaceId as string
   const currentWorkflowId = params.workflowId as string | undefined
   const inputRef = useRef<HTMLInputElement>(null)
@@ -384,7 +385,7 @@ function SearchModalContent({
         },
       }
     )
-    if (isChatEnabled) {
+    if (chatEnabled) {
       list.push({
         id: 'new-chat',
         name: 'New chat',
@@ -667,6 +668,7 @@ function SearchModalContent({
     workspaceId,
     canEdit,
     canAdmin,
+    chatEnabled,
     pageContext,
     onCreateWorkflow,
     onCreateFolder,
@@ -709,14 +711,19 @@ function SearchModalContent({
    * way back the ask row unmounts while cmdk still remembers it as selected,
    * so Home re-anchors the selection once the result rows are back.
    */
-  const handleSearchKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== 'Tab' || !isChatEnabled) return
-    event.preventDefault()
-    setAskMode((mode) => !mode)
-    requestAnimationFrame(() => {
-      inputRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-    })
-  }, [])
+  const handleSearchKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== 'Tab' || !chatEnabled) return
+      event.preventDefault()
+      setAskMode((mode) => !mode)
+      requestAnimationFrame(() => {
+        inputRef.current?.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Home', bubbles: true })
+        )
+      })
+    },
+    [chatEnabled]
+  )
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1383,7 +1390,7 @@ function SearchModalContent({
               <CommandSearch
                 ref={inputRef}
                 surface='palette'
-                cycleResultsOnTab={!isChatEnabled}
+                cycleResultsOnTab={!chatEnabled}
                 autoFocus={!atomicBrowserOcclusion}
                 aria-label={askMode ? 'Ask Sim' : 'Search anything'}
                 value={search}
@@ -1391,7 +1398,7 @@ function SearchModalContent({
                 onKeyDown={handleSearchKeyDown}
                 placeholder={askMode ? 'Ask Sim anything...' : 'Search anything...'}
                 endAdornment={
-                  isChatEnabled ? (
+                  chatEnabled ? (
                     <span className='shrink-0 whitespace-nowrap text-[var(--text-subtle)] text-xs'>
                       {askMode ? '⇥ Search' : '⇥ Ask Sim'}
                     </span>

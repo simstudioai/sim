@@ -6,7 +6,7 @@ import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   blockTypeToIconMap,
   type Integration,
@@ -69,6 +69,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   const suggestedSkills = getSuggestedSkillsForBlock(integration.type)
   const oauthService = resolveOAuthServiceForIntegration(integration)
   const { integrationAvailability, isLoading: permissionConfigLoading } = usePermissionConfig()
+  const { chatEnabled } = useDeploymentShape()
   const availability = integrationAvailability.get(integration.type.toLowerCase())
   const oauthAvailable = Boolean(oauthService) && (availability?.oauthAvailable ?? true)
   const [oauthOpen, setOAuthOpen] = useState(false)
@@ -197,7 +198,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
             ) : (
               <Chip disabled>Unavailable</Chip>
             )
-          ) : isChatEnabled ? (
+          ) : chatEnabled ? (
             <Chip variant='primary' leftIcon={Plus} onClick={handleAddInChat}>
               Add to Sim
             </Chip>
@@ -279,7 +280,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
 
           {/* Every template hands its prompt to Chat, so the section has no
               destination without it. */}
-          {isChatEnabled && matchingTemplates.length > 0 && (
+          {chatEnabled && matchingTemplates.length > 0 && (
             <TemplatesSection
               integration={integration}
               templates={matchingTemplates}

@@ -1,5 +1,5 @@
 import { CodeIcon } from '@/components/icons'
-import { isSandboxesEnabled } from '@/lib/core/config/env-flags'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { CodeLanguage, getLanguageDisplayName } from '@/lib/execution/languages'
 import { SANDBOX_OUTPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type { BlockConfig } from '@/blocks/types'
@@ -37,7 +37,7 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
       options: () => [
         { label: getLanguageDisplayName(CodeLanguage.JavaScript), id: CodeLanguage.JavaScript },
         { label: getLanguageDisplayName(CodeLanguage.Python), id: CodeLanguage.Python },
-        ...(isSandboxesEnabled
+        ...(getDeploymentShape().features.sandboxes
           ? [{ label: getLanguageDisplayName(CodeLanguage.Shell), id: CodeLanguage.Shell }]
           : []),
       ],

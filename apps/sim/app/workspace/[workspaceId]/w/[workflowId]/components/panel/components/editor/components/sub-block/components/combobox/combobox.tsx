@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Combobox, type ComboboxOption, cn } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { useReactFlow } from '@xyflow/react'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
@@ -127,6 +128,13 @@ export const ComboBox = memo(function ComboBox({
       : undefined
   )
 
+  /**
+   * Option builders such as the model list and the Function block's languages read the
+   * deployment shape outside React, so the list is keyed on the subscribed shape as well:
+   * a host context that lands after mount (an app version rolling out the field) must
+   * re-evaluate them rather than leave the env fallback's list in place.
+   */
+  const deploymentShape = useDeploymentShape()
   const staticOptions = useMemo(() => {
     const opts =
       typeof options === 'function'
@@ -138,7 +146,7 @@ export const ComboBox = memo(function ComboBox({
     }
 
     return opts
-  }, [options, blockValues, subBlockId, isModelUsable])
+  }, [options, blockValues, subBlockId, isModelUsable, deploymentShape])
 
   const [selectorSearch, setSelectorSearch] = useState('')
   const debouncedSelectorSearch = useDebounce(selectorSearch.trim(), SEARCH_DEBOUNCE_MS)

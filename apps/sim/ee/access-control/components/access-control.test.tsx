@@ -26,7 +26,6 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
 }))
 vi.mock('nuqs', () => ({ useQueryState: () => [null, vi.fn()] }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isAccessControlEnabled: false }))
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state', () => ({
   SettingsEmptyState: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }))

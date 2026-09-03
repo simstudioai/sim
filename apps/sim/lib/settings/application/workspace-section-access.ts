@@ -10,7 +10,7 @@ import {
 } from '@/components/settings/navigation'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
-import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
@@ -62,11 +62,13 @@ async function canOpenWorkspaceSection(
         : false,
     ])
 
+  const deployment = getDeploymentShape()
   const navigation = resolveWorkspaceNavigation({
     permission,
     permissionConfig: accessControl?.config ?? {},
+    hosted: deployment.hosted,
     entitlements: {
-      byok: isHosted,
+      byok: deployment.hosted,
       credentialGroups: credentialGroupsAvailable,
       inbox: true,
       customBlocks: customBlocksAvailable,
@@ -86,7 +88,11 @@ async function canOpenOrganizationSection(
 ): Promise<boolean> {
   const organizationSection = UNIFIED_TO_ORGANIZATION_SECTION[input.section]
   if (!organizationSection) return true
-  if (!isBillingEnabled && (input.section === 'billing' || input.section === 'organization')) {
+  const deployment = getDeploymentShape()
+  if (
+    !deployment.billingEnabled &&
+    (input.section === 'billing' || input.section === 'organization')
+  ) {
     return false
   }
   if (!workspace.organizationId) {
@@ -104,7 +110,7 @@ async function canOpenOrganizationSection(
     canOpenSection &&
     isOrganizationSettingsSectionAvailable(
       organizationSection,
-      getOrganizationSettingsFeatures(needsEnterprisePlan && isEnterpriseOrganization)
+      getOrganizationSettingsFeatures(needsEnterprisePlan && isEnterpriseOrganization, deployment)
     )
   )
 }

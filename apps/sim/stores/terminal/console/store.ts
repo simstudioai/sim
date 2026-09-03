@@ -8,7 +8,7 @@ import {
   type AgentStreamToolTerminalStatus,
   settleRunningToolCallList,
 } from '@/components/agent-stream/tool-call-lifecycle'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { sendMothershipMessage } from '@/lib/mothership/events'
@@ -317,7 +317,7 @@ const notifyBlockError = ({
 
     toast.error(displayName, {
       description: errorMessage,
-      action: isChatEnabled
+      action: getDeploymentShape().chatEnabled
         ? {
             label: 'Fix in Chat',
             onClick: () => sendMothershipMessage(copilotMessage),

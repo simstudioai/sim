@@ -22,7 +22,7 @@ import { SlackIcon } from '@/components/icons'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { useSession } from '@/lib/auth/auth-client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getDesktopUpdates } from '@/lib/desktop'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -133,6 +133,7 @@ export function SidebarFooter({
   const { data: profile } = useUserProfile()
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
+  const { billingEnabled } = useDeploymentShape()
   const { isInvitationsDisabled } = useWorkspaceInvitePolicy(workspaceId)
   const updateState = useDesktopUpdateState()
 
@@ -169,7 +170,7 @@ export function SidebarFooter({
    */
   const resolveMenuDestination = (section: SettingsSection): SettingsSection | null => {
     if (section === 'teammates' && isInvitationsDisabled) {
-      return isBillingEnabled ? 'billing' : null
+      return billingEnabled ? 'billing' : null
     }
     return section
   }

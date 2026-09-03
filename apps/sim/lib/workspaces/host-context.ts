@@ -1,6 +1,7 @@
 import { cache } from 'react'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
+import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
@@ -54,6 +55,7 @@ async function resolveWorkspaceHostContextForViewer(
       credentialGroups: credentialGroupsAvailable,
       knowledgeMemberAccess: knowledgeMemberAccessAvailable,
     },
+    deployment: resolveDeploymentShape(),
   }
 }
 
