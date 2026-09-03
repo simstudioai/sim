@@ -27,7 +27,6 @@
     }
   },
   "scripts": {
-    "cn:build": "cn build --full --config cn.config.mjs -o src/lib/cn-tables.ts",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "lint": "biome check --write --unsafe .",
@@ -37,7 +36,8 @@
   },
   "dependencies": {
     "@sim/utils": "workspace:*",
-    "cn": "0.2.4"
+    "clsx": "^2.1.1",
+    "tailwind-merge": "3.6.0"
   },
   "peerDependencies": {
     "@radix-ui/react-avatar": "^1.1.10",

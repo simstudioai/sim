@@ -27,7 +27,6 @@
       "!**/public/worker-*.js",
       "!**/public/fallback-*.js",
       "!**/apps/sim/tools/generated",
-      "!**/packages/emcn/src/lib/cn-tables.ts",
       "!**/apps/docs/.source",
       "!**/apps/desktop/release",
       "!**/venv",

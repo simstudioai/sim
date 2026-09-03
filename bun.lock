@@ -494,7 +494,8 @@
       "version": "0.1.0",
       "dependencies": {
         "@sim/utils": "workspace:*",
-        "cn": "0.2.4",
+        "clsx": "^2.1.1",
+        "tailwind-merge": "3.6.0",
       },
       "devDependencies": {
         "@radix-ui/react-avatar": "1.1.10",
@@ -2630,8 +2631,6 @@
     "cluster-key-slot": ["cluster-key-slot@1.1.1", "", {}, "sha512-rwHwUfXL40Chm1r08yrhU3qpUvdVlgkKNeyeGPOxnW8/SyVDvgRaed/Uz54AqWNaTCAThlj6QAs3TZcKI0xDEw=="],
 
     "cmdk": ["cmdk@1.1.1", "", { "dependencies": { "@radix-ui/react-compose-refs": "^1.1.1", "@radix-ui/react-dialog": "^1.1.6", "@radix-ui/react-id": "^1.1.0", "@radix-ui/react-primitive": "^2.0.2" }, "peerDependencies": { "react": "^18 || ^19 || ^19.0.0-rc", "react-dom": "^18 || ^19 || ^19.0.0-rc" } }, "sha512-Vsv7kFaXm+ptHDMZ7izaRsP70GgrW9NBNGswt9OZaVBLlE0SNpDq8eu/VGXyF9r7M0azK3Wy7OlYXsuyYLFzHg=="],
-
-    "cn": ["cn@0.2.4", "", { "bin": { "cn": "bin/cn.mjs" } }, "sha512-SzQvoh5FwizWtQg9+JueKdjWhlfCZMdu5DqNHm9q1wUlRVmKb9WXlepR9bTTbPwzEOyX1ujJ6lcCppmn3bNUCg=="],
 
     "collapse-white-space": ["collapse-white-space@2.1.0", "", {}, "sha512-loKTxY1zCOuG4j9f6EPnuyyYkf58RnhhWTvRoZEokgB+WbdXehfjFviyOVYkqzEWz1Q5kRiZdBYS5SwxbQYwzw=="],
 

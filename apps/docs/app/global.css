@@ -5,13 +5,6 @@
 @source "../../../packages/emcn/src";
 @source "../../../packages/workflow-renderer/src";
 
-/* emcn's compiled `cn` lookup tables encode Tailwind's own class-group literals
-   as string data. The scanner cannot tell those from real class usage, so
-   leaving the file in scope emits utilities nothing renders (`float-left`,
-   `clear-end`, every `mix-blend-*`, …). apps/sim/app/_styles/globals.css
-   carries the same exclusion — both apps scan packages/emcn/src. */
-@source not "../../../packages/emcn/src/lib/cn-tables.ts";
-
 /* Every @sim/emcn component expresses hover through `hover-hover:` so touch
    devices never latch a sticky hover state. The app registers it as a plugin
    variant in apps/sim/app/_styles/globals.css; docs is CSS-first Tailwind v4 with no

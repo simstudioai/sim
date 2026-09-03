@@ -24,14 +24,6 @@
 @source not '../../**/*.spec.{js,ts,jsx,tsx,mdx}';
 
 /**
- * emcn's compiled `cn` lookup tables encode Tailwind's own class-group literals
- * as string data. The scanner cannot tell those from real class usage, so
- * leaving the file in scope emits utilities nothing renders (`float-left`,
- * `clear-end`, …).
- */
-@source not '../../../../packages/emcn/src/lib/cn-tables.ts';
-
-/**
  * Nesting-aware dark variant: `dark:` utilities apply inside a `.dark` subtree
  * UNLESS they sit inside a nested `.light` island. The landing page pins itself
  * light (a `.light` wrapper) while the visitor's `<html>` may carry `.dark`;

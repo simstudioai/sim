@@ -7,17 +7,6 @@ minimumReleaseAge = 604800
 # dev builds, so every version is structurally younger than any age gate.
 minimumReleaseAgeExcludes = [
   "@typescript/native-preview",
-  # TEMPORARY — remove on or after 2026-09-09, when cn@0.2.4 passes the gate on
-  # its own. Verified required, not optional: `bun install --frozen-lockfile`
-  # still resolves this dependency and fails without the entry, so CI needs it
-  # too. The npm name was recycled in 2026 (its only releases older than the
-  # gate are an unrelated 2013 package), so no version of the package we want
-  # can currently satisfy the age check.
-  #
-  # While this is here the gate is OFF for `cn` entirely, including any future
-  # bump and any transitive copy. `cn` runs at build time and ships in the
-  # client bundle, so do not raise the version until the entry is gone.
-  "cn",
 ]
 
 [run]

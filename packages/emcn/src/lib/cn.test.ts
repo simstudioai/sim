@@ -1,8 +1,8 @@
 /**
- * `cn` merges every class string in the product, and its class-group tables are
- * generated (`cn-tables.ts`). The drift check in `scripts/check-cn-tables.ts`
- * only compares text, so it catches a stale file but not a semantic change from
- * a `cn` version bump. These cases pin the behaviour the config exists for.
+ * `cn` merges every class string in the product, and the only thing standing
+ * between a tailwind-merge bump and a silent restyle is the class-group
+ * extension it is configured with. These cases pin the behaviour that config
+ * exists for.
  *
  * @vitest-environment node
  */
@@ -12,7 +12,7 @@ import { cn } from './cn'
 describe('cn', () => {
   describe("Sim's font-size class group", () => {
     /**
-     * The whole reason `cn.config.mjs` extends `font-size`: without it the
+     * The whole reason `cn.ts` extends the `font-size` group: without it the
      * merger reads `text-small` as a colour, so it does not conflict with
      * `text-sm` and both survive — leaving CSS source order to pick the winner
      * instead of the caller's last argument.
