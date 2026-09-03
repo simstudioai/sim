@@ -3,6 +3,10 @@ import {
   type SecureFetchResponse,
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import type { ValidatedOciDestination } from '@/lib/internal/oci/endpoints'
 import { OciRequestError, parseOciErrorBody } from '@/lib/internal/oci/errors'
 import {
@@ -12,7 +16,7 @@ import {
 } from '@/lib/internal/oci/signing.server'
 
 const MAX_OCI_TIMEOUT_MS = 5 * 60 * 1000
-const MAX_OCI_REDACTABLE_BODY_LENGTH = 65_536
+const MAX_OCI_REDACTABLE_REQUEST_MATERIAL_LENGTH = 65_536
 
 export interface OciRequestResult {
   readonly response: SecureFetchResponse
@@ -68,7 +72,8 @@ function sensitiveRequestValues(
   credentials: OciSigningCredentials,
   authorization: string | undefined,
   requestUrl: string,
-  requestBody: string | undefined
+  requestBody: string | undefined,
+  serviceHeaderValues: readonly string[]
 ): string[] {
   return [
     credentials.tenancyId,
@@ -80,7 +85,49 @@ function sensitiveRequestValues(
     authorization ?? '',
     requestUrl,
     requestBody ?? '',
+    ...serviceHeaderValues,
   ].filter(Boolean)
+}
+
+function getSignedServiceHeaderValues(
+  serviceHeaders: Readonly<Record<string, string>> | undefined,
+  signedHeaders: Readonly<Record<string, string>>
+): string[] {
+  return Object.keys(serviceHeaders ?? {}).flatMap((name) => {
+    const value = signedHeaders[name.toLowerCase()]
+    return value === undefined ? [] : [value]
+  })
+}
+
+function isRedactableRequestMaterial(values: readonly (string | undefined)[]): boolean {
+  let totalLength = 0
+  for (const value of values) {
+    if (value === undefined) continue
+    totalLength += value.length
+    if (totalLength > MAX_OCI_REDACTABLE_REQUEST_MATERIAL_LENGTH) return false
+  }
+  return true
+}
+
+async function readOciErrorBody(
+  response: SecureFetchResponse,
+  method: OciRequestMethod,
+  maxResponseBytes: number,
+  signal: AbortSignal | undefined
+): Promise<string | undefined> {
+  try {
+    return await readResponseTextWithLimit(response, {
+      maxBytes: Math.min(DEFAULT_MAX_ERROR_BODY_BYTES, maxResponseBytes),
+      label: 'OCI error response',
+      signal,
+      allowNoBodyFallback: true,
+      requestMethod: method,
+    })
+  } catch (error) {
+    if (signal?.aborted) throw error
+    await response.body?.cancel().catch(() => {})
+    return undefined
+  }
 }
 
 /** Sends one bounded, redirect-free OCI request to an already validated destination. */
@@ -125,21 +172,34 @@ export async function sendOciRequest(params: {
   const opcRequestId = response.headers.get('opc-request-id') ?? undefined
   if (response.ok) return { response, opcRequestId }
 
-  const requestBodyIsRedactable =
-    signed.body === undefined || signed.body.length <= MAX_OCI_REDACTABLE_BODY_LENGTH
+  const serviceHeaderValues = getSignedServiceHeaderValues(params.serviceHeaders, signed.headers)
+  const requestMaterialIsRedactable = isRedactableRequestMaterial([
+    signed.body,
+    ...serviceHeaderValues,
+  ])
+  if (!requestMaterialIsRedactable) {
+    await response.body?.cancel().catch(() => {})
+    throw new OciRequestError({ status: response.status })
+  }
   const sensitiveValues = sensitiveRequestValues(
     params.credentials,
     signed.headers.authorization,
     signed.url,
-    requestBodyIsRedactable ? signed.body : undefined
+    signed.body,
+    serviceHeaderValues
   )
-  const body = await response.text()
-  const error = requestBodyIsRedactable ? parseOciErrorBody(body, sensitiveValues) : {}
+  const body = await readOciErrorBody(
+    response,
+    signed.method,
+    params.maxResponseBytes,
+    params.signal
+  )
+  const error = body === undefined ? {} : parseOciErrorBody(body, sensitiveValues)
   throw new OciRequestError({
     status: response.status,
     code: error.code,
     message: error.message,
-    opcRequestId: requestBodyIsRedactable ? opcRequestId : undefined,
+    opcRequestId,
     sensitiveValues,
   })
 }

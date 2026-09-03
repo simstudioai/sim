@@ -2,12 +2,13 @@ import {
   isSensitiveKey,
   REDACTED_MARKER,
   redactExactSensitiveValues,
+  redactKnownSensitiveValues,
 } from '@/lib/core/security/redaction'
 
 const MAX_OCI_ERROR_FIELD_LENGTH = 1024
 const MAX_OCI_ERROR_INPUT_LENGTH = 65_536
 const MAX_NESTED_JSON_DEPTH = 3
-const OCI_SENSITIVE_JSON_FIELDS = new Set(['signingstring'])
+const OCI_SENSITIVE_JSON_FIELDS = new Set(['signature', 'signingstring'])
 
 function normalizeJsonDiagnosticKey(key: string): string | undefined {
   let normalized = key
@@ -92,15 +93,22 @@ function sanitizeOciErrorField(
 ): string | undefined {
   if (typeof value !== 'string') return undefined
   if (value.length > MAX_OCI_ERROR_INPUT_LENGTH) return undefined
-  if (/%[0-9a-f]{2}/i.test(value)) return undefined
-  if (/\\(?:u[0-9a-f]{4}|x[0-9a-f]{2})/i.test(value)) return undefined
-  if (/\(request-target\)|x-content-sha256/i.test(value)) return undefined
-  const decoded = decodeNestedJsonDiagnostic(value)
-  if (decoded === undefined) return undefined
   const exactValues = sensitiveValues.flatMap((sensitiveValue) => {
     const jsonEncoded = JSON.stringify(sensitiveValue).slice(1, -1)
     return jsonEncoded === sensitiveValue ? [sensitiveValue] : [sensitiveValue, jsonEncoded]
   })
+  let knownRedacted: string
+  try {
+    knownRedacted = redactKnownSensitiveValues(value, exactValues)
+  } catch {
+    return undefined
+  }
+  if (/%[0-9a-f]{2}/i.test(knownRedacted)) return undefined
+  if (/\\(?:u[0-9a-f]{4}|x[0-9a-f]{2})/i.test(knownRedacted)) return undefined
+  if (/\(request-target\)|x-content-sha256/i.test(knownRedacted)) return undefined
+  if (/\bsignature\s*(?:version\s*)?=/i.test(knownRedacted)) return undefined
+  const decoded = decodeNestedJsonDiagnostic(knownRedacted)
+  if (decoded === undefined) return undefined
   let exactRedacted: string
   try {
     exactRedacted = redactExactSensitiveValues(decoded, exactValues)
@@ -110,7 +118,7 @@ function sanitizeOciErrorField(
   const sanitized = exactRedacted
     .replace(/-----BEGIN[\s\S]*/gi, '[redacted-key]')
     .replace(/https?:\/\/[^\s"']+/gi, '[redacted-url]')
-    .replace(/Signature\s+version=\\*"1\\*",[^\r\n]*/gi, '[redacted-authorization]')
+    .replace(/Signature\s+version\s*=\s*\\*"1\\*"\s*,[^\r\n]*/gi, '[redacted-authorization]')
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
     .trim()
   return sanitized ? sanitized.slice(0, MAX_OCI_ERROR_FIELD_LENGTH) : undefined
