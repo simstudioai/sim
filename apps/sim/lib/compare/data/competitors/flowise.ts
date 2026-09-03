@@ -719,7 +719,7 @@ export const flowiseProfile: CompetitorProfile = {
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value:
           'Unknown: beyond the unconfirmed third-party SOC 2 claim, Flowise has published no HIPAA, ISO 27001, PCI, or FedRAMP certification.',
         shortValue: 'SOC 2 claim unconfirmed; no official certifications published',

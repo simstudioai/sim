@@ -974,7 +974,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value:
           'SOC 2 Type 2 (Copilot Studio is named in scope), HIPAA (Business Associate Agreement), HITRUST CSF, FedRAMP, multiple ISO standards (9001, 20000-1, 22301, 27001, 27017, 27018, 27701), PCI DSS, CSA STAR, UK G-Cloud, Singapore MTCS Level 3, Korea K-ISMS, and Spain ENS, each with an audit report on the Microsoft Service Trust Portal',
         detail:

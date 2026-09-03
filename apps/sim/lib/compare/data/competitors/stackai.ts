@@ -746,7 +746,7 @@ export const stackaiProfile: CompetitorProfile = {
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value:
           'SOC 2 Type II and ISO 27001 certified, and audited against HIPAA in the same review cycle, though the public Trust Center page itself lists only SOC 2 and ISO 27001, not HIPAA',
         detail:

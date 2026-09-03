@@ -961,7 +961,7 @@ export const workatoProfile: CompetitorProfile = {
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value:
           'SOC1 Type II, SOC2 Type II, SOC3, ISO 27001, ISO 27701, ISO 42001, HIPAA (BAA), PCI-DSS v4.0.1 Level 1, IRAP (PROTECTED, Australia), NIST 800-171A r2',
         detail:

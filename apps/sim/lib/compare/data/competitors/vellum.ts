@@ -821,7 +821,7 @@ export const vellumProfile: CompetitorProfile = {
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value:
           'SOC 2 Type 2 and HIPAA compliant, with a BAA available for enterprise customers; no other certifications (ISO 27001, GDPR-specific attestation, PCI, FedRAMP) confirmed',
         detail:

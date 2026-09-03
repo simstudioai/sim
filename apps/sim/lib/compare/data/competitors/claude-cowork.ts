@@ -807,7 +807,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value:
           'SOC 2 Type I and Type II (company-wide, not Cowork-specific), ISO 27001:2022, ISO/IEC 42001:2023, HIPAA-ready (BAA via sales-assisted Enterprise)',
         detail: 'Company-wide Anthropic certifications, not Cowork-scoped.',

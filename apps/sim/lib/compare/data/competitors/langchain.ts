@@ -835,7 +835,7 @@ export const langchainProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
-      additionalCompliance: {
+      compliance: {
         value: 'HIPAA and GDPR, in addition to SOC 2 Type II',
         detail:
           "LangChain's own docs and Trust Center state LangSmith is SOC 2 Type II, HIPAA compliant, and GDPR compliant; no ISO 27001, PCI-DSS, or FedRAMP attestation was found on LangChain's own compliance materials.",

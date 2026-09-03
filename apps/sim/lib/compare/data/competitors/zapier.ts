@@ -861,7 +861,7 @@ export const zapierProfile: CompetitorProfile = {
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value:
           "SOC 2 Type II, SOC 3, GDPR, and CCPA compliant. Not HIPAA-compliant (no BAAs, PHI unsupported). Some third-party sources also cite ISO 27001 and PCI DSS, though these aren't confirmed on Zapier's trust page.",
         detail:

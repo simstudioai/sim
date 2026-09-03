@@ -929,7 +929,7 @@ export const n8nProfile: CompetitorProfile = {
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value:
           'GDPR (as data processor), SOC 2 Type II certification, and a publicly downloadable SOC 3 report; no HIPAA, ISO 27001, PCI, or FedRAMP certification found',
         detail:

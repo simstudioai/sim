@@ -854,7 +854,7 @@ export const gumloopProfile: CompetitorProfile = {
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value:
           'SOC 2 Type II, HIPAA (with BAAs), GDPR-aligned program plus EU-U.S. Data Privacy Framework (incl. UK Extension); no ISO 27001, PCI, or FedRAMP',
         detail:
