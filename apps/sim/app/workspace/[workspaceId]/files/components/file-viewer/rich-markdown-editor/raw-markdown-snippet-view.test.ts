@@ -9,12 +9,17 @@
  * back to markdown.
  */
 
+import { act, createElement } from 'react'
 import { sleep } from '@sim/utils/helpers'
 import { Editor } from '@tiptap/core'
+import { EditorContent } from '@tiptap/react'
+import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 
 let editor: Editor | null = null
+let root: Root | null = null
+let host: HTMLElement | null = null
 
 beforeEach(() => {
   // The live extension set's placeholder viewport-tracking and suggestion popups use these; jsdom
@@ -32,16 +37,25 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  if (root) act(() => root?.unmount())
   editor?.destroy()
   editor = null
+  root = null
+  host?.remove()
+  host = null
 })
 
 function mount(markdown: string): Editor {
-  return new Editor({
+  const mountedEditor = new Editor({
     extensions: createMarkdownEditorExtensions({ placeholder: '' }),
     content: markdown,
     contentType: 'markdown',
   })
+  host = document.createElement('div')
+  document.body.appendChild(host)
+  root = createRoot(host)
+  act(() => root?.render(createElement(EditorContent, { editor: mountedEditor })))
+  return mountedEditor
 }
 
 function posOf(ed: Editor, typeName: string): number {
@@ -54,16 +68,11 @@ function posOf(ed: Editor, typeName: string): number {
 
 /** React node views flush on a microtask after mount, so DOM assertions need one tick. */
 function nextTick(): Promise<void> {
-  return sleep(0)
+  return act(async () => {
+    await sleep(0)
+  })
 }
 
-// The hover "Raw HTML"/"Footnote" badge is rendered by `RawBlockView` through
-// `ReactNodeViewRenderer`, which only flushes its React portal once `@tiptap/react`'s
-// `contentComponent` is set — that requires mounting through `<EditorContent>` (a real React render
-// tree), which this repo's tests don't do for this directory (no `@testing-library/react` installed
-// here) and constructing a plain `new Editor()` doesn't provide. What IS verifiable and matters more
-// at this level — the node renders with the correct wrapper class and holds the exact raw source
-// text — is covered below; the badge itself is decorative chrome, checked manually.
 describe('raw markdown snippet node views (live editor)', () => {
   it('renders a raw HTML block with the correct wrapper class and exact raw source', async () => {
     editor = mount('<details><summary>More</summary>\n\nbody\n\n</details>')
