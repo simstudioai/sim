@@ -109,95 +109,52 @@ function render(scope: Scope, id: string, label: string, value: unknown): Materi
   return { scope, id, label, text: `${header}${JSON.stringify(value, null, 2)}` }
 }
 
-/** One materializer per scope: the list, then each resource as its `get` returns it. */
-const MATERIALIZERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<Materialized[]>> = {
-  workflows: async (runtime) => {
-    const list = await listAll(runtime, '/api/v2/workflows')
-    return mapConcurrent(list, FETCH_CONCURRENCY, async (w) => {
-      const id = str(w.id) ?? ''
-      // The draft state, not the export: export is sanitized for sharing and nulls
-      // workspace-specific fields (a Table block's `tableId`), so a grep for a table id
-      // inside a workflow would miss it. The state route scopes by workflow id alone
-      // (`query: noInputSchema`); a workspaceId here is an "Unrecognized key".
-      const state = await runtime.client.request<{ data: unknown }>(`/api/v2/workflows/${id}/state`)
-      return render('workflows', id, str(w.name) ?? id, state.data)
-    })
-  },
-  blocks: async (runtime) => {
-    const key = runtime.workspaceId
-    const cached = catalogCache.get(key)
-    if (cached !== undefined) return cached
-    const list = await listAll(runtime, '/api/v2/blocks')
-    const materialized = await mapConcurrent(list, FETCH_CONCURRENCY, async (b) => {
-      const id = str(b.id) ?? ''
-      const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/blocks/${id}`, {
-        query: { workspaceId: runtime.workspaceId },
-      })
-      return render('blocks', id, id, detail.data)
-    })
-    catalogCache.set(key, materialized)
-    return materialized
-  },
-  tools: async (runtime) => {
-    const list = await listAll(runtime, '/api/v2/tools')
-    return list.map((t) => render('tools', str(t.id) ?? '', str(t.id) ?? '', t))
-  },
-  tables: async (runtime) => {
-    const list = await listAll(runtime, '/api/v2/tables')
-    return mapConcurrent(list, FETCH_CONCURRENCY, async (t) => {
-      const id = str(t.id) ?? ''
-      const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/tables/${id}`, {
-        query: { workspaceId: runtime.workspaceId },
-      })
-      return render('tables', id, str(t.name) ?? id, detail.data)
-    })
-  },
-  skills: async (runtime) => {
-    const list = await listAll(runtime, '/api/v2/skills')
-    return mapConcurrent(list, FETCH_CONCURRENCY, async (s) => {
-      const id = str(s.id) ?? ''
-      const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/skills/${id}`, {
-        query: { workspaceId: runtime.workspaceId },
-      })
-      return render('skills', id, str(s.name) ?? id, detail.data)
-    })
-  },
-  'custom-tools': async (runtime) => {
-    const list = await listAll(runtime, '/api/v2/custom-tools')
-    return mapConcurrent(list, FETCH_CONCURRENCY, async (t) => {
-      const id = str(t.id) ?? ''
-      const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/custom-tools/${id}`, {
-        query: { workspaceId: runtime.workspaceId },
-      })
-      return render('custom-tools', id, str(t.title) ?? str(t.name) ?? id, detail.data)
-    })
-  },
-  files: async (runtime) => {
-    // File contents, through the v2 read-text endpoint (binary/degraded files are
-    // honestly skipped there); the label is the path the model sees in `files ls`.
-    const list = (await listAll(runtime, '/api/v2/files')).slice(0, MAX_FILES)
-    const texts = await mapConcurrent(list, FILE_READ_CONCURRENCY, async (file) => {
-      const id = str(file.id) ?? ''
-      try {
-        const response = await runtime.client.request<ReadFileTextResponse>(
-          `/api/v2/files/${encodeURIComponent(id)}/text`,
-          { query: { workspaceId: runtime.workspaceId, maxBytes: String(MAX_BYTES_PER_FILE) } }
-        )
-        return { file, text: response.data.degraded ? null : response.data.text }
-      } catch {
-        return { file, text: null }
-      }
-    })
-    return texts.flatMap(({ file, text }) => {
-      if (text === null) return []
-      // `folderPath` is `/` at the root and `/Ops` below it; the match header already
-      // supplies the `files/` prefix, so the label carries no slash of its own.
-      const folder = (str(file.folderPath) ?? '').replace(/^\/+|\/+$/g, '')
-      const name = str(file.name) ?? str(file.id) ?? ''
-      const label = folder ? `${folder}/${name}` : name
-      return [{ scope: 'files' as const, id: str(file.id) ?? '', label, text }]
-    })
-  },
+interface IndexEntry {
+  id: string
+  /** Display identity: the resource's name when it has one, else its id. */
+  label: string
+  raw: unknown
+}
+
+function entry(id: string, label: string, raw: unknown): IndexEntry {
+  return { id, label, raw }
+}
+
+function fileLabel(file: Record<string, unknown>): string {
+  // `folderPath` is `/` at the root and `/Ops` below it; the match header already
+  // supplies the `files/` prefix, so the label carries no slash of its own.
+  const folder = (str(file.folderPath) ?? '').replace(/^\/+|\/+$/g, '')
+  const name = str(file.name) ?? str(file.id) ?? ''
+  return folder ? `${folder}/${name}` : name
+}
+
+/**
+ * One cheap index per scope: the listing, which carries ids and names. A `--in` selector
+ * resolves against these and fetches only what it names — materializing every world to
+ * find one block cost 65 detail calls per `--in agent` (18-34s and the per-user rate
+ * limit on dev, 2026-09-03).
+ */
+const INDEXERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<IndexEntry[]>> = {
+  workflows: async (runtime) =>
+    (await listAll(runtime, '/api/v2/workflows')).map((w) =>
+      entry(str(w.id) ?? '', str(w.name) ?? str(w.id) ?? '', w)
+    ),
+  blocks: async (runtime) =>
+    (await listAll(runtime, '/api/v2/blocks')).map((b) =>
+      entry(str(b.id) ?? '', str(b.id) ?? '', b)
+    ),
+  tools: async (runtime) =>
+    (await listAll(runtime, '/api/v2/tools')).map((t) =>
+      entry(str(t.id) ?? '', str(t.id) ?? '', t)
+    ),
+  tables: async (runtime) =>
+    (await listAll(runtime, '/api/v2/tables')).map((t) =>
+      entry(str(t.id) ?? '', str(t.name) ?? str(t.id) ?? '', t)
+    ),
+  files: async (runtime) =>
+    (await listAll(runtime, '/api/v2/files'))
+      .slice(0, MAX_FILES)
+      .map((f) => entry(str(f.id) ?? '', fileLabel(f), f)),
   integrations: async (runtime) => {
     // The viewer's callable connected-service operations — the same projection the
     // chat request carries, so `integrations list` and this world never disagree.
@@ -207,26 +164,140 @@ const MATERIALIZERS: Record<Scope, (runtime: AgentCliRuntime) => Promise<Materia
       { schemaSurface: 'copilot' },
       runtime.workspaceId
     )
-    return tools.map((tool) => render('integrations', tool.name, tool.name, tool))
+    return tools.map((tool) => entry(tool.name, tool.name, tool))
   },
-  secrets: async (runtime) => {
+  skills: async (runtime) =>
+    (await listAll(runtime, '/api/v2/skills')).map((s) =>
+      entry(str(s.id) ?? '', str(s.name) ?? str(s.id) ?? '', s)
+    ),
+  'custom-tools': async (runtime) =>
+    (await listAll(runtime, '/api/v2/custom-tools')).map((t) =>
+      entry(str(t.id) ?? '', str(t.title) ?? str(t.name) ?? str(t.id) ?? '', t)
+    ),
+  secrets: async (runtime) =>
     // Names only, by construction: a secret's value never enters the model window.
-    const list = await listAll(runtime, '/api/v2/secrets')
-    return list.map((s) =>
-      render('secrets', str(s.name) ?? '', str(s.name) ?? '', { name: s.name })
-    )
-  },
-  credentials: async (runtime) => {
-    const list = await listAll(runtime, '/api/v2/credentials')
-    return list.map((c) =>
-      render('credentials', str(c.id) ?? '', str(c.name) ?? str(c.id) ?? '', {
+    (await listAll(runtime, '/api/v2/secrets')).map((s) =>
+      entry(str(s.name) ?? '', str(s.name) ?? '', { name: s.name })
+    ),
+  credentials: async (runtime) =>
+    (await listAll(runtime, '/api/v2/credentials')).map((c) =>
+      entry(str(c.id) ?? '', str(c.name) ?? str(c.id) ?? '', {
         id: c.id,
         name: c.name,
         provider: c.provider ?? c.providerId,
         type: c.type,
       })
+    ),
+}
+
+/** One fetch per scope: the resource as its `get` returns it, or null when unreadable. */
+const FETCHERS: Record<
+  Scope,
+  (runtime: AgentCliRuntime, item: IndexEntry) => Promise<Materialized | null>
+> = {
+  workflows: async (runtime, item) => {
+    // The draft state, not the export: export is sanitized for sharing and nulls
+    // workspace-specific fields (a Table block's `tableId`), so a grep for a table id
+    // inside a workflow would miss it. The state route scopes by workflow id alone
+    // (`query: noInputSchema`); a workspaceId here is an "Unrecognized key".
+    const state = await runtime.client.request<{ data: unknown }>(
+      `/api/v2/workflows/${item.id}/state`
     )
+    return render('workflows', item.id, item.label, state.data)
   },
+  blocks: async (runtime, item) => {
+    const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/blocks/${item.id}`, {
+      query: { workspaceId: runtime.workspaceId },
+    })
+    return render('blocks', item.id, item.label, detail.data)
+  },
+  tools: async (_runtime, item) => render('tools', item.id, item.label, item.raw),
+  tables: async (runtime, item) => {
+    const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/tables/${item.id}`, {
+      query: { workspaceId: runtime.workspaceId },
+    })
+    return render('tables', item.id, item.label, detail.data)
+  },
+  files: async (runtime, item) => {
+    // File contents, through the v2 read-text endpoint (binary/degraded files are
+    // honestly skipped there); the label is the path the model sees in `files ls`.
+    try {
+      const response = await runtime.client.request<ReadFileTextResponse>(
+        `/api/v2/files/${encodeURIComponent(item.id)}/text`,
+        { query: { workspaceId: runtime.workspaceId, maxBytes: String(MAX_BYTES_PER_FILE) } }
+      )
+      if (response.data.degraded) return null
+      return { scope: 'files', id: item.id, label: item.label, text: response.data.text }
+    } catch {
+      return null
+    }
+  },
+  integrations: async (_runtime, item) => render('integrations', item.id, item.label, item.raw),
+  skills: async (runtime, item) => {
+    const detail = await runtime.client.request<{ data: unknown }>(`/api/v2/skills/${item.id}`, {
+      query: { workspaceId: runtime.workspaceId },
+    })
+    return render('skills', item.id, item.label, detail.data)
+  },
+  'custom-tools': async (runtime, item) => {
+    const detail = await runtime.client.request<{ data: unknown }>(
+      `/api/v2/custom-tools/${item.id}`,
+      { query: { workspaceId: runtime.workspaceId } }
+    )
+    return render('custom-tools', item.id, item.label, detail.data)
+  },
+  secrets: async (_runtime, item) => render('secrets', item.id, item.label, item.raw),
+  credentials: async (_runtime, item) => render('credentials', item.id, item.label, item.raw),
+}
+
+function concurrencyFor(scope: Scope): number {
+  return scope === 'files' ? FILE_READ_CONCURRENCY : FETCH_CONCURRENCY
+}
+
+async function fetchAll(
+  runtime: AgentCliRuntime,
+  scope: Scope,
+  entries: IndexEntry[]
+): Promise<Materialized[]> {
+  const items = await mapConcurrent(entries, concurrencyFor(scope), (item) =>
+    FETCHERS[scope](runtime, item)
+  )
+  return items.flatMap((m) => (m ? [m] : []))
+}
+
+/** A whole world, for a search with no `--in`: every resource the index lists. */
+async function materializeScope(runtime: AgentCliRuntime, scope: Scope): Promise<Materialized[]> {
+  if (scope === 'blocks') {
+    const cached = catalogCache.get(runtime.workspaceId)
+    if (cached !== undefined) return cached
+  }
+  const materialized = await fetchAll(runtime, scope, await INDEXERS[scope](runtime))
+  if (scope === 'blocks') catalogCache.set(runtime.workspaceId, materialized)
+  return materialized
+}
+
+function selects(nameFilter: string): (id: string, label: string) => boolean {
+  return (id, label) => id.toLowerCase() === nameFilter || label.toLowerCase().includes(nameFilter)
+}
+
+/** Only the resources a `--in` selector names: the indexes are read, the matches fetched. */
+async function materializeWithin(
+  runtime: AgentCliRuntime,
+  scopes: Scope[],
+  nameFilter: string
+): Promise<Materialized[]> {
+  const wanted = selects(nameFilter)
+  const perScope = await Promise.all(
+    scopes.map(async (scope) => {
+      if (scope === 'blocks') {
+        const cached = catalogCache.get(runtime.workspaceId)
+        if (cached !== undefined) return cached.filter((m) => wanted(m.id, m.label))
+      }
+      const entries = (await INDEXERS[scope](runtime)).filter((e) => wanted(e.id, e.label))
+      return fetchAll(runtime, scope, entries)
+    })
+  )
+  return perScope.flat()
 }
 
 function compilePattern(raw: string, ignoreCase: boolean): (line: string) => boolean {
@@ -332,15 +403,9 @@ export const universalGrepCommand: AgentCliEngine = {
       return agentCliFail(unknownWithin(within))
     }
     const matches = compilePattern(pattern, ignoreCase)
-
-    const materialized = (
-      await Promise.all(searched.map((scope) => MATERIALIZERS[scope](runtime)))
-    ).flat()
     const candidates = nameFilter
-      ? materialized.filter(
-          (m) => m.id.toLowerCase() === nameFilter || m.label.toLowerCase().includes(nameFilter)
-        )
-      : materialized
+      ? await materializeWithin(runtime, searched, nameFilter)
+      : (await Promise.all(searched.map((scope) => materializeScope(runtime, scope)))).flat()
     /**
      * A resource nothing in the searched worlds answers to is a wrong selector, not a
      * search with no hits — a silent "No matches" would hide the misspelling.
