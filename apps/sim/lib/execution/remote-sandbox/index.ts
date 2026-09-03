@@ -38,6 +38,7 @@ import {
   repairMissingSandboxImage,
   resolveWorkspaceSandbox,
 } from '@/lib/execution/remote-sandbox/resolve'
+import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/sandbox-encoding'
 import {
   SANDBOX_OUTPUT_DIR_MAX_DEPTH,
   SANDBOX_OUTPUT_DIR_SENTINEL,
@@ -593,25 +594,6 @@ const SIM_RESULT_CORRUPTED_ERROR =
   "Do not trust or persist this call's output. For large results, write the content to a " +
   'file inside the sandbox and export it via outputs.files[].sandboxPath instead of returning it.'
 
-function shouldReadSandboxPathAsBase64(outputSandboxPath: string): boolean {
-  const ext = outputSandboxPath.slice(outputSandboxPath.lastIndexOf('.')).toLowerCase()
-  const binaryExts = new Set([
-    '.png',
-    '.jpg',
-    '.jpeg',
-    '.gif',
-    '.webp',
-    '.pdf',
-    '.zip',
-    '.mp3',
-    '.mp4',
-    '.docx',
-    '.pptx',
-    '.xlsx',
-  ])
-  return binaryExts.has(ext)
-}
-
 async function readSandboxOutputFile(
   sandbox: SandboxHandle,
   outputSandboxPath: string,
@@ -621,7 +603,7 @@ async function readSandboxOutputFile(
   try {
     return await sandbox.readFileWithLimit(outputSandboxPath, {
       maxBytes,
-      encoding: shouldReadSandboxPathAsBase64(outputSandboxPath) ? 'base64' : 'utf8',
+      encoding: isBinarySandboxPath(outputSandboxPath) ? 'base64' : 'utf8',
       signal: options?.signal,
     })
   } catch (error) {

@@ -932,6 +932,89 @@ describe('Function execution request', () => {
       ])
     })
 
+    it('exports a .jpg declared without a format as image/jpeg bytes, never as base64 text', async () => {
+      // The sandbox reads a .jpg back as base64; the exporter used to classify it by its
+      // (unknown) output format, default to json, and store the base64 string verbatim.
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const jpegBase64 = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).toString('base64')
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        cost: { input: 0, output: 0, total: 0.0001 },
+        exportedFiles: {
+          '/home/user/thumbs/01.jpg': jpegBase64,
+          '/home/user/summary.json': '{"ok":true}',
+        },
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/thumbs/01.jpg',
+              mode: 'create',
+              sandboxPath: '/home/user/thumbs/01.jpg',
+            },
+            { path: 'files/summary.json', mode: 'create', sandboxPath: '/home/user/summary.json' },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      expect(response.status).toBe(200)
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(2)
+      const [jpgCall, jsonCall] = mockWriteWorkspaceFileByPath.mock.calls.map((call) => call[0])
+      expect(jpgCall.target).toEqual(expect.objectContaining({ path: 'files/thumbs/01.jpg' }))
+      expect(jpgCall.inferredMimeType).toBe('image/jpeg')
+      expect(Buffer.from(jpgCall.buffer).equals(Buffer.from(jpegBase64, 'base64'))).toBe(true)
+      expect(jsonCall.target).toEqual(expect.objectContaining({ path: 'files/summary.json' }))
+      expect(jsonCall.inferredMimeType).toBe('application/json')
+      expect(Buffer.from(jsonCall.buffer).toString('utf-8')).toBe('{"ok":true}')
+    })
+
+    it('exports a single .jpg declared without a format as image/jpeg bytes (single-file path)', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const jpegBase64 = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).toString('base64')
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        cost: { input: 0, output: 0, total: 0.0001 },
+        exportedFiles: { '/home/user/thumbs/02.jpg': jpegBase64 },
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/thumbs/02.jpg',
+              mode: 'create',
+              sandboxPath: '/home/user/thumbs/02.jpg',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      expect(response.status).toBe(200)
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
+      const call = mockWriteWorkspaceFileByPath.mock.calls[0]?.[0]
+      expect(call.target).toEqual(expect.objectContaining({ path: 'files/thumbs/02.jpg' }))
+      expect(call.inferredMimeType).toBe('image/jpeg')
+      expect(Buffer.from(call.buffer).equals(Buffer.from(jpegBase64, 'base64'))).toBe(true)
+    })
+
     it("keeps the code's returned rows beside the sandbox export receipt", async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
       const rows = [{ name: 'Ada' }, { name: 'Grace' }]
