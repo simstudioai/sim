@@ -51,10 +51,52 @@ const PREFIX_SELECTOR = /^\w+:/
  * the whole registry fifty times per call.
  */
 const PLATFORM_SCOPES: ReadonlySet<Scope> = new Set<Scope>(['blocks', 'tools'])
-const platformCache = new LRUCache<string, Materialized[]>({ max: 500, ttl: 10 * 60_000 })
+const platformCache = new LRUCache<string, Materialized[]>({ max: 500, ttl: 60 * 60_000 })
 
-function platformCacheKey(runtime: AgentCliRuntime, scope: Scope): string | null {
-  return PLATFORM_SCOPES.has(scope) ? `${scope}:${runtime.workspaceId}` : null
+/**
+ * One build per (world, workspace) at a time. A turn that fans out several greps at once
+ * used to build every world once per grep, concurrently — eight greps in one dev turn
+ * meant 24 block-catalog listings, 150 tool-catalog pages, and 130 file reads inside
+ * sixty seconds, on the one process serving the chat. Now the concurrent callers share
+ * the build in flight.
+ */
+const inflight = new Map<string, Promise<Materialized[]>>()
+
+/** A file's text keyed by id and version, so a repeat grep re-reads only files that changed. */
+const fileTextCache = new LRUCache<string, { text: string | null }>({
+  max: 5_000,
+  ttl: 60 * 60_000,
+})
+
+/**
+ * The requests behind a grep run in-process on the same server that answers the chat, so
+ * the fan-out is bounded for the whole process, not per world: ten worlds at eight-way
+ * concurrency each would be eighty nested route executions per grep.
+ */
+const NESTED_REQUEST_CONCURRENCY = 8
+let activeRequests = 0
+const waiting: Array<() => void> = []
+
+async function gated<T>(work: () => Promise<T>): Promise<T> {
+  if (activeRequests >= NESTED_REQUEST_CONCURRENCY) {
+    await new Promise<void>((release) => waiting.push(release))
+  }
+  activeRequests += 1
+  try {
+    return await work()
+  } finally {
+    activeRequests -= 1
+    waiting.shift()?.()
+  }
+}
+
+function gatedRuntime(runtime: AgentCliRuntime): AgentCliRuntime {
+  return {
+    ...runtime,
+    client: {
+      request: (path, options) => gated(() => runtime.client.request(path, options)),
+    },
+  }
 }
 
 interface Materialized {
@@ -231,16 +273,23 @@ const FETCHERS: Record<
   files: async (runtime, item) => {
     // File contents, through the v2 read-text endpoint (binary/degraded files are
     // honestly skipped there); the label is the path the model sees in `files ls`.
-    try {
-      const response = await runtime.client.request<ReadFileTextResponse>(
-        `/api/v2/files/${encodeURIComponent(item.id)}/text`,
-        { query: { workspaceId: runtime.workspaceId, maxBytes: String(MAX_BYTES_PER_FILE) } }
-      )
-      if (response.data.degraded) return null
-      return { scope: 'files', id: item.id, label: item.label, text: response.data.text }
-    } catch {
-      return null
+    const raw = isRecordLike(item.raw) ? (item.raw as Record<string, unknown>) : {}
+    const version = `${item.id}:${str(raw.updatedAt) ?? ''}:${String(raw.size ?? '')}`
+    let cached = fileTextCache.get(version)
+    if (cached === undefined) {
+      try {
+        const response = await runtime.client.request<ReadFileTextResponse>(
+          `/api/v2/files/${encodeURIComponent(item.id)}/text`,
+          { query: { workspaceId: runtime.workspaceId, maxBytes: String(MAX_BYTES_PER_FILE) } }
+        )
+        cached = { text: response.data.degraded ? null : response.data.text }
+      } catch {
+        cached = { text: null }
+      }
+      fileTextCache.set(version, cached)
     }
+    if (cached.text === null) return null
+    return { scope: 'files', id: item.id, label: item.label, text: cached.text }
   },
   integrations: async (_runtime, item) => render('integrations', item.id, item.label, item.raw),
   skills: async (runtime, item) => {
@@ -277,14 +326,21 @@ async function fetchAll(
 
 /** A whole world, for a search with no `--in`: every resource the index lists. */
 async function materializeScope(runtime: AgentCliRuntime, scope: Scope): Promise<Materialized[]> {
-  const key = platformCacheKey(runtime, scope)
-  if (key) {
+  const key = `${scope}:${runtime.workspaceId}`
+  const platform = PLATFORM_SCOPES.has(scope)
+  if (platform) {
     const cached = platformCache.get(key)
     if (cached !== undefined) return cached
   }
-  const materialized = await fetchAll(runtime, scope, await INDEXERS[scope](runtime))
-  if (key) platformCache.set(key, materialized)
-  return materialized
+  const pending = inflight.get(key)
+  if (pending) return pending
+  const build = (async () => {
+    const materialized = await fetchAll(runtime, scope, await INDEXERS[scope](runtime))
+    if (platform) platformCache.set(key, materialized)
+    return materialized
+  })().finally(() => inflight.delete(key))
+  inflight.set(key, build)
+  return build
 }
 
 function selects(nameFilter: string): (id: string, label: string) => boolean {
@@ -426,9 +482,10 @@ export const universalGrepCommand: AgentCliEngine = {
       return agentCliFail(unknownWithin(within))
     }
     const matches = compilePattern(pattern, ignoreCase)
+    const bounded = gatedRuntime(runtime)
     const candidates = nameFilter
-      ? await materializeWithin(runtime, searched, nameFilter)
-      : (await Promise.all(searched.map((scope) => materializeScope(runtime, scope)))).flat()
+      ? await materializeWithin(bounded, searched, nameFilter)
+      : (await Promise.all(searched.map((scope) => materializeScope(bounded, scope)))).flat()
     /**
      * A resource nothing in the searched worlds answers to is a wrong selector, not a
      * search with no hits — a silent "No matches" would hide the misspelling.
