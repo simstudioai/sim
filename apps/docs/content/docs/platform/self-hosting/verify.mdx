@@ -23,7 +23,7 @@ Run it from the directory holding your `.env` and Compose file, or from a source
 | **Schema** | **Required** keys are present, are not still the example placeholder, are valid URLs where they should be, and have a usable shape — `ENCRYPTION_KEY` is checked as exactly 64 hex characters, the rest as a minimum length. Optional secrets are not shape-checked, so a malformed `API_ENCRYPTION_KEY` passes here and fails later at encrypt time. `--fix` generates missing or placeholder secrets |
 | **Consistency** | The same key agrees across files — `BETTER_AUTH_SECRET` between the app and realtime, and `DATABASE_URL` between the app and `packages/db` (a mismatch there means migrations ran against a different database). `--fix` mirrors the `apps/sim/.env` value |
 | **Coherence** | Configuration that is individually valid but jointly wrong: a feature flag whose dependency is unset, a storage provider that is half-configured, and a server flag whose `NEXT_PUBLIC_` twin disagrees with it |
-| **Live** | Postgres is reachable, pgvector is available, migrations are applied and current, Redis answers, and the running services respond on their ports. Doctor reads env files, so on the production Compose layout — where those values live inside the containers rather than in `.env` — the Postgres, migration, and Redis probes are skipped and only the HTTP health checks run |
+| **Live** | Postgres is reachable, pgvector is available, migrations are applied — on a standalone `npx sim-setup` install the published package carries no migration journal, so it can confirm what has been applied but not that it is current — Redis answers, and the running services respond on their ports. Doctor reads env files, so on the production Compose layout — where those values live inside the containers rather than in `.env` — the Postgres, migration, and Redis probes are skipped and only the HTTP health checks run |
 
 <Callout type="warn">
   The check worth knowing about before you hit it: if `NEXT_PUBLIC_APP_URL` points at `sim.ai` or any subdomain of it, Sim treats the deployment as Sim's own hosted platform (`isHosted=true`) and disables self-host overrides. Doctor flags this. Use your own domain.
@@ -104,7 +104,7 @@ All six should be present on Compose: `simstudio`, `realtime`, `db`, `redis`, `c
 
 **Step 8 fails — knowledge base upload errors.** Knowledge bases need a hosted embedding provider — OpenAI, Azure OpenAI, or Gemini. There is no local embedding backend. If a key is set, check pgvector is installed on the database.
 
-**Step 9 fails — no email arrives.** With no provider configured the mailer no-ops: it records the recipient, subject, and sender at `info` and reports success, never the message body. Raise `LOG_LEVEL` to `info` to see that line — at the production default of `ERROR` nothing is logged at all.
+**Step 9 fails — no email arrives.** With no provider configured the mailer no-ops: it records the recipient, subject, and sender at `info` and reports success, never the message body. Raise `LOG_LEVEL` to `INFO` to see that line — the variable is uppercase-only, and at the production default of `ERROR` nothing is logged at all.
 
 **Step 11 fails — schedule never fires.** Read the scheduler's logs (`docker compose -f docker-compose.prod.yml logs cron`, or `kubectl get cronjobs -n simstudio`). A `401` there means the app and the scheduler disagree on `CRON_SECRET`.
 

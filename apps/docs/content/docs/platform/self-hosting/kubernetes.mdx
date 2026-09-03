@@ -17,7 +17,7 @@ import { FAQ } from '@/components/ui/faq'
 - PV provisioner support (a default StorageClass supporting `ReadWriteOnce`)
 - An ingress controller, if `ingress.enabled=true`
 - `metrics-server`, if you enable autoscaling
-- **Redis** — bundled by the chart (`redis.enabled: true`). Only supply your own if you set `redis.enabled: false`; see [Redis](/platform/self-hosting/redis)
+- **Redis** — bundled by the chart (`redis.enabled: true`). To use your own, set `app.env.REDIS_URL`: a non-empty value overrides the bundled URL and suppresses its Deployment on its own. `redis.enabled: false` is the explicit opt-out. See [Redis](/platform/self-hosting/redis)
 
 ## Installation
 

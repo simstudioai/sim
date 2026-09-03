@@ -117,8 +117,8 @@ NEXT_PUBLIC_BRAND_NAME=Acme
 NEXT_PUBLIC_BRAND_LOGO_URL=/branding/logo.png
 NEXT_PUBLIC_BRAND_WORDMARK_URL=/branding/wordmark.svg
 NEXT_PUBLIC_BRAND_FAVICON_URL=/branding/favicon.ico
-# Must be same-origin — the CSP's style-src allows only 'self' and Google
-# Fonts, so a stylesheet on another origin is blocked.
+# The CSP's style-src allows only 'self' and fonts.googleapis.com, and takes
+# no configured hosts — in practice this means same-origin.
 NEXT_PUBLIC_CUSTOM_CSS_URL=/branding/custom.css
 ```
 
@@ -173,4 +173,4 @@ branding:
     favicon.ico: "AAABAAEAEBAAAAEAIABoBAAA..."
 ```
 
-With the default `mountPath`, a file named `logo.png` is served at `/branding/logo.png` — the value to give `NEXT_PUBLIC_BRAND_LOGO_URL`. Outside Helm, host the logo, wordmark, and favicon anywhere the browser can reach and point those variables at absolute URLs. `NEXT_PUBLIC_CUSTOM_CSS_URL` is the exception — it must be same-origin, since the CSP's `style-src` takes no configured hosts.
+With the default `mountPath`, a file named `logo.png` is served at `/branding/logo.png` — the value to give `NEXT_PUBLIC_BRAND_LOGO_URL`. Outside Helm, host the logo, wordmark, and favicon anywhere the browser can reach and point those variables at absolute URLs. `NEXT_PUBLIC_CUSTOM_CSS_URL` is the exception — the CSP's `style-src` takes no configured hosts, so in practice it must be same-origin.

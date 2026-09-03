@@ -78,7 +78,7 @@ Each app replica opens a pool. Total connections grow with replica count, and Po
 
 Budget it: `replicas × pool size + realtime + cronjobs + migrations + headroom` must stay under `max_connections`.
 
-For anything beyond a handful of replicas, put **PgBouncer** in transaction pooling mode in front of the database and point the chart at it with `externalDatabase.host` / `externalDatabase.port` and `postgresql.enabled: false`. Setting `app.env.DATABASE_URL` does nothing — the chart computes `DATABASE_URL` itself and inlines it on the container, where it overrides anything from the Secret. This is the single highest-leverage change for a large deployment — it decouples app replica count from database connection count.
+For anything beyond a handful of replicas, put **PgBouncer** in transaction pooling mode in front of the database and point the chart at it with `externalDatabase.enabled: true`, `externalDatabase.host`, and `externalDatabase.port`, alongside `postgresql.enabled: false`. Both halves are required — with `postgresql.enabled: false` and `externalDatabase.enabled` still false the chart renders an empty `DATABASE_URL`. Setting `app.env.DATABASE_URL` does nothing — the chart computes `DATABASE_URL` itself and inlines it on the container, where it overrides anything from the Secret. This is the single highest-leverage change for a large deployment — it decouples app replica count from database connection count.
 
 ### Read replicas
 
@@ -147,8 +147,10 @@ externalDatabase:
   port: 6432
   database: simstudio
   sslMode: require
-  # Required — supply it here, through externalDatabase.existingSecret, or
-  # through External Secrets, or the chart refuses to render.
+  # Required unless you use externalDatabase.existingSecret or External
+  # Secrets, either of which skips this check. Under External Secrets, map
+  # externalSecrets.remoteRefs.externalDatabase.password — an omitted mapping
+  # renders no Secret and the pod cannot start.
   password: "<password>"
 
 autoscaling:

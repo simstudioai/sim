@@ -214,7 +214,7 @@ docker compose -f docker-compose.ollama.yml --profile "$PROFILE" up -d
   `sim-setup update` refuses two install kinds outright rather than doing something surprising:
 
   - **Kubernetes** — it does not upgrade Helm releases. Use `helm upgrade` after reading the chart and release notes.
-  - **Source / dev** — update the checkout with git, run `bun install`, and restart `bun run dev:full`.
+  - **Source / dev** — the `dev` mode that manages only Postgres and Redis. Update the checkout with git, run `bun install`, and restart `bun run dev:full`. A source checkout running `docker-compose.local.yml` is a Compose install and does update, by rebuilding.
 
   On a standalone `docker-compose.prod.yml` install it also refuses to overwrite its managed Compose file if you have edited it by hand, comparing the file against the hash it recorded in `.sim-setup.json`: preserve or remove your customizations first.
 </Callout>

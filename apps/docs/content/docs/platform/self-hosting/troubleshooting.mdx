@@ -5,7 +5,7 @@ description: Common issues and solutions
 
 ## Start here: `sim-setup doctor`
 
-On a Docker Compose or source install, run the built-in checker first. It catches most failures without you having to guess which subsystem is broken. It reads env files, so it is not a Kubernetes tool — on Helm, skip to the checks below.
+On a production or local-development Compose install, or a source checkout, run the built-in checker first. It does not detect the Ollama stack. It catches most failures without you having to guess which subsystem is broken. It reads env files, so it is not a Kubernetes tool — on Helm, skip to the checks below.
 
 ```bash
 npx sim-setup doctor
@@ -127,7 +127,7 @@ Rule out expiry and clock drift first: the endpoint's certificate may genuinely 
 
 That leaves two cases a bundle does address: the endpoint is signed by a private CA — a corporate TLS-inspecting proxy, or an internal service — or it serves an incomplete chain, omitting an intermediate. Adding the private root to `NODE_EXTRA_CA_CERTS` resolves the first. An incomplete chain is different: Node still fails with `UNABLE_TO_GET_ISSUER_CERT` because the missing intermediate has to be served by the endpoint, so repair the server's chain rather than expecting a bundle to cover it.
 
-In either case, the image already ships current CA certificates and runs as a non-root user, so installing packages inside it is not the fix. Mount your CA bundle and point Node at it:
+For the private-CA case, the image already ships current CA certificates and runs as a non-root user, so installing packages inside it is not the fix. Mount your CA bundle and point Node at it — an incomplete chain is not fixed here, only on the server:
 
 ```yaml
 # docker-compose.prod.yml
