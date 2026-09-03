@@ -37,15 +37,7 @@ A quick lookup for everyday actions in the Sim workflow editor. For keyboard sho
     <tr>
       <td>Rename a workspace</td>
       <td>Right-click workspace → **Rename**</td>
-      <td rowSpan={4}><ActionImage src="/static/quick-reference/workspace-context-menu.png" alt="Workspace context menu" /></td>
-    </tr>
-    <tr>
-      <td>Duplicate a workspace</td>
-      <td>Right-click workspace → **Duplicate**</td>
-    </tr>
-    <tr>
-      <td>Export a workspace</td>
-      <td>Right-click workspace → **Export**</td>
+      <td rowSpan={2}><ActionImage src="/static/quick-reference/workspace-context-menu.png" alt="Workspace context menu" /></td>
     </tr>
     <tr>
       <td>Delete a workspace</td>
@@ -143,8 +135,8 @@ A quick lookup for everyday actions in the Sim workflow editor. For keyboard sho
       <td><ActionVideo src="quick-reference/add-block.mp4" alt="Add a block" /></td>
     </tr>
     <tr>
-      <td>Multi-select blocks</td>
-      <td>`Mod+Click` additional blocks, or shift-drag to draw selection box</td>
+      <td>Select multiple blocks</td>
+      <td>Left-drag on empty canvas (or Shift-drag in hand mode). `Mod`/`Shift` + click adds to the selection.</td>
       <td><ActionVideo src="quick-reference/multiselect-blocks.mp4" alt="Multi-select blocks" /></td>
     </tr>
     <tr>
@@ -268,7 +260,7 @@ A quick lookup for everyday actions in the Sim workflow editor. For keyboard sho
     </tr>
     <tr>
       <td>Test with chat</td>
-      <td>Use Chat panel on the right side</td>
+      <td>Open the workflow test chat (the Chat overlay with the output dropdown), not the Chat tab in the panel.</td>
       <td><ActionImage src="/static/quick-reference/test-chat.png" alt="Test with chat" /></td>
     </tr>
     <tr>
@@ -293,7 +285,7 @@ A quick lookup for everyday actions in the Sim workflow editor. For keyboard sho
     </tr>
     <tr>
       <td>View execution logs</td>
-      <td>Open terminal panel at bottom, or `Mod+L`</td>
+      <td>Open the terminal panel at the bottom (`Mod+L` opens the Logs page).</td>
       <td><ActionImage src="/static/quick-reference/terminal.png" alt="Execution logs terminal" /></td>
     </tr>
     <tr>
@@ -338,22 +330,22 @@ A quick lookup for everyday actions in the Sim workflow editor. For keyboard sho
     </tr>
     <tr>
       <td>View deployment status</td>
-      <td>Check status indicator (Live/Update/Deploy) in Deploy tab</td>
+      <td>Check status indicator (Live/Update/Deploy) in Deploy modal</td>
       <td><ActionImage src="/static/quick-reference/view-deployment.png" alt="View deployment status" /></td>
     </tr>
     <tr>
       <td>Revert deployment</td>
-      <td>Access previous versions in Deploy tab → **Promote to live**</td>
+      <td>Access previous versions in Deploy modal → **Promote to live**</td>
       <td><ActionImage src="/static/quick-reference/promote-deployment.png" alt="Promote deployment to live" /></td>
     </tr>
     <tr>
       <td>Add version description</td>
-      <td>Deploy tab → Click description icon → Add or generate description</td>
+      <td>Deploy modal → Click description icon → Add or generate description</td>
       <td><ActionVideo src="quick-reference/deployment-description.mp4" alt="Add deployment version description" /></td>
     </tr>
     <tr>
       <td>Copy API endpoint</td>
-      <td>Deploy tab → API → Copy API cURL</td>
+      <td>Deploy modal → **API** → Copy API cURL</td>
       <td><ActionImage src="/static/quick-reference/copy-api.png" alt="Copy API endpoint" /></td>
     </tr>
   </tbody>
@@ -368,7 +360,7 @@ A quick lookup for everyday actions in the Sim workflow editor. For keyboard sho
   <tbody>
     <tr>
       <td>Add / Edit / Delete workflow variable</td>
-      <td>Panel -> Variables -> **Add Variable**, click to edit, or delete icon</td>
+      <td>⋯ menu → **Variables** → **Add Variable**, click to edit, or delete icon</td>
       <td><ActionImage src="/static/quick-reference/variables.png" alt="Variables panel" /></td>
     </tr>
     <tr>
@@ -378,7 +370,7 @@ A quick lookup for everyday actions in the Sim workflow editor. For keyboard sho
     </tr>
     <tr>
       <td>Reference a workflow variable</td>
-      <td>Use `<blockName.itemName>` syntax in block inputs</td>
+      <td>Use `<variable.name>` syntax in block inputs</td>
       <td><ActionImage src="/static/quick-reference/variable-reference.png" alt="Reference workflow variable" /></td>
     </tr>
     <tr>

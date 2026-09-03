@@ -290,17 +290,17 @@ describe('sim workflows run --follow', () => {
     expect(request.mock.calls[0][1].body).toEqual({ selectedOutputs: ['agent_1.content'] })
   })
 
-  it('refuses --async --select-output and points at the run-resource dialect', async () => {
-    // The caller just typed a block *name*, which is what this flag accepts and
-    // what `workflows runs get` rejects, so the hint must name that dialect
-    // shift instead of repeating the flag into a second failure.
+  it('refuses --async --select-output and points at the finished-run read', async () => {
+    // `workflows runs get` accepts the same selectors this flag does, so the
+    // hint names that recovery instead of repeating the flag into a second
+    // failure.
     const failure = await run(WORKFLOW_ID, '--async', '--select-output', 'agent_1.content').catch(
       (error: Error) => error
     )
 
     expect(failure?.message).toContain('--async returns as soon as the run is queued')
     expect(failure?.message).toMatch(
-      /workflows runs get .*--select-output <blockId>\[\.path\].*block ids, not the block names/s
+      /workflows runs get .*--select-output <blockName\|blockId>\[\.path\].*takes the same selectors/s
     )
     expect(request).not.toHaveBeenCalled()
   })

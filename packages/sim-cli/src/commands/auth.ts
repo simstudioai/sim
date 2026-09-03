@@ -421,7 +421,9 @@ export function logoutCommand(): Command {
       )
       // The key still exists server-side; leaving that unsaid invites the
       // assumption that logging out revoked it.
-      console.log(chalk.dim('  The key itself is still active — revoke it in Settings → API keys.'))
+      console.log(
+        chalk.dim('  The key itself is still active — revoke it in Settings → Sim API keys.')
+      )
     })
 }
 

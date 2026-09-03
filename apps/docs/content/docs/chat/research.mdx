@@ -39,6 +39,6 @@ When you need a structured, saved document rather than a chat answer, ask Sim to
 
 <FAQ items={[
   { question: "Does Sim have access to real-time information?", answer: "Yes. Sim queries live internet data. Results reflect current information, not a training cutoff." },
-  { question: "Can Sim read pages that require login?", answer: "No. Sim can only read publicly accessible pages." },
+  { question: "Can Sim read pages that require login?", answer: "Stateless fetching (web_fetch, web_search, crawling) reaches only publicly accessible pages. Sim can also drive a live browser session you share — anything you sign into there, Sim can read." },
   { question: "Where are research reports saved?", answer: "Reports are saved as files in your workspace and opened in the resource panel. You can find them in the Files section of the sidebar." },
 ]} />

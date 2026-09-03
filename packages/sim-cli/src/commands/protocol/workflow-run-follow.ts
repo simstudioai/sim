@@ -349,7 +349,7 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
         flags.async === true
       ) {
         throw new SimApiError(
-          '--select-output names outputs of a completed run, and --async returns as soon as the run is queued. Drop one of them, or read the finished run with: sim workflows runs get <runId> --workflow <workflowId> --select-output <blockId>[.path] — that resource matches block ids, not the block names --select-output takes here.',
+          '--select-output names outputs of a completed run, and --async returns as soon as the run is queued. Drop one of them, or read the finished run with: sim workflows runs get <runId> --workflow <workflowId> --select-output <blockName|blockId>[.path] — that resource takes the same selectors --select-output takes here.',
           0
         )
       }

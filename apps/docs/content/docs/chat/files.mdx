@@ -21,7 +21,7 @@ Use this to:
 - Drop in a PDF and ask Sim to turn it into a knowledge base document
 - Attach a design mockup and ask Sim to describe it or generate code from it
 
-Uploaded files appear in the Files panel in the sidebar and are accessible to all workflows in the workspace. Sim can also fetch a file directly from a URL and save it for you: "Download the JSON at [URL] and save it to the workspace."
+An attached file is stored under `uploads/` and readable by Sim for the rest of the conversation, but it does not appear in the Files panel and is not listed for workflows. Ask Sim to save a copy into workspace Files if you need it there. Sim can also fetch a file directly from a URL and save it for you: "Download the JSON at [URL] and save it to the workspace."
 
 ## Creating Documents
 
@@ -116,5 +116,5 @@ When a file opens in the resource panel, you can switch between three views:
   { question: "Can I use files created in Chat in workflows?", answer: "Yes. Workspace files can be referenced in workflows using the File block or by passing them as inputs." },
   { question: "What file types can I upload in Chat?", answer: "You can attach images, PDFs, text files, JSON, XML, and other document formats directly to a message." },
   { question: "What can Sim calculate or process?", answer: "Anything expressible as a short script — parsing JSON, number crunching, string transformations, deduplication, format conversions. Results come back in the chat." },
-  { question: "Is there a file size limit for generated files?", answer: "There is no hard limit on generated file size, but very large files may take longer to stream." },
+  { question: "Is there a file size limit for generated files?", answer: "Generated files are subject to the workspace file size limit; very large files also take longer to stream." },
 ]} />
