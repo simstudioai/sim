@@ -213,9 +213,10 @@ PII redaction runs against a standalone [Presidio](https://microsoft.github.io/p
 
 ```bash
 # The Presidio service exposing /analyze and /anonymize
-# Helm: http://<release>-pii.<namespace>.svc.cluster.local:5001
-# Docker Compose: http://<pii service name>:5001
-PII_URL=http://sim-pii.simstudio.svc.cluster.local:5001
+# Helm — substitute your release name and namespace
+PII_URL=http://<release>-pii.<namespace>.svc.cluster.local:5001
+# Docker Compose — the PII service name on your network
+# PII_URL=http://pii:5001
 ```
 
 All PII stages are configurable under **Settings → Organization → Data retention**.

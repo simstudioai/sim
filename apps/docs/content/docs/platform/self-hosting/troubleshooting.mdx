@@ -5,7 +5,7 @@ description: Common issues and solutions
 
 ## Start here: `sim-setup doctor`
 
-Before working through anything below, run the built-in checker. It catches most self-hosting failures without you having to guess which subsystem is broken.
+On a Docker Compose or source install, run the built-in checker first. It catches most failures without you having to guess which subsystem is broken. It reads env files, so it is not a Kubernetes tool — on Helm, skip to the checks below.
 
 ```bash
 npx sim-setup doctor

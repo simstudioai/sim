@@ -3,11 +3,11 @@
  * Generates the container image inventory for the Sim Helm chart.
  *
  * An operator mirroring Sim into a disconnected registry needs the complete set
- * of images a install pulls, and today that set can only be recovered by reading
- * `values.yaml` by hand. That misses images no values key names — the NVIDIA
- * device plugin is written directly into `templates/gpu-device-plugin.yaml` — so
- * a hand-built list is wrong in exactly the case that is hardest to notice: the
- * mirror succeeds, and one pod pulls from the internet at install time.
+ * of images an install pulls, and reading `values.yaml` by hand does not give it.
+ * An image can be referenced from a template rather than named by an obvious
+ * values key, and a hand-built list is then wrong in exactly the case that is
+ * hardest to notice: the mirror succeeds, and one pod still pulls from the
+ * internet at install time.
  *
  * The inventory is therefore derived from the rendered chart rather than from
  * values, and checked in so a chart change that adds an image has to update it.
@@ -101,11 +101,6 @@ export function renderManifest(input: { appVersion: string; images: readonly str
 # rewrites the \`simstudioai/*\` images, leaving the third-party ones pointing at
 # their public registries. Pin each image's \`digest\` to what your mirror
 # resolved.
-#
-# One image is not redirectable by any values key: the NVIDIA device plugin is
-# written directly into templates/gpu-device-plugin.yaml, so an air-gapped
-# cluster running \`ollama.gpu.enabled: true\` must mirror it to the same path or
-# patch the DaemonSet after install.
 appVersion: ${input.appVersion}
 images:
 ${entries}

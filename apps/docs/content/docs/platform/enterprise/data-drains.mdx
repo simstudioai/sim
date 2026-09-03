@@ -250,8 +250,10 @@ GET /api/cron/run-data-drains
 It authenticates with a bearer token equal to `CRON_SECRET` and returns `401` when that variable is unset, so a self-hosted deployment must set it:
 
 ```bash
-CRON_SECRET=$(openssl rand -hex 32)
+openssl rand -hex 32
 ```
+
+Set the same value as `CRON_SECRET` on both the app and whatever invokes the endpoint. Generating it in your shell does not configure either one.
 
 The Helm chart schedules this endpoint hourly for you (`cronjobs.jobs.runDataDrains`). Outside Helm, schedule it yourself:
 

@@ -822,6 +822,17 @@ ollama:
   gpu:
     enabled: false
     count: 1
+    # The NVIDIA device plugin DaemonSet deployed alongside Ollama when GPU is
+    # enabled. Configurable so a disconnected install can point it at a mirror:
+    # it is the one image an air-gapped cluster would otherwise have to patch
+    # after install. Honors global.imageRegistry when
+    # global.useRegistryForAllImages is set, like the other third-party images.
+    devicePlugin:
+      image:
+        repository: nvcr.io/nvidia/k8s-device-plugin
+        tag: v0.18.2
+        pullPolicy: Always
+        digest: ""
     # GPU sharing strategy: "mig" (Multi-Instance GPU) or "time-slicing"
     # - mig: Hardware-level GPU partitioning (requires supported GPUs like A100)
     # - time-slicing: Software-level GPU sharing (works with most NVIDIA GPUs)

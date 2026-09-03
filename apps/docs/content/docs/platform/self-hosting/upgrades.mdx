@@ -95,7 +95,7 @@ These control the migrator and are set on the `migrations` container, not the ap
 <Callout type="warn">
   Set `MIGRATION_DATABASE_URL` if anything sits between Sim and Postgres. Session advisory locks and session-level `SET`s do not survive PgBouncer transaction pooling — the lock silently does not hold, and consecutive statements can land on different backends. Point it at the database directly, bypassing the pooler.
 
-  The chart has no values key for it: the migrations init container builds `DATABASE_URL` itself and reads only the database Secret, so setting it under `app.env` does not reach the migrator. On Helm, add it to that Secret, or run the migration image yourself against the direct DSN before upgrading. Compose passes it through from `.env`.
+  The chart has no values key for it: the migrations init container builds `DATABASE_URL` itself and reads only the database Secret, so setting it under `app.env` does not reach the migrator. On Helm, add it to that Secret, or run the migration image yourself against the direct DSN before upgrading. Compose is the same: its `migrations` service declares an explicit `environment:` list, so a value in `.env` alone does not reach it — add it to that service.
 </Callout>
 
 Behavior that is fixed in the migrator and not configurable, but that explains what you see in the logs:
@@ -250,8 +250,8 @@ helm rollback sim -n simstudio
 ```
 
 ```bash
-# Docker Compose — set the previous tag in .env, then restart
-SIM_VERSION=v1.2.2
+# Docker Compose — edit .env so the pin persists, then restart
+echo "SIM_VERSION=v1.2.2" >> .env
 docker compose -f docker-compose.prod.yml up -d
 ```
 

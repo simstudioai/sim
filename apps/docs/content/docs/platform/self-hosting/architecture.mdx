@@ -52,7 +52,7 @@ This holds essentially all durable state: workflows, runs, logs, users, organiza
 
 ### redis
 
-Backs pub/sub, the Socket.IO adapter, the idempotency store, execution progress markers, distributed execution limits, and the CLI-auth approval store. The idempotency store, progress markers, and approval store fall back to Postgres or in-process state. Pub/sub falls back to a **process-local** emitter, which is fine on one replica and drops every cross-pod event on more than one. See [Redis](/platform/self-hosting/redis).
+Backs pub/sub, the Socket.IO adapter, the idempotency store, execution progress markers, distributed execution limits, and the CLI-auth approval store. The idempotency store and execution progress markers fall back to Postgres or in-process state. The CLI-auth approval store does not — CLI authentication requires Redis at any replica count. Pub/sub falls back to a **process-local** emitter, which is fine on one replica and drops every cross-pod event on more than one. See [Redis](/platform/self-hosting/redis).
 
 ### cron
 
