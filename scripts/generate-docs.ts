@@ -52,6 +52,7 @@ const LANDING_INTEGRATIONS_DATA_PATH = path.join(
 )
 const TRIGGERS_PATH = path.join(rootDir, 'apps/sim/triggers')
 const OAUTH_CONFIG_PATH = path.join(rootDir, 'apps/sim/lib/oauth/oauth.ts')
+const OAUTH_REGISTRATION_PATH = path.join(rootDir, 'apps/sim/lib/auth/connectors/providers.ts')
 const SELF_HOSTING_OAUTH_DOC_PATH = path.join(
   rootDir,
   'apps/docs/content/docs/platform/self-hosting/integrations-oauth.mdx'
@@ -1537,6 +1538,42 @@ const SELF_HOSTING_GENERATED_START = '{/* GENERATED-START:oauth-apps */}'
 const SELF_HOSTING_GENERATED_END = '{/* GENERATED-END:oauth-apps */}'
 
 /**
+ * Which client-id environment variable each connector registration reads.
+ *
+ * One OAuth app is one client id, and more than one connector can be
+ * registered against the same one: `manageengine-sdp` authenticates with
+ * `ZOHO_CLIENT_ID` even though it is its own provider entry. Grouping the
+ * reference by provider alone would leave that connector's redirect URI and
+ * scopes off the page of the app that covers it, and its connect flow would
+ * fail redirect-URI validation for anyone who registered from the docs.
+ *
+ * Read from the registrations themselves, since that is where the runtime
+ * decides which credentials a connector uses.
+ */
+export function loadClientIdEnvByProviderId(): Map<string, string> {
+  const byProviderId = new Map<string, string>()
+  const lines = readSourceFile(OAUTH_REGISTRATION_PATH).split('\n')
+
+  let providerId: string | null = null
+  for (const line of lines) {
+    const providerMatch = /^ {6}providerId: '([^']+)',$/.exec(line)
+    if (providerMatch) {
+      providerId = providerMatch[1]
+      continue
+    }
+    if (!providerId) continue
+
+    const clientIdMatch = /^ {6}clientId: env\.([A-Z0-9_]+) as string,$/.exec(line)
+    if (clientIdMatch) {
+      byProviderId.set(providerId, clientIdMatch[1])
+      providerId = null
+    }
+  }
+
+  return byProviderId
+}
+
+/**
  * Build the per-OAuth-app reference for the self-hosting page.
  *
  * A self-hoster registers one app per provider and grants it permissions before
@@ -1604,8 +1641,9 @@ export function sharedScopesAcrossConnectors(scopeLists: readonly (readonly stri
 }
 
 function buildSelfHostingOAuthReference(): string {
-  const { providers } = loadOAuthConnectCatalog()
+  const { providers, services } = loadOAuthConnectCatalog()
 
+  const clientIdEnvByProviderId = loadClientIdEnvByProviderId()
   const apps = Object.keys(OAUTH_CLIENT_CAPABILITIES)
     .map((capabilityId) => {
       const provider = providers.get(capabilityId)
@@ -1615,18 +1653,33 @@ function buildSelfHostingOAuthReference(): string {
             `lib/oauth/oauth.ts, so its app registration cannot be documented.`
         )
       }
-      return { capabilityId, provider }
+
+      // Connectors registered against this app's client id from some other
+      // provider entry. Additive rather than a replacement for the grouping
+      // above, because four capabilities (Instagram, Salesforce, Shopify,
+      // Trello) run custom flows that declare no `clientId: env.X` line.
+      const [clientIdEnv] =
+        OAUTH_CLIENT_CAPABILITIES[capabilityId as keyof typeof OAUTH_CLIENT_CAPABILITIES]
+      const own = new Set(provider.services.map((service) => service.serviceId))
+      const sharedConnectors = [...services.values()].filter(
+        (service) =>
+          !own.has(service.serviceId) &&
+          !service.serviceAccountOnly &&
+          clientIdEnvByProviderId.get(service.providerId) === clientIdEnv
+      )
+
+      return { capabilityId, provider, sharedConnectors }
     })
     .sort((a, b) => compareCatalogNames(a.provider.name, b.provider.name))
 
-  const sections = apps.map(({ capabilityId, provider }) => {
+  const sections = apps.map(({ capabilityId, provider, sharedConnectors }) => {
     const envVars = OAUTH_CLIENT_CAPABILITIES[
       capabilityId as keyof typeof OAUTH_CLIENT_CAPABILITIES
     ]
       .map((name) => `\`${name}\``)
       .join(' / ')
 
-    const connectors = provider.services
+    const connectors = [...provider.services, ...sharedConnectors]
       .filter((service) => !service.serviceAccountOnly)
       .map((service) => ({
         service,

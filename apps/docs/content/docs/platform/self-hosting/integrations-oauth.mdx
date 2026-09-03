@@ -57,7 +57,7 @@ https://sim.yourdomain.com/api/auth/oauth2/callback/google-email
 https://sim.yourdomain.com/api/auth/oauth2/callback/google-drive
 ```
 
-Most providers let Sim request scopes at authorization time, but several need them declared on the app before anyone can connect. Microsoft Entra requires every delegated permission to be added to the registration, and the `microsoft-ad` connector's directory permissions additionally need tenant admin consent. Bitbucket fixes permissions on the consumer rather than per request. Google needs the matching API enabled on the Cloud project (Gmail API, Drive API, Calendar API, and so on) as well as the scopes on the consent screen.
+Most providers let Sim request scopes at authorization time, but several need them declared on the app before anyone can connect. Microsoft Entra requires every delegated permission to be added to the registration, and some of them cannot be granted by the connecting user at all: a tenant admin has to consent on the directory's behalf. The directory and group permissions are where this bites: `microsoft-ad` asks for several, and Teams and Planner both request `Group.ReadWrite.All`. Check each permission against [Microsoft's reference](https://learn.microsoft.com/en-us/graph/permissions-reference) rather than assuming a user can approve it, since not every `.All` permission needs an admin (`Sites.Read.All`, for one, does not). Bitbucket fixes permissions on the consumer rather than per request. Google needs the matching API enabled on the Cloud project (Gmail API, Drive API, Calendar API, and so on) as well as the scopes on the consent screen.
 
 The [provider reference](#provider-reference) below lists the exact scopes each connector asks for, grouped by the app that covers it.
 
@@ -386,9 +386,12 @@ Trello is API-key based rather than OAuth 2.0 and calls back to `/api/auth/trell
 
 `ZOHO_CLIENT_ID` / `ZOHO_CLIENT_SECRET`
 
+Every connector below also requests `aaaserver.profile.READ`.
+
 | Connector | Provider ID | Scopes to grant |
 | --- | --- | --- |
-| Zoho Desk | `zoho-desk` | `Desk.tickets.READ`, `Desk.tickets.UPDATE`, `Desk.contacts.READ`, `Desk.articles.READ`, `Desk.organization.READ`, `Desk.agents.READ`, `Desk.basic.READ`, `Desk.webhooks.CREATE`, `Desk.webhooks.DELETE`, `aaaserver.profile.READ` |
+| Zoho Desk | `zoho-desk` | `Desk.tickets.READ`, `Desk.tickets.UPDATE`, `Desk.contacts.READ`, `Desk.articles.READ`, `Desk.organization.READ`, `Desk.agents.READ`, `Desk.basic.READ`, `Desk.webhooks.CREATE`, `Desk.webhooks.DELETE` |
+| ManageEngine ServiceDesk Plus | `manageengine-sdp` | `SDPOnDemand.requests.CREATE`, `SDPOnDemand.requests.READ`, `SDPOnDemand.requests.UPDATE`, `SDPOnDemand.requests.DELETE`, `SDPOnDemand.problems.CREATE`, `SDPOnDemand.problems.READ`, `SDPOnDemand.problems.UPDATE`, `SDPOnDemand.problems.DELETE`, `SDPOnDemand.changes.CREATE`, `SDPOnDemand.changes.READ`, `SDPOnDemand.changes.UPDATE`, `SDPOnDemand.changes.DELETE`, `SDPOnDemand.assets.CREATE`, `SDPOnDemand.assets.READ`, `SDPOnDemand.assets.UPDATE`, `SDPOnDemand.assets.DELETE`, `SDPOnDemand.solutions.CREATE`, `SDPOnDemand.solutions.READ`, `SDPOnDemand.solutions.UPDATE`, `SDPOnDemand.solutions.DELETE` |
 
 ### Zoom
 

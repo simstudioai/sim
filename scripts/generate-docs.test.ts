@@ -10,6 +10,7 @@ import {
   extractToolInfo,
   extractUserSettableParamIds,
   getToolInfo,
+  loadClientIdEnvByProviderId,
   loadOAuthConnectCatalog,
   parseConstProperties,
   parsePropertiesContent,
@@ -1081,6 +1082,20 @@ describe('the self-hosting OAuth app reference', () => {
    * them and listing one would send the reader looking for a client id that
    * does not exist.
    */
+  /**
+   * One OAuth app is one client id, and more than one connector can be
+   * registered against it: `manageengine-sdp` reads `ZOHO_CLIENT_ID` despite
+   * being its own provider entry. Grouping by provider alone left its redirect
+   * URI and scopes off the page for the app that covers it.
+   */
+  it('groups a connector under the app whose client id it registers against', () => {
+    const clientIdEnv = loadClientIdEnvByProviderId()
+
+    expect(clientIdEnv.get('manageengine-sdp')).toBe('ZOHO_CLIENT_ID')
+    expect(clientIdEnv.get('zoho-desk')).toBe('ZOHO_CLIENT_ID')
+    expect(clientIdEnv.get('sharepoint')).toBe('MICROSOFT_CLIENT_ID')
+  })
+
   it('leaves out services that have no OAuth flow', () => {
     const { services } = loadOAuthConnectCatalog()
 
