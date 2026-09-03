@@ -178,6 +178,45 @@ describe('table-view mutations signal collaborators', () => {
     }
   )
 
+  it('createTableView with isDefault demotes the current default in the same transaction', async () => {
+    queueTableRows(tableViews, [{ total: 2 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...viewRow, isDefault: true }])
+
+    await createTableView({
+      tableId: 'table-1',
+      workspaceId: 'ws-1',
+      name: 'My View',
+      config: {},
+      userId: 'user-1',
+      columns,
+      isDefault: true,
+    })
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      isDefault: false,
+      updatedAt: expect.any(Date),
+    })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ isDefault: true }))
+  })
+
+  it('createTableView without isDefault never demotes, even on a first view (which is default anyway)', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...viewRow, isDefault: true }])
+
+    await createTableView({
+      tableId: 'table-1',
+      workspaceId: 'ws-1',
+      name: 'My View',
+      config: {},
+      userId: 'user-1',
+      columns,
+      isDefault: false,
+    })
+
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ isDefault: true }))
+  })
+
   it('updateTableView signals when the target view exists', async () => {
     queueTableRows(tableViews, [{ id: 'view-1' }]) // the in-transaction existence pre-check
     dbChainMockFns.returning.mockResolvedValueOnce([viewRow]) // the update returning
@@ -692,5 +731,54 @@ describe('view config column-reference normalization', () => {
     expect(
       pruneViewConfig({ sort: [{ field: 'createdAt', direction: 'desc' }] }, columns).sort
     ).toEqual([{ field: 'createdAt', direction: 'desc' }])
+  })
+})
+
+describe('default-view writers share the views lock', () => {
+  const columns: ColumnDefinition[] = []
+  const viewRow = {
+    id: 'view-1',
+    tableId: 'table-1',
+    workspaceId: 'ws-1',
+    name: 'My View',
+    config: {},
+    isDefault: false,
+    createdBy: 'user-1',
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('promoting a view takes the per-table advisory lock the create path holds', async () => {
+    queueTableRows(tableViews, [{ id: 'view-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...viewRow, isDefault: true }])
+
+    await updateTableView({ viewId: 'view-1', tableId: 'table-1', isDefault: true, columns })
+
+    // withTableViewsLock issues its SET LOCAL timeouts and the advisory lock
+    // through execute; the plain-transaction path never calls it.
+    expect(dbChainMockFns.execute).toHaveBeenCalled()
+  })
+
+  it('demoting a view takes the same advisory lock as other default-state writers', async () => {
+    queueTableRows(tableViews, [{ ...viewRow, isDefault: true }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...viewRow, isDefault: false }])
+
+    await updateTableView({ viewId: 'view-1', tableId: 'table-1', isDefault: false, columns })
+
+    expect(dbChainMockFns.execute).toHaveBeenCalled()
+  })
+
+  it('a rename stays a plain transaction, off the lock', async () => {
+    queueTableRows(tableViews, [{ id: 'view-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...viewRow, name: 'Renamed' }])
+
+    await updateTableView({ viewId: 'view-1', tableId: 'table-1', name: 'Renamed', columns })
+
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
   })
 })

@@ -419,6 +419,12 @@ export interface CreateTableViewData {
   userId: string
   columns: ColumnDefinition[]
   /**
+   * Make the new view the table's default, demoting the previous default in the
+   * same transaction. The first view on a table is the default regardless — a
+   * table that has views always keeps one.
+   */
+  isDefault?: boolean
+  /**
    * Whether to refuse a filter, sort, or column-layout reference naming no live
    * column. Set by the `/api/v2` surface only, whose caller authored the config
    * in this request and can be told which reference was wrong.
@@ -471,6 +477,21 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
       )
     }
 
+    // Demote before inserting — the partial unique index rejects a second
+    // default, and the views lock keeps a concurrent promote from interleaving.
+    if (data.isDefault === true && existingTotal > 0) {
+      await trx
+        .update(tableViews)
+        .set({ isDefault: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(tableViews.tableId, data.tableId),
+            eq(tableViews.workspaceId, data.workspaceId),
+            eq(tableViews.isDefault, true)
+          )
+        )
+    }
+
     const [created] = await trx
       .insert(tableViews)
       .values({
@@ -479,7 +500,7 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
         workspaceId: data.workspaceId,
         name,
         config,
-        isDefault: existingTotal === 0,
+        isDefault: data.isDefault === true || existingTotal === 0,
         createdBy: data.userId,
       })
       .returning()
@@ -519,9 +540,16 @@ export interface UpdateTableViewData {
  * The config is normalized inside the transaction, against the stored row, so
  * the references that row already carries stay writable — see
  * {@link normalizeViewConfigForStorage}.
+ *
+ * Every explicit default-state change contends with {@link createTableView}'s
+ * default-on-create path, so promotions and demotions serialize on the same
+ * per-table views lock. Plain patches (layout autosave, renames) touch only
+ * their own row and skip the lock.
  */
 export async function updateTableView(data: UpdateTableViewData): Promise<TableView | null> {
-  const outcome = await db.transaction(async (tx) => {
+  const runWrite = <T>(write: (trx: DbTransaction) => Promise<T>): Promise<T> =>
+    data.isDefault !== undefined ? withTableViewsLock(data.tableId, write) : db.transaction(write)
+  const outcome = await runWrite(async (tx) => {
     // Confirm the target exists BEFORE demoting. The demotion has to run first —
     // the partial unique index rejects a second default — but on a PATCH naming a
     // missing view the target update matches nothing, so without this the demote

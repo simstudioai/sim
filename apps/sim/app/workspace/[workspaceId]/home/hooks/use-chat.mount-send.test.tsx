@@ -42,6 +42,7 @@ vi.mock('@/lib/api/client/request', async (importOriginal) => ({
 
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
+import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 const DEDUPED_CHAT_ID = 'chat-the-first-attempt-opened'
@@ -150,13 +151,18 @@ function renderUseChat(): {
  * pathname has to match: the hook resets a chat-bound surface back to a fresh
  * pending key when it finds itself on the home route.
  */
-function renderUseChatInChat(chatId: string): {
+function renderUseChatInChat(
+  chatId: string,
+  sharedQueryClient: QueryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+): {
   getResult: () => ReturnType<typeof useChat>
   unmount: () => void
 } {
   navigationMocks.usePathname.mockReturnValue(`/workspace/ws-1/chat/${chatId}`)
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  queryClient = sharedQueryClient
   const container = document.createElement('div')
   const root = createRoot(container)
   mountedRoots.push(root)
@@ -508,5 +514,67 @@ describe('useChat remount send recovery', () => {
     expect(queues['chat-a'][0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
     // Must NOT have gone to the cross-surface handoff.
     expect(MothershipHandoffStorage.consume('ws-1')).toBeNull()
+  })
+
+  it('restores the last edited table view after switching away and back', async () => {
+    const chatId = 'chat-with-table'
+    const sharedQueryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const initialHistory: MothershipChatHistory = {
+      id: chatId,
+      title: 'Table chat',
+      messages: [],
+      activeStreamId: null,
+      resources: [{ type: 'table', id: 'table-1', title: 'Invoices' }],
+    }
+    sharedQueryClient.setQueryData(mothershipChatKeys.detail(chatId), initialHistory)
+
+    const firstSurface = renderUseChatInChat(chatId, sharedQueryClient)
+    await waitFor(() => firstSurface.getResult().resources.length === 1)
+
+    act(() => {
+      firstSurface.getResult().addResource({
+        type: 'table',
+        id: 'table-1',
+        title: 'Invoices',
+        viewId: 'view-edited',
+      })
+    })
+    await waitFor(() => firstSurface.getResult().resources[0]?.viewId === 'view-edited')
+    firstSurface.unmount()
+
+    const restoredSurface = renderUseChatInChat(chatId, sharedQueryClient)
+    await waitFor(() => restoredSurface.getResult().resources.length === 1)
+
+    expect(restoredSurface.getResult().resources[0]?.viewId).toBe('view-edited')
+  })
+
+  it('hydrates a table view change when resource identity and title stay the same', async () => {
+    const chatId = 'chat-with-refetched-view'
+    const sharedQueryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const initialHistory: MothershipChatHistory = {
+      id: chatId,
+      title: 'Table chat',
+      messages: [],
+      activeStreamId: null,
+      resources: [{ type: 'table', id: 'table-1', title: 'Invoices' }],
+    }
+    sharedQueryClient.setQueryData(mothershipChatKeys.detail(chatId), initialHistory)
+
+    const surface = renderUseChatInChat(chatId, sharedQueryClient)
+    await waitFor(() => surface.getResult().resources.length === 1)
+
+    act(() => {
+      sharedQueryClient.setQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId), {
+        ...initialHistory,
+        resources: [{ type: 'table', id: 'table-1', title: 'Invoices', viewId: 'view-refetched' }],
+      })
+    })
+
+    await waitFor(() => surface.getResult().resources[0]?.viewId === 'view-refetched')
+    expect(surface.getResult().resources[0]?.viewId).toBe('view-refetched')
   })
 })

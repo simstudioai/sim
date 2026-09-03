@@ -13,15 +13,17 @@ import {
   PrepareFileEdit,
   Rm,
   RunFunction,
+  TableViews,
   UserTable,
 } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { MothershipResource, MothershipResourceType } from './types'
+import type { MothershipResourceType, MothershipResourceUpdate } from './types'
 
-type ChatResource = MothershipResource
+type ChatResource = MothershipResourceUpdate
 type ResourceType = MothershipResourceType
 
 const RESOURCE_TOOL_NAMES: Set<string> = new Set([
   UserTable.id,
+  TableViews.id,
   CreateEmptyFile.id,
   PrepareFileEdit.id,
   DownloadFile.id,
@@ -52,6 +54,7 @@ function getWorkspaceFileTarget(
 }
 
 const READ_ONLY_TABLE_OPS = new Set(['get', 'get_schema', 'get_row', 'query_rows'])
+const READ_ONLY_VIEW_OPS = new Set(['list_views', 'get_view'])
 const READ_ONLY_KB_OPS = new Set(['get', 'query', 'list_tags', 'get_tag_usage'])
 const READ_ONLY_KNOWLEDGE_ACTIONS = new Set(['listed', 'queried'])
 
@@ -194,6 +197,33 @@ export function extractResourcesFromToolResult(
         return [{ type: 'knowledgebase', id: kbId, title: kbName }]
       }
       return []
+    }
+
+    // The table agent's view tool. A write names the table it touched and — for
+    // create/update/set-default — the view, so the panel opens the table pinned
+    // to that view; a delete opens the table unpinned. Reads open nothing.
+    case TableViews.id: {
+      const operation = getOperation(params) ?? ''
+      if (READ_ONLY_VIEW_OPS.has(operation)) return []
+      const args = toRecord(params?.args)
+      const tableId = (data.tableId as string) ?? (args.tableId as string)
+      if (!tableId) return []
+      const viewId = data.viewId
+      // Pin and unpin are mutually exclusive: the wire contract rejects the
+      // pair, and a merge handed both would apply neither. A delete unpins
+      // regardless of any view id its result happens to carry.
+      return [
+        {
+          type: 'table',
+          id: tableId,
+          title: (data.tableName as string) || 'Table',
+          ...(operation === 'delete_view'
+            ? { clearViewId: true as const }
+            : typeof viewId === 'string' && viewId
+              ? { viewId }
+              : {}),
+        },
+      ]
     }
 
     case Knowledge.id: {

@@ -62,6 +62,7 @@ import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
@@ -178,6 +179,25 @@ export const ResourceContent = memo(function ResourceContent({
   visible = true,
   onBrowserOverlayControllerChange,
 }: ResourceContentProps) {
+  const observedTableViewRef = useRef(
+    resource.type === 'table' ? { tableId: resource.id, viewId: resource.viewId } : null
+  )
+
+  useEffect(() => {
+    const previous = observedTableViewRef.current
+    const next =
+      resource.type === 'table' ? { tableId: resource.id, viewId: resource.viewId } : null
+    observedTableViewRef.current = next
+    if (!next?.viewId || (previous?.tableId === next.tableId && previous.viewId === next.viewId)) {
+      return
+    }
+    /**
+     * `initialViewId` owns the first table adoption. If refreshed chat data
+     * supplies it later, use the same one-shot handoff as live stream events.
+     */
+    useTableViewPinStore.getState().pin(next.tableId, next.viewId)
+  }, [resource.id, resource.type, resource.viewId])
+
   const streamFileName = previewSession?.fileName || 'file.md'
   const syntheticFile = useMemo(() => {
     const ext = getFileExtension(streamFileName)

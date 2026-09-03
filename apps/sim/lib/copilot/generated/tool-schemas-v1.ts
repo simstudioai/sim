@@ -5728,9 +5728,9 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'Arguments for the operation',
           properties: {
             filter: {
-              type: 'object',
+              type: ['object', 'null'],
               description:
-                'Saved row predicate, same grammar as query_rows filters: {"all":[...]} / {"any":[...]} of {field, op, value} leaves with exact column NAMES. Omit or null for an unfiltered view.',
+                'Saved row predicate, same grammar as query_rows filters: {"all":[...]} / {"any":[...]} of {field, op, value} leaves with exact column NAMES. On update_view, omit to keep the existing filter, pass null to clear it, or pass a predicate to replace it. On create_view, omit or pass null for an unfiltered view.',
             },
             hiddenColumns: {
               type: 'array',
@@ -5751,9 +5751,22 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 'View display name (required for create_view; optional rename on update_view). Free-form label; references always use the view ID, so names are purely display.',
             },
             sort: {
-              type: 'array',
+              type: ['array', 'null'],
               description:
-                'Saved ordered sort spec, e.g. [{"field":"due","direction":"asc"}], column NAMES. Omit or null for default ordering.',
+                'Saved ordered sort spec, e.g. [{"field":"due","direction":"asc"}], column NAMES. On update_view, omit to keep the existing sort, pass null to clear it, or pass a sort spec to replace it. On create_view, omit or pass null for default ordering.',
+              items: {
+                type: 'object',
+                properties: {
+                  direction: {
+                    type: 'string',
+                    enum: ['asc', 'desc'],
+                  },
+                  field: {
+                    type: 'string',
+                  },
+                },
+                required: ['field', 'direction'],
+              },
             },
             tableId: {
               type: 'string',

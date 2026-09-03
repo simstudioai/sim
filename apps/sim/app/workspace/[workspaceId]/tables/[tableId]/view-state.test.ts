@@ -7,6 +7,7 @@ import { ALL_VIEW_PARAM } from '@/app/workspace/[workspaceId]/tables/[tableId]/s
 import {
   getTableViewRevision,
   resolveTableViewConfig,
+  resolveTableViewPinTransition,
   resolveTableViewSelection,
   shouldApplyTableViewRevision,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/view-state'
@@ -44,6 +45,13 @@ const DEFAULT_VIEW: TableViewWire = {
   updatedAt: new Date('2026-08-15T01:10:00.000Z'),
 }
 
+const PINNED_VIEW: TableViewWire = {
+  ...DEFAULT_VIEW,
+  id: 'view-pinned',
+  name: 'Pinned',
+  isDefault: false,
+}
+
 describe('resolveTableViewSelection', () => {
   it('makes the persisted default active before its URL id is adopted', () => {
     expect(resolveTableViewSelection([DEFAULT_VIEW], null)).toEqual({
@@ -74,8 +82,55 @@ describe('resolveTableViewSelection', () => {
     })
   })
 
+  it('keeps a restored embedded view active while the host URL is absent', () => {
+    expect(
+      resolveTableViewSelection([DEFAULT_VIEW, PINNED_VIEW], null, PINNED_VIEW.id).activeView
+    ).toBe(PINNED_VIEW)
+  })
+
+  it('lets an explicit URL selection override the restored embedded view', () => {
+    expect(
+      resolveTableViewSelection([DEFAULT_VIEW, PINNED_VIEW], DEFAULT_VIEW.id, PINNED_VIEW.id)
+        .activeView
+    ).toBe(DEFAULT_VIEW)
+  })
+
   it('upgrades the legacy All sentinel when a persisted default exists', () => {
     expect(resolveTableViewSelection([DEFAULT_VIEW], ALL_VIEW_PARAM).activeView).toBe(DEFAULT_VIEW)
+  })
+})
+
+describe('resolveTableViewPinTransition', () => {
+  it('abandons a pending local creation when an external pin replaces its URL selection', () => {
+    expect(
+      resolveTableViewPinTransition('view-old', 'view-created', 'view-pinned', 'view-created')
+    ).toEqual({ nextViewId: 'view-pinned', pendingCreatedViewId: null })
+  })
+
+  it('clears a different pending creation when the pin is already represented in the URL', () => {
+    expect(
+      resolveTableViewPinTransition('view-pinned', 'view-created', 'view-pinned', 'view-created')
+    ).toEqual({ nextViewId: null, pendingCreatedViewId: null })
+  })
+
+  it('keeps a pending creation when it created the pinned view', () => {
+    expect(
+      resolveTableViewPinTransition('view-pinned', 'view-pinned', 'view-pinned', 'view-pinned')
+    ).toEqual({ nextViewId: null, pendingCreatedViewId: 'view-pinned' })
+  })
+
+  it('replaces a different active URL even if the pin was applied previously', () => {
+    expect(resolveTableViewPinTransition('view-user', 'view-pinned', 'view-pinned', null)).toEqual({
+      nextViewId: 'view-pinned',
+      pendingCreatedViewId: null,
+    })
+  })
+
+  it('suppresses a redundant URL update while the applied view has no URL selection', () => {
+    expect(resolveTableViewPinTransition(null, 'view-pinned', 'view-pinned', null)).toEqual({
+      nextViewId: null,
+      pendingCreatedViewId: null,
+    })
   })
 })
 
