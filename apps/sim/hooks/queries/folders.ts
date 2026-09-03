@@ -128,7 +128,11 @@ function invalidateCascadedResourceLists(
     case 'workflow':
       return invalidateWorkflowLists(queryClient, workspaceId, ['active', 'archived'])
     case 'table':
-      return queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: tableKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: tableKeys.namesRoot() }),
+        queryClient.invalidateQueries({ queryKey: tableKeys.referencePreviews() }),
+      ]).then(() => undefined)
     case 'knowledge_base':
       return queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
     /**

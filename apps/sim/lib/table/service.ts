@@ -1334,13 +1334,14 @@ function tableReferenceCycleMessage(tableName: string): string {
 }
 
 /**
- * Archives a bounded table selection after one reference-graph scan.
+ * Archives a table selection after one reference-graph scan.
  *
  * All explicit targets are locked before the scan. Reference-column writes take a conflicting
  * key-share lock on their target, so the scan and every archive in this transaction observe one
- * stable reference graph. Per-table savepoints preserve the bulk API's committed-prefix behavior
- * for statement failures that can roll back to a savepoint. A connection loss or other failure
- * that invalidates the outer transaction rolls back the entire table phase.
+ * stable reference graph. Folder cascades archive one restorable cohort atomically; explicit
+ * selections use per-table savepoints to preserve the bulk API's committed-prefix behavior for
+ * statement failures that can roll back to a savepoint. A connection loss or other failure that
+ * invalidates the outer transaction rolls back the entire table phase.
  */
 export async function deleteTables(
   tableIds: readonly string[],
@@ -1349,10 +1350,15 @@ export async function deleteTables(
     expectedWorkspaceId: string
     archivedAt?: Date
     skipNotify?: boolean
+    /**
+     * Archives every eligible table in one statement and allows reference cycles. Use only when
+     * the caller will restore the same tables as one cohort, such as a table-folder cascade.
+     */
+    archiveAsCohort?: boolean
   }
 ): Promise<DeleteTablesResult> {
   const requestedIds = [...new Set(tableIds)]
-  if (requestedIds.length > MAX_TABLE_BATCH_ITEMS) {
+  if (!options.archiveAsCohort && requestedIds.length > MAX_TABLE_BATCH_ITEMS) {
     throw new OrchestrationError(
       'validation',
       `Cannot delete more than ${MAX_TABLE_BATCH_ITEMS} tables at once`
@@ -1426,7 +1432,9 @@ export async function deleteTables(
 
     const externallyBlockedIds = new Set(blockersByTargetId.keys())
     const archivePlan = planReferenceSafeArchiveOrder(candidates, externallyBlockedIds)
-    const cycleBlockedIds = new Set(archivePlan.blockedByCycle.map((table) => table.id))
+    const cycleBlockedIds = new Set(
+      options.archiveAsCohort ? [] : archivePlan.blockedByCycle.map((table) => table.id)
+    )
     for (const table of candidates) {
       const blockers = blockersByTargetId.get(table.id)
       if (blockers && blockers.length > 0) {
@@ -1450,6 +1458,34 @@ export async function deleteTables(
     }
 
     const archived: DeleteTablesResult['archived'] = []
+    if (options.archiveAsCohort) {
+      const cohort = [...archivePlan.ordered, ...archivePlan.blockedByCycle]
+      if (cohort.length > 0) {
+        archived.push(
+          ...(await trx
+            .update(userTableDefinitions)
+            .set({ archivedAt: now, updatedAt: now })
+            .where(
+              and(
+                inArray(
+                  userTableDefinitions.id,
+                  cohort.map((table) => table.id)
+                ),
+                eq(userTableDefinitions.workspaceId, options.expectedWorkspaceId),
+                isNull(userTableDefinitions.archivedAt),
+                eq(userTableDefinitions.deleteLocked, false)
+              )
+            )
+            .returning({
+              id: userTableDefinitions.id,
+              workspaceId: userTableDefinitions.workspaceId,
+              name: userTableDefinitions.name,
+            }))
+        )
+      }
+      return { archived, failed, notFound }
+    }
+
     let terminalError: unknown
     for (const table of archivePlan.ordered) {
       try {

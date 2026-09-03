@@ -475,12 +475,16 @@ export function useTableEventStream({
           // invalidateTableSchema set — the definition (exact, so rows stay on the
           // debounce), the run-state + enrichment sibling queries under detail (a group
           // delete/restructure can otherwise leave a stale running badge or enrichment
-          // panel), the tables list (column/row counts), and the debounced rows.
+          // panel), the tables list (column/row counts), open reference previews, and the
+          // debounced rows.
           else if (entry.event?.kind === 'schema') {
             void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
             void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
             void queryClient.invalidateQueries({ queryKey: tableKeys.enrichmentDetails(tableId) })
             void queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+            void queryClient.invalidateQueries({
+              queryKey: tableKeys.referencePreviewsForTable(tableId),
+            })
             scheduleRowsInvalidate()
           }
           // A collaborator changed the column layout (width/pin/order): refetch the

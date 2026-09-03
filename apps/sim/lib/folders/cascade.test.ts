@@ -23,6 +23,14 @@ import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
 import { folderResourceSupportsLocking } from '@/lib/folders/resource-traits'
 import { folderMutationStatus } from '@/lib/folders/status'
 
+const tableServiceMocks = vi.hoisted(() => ({
+  deleteTables: vi.fn(),
+}))
+
+vi.mock('@/lib/table/service', () => ({
+  deleteTables: tableServiceMocks.deleteTables,
+}))
+
 interface SelectCall {
   where: unknown
 }
@@ -544,6 +552,41 @@ describe('knowledge_base and table folder resources', () => {
     // Only the workflow tree interleaves folders and rows in one user-ordered list.
     expect(knowledgeConfig.sortOrderColumn).toBeUndefined()
     expect(tableConfig.sortOrderColumn).toBeUndefined()
+  })
+
+  it('archives table children as one restorable cohort', async () => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.userTableDefinitions, [
+      { id: 'tbl_accounts' },
+      { id: 'tbl_contacts' },
+    ])
+    tableServiceMocks.deleteTables.mockResolvedValueOnce({
+      archived: [
+        { id: 'tbl_accounts', name: 'Accounts', workspaceId: 'ws-1' },
+        { id: 'tbl_contacts', name: 'Contacts', workspaceId: 'ws-1' },
+      ],
+      failed: [],
+      notFound: [],
+    })
+
+    await expect(
+      tableConfig.archiveChildren?.({
+        workspaceId: 'ws-1',
+        folderIds: ['folder-1'],
+        timestamp: TIMESTAMP,
+      })
+    ).resolves.toBe(2)
+
+    expect(tableServiceMocks.deleteTables).toHaveBeenCalledWith(
+      ['tbl_accounts', 'tbl_contacts'],
+      'folder-cascade-folder-1',
+      {
+        expectedWorkspaceId: 'ws-1',
+        archivedAt: TIMESTAMP,
+        skipNotify: true,
+        archiveAsCohort: true,
+      }
+    )
   })
 })
 

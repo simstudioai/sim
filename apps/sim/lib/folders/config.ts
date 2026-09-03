@@ -11,6 +11,7 @@ import {
 import { eq, type SQL } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   FOLDER_RESOURCE_LABELS,
   FOLDER_RESOURCE_SUPPORTS_LOCKING,
@@ -310,18 +311,21 @@ async function restoreKnowledgeBaseChildren(context: CascadeChildrenContext): Pr
  * encounter a partial cascade.
  */
 async function archiveTableChildren(context: CascadeChildrenContext): Promise<number> {
-  const { deleteTable } = await import('@/lib/table/service')
+  const { deleteTables } = await import('@/lib/table/service')
   const ids = await selectChildIds(FOLDER_RESOURCES.table, context, 'active')
-
-  for (const id of ids) {
-    await deleteTable(id, `folder-cascade-${context.folderIds[0]}`, {
-      archivedAt: context.timestamp,
-      // deleteFolder fires one folder-level live-list notify for the whole subtree.
-      skipNotify: true,
-    })
+  const result = await deleteTables(ids, `folder-cascade-${context.folderIds[0]}`, {
+    expectedWorkspaceId: context.workspaceId,
+    archivedAt: context.timestamp,
+    // deleteFolder fires one folder-level live-list notify for the whole subtree.
+    skipNotify: true,
+    archiveAsCohort: true,
+  })
+  if (result.terminalError) throw result.terminalError
+  if (result.failed[0]) {
+    throw new OrchestrationError('conflict', result.failed[0].reason)
   }
 
-  return ids.length
+  return result.archived.length
 }
 
 /**
