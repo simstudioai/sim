@@ -94,6 +94,8 @@ These control the migrator and are set on the `migrations` container, not the ap
 
 <Callout type="warn">
   Set `MIGRATION_DATABASE_URL` if anything sits between Sim and Postgres. Session advisory locks and session-level `SET`s do not survive PgBouncer transaction pooling — the lock silently does not hold, and consecutive statements can land on different backends. Point it at the database directly, bypassing the pooler.
+
+  The chart has no values key for it: the migrations init container builds `DATABASE_URL` itself and reads only the database Secret, so setting it under `app.env` does not reach the migrator. On Helm, add it to that Secret, or run the migration image yourself against the direct DSN before upgrading. Compose passes it through from `.env`.
 </Callout>
 
 Behavior that is fixed in the migrator and not configurable, but that explains what you see in the logs:
@@ -101,7 +103,7 @@ Behavior that is fixed in the migrator and not configurable, but that explains w
 | Behavior | Value |
 |---|---|
 | Advisory-lock acquire deadline | 30 minutes, retried every 5s |
-| `lock_timeout` on the migration session | 5 seconds — a statement that waits longer fails with SQLSTATE `55P03`. `statement_timeout` is set to `0` on the same session, so a long migration is never cut off once it holds its locks |
+| `lock_timeout` on the migration session | 5 seconds for ordinary DDL — a statement that waits longer fails with SQLSTATE `55P03`. An individual migration can set it to `0` for statements that must not be interrupted, such as `CREATE INDEX CONCURRENTLY`. `statement_timeout` is `0` on the same session, so a long migration is never cut off once it holds its locks |
 | Migration retry attempts | 8, with exponential backoff and jitter |
 | Connection attempts at startup | 10, for transient failures — `53300` (`too_many_connections`), `53400`, the `08xxx` connection-exception class, and socket-level errors such as `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`, `EHOSTUNREACH`, and `ENOTFOUND`. A database that is simply down is retried with backoff, not failed immediately |
 

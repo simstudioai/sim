@@ -620,10 +620,17 @@ jobs:
   # Attaching attestations here instead leaves the index itself untouched — they
   # are stored as separate referrer manifests that point at it.
   #
-  # The subject is the sha index digest. `imagetools create` builds the version
-  # and latest indexes from the same two per-arch manifests in the same order,
-  # so all three tags resolve to one digest and a single attestation covers
-  # every tag a customer can pull.
+  # Every pullable tag is covered. `create-ghcr-manifests` publishes both
+  # multi-arch tags (`:sha`, `:version`, `:latest`) and single-arch ones
+  # (`:version-amd64`, `:latest-arm64`, …), and those resolve to different
+  # digests — an index digest and the two per-arch manifest digests. The matrix
+  # therefore attests all three subjects per image. `imagetools create` is
+  # deterministic, so the version and latest indexes share the sha index's
+  # digest and need no separate attestation.
+  #
+  # Per-arch subjects also give a truthful SBOM: the amd64 and arm64 images
+  # contain different packages, and a single SBOM attached to the index cannot
+  # describe both.
   attest-images:
     name: Attest Images
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
@@ -648,6 +655,9 @@ jobs:
           - ghcr.io/simstudioai/realtime
           - ghcr.io/simstudioai/pii
           - ghcr.io/simstudioai/cron
+        # The published tag suffixes, and so the distinct digests a customer can
+        # pull. Empty is the multi-arch index.
+        suffix: ['', '-amd64', '-arm64']
 
     steps:
       - name: Login to GHCR
@@ -661,17 +671,18 @@ jobs:
       # whatever that tag points at when the step runs, which is not necessarily
       # what this run published.
       #
-      # `{{json .Manifest}}` piped through jq, not `{{.Manifest.Digest}}` — the
-      # latter resolves the index to the runner's own platform and prints that
-      # manifest's digest instead, which would attest one architecture and leave
-      # the index a customer actually pulls unsigned.
-      - name: Resolve index digest
+      # `{{json .Manifest}}` piped through jq, not a bare `{{.Manifest.Digest}}`:
+      # buildx renders a format string consisting only of a `.Manifest` field as
+      # the human-readable inspect block rather than the field value, so the bare
+      # form does not produce a parseable digest.
+      - name: Resolve digest
         id: digest
         run: |
-          DIGEST="$(docker buildx imagetools inspect "${{ matrix.image }}:${{ github.sha }}" \
+          REF="${{ matrix.image }}:${{ github.sha }}${{ matrix.suffix }}"
+          DIGEST="$(docker buildx imagetools inspect "$REF" \
             --format '{{json .Manifest}}' | jq -r '.digest')"
           if [ -z "$DIGEST" ] || [ "$DIGEST" = "null" ]; then
-            echo "::error::Could not resolve a digest for ${{ matrix.image }}:${{ github.sha }}"
+            echo "::error::Could not resolve a digest for ${REF}"
             exit 1
           fi
           echo "value=${DIGEST}" >> "$GITHUB_OUTPUT"
@@ -754,11 +765,14 @@ jobs:
     name: Create GitHub Release
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
-    needs: [create-ghcr-manifests, detect-version]
-    # Explicit results: see migrate's comment.
+    needs: [create-ghcr-manifests, attest-images, detect-version]
+    # Explicit results: see migrate's comment. attest-images is a gate, not just
+    # an ordering edge — a release must not advertise images whose signature or
+    # attestation failed to publish.
     if: >-
       !cancelled() &&
       needs.create-ghcr-manifests.result == 'success' &&
+      needs.attest-images.result == 'success' &&
       needs.detect-version.result == 'success' &&
       needs.detect-version.outputs.is_release == 'true'
     permissions:

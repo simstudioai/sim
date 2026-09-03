@@ -133,6 +133,8 @@ NEXT_PUBLIC_BRAND_PRIMARY_COLOR=#701ffc
 NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR=#6518e6
 NEXT_PUBLIC_BRAND_ACCENT_COLOR=#9d54ff
 NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR=#8c3dff
+# Not a background: this only tells Sim whether your brand ground is dark,
+# which it uses to pick contrasting text.
 NEXT_PUBLIC_BRAND_BACKGROUND_COLOR=#0c0c0c
 ```
 
@@ -162,6 +164,8 @@ branding:
   files:
     custom.css: |
       .sidebar { background-color: #0c0c0c; }
+    wordmark.svg: |
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 24"><text y="18">Acme</text></svg>
   # Binary files (PNG, JPG, ICO) base64-encoded
   # base64 -i logo.png | tr -d '\n'
   binaryFiles:

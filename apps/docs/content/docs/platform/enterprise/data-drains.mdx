@@ -260,4 +260,4 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
   https://sim.example.com/api/cron/run-data-drains
 ```
 
-Each due drain is then fanned out as a `run-data-drain` background job, so the deployment also needs `TRIGGER_DEV_ENABLED` with a configured Trigger.dev project, or the default database-backed job queue, which both deployments use out of the box. See [background jobs](/platform/self-hosting/background-jobs).
+Each due drain is then fanned out as a `run-data-drain` background job, so the deployment also needs `TRIGGER_DEV_ENABLED` with a configured Trigger.dev project, and a configured Trigger.dev project. Without it the dispatcher still claims the work and enqueues it to the database, but nothing drains that queue for this job type, so the runs stay pending and never execute. See [background jobs](/platform/self-hosting/background-jobs).

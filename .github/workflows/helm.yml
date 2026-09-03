@@ -6,11 +6,19 @@ on:
     paths:
       - 'helm/sim/**'
       - '.github/workflows/helm.yml'
+      # The image inventory is generated from the chart and checked here, so a
+      # change to its generator has to run this workflow too.
+      - 'scripts/generate-image-manifest.ts'
+      - 'package.json'
   pull_request:
     branches: [main, staging, dev]
     paths:
       - 'helm/sim/**'
       - '.github/workflows/helm.yml'
+      # The image inventory is generated from the chart and checked here, so a
+      # change to its generator has to run this workflow too.
+      - 'scripts/generate-image-manifest.ts'
+      - 'package.json'
 
 concurrency:
   group: helm-${{ github.ref }}

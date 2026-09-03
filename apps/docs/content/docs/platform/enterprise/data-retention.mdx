@@ -205,7 +205,7 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
   https://sim.example.com/api/logs/cleanup
 ```
 
-Each call fans the work out as background jobs, so the deployment also needs `TRIGGER_DEV_ENABLED` with a configured Trigger.dev project, or the default database-backed job queue, which both deployments use out of the box.
+Each call fans the work out as background jobs, so the deployment also needs `TRIGGER_DEV_ENABLED` with a configured Trigger.dev project, and a configured Trigger.dev project. Without it the dispatcher still claims the work and enqueues it to the database, but nothing drains that queue for this job type, so the runs stay pending and never execute.
 
 ### PII redaction
 
@@ -213,6 +213,8 @@ PII redaction runs against a standalone [Presidio](https://microsoft.github.io/p
 
 ```bash
 # The Presidio service exposing /analyze and /anonymize
+# Helm: http://<release>-pii.<namespace>.svc.cluster.local:5001
+# Docker Compose: http://<pii service name>:5001
 PII_URL=http://sim-pii.simstudio.svc.cluster.local:5001
 ```
 

@@ -94,9 +94,18 @@ export function renderManifest(input: { appVersion: string; images: readonly str
 #
 # Every container image a complete Sim install pulls, rendered from this chart
 # with all optional components enabled. Mirror all of them into a disconnected
-# registry before installing, then point the chart at your registry with
-# \`global.imageRegistry\` and pin each image's \`digest\` to what your mirror
+# registry before installing.
+#
+# To redirect them, set \`global.imageRegistry\` to your registry AND
+# \`global.useRegistryForAllImages: true\` — on its own, \`imageRegistry\` only
+# rewrites the \`simstudioai/*\` images, leaving the third-party ones pointing at
+# their public registries. Pin each image's \`digest\` to what your mirror
 # resolved.
+#
+# One image is not redirectable by any values key: the NVIDIA device plugin is
+# written directly into templates/gpu-device-plugin.yaml, so an air-gapped
+# cluster running \`ollama.gpu.enabled: true\` must mirror it to the same path or
+# patch the DaemonSet after install.
 appVersion: ${input.appVersion}
 images:
 ${entries}

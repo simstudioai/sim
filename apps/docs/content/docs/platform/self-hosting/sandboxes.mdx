@@ -51,6 +51,8 @@ NEXT_PUBLIC_SANDBOXES_ENABLED=true
 
 The API key needs `write:snapshots` to build and `write:sandboxes` to execute.
 
+The builder pins Daytona's packages to an accepted E2B manifest, so build the E2B template first and capture its manifest with the verification step under [Promoting a build](#promoting-a-build) — `--parity-manifest` expects that file to exist.
+
 ```bash
 DAYTONA_API_KEY=... \
   bun run apps/sim/scripts/build-function-daytona-snapshot.ts \

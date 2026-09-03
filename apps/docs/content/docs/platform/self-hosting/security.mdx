@@ -108,7 +108,7 @@ So a workflow can never reach instance metadata, but the pod-level block is only
 
 ### The `copilot` deployment ships no NetworkPolicy
 
-The `copilot` and `copilot-postgresql` workloads deliberately have no policy of their own. The `copilot` service requires `REDIS_URL` on a non-443 port, and the chart cannot know your Redis host at render time — a default egress rule would block Redis on most installs. If you run `networkPolicy.enabled: true` with `copilot.enabled: true`, those two pods are unisolated until you write policies for them or add the matching rules to `networkPolicy.egress`.
+The `copilot` and `copilot-postgresql` workloads deliberately have no policy of their own. The `copilot` service requires `REDIS_URL` on a non-443 port, and the chart cannot know your Redis host at render time — a default egress rule would block Redis on most installs. If you run `networkPolicy.enabled: true` with `copilot.enabled: true`, those two pods are unisolated until you write dedicated NetworkPolicies for them. The chart-level `networkPolicy.egress` list does not reach them — it is only rendered into the policies the chart creates, and it creates none for these workloads.
 
 ### Pod Security Standards
 
