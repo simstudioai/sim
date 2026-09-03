@@ -63,6 +63,10 @@ import { Callout } from 'fumadocs-ui/components/callout'
   In Docker, use `OLLAMA_URL=http://host.docker.internal:11434` for host-machine Ollama.
 </Callout>
 
+<Callout type="info">
+  **Agent tool-call depth.** An Agent block ends its run after 20 model round trips of tool calling. Raise the ceiling with `MAX_TOOL_ITERATIONS` (for example `MAX_TOOL_ITERATIONS=50`). Every extra iteration is another model call, so raise it deliberately.
+</Callout>
+
 ### AWS Bedrock
 
 | Variable | Description |
