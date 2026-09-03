@@ -1,7 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import type { CredentialGroupOptionConfig } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getManagedOAuthConnectorPolicy } from '@/lib/auth/connectors/managed-oauth'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type CredentialGroupKnowledgeConnectorAccess,
@@ -19,6 +18,7 @@ import {
   loadManagedCredentialGroupBinding,
 } from '@/lib/credential-groups/credentials'
 import { CREDENTIAL_GROUP_KNOWLEDGE_CONNECTOR_ACCESS_LIMIT } from '@/lib/credential-groups/limits'
+import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
   getCredentialGroupProviderId,
   isCredentialGroupProvider,
@@ -453,16 +453,8 @@ export function validateKnowledgeConnectorMembersBinding(input: {
       message: `Credential option collects ${option.provider} accounts, but ${connectorMeta.name} needs ${connectorMeta.auth.provider}`,
     }
   }
-  const scopePolicy = getManagedOAuthConnectorPolicy(connectorMeta.auth.provider)
-  if (!scopePolicy) {
-    return {
-      ok: false,
-      message: `${connectorMeta.auth.provider} is not a managed OAuth provider`,
-    }
-  }
-  if (
-    !scopePolicy.hasRequiredScopes(option.requiredScopes, connectorMeta.auth.requiredScopes ?? [])
-  ) {
+  const adapter = getCredentialGroupProviderAdapter(option.provider)
+  if (!adapter.hasRequiredScopes(option.requiredScopes, connectorMeta.auth.requiredScopes ?? [])) {
     return {
       ok: false,
       message: `Credential option does not request every permission ${connectorMeta.name} needs to read the source`,

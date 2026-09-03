@@ -22,6 +22,17 @@ export const slackConnectorMeta: ConnectorMeta = {
     ],
   },
 
+  /**
+   * `conversations.list` under a person's own token returns the public
+   * channels of their workspace and the private channels they belong to,
+   * exactly what they may read, so one member's crawl is their access. The
+   * channel selection is a cap: it would hide part of a member's corpus, and
+   * the per-member crawl indexes every channel the member can see instead.
+   * `maxMessages` bounds each channel document's window, not which channels
+   * are listed, so it is not a cap.
+   */
+  permissionScopedListing: { capFieldIds: ['channel'] },
+
   configFields: [
     {
       id: 'channelSelector',
