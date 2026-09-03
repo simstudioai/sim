@@ -24,11 +24,11 @@ import { z } from 'zod'
  * hydration. So on a warm cache both module bodies and the first commit can run
  * before the parser has reached the assignment.
  *
- * An attribute has no such ordering problem. `<html>` is the first tag in the
- * document — ~490 bytes ahead of the first bootstrap script — so
- * `document.documentElement` already carries this value by the time *any*
- * script, framework or application, is able to execute. This is the race-free
- * transport; `window.__ENV` stays the public global and the preferred read.
+ * On a normally rendered document, the attribute is parsed before bootstrap
+ * scripts can execute. Next's server-rendering error document omits the root
+ * layout, so client recovery only installs the attribute when that layout
+ * mounts. Hosted detection also uses the browser hostname during this gap.
+ * `window.__ENV` stays the public global and the preferred read.
  */
 export const PUBLIC_ENV_ATTRIBUTE = 'data-public-env'
 
