@@ -11,6 +11,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import { MAX_TABLE_BATCH_ITEMS } from '@/lib/table/constants'
+import { TableLockedError } from '@/lib/table/mutation-locks'
 import type { TableSchema } from '@/lib/table/types'
 
 const mocks = vi.hoisted(() => ({
@@ -472,6 +473,15 @@ describe('restoreTable reference validation', () => {
       referenceSchema.columns,
       { allowedArchivedTableIds: new Set(['tbl_accounts', TABLE_ID]) }
     )
+    const advisoryLockCallIndex = dbChainMockFns.execute.mock.calls.findIndex(([query]) =>
+      ((query as { strings?: readonly string[] }).strings ?? []).some((part) =>
+        part.includes('pg_advisory_xact_lock')
+      )
+    )
+    expect(advisoryLockCallIndex).toBeGreaterThanOrEqual(0)
+    expect(dbChainMockFns.execute.mock.invocationCallOrder[advisoryLockCallIndex]).toBeLessThan(
+      dbChainMockFns.select.mock.invocationCallOrder[1]
+    )
     expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.userTableDefinitions)
   })
 
@@ -700,6 +710,7 @@ describe('deleteTables reference guard', () => {
           name: 'Customers',
           reason:
             'Cannot delete table "Customers" because it is referenced by table "Invoices". Remove the reference column first.',
+          code: 'reference',
         },
       ],
       notFound: [],
@@ -732,12 +743,14 @@ describe('deleteTables reference guard', () => {
           name: 'Accounts',
           reason:
             'Cannot delete table "Accounts" because the selected tables contain a reference cycle that cannot be restored safely. Remove a reference column first.',
+          code: 'reference_cycle',
         },
         {
           id: 'tbl_contacts',
           name: 'Contacts',
           reason:
             'Cannot delete table "Contacts" because the selected tables contain a reference cycle that cannot be restored safely. Remove a reference column first.',
+          code: 'reference_cycle',
         },
       ],
       notFound: [],
@@ -773,6 +786,34 @@ describe('deleteTables reference guard', () => {
 
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
     expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+  })
+
+  it('archives none of a restore cohort when one table becomes delete-locked', async () => {
+    queueTableRows(schemaMock.userTableDefinitions, [
+      { ...batchTable('tbl_accounts', 'Accounts'), deleteLocked: true },
+      batchTable('tbl_contacts', 'Contacts'),
+    ])
+
+    await expect(
+      deleteTables(['tbl_accounts', 'tbl_contacts'], 'folder-cascade-folder-1', {
+        expectedWorkspaceId: WORKSPACE_ID,
+        skipNotify: true,
+        archiveAsCohort: true,
+      })
+    ).resolves.toEqual({
+      archived: [],
+      failed: [
+        {
+          id: 'tbl_accounts',
+          name: 'Accounts',
+          reason: new TableLockedError('delete').message,
+          code: 'locked',
+        },
+      ],
+      notFound: [],
+    })
+
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('allows a self-referencing table to archive', async () => {

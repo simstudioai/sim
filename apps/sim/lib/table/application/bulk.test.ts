@@ -221,6 +221,63 @@ describe('table bulk application use cases', () => {
     )
   })
 
+  it('retries an explicit target after its selected-folder referrer is archived', async () => {
+    mocks.planFolderSelection.mockResolvedValue({
+      selected: [{ id: 'folder-1', name: 'Reports' }],
+      notFound: [],
+      contained: [],
+      covered: new Set(['folder-1']),
+      coveredBySelected: new Map([['folder-1', new Set(['folder-1'])]]),
+    })
+    mocks.deleteTables
+      .mockResolvedValueOnce({
+        archived: [],
+        failed: [
+          {
+            id: 'table-target',
+            name: 'Target',
+            reason: 'Target is referenced by Referrer',
+            code: 'reference',
+          },
+        ],
+        notFound: [],
+      })
+      .mockResolvedValueOnce(successfulTableDeleteBatch(['table-target']))
+    mocks.bulkDeleteFolders.mockResolvedValue({
+      succeeded: [{ id: 'folder-1', name: 'Reports' }],
+      failed: [],
+      folderCount: 1,
+      resourceCount: 1,
+    })
+
+    const result = await bulkDeleteTables.execute({
+      principal,
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        tableIds: ['table-target'],
+        folderKeying: 'ids' as const,
+        folders: ['folder-1'],
+      },
+    })
+
+    expect(result.deleted).toEqual([
+      { kind: 'folder', id: 'folder-1', name: 'Reports' },
+      { kind: 'table', id: 'table-target', name: 'Archived' },
+    ])
+    expect(result.failed).toEqual([])
+    expect(result.deletedItems).toEqual({ tables: 2, folders: 1 })
+    expect(mocks.deleteTables).toHaveBeenCalledTimes(2)
+    expect(mocks.deleteTables).toHaveBeenLastCalledWith(
+      ['table-target'],
+      'request-1',
+      expect.anything()
+    )
+    expect(mocks.findReferenceBlockers).toHaveBeenCalledOnce()
+    expect(mocks.bulkDeleteFolders).toHaveBeenCalledWith(
+      expect.objectContaining({ referenceCheckCompleted: true })
+    )
+  })
+
   /**
    * The whole point of taking both id lists in one request: a table that is
    * also inside a selected folder must be archived exactly once, under the

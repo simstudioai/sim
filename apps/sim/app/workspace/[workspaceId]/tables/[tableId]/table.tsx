@@ -52,6 +52,7 @@ import {
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/view-state'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import { ImportProgressMenu } from '@/app/workspace/[workspaceId]/tables/components/import-progress-menu'
+import { useWorkspaceTablesRoom } from '@/app/workspace/[workspaceId]/tables/hooks/use-workspace-tables-room'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
   downloadExportResult,
@@ -204,6 +205,7 @@ export function Table({
   const tableId = propTableId || (params.tableId as string)
   const hostContext = useOptionalWorkspaceHostContext()
   const referenceColumnsEnabled = hostContext?.features?.referenceColumns ?? false
+  useWorkspaceTablesRoom(workspaceId)
 
   const posthog = usePostHog()
   const tableRowTtlEnabled = useFeatureFlag('table-row-ttl')
