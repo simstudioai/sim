@@ -1,5 +1,4 @@
 import { createEmbeddedClient, type EmbeddedCliIdentity } from 'sim/embed'
-import { createInProcessTransport } from '@/lib/api/server/routes/in-process-transport'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 import { runEngine } from '@/lib/mothership/agent-cli/engines'
@@ -9,9 +8,6 @@ import { agentCliFail } from '@/lib/mothership/agent-cli/types'
 import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
 import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session'
-
-/** Every embedded request answers in-process: the v2 routes run here, not over the wire. */
-const inProcessTransport = createInProcessTransport()
 
 export interface AgentCliExecutionContext {
   workspaceId: string
@@ -38,7 +34,6 @@ export async function executeAgentCliRequest(
     endpoint: getInternalApiBaseUrl(),
     apiKey,
     workspaceId: context.workspaceId,
-    transport: inProcessTransport,
   }
   const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null
 
