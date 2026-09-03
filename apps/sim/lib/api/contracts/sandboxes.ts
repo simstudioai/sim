@@ -12,7 +12,7 @@ export const sandboxCliToolSchema = z.enum(SANDBOX_CLI_TOOL_IDS)
 
 export type SandboxCliToolId = z.output<typeof sandboxCliToolSchema>
 
-const sandboxCliToolsSchema = z
+export const sandboxCliToolsSchema = z
   .array(sandboxCliToolSchema)
   .max(MAX_SANDBOX_CLI_TOOLS, `A sandbox can install at most ${MAX_SANDBOX_CLI_TOOLS} CLI tools`)
   .refine((cliTools) => new Set(cliTools).size === cliTools.length, {
@@ -39,15 +39,15 @@ export const sandboxStrategySchema = z.enum(['prebuilt', 'runtime'])
  * would reject a legal list (50 packages plus a trailing newline is 51 entries)
  * with a generic error carrying no `issues`, leaving the editor nothing to mark.
  */
-const dependencyListSchema = z
+export const dependencyListSchema = z
   .array(z.string().max(2000, 'a dependency line is unreasonably long'))
   .max(1000, 'too many lines — paste a shorter dependency list')
 
-const systemPackageListSchema = z
+export const systemPackageListSchema = z
   .array(z.string().max(2000, 'a system package line is unreasonably long'))
   .max(1000, 'too many lines — paste a shorter system package list')
 
-const sandboxNameSchema = z
+export const sandboxNameSchema = z
   .string()
   .trim()
   .min(1, 'Name is required')

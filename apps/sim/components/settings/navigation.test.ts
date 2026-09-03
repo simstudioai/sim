@@ -476,6 +476,7 @@ describe('settings navigation boundaries', () => {
         hideInboxTab: true,
         disableMcpTools: true,
         disableCustomTools: true,
+        hideSandboxesTab: true,
       },
       entitlements: {
         byok: true,
@@ -490,7 +491,6 @@ describe('settings navigation boundaries', () => {
     expect(items.map(({ id }) => id)).toEqual([
       'teammates',
       'byok',
-      'sandboxes',
       'credential-groups',
       'workflow-mcp-servers',
       'recently-deleted',

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sim API v2 — Workspace Resources",
-    "description": "Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, write-only secrets, and the block, tool, and connector-type catalogs.",
+    "description": "Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, sandboxes, credentials, write-only secrets, and the block, tool, and connector-type catalogs.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -40,6 +40,10 @@
     {
       "name": "Custom Tools",
       "description": "Create and manage code-backed tools that agents can call."
+    },
+    {
+      "name": "Sandboxes",
+      "description": "Create and manage the reusable dependency sets that Function blocks execute against."
     },
     {
       "name": "Credentials",
@@ -1983,6 +1987,437 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DeleteCustomToolResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/sandboxes": {
+      "get": {
+        "operationId": "listSandboxes",
+        "summary": "List Sandboxes",
+        "description": "List the sandboxes defined in a workspace, with opaque cursor pagination. A sandbox is a reusable dependency set — npm or PyPI packages, pinned managed CLIs, and Debian packages — that Function blocks execute against. Listing is not plan-gated, so a workspace that dropped below the Max tier still sees what it built.",
+        "tags": ["Sandboxes"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the sandbox.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the sandbox."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the sandbox name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the sandbox name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "schema": {
+              "default": "name",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum sandboxes to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum sandboxes to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sandboxes defined in the workspace.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSandboxesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createSandbox",
+        "summary": "Create Sandbox",
+        "description": "Create a sandbox and schedule its image build. The name must be unique within the workspace. A dependency or system-package entry the builder cannot accept is a `400` whose `error.details` names the field and the offending entries. Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Builds cost compute, so every write in a workspace draws on one shared budget, and a burst is refused with `429` and a `Retry-After` header. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Sandboxes"],
+        "requestBody": {
+          "required": true,
+          "description": "Name, language, and dependency set of a new sandbox.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSandboxRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The sandbox was created and its build scheduled.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSandboxResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/sandboxes/{sandboxId}": {
+      "get": {
+        "operationId": "getSandbox",
+        "summary": "Get Sandbox",
+        "description": "Fetch one sandbox by identifier, scoped to its workspace, including its current build state and any build failure.",
+        "tags": ["Sandboxes"],
+        "parameters": [
+          {
+            "name": "sandboxId",
+            "in": "path",
+            "required": true,
+            "description": "Unique sandbox identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique sandbox identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the sandbox.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the sandbox."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The sandbox.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSandboxResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateSandbox",
+        "summary": "Update Sandbox",
+        "description": "Update the supplied sandbox fields and rebuild the image. Omitted fields retain their stored values; a supplied list replaces the whole list; names must remain unique within the workspace. Re-sending an unchanged spec after a failed build retries the build. Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Builds cost compute, so every write in a workspace draws on one shared budget, and a burst is refused with `429` and a `Retry-After` header. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Sandboxes"],
+        "parameters": [
+          {
+            "name": "sandboxId",
+            "in": "path",
+            "required": true,
+            "description": "Unique sandbox identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique sandbox identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Sandbox fields to change; at least one editable field is required.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSandboxRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated sandbox.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateSandboxResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSandbox",
+        "summary": "Delete Sandbox",
+        "description": "Delete a sandbox. Function blocks that still select it fail closed at run time until they are re-pointed, and the image is released once nothing else shares it. Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Builds cost compute, so every write in a workspace draws on one shared budget, and a burst is refused with `429` and a `Retry-After` header. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Sandboxes"],
+        "parameters": [
+          {
+            "name": "sandboxId",
+            "in": "path",
+            "required": true,
+            "description": "Unique sandbox identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique sandbox identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the sandbox.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the sandbox."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The sandbox was deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteSandboxResponse"
                 }
               }
             }
@@ -6344,6 +6779,517 @@
         "additionalProperties": false,
         "title": "Delete custom tool response",
         "description": "Acknowledgement that the custom tool was deleted.",
+        "examples": [
+          {
+            "data": {
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "deleted": true
+            }
+          }
+        ]
+      },
+      "V2Sandbox": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique sandbox identifier."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name, unique within the workspace."
+          },
+          "language": {
+            "type": "string",
+            "enum": ["javascript", "python"],
+            "description": "Dependency ecosystem: `javascript` installs from npm, `python` from PyPI."
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Package specifiers installed into the sandbox, one per entry. Blank entries and `#` comments are ignored."
+          },
+          "cliTools": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "google-cloud-cli@577.0.0-r1",
+                "aws-cli@2.36.15-r1",
+                "azure-cli@2.89.0-r1",
+                "doctl@1.166.0-r1",
+                "github-cli@2.97.0-r1",
+                "gitlab-cli@1.111.0-r1",
+                "kubectl@1.36.3-r1",
+                "helm@4.2.3-r1",
+                "kustomize@5.8.1-r1",
+                "argocd@3.4.6-r1",
+                "terraform@1.15.8-r1",
+                "pulumi@3.255.0-r1",
+                "supabase-cli@2.111.0-r1",
+                "firebase-cli@15.25.1-r1",
+                "flyctl@0.4.78-r1",
+                "railway-cli@5.30.4-r1",
+                "stripe-cli@1.45.0-r1",
+                "duckdb@1.5.5-r1",
+                "rclone@1.75.0-r1",
+                "restic@0.19.1-r1",
+                "minio-mc@RELEASE.2025-08-13T08-35-41Z-r1",
+                "mongosh@2.9.2-r1",
+                "sops@3.13.3-r1",
+                "age@1.3.1-r1"
+              ]
+            },
+            "description": "Pinned managed CLI ids installed into the sandbox, at most 10, no duplicates."
+          },
+          "systemPackages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Debian packages installed into the sandbox image, one per entry."
+          },
+          "buildStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["pending", "building", "ready", "failed"]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Image build state. `null` when the deployment installs dependencies at run time and has nothing to build."
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Classified build failure code, or `null`."
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Human-readable build failure summary, or `null`."
+          },
+          "errorDetail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tail of the installer log for a failed build, or `null`."
+          },
+          "builtAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the current image finished building, or `null`."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the sandbox was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the sandbox was last updated."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "language",
+          "dependencies",
+          "cliTools",
+          "systemPackages",
+          "buildStatus",
+          "errorCode",
+          "errorMessage",
+          "errorDetail",
+          "builtAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Sandbox",
+        "description": "A workspace sandbox: a reusable dependency set that Function blocks execute against."
+      },
+      "ListSandboxesResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2Sandbox"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List sandboxes response",
+        "description": "Sandboxes defined in the workspace.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "V1StGXR8Z5jdHi6BmyT",
+                "name": "data-tools",
+                "language": "python",
+                "dependencies": ["pandas==2.2.2", "requests"],
+                "cliTools": [],
+                "systemPackages": ["graphviz"],
+                "buildStatus": "ready",
+                "errorCode": null,
+                "errorMessage": null,
+                "errorDetail": null,
+                "builtAt": "2026-06-20T14:05:40.000Z",
+                "createdAt": "2026-06-01T09:14:00.000Z",
+                "updatedAt": "2026-06-20T14:02:11.000Z"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "CreateSandboxResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Sandbox"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create sandbox response",
+        "description": "The created sandbox, with its build still pending.",
+        "examples": [
+          {
+            "data": {
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "name": "data-tools",
+              "language": "python",
+              "dependencies": ["pandas==2.2.2", "requests"],
+              "cliTools": [],
+              "systemPackages": ["graphviz"],
+              "buildStatus": "pending",
+              "errorCode": null,
+              "errorMessage": null,
+              "errorDetail": null,
+              "builtAt": null,
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
+            }
+          }
+        ]
+      },
+      "CreateSandboxRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace in which to create the sandbox."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Display name, unique within the workspace; 1 to 64 characters."
+          },
+          "language": {
+            "type": "string",
+            "enum": ["javascript", "python"],
+            "description": "Dependency ecosystem: `javascript` installs from npm, `python` from PyPI."
+          },
+          "dependencies": {
+            "default": [],
+            "description": "Package specifiers installed into the sandbox, one per entry. Blank entries and `#` comments are ignored.",
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          },
+          "cliTools": {
+            "default": [],
+            "description": "Pinned managed CLI ids installed into the sandbox, at most 10, no duplicates.",
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "google-cloud-cli@577.0.0-r1",
+                "aws-cli@2.36.15-r1",
+                "azure-cli@2.89.0-r1",
+                "doctl@1.166.0-r1",
+                "github-cli@2.97.0-r1",
+                "gitlab-cli@1.111.0-r1",
+                "kubectl@1.36.3-r1",
+                "helm@4.2.3-r1",
+                "kustomize@5.8.1-r1",
+                "argocd@3.4.6-r1",
+                "terraform@1.15.8-r1",
+                "pulumi@3.255.0-r1",
+                "supabase-cli@2.111.0-r1",
+                "firebase-cli@15.25.1-r1",
+                "flyctl@0.4.78-r1",
+                "railway-cli@5.30.4-r1",
+                "stripe-cli@1.45.0-r1",
+                "duckdb@1.5.5-r1",
+                "rclone@1.75.0-r1",
+                "restic@0.19.1-r1",
+                "minio-mc@RELEASE.2025-08-13T08-35-41Z-r1",
+                "mongosh@2.9.2-r1",
+                "sops@3.13.3-r1",
+                "age@1.3.1-r1"
+              ]
+            }
+          },
+          "systemPackages": {
+            "default": [],
+            "description": "Debian packages installed into the sandbox image, one per entry.",
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          }
+        },
+        "required": ["workspaceId", "name", "language"],
+        "additionalProperties": false,
+        "title": "Create sandbox request",
+        "description": "Name, language, and dependency set of a new sandbox.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "name": "data-tools",
+            "language": "python",
+            "dependencies": ["pandas==2.2.2", "requests"],
+            "systemPackages": ["graphviz"]
+          }
+        ]
+      },
+      "GetSandboxResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Sandbox"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get sandbox response",
+        "description": "One sandbox.",
+        "examples": [
+          {
+            "data": {
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "name": "data-tools",
+              "language": "python",
+              "dependencies": ["pandas==2.2.2", "requests"],
+              "cliTools": [],
+              "systemPackages": ["graphviz"],
+              "buildStatus": "ready",
+              "errorCode": null,
+              "errorMessage": null,
+              "errorDetail": null,
+              "builtAt": "2026-06-20T14:05:40.000Z",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
+            }
+          }
+        ]
+      },
+      "UpdateSandboxResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Sandbox"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update sandbox response",
+        "description": "The updated sandbox, with its rebuild pending.",
+        "examples": [
+          {
+            "data": {
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "name": "data-tools",
+              "language": "python",
+              "dependencies": ["pandas==2.2.2", "requests", "pyarrow"],
+              "cliTools": [],
+              "systemPackages": ["graphviz"],
+              "buildStatus": "pending",
+              "errorCode": null,
+              "errorMessage": null,
+              "errorDetail": null,
+              "builtAt": null,
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
+            }
+          }
+        ]
+      },
+      "UpdateSandboxRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace that owns the sandbox."
+          },
+          "name": {
+            "description": "New display name, unique within the workspace; 1 to 64 characters.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "language": {
+            "description": "Replacement dependency ecosystem. The whole spec is revalidated against it, so a Python dependency list does not survive a switch to JavaScript.",
+            "type": "string",
+            "enum": ["javascript", "python"]
+          },
+          "dependencies": {
+            "description": "Replacement package list; replaces the whole list.",
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          },
+          "cliTools": {
+            "description": "Replacement managed CLI list; replaces the whole list.",
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "google-cloud-cli@577.0.0-r1",
+                "aws-cli@2.36.15-r1",
+                "azure-cli@2.89.0-r1",
+                "doctl@1.166.0-r1",
+                "github-cli@2.97.0-r1",
+                "gitlab-cli@1.111.0-r1",
+                "kubectl@1.36.3-r1",
+                "helm@4.2.3-r1",
+                "kustomize@5.8.1-r1",
+                "argocd@3.4.6-r1",
+                "terraform@1.15.8-r1",
+                "pulumi@3.255.0-r1",
+                "supabase-cli@2.111.0-r1",
+                "firebase-cli@15.25.1-r1",
+                "flyctl@0.4.78-r1",
+                "railway-cli@5.30.4-r1",
+                "stripe-cli@1.45.0-r1",
+                "duckdb@1.5.5-r1",
+                "rclone@1.75.0-r1",
+                "restic@0.19.1-r1",
+                "minio-mc@RELEASE.2025-08-13T08-35-41Z-r1",
+                "mongosh@2.9.2-r1",
+                "sops@3.13.3-r1",
+                "age@1.3.1-r1"
+              ]
+            }
+          },
+          "systemPackages": {
+            "description": "Replacement Debian package list; replaces the whole list.",
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Update sandbox request",
+        "description": "Sandbox fields to change; at least one editable field is required.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "dependencies": ["pandas==2.2.2", "requests", "pyarrow"]
+          }
+        ]
+      },
+      "V2SandboxDeleteData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the deleted sandbox."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the sandbox was deleted."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete sandbox data",
+        "description": "Sandbox deletion acknowledgement."
+      },
+      "DeleteSandboxResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2SandboxDeleteData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete sandbox response",
+        "description": "Acknowledgement that the sandbox was deleted.",
         "examples": [
           {
             "data": {

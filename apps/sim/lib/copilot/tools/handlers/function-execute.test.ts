@@ -112,7 +112,7 @@ vi.mock('@/lib/copilot/tools/secret-mount-materializer.server', () => ({
 vi.mock('@/lib/billing/core/subscription', () => ({
   hasWorkspaceSandboxAccess: mockHasWorkspaceSandboxAccess,
 }))
-vi.mock('@/lib/execution/remote-sandbox/workspace-sandboxes', () => ({
+vi.mock('@/lib/execution/remote-sandbox/entitlement', () => ({
   MAX_PLAN_REQUIRED: 'Sim sandboxes require an active Max or Enterprise plan.',
 }))
 

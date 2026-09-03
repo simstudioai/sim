@@ -47,6 +47,13 @@ import {
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
+  v2CreateSandboxContract,
+  v2DeleteSandboxContract,
+  v2GetSandboxContract,
+  v2ListSandboxesContract,
+  v2UpdateSandboxContract,
+} from '@/lib/api/contracts/v2/sandboxes'
+import {
   v2DeleteSecretContract,
   v2ListSecretsContract,
   v2SetSecretContract,
@@ -368,6 +375,30 @@ const CUSTOM_TOOL_EXAMPLE = {
   updatedAt: '2026-06-20T14:02:11.000Z',
 } as const
 
+/**
+ * No managed CLI in the example: the catalog pins exact versions that rotate
+ * with every upgrade, and an example naming one would break the spec check on
+ * each bump.
+ */
+const SANDBOX_EXAMPLE = {
+  id: 'V1StGXR8Z5jdHi6BmyT',
+  name: 'data-tools',
+  language: 'python',
+  dependencies: ['pandas==2.2.2', 'requests'],
+  cliTools: [],
+  systemPackages: ['graphviz'],
+  buildStatus: 'ready',
+  errorCode: null,
+  errorMessage: null,
+  errorDetail: null,
+  builtAt: '2026-06-20T14:05:40.000Z',
+  createdAt: '2026-06-01T09:14:00.000Z',
+  updatedAt: '2026-06-20T14:02:11.000Z',
+} as const
+
+const SANDBOX_PLAN_NOTE =
+  'Requires a workspace admin on a Max or Enterprise plan; a lower plan is refused with `403` and `error.details.code` `WORKSPACE_PLAN_CAPABILITY_REQUIRED`. Builds cost compute, so every write in a workspace draws on one shared budget, and a burst is refused with `429` and a `Retry-After` header.'
+
 const CREDENTIAL_EXAMPLE = {
   id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
   type: 'service_account',
@@ -465,6 +496,7 @@ type ResourceTag =
   | 'MCP Servers'
   | 'Skills'
   | 'Custom Tools'
+  | 'Sandboxes'
   | 'Credentials'
   | 'Secrets'
   | 'Catalog'
@@ -1193,6 +1225,172 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2ListSandboxesContract,
+    resourceOperation('Sandboxes', {
+      operationId: 'listSandboxes',
+      summary: 'List Sandboxes',
+      description:
+        'List the sandboxes defined in a workspace, with opaque cursor pagination. A sandbox is a reusable dependency set — npm or PyPI packages, pinned managed CLIs, and Debian packages — that Function blocks execute against. Listing is not plan-gated, so a workspace that dropped below the Max tier still sees what it built.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'Sandboxes defined in the workspace.' },
+    }),
+    {
+      query: documentedSchema(
+        v2ListSandboxesContract.query,
+        'ListSandboxesQuery',
+        'List sandboxes query',
+        'Workspace, search, sorting, and paging controls for sandboxes.'
+      ),
+      response: documentedSchema(
+        v2ListSandboxesContract.response.schema,
+        'ListSandboxesResponse',
+        'List sandboxes response',
+        'Sandboxes defined in the workspace.',
+        [{ data: [SANDBOX_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateSandboxContract,
+    resourceOperation('Sandboxes', {
+      operationId: 'createSandbox',
+      summary: 'Create Sandbox',
+      description: `Create a sandbox and schedule its image build. The name must be unique within the workspace. A dependency or system-package entry the builder cannot accept is a \`400\` whose \`error.details\` names the field and the offending entries. ${SANDBOX_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The sandbox was created and its build scheduled.' },
+    }),
+    {
+      query: v2CreateSandboxContract.query,
+      body: documentedSchema(
+        v2CreateSandboxContract.body,
+        'CreateSandboxRequest',
+        'Create sandbox request',
+        'Name, language, and dependency set of a new sandbox.',
+        [
+          {
+            workspaceId: WORKSPACE_ID,
+            name: SANDBOX_EXAMPLE.name,
+            language: SANDBOX_EXAMPLE.language,
+            dependencies: SANDBOX_EXAMPLE.dependencies,
+            systemPackages: SANDBOX_EXAMPLE.systemPackages,
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2CreateSandboxContract.response.schema,
+        'CreateSandboxResponse',
+        'Create sandbox response',
+        'The created sandbox, with its build still pending.',
+        [{ data: { ...SANDBOX_EXAMPLE, buildStatus: 'pending', builtAt: null } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetSandboxContract,
+    resourceOperation('Sandboxes', {
+      operationId: 'getSandbox',
+      summary: 'Get Sandbox',
+      description:
+        'Fetch one sandbox by identifier, scoped to its workspace, including its current build state and any build failure.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The sandbox.' },
+    }),
+    {
+      params: documentedSchema(
+        v2GetSandboxContract.params,
+        'GetSandboxParams',
+        'Get sandbox path parameters',
+        'Sandbox selected for retrieval.'
+      ),
+      query: documentedSchema(
+        v2GetSandboxContract.query,
+        'GetSandboxQuery',
+        'Get sandbox query',
+        'Workspace scope for the sandbox.'
+      ),
+      response: documentedSchema(
+        v2GetSandboxContract.response.schema,
+        'GetSandboxResponse',
+        'Get sandbox response',
+        'One sandbox.',
+        [{ data: SANDBOX_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateSandboxContract,
+    resourceOperation('Sandboxes', {
+      operationId: 'updateSandbox',
+      summary: 'Update Sandbox',
+      description: `Update the supplied sandbox fields and rebuild the image. Omitted fields retain their stored values; a supplied list replaces the whole list; names must remain unique within the workspace. Re-sending an unchanged spec after a failed build retries the build. ${SANDBOX_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The updated sandbox.' },
+    }),
+    {
+      query: v2UpdateSandboxContract.query,
+      params: documentedSchema(
+        v2UpdateSandboxContract.params,
+        'UpdateSandboxParams',
+        'Update sandbox path parameters',
+        'Sandbox selected for update.'
+      ),
+      body: documentedSchema(
+        v2UpdateSandboxContract.body,
+        'UpdateSandboxRequest',
+        'Update sandbox request',
+        'Sandbox fields to change; at least one editable field is required.',
+        [{ workspaceId: WORKSPACE_ID, dependencies: ['pandas==2.2.2', 'requests', 'pyarrow'] }]
+      ),
+      response: documentedSchema(
+        v2UpdateSandboxContract.response.schema,
+        'UpdateSandboxResponse',
+        'Update sandbox response',
+        'The updated sandbox, with its rebuild pending.',
+        [
+          {
+            data: {
+              ...SANDBOX_EXAMPLE,
+              dependencies: ['pandas==2.2.2', 'requests', 'pyarrow'],
+              buildStatus: 'pending',
+              builtAt: null,
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2DeleteSandboxContract,
+    resourceOperation('Sandboxes', {
+      operationId: 'deleteSandbox',
+      summary: 'Delete Sandbox',
+      description: `Delete a sandbox. Function blocks that still select it fail closed at run time until they are re-pointed, and the image is released once nothing else shares it. ${SANDBOX_PLAN_NOTE} ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The sandbox was deleted.' },
+    }),
+    {
+      params: documentedSchema(
+        v2DeleteSandboxContract.params,
+        'DeleteSandboxParams',
+        'Delete sandbox path parameters',
+        'Sandbox selected for deletion.'
+      ),
+      query: documentedSchema(
+        v2DeleteSandboxContract.query,
+        'DeleteSandboxQuery',
+        'Delete sandbox query',
+        'Workspace scope for the sandbox.'
+      ),
+      response: documentedSchema(
+        v2DeleteSandboxContract.response.schema,
+        'DeleteSandboxResponse',
+        'Delete sandbox response',
+        'Acknowledgement that the sandbox was deleted.',
+        [{ data: { id: SANDBOX_EXAMPLE.id, deleted: true } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2ListCredentialsContract,
     resourceOperation('Credentials', {
       operationId: 'listCredentials',
@@ -1894,7 +2092,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   info: {
     title: 'Sim API v2 — Workspace Resources',
     description:
-      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, write-only secrets, and the block, tool, and connector-type catalogs.',
+      'Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, sandboxes, credentials, write-only secrets, and the block, tool, and connector-type catalogs.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',
@@ -1927,6 +2125,11 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
     {
       name: 'Custom Tools',
       description: 'Create and manage code-backed tools that agents can call.',
+    },
+    {
+      name: 'Sandboxes',
+      description:
+        'Create and manage the reusable dependency sets that Function blocks execute against.',
     },
     {
       name: 'Credentials',

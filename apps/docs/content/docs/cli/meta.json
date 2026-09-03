@@ -24,6 +24,7 @@
     "logs",
     "mcp-servers",
     "meta",
+    "sandboxes",
     "secrets",
     "skills",
     "tables",

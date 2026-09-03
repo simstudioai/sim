@@ -480,6 +480,13 @@ export const PERMISSION_GROUP_FIELDS = {
     category: 'Tools',
     hint: 'Prevent silencing a tool confirmation, so every call is confirmed again.',
   }),
+  hideSandboxesTab: booleanRestriction('capability', {
+    scope: 'workspace',
+    id: 'hide-sandboxes',
+    label: 'Sandboxes',
+    category: 'Modules',
+    hint: 'Revoke the Sandboxes module. Members cannot view, create, or change a workspace sandbox.',
+  }),
 } satisfies Record<string, PermissionGroupField>
 
 export type PermissionGroupFields = typeof PERMISSION_GROUP_FIELDS
