@@ -45,6 +45,8 @@ beforeAll(() => {
     PIPEDRIVE_CLIENT_SECRET: 'pipedrive_client_secret',
     HUBSPOT_CLIENT_ID: 'hubspot_client_id',
     HUBSPOT_CLIENT_SECRET: 'hubspot_client_secret',
+    ELOQUA_CLIENT_ID: 'eloqua_client_id',
+    ELOQUA_CLIENT_SECRET: 'eloqua_client_secret',
     LINKEDIN_CLIENT_ID: 'linkedin_client_id',
     LINKEDIN_CLIENT_SECRET: 'linkedin_client_secret',
     SALESFORCE_CLIENT_ID: 'salesforce_client_id',
@@ -157,6 +159,28 @@ function getMondayConnector() {
   if (!connector) throw new Error('Monday OAuth connector is not configured in this test')
   return connector
 }
+
+function getEloquaConnector() {
+  const connector = buildConnectorProviders().find((candidate) => candidate.providerId === 'eloqua')
+  if (!connector) throw new Error('Oracle Eloqua OAuth connector is not configured in this test')
+  return connector
+}
+
+describe('Oracle Eloqua OAuth connector', () => {
+  it('uses the authorization-code contract and Sim callback', () => {
+    expect(getEloquaConnector()).toMatchObject({
+      providerId: 'eloqua',
+      authorizationUrl: 'https://login.eloqua.com/auth/oauth2/authorize',
+      tokenUrl: 'https://login.eloqua.com/auth/oauth2/token',
+      userInfoUrl: 'https://login.eloqua.com/id',
+      scopes: ['full'],
+      responseType: 'code',
+      pkce: false,
+      authentication: 'basic',
+      redirectURI: 'http://localhost:3000/api/auth/oauth2/callback/eloqua',
+    })
+  })
+})
 
 describe('Monday OAuth connector', () => {
   it('generates the OAuth 2.1 authorization request from the connector contract', async () => {
@@ -935,6 +959,42 @@ describe('OAuth Token Refresh', () => {
         client_secret: 'monday_client_secret',
       })
     })
+
+    it.concurrent(
+      'refreshes Oracle Eloqua with Basic auth, a JSON body, and token rotation',
+      async () => {
+        const mockFetch = createMockFetch({
+          json: {
+            access_token: 'new-eloqua-access-token',
+            expires_in: 28_800,
+            refresh_token: 'rotated-eloqua-refresh-token',
+            token_type: 'bearer',
+          },
+        })
+
+        const result = await withMockFetch(mockFetch, () =>
+          refreshOAuthToken('eloqua', 'old-eloqua-refresh-token')
+        )
+
+        expect(result).toEqual({
+          ok: true,
+          accessToken: 'new-eloqua-access-token',
+          expiresIn: 28_800,
+          refreshToken: 'rotated-eloqua-refresh-token',
+        })
+
+        const [endpoint, request] = mockFetch.mock.calls[0] as [string, RequestInit]
+        expect(endpoint).toBe('https://login.eloqua.com/auth/oauth2/token')
+        expect(request.headers).toMatchObject({
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${Buffer.from('eloqua_client_id:eloqua_client_secret').toString('base64')}`,
+        })
+        expect(JSON.parse(request.body as string)).toEqual({
+          grant_type: 'refresh_token',
+          refresh_token: 'old-eloqua-refresh-token',
+        })
+      }
+    )
 
     it.concurrent('rejects a Monday refresh response that omits token rotation', async () => {
       const mockFetch = createMockFetch({

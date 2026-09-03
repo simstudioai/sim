@@ -961,6 +961,10 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
     HUBSPOT_CLIENT_ID: { input: 'text' },
     HUBSPOT_CLIENT_SECRET: { input: 'secret' },
   },
+  eloqua: {
+    ELOQUA_CLIENT_ID: { input: 'text' },
+    ELOQUA_CLIENT_SECRET: { input: 'secret' },
+  },
   linkedin: {
     LINKEDIN_CLIENT_ID: { input: 'text' },
     LINKEDIN_CLIENT_SECRET: { input: 'secret' },

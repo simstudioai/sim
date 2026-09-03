@@ -244,6 +244,37 @@ describe('resolveCredentialToken', () => {
     expect(mockRefreshTokenIfNeeded).toHaveBeenCalled()
   })
 
+  it('projects the authoritative Eloqua pod stored during connection', async () => {
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      credentialOwnerUserId: 'owner-1',
+      workspaceId: 'ws-1',
+      resolvedCredentialId: 'account-1',
+    })
+    mockGetCredential.mockResolvedValue({
+      providerId: 'eloqua',
+      scope: '__eloqua_instance__:https://secure.p06.eloqua.com,full',
+    })
+    mockRefreshTokenIfNeeded.mockResolvedValue({ accessToken: 'fresh', refreshed: false })
+
+    await expect(
+      resolveCredentialToken(INTERNAL_AUTH, {
+        requestId: 'req-1',
+        resolvedCredential: null,
+        credentialId: 'cred-1',
+      })
+    ).resolves.toEqual({
+      ok: true,
+      token: {
+        accessToken: 'fresh',
+        credentialType: 'oauth',
+        idToken: undefined,
+        instanceUrl: 'https://secure.p06.eloqua.com',
+      },
+    })
+  })
+
   it('reports a failed refresh as 401 without recording access', async () => {
     mockAuthorizeCredentialUseForAuth.mockResolvedValue({
       ok: true,

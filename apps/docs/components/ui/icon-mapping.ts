@@ -345,6 +345,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   dynatrace: DynatraceIcon,
   elasticsearch: ElasticsearchIcon,
   elevenlabs: ElevenLabsIcon,
+  eloqua: NetSuiteIcon,
   emailbison: EmailBisonIcon,
   embeddings: EmbeddingsIcon,
   enrich: EnrichSoIcon,

@@ -16,6 +16,13 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
+import {
+  ELOQUA_OAUTH_AUTHORIZATION_URL,
+  ELOQUA_OAUTH_TOKEN_URL,
+  exchangeEloquaAuthorizationCode,
+  fetchEloquaIdentity,
+  withEloquaInstanceScope,
+} from '@/lib/oauth/eloqua'
 import { getMicrosoftUserInfoFromIdToken } from '@/lib/oauth/microsoft'
 import {
   assertMicrosoftDataverseLegacyOAuthCallbackScopes,
@@ -1104,6 +1111,50 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error creating HubSpot user profile:', { error })
+          return null
+        }
+      },
+    },
+
+    {
+      providerId: 'eloqua',
+      clientId: env.ELOQUA_CLIENT_ID as string,
+      clientSecret: env.ELOQUA_CLIENT_SECRET as string,
+      authorizationUrl: ELOQUA_OAUTH_AUTHORIZATION_URL,
+      tokenUrl: ELOQUA_OAUTH_TOKEN_URL,
+      userInfoUrl: 'https://login.eloqua.com/id',
+      scopes: getCanonicalScopesForProvider('eloqua'),
+      responseType: 'code',
+      pkce: false,
+      authentication: 'basic',
+      accessType: 'offline',
+      prompt: 'consent',
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/eloqua`,
+      getToken: async ({ code, redirectURI }) =>
+        exchangeEloquaAuthorizationCode({
+          clientId: env.ELOQUA_CLIENT_ID as string,
+          clientSecret: env.ELOQUA_CLIENT_SECRET as string,
+          code,
+          redirectUri: redirectURI,
+        }),
+      getUserInfo: async (tokens) => {
+        try {
+          if (!tokens.accessToken) throw new Error('Eloqua access token is missing')
+          const identity = await fetchEloquaIdentity(tokens.accessToken)
+          tokens.scopes = withEloquaInstanceScope(identity.instanceUrl, tokens.scopes)
+          const stableId = `${identity.site.id}:${identity.user.id}`
+          return {
+            id: `${stableId}-${generateId()}`,
+            name: identity.user.displayName || identity.user.username,
+            email: identity.user.emailAddress || syntheticConnectorEmail('eloqua', stableId),
+            emailVerified: Boolean(identity.user.emailAddress),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }
+        } catch (error) {
+          logger.error('Error creating Oracle Eloqua user profile:', {
+            error: toError(error).message,
+          })
           return null
         }
       },
