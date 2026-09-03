@@ -665,29 +665,63 @@ jobs:
 
           IMAGES="simstudio migrations realtime pii cron"
 
-          # Prints the digest, or nothing when the tag is not published. The
-          # explicit `if !` matters: under `set -e` a failing inspect inside a
-          # command substitution aborts the step before the caller can treat an
-          # absent tag as "skip".
+          # Prints the digest, or nothing when the tag is genuinely absent.
+          #
+          # An absent tag and a registry hiccup both make `inspect` fail, and
+          # treating them alike is how a published image silently ends up
+          # unsigned while this job still goes green. So: retry, and only report
+          # "absent" when the registry actually says the manifest is unknown.
+          # Anything else fails the step.
           digest_of() {
-            local raw
-            if ! raw="$(docker buildx imagetools inspect "$1" --format '{{json .Manifest}}' 2>/dev/null)"; then
-              return 0
-            fi
-            printf '%s' "$raw" | jq -r '.digest // empty'
+            local ref="$1" attempt raw err
+            for attempt in 1 2 3; do
+              if raw="$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' 2>/tmp/inspect.err)"; then
+                printf '%s' "$raw" | jq -r '.digest // empty'
+                return 0
+              fi
+              err="$(cat /tmp/inspect.err)"
+              case "$err" in
+                *"not found"*|*MANIFEST_UNKNOWN*|*"no such manifest"*|*"NAME_UNKNOWN"*)
+                  return 0
+                  ;;
+              esac
+              sleep "$((attempt * 3))"
+            done
+            echo "::error::Could not inspect ${ref} after 3 attempts: ${err}" >&2
+            return 1
+          }
+
+          # Records a subject. `platform` tells the attestation job whether this
+          # digest is a single-architecture image, which is the only case where
+          # a Syft SBOM describes what the puller actually gets.
+          emit() {
+            jq -nc --arg image "$1" --arg digest "$2" --arg platform "$3" \
+              '{image: $image, digest: $digest, platform: $platform}' >> /tmp/subjects.jsonl
           }
 
           : > /tmp/subjects.jsonl
           for name in $IMAGES; do
             image="ghcr.io/simstudioai/${name}"
 
-            # The sha tags are this run's own output and always exist.
-            sha_index="$(digest_of "${image}:${SHA}")"
-            if [ -z "$sha_index" ]; then
-              echo "::error::No index published for ${image}:${SHA}"
-              exit 1
-            fi
-            tags="${SHA} ${SHA}-amd64 ${SHA}-arm64"
+            # The sha tags are this run's own output. All three must resolve —
+            # a missing one means the publish did not complete, not that the tag
+            # is optional.
+            seen=""
+            sha_index=""
+            for tag in "${SHA}" "${SHA}-amd64" "${SHA}-arm64"; do
+              digest="$(digest_of "${image}:${tag}")"
+              if [ -z "$digest" ]; then
+                echo "::error::${image}:${tag} was not published by this run"
+                exit 1
+              fi
+              case "$tag" in
+                *-amd64) platform=amd64 ;;
+                *-arm64) platform=arm64 ;;
+                *) platform=index; sha_index="$digest" ;;
+              esac
+              seen="$seen $digest"
+              emit "$image" "$digest" "$platform"
+            done
 
             # A moving alias is only ours if it resolves to the index this run
             # published. create-ghcr-manifests holds the latest tags back when
@@ -696,24 +730,31 @@ jobs:
             # and provenance on an image it did not produce. The per-arch
             # aliases are published in the same guarded block as `latest`, so
             # that one comparison gates all three.
-            if [ "$(digest_of "${image}:latest")" = "$sha_index" ]; then
-              tags="${tags} latest latest-amd64 latest-arm64"
-            else
-              echo "Skipping latest tags for ${image}: they do not point at this run's index."
+            alias_groups="latest"
+            if [ "${IS_RELEASE}" = "true" ]; then
+              alias_groups="${alias_groups} ${VERSION}"
             fi
 
-            if [ "${IS_RELEASE}" = "true" ] && [ "$(digest_of "${image}:${VERSION}")" = "$sha_index" ]; then
-              tags="${tags} ${VERSION} ${VERSION}-amd64 ${VERSION}-arm64"
-            fi
-
-            seen=""
-            for tag in $tags; do
-              digest="$(digest_of "${image}:${tag}")"
-              [ -n "$digest" ] || continue
-              case " $seen " in *" $digest "*) continue ;; esac
-              seen="$seen $digest"
-              jq -nc --arg image "$image" --arg digest "$digest" \
-                '{image: $image, digest: $digest}' >> /tmp/subjects.jsonl
+            for alias in $alias_groups; do
+              alias_index="$(digest_of "${image}:${alias}")"
+              if [ "$alias_index" != "$sha_index" ]; then
+                echo "Skipping ${alias}* for ${image}: it does not point at this run's index."
+                continue
+              fi
+              for tag in "${alias}" "${alias}-amd64" "${alias}-arm64"; do
+                digest="$(digest_of "${image}:${tag}")"
+                if [ -z "$digest" ]; then
+                  echo "::error::${image}:${tag} is missing though ${image}:${alias} is current"
+                  exit 1
+                fi
+                case " $seen " in *" $digest "*) continue ;; esac
+                seen="$seen $digest"
+                case "$tag" in
+                  *-amd64) emit "$image" "$digest" amd64 ;;
+                  *-arm64) emit "$image" "$digest" arm64 ;;
+                  *) emit "$image" "$digest" index ;;
+                esac
+              done
             done
           done
 
@@ -756,7 +797,12 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Skipped for index subjects: Syft resolves an index to one platform, so
+      # the SBOM it produces would describe amd64 while the index also serves
+      # arm64. The per-arch subjects below carry an accurate SBOM each, and the
+      # index still gets a signature and provenance.
       - name: Generate SBOM
+        if: matrix.platform != 'index'
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           image: ${{ matrix.image }}@${{ matrix.digest }}
@@ -768,6 +814,7 @@ jobs:
           upload-release-assets: false
 
       - name: Attest SBOM
+        if: matrix.platform != 'index'
         uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
         with:
           subject-name: ${{ matrix.image }}

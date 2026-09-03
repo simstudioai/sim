@@ -116,11 +116,9 @@ image: pgvector/pgvector:pg17  # NOT postgres:17
 
 ## Certificate errors (CERT_HAS_EXPIRED)
 
-SSL certificate errors when calling external APIs almost always mean the endpoint presents a certificate signed by a private CA — a TLS-inspecting proxy, or an internal service.
+Rule out the ordinary causes first: the endpoint's certificate really has expired, its chain is incomplete, or the host's clock has drifted far enough to put a valid certificate outside its window. Check the certificate and the host date before changing any trust configuration — `NODE_EXTRA_CA_CERTS` does not fix any of them.
 
-The image already ships current CA certificates and runs as a non-root user, so installing packages inside it is not the fix. This almost always means the endpoint presents a certificate signed by a private CA — a corporate TLS-inspecting proxy, or an internal service.
-
-Mount your CA bundle and point Node at it:
+If the certificate is valid and current, the endpoint is presenting one signed by a private CA — a corporate TLS-inspecting proxy, or an internal service. The image already ships current CA certificates and runs as a non-root user, so installing packages inside it is not the fix. Mount your CA bundle and point Node at it:
 
 ```yaml
 # docker-compose.prod.yml
