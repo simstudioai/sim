@@ -166,6 +166,17 @@ describe('requestOracleFusionJson', () => {
     expect(String(error)).not.toContain(BASIC)
   })
 
+  it('classifies redirects rejected by the pinned transport without exposing details', async () => {
+    mockSecureFetch.mockRejectedValueOnce(new Error('Too many redirects (max: 0)'))
+    const error = await requestOracleFusionJson(CREDENTIAL, {
+      family: 'hcm',
+      path: 'workers',
+    }).catch((caught: unknown) => caught)
+    expect(error).toMatchObject({ message: 'Oracle Fusion returned a redirect', status: 502 })
+    expect(String(error)).not.toContain(ORIGIN)
+    expect(String(error)).not.toContain(BASIC)
+  })
+
   it('preserves unsafe integral JSON tokens as decimal strings', async () => {
     mockSecureFetch.mockResolvedValueOnce(
       response(

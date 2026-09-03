@@ -185,6 +185,11 @@ function statusMessage(status: number): string {
   return `Oracle Fusion request failed with HTTP ${status}`
 }
 
+/** `maxRedirects: 0` rejects a response with Location before returning its status. */
+function isRejectedRedirect(error: unknown): boolean {
+  return error instanceof Error && error.message === 'Too many redirects (max: 0)'
+}
+
 /** Executes one bounded, DNS-pinned GET against a fixed Oracle product API family. */
 export async function requestOracleFusionJson(
   credential: OracleFusionResolvedCredential,
@@ -220,6 +225,9 @@ export async function requestOracleFusionJson(
       response = await fetchAttempt(url, validation.resolvedIP, credential.accessToken, signal)
     } catch (error) {
       signal?.throwIfAborted()
+      if (isRejectedRedirect(error)) {
+        throw new OracleFusionProviderError('Oracle Fusion returned a redirect', 502)
+      }
       if (isPayloadSizeLimitError(error)) {
         throw new OracleFusionProviderError('Oracle Fusion response exceeded 5 MiB', 502)
       }
