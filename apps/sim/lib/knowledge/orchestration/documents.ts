@@ -5,12 +5,13 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import { dispatchDocumentProcessing } from '@/lib/knowledge/documents/processing-dispatch'
 import {
   createDocumentRecords,
   createSingleDocument,
   type DocumentData,
-  deleteDocument,
+  deleteKnowledgeDocumentInKnowledgeBase,
   getDocumentByUploadId,
   markDocumentAsFailedTimeout,
   type ProcessingOptions,
@@ -440,6 +441,11 @@ export async function performUpdateKnowledgeDocument(
 export interface PerformDeleteKnowledgeDocumentParams extends KnowledgeOperationContext {
   knowledgeBase: KnowledgeBaseTarget
   document: { id: string; filename: string; fileSize?: number; mimeType?: string }
+  /**
+   * Re-applied at the delete itself, so an access change landing between the
+   * caller's lookup and this write cannot still delete the document.
+   */
+  access: KnowledgeAccessScope
 }
 
 export type PerformDeleteKnowledgeDocumentResult = KnowledgeOrchestrationResult
@@ -448,11 +454,11 @@ export type PerformDeleteKnowledgeDocumentResult = KnowledgeOrchestrationResult
 export async function performDeleteKnowledgeDocument(
   params: PerformDeleteKnowledgeDocumentParams
 ): Promise<PerformDeleteKnowledgeDocumentResult> {
-  const { knowledgeBase, document, request, source } = params
+  const { knowledgeBase, document, request, source, access } = params
   const requestId = params.requestId ?? generateRequestId()
 
   try {
-    await deleteDocument(document.id, requestId)
+    await deleteKnowledgeDocumentInKnowledgeBase(knowledgeBase.id, document.id, requestId, access)
   } catch (error) {
     return classifyKnowledgeFailure(error, requestId, `Delete document ${document.id}`)
   }

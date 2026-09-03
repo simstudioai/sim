@@ -26,7 +26,8 @@ export interface FileAttachmentForApi {
 /**
  * A request mode a send asks the agent for beyond the default. `ask` is an
  * Assistant turn: an answer drawn from the attached knowledge bases first,
- * with a connected integration reached only when those cannot answer.
+ * with a connected integration reached only when those cannot answer — live or
+ * very recent data, or an action the person asked for outright.
  */
 export type ChatRequestMode = 'ask'
 

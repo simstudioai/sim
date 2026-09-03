@@ -597,7 +597,10 @@ redis:
     pullPolicy: IfNotPresent
 
   # No persistence is configured: Redis holds coordination state and short-lived
-  # keys, so a restart costs in-flight live updates, not committed data.
+  # keys, so a restart costs in-flight live updates, not committed data. It also
+  # drops webhook idempotency markers, so a provider redelivery after a
+  # restart can re-run an already-completed workflow — use a persistent managed
+  # instance if that matters. Billing and checkout idempotency is on PostgreSQL.
   maxmemory: "512mb"
   maxmemoryPolicy: "noeviction"
 

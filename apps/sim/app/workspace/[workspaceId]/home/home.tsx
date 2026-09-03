@@ -550,9 +550,10 @@ export function Home({ chatId, userName, userId }: HomeProps) {
    */
   const restoreQueuedMode = useCallback(
     (requestMode: QueuedMessage['requestMode']) => {
+      setSearchQuery('')
       void setComposerMode(requestMode === 'ask' ? 'assistant' : 'build')
     },
-    [setComposerMode]
+    [setComposerMode, setSearchQuery]
   )
 
   /** An emptied search box returns to the sources; a send in any other mode has no search to clear. */

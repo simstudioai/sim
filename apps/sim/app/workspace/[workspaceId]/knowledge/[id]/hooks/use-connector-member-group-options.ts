@@ -3,9 +3,9 @@
 import { useMemo } from 'react'
 import type { ComboboxOption } from '@sim/emcn'
 import {
-  type CredentialGroupStandardOAuthProvider,
+  type CredentialGroupProvider,
+  getCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderId,
-  getCredentialGroupStandardOAuthProviderFromProviderId,
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'
 import type { ConnectorMeta } from '@/connectors/types'
@@ -30,13 +30,18 @@ export function decodeConnectorMemberGroupOption(
   }
 }
 
-/** The credential-group provider that collects accounts for this connector, if any. */
+/**
+ * The credential-group provider that collects accounts for this connector, if any.
+ * Resolves across every credential-group provider, not just the standard-OAuth
+ * subset — Slack collects accounts through a custom bot and would otherwise
+ * resolve to none, hiding the Access field.
+ */
 function connectorMemberGroupProvider(
   connectorConfig: ConnectorMeta
-): CredentialGroupStandardOAuthProvider | null {
+): CredentialGroupProvider | null {
   if (connectorConfig.auth.mode !== 'oauth' || !connectorConfig.permissionScopedListing) return null
   try {
-    return getCredentialGroupStandardOAuthProviderFromProviderId(connectorConfig.auth.provider)
+    return getCredentialGroupProviderFromProviderId(connectorConfig.auth.provider)
   } catch {
     return null
   }

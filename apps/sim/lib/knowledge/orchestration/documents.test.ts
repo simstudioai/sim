@@ -8,7 +8,7 @@ const {
   mockCaptureServerEvent,
   mockCreateDocumentRecords,
   mockCreateSingleDocument,
-  mockDeleteDocument,
+  mockDeleteKnowledgeDocumentInKnowledgeBase,
   mockGetDocumentByUploadId,
   mockMarkDocumentAsFailedTimeout,
   mockProcessDocumentAsync,
@@ -21,7 +21,7 @@ const {
   mockCaptureServerEvent: vi.fn(),
   mockCreateDocumentRecords: vi.fn(),
   mockCreateSingleDocument: vi.fn(),
-  mockDeleteDocument: vi.fn(),
+  mockDeleteKnowledgeDocumentInKnowledgeBase: vi.fn(),
   mockGetDocumentByUploadId: vi.fn(),
   mockMarkDocumentAsFailedTimeout: vi.fn(),
   mockProcessDocumentAsync: vi.fn(),
@@ -47,7 +47,7 @@ vi.mock('@/lib/core/telemetry', () => ({
 vi.mock('@/lib/knowledge/documents/service', () => ({
   createDocumentRecords: mockCreateDocumentRecords,
   createSingleDocument: mockCreateSingleDocument,
-  deleteDocument: mockDeleteDocument,
+  deleteKnowledgeDocumentInKnowledgeBase: mockDeleteKnowledgeDocumentInKnowledgeBase,
   getDocumentByUploadId: mockGetDocumentByUploadId,
   markDocumentAsFailedTimeout: mockMarkDocumentAsFailedTimeout,
   processDocumentAsync: mockProcessDocumentAsync,
@@ -58,6 +58,7 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { type KnowledgeAccessScope, WORKSPACE_ACCESS_TOKENS } from '@/lib/knowledge/access/types'
 import {
   performDeleteKnowledgeDocument,
   performMarkKnowledgeDocumentTimedOut,
@@ -75,6 +76,7 @@ const FILE = {
   mimeType: 'application/pdf',
 }
 const ACTOR = { userId: 'user-1', source: 'agent' as const, requestId: 'req-1' }
+const ACCESS: KnowledgeAccessScope = { kind: 'workspace', tokens: WORKSPACE_ACCESS_TOKENS }
 
 /**
  * Lets the fire-and-forget dispatch settle. Both upload paths queue indexing
@@ -403,7 +405,7 @@ describe('performUpdateKnowledgeDocument', () => {
 describe('performDeleteKnowledgeDocument', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDeleteDocument.mockResolvedValue({ success: true, message: 'ok' })
+    mockDeleteKnowledgeDocumentInKnowledgeBase.mockResolvedValue(undefined)
   })
 
   it('audits the deletion against the acting user', async () => {
@@ -411,23 +413,56 @@ describe('performDeleteKnowledgeDocument', () => {
       ...ACTOR,
       knowledgeBase: KB,
       document: { id: 'doc-1', filename: 'report.pdf', fileSize: 10, mimeType: 'application/pdf' },
+      access: ACCESS,
     })
 
     expect(outcome).toMatchObject({ success: true })
-    expect(mockDeleteDocument).toHaveBeenCalledWith('doc-1', 'req-1')
     expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ actorId: 'user-1', resourceId: 'doc-1' })
     )
     expect(mockCaptureServerEvent).toHaveBeenCalled()
   })
 
-  it('emits no telemetry when the delete fails', async () => {
-    mockDeleteDocument.mockRejectedValue(new Error('deadlock detected'))
+  it("re-applies the caller's access at the delete itself", async () => {
+    await performDeleteKnowledgeDocument({
+      ...ACTOR,
+      knowledgeBase: KB,
+      document: { id: 'doc-1', filename: 'report.pdf' },
+      access: ACCESS,
+    })
+
+    expect(mockDeleteKnowledgeDocumentInKnowledgeBase).toHaveBeenCalledWith(
+      'kb-1',
+      'doc-1',
+      'req-1',
+      ACCESS
+    )
+  })
+
+  it('reports not_found when the scoped delete finds nothing to delete', async () => {
+    mockDeleteKnowledgeDocumentInKnowledgeBase.mockRejectedValue(
+      new OrchestrationError('not_found', 'Document not found')
+    )
 
     const outcome = await performDeleteKnowledgeDocument({
       ...ACTOR,
       knowledgeBase: KB,
       document: { id: 'doc-1', filename: 'report.pdf' },
+      access: ACCESS,
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'not_found' })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('emits no telemetry when the delete fails', async () => {
+    mockDeleteKnowledgeDocumentInKnowledgeBase.mockRejectedValue(new Error('deadlock detected'))
+
+    const outcome = await performDeleteKnowledgeDocument({
+      ...ACTOR,
+      knowledgeBase: KB,
+      document: { id: 'doc-1', filename: 'report.pdf' },
+      access: ACCESS,
     })
 
     expect(outcome).toMatchObject({ success: false, errorCode: 'internal' })

@@ -10,6 +10,7 @@ import {
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { CredentialGroupEnrollmentError } from '@/lib/credential-groups/enrollments'
 import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
@@ -109,7 +110,23 @@ export const internalKnowledgeErrorPolicies = {
   tags: concealKnowledgeBase(
     internalKnowledgeErrorPolicy('Failed to process knowledge tag request')
   ),
-  connectors: concealKnowledgeBase(internalKnowledgeErrorPolicy('Internal server error')),
+  /**
+   * Enrollment reaches the credential-group helpers, whose failures are the
+   * admin's to act on — a missing group, a disabled one, or one with no active
+   * account option — rather than a bare 500.
+   */
+  connectors: concealKnowledgeBase(
+    extendInternalErrorPolicy(internalKnowledgeErrorPolicy('Internal server error'), (error) =>
+      error instanceof CredentialGroupEnrollmentError
+        ? internalErrorResponse(error.status, { error: error.message })
+        : null
+    )
+  ),
+  /**
+   * Workspace-scoped, like the bulk routes: the request names a workspace, not
+   * one knowledge base, so there is no resource whose existence a 403 betrays.
+   */
+  memberConnectors: internalKnowledgeErrorPolicy('Failed to fetch member connectors'),
   uploads: concealKnowledgeBase(internalKnowledgeUploadErrorPolicy),
 } as const
 

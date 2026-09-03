@@ -113,11 +113,12 @@ export const DELETE = withRouteHandler(
       )
       if (result instanceof NextResponse) return result
 
-      const doc = await getKnowledgeDocument(
-        knowledgeBaseId,
-        documentId,
-        await resolveV1KnowledgeAccessScope(userId, rateLimit, parsed.data.query.workspaceId)
+      const access = await resolveV1KnowledgeAccessScope(
+        userId,
+        rateLimit,
+        parsed.data.query.workspaceId
       )
+      const doc = await getKnowledgeDocument(knowledgeBaseId, documentId, access)
 
       if (!doc) {
         return NextResponse.json({ error: 'Document not found' }, { status: 404 })
@@ -130,6 +131,7 @@ export const DELETE = withRouteHandler(
           workspaceId: parsed.data.query.workspaceId,
         },
         document: { id: documentId, filename: doc.filename },
+        access,
         userId,
         source: 'api',
         requestId,
