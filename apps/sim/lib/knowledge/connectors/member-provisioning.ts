@@ -17,8 +17,7 @@ import {
   inviteCredentialGroupEnrollment,
 } from '@/lib/credential-groups/enrollments'
 import {
-  type CredentialGroupProvider,
-  getCredentialGroupProviderFromProviderId,
+  findCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderId,
   isCredentialGroupProvider,
   isCredentialGroupStandardOAuthProvider,
@@ -115,10 +114,8 @@ export async function provisionKnowledgeConnectorMembersBinding(input: {
     throw new OrchestrationError('validation', 'Only an OAuth connector can sync per member')
   }
   const providerId = connectorMeta.auth.provider
-  let provider: CredentialGroupProvider
-  try {
-    provider = getCredentialGroupProviderFromProviderId(providerId)
-  } catch {
+  const provider = findCredentialGroupProviderFromProviderId(providerId)
+  if (!provider) {
     throw new OrchestrationError(
       'validation',
       `${connectorMeta.name} accounts cannot be collected through a Credential Group yet`
