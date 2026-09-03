@@ -69,6 +69,7 @@ function sensitiveRequestValues(
     credentials.tenancyId,
     credentials.userId,
     credentials.fingerprint,
+    credentials.fingerprint.toUpperCase(),
     credentials.privateKey,
     credentials.passphrase ?? '',
     authorization ?? '',

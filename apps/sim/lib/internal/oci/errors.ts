@@ -8,7 +8,6 @@ const MAX_OCI_ERROR_FIELD_LENGTH = 1024
 const MAX_OCI_ERROR_INPUT_LENGTH = 65_536
 const MAX_NESTED_JSON_DEPTH = 3
 const OCI_SENSITIVE_JSON_FIELDS = new Set(['signingstring'])
-const ENCODED_DIAGNOSTIC_SENTINELS = ['-----BEGIN', 'https://']
 
 function normalizeJsonDiagnosticKey(key: string): string | undefined {
   let normalized = key
@@ -31,26 +30,24 @@ function looksLikeStructuredJson(value: string): boolean {
 
 function isSensitiveOciJsonKey(key: string): boolean {
   const compactKey = key.replace(/[^a-z]/gi, '').toLowerCase()
-  return OCI_SENSITIVE_JSON_FIELDS.has(compactKey) || isSensitiveKey(key)
+  return OCI_SENSITIVE_JSON_FIELDS.has(compactKey) || isSensitiveKey(compactKey)
 }
 
-function containsEncodedDiagnosticSentinel(value: string): boolean {
-  const lowerValue = value.toLowerCase()
-  return ENCODED_DIAGNOSTIC_SENTINELS.some((sentinel) => {
-    let encoded = sentinel
-    for (let depth = 0; depth < MAX_NESTED_JSON_DEPTH; depth += 1) {
-      encoded = encodeURIComponent(encoded)
-      if (encoded !== sentinel && lowerValue.includes(encoded.toLowerCase())) return true
-    }
-    return false
-  })
+function containsEmbeddedStructuredText(value: string): boolean {
+  return (
+    !looksLikeStructuredJson(value) &&
+    (/[[{]\s*\\*(?:["{[\]}]|-?\d|true\b|false\b|null\b)/.test(value) ||
+      /\\*"[^"\\\r\n]{1,128}\\*"\s*:\s*/.test(value))
+  )
 }
 
 function flattenJsonDiagnostic(value: unknown, depth = 0): string | undefined {
   if (depth > MAX_NESTED_JSON_DEPTH) return undefined
   if (value === null) return 'null'
   if (typeof value === 'string') {
-    if (!looksLikeStructuredJson(value)) return value
+    if (!looksLikeStructuredJson(value)) {
+      return containsEmbeddedStructuredText(value) ? undefined : value
+    }
     if (depth === MAX_NESTED_JSON_DEPTH) return undefined
     try {
       return flattenJsonDiagnostic(JSON.parse(value), depth + 1)
@@ -80,6 +77,7 @@ function flattenJsonDiagnostic(value: unknown, depth = 0): string | undefined {
 
 function decodeNestedJsonDiagnostic(value: string): string | undefined {
   if (value.length > MAX_OCI_ERROR_INPUT_LENGTH) return undefined
+  if (containsEmbeddedStructuredText(value)) return undefined
   if (!looksLikeStructuredJson(value)) return value
   try {
     return flattenJsonDiagnostic(JSON.parse(value))
@@ -94,7 +92,8 @@ function sanitizeOciErrorField(
 ): string | undefined {
   if (typeof value !== 'string') return undefined
   if (value.length > MAX_OCI_ERROR_INPUT_LENGTH) return undefined
-  if (containsEncodedDiagnosticSentinel(value)) return undefined
+  if (/%[0-9a-f]{2}/i.test(value)) return undefined
+  if (/\(request-target\)|x-content-sha256/i.test(value)) return undefined
   const decoded = decodeNestedJsonDiagnostic(value)
   if (decoded === undefined) return undefined
   const exactValues = sensitiveValues.flatMap((sensitiveValue) => {
