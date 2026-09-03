@@ -358,15 +358,15 @@ async function materializeWithin(
   scopes: Scope[],
   nameFilter: string
 ): Promise<Materialized[]> {
-  const platform = (
-    await Promise.all(
-      scopes
-        .filter((scope) => PLATFORM_SCOPES.has(scope))
-        .map((scope) => materializeScope(runtime, scope))
-    )
-  ).flat()
-  const exact = platform.filter((m) => m.id.toLowerCase() === nameFilter)
-  if (exact.length > 0) return exact
+  // Cheapest platform world first: a block id answers from 65 definitions, and only a
+  // miss there pays for the tool catalog's 5,000 entries.
+  const platform: Materialized[] = []
+  for (const scope of scopes.filter((scope) => PLATFORM_SCOPES.has(scope))) {
+    const corpus = await materializeScope(runtime, scope)
+    const exact = corpus.filter((m) => m.id.toLowerCase() === nameFilter)
+    if (exact.length > 0) return exact
+    platform.push(...corpus)
+  }
   const wanted = selects(nameFilter)
   const perScope = await Promise.all(
     scopes.map(async (scope) => {
