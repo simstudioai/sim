@@ -103,7 +103,7 @@ Behavior that is fixed in the migrator and not configurable, but that explains w
 | Behavior | Value |
 |---|---|
 | Advisory-lock acquire deadline | 30 minutes, retried every 5s |
-| `lock_timeout` on the migration session | 5 seconds for ordinary DDL — a statement that waits longer fails with SQLSTATE `55P03`. An individual migration can set it to `0` for statements that must not be interrupted, such as `CREATE INDEX CONCURRENTLY`. `statement_timeout` is `0` on the same session, so a long migration is never cut off once it holds its locks |
+| `lock_timeout` on the migration session | 5 seconds for ordinary DDL — a statement that waits longer fails with SQLSTATE `55P03`. An individual migration can set it to `0` for statements that must not be interrupted, such as `CREATE INDEX CONCURRENTLY`. `statement_timeout` is `0` on the same session by default, so a long migration is not cut off once it holds its locks — though a migration can narrow it for its own statements, as `0076_damp_vector.sql` does with a 180-second local setting |
 | SQL migration retry attempts | 8, with exponential backoff and jitter, and only for a lock timeout (`55P03`). Script (data) migrations run once — a failure there exits immediately |
 | Connection attempts at startup | 10, for transient failures — `53300` (`too_many_connections`), `53400`, the `08xxx` connection-exception class, and socket-level errors such as `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`, `EHOSTUNREACH`, and `ENOTFOUND`. A database that is simply down is retried with backoff, not failed immediately |
 
@@ -179,7 +179,10 @@ kubectl logs -n simstudio deploy/sim-app -c migrations --tail=100
 
 ```bash
 npx sim-setup update
-docker compose -f docker-compose.prod.yml logs migrations
+# The file that started your install — docker-compose.local.yml for a
+# source-built stack, docker-compose.ollama.yml for the Ollama one.
+COMPOSE_FILE=docker-compose.prod.yml
+docker compose -f "$COMPOSE_FILE" logs migrations
 ```
 
 `npx sim-setup update` obtains the new images, then brings the stack up with
@@ -262,10 +265,17 @@ helm rollback sim -n simstudio
 ```
 
 ```bash
-# Docker Compose — edit .env so the pin persists, then restart.
+# Production Compose — edit .env so the pin persists, then restart.
 # Substitute the previous release tag from the releases page.
 echo "SIM_VERSION=<previous-release-tag>" >> .env
 docker compose -f docker-compose.prod.yml up -d
+```
+
+The local and Ollama stacks build the app from source and ignore `SIM_VERSION`, so roll those back by checking out the previous tag and rebuilding with the file — and, for the Ollama stack, the profile — that started the install:
+
+```bash
+git checkout <previous-release-tag>
+docker compose -f docker-compose.local.yml up -d --build
 ```
 
 **Rollback after a schema change** requires restoring the database to the pre-upgrade backup, because migrations are forward-only:
