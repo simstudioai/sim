@@ -134,7 +134,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
     },
     {
       question: `Is Sim more secure than ${name}?`,
-      answer: `Security is a like-for-like comparison, not a one-line verdict. Sim: ${summarizeFact(simProfile.facts.security.additionalCompliance.value)} ${name}: ${summarizeFact(facts.security.additionalCompliance.value)} Check the Security & compliance rows above for the full breakdown, including SSO, audit logging, and data residency.`,
+      answer: `Security is a like-for-like comparison, not a one-line verdict. Sim: ${summarizeFact(simProfile.facts.security.compliance.value)} ${name}: ${summarizeFact(facts.security.compliance.value)} Check the Security & compliance rows above for the full breakdown, including SSO, audit logging, and data residency.`,
     },
     {
       question: `Which has stronger AI agent capabilities, Sim or ${name}?`,

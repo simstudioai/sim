@@ -918,7 +918,7 @@ export const makeProfile: CompetitorProfile = {
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value:
           'SOC 2 Type II, SOC 3, and ISO 27001 certified, plus GDPR adherence; no HIPAA, PCI, or FedRAMP mentioned',
         detail:

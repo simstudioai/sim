@@ -964,7 +964,7 @@ export const powerAutomateProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
-      additionalCompliance: {
+      compliance: {
         value:
           'SOC 2 Type 2 in-scope for Commercial and GCC environments only; HIPAA/HITECH (Microsoft will sign a BAA as a business associate); and inclusion in the broader Office 365/Azure compliance program, which separately covers ISO 27001, FedRAMP, and other certifications at the Azure/Office 365 platform level. The SOC 2 Type 2 report also incorporates the Cloud Security Alliance CCM and German BSI C5:2020 criteria.',
         detail:

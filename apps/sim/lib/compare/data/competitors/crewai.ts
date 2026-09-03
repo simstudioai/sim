@@ -846,7 +846,7 @@ export const crewaiProfile: CompetitorProfile = {
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value:
           'SOC 2 Type 1 for CrewAI AMP (audit report dated November 2025) and HIPAA for the Enterprise edition (audit report dated February 2026); no ISO 27001, PCI, or FedRAMP certification confirmed',
         detail:

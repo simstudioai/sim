@@ -801,7 +801,7 @@ export const pipedreamProfile: CompetitorProfile = {
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value:
           'SOC 2 Type 2, HIPAA (via BAA, Enterprise), GDPR (SCCs), and AWS KMS infra with ISO 27001/27017/27018. No independent Pipedream-held ISO 27001/PCI/FedRAMP certification on the trust page',
         detail:

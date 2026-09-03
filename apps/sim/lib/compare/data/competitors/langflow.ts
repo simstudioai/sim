@@ -737,7 +737,7 @@ export const langflowProfile: CompetitorProfile = {
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value:
           'Unknown: no public documentation or official page confirms SOC 2, HIPAA, ISO 27001, GDPR-specific attestation, PCI, or FedRAMP certification for Langflow.',
         shortValue: 'Unknown, no SOC 2 or other compliance certifications documented',

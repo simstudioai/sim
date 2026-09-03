@@ -912,7 +912,7 @@ export const simProfile: CompetitorProfile = {
           },
         ],
       },
-      additionalCompliance: {
+      compliance: {
         value: 'SOC 2 Type II, ISO 27001:2022, GDPR',
         shortValue: 'SOC 2 Type II, ISO 27001:2022, GDPR',
         confidence: 'verified',

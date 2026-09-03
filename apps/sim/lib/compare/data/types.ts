@@ -120,8 +120,8 @@ export interface ComparisonFacts {
     dataResidency: Fact
     rbac: Fact
     auditLogging: Fact
-    /** Compliance certifications beyond a bare SOC2 mention. HIPAA, ISO 27001, GDPR-specific attestations, PCI, FedRAMP, etc. */
-    additionalCompliance: Fact
+    /** Compliance certifications and attestations, including SOC 2, ISO 27001, GDPR, HIPAA, PCI, and FedRAMP. */
+    compliance: Fact
     /** Admin-configurable restrictions on which LLM providers/models members may use, and which specific tools/integrations a role can call. Finer-grained than plain workspace admin/write/read. */
     modelAndToolGovernance: Fact
     /** Restricting which specific stored credentials/connections a role or permission group may use, distinct from feature-level RBAC or integration-level allow/deny. */
