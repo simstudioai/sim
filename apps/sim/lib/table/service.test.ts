@@ -77,7 +77,11 @@ import {
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 
 describe('listActiveTableNames', () => {
-  beforeEach(() => resetDbChainMock())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.assertTableReferenceColumnsEnabled.mockResolvedValue(undefined)
+  })
 
   it('returns the name projection without loading table schemas', async () => {
     queueTableRows(schemaMock.userTableDefinitions, [{ id: 'table-1', name: 'Accounts' }])
@@ -102,6 +106,17 @@ describe('listActiveTableNames', () => {
 
   it('skips the database when no table IDs are requested', async () => {
     await expect(listActiveTableNames(WORKSPACE_ID, [])).resolves.toEqual([])
+    expect(mocks.assertTableReferenceColumnsEnabled).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  it('rejects name lookups before querying when reference columns are disabled', async () => {
+    mocks.assertTableReferenceColumnsEnabled.mockRejectedValueOnce({ code: 'forbidden' })
+
+    await expect(listActiveTableNames(WORKSPACE_ID, ['table-1'])).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 })

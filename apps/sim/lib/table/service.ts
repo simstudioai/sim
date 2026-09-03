@@ -383,6 +383,7 @@ export async function listActiveTableNames(
   workspaceId: string,
   tableIds: readonly string[]
 ): Promise<Array<Pick<TableDefinition, 'id' | 'name'>>> {
+  await assertTableReferenceColumnsEnabled()
   if (tableIds.length === 0) return []
 
   return db
