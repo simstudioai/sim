@@ -11,6 +11,13 @@ export interface EmbeddedCliIdentity {
   endpoint: string
   apiKey: string
   workspaceId?: string
+  /**
+   * How requests reach the endpoint. A host that serves the v2 routes itself passes a
+   * transport that dispatches to them in-process, so an embedded run never leaves the
+   * server: no network hop, no proxy body ceiling, no per-key rate limit meant for
+   * callers on the wire. Absent, requests go over `fetch` like the installed CLI's.
+   */
+  transport?: typeof fetch
 }
 
 export interface EmbedContext {
@@ -71,6 +78,7 @@ export function embeddedProfile(): ResolvedProfile | null {
     apiKey: ctx.identity.apiKey,
     workspaceId: ctx.identity.workspaceId ?? null,
     output: 'json',
+    ...(ctx.identity.transport ? { transport: ctx.identity.transport } : {}),
     sources: { endpoint: 'flag', apiKey: 'flag', workspaceId: 'flag', output: 'flag' },
   }
 }

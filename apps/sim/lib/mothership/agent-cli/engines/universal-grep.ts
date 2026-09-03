@@ -44,8 +44,18 @@ const FILE_READ_CONCURRENCY = 5
 const MAX_BYTES_PER_FILE = 262_144
 /** `workflow:<uuid>` — a prefixed form no world or resource ever prints as its path. */
 const PREFIX_SELECTOR = /^\w+:/
-/** The block catalog is platform-owned and changes only on deploy; per-workspace visibility keys it. */
-const catalogCache = new LRUCache<string, Materialized[]>({ max: 500, ttl: 10 * 60_000 })
+/**
+ * Blocks and tools are platform-owned and change only on deploy, so their rendered
+ * corpora are kept per workspace (visibility keys them). The tools world is the reason
+ * this exists: 5,000 built-in tools list at 100 a page, so an unmemoized grep re-walked
+ * the whole registry fifty times per call.
+ */
+const PLATFORM_SCOPES: ReadonlySet<Scope> = new Set<Scope>(['blocks', 'tools'])
+const platformCache = new LRUCache<string, Materialized[]>({ max: 500, ttl: 10 * 60_000 })
+
+function platformCacheKey(runtime: AgentCliRuntime, scope: Scope): string | null {
+  return PLATFORM_SCOPES.has(scope) ? `${scope}:${runtime.workspaceId}` : null
+}
 
 interface Materialized {
   scope: Scope
@@ -267,12 +277,13 @@ async function fetchAll(
 
 /** A whole world, for a search with no `--in`: every resource the index lists. */
 async function materializeScope(runtime: AgentCliRuntime, scope: Scope): Promise<Materialized[]> {
-  if (scope === 'blocks') {
-    const cached = catalogCache.get(runtime.workspaceId)
+  const key = platformCacheKey(runtime, scope)
+  if (key) {
+    const cached = platformCache.get(key)
     if (cached !== undefined) return cached
   }
   const materialized = await fetchAll(runtime, scope, await INDEXERS[scope](runtime))
-  if (scope === 'blocks') catalogCache.set(runtime.workspaceId, materialized)
+  if (key) platformCache.set(key, materialized)
   return materialized
 }
 
@@ -280,19 +291,31 @@ function selects(nameFilter: string): (id: string, label: string) => boolean {
   return (id, label) => id.toLowerCase() === nameFilter || label.toLowerCase().includes(nameFilter)
 }
 
-/** Only the resources a `--in` selector names: the indexes are read, the matches fetched. */
+/**
+ * Only the resources a `--in` selector names. Platform ids settle it first: `--in file_v5`
+ * is a block id, both platform corpora are memoized, and an exact hit there means the
+ * workspace worlds are never listed. A name fragment (`--in "lead scorer"`) has no such
+ * anchor, so every searched world's index is read and only the matches are fetched.
+ */
 async function materializeWithin(
   runtime: AgentCliRuntime,
   scopes: Scope[],
   nameFilter: string
 ): Promise<Materialized[]> {
+  const platform = (
+    await Promise.all(
+      scopes
+        .filter((scope) => PLATFORM_SCOPES.has(scope))
+        .map((scope) => materializeScope(runtime, scope))
+    )
+  ).flat()
+  const exact = platform.filter((m) => m.id.toLowerCase() === nameFilter)
+  if (exact.length > 0) return exact
   const wanted = selects(nameFilter)
   const perScope = await Promise.all(
     scopes.map(async (scope) => {
-      if (scope === 'blocks') {
-        const cached = catalogCache.get(runtime.workspaceId)
-        if (cached !== undefined) return cached.filter((m) => wanted(m.id, m.label))
-      }
+      if (PLATFORM_SCOPES.has(scope))
+        return platform.filter((m) => m.scope === scope && wanted(m.id, m.label))
       const entries = (await INDEXERS[scope](runtime)).filter((e) => wanted(e.id, e.label))
       return fetchAll(runtime, scope, entries)
     })
