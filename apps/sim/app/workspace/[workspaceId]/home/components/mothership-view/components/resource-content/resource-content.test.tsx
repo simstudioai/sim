@@ -51,6 +51,21 @@ describe('ResourceContent table view handoff', () => {
     })
   }
 
+  it('hands off a restored view the table is mounted with', () => {
+    // The table can only honour `initialViewId` while its views query already
+    // lists that id. Reopening a chat against a cached list from before the
+    // agent's write would otherwise strand the restored view.
+    render({ type: 'table', id: 'table-1', title: 'Invoices', viewId: 'view-restored' })
+
+    expect(useTableViewPinStore.getState().pins['table-1']?.viewId).toBe('view-restored')
+  })
+
+  it('does not pin a table opened without a saved view', () => {
+    render({ type: 'table', id: 'table-1', title: 'Invoices' })
+
+    expect(useTableViewPinStore.getState().pins['table-1']).toBeUndefined()
+  })
+
   it('hands off a saved view that arrives after the embedded table mounts', () => {
     const table: MothershipResource = {
       type: 'table',
