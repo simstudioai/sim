@@ -167,7 +167,9 @@ function addFieldOption(
   const literalNull = slot === 'body' && !takesList && !wantsJson
   const describe = `${documented}${
     takesList
-      ? ' (space-separated, or @path / @- with one value per line; @@value for a literal leading @)'
+      ? flag.manifest
+        ? ' (space-separated, or @path / @- with one value per line; in a file, blank lines and # comments are ignored, while inline values are sent as typed and may not be empty; @@value for a literal leading @)'
+        : ' (space-separated, or @path / @- with one value per line; @@value for a literal leading @)'
       : wantsJson
         ? ' (JSON, or @path / @- to read a file or stdin)'
         : ''

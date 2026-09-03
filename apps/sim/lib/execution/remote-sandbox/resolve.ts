@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { classifyInstallOutput, tailBuildLog } from '@/lib/execution/remote-sandbox/build-errors'
 import {
@@ -11,6 +12,10 @@ import {
   sandboxCliToolRecipes,
   sandboxCliVerificationCommand,
 } from '@/lib/execution/remote-sandbox/cli-tools.server'
+import {
+  hasWorkspaceSandboxRetentionAccessCached,
+  MAX_PLAN_REQUIRED,
+} from '@/lib/execution/remote-sandbox/entitlement'
 import { MAX_SANDBOX_PROCESS_OUTPUT_BYTES } from '@/lib/execution/remote-sandbox/output-limits'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import {
@@ -166,6 +171,28 @@ function touchImage(specHash: string, provider: string): void {
 }
 
 /**
+ * Refuses a selection once the workspace's plan has terminally lapsed.
+ *
+ * Fails open when the plan cannot be read at all: this sits in front of every
+ * Function block on the execution path, and a billing-database blip must not
+ * become a fleet-wide run failure. The cached reader never records the outage,
+ * so the next block asks again.
+ */
+async function requireSandboxPlan(workspaceId: string): Promise<void> {
+  let entitled: boolean
+  try {
+    entitled = await hasWorkspaceSandboxRetentionAccessCached(workspaceId)
+  } catch (error) {
+    logger.warn('Sandbox plan check unavailable; allowing the selected sandbox', {
+      workspaceId,
+      error: getErrorMessage(error),
+    })
+    return
+  }
+  if (!entitled) throw new Error(MAX_PLAN_REQUIRED)
+}
+
+/**
  * Resolves the sandbox an execution should run against, or `null` when none is
  * selected (today's behavior: the env-configured template, no install step).
  *
@@ -174,9 +201,11 @@ function touchImage(specHash: string, provider: string): void {
  * throws with the reason, because the alternative is a baffling
  * `ModuleNotFoundError` inside the user's code.
  *
- * Deliberately not plan-gated here: authoring and new Copilot selection are
- * gated at their boundaries, while a workspace that downgrades keeps executing
- * sandboxes already attached to Function blocks.
+ * Plan-gated on a terminal lapse only. Authoring and new Copilot selection are
+ * gated at their boundaries on a usable plan; execution reads the retention
+ * variant, so a payment retry never fails a running workflow, while a payer
+ * that cancelled or downgraded off Max/Enterprise fails closed with the plan
+ * message rather than keep running a feature the plan no longer includes.
  */
 export async function resolveWorkspaceSandbox(args: {
   kind: SandboxKind
@@ -195,6 +224,7 @@ export async function resolveWorkspaceSandbox(args: {
   if (!workspaceId) {
     throw new Error('A sandbox was selected but this execution has no workspace to resolve it in')
   }
+  await requireSandboxPlan(workspaceId)
 
   const provider = resolveProvider()
   const { db, sandboxImage, workspaceSandbox, and, eq } = await sandboxDb()

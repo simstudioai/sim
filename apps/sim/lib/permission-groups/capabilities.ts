@@ -55,6 +55,7 @@ export const CAPABILITY_IDS = [
   'cli.use',
   'triggers.webhook',
   'copilot.tool_auto_approval',
+  'sandboxes.use',
 ] as const
 
 export type PermissionGroupCapability = (typeof CAPABILITY_IDS)[number]
@@ -406,6 +407,13 @@ export const CAPABILITY_RULES = {
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
     describe: 'Silencing a tool confirmation',
     deniedBy: (config) => config.disableToolAutoApproval,
+  },
+  'sandboxes.use': {
+    kind: 'static',
+    configKeys: ['hideSandboxesTab'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'The Sandboxes module',
+    deniedBy: (config) => config.hideSandboxesTab,
   },
 } satisfies { readonly [K in PermissionGroupCapability]: CapabilityRule }
 

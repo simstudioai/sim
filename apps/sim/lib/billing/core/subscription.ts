@@ -670,6 +670,15 @@ interface WorkspaceTierAccessOptions {
    * so a missing workspace never reads as "safe to destroy".
    */
   onMissingWorkspace?: boolean
+  /**
+   * What a subscription-read failure resolves to. By default the reads soft-fail
+   * to "no subscription", which a one-shot gate correctly reads as a denial. A
+   * caller that *caches* the answer must pass `'throw'`: a swallowed failure is
+   * indistinguishable from a real lapse, and caching it would hold the gate
+   * shut for a whole TTL over a momentary outage. Honored on the `retention`
+   * reads, which are the only ones a cached caller uses.
+   */
+  onError?: 'return-null' | 'throw'
 }
 
 /**
@@ -699,7 +708,8 @@ async function hasWorkspaceTierAccess(
   isTierEntitled: (plan: string) => boolean,
   options: WorkspaceTierAccessOptions = {}
 ): Promise<boolean> {
-  const { intent = 'active-use', onMissingWorkspace = false } = options
+  const { intent = 'active-use', onMissingWorkspace = false, onError } = options
+  const readOptions = onError === 'throw' ? ({ onError: 'throw' } as const) : {}
 
   const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
   const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
@@ -708,11 +718,14 @@ async function hasWorkspaceTierAccess(
   if (intent === 'retention') {
     if (ws.organizationId) {
       const { getOrganizationSubscription } = await import('@/lib/billing/core/billing')
-      const orgSub = await getOrganizationSubscription(ws.organizationId)
+      const orgSub = await getOrganizationSubscription(ws.organizationId, readOptions)
       return !!orgSub && isTierEntitled(orgSub.plan)
     }
 
-    const billedSub = await getHighestPriorityPersonalSubscription(ws.billedAccountUserId)
+    const billedSub = await getHighestPriorityPersonalSubscription(
+      ws.billedAccountUserId,
+      readOptions
+    )
     return !!billedSub && isTierEntitled(billedSub.plan)
   }
 
@@ -831,10 +844,11 @@ export async function hasWorkspaceLiveSyncAccess(workspaceId: string): Promise<b
  * provider compute and storage, so this deliberately sits above the plain paid
  * tier.
  *
- * Existing Function execution deliberately does not consult it (see
- * `resolveWorkspaceSandbox`), so a workspace that downgrades keeps running the
- * sandboxes it already built. New Copilot discovery, mutations, attachments,
- * and direct run_function selections do re-check it.
+ * Function execution consults the retention variant,
+ * {@link hasWorkspaceSandboxRetentionAccess}, so a payment retry never fails a
+ * running workflow while a terminal downgrade does. Copilot discovery,
+ * mutations, attachments, and direct run_function selections re-check this
+ * usable-plan gate.
  */
 export async function hasWorkspaceSandboxAccess(workspaceId: string): Promise<boolean> {
   try {
@@ -844,6 +858,43 @@ export async function hasWorkspaceSandboxAccess(workspaceId: string): Promise<bo
     return await hasMaxTierWorkspaceAccess(workspaceId)
   } catch (error) {
     logger.error('Error checking workspace sandbox access', { error, workspaceId })
+    return false
+  }
+}
+
+/**
+ * Whether a workspace may keep EXECUTING the sandboxes already attached to its
+ * Function blocks.
+ *
+ * Unlike {@link hasWorkspaceSandboxAccess}, which gates authoring on a *usable*
+ * subscription, this uses the retention status set — `active` or `past_due`,
+ * block state ignored — so a transient payment failure never turns a deployed
+ * workflow into a run-time outage. Only a terminal lapse (cancelled, downgraded
+ * off Max/Enterprise, or gone) fails the block. The deployment overrides
+ * short-circuit exactly as they do for authoring.
+ *
+ * The execution path reads this through a bounded cache
+ * (`hasWorkspaceSandboxRetentionAccessCached`), which is why `onError: 'throw'`
+ * exists: a swallowed read failure is indistinguishable from a real lapse, and
+ * caching it would hold every Function block shut for a whole TTL over a
+ * momentary outage. The default keeps the one-shot fail-closed behavior.
+ */
+export async function hasWorkspaceSandboxRetentionAccess(
+  workspaceId: string,
+  options: { onError?: 'return-false' | 'throw' } = {}
+): Promise<boolean> {
+  try {
+    if (!isSandboxesEnabled) return false
+    if (isSandboxDeploymentEntitled) return true
+    if (!isBillingEnabled) return false
+    return await hasWorkspaceTierAccess(workspaceId, isMaxTier, {
+      intent: 'retention',
+      onMissingWorkspace: true,
+      ...(options.onError === 'throw' ? { onError: 'throw' as const } : {}),
+    })
+  } catch (error) {
+    logger.error('Error checking workspace sandbox retention access', { error, workspaceId })
+    if (options.onError === 'throw') throw error
     return false
   }
 }

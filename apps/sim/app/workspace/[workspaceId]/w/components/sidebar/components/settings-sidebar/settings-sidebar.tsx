@@ -165,6 +165,9 @@ export function SettingsSidebar({
       if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) {
         return false
       }
+      if (item.id === 'sandboxes' && permissionConfig.hideSandboxesTab) {
+        return false
+      }
       if (item.id === 'forks' && !(forkingAvailable && canAdminWorkspace)) {
         return false
       }

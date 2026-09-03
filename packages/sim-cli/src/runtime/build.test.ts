@@ -196,6 +196,7 @@ describe('commands parsed through commander', () => {
       knowledge: 'kb',
       logs: 'log',
       'mcp-servers': 'mcp-server',
+      sandboxes: 'sandbox',
       secrets: 'secret',
       skills: 'skill',
       tables: 'table',

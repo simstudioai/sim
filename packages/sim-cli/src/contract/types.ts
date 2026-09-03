@@ -57,6 +57,18 @@ export interface FlagSpec {
    * invisible to any type-driven generator.
    */
   list?: boolean
+  /**
+   * The list's natural source is a manifest file, so `@path` / `@-` skip blank
+   * lines and `#` comments instead of refusing them.
+   *
+   * The shared reader treats a blank line as a typo, which is right for an id
+   * list. A dependency list is pasted from a requirements file or a lockfile,
+   * where blank lines and comments are how people structure it, and the API
+   * already ignores both — the terminal was the only surface that refused
+   * them. Inline argv values are untouched: an empty argument is still an
+   * error, and a literal `#` value can still be passed.
+   */
+  manifest?: true
   /** Take a JSON string. Implied for object/array/unknown fields. */
   json?: boolean
   /**

@@ -329,6 +329,9 @@ export const CLI_CONTRACT: CliContract = {
     confirm: 'This revokes the explicit skill editor grant for the selected email.',
   },
   deleteCustomTool: { confirm: 'This deletes the custom tool.' },
+  deleteSandbox: {
+    confirm: 'This deletes the sandbox; Function blocks that select it fail until re-pointed.',
+  },
   deleteMcpServer: {
     confirm: 'This removes the MCP server and the tools it provides.',
   },
@@ -694,6 +697,25 @@ export const CLI_CONTRACT: CliContract = {
   importWorkflow: { flags: { folderPath: FOLDER_PATH_FLAG } },
   createCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
   updateCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
+  // A dependency set is typed one specifier at a time or pasted from a
+  // requirements file, so each list takes space-separated values or `@path`
+  // with one entry per line rather than a JSON array. The package lists are
+  // manifests: a requirements file carries blank lines and `#` comments, which
+  // the API ignores, so the reader drops them instead of refusing the file.
+  createSandbox: {
+    flags: {
+      dependencies: { list: true, manifest: true },
+      cliTools: { list: true },
+      systemPackages: { list: true, manifest: true },
+    },
+  },
+  updateSandbox: {
+    flags: {
+      dependencies: { list: true, manifest: true },
+      cliTools: { list: true },
+      systemPackages: { list: true, manifest: true },
+    },
+  },
 
   // ─── Output columns for list commands ─────────────────────────────────────
   listTables: {
@@ -864,6 +886,17 @@ export const CLI_CONTRACT: CliContract = {
       // title named the other one.
       { header: 'title', path: 'title' },
       { header: 'description', path: 'schema.function.description' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  listSandboxes: {
+    columns: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'language' },
+      // `builtAt` is null under a runtime-install deployment, so the build
+      // state and the last edit are what every row can show.
+      { header: 'status', path: 'buildStatus' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
     ],
   },
