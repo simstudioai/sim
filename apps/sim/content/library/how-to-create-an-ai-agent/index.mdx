@@ -40,7 +40,7 @@ Sim provides a visual alternative to custom code frameworks and general automati
 
 This guide explains how agents differ from chatbots and shows you how to build and test a narrowly scoped agent in Sim. It also offers five project ideas for your first workflow.
 
-## [Key Takeaways](#key-takeaways)
+## Key Takeaways
 
 - **AI agents can act through connected tools.** They can use an LLM to select actions, call services such as email or CRM systems, and evaluate the returned results.
 - **The main approaches offer different levels of control.** LangChain and CrewAI support custom agent applications, while Zapier and Make suit app-based automations. Sim provides a visual workspace for workflows that use model-directed tool calls and branching.
@@ -48,7 +48,7 @@ This guide explains how agents differ from chatbots and shows you how to build a
 - **Start with a narrow task.** Limiting the initial goal and tool set makes execution traces easier to interpret. Add capabilities after the core workflow behaves consistently.
 - **Execution logs support testing.** Sim records inputs, outputs, tool calls, token costs, and block duration so you can identify where a workflow produced an unexpected result.
 
-## [What an AI Agent Actually Is (and How It Differs From a Chatbot)](#what-an-ai-agent-actually-is-and-how-it-differs-from-a-chatbot)
+## What an AI Agent Actually Is (and How It Differs From a Chatbot)
 
 An AI agent combines a model with instructions, tools, and an execution loop to pursue a defined goal. Because products use the term broadly, compare their available tools, decision logic, and stopping conditions rather than relying on the label alone.
 
@@ -56,7 +56,7 @@ An AI agent receives input, selects actions with a model, calls available tools,
 
 A basic chatbot returns text in response to a direct prompt and does not act through external tools. Some chat products include tool use, so evaluate the product's capabilities rather than assuming that every chat interface is limited to text.
 
-### [The difference in practice](#the-difference-in-practice)
+### The difference in practice
 
 Consider email. A chatbot can draft a reply if you paste in a message and ask for help. With the required permissions and a suitable trigger, an agent can identify leads that have not received a follow-up, draft replies using CRM context, and send approved messages through Gmail. It can then log the activity in HubSpot or route uncertain cases for review. The model may be the same, but tool access and an execution loop allow the agent to complete actions across Gmail and HubSpot.
 
@@ -71,29 +71,29 @@ A practical agent workflow usually includes four components:
 
 In this guide, an agent is an LLM-based workflow that can select and use tools within an execution loop. The build below applies that definition to a workflow in Sim.
 
-## [Why Most AI Agent Tutorials Are Harder Than They Need to Be](#why-most-ai-agent-tutorials-are-harder-than-they-need-to-be)
+## Why Most AI Agent Tutorials Are Harder Than They Need to Be
 
 Most AI agent guides use either a code framework or a general automation platform. Each approach suits a different level of customization.
 
-### [Path one: code frameworks](#path-one-code-frameworks)
+### Path one: code frameworks
 
 Tutorials built around [LangChain](https://www.langchain.com/langchain), [CrewAI](https://docs.crewai.com/), or [AutoGen](https://microsoft.github.io/autogen/stable/) often require Python, dependency management, and custom configuration for prompts, memory, and tools. These frameworks give developers direct control over application behavior, but they require you to manage more of the implementation and infrastructure. A code framework is a stronger fit when the application needs custom runtime behavior, while a visual interface can reduce setup for workflows supported by its built-in blocks and integrations.
 
-### [Path two: generic automation](#path-two-generic-automation)
+### Path two: generic automation
 
 Platforms such as [Zapier](https://zapier.com/pricing) and [Make](https://www.make.com/en/pricing) are useful when the main requirement is connecting applications through triggers and actions. Their trigger-and-action builders are often a good fit for predefined processes. Compare their available AI steps, branching controls, and iteration features with your requirements when a workflow needs a model to select tools or evaluate intermediate results.
 
-### [The third path: visual AI workspaces](#the-third-path-visual-ai-workspaces)
+### The third path: visual AI workspaces
 
 Purpose-built agent builders combine visual workflow design with model-directed tool use. Sim brings its visual workflow builder, Chat, knowledge bases, tables, and execution logs into one browser-based workspace. Its Agent blocks support tool calls and branching without a local installation, while code frameworks provide more direct control over custom runtime behavior and infrastructure.
 
 A visual workspace suits readers who want to test an agent quickly without taking responsibility for a custom local stack. Projects that require specialized infrastructure or low-level runtime control may still warrant a code framework.
 
-## [How to Build an AI Agent With Sim: Step by Step](#how-to-build-an-ai-agent-with-sim-step-by-step)
+## How to Build an AI Agent With Sim: Step by Step
 
 Sim lets you build an agent by connecting model, logic, integration, and output blocks on a visual canvas. The open-source AI workspace supports models from providers including OpenAI, Anthropic, Google, Mistral, and xAI. You can begin in the browser without configuring a local environment, but you should confirm current credit limits and account requirements on [Sim's pricing page](https://sim.ai/pricing) before deploying a production workflow.
 
-### [Step 1: Define what your agent will do](#step-1-define-what-your-agent-will-do)
+### Step 1: Define what your agent will do
 
 Define one observable task before choosing a model or connecting tools. Replace a broad goal such as "help with sales" with one observable task. For example, qualify inbound leads from a web form and send a Slack notification, or research a person's location and professional background from their name.
 
@@ -108,11 +108,11 @@ These starter workflows each have a clear input and verifiable output:
 - **Competitor monitoring agent:**
       Watches for updates and pricing from competitor websites and sends a Slack summary of changes
 
-### [Step 2: Create a new workflow in Sim](#step-2-create-a-new-workflow-in-sim)
+### Step 2: Create a new workflow in Sim
 
 Go to [Sim](https://sim.ai/), create an account under the currently available plan that fits your test, and start a new workflow. You land on a blank canvas, or you can switch to Chat and describe the agent you want in plain language to have Sim scaffold the first draft of the workflow for you.
 
-### [Step 3: Add and configure an Agent block](#step-3-add-and-configure-an-agent-block)
+### Step 3: Add and configure an Agent block
 
 The Agent block is where the LLM reasoning happens. Configure the model, system prompt, and tools before running the Agent block:
 
@@ -129,7 +129,7 @@ A concrete example system prompt for a people research agent:
 
 Sim Chat can create and revise canvas elements from natural-language instructions. Use it to add blocks, configure settings, or connect variables, then inspect the generated workflow before testing it.
 
-### [Step 4: Connect tools and integrations](#step-4-connect-tools-and-integrations)
+### Step 4: Connect tools and integrations
 
 Connected tools let the Agent block retrieve data or perform actions such as calling APIs, sending messages, and updating records.
 
@@ -148,7 +148,7 @@ For services outside Sim's native integration library, use a compatible Model Co
 
 For an initial test, attach only the tools required for the defined task. A smaller tool set reduces the number of actions you need to evaluate in the logs. Additional tools create more possible actions to inspect, so add integrations only after the core workflow behaves consistently.
 
-### [Step 5: Set your trigger and deploy](#step-5-set-your-trigger-and-deploy)
+### Step 5: Set your trigger and deploy
 
 Choose a trigger based on how the workflow should start and whether another application needs the result. Sim supports options including chat interfaces, REST APIs, webhooks, scheduled jobs, and events from platforms such as Slack and GitHub.
 
@@ -167,7 +167,7 @@ Choose synchronous or asynchronous execution based on when the caller needs a re
 
 Test your first agent through the chat interface so you can enter controlled inputs and inspect each run. After the workflow behaves consistently, choose an API endpoint or another production trigger that matches the intended use.
 
-### [Step 6: Test, observe, and iterate](#step-6-test-observe-and-iterate)
+### Step 6: Test, observe, and iterate
 
 Sim's execution log records each run's inputs, outputs, tool-call order, token cost, and duration by block. Use these records to locate the first block that produced an unexpected result.
 
@@ -181,29 +181,29 @@ The iteration loop looks like this:
 
 Treat the first run as a diagnostic test rather than proof that the workflow is ready. Use representative inputs to determine whether the prompt, tool configuration, or workflow logic needs revision. The required number of test rounds varies with the task and its consequences. Test with controlled inputs before granting access to production data or actions. Review permissions, failure handling, and any steps that require human approval before deployment.
 
-## [What to Build First: Five AI Agent Ideas for Beginners](#what-to-build-first-five-ai-agent-ideas-for-beginners)
+## What to Build First: Five AI Agent Ideas for Beginners
 
 Choose a first project with one clear input, a limited set of tools, and an output you can verify. The following five examples can be narrowed to a first project and expanded after testing.
 
 1. **Meeting prep agent:**
 
-  Checks selected Google Calendar events on a schedule and prepares a sourced brief about approved attendees or topics. Limit the research scope and review the brief before relying on it.
+   Checks selected Google Calendar events on a schedule and prepares a sourced brief about approved attendees or topics. Limit the research scope and review the brief before relying on it.
 2. **Prospect researcher:**
 
-  Takes a company name, searches selected public sources for relevant company and contact information, and compiles a sourced prospect brief for review before outreach.
+   Takes a company name, searches selected public sources for relevant company and contact information, and compiles a sourced prospect brief for review before outreach.
 3. **Competitor monitoring agent:**
 
-  Uses Firecrawl on a schedule to capture approved competitor pages and compare them with previous snapshots. It can log detected changes in a tracking table and send a Slack alert after applying a defined significance rule.
+   Uses Firecrawl on a schedule to capture approved competitor pages and compare them with previous snapshots. It can log detected changes in a tracking table and send a Slack alert after applying a defined significance rule.
 4. **LinkedIn content generator:**
 
-  Detects new posts on your company blog, drafts LinkedIn copy based on each post, and saves the draft for review before publication.
+   Detects new posts on your company blog, drafts LinkedIn copy based on each post, and saves the draft for review before publication.
 5. **Feature spec writer:**
 
-  Takes a rough feature idea, gathers approved reference material about comparable products, and drafts a product requirements document for review. A product owner and engineer should validate its requirements and technical assumptions.
+   Takes a rough feature idea, gathers approved reference material about comparable products, and drafts a product requirements document for review. A product owner and engineer should validate its requirements and technical assumptions.
 
 Choose the smallest project that addresses a current task and produces an output you can verify.
 
-## [The Bottom Line](#the-bottom-line)
+## The Bottom Line
 
 A visual workspace lets you test an AI agent without first building a custom local application. Sim is most useful when you want model-directed tool use, visual workflow control, and execution logs in one environment. The examples in this guide focus on operational tasks such as research, routing, monitoring, and record updates. Sim reduces setup work by providing the visual canvas, integrations, triggers, and logs in the browser.
 
