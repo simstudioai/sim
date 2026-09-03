@@ -110,6 +110,8 @@ export const internalKnowledgeErrorPolicies = {
     internalKnowledgeErrorPolicy('Failed to process knowledge tag request')
   ),
   connectors: concealKnowledgeBase(internalKnowledgeErrorPolicy('Internal server error')),
+  /** Workspace-scoped like the bulk routes above, so likewise not concealed. */
+  memberConnectors: internalKnowledgeErrorPolicy('Failed to fetch member connectors'),
   uploads: concealKnowledgeBase(internalKnowledgeUploadErrorPolicy),
 } as const
 

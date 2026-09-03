@@ -12,7 +12,10 @@ import {
   WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
+import {
+  internalKnowledgeErrorPolicies,
+  v2KnowledgeErrorPolicies,
+} from '@/lib/knowledge/api/route-policies'
 
 describe('v2 knowledge error policies', () => {
   it.each([
@@ -68,5 +71,23 @@ describe('v2 knowledge error policies', () => {
     expect(await response?.json()).toEqual({
       error: { code: 'NOT_FOUND', message: 'Knowledge base not found' },
     })
+  })
+})
+
+describe('internal knowledge error policies', () => {
+  it('conceals a knowledge-base-scoped connector authorization failure', () => {
+    const projected = internalKnowledgeErrorPolicies.connectors.project(
+      new NoWorkspaceAccessError()
+    )
+    expect(projected?.status).toBe(404)
+    expect(projected?.body).toMatchObject({ error: 'Knowledge base not found' })
+  })
+
+  it('does not conceal the workspace-scoped member-connector listing', () => {
+    const projected = internalKnowledgeErrorPolicies.memberConnectors.project(
+      new NoWorkspaceAccessError()
+    )
+    expect(projected?.status).not.toBe(404)
+    expect(JSON.stringify(projected?.body)).not.toContain('Knowledge base not found')
   })
 })

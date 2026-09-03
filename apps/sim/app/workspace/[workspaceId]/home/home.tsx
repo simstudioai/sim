@@ -543,22 +543,25 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     ]
   )
 
-  /**
-   * A queued message re-enters the composer in the mode it was written in: an
-   * Assistant question edits as an Assistant question, and never as a Search,
-   * which submits nothing and would leave the edit stranded.
-   */
-  const restoreQueuedMode = useCallback(
-    (requestMode: QueuedMessage['requestMode']) => {
-      void setComposerMode(requestMode === 'ask' ? 'assistant' : 'build')
-    },
-    [setComposerMode]
-  )
-
   /** An emptied search box returns to the sources; a send in any other mode has no search to clear. */
   const clearSearch = useCallback(() => {
     if (searchQueryValue !== null) setSearchQuery('')
   }, [searchQueryValue, setSearchQuery])
+
+  /**
+   * A queued message re-enters the composer in the mode it was written in: an
+   * Assistant question edits as an Assistant question, and never as a Search,
+   * which submits nothing and would leave the edit stranded. Leaving Search
+   * drops the query as it does everywhere else; a live one would put the
+   * composer straight back into Search and strand the edit anyway.
+   */
+  const restoreQueuedMode = useCallback(
+    (requestMode: QueuedMessage['requestMode']) => {
+      clearSearch()
+      void setComposerMode(requestMode === 'ask' ? 'assistant' : 'build')
+    },
+    [clearSearch, setComposerMode]
+  )
 
   /**
    * Summarize or Answer on a result: switch to Assistant and hand the question

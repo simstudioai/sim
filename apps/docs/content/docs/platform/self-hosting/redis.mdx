@@ -24,7 +24,9 @@ Sim uses Redis as a message bus and shared cache. Both deployments ship it by de
   With more than one app or realtime replica and no `REDIS_URL`, users on different pods stop seeing each other's edits and live status updates. Beyond one startup log line noting single-pod mode, nothing is logged — the app looks healthy and quietly loses events. Treat Redis as mandatory the moment `replicaCount` exceeds 1.
 </Callout>
 
-Everything Sim keeps in Redis is cache, coordination state, or an in-flight event — never committed data, which lives in PostgreSQL and object storage. Persistence is therefore not required. Losing or restarting the instance is not free, though: cancellation markers and the cross-pod half of execution streaming live here, so active runs stop streaming and a cancellation issued across the gap may not land. Completed work is unaffected.
+Everything Sim keeps in Redis is cache, coordination state, or an in-flight event — never committed data, which lives in PostgreSQL and object storage. Persistence is therefore not required. Losing or restarting the instance is not free, though: cancellation markers and the cross-pod half of execution streaming live here, so active runs stop streaming and a cancellation issued across the gap may not land.
+
+One exception is worth planning for. High-volume webhook triggers claim their idempotency keys in Redis by default, trading a narrow durability window for the throughput. A restart drops those claims, so a provider that retries a webhook Sim already finished can have it execute a second time. Flows where a repeat is not acceptable — anything touching money, billing, or compliance — should claim in PostgreSQL instead, which fate-shares the claim with the transaction; see `forceStorage: 'database'` on the idempotency service. Enabling Redis persistence narrows the window but does not close it.
 
 ## Configuration
 
