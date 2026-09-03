@@ -1707,7 +1707,7 @@ export function useChat(
         while (true) {
           const pendingOrder = pendingResourceReordersRef.current.get(chatId)
           if (!pendingOrder) return
-          if (resourcePersistenceQueue.hasUnpersistedWrites(chatId)) return
+          if (resourcePersistenceQueue.hasPendingIdentityChanges(chatId)) return
 
           const inFlightWrites = resourcePersistenceQueue.getInFlightWrites(chatId)
           if (inFlightWrites.length > 0) {

@@ -117,15 +117,19 @@ export class ResourcePersistenceQueue {
   }
 
   /**
-   * Whether a pending write would add a resource the server does not store yet.
+   * Whether a pending write would change which resources the chat holds — an
+   * add the server has not accepted yet, or a delete that has not landed.
    *
-   * Only these may hold a reorder back — the server rejects an order naming a
-   * resource it has never seen. A pending UPDATE to a resource it already
-   * stores (a saved-view pin) must not: that write can fail indefinitely, and
-   * gating on it would park tab ordering for the rest of the session.
+   * Only these may hold a reorder back, because only these make the client's
+   * identity set disagree with the server's, and the server validates a reorder
+   * against exactly that. A pending UPDATE to a resource it already stores (a
+   * saved-view pin) must NOT: such a write can fail indefinitely, and gating on
+   * it would park tab ordering for the rest of the session.
    */
-  hasUnpersistedWrites(scopeId: string): boolean {
-    return this.getScopedKeys(this.pendingKeys, scopeId).some((key) => !this.persistedKeys.has(key))
+  hasPendingIdentityChanges(scopeId: string): boolean {
+    return this.getScopedKeys(this.pendingKeys, scopeId).some(
+      (key) => !this.persistedKeys.has(key) || this.pendingRemovals.has(key)
+    )
   }
 
   getPendingResourceKeys(scopeId: string): Set<string> {

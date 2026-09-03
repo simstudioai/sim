@@ -219,7 +219,27 @@ describe('ResourcePersistenceQueue', () => {
     expect(queue.getPendingResourceKeys('chat-1')).toEqual(new Set())
   })
 
-  it('does not report an unpersisted write once the resource reaches the server', async () => {
+  it('reports a pending identity change while a deletion has not landed', async () => {
+    const persist = vi
+      .fn<(chatId: string, update: MothershipResourceUpdate) => Promise<unknown>>()
+      .mockResolvedValue({ success: true })
+    const remove = vi.fn<() => Promise<unknown>>().mockRejectedValueOnce(new Error('offline'))
+    const queue = new ResourcePersistenceQueue({ persist, onError })
+
+    queue.enqueue(TABLE_RESOURCE, 'chat-1', 'chat-1')
+    await Promise.allSettled(queue.getInFlightWrites('chat-1'))
+    expect(queue.hasPendingIdentityChanges('chat-1')).toBe(false)
+
+    // The server still holds a resource the client has dropped, so an order
+    // built from client state would not match and must wait for the delete.
+    const removal = queue.remove(TABLE_RESOURCE.type, TABLE_RESOURCE.id, 'chat-1')
+    removal.scheduleDelete('chat-1', remove)
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce())
+
+    expect(queue.hasPendingIdentityChanges('chat-1')).toBe(true)
+  })
+
+  it('does not report an identity change for a failing update to a stored resource', async () => {
     const persist = vi
       .fn<(chatId: string, update: MothershipResourceUpdate) => Promise<unknown>>()
       .mockResolvedValueOnce({ success: true })
@@ -228,17 +248,17 @@ describe('ResourcePersistenceQueue', () => {
 
     queue.enqueue(TABLE_RESOURCE, 'chat-1', 'chat-1')
     await Promise.allSettled(queue.getInFlightWrites('chat-1'))
-    expect(queue.hasUnpersistedWrites('chat-1')).toBe(false)
+    expect(queue.hasPendingIdentityChanges('chat-1')).toBe(false)
 
     // A pin update for the same, already-stored resource keeps failing. The
     // resource is on the server, so a reorder naming it stays valid.
     queue.enqueue({ ...TABLE_RESOURCE, viewId: 'view-a' }, 'chat-1', 'chat-1')
     await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce())
     expect(queue.getPendingResourceKeys('chat-1')).toEqual(new Set(['table:table-1']))
-    expect(queue.hasUnpersistedWrites('chat-1')).toBe(false)
+    expect(queue.hasPendingIdentityChanges('chat-1')).toBe(false)
 
     await queue.flush('chat-1')
-    expect(queue.hasUnpersistedWrites('chat-1')).toBe(false)
+    expect(queue.hasPendingIdentityChanges('chat-1')).toBe(false)
   })
 
   it('reports an unpersisted write while a first add has never succeeded', async () => {
@@ -250,7 +270,7 @@ describe('ResourcePersistenceQueue', () => {
     queue.enqueue(TABLE_RESOURCE, 'chat-1', 'chat-1')
     await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce())
 
-    expect(queue.hasUnpersistedWrites('chat-1')).toBe(true)
+    expect(queue.hasPendingIdentityChanges('chat-1')).toBe(true)
   })
 
   it('keeps the newer chat-scoped update when a provisional scope is adopted', async () => {
