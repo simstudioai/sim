@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collectImages, renderManifest } from './generate-image-manifest'
+import { collectImages, pairSources, renderManifest } from './generate-image-manifest'
 
 describe('collectImages', () => {
   it('finds images across every container key a pod spec can use', () => {
@@ -71,25 +71,61 @@ describe('collectImages', () => {
   })
 })
 
+describe('pairSources', () => {
+  it('strips the sentinel registry so the mirror path is what the chart resolves to', () => {
+    const paired = pairSources(
+      ['ghcr.io/simstudioai/simstudio:v1', 'redis:7-alpine'],
+      ['mirror.invalid/simstudioai/simstudio:v1', 'mirror.invalid/redis:7-alpine']
+    )
+
+    // ghcr.io is the default registry and is replaced, so it must not survive.
+    expect(paired).toEqual([
+      { source: 'ghcr.io/simstudioai/simstudio:v1', mirror: 'simstudioai/simstudio:v1' },
+      { source: 'redis:7-alpine', mirror: 'redis:7-alpine' },
+    ])
+  })
+
+  it('keeps a registry host that is part of the repository', () => {
+    const paired = pairSources(
+      ['nvcr.io/nvidia/k8s-device-plugin:v0.18.2'],
+      ['mirror.invalid/nvcr.io/nvidia/k8s-device-plugin:v0.18.2']
+    )
+
+    expect(paired[0].mirror).toBe('nvcr.io/nvidia/k8s-device-plugin:v0.18.2')
+  })
+
+  it('fails rather than emitting a half-paired inventory when the renders disagree', () => {
+    expect(() => pairSources(['redis:7-alpine'], [])).toThrow(/two renders disagree/)
+  })
+})
+
 describe('renderManifest', () => {
-  it('renders the app version and a sorted image list', () => {
+  it('renders the app version and each image as a source/mirror pair', () => {
     const manifest = renderManifest({
       appVersion: 'v0.8.18',
-      images: ['busybox:1.36', 'redis:7-alpine'],
+      images: [{ source: 'ghcr.io/simstudioai/simstudio:v1', mirror: 'simstudioai/simstudio:v1' }],
     })
 
     expect(manifest).toContain('appVersion: v0.8.18')
-    expect(manifest).toContain('  - busybox:1.36\n  - redis:7-alpine\n')
+    expect(manifest).toContain(
+      '  - source: ghcr.io/simstudioai/simstudio:v1\n    mirror: simstudioai/simstudio:v1'
+    )
   })
 
   it('omits the chart version so a chart-only bump does not fail the check', () => {
-    const manifest = renderManifest({ appVersion: 'v1', images: ['a:1'] })
+    const manifest = renderManifest({
+      appVersion: 'v1',
+      images: [{ source: 'a:1', mirror: 'a:1' }],
+    })
 
     expect(manifest).not.toContain('chartVersion')
   })
 
   it('ends with a trailing newline so the checked-in file is POSIX-clean', () => {
-    const manifest = renderManifest({ appVersion: 'v1', images: ['a:1'] })
+    const manifest = renderManifest({
+      appVersion: 'v1',
+      images: [{ source: 'a:1', mirror: 'a:1' }],
+    })
 
     expect(manifest.endsWith('\n')).toBe(true)
     expect(manifest.endsWith('\n\n')).toBe(false)

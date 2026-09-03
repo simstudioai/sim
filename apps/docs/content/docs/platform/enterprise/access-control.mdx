@@ -27,7 +27,7 @@ Assignment-time checks keep this unambiguous: a workspace has at most one all-me
 When a user runs a workflow or uses Chat, Sim reads the resolved group's configuration and applies it:
 
 - **In the executor:** If a workflow uses a disallowed block type or model provider, execution halts immediately with an error. This applies to both manual runs and scheduled or API-triggered deployments.
-- **In Chat:** Disallowed blocks are filtered out of the block list so they cannot be added to a workflow. Disallowed tool types (MCP, custom tools, skills) make the block fail with an error if Sim attempts to use them — they are refused, not silently dropped.
+- **In Chat:** Disallowed blocks are filtered out of the block list so they cannot be added to a workflow. Disallowed tool types (MCP, custom tools, skills) are dropped while Sim generates a workflow, with the omission recorded. If a run reaches one anyway, the block fails with an error naming the restriction rather than skipping it.
 
 ---
 
@@ -209,7 +209,7 @@ This applies regardless of how the workflow is triggered — manually, via API, 
 When a user opens Chat, their permission group is read before any block or tool suggestions are made:
 
 - Blocks not in the allowed list are filtered out of the block picker entirely — they do not appear as options.
-- If Sim generates a workflow step that would use a disallowed tool (MCP, custom, or skills), the run fails with an error naming the restriction.
+- If Sim generates a workflow step that would use a disallowed tool (MCP, custom, or skills), the tool is left out of the generated workflow. A run that reaches a disallowed tool fails with an error naming the restriction.
 
 ---
 

@@ -746,7 +746,18 @@ jobs:
             fi
 
             for alias in $alias_groups; do
-              alias_index="$(digest_of "${image}:${alias}")"
+              # A mismatch has two very different causes: the guard deliberately
+              # held the tag back, or GHCR is still serving the previous digest
+              # moments after this run wrote it. Re-read before concluding the
+              # former, or a read landing a second early silently drops three
+              # subjects from the matrix.
+              alias_index=""
+              for alias_attempt in 1 2 3; do
+                alias_index="$(digest_of "${image}:${alias}")"
+                [ "$alias_index" = "$sha_index" ] && break
+                [ "$alias_attempt" -lt 3 ] && sleep 5 || true
+              done
+
               if [ "$alias_index" != "$sha_index" ]; then
                 # `latest` is legitimately allowed to lag: the monotonic guard in
                 # create-ghcr-manifests holds it back when the branch has moved

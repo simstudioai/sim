@@ -50,7 +50,7 @@ export SIM_BUCKETS="workspace-files knowledge-base execution-files chat-files
                     copilot-files profile-pictures og-images workspace-logos"
 
 # Create buckets (names must be globally unique — prefix with your org)
-for name in $SIM_BUCKETS; do
+for name in ${SIM_BUCKETS:?run the export above first}; do
   aws s3api create-bucket \
     --bucket "myorg-sim-$name" \
     --region "$AWS_REGION" \
@@ -86,7 +86,7 @@ cat > /tmp/cors.json <<'EOF'
 }
 EOF
 
-for name in $SIM_BUCKETS; do
+for name in ${SIM_BUCKETS:?run the export above first}; do
   aws s3api put-bucket-cors --bucket "myorg-sim-$name" --cors-configuration file:///tmp/cors.json
 done
 ```
@@ -280,7 +280,7 @@ export SIM_BUCKETS="workspace-files knowledge-base execution-files chat-files
                     copilot-files profile-pictures og-images workspace-logos"
 
 # Create buckets (names must be globally unique — prefix with your org)
-for name in $SIM_BUCKETS; do
+for name in ${SIM_BUCKETS:?run the export above first}; do
   gcloud storage buckets create "gs://myorg-sim-$name" \
     --project "$PROJECT_ID" \
     --location "$LOCATION" \
@@ -318,7 +318,7 @@ cat > /tmp/cors.json <<'EOF'
 ]
 EOF
 
-for name in $SIM_BUCKETS; do
+for name in ${SIM_BUCKETS:?run the export above first}; do
   gcloud storage buckets update "gs://myorg-sim-$name" --cors-file=/tmp/cors.json
 done
 ```
@@ -338,7 +338,7 @@ Create a service account (or reuse the one your workload runs as) and grant it o
 ```bash
 gcloud iam service-accounts create sim-storage --project "$PROJECT_ID"
 
-for name in $SIM_BUCKETS; do
+for name in ${SIM_BUCKETS:?run the export above first}; do
   gcloud storage buckets add-iam-policy-binding "gs://myorg-sim-$name" \
     --member "serviceAccount:sim-storage@$PROJECT_ID.iam.gserviceaccount.com" \
     --role roles/storage.objectAdmin

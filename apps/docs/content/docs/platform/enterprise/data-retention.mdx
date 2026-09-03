@@ -199,8 +199,8 @@ Neither shipped deployment schedules these three endpoints — not the Helm char
 </Callout>
 
 ```bash
-CRON_SECRET=$(openssl rand -hex 32)
-
+# Use the value already configured as CRON_SECRET on the app — a token
+# generated here and not installed there returns 401.
 curl -H "Authorization: Bearer $CRON_SECRET" \
   https://sim.example.com/api/logs/cleanup
 ```

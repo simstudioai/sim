@@ -199,7 +199,7 @@ See [Observability](/platform/self-hosting/observability).
 |----------|-------------|
 | `COPILOT_API_KEY` | API key for Chat. Without it the Sim Chat block, scheduled prompt jobs, and Inbox cannot run |
 | `NEXT_PUBLIC_CHAT_DISABLED` | Set to `true` to hide the Chat module: the workspace lands on your first workflow, with no chats list, scheduled tasks, or editor Chat panel. Chat is shown when unset; `npx sim-setup` sets it for you if you skip the chat key |
-| `PII_URL` | Base URL of the Presidio service backing PII detection and redaction. Defaults to `http://localhost:5001`, which exists only in local development — set it to your own Presidio deployment |
+| `PII_URL` | Base URL of the Presidio service backing PII detection and redaction. The Helm chart wires it to its own `pii` Service when `pii.enabled`; on Compose point it at the PII service on your network. The default `http://localhost:5001` exists only in local development, and leaving it makes redaction fail |
 | `DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES` | Durable stores where a value whose secret provenance was never recorded fails the run instead of logging a warning. `all`, or a comma-separated subset of `memory`, `table-row`, `knowledge`, `workspace-file`. Unset (nothing enforced) by default |
 | `ADMIN_API_KEY` | Admin API key for GitOps operations and organization provisioning |
 
