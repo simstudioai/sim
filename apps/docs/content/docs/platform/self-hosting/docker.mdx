@@ -154,7 +154,10 @@ VLLM_API_KEY=your_lm_studio_api_token
 Both the server root shown above and a URL ending in `/v1` are accepted. After recreating the `simstudio` service, its models appear in the model picker with a `vllm/` prefix; Sim removes that prefix before sending the model identifier to LM Studio.
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d --force-recreate simstudio
+# Use the file that started your install — docker-compose.ollama.yml if you
+# started from the Ollama stack.
+COMPOSE_FILE=docker-compose.prod.yml
+docker compose -f "$COMPOSE_FILE" up -d --force-recreate simstudio
 ```
 
 ## The `sim-setup` CLI

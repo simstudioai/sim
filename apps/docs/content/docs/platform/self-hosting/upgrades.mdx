@@ -107,7 +107,7 @@ Behavior that is fixed in the migrator and not configurable, but that explains w
 | SQL migration retry attempts | 8, with exponential backoff and jitter, and only for a lock timeout (`55P03`). Script (data) migrations run once — a failure there exits immediately |
 | Connection attempts at startup | 10, for transient failures — `53300` (`too_many_connections`), `53400`, the `08xxx` connection-exception class, and socket-level errors such as `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`, `EHOSTUNREACH`, and `ENOTFOUND`. A database that is simply down is retried with backoff, not failed immediately |
 
-The `lock_timeout` deliberately trades a failed migration for a table-wide stall: without it, DDL waiting on an `AccessExclusiveLock` queues every other query on that table behind it for the whole wait.
+The `lock_timeout` deliberately trades a table-wide stall for a failed migration: without it, DDL waiting on an `AccessExclusiveLock` queues every other query on that table behind it for the whole wait.
 
 ## Upgrade procedure
 
