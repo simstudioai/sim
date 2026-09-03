@@ -85,6 +85,11 @@ describe('ColumnDropdown', () => {
     const labels = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].map(
       (item) => item.textContent
     )
-    expect(labels).not.toContain('Reference')
+    expect(labels).toEqual([
+      ...COLUMN_TYPE_OPTIONS.filter((option) => option.type !== 'reference').map(
+        (option) => option.label
+      ),
+      'Enrichments',
+    ])
   })
 })

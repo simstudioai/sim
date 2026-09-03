@@ -1725,7 +1725,10 @@ export function TableGrid({
   function handleCopyRowId() {
     const rowId = contextMenu.row?.id
     if (!rowId) return
-    void navigator.clipboard.writeText(rowId).catch(() => {})
+    void navigator.clipboard.writeText(rowId).catch((error) => {
+      logger.error('Failed to copy row ID', { error })
+      toast.error('Failed to copy row ID')
+    })
   }
 
   const handleGoToReferenceTable = useCallback(

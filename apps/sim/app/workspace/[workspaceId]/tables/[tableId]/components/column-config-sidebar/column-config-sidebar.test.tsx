@@ -18,6 +18,7 @@ interface ComboboxProps {
   searchable?: boolean
   searchPlaceholder?: string
   disabled?: boolean
+  isLoading?: boolean
   onChange?: (value: string) => void
 }
 
@@ -124,6 +125,7 @@ beforeEach(() => {
       { id: 'table-current', name: 'Current table' },
       { id: 'table-customers', name: 'Customers' },
     ],
+    isPending: false,
   })
   mockAddColumn.mockResolvedValue({ data: { columns: [] } })
   mockUpdateColumn.mockResolvedValue({ data: { columns: [] } })
@@ -233,6 +235,8 @@ describe('ColumnConfigSidebar', () => {
   })
 
   it('keeps an existing Reference column visible but not retargetable when disabled', async () => {
+    mockUseTablesList.mockReturnValue({ data: [], isPending: false })
+
     await act(async () => {
       root.render(
         <ColumnConfigSidebar
@@ -251,11 +255,34 @@ describe('ColumnConfigSidebar', () => {
       )
     })
 
-    expect(mockUseTablesList).toHaveBeenCalledWith('workspace-1', 'active', { enabled: false })
-    expect(findCombobox('Select table')?.disabled).toBe(true)
+    expect(mockUseTablesList).toHaveBeenCalledWith('workspace-1', 'active', { enabled: true })
+    expect(findCombobox('Select table')).toMatchObject({
+      disabled: true,
+      options: [{ label: 'table-current', value: 'table-current' }],
+      value: 'table-current',
+    })
     expect(findCombobox('Select type')?.options).toContainEqual(
       expect.objectContaining({ value: 'reference', disabled: true })
     )
+  })
+
+  it('shows the Reference table selector as loading while tables are fetched', async () => {
+    mockUseTablesList.mockReturnValue({ data: [], isPending: true })
+
+    await act(async () => {
+      root.render(
+        <ColumnConfigSidebar
+          config={{ mode: 'create', proposedName: 'Related row', type: 'reference' }}
+          onClose={vi.fn()}
+          existingColumn={null}
+          workspaceId='workspace-1'
+          tableId='table-current'
+          referenceColumnsEnabled
+        />
+      )
+    })
+
+    expect(findCombobox('Select table')?.isLoading).toBe(true)
   })
 
   it('keeps Select options in the edit sidebar', async () => {

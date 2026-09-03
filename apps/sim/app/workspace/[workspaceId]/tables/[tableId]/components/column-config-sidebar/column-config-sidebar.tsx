@@ -156,10 +156,19 @@ function ColumnConfigBody({
       existingColumn.referenceTableId !== referenceTableInput)
   const saveDisabled = updateColumn.isPending || addColumn.isPending || referenceMutationBlocked
   const supportsUnique = columnTypeById(typeInput).supportsUnique
-  const { data: workspaceTables = [] } = useTablesList(workspaceId, 'active', {
-    enabled: wantsReference && referenceColumnsEnabled,
-  })
-  const tableOptions = workspaceTables.map((table) => ({ value: table.id, label: table.name }))
+  const shouldLoadReferenceTables =
+    wantsReference && (referenceColumnsEnabled || existingColumn?.type === 'reference')
+  const { data: workspaceTables = [], isPending: workspaceTablesPending } = useTablesList(
+    workspaceId,
+    'active',
+    { enabled: shouldLoadReferenceTables }
+  )
+  const tableOptions = [
+    ...workspaceTables.map((table) => ({ value: table.id, label: table.name })),
+    ...(referenceTableInput && !workspaceTables.some((table) => table.id === referenceTableInput)
+      ? [{ value: referenceTableInput, label: referenceTableInput }]
+      : []),
+  ]
   const trimmedOptions = optionsInput.map((o) => ({ ...o, name: o.name.trim() }))
 
   /** Client-side option validation mirroring the server rules; returns an error message or null. */
@@ -396,6 +405,7 @@ function ColumnConfigBody({
                 placeholder='Select table'
                 searchable
                 searchPlaceholder='Search tables'
+                isLoading={shouldLoadReferenceTables && workspaceTablesPending}
                 maxHeight={260}
               />
               {referenceTableError && <FieldError message={referenceTableError} />}
