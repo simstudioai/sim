@@ -40,21 +40,23 @@ NEXT_PUBLIC_DATA_DRAINS_ENABLED=false
 
 The individual flags also work on their own if you would rather opt in one at a time and leave the master switch unset.
 
+Three features do not need a flag at all: **custom branding**, **session policies**, and the **Sim Mailer inbox** are already on wherever billing is disabled, which is every self-hosted deployment. They preserve behavior that predates these flags. Set the corresponding variable to `false` to turn one off.
+
 | Feature | Server variable | Client variable |
 |---------|-----------------|-----------------|
 | Everything below | `ENTERPRISE_ENABLED` | `NEXT_PUBLIC_ENTERPRISE_ENABLED` |
 | Organizations | `ORGANIZATIONS_ENABLED` | `NEXT_PUBLIC_ORGANIZATIONS_ENABLED` |
 | Permission groups | `ACCESS_CONTROL_ENABLED` | `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` |
 | SAML and OIDC sign-in | `SSO_ENABLED` | `NEXT_PUBLIC_SSO_ENABLED` |
-| Custom branding | `WHITELABELING_ENABLED` | `NEXT_PUBLIC_WHITELABELING_ENABLED` |
+| Custom branding — on by default | `WHITELABELING_ENABLED` | `NEXT_PUBLIC_WHITELABELING_ENABLED` |
 | Audit logs | `AUDIT_LOGS_ENABLED` | `NEXT_PUBLIC_AUDIT_LOGS_ENABLED` |
 | Usage tracking | `USAGE_MONITORING_ENABLED` | `NEXT_PUBLIC_USAGE_MONITORING_ENABLED` |
 | Custom blocks | `CUSTOM_BLOCKS_ENABLED` | `NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED` |
-| Session policies | `SESSION_POLICIES_ENABLED` | `NEXT_PUBLIC_SESSION_POLICIES_ENABLED` |
+| Session policies — on by default | `SESSION_POLICIES_ENABLED` | `NEXT_PUBLIC_SESSION_POLICIES_ENABLED` |
 | Data retention deletion | `DATA_RETENTION_ENABLED` | `NEXT_PUBLIC_DATA_RETENTION_ENABLED` |
 | Data drains | `DATA_DRAINS_ENABLED` | `NEXT_PUBLIC_DATA_DRAINS_ENABLED` |
 | Workspace forks | `FORKING_ENABLED` | `NEXT_PUBLIC_FORKING_ENABLED` |
-| Sim Mailer inbox | `INBOX_ENABLED` | `NEXT_PUBLIC_INBOX_ENABLED` |
+| Sim Mailer inbox — on by default | `INBOX_ENABLED` | `NEXT_PUBLIC_INBOX_ENABLED` |
 | Sandboxes | `SANDBOXES_ENABLED` | `NEXT_PUBLIC_SANDBOXES_ENABLED` |
 
 Sandboxes also need a remote execution provider and a dedicated Function base image before they can run anything. `SANDBOXES_ENABLED` grants the server-side entitlement; `NEXT_PUBLIC_SANDBOXES_ENABLED` projects provider readiness to the browser and exposes Shell plus custom Sandbox management. Set the public flag only after the selected provider has credentials and a valid immutable Function base configured.
@@ -247,7 +249,7 @@ curl -X DELETE "https://sim.example.com/api/v1/admin/organizations/$ORG_ID?confi
 
 If a feature is enabled but nothing appears, check these in order.
 
-**The settings section is missing.** The `NEXT_PUBLIC_` twin is not set, or the app was not restarted after adding it. Client variables are read at build and boot.
+**The settings section is missing.** The `NEXT_PUBLIC_` twin is not set, or the app was not restarted after adding it. Client variables are read at boot from the container environment, so a restart is enough — no rebuild.
 
 **The section appears but the API returns 403.** The server-side variable is missing while its client twin is set. Set both.
 

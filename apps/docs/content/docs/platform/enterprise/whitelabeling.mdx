@@ -91,16 +91,16 @@ Organization white-labeling applies only to members of your organization. Public
 
 ## Self-hosted setup
 
-Self-hosted deployments use environment variables instead of the billing/plan check.
+Self-hosted deployments use environment variables instead of the billing/plan check, and white-labeling is **already enabled** on one: it defaults on wherever billing is disabled. Configure branding through **Settings → Organization → White-labeling** the same way.
 
 ### Environment variables
 
-```bash
-WHITELABELING_ENABLED=true
-NEXT_PUBLIC_WHITELABELING_ENABLED=true
-```
+To turn it off:
 
-Once enabled, configure branding through **Settings → Organization → White-labeling** the same way.
+```bash
+WHITELABELING_ENABLED=false
+NEXT_PUBLIC_WHITELABELING_ENABLED=false
+```
 
 ---
 
@@ -117,8 +117,8 @@ NEXT_PUBLIC_BRAND_NAME=Acme
 NEXT_PUBLIC_BRAND_LOGO_URL=/branding/logo.png
 NEXT_PUBLIC_BRAND_WORDMARK_URL=/branding/wordmark.svg
 NEXT_PUBLIC_BRAND_FAVICON_URL=/branding/favicon.ico
-# Same-origin, or a host you have added to the CSP's style-src — a stylesheet
-# on another origin is blocked.
+# Must be same-origin — the CSP's style-src allows only 'self' and Google
+# Fonts, so a stylesheet on another origin is blocked.
 NEXT_PUBLIC_CUSTOM_CSS_URL=/branding/custom.css
 ```
 
@@ -173,4 +173,4 @@ branding:
     favicon.ico: "AAABAAEAEBAAAAEAIABoBAAA..."
 ```
 
-With the default `mountPath`, a file named `logo.png` is served at `/branding/logo.png` — the value to give `NEXT_PUBLIC_BRAND_LOGO_URL`. Outside Helm, host the files anywhere the browser can reach and point the variables at absolute URLs.
+With the default `mountPath`, a file named `logo.png` is served at `/branding/logo.png` — the value to give `NEXT_PUBLIC_BRAND_LOGO_URL`. Outside Helm, host the logo, wordmark, and favicon anywhere the browser can reach and point those variables at absolute URLs. `NEXT_PUBLIC_CUSTOM_CSS_URL` is the exception — it must be same-origin, since the CSP's `style-src` takes no configured hosts.

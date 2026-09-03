@@ -104,7 +104,7 @@ All six should be present on Compose: `simstudio`, `realtime`, `db`, `redis`, `c
 
 **Step 8 fails — knowledge base upload errors.** Knowledge bases need a hosted embedding provider — OpenAI, Azure OpenAI, or Gemini. There is no local embedding backend. If a key is set, check pgvector is installed on the database.
 
-**Step 9 fails — no email arrives.** With no provider configured, emails are written to the app logs instead of sent — check there first to confirm the message was generated, then debug the provider.
+**Step 9 fails — no email arrives.** With no provider configured the mailer no-ops: it records the recipient, subject, and sender at `info` and reports success, never the message body. Raise `LOG_LEVEL` to `info` to see that line — at the production default of `ERROR` nothing is logged at all.
 
 **Step 11 fails — schedule never fires.** Read the scheduler's logs (`docker compose -f docker-compose.prod.yml logs cron`, or `kubectl get cronjobs -n simstudio`). A `401` there means the app and the scheduler disagree on `CRON_SECRET`.
 

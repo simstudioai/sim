@@ -26,7 +26,7 @@ Everything the chart can run itself, it runs by default. That is convenient for 
 | Ingress | Off | You install the controller; the chart renders the Ingress |
 | TLS certificates | Off | You provision them |
 | Remote sandbox | Off | Required for Python, Shell, and imported JavaScript — a provider **and** an immutable Function image. See [Security](/platform/self-hosting/security) |
-| Pi execution | Off | A separate image from the Function one, set with `E2B_PI_TEMPLATE_ID` (the template **name**, not an immutable `<template>:<build-id>` ref) or `DAYTONA_PI_SNAPSHOT_ID`. Unlike the Function base these are not format-validated, but execution still fails closed when unset |
+| Pi execution | Off | A separate image from the Function one, set with `E2B_PI_TEMPLATE_ID` (a template name, an alias, or an immutable `<template>:<build-id>` ref) or `DAYTONA_PI_SNAPSHOT_ID`. Unlike the Function base these are not format-validated, but execution still fails closed when unset |
 | PII redaction, Ollama, telemetry collector | Off | Optional, off unless you enable them |
 
 The bundled Postgres uses a 10 Gi `ReadWriteOnce` volume and is intended for evaluation. Moving to managed Postgres is the single most important production change.

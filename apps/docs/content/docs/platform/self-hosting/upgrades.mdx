@@ -104,7 +104,7 @@ Behavior that is fixed in the migrator and not configurable, but that explains w
 |---|---|
 | Advisory-lock acquire deadline | 30 minutes, retried every 5s |
 | `lock_timeout` on the migration session | 5 seconds for ordinary DDL — a statement that waits longer fails with SQLSTATE `55P03`. An individual migration can set it to `0` for statements that must not be interrupted, such as `CREATE INDEX CONCURRENTLY`. `statement_timeout` is `0` on the same session by default, so a long migration is not cut off once it holds its locks — though a migration can narrow it for its own statements, as `0076_damp_vector.sql` does with a 180-second local setting |
-| SQL migration retry attempts | 8, with exponential backoff and jitter, and only for a lock timeout (`55P03`). Script (data) migrations run once — a failure there exits immediately |
+| SQL migration retry attempts | 8, with exponential backoff and jitter, and only for a lock timeout (`55P03`). Script (data) migrations run once — a failure there exits immediately. They also run with `lock_timeout = 0` and `statement_timeout = 0`, so one blocked on an app-held lock waits indefinitely: a stuck script migration looks like a hung migration container, not a `55P03` |
 | Connection attempts at startup | 10, for transient failures — `53300` (`too_many_connections`), `53400`, the `08xxx` connection-exception class, and socket-level errors such as `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`, `EHOSTUNREACH`, and `ENOTFOUND`. A database that is simply down is retried with backoff, not failed immediately |
 
 The `lock_timeout` deliberately trades a table-wide stall for a failed migration: without it, DDL waiting on an `AccessExclusiveLock` queues every other query on that table behind it for the whole wait.

@@ -31,7 +31,7 @@ Set `STORAGE_PROVIDER` to `local`, `s3`, `azure`, or `gcs` to select a backend e
 
 If `STORAGE_PROVIDER` is unset, Sim uses the first backend whose configuration is complete, in that order. An explicit `STORAGE_PROVIDER` takes precedence and must be valid and complete.
 
-A partially configured backend is skipped, so a fully configured one later in the order still wins. What it never does is fall back to local disk: if no other backend is complete, startup fails with `File storage is partially or incorrectly configured`. `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are checked as a pair — set both or neither.
+A partially configured backend is skipped, so a fully configured one later in the order still wins. A backend whose values are present but malformed is different: it stops startup immediately, and a later fully configured one does not take over. What it never does is fall back to local disk: if no other backend is complete, startup fails with `File storage is partially or incorrectly configured`. `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are checked as a pair — set both or neither.
 
 ## Set up AWS S3
 
