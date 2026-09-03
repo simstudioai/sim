@@ -24,7 +24,7 @@ import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import type { UpdateOrganizationDataRetentionBody } from '@/lib/api/contracts/organization'
 import type { RetentionOverride } from '@/lib/api/contracts/primitives'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   type CustomPiiPattern,
   emptyPiiStages,
@@ -987,6 +987,7 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
 export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSettingsProps) {
   const { data, isLoading } = useOrganizationRetention(orgId)
   const { data: workspaces = [] } = useWorkspacesQuery(Boolean(orgId))
+  const { billingEnabled } = useDeploymentShape()
 
   if (isLoading) {
     return (
@@ -1009,7 +1010,7 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
     return <SettingsEmptyState>Failed to load data retention settings.</SettingsEmptyState>
   }
 
-  if (isBillingEnabled && !data.isEnterprise) {
+  if (billingEnabled && !data.isEnterprise) {
     return (
       <SettingsEmptyState>Data retention is available on Enterprise plans only.</SettingsEmptyState>
     )

@@ -1,10 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
-import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterEach, describe, expect, it } from 'vitest'
+import type { DeploymentShape, WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import {
   canManageWorkspaceBilling,
+  canViewWorkspaceBillingSettings,
   getWorkspaceUsageLimitAction,
 } from '@/lib/billing/workspace-permissions'
 
@@ -35,6 +37,62 @@ const HOST_CONTEXT: WorkspaceHostContext = {
     isHostOrganizationAdmin: false,
   },
 }
+
+const DEPLOYMENT: DeploymentShape = {
+  hosted: true,
+  billingEnabled: true,
+  chatEnabled: true,
+  azureConfigured: false,
+  cohereConfigured: false,
+  features: {
+    accessControl: false,
+    auditLogs: false,
+    customBlocks: false,
+    dataDrains: false,
+    dataRetention: false,
+    inbox: false,
+    sandboxes: false,
+    sessionPolicies: false,
+    sso: false,
+    usageMonitoring: false,
+    whitelabeling: false,
+  },
+}
+
+const HOST_ADMIN_CONTEXT: WorkspaceHostContext = {
+  ...HOST_CONTEXT,
+  viewer: { ...HOST_CONTEXT.viewer, isHostOrganizationAdmin: true },
+}
+
+describe('canViewWorkspaceBillingSettings', () => {
+  afterEach(resetEnvFlagsMock)
+
+  it('reads billing availability from the host context deployment shape', () => {
+    expect(
+      canViewWorkspaceBillingSettings({ ...HOST_ADMIN_CONTEXT, deployment: DEPLOYMENT }, 'admin-b')
+    ).toBe(true)
+    expect(
+      canViewWorkspaceBillingSettings(
+        { ...HOST_ADMIN_CONTEXT, deployment: { ...DEPLOYMENT, billingEnabled: false } },
+        'admin-b'
+      )
+    ).toBe(false)
+  })
+
+  it('falls back to the deployment reader for a host context that predates the field', () => {
+    expect(canViewWorkspaceBillingSettings(HOST_ADMIN_CONTEXT, 'admin-b')).toBe(false)
+
+    setEnvFlags({ isBillingEnabled: true })
+
+    expect(canViewWorkspaceBillingSettings(HOST_ADMIN_CONTEXT, 'admin-b')).toBe(true)
+  })
+
+  it('still requires authority over the payer', () => {
+    expect(
+      canViewWorkspaceBillingSettings({ ...HOST_CONTEXT, deployment: DEPLOYMENT }, 'viewer')
+    ).toBe(false)
+  })
+})
 
 describe('canManageWorkspaceBilling', () => {
   it('does not treat an external workspace admin as a host billing admin', () => {

@@ -25,6 +25,7 @@ vi.mock('@/lib/billing/core/workspace-access', () => ({
   getWorkspaceOwnerSubscriptionAccess: mockGetWorkspaceOwnerSubscriptionAccess,
 }))
 
+import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 
 const OWNER_BILLING = {
@@ -91,6 +92,7 @@ describe('getWorkspaceHostContextForViewer', () => {
         },
       })
     )
+    expect(context?.deployment).toEqual(resolveDeploymentShape())
   })
 
   it('keeps an external collaborator authorized only by their workspace grant', async () => {

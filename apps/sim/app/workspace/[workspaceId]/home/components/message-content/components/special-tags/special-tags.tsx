@@ -21,7 +21,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { isBrowserAgentAvailable, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { readLatestOAuthChatAttempt } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
@@ -2990,16 +2990,17 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
   const { getSettingsHref } = useSettingsNavigation()
+  const { hosted } = useDeploymentShape()
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
 
   // Self-hosted plan and limit both live on the hosted account, so local
   // workspace billing roles say nothing about who may change them.
-  const href = isHosted
+  const href = hosted
     ? getSettingsHref({ section: 'billing' })
     : data.action === 'upgrade_plan'
       ? buildHostedUpgradeUrl()
       : HOSTED_BILLING_SETTINGS_URL
-  const canManageBilling = !isHosted || canManageWorkspaceBilling(hostContext, session?.user?.id)
+  const canManageBilling = !hosted || canManageWorkspaceBilling(hostContext, session?.user?.id)
   const unavailableMessage = hostContext.hostOrganizationId
     ? 'Contact an organization admin to manage this workspace’s usage limits.'
     : 'Only the workspace owner can manage this workspace’s usage limits.'
@@ -3032,13 +3033,13 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
       {canManageBilling ? (
         <a
           href={href}
-          target={isHosted ? undefined : '_blank'}
-          rel={isHosted ? undefined : 'noopener noreferrer'}
-          aria-label={isHosted ? undefined : `${buttonLabel} (opens in a new tab)`}
+          target={hosted ? undefined : '_blank'}
+          rel={hosted ? undefined : 'noopener noreferrer'}
+          aria-label={hosted ? undefined : `${buttonLabel} (opens in a new tab)`}
           className='mt-2 inline-flex items-center gap-1 text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
         >
           {buttonLabel}
-          {isHosted ? <ArrowRight className='size-3' /> : <SquareArrowUpRight className='size-3' />}
+          {hosted ? <ArrowRight className='size-3' /> : <SquareArrowUpRight className='size-3' />}
         </a>
       ) : (
         <p className='mt-2 text-amber-700 text-small dark:text-amber-300'>{unavailableMessage}</p>

@@ -1,5 +1,5 @@
 import type { WorkspaceHostContext, WorkspaceUsageGate } from '@/lib/api/contracts/workspaces'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 
 export type WorkspaceUsageLimitAction =
   | { type: 'manage-billing'; message: null }
@@ -27,12 +27,17 @@ export function canManageWorkspaceBilling(
  * organization-hosted workspace that is every member who is not an org admin.
  * Menus that link to Billing drop the entry when this is false rather than
  * offering a destination the server will refuse.
+ *
+ * Billing availability comes from the host context's server-resolved deployment
+ * shape; the reader covers a context served by an app version that predates it.
  */
 export function canViewWorkspaceBillingSettings(
   hostContext: WorkspaceHostContext,
   viewerUserId?: string | null
 ): boolean {
-  return isBillingEnabled && canManageWorkspaceBilling(hostContext, viewerUserId)
+  const billingEnabled =
+    hostContext.deployment?.billingEnabled ?? getDeploymentShape().billingEnabled
+  return billingEnabled && canManageWorkspaceBilling(hostContext, viewerUserId)
 }
 
 /**

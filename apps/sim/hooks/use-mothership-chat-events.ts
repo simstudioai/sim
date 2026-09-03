@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { createRotatingEventSource } from '@/lib/events/rotating-event-source'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
@@ -164,9 +164,10 @@ export function resyncMothershipChatCaches(
  */
 export function useMothershipChatEvents(workspaceId: string | undefined) {
   const queryClient = useQueryClient()
+  const { chatEnabled } = useDeploymentShape()
 
   useEffect(() => {
-    if (!workspaceId || !isChatEnabled) return
+    if (!workspaceId || !chatEnabled) return
 
     const isResubscribe = everSubscribed.has(workspaceId)
     everSubscribed.add(workspaceId)
@@ -194,5 +195,5 @@ export function useMothershipChatEvents(workspaceId: string | undefined) {
     return () => {
       connection.close()
     }
-  }, [workspaceId, queryClient])
+  }, [workspaceId, queryClient, chatEnabled])
 }

@@ -4,13 +4,13 @@ import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { captureEvent } from '@/lib/posthog/client'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
 import { SettingsSectionProvider } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   getSettingsSectionMeta,
-  isBillingEnabled,
   type SettingsSection,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 
@@ -131,13 +131,14 @@ interface SettingsPageProps {
 export function SettingsPage({ section }: SettingsPageProps) {
   const { data: session, isPending: sessionLoading } = useSession()
   const hostContext = useWorkspaceHostContext()
+  const { billingEnabled } = useDeploymentShape()
   const posthog = usePostHog()
 
   const isAdminRole = session?.user?.role === 'admin'
   const normalizedSection: SettingsSection =
     (section as string) === 'subscription' ? 'billing' : section
   const effectiveSection =
-    !isBillingEnabled && (normalizedSection === 'billing' || normalizedSection === 'organization')
+    !billingEnabled && (normalizedSection === 'billing' || normalizedSection === 'organization')
       ? 'general'
       : normalizedSection === 'admin' && !sessionLoading && !isAdminRole
         ? 'general'
@@ -183,7 +184,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
         />
       )}
       {effectiveSection === 'apikeys' && <ApiKeys scope='combined' />}
-      {isBillingEnabled && effectiveSection === 'billing' && (
+      {billingEnabled && effectiveSection === 'billing' && (
         <Billing
           scope={organizationId ? 'organization' : 'account'}
           organizationId={organizationId ?? undefined}
@@ -191,7 +192,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
         />
       )}
       {effectiveSection === 'teammates' && <Teammates />}
-      {isBillingEnabled && effectiveSection === 'organization' && organizationId && (
+      {billingEnabled && effectiveSection === 'organization' && organizationId && (
         <TeamManagement
           organizationId={organizationId}
           billingHref={`/workspace/${hostContext.workspace.id}/settings/billing`}

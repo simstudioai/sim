@@ -15,7 +15,7 @@ import {
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { WorkspacePermission } from '@/lib/api/contracts/workspaces'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import {
   MemberRow,
@@ -83,6 +83,7 @@ export function Teammates() {
   const workspaceId = (params?.workspaceId as string) || ''
 
   const [searchTerm, setSearchTerm] = useSettingsSearch()
+  const { billingEnabled } = useDeploymentShape()
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
 
   const { data: permissions, isPending: permissionsLoading } =
@@ -121,7 +122,7 @@ export function Teammates() {
 
   const handleInvite = () => {
     if (isInvitationsDisabled) {
-      if (isBillingEnabled) router.push(upgradeHref)
+      if (billingEnabled) router.push(upgradeHref)
       return
     }
     setIsInviteModalOpen(true)

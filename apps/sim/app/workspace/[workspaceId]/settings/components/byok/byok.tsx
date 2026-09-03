@@ -46,7 +46,7 @@ import {
 } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { type BYOKProviderId, MAX_BYOK_KEYS_PER_PROVIDER } from '@/lib/api/contracts/byok-keys'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -400,10 +400,11 @@ export function BYOK() {
   const workspaceId = (params?.workspaceId as string) || ''
   const hostContext = useWorkspaceHostContext()
   const workspacePermissions = useUserPermissionsContext()
+  const { hosted } = useDeploymentShape()
   const canManageWorkspace = canMutateWorkspaceSettingsSection('byok', workspacePermissions)
   const hostOrganizationId = hostContext.hostOrganizationId
   const canSelectOrganization = Boolean(
-    isHosted && hostOrganizationId && hostContext.viewer.isHostOrganizationAdmin
+    hosted && hostOrganizationId && hostContext.viewer.isHostOrganizationAdmin
   )
   const [requestedScope, setRequestedScope] = useQueryState(byokScopeParam.key, {
     ...byokScopeParam.parser,
@@ -415,7 +416,7 @@ export function BYOK() {
   const isOrganizationScope = effectiveScope === 'organization'
   const organizationQueryId = isOrganizationScope ? (hostOrganizationId ?? undefined) : undefined
   const inheritedStatusWorkspaceId =
-    !isOrganizationScope && isHosted && hostOrganizationId ? workspaceId : undefined
+    !isOrganizationScope && hosted && hostOrganizationId ? workspaceId : undefined
 
   const workspaceKeys = useBYOKKeys(workspaceId)
   const organizationKeys = useOrganizationBYOKKeys(organizationQueryId, {

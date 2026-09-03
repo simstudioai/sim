@@ -38,7 +38,8 @@ import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
 import { focusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { isChatEnabled, isHosted, isStatusNoticePreviewEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { isStatusNoticePreviewEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
@@ -422,6 +423,7 @@ export const Sidebar = memo(function Sidebar({
   const posthog = usePostHog()
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const { workspace: routeWorkspace } = useWorkspaceHostContext()
+  const { hosted, chatEnabled } = useDeploymentShape()
   const { canAdmin, canEdit, isLoading: permissionsLoading } = useUserPermissionsContext()
   const {
     config: permissionConfig,
@@ -780,13 +782,13 @@ export const Sidebar = memo(function Sidebar({
       [
         {
           id: 'home',
-          label: isChatEnabled ? 'New chat' : 'New workflow',
-          icon: isChatEnabled ? Home : Plus,
-          href: isChatEnabled ? `/workspace/${workspaceId}/home` : undefined,
-          onClick: isChatEnabled ? undefined : createWorkflow,
+          label: chatEnabled ? 'New chat' : 'New workflow',
+          icon: chatEnabled ? Home : Plus,
+          href: chatEnabled ? `/workspace/${workspaceId}/home` : undefined,
+          onClick: chatEnabled ? undefined : createWorkflow,
           // Creation navigates optimistically, so a read-only member would land
           // on a workflow the server declined to create.
-          hidden: !isChatEnabled && !permissionsLoading && !canEdit,
+          hidden: !chatEnabled && !permissionsLoading && !canEdit,
         },
         {
           id: 'integrations',
@@ -802,7 +804,14 @@ export const Sidebar = memo(function Sidebar({
           hidden: permissionConfig.hideIntegrationsTab,
         },
       ].filter((item) => !item.hidden),
-    [workspaceId, createWorkflow, canEdit, permissionsLoading, permissionConfig.hideIntegrationsTab]
+    [
+      workspaceId,
+      createWorkflow,
+      canEdit,
+      permissionsLoading,
+      permissionConfig.hideIntegrationsTab,
+      chatEnabled,
+    ]
   )
 
   const workspaceNavItems = useMemo(
@@ -866,7 +875,7 @@ export const Sidebar = memo(function Sidebar({
 
   const { data: fetchedChats = EMPTY_CHATS, isLoading: chatsLoading } = useMothershipChats(
     workspaceId,
-    { enabled: isChatEnabled }
+    { enabled: chatEnabled }
   )
 
   useMothershipChatEvents(workspaceId)
@@ -1491,7 +1500,7 @@ export const Sidebar = memo(function Sidebar({
                   )}
                 >
                   <div ref={scrollContentRef} className='flex flex-col'>
-                    {isChatEnabled && (
+                    {chatEnabled && (
                       <SidebarSection
                         title='Chats'
                         railCollapsed={isCollapsed}
@@ -1814,7 +1823,7 @@ export const Sidebar = memo(function Sidebar({
                   </div>
                 </div>
 
-                {(isHosted || isStatusNoticePreviewEnabled) && !isCollapsed ? (
+                {(hosted || isStatusNoticePreviewEnabled) && !isCollapsed ? (
                   <div className='shrink-0 px-2 py-2'>
                     <StatusNotice preview={isStatusNoticePreviewEnabled} />
                   </div>

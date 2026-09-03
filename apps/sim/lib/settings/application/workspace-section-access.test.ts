@@ -6,6 +6,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   canOpenOrganizationSettingsSection: vi.fn(),
   checkWorkspaceAccess: vi.fn(),
+  deploymentShape: {
+    hosted: true,
+    billingEnabled: true,
+    chatEnabled: true,
+    azureConfigured: false,
+    cohereConfigured: false,
+    features: {
+      accessControl: false,
+      auditLogs: false,
+      customBlocks: false,
+      dataDrains: false,
+      dataRetention: false,
+      inbox: false,
+      sandboxes: false,
+      sessionPolicies: false,
+      sso: false,
+      usageMonitoring: false,
+      whitelabeling: false,
+    },
+  },
+  getOrganizationSettingsFeatures: vi.fn((hasEnterprisePlan: boolean) => ({ hasEnterprisePlan })),
   getWorkspaceOwnerSubscriptionAccess: vi.fn(),
   isCredentialGroupsAvailable: vi.fn(),
   isCustomBlocksEligibleForOrganization: vi.fn(),
@@ -18,7 +39,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/components/settings/navigation', () => ({
-  getOrganizationSettingsFeatures: vi.fn((hasEnterprisePlan: boolean) => ({ hasEnterprisePlan })),
+  getOrganizationSettingsFeatures: mocks.getOrganizationSettingsFeatures,
   isOrganizationSettingsSectionAvailable: mocks.isOrganizationSettingsSectionAvailable,
   resolveWorkspaceNavigation: mocks.resolveWorkspaceNavigation,
   UNIFIED_TO_ORGANIZATION_SECTION: {
@@ -45,7 +66,9 @@ vi.mock('@/lib/billing/core/subscription', () => ({
 vi.mock('@/lib/credential-groups/availability', () => ({
   isCredentialGroupsAvailable: mocks.isCredentialGroupsAvailable,
 }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isBillingEnabled: true, isHosted: true }))
+vi.mock('@/lib/core/config/deployment-shape', () => ({
+  getDeploymentShape: () => mocks.deploymentShape,
+}))
 vi.mock('@/lib/organizations/settings-access', () => ({
   canOpenOrganizationSettingsSection: mocks.canOpenOrganizationSettingsSection,
 }))
@@ -190,6 +213,20 @@ describe('authorizeWorkspaceSettingsSection', () => {
       disposition: 'redirect-general',
     })
     expect(mocks.getWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
+  })
+
+  it('passes the server-resolved deployment shape to both navigation gates', async () => {
+    await authorize('secrets')
+    expect(mocks.resolveWorkspaceNavigation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hosted: true,
+        entitlements: expect.objectContaining({ byok: true }),
+      })
+    )
+
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+    await expect(authorize('access-control')).resolves.toEqual({ allowed: true })
+    expect(mocks.getOrganizationSettingsFeatures).toHaveBeenCalledWith(true, mocks.deploymentShape)
   })
 
   it('resolves the exact entitlement source only for gated workspace sections', async () => {

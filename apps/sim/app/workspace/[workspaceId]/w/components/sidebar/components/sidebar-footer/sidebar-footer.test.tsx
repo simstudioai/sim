@@ -2,8 +2,9 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const desktopMocks = vi.hoisted(() => ({
   getState: vi.fn(),
@@ -31,7 +32,9 @@ vi.mock('@/lib/auth/auth-client', () => ({
 vi.mock('@/lib/billing/workspace-permissions', () => ({
   canViewWorkspaceBillingSettings: () => true,
 }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isBillingEnabled: true }))
+/** Billing routes the invitations-disabled row to Subscription; read at render time. */
+beforeAll(() => setEnvFlags({ isBillingEnabled: true }))
+afterAll(resetEnvFlagsMock)
 vi.mock('@/lib/workspaces/colors', () => ({ getUserColor: () => '#000000' }))
 vi.mock('@/hooks/use-workspace-invite-policy', () => ({
   useWorkspaceInvitePolicy: () => ({ isInvitationsDisabled: false }),

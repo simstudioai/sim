@@ -16,7 +16,7 @@ import { createLogger } from '@sim/logger'
 import type { BatchInvitationResult } from '@/lib/api/contracts/invitations'
 import { useSession } from '@/lib/auth/auth-client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -141,6 +141,7 @@ export function InviteModal({
   }
 
   const { data: session } = useSession()
+  const { billingEnabled } = useDeploymentShape()
   const isOrganizationInvite = Boolean(organizationId)
 
   const sendInvitations = useSendWorkspaceInvitations()
@@ -190,7 +191,7 @@ export function InviteModal({
     hostContext.viewer.isHostOrganizationAdmin
 
   const { data: organizationBillingData } = useOrganizationBilling(organizationId ?? '', {
-    enabled: open && isBillingEnabled && canViewOrganizationBilling,
+    enabled: open && billingEnabled && canViewOrganizationBilling,
   })
 
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
