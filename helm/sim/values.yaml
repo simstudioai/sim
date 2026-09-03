@@ -400,6 +400,9 @@ app:
     EXECUTION_TIMEOUT_ASYNC_TEAM: "5400"                  # Team tier async timeout (90 minutes)
     EXECUTION_TIMEOUT_ASYNC_ENTERPRISE: "5400"            # Enterprise tier async timeout (90 minutes)
 
+    # Agent tool-call loop
+    # MAX_TOOL_ITERATIONS: "20"                           # Model round trips per Agent block tool-call loop
+
     # Table Feature Limits (per workspace, per plan)
     # FREE_TABLES_LIMIT: "3"                              # Opt-in; unset means no cap on a self-host
     # FREE_TABLE_ROWS_LIMIT: "1000"                       # Opt-in; unset means no cap on a self-host
