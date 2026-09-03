@@ -1,4 +1,5 @@
 import { type Context as OtelContext, context as otelContextApi } from '@opentelemetry/api'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -818,6 +819,8 @@ function buildOnError(params: {
 
 async function resolveBranch(params: {
   authenticatedUserId: string
+  /** The caller's session principal, for reads the request packs on the caller's behalf. */
+  principal: Principal
   workflowId?: string
   workflowName?: string
   workspaceId?: string
@@ -827,6 +830,7 @@ async function resolveBranch(params: {
 }): Promise<UnifiedChatBranch | NextResponse> {
   const {
     authenticatedUserId,
+    principal,
     workflowId: providedWorkflowId,
     workflowName,
     workspaceId: requestedWorkspaceId,
@@ -871,6 +875,7 @@ async function resolveBranch(params: {
             workflowName: payloadParams.workflowName,
             workspaceId: payloadParams.workspaceId,
             userId: payloadParams.userId,
+            principal,
             userMessageId: payloadParams.userMessageId,
             mode: payloadParams.mode ?? 'agent',
             model: selectedModel,
@@ -934,6 +939,7 @@ async function resolveBranch(params: {
           message: payloadParams.message,
           workspaceId: requestedWorkspaceId,
           userId: payloadParams.userId,
+          principal,
           userMessageId: payloadParams.userMessageId,
           mode: mode ?? 'agent',
           model: '',
@@ -1090,6 +1096,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         () =>
           resolveBranch({
             authenticatedUserId,
+            principal: {
+              kind: 'session',
+              userId: authenticatedUserId,
+              sessionId: session.session.id,
+            },
             workflowId: body.workflowId,
             workflowName: body.workflowName,
             workspaceId: body.workspaceId,

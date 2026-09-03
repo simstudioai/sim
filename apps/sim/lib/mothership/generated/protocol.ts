@@ -51,6 +51,31 @@ export interface ChatRequest {
    * this field still gets waited on). Known capability: "workflow-tool-pickup".
    */
   clientCapabilities?: string[] | undefined;
+  /**
+   * What exists in the workspace, by name and id, so the agent orients without a round
+   * of listings per world (an orientation turn on dev spent nine tool rounds and ~20K
+   * tokens learning this). Names and ids only — never a tree, never contents — and each
+   * world capped; a capped world is named in `truncated` so the agent lists it itself.
+   * Rendered as a request-local trailing message, never into the transcript.
+   */
+  inventory?: WorkspaceInventory | undefined;
+}
+
+export interface WorkspaceInventory {
+  workspaceName?: string | undefined;
+  workflows: { id: string; name: string; folder?: string | undefined; deployed: boolean }[];
+  tables: { id: string; name: string }[];
+  knowledgeBases: { id: string; name: string }[];
+  /** `files/...` paths as the CLI prints them. */
+  files: { path: string; size?: number | undefined }[];
+  skills: { name: string }[];
+  customTools: { id: string; title: string }[];
+  mcpServers: { id: string; name: string }[];
+  credentials: { id: string; name: string; provider?: string | undefined; type?: string | undefined }[];
+  /** Names only, by construction. */
+  secrets: string[];
+  /** Worlds with more entries than listed. */
+  truncated: string[];
 }
 
 export interface ChatContextItem {
