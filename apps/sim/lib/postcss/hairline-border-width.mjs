@@ -32,7 +32,31 @@ const HAIRLINE_UTILITIES = new Set([
   'divide-y',
 ])
 
-const WIDTH_PROPERTY = /(^|-)width$/
+/**
+ * Only border-width longhands. A looser `/-width$/` would also catch
+ * `outline-width`, `stroke-width`, `column-rule-width` and friends if one ever
+ * shared a rule with a border utility — reachable through `@apply`.
+ */
+const BORDER_WIDTH_PROPERTIES = new Set([
+  'border-width',
+  'border-top-width',
+  'border-right-width',
+  'border-bottom-width',
+  'border-left-width',
+  'border-inline-width',
+  'border-inline-start-width',
+  'border-inline-end-width',
+  'border-block-width',
+  'border-block-start-width',
+  'border-block-end-width',
+])
+
+/**
+ * Bare `1px` only. `\b1px\b` would also match the `1px` inside `0.1px` and
+ * splice the variable into the middle of the number, producing CSS that is
+ * silently invalid rather than failing the build.
+ */
+const ONE_PIXEL = /(?<![\w.])1px\b/g
 
 /**
  * Every class name a selector references, unescaped. The escape alternative
@@ -62,14 +86,19 @@ function isHairlineRule(rule) {
 
 const plugin = () => ({
   postcssPlugin: 'sim-hairline-border-width',
-  OnceExit(root) {
+  OnceExit(root, { result }) {
+    // Third-party stylesheets travel through the same pipeline. Several are
+    // themselves Tailwind output, so a dependency bump could ship a `.border`
+    // rule that has no idea what `--border-width` is.
+    if (result.opts.from?.includes('node_modules')) return
+
     root.walkRules((rule) => {
       if (!isHairlineRule(rule)) return
       rule.walkDecls((decl) => {
-        if (!WIDTH_PROPERTY.test(decl.prop)) return
-        // `1px` only — an arbitrary `border-[2px]` keeps its own value, and the
+        if (!BORDER_WIDTH_PROPERTIES.has(decl.prop)) return
+        // An arbitrary `border-[2px]` keeps its own value; the divide utilities'
         // `calc(1px * var(--tw-divide-*-reverse))` form is rewritten in place.
-        decl.value = decl.value.replace(/\b1px\b/g, 'var(--border-width)')
+        decl.value = decl.value.replace(ONE_PIXEL, 'var(--border-width)')
       })
     })
   },

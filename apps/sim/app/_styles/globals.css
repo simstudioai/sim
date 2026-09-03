@@ -42,6 +42,15 @@
  */
 @custom-variant dark (&:where(.dark, .dark *):not(:where(.light, .light *)));
 
+/**
+ * v4 wraps `hover:` (and the `group-hover:`/`peer-hover:` variants derived from
+ * it) in `@media (hover: hover)`, so hover styling goes dead on touch devices.
+ * v3 emitted them unconditionally, and this codebase already has `hover-hover`
+ * below for the cases that genuinely want that gating — so plain `hover:` was
+ * deliberately meant to apply everywhere. Restored to the v3 semantics.
+ */
+@custom-variant hover (&:hover);
+
 @custom-variant hover-hover {
   @media (hover: hover) and (pointer: fine) {
     &:hover {
@@ -76,6 +85,18 @@
   --font-mono:
     var(--font-martian-mono, ui-monospace), SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
+
+  /**
+   * Pinned in px. v4's defaults are rem, and rem in a media query resolves
+   * against the browser's initial font size rather than `html { font-size }` —
+   * so a reader who raised their browser's default text size would get the
+   * mobile layout at a desktop width. These are v3's px values unchanged.
+   */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
 
   --text-micro: 10px;
   /**
@@ -1034,8 +1055,20 @@ html.sidebar-booting .sidebar-shell-inner {
  * Base styles for body, scrollbars, and global elements
  */
 @layer base {
-  * {
+  /**
+   * The pseudo-elements are listed because v4's Preflight no longer defaults
+   * their border-color the way v3's did — it leaves them at `currentColor`, so
+   * the first `before:border-*` anyone writes would draw a near-black hairline
+   * instead of the neutral token.
+   */
+  *,
+  ::before,
+  ::after,
+  ::backdrop {
     border-color: var(--border);
+  }
+
+  * {
     overscroll-behavior-x: none;
   }
 

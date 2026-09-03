@@ -101,7 +101,7 @@ interface StageHomeProps {
 const ENTER_BASE =
   'transition-[opacity,transform,filter] [transition-timing-function:cubic-bezier(0.2,0,0,1)]'
 const enterState = (shown: boolean) =>
-  shown ? 'translate-y-0 opacity-100 blur-0' : 'translate-y-1.5 opacity-0 blur-[3px]'
+  shown ? 'translate-y-0 opacity-100 blur-none' : 'translate-y-1.5 opacity-0 blur-[3px]'
 
 const Caret = () => (
   <span

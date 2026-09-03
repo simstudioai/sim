@@ -40,7 +40,7 @@ export function ContentPostLoading() {
               <Skeleton className='h-[16px] w-[95%] rounded-[4px] bg-[var(--surface-hover)]' />
               <Skeleton className='h-[16px] w-[88%] rounded-[4px] bg-[var(--surface-hover)]' />
               <Skeleton className='h-[16px] w-full rounded-[4px] bg-[var(--surface-hover)]' />
-              <Skeleton className='mt-6 h-[24px] w-[200px] rounded-[4px] bg-[var(--surface-hover)]' />
+              <Skeleton className='h-[24px] w-[200px] rounded-[4px] bg-[var(--surface-hover)]' />
               <Skeleton className='h-[16px] w-full rounded-[4px] bg-[var(--surface-hover)]' />
               <Skeleton className='h-[16px] w-[92%] rounded-[4px] bg-[var(--surface-hover)]' />
               <Skeleton className='h-[16px] w-[85%] rounded-[4px] bg-[var(--surface-hover)]' />
