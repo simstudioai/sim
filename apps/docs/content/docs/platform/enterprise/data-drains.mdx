@@ -13,7 +13,7 @@ Drains are independent of [Data Retention](/platform/enterprise/data-retention) 
 
 ## Setup
 
-Go to **Settings → Enterprise → Data Drains** in your workspace, then click **New drain**.
+Go to **Settings → Organization → Data drains** in your workspace, then click **New drain**.
 
 ![Data Drains settings page showing two configured drains — one exporting workflow logs to Amazon S3 daily, another exporting Copilot chats to an HTTPS webhook hourly](/static/enterprise/data-drains-list.png)
 
@@ -208,10 +208,6 @@ After data lands in your bucket or webhook system, archive lifecycle (transition
     answer: "Only organization owners and admins can view, create, edit, run, or delete drains. On Sim Cloud, the organization must be on an Enterprise plan."
   },
   {
-    question: "Will drained data be duplicated if a run fails?",
-    answer: "The drain cursor only advances on overall success, so a failure replays the same chunks on the next run. Every row has a stable `id` field and every webhook chunk has an `Idempotency-Key` header so receivers can dedupe."
-  },
-  {
     question: "Can I export multiple sources to the same destination?",
     answer: "Yes — create one drain per source, all pointing at the same bucket or endpoint. S3 destinations namespace by source automatically; webhook receivers can branch on the `X-Sim-Source` header."
   },
@@ -240,6 +236,27 @@ DATA_DRAINS_ENABLED=true
 NEXT_PUBLIC_DATA_DRAINS_ENABLED=true
 ```
 
-`NEXT_PUBLIC_DATA_DRAINS_ENABLED` shows the **Settings → Enterprise → Data Drains** page in the UI. `DATA_DRAINS_ENABLED` gates the server-side mutating endpoints and the cron dispatcher — when unset on a self-hosted deployment, drain create/update/delete/run requests return `404` and the dispatcher is a no-op. Both should be set to `true` together.
+`NEXT_PUBLIC_DATA_DRAINS_ENABLED` shows the **Settings → Organization → Data drains** page in the UI. `DATA_DRAINS_ENABLED` gates the server-side mutating endpoints and the cron dispatcher — when unset on a self-hosted deployment, drain create/update/delete/run requests return `404` and the dispatcher is a no-op. Both should be set to `true` together.
 
-Data Drains otherwise rely on the standard Trigger.dev background job infrastructure used elsewhere in Sim — no additional setup is required. The cron dispatcher runs hourly and fans out due drains as background jobs.
+### Scheduling the dispatcher
+
+The dispatcher is an HTTP endpoint, not a self-scheduling job — something has to call it:
+
+```
+GET /api/cron/run-data-drains
+```
+
+It authenticates with a bearer token equal to `CRON_SECRET` and returns `401` when that variable is unset, so a self-hosted deployment must set it:
+
+```bash
+CRON_SECRET=$(openssl rand -hex 32)
+```
+
+The Helm chart schedules this endpoint hourly for you (`cronjobs.jobs.runDataDrains`). Outside Helm, schedule it yourself:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  https://sim.example.com/api/cron/run-data-drains
+```
+
+Each due drain is then fanned out as a `run-data-drain` background job, so the deployment also needs `TRIGGER_DEV_ENABLED` with a configured Trigger.dev project, or the local job backend. See [background jobs](/platform/self-hosting/background-jobs).

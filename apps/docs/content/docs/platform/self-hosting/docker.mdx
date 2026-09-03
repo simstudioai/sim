@@ -3,7 +3,6 @@ title: Docker
 description: Deploy Sim with Docker Compose
 ---
 
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 
@@ -101,6 +100,10 @@ For nginx, Traefik, or a cloud load balancer — and for the GKE websocket timeo
 
 ## Ollama
 
+`docker-compose.ollama.yml` is a **development** stack, not a drop-in swap for `docker-compose.prod.yml`. It builds `simstudio`, `realtime`, and `migrations` from the source checkout instead of pulling published images, and it ships neither a `redis` service nor a `cron` service — so live cross-process status and every [background job](/platform/self-hosting/background-jobs) are missing. For production with local models, keep `docker-compose.prod.yml` and point `OLLAMA_URL` at an Ollama instance, as under [External Ollama](#external-ollama) below.
+
+Always pass a server profile alongside `setup`. With `--profile setup` on its own no Ollama server starts and `model-setup` waits forever.
+
 ```bash
 # With GPU
 docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d
@@ -153,6 +156,23 @@ Both the server root shown above and a URL ending in `/v1` are accepted. After r
 ```bash
 docker compose -f docker-compose.ollama.yml up -d --force-recreate simstudio
 ```
+
+## The `sim-setup` CLI
+
+`npx sim-setup` also manages an existing install. Run it from the directory holding your `.env` and Compose file.
+
+| Command | What it does |
+|---|---|
+| `sim-setup` | The setup wizard. `--quick` skips the prompts, `--dir <path>` picks the directory, `--mode compose\|dev\|k8s` picks the target (`dev` and `k8s` need a source checkout) |
+| `sim-setup status` | Show what is installed and healthy |
+| `sim-setup logs` | Follow logs |
+| `sim-setup start` / `stop` / `restart` | Bring the install up, down, or cycle it |
+| `sim-setup update` | Pull or rebuild images and apply them |
+| `sim-setup down` | Remove containers, keep the data |
+| `sim-setup reset` | Archive `.env` and wipe managed data |
+| `sim-setup config` | Show configured capabilities and integrations |
+| `sim-setup doctor` | Check the setup. `--fix` repairs what it can, `--json` prints machine-readable output |
+| `sim-setup add <feature>` | Configure one capability: `email`, `storage`, `sandbox`, `jobs`, `cache`, `knowledge`, `knowledge-embeddings`, `chat`, `llm`, or `integration <slug>` |
 
 ## Commands
 

@@ -3,7 +3,6 @@ title: Kubernetes
 description: Deploy Sim with Helm
 ---
 
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 
@@ -18,7 +17,7 @@ import { FAQ } from '@/components/ui/faq'
 - PV provisioner support (a default StorageClass supporting `ReadWriteOnce`)
 - An ingress controller, if `ingress.enabled=true`
 - `metrics-server`, if you enable autoscaling
-- **Redis**, if you plan to run more than one replica — see [Redis](/platform/self-hosting/redis)
+- **Redis** — bundled by the chart (`redis.enabled: true`). Only supply your own if you set `redis.enabled: false`; see [Redis](/platform/self-hosting/redis)
 
 ## Installation
 
@@ -30,6 +29,7 @@ git clone https://github.com/simstudioai/sim.git && cd sim
 BETTER_AUTH_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 INTERNAL_API_SECRET=$(openssl rand -hex 32)
+API_ENCRYPTION_KEY=$(openssl rand -hex 32)
 CRON_SECRET=$(openssl rand -hex 32)
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
 
@@ -38,15 +38,18 @@ helm install sim ./helm/sim \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
   --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --set app.env.API_ENCRYPTION_KEY="$API_ENCRYPTION_KEY" \
   --set app.env.CRON_SECRET="$CRON_SECRET" \
   --set postgresql.auth.password="$POSTGRES_PASSWORD" \
   --namespace simstudio --create-namespace
 ```
 
 <Callout type="warn">
-  Save all five values somewhere durable before moving on. `ENCRYPTION_KEY` in particular cannot be regenerated — losing it makes workspace environment variables and stored provider keys permanently unreadable.
+  Save all six values somewhere durable before moving on. `ENCRYPTION_KEY` in particular cannot be regenerated — losing it makes workspace environment variables and stored provider keys permanently unreadable.
 
-  `CRON_SECRET` is required, not optional: the chart enables background jobs by default and will not render without it.
+  `API_ENCRYPTION_KEY` is optional, and the failure mode is silent: leave it unset and Sim stores user-generated API keys **in plain text**, logging one warning and nothing else. Set it at install time — it must be a 64-character hex string, which is exactly what `openssl rand -hex 32` produces — and back it up like `ENCRYPTION_KEY`.
+
+  `CRON_SECRET` is required whenever background jobs are enabled, which is the chart's default: the chart will not render without it. Set `cronjobs.enabled=false` instead if you deliberately want no scheduled jobs.
 </Callout>
 
 <Callout type="info">
@@ -55,49 +58,22 @@ helm install sim ./helm/sim \
 
 ## Cloud-Specific Values
 
-These are cloud-tuned **alternatives** to the generic install above — pick one path, don't run both. The commands reuse the `$BETTER_AUTH_SECRET`, `$ENCRYPTION_KEY`, `$INTERNAL_API_SECRET`, `$CRON_SECRET`, and `$POSTGRES_PASSWORD` variables generated in [Installation](#installation) above, so run that block's `openssl` lines first in the same shell. They use `helm upgrade --install`, so they work whether or not a release exists yet. Two caveats when converting an existing generic install rather than starting fresh: (1) **reuse the original secret values** — recover them with `helm get values sim -n simstudio` if your shell no longer has them; supplying a newly generated `ENCRYPTION_KEY` makes every previously encrypted value (workspace environment variables, stored provider keys, MCP OAuth credentials) undecryptable. (2) The cloud values rename the bundled PostgreSQL database to `simstudio`, but Postgres only applies that setting on first initialization — add `--set postgresql.auth.database=sim` to keep your existing database. If you'd rather start clean, `helm uninstall sim -n simstudio`, delete its PVCs, and run the cloud command fresh.
+These are cloud-tuned **alternatives** to the generic install above — pick one path, don't run both. The commands reuse the `$BETTER_AUTH_SECRET`, `$ENCRYPTION_KEY`, `$INTERNAL_API_SECRET`, `$API_ENCRYPTION_KEY`, `$CRON_SECRET`, and `$POSTGRES_PASSWORD` variables generated in [Installation](#installation) above, so run that block's `openssl` lines first in the same shell. They use `helm upgrade --install`, so they work whether or not a release exists yet. Two caveats when converting an existing generic install rather than starting fresh: (1) **reuse the original secret values** — recover them with `helm get values sim -n simstudio` if your shell no longer has them; supplying a newly generated `ENCRYPTION_KEY` makes every previously encrypted value (workspace environment variables, stored provider keys, MCP OAuth credentials) undecryptable. (2) The cloud values rename the bundled PostgreSQL database to `simstudio`, but Postgres only applies that setting on first initialization — add `--set postgresql.auth.database=sim` to keep your existing database. If you'd rather start clean, `helm uninstall sim -n simstudio`, delete its PVCs, and run the cloud command fresh.
 
-<Tabs items={['AWS EKS', 'Azure AKS', 'GCP GKE']}>
-  <Tab value="AWS EKS">
 ```bash
 helm upgrade --install sim ./helm/sim \
   --values ./helm/sim/examples/values-aws.yaml \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
   --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --set app.env.API_ENCRYPTION_KEY="$API_ENCRYPTION_KEY" \
   --set app.env.CRON_SECRET="$CRON_SECRET" \
   --set postgresql.auth.password="$POSTGRES_PASSWORD" \
   --set app.env.NEXT_PUBLIC_APP_URL="https://sim.yourdomain.com" \
   --namespace simstudio --create-namespace
 ```
-  </Tab>
-  <Tab value="Azure AKS">
-```bash
-helm upgrade --install sim ./helm/sim \
-  --values ./helm/sim/examples/values-azure.yaml \
-  --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
-  --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
-  --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
-  --set app.env.CRON_SECRET="$CRON_SECRET" \
-  --set postgresql.auth.password="$POSTGRES_PASSWORD" \
-  --set app.env.NEXT_PUBLIC_APP_URL="https://sim.yourdomain.com" \
-  --namespace simstudio --create-namespace
-```
-  </Tab>
-  <Tab value="GCP GKE">
-```bash
-helm upgrade --install sim ./helm/sim \
-  --values ./helm/sim/examples/values-gcp.yaml \
-  --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
-  --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
-  --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
-  --set app.env.CRON_SECRET="$CRON_SECRET" \
-  --set postgresql.auth.password="$POSTGRES_PASSWORD" \
-  --set app.env.NEXT_PUBLIC_APP_URL="https://sim.yourdomain.com" \
-  --namespace simstudio --create-namespace
-```
-  </Tab>
-</Tabs>
+
+Swap the `--values` file for your cloud: `values-aws.yaml` (EKS), `values-azure.yaml` (AKS), or `values-gcp.yaml` (GKE). Everything else is identical.
 
 ## Key Configuration
 
@@ -111,7 +87,7 @@ app:
     NEXT_PUBLIC_APP_URL: "https://sim.yourdomain.com"
     BETTER_AUTH_URL: "https://sim.yourdomain.com"
     OPENAI_API_KEY: "sk-..."
-    # Required once replicaCount > 1
+    # Only needed when redis.enabled is false — the bundled Redis is injected otherwise
     REDIS_URL: "redis://:<password>@redis.internal:6379"
 
 realtime:
@@ -144,14 +120,14 @@ ingress:
 </Callout>
 
 <Callout type="error">
-  Setting `replicaCount: 2` **without** `REDIS_URL` silently breaks live collaboration and status updates — cross-pod events are dropped with no error anywhere. See [Redis](/platform/self-hosting/redis) and [Scaling & HA](/platform/self-hosting/scaling).
+  The chart ships Redis (`redis.enabled: true`) and injects its `REDIS_URL` into both the app and realtime Deployments, so raising `replicaCount` works out of the box. The hazard is setting `redis.enabled: false` without supplying `app.env.REDIS_URL`: cross-pod events are then dropped with no error anywhere, silently breaking live collaboration and status updates. See [Redis](/platform/self-hosting/redis) and [Scaling & HA](/platform/self-hosting/scaling).
 </Callout>
 
 See `helm/sim/values.yaml` for all options, and the chart's [README](https://github.com/simstudioai/sim/tree/main/helm/sim) for the production checklist.
 
 ## Background jobs
 
-The chart deploys 18 CronJobs by default, driving scheduled workflows, polling triggers, connector syncs, data drains, and outbox processing. They require `CRON_SECRET`.
+The chart deploys 22 CronJobs by default, driving scheduled workflows, polling triggers, connector syncs, data drains, and outbox processing. They require `CRON_SECRET`; set `cronjobs.enabled=false` to deploy none.
 
 ```bash
 kubectl get cronjobs -n simstudio
@@ -206,9 +182,6 @@ helm uninstall sim --namespace simstudio
 ```
 
 <FAQ items={[
-  { question: "How do I manage secrets securely in Kubernetes?", answer: "The Helm chart supports pre-existing Kubernetes secrets via app.secrets.existingSecret. Set enabled to true and provide the secret name. This integrates with External Secrets Operator, HashiCorp Vault, Azure Key Vault, and similar tools. The secret must use the standard key names (BETTER_AUTH_SECRET, ENCRYPTION_KEY, INTERNAL_API_SECRET, CRON_SECRET, ...) — it is consumed wholesale, so key remapping is not supported."},
-  { question: "Can I scale the app to multiple replicas?", answer: "Yes, but set REDIS_URL first. Without Redis, pub/sub and the Socket.IO adapter have no cross-pod transport and live collaboration breaks silently. Also make sure your database can handle the additional connections — see the Scaling & HA guide."},
-  { question: "Is CRON_SECRET required?", answer: "Yes, whenever background jobs are enabled — which is the chart's default. The chart refuses to render without it, and the 18 CronJobs that drive scheduled workflows, polling triggers, and connector syncs use it as a bearer token."},
-  { question: "Which image tags should I pin?", answer: "All three of app, realtime, and migrations, to the same explicit release tag. They share a database schema, so a mismatch runs the app against a schema it does not match. Do not rely on the chart's default tag in production."},
+  { question: "How do I manage secrets securely in Kubernetes?", answer: "The Helm chart supports pre-existing Kubernetes secrets via app.secrets.existingSecret. Set enabled to true and provide the secret name. This integrates with External Secrets Operator, HashiCorp Vault, Azure Key Vault, and similar tools. The secret must use the standard key names (BETTER_AUTH_SECRET, ENCRYPTION_KEY, INTERNAL_API_SECRET, API_ENCRYPTION_KEY, CRON_SECRET, ...) — it is consumed wholesale, so key remapping is not supported."},
 ]} />
 

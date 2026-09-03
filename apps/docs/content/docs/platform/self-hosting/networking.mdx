@@ -5,7 +5,6 @@ description: Reverse proxies, TLS, websockets, timeouts, and request size limits
 
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
 
 Sim has three traffic patterns that trip up default proxy configurations: **long-lived websockets**, **server-sent event streams**, and **large uploads**. Most "it works locally but not in production" reports come from one of the three.
 
@@ -55,6 +54,42 @@ Both hostnames need DNS records and TLS certificates.
 
   </Tab>
 </Tabs>
+
+## Second ingress and Copilot routing
+
+The chart renders a second, independent Ingress from `ingressInternal` — its own class, hosts, TLS secret, and rules. Use it to publish the same Deployments on an internal-only hostname alongside the public one.
+
+```yaml
+ingressInternal:
+  enabled: true
+  className: nginx-internal
+  app:
+    host: sim.internal.example.com
+    paths:
+      - path: /
+        pathType: Prefix
+  realtime:
+    host: sim.internal.example.com
+    paths:
+      - path: /socket.io
+        pathType: Prefix
+  tls:
+    enabled: true
+    secretName: sim-internal-tls
+```
+
+When `realtime.host` equals `app.host`, the realtime paths are folded into the app host's rule ahead of the catch-all — which is why `/socket.io` must come first. Give realtime a different host and it gets a rule of its own.
+
+Both `ingress` and `ingressInternal` accept an optional `copilot` block, commented out in `values.yaml` because the Copilot service is off by default. It follows the same host-sharing rule:
+
+```yaml
+ingress:
+  copilot:
+    host: sim.yourdomain.com
+    paths:
+      - path: /copilot
+        pathType: Prefix
+```
 
 ## Reverse proxy configuration
 
@@ -187,16 +222,14 @@ spec:
     drainingTimeoutSec: 60
 ```
 
-Then annotate the realtime Service so the load balancer picks it up:
+Then annotate the realtime Service so the load balancer picks it up. The chart renders no annotations on any Service, and `realtime.service` accepts only `type`, `port`, and `targetPort` — an annotations key there is silently dropped. Annotate the Service directly:
 
-```yaml
-realtime:
-  service:
-    annotations:
-      cloud.google.com/backend-config: '{"default": "sim-realtime-backendconfig"}'
+```bash
+kubectl annotate service sim-realtime -n simstudio \
+  cloud.google.com/backend-config='{"default": "sim-realtime-backendconfig"}'
 ```
 
-Confirm your chart version renders `realtime.service.annotations` onto the Service (`helm template ./helm/sim --values my-values.yaml | grep -A5 'kind: Service'`). If it does not, annotate the Service directly with `kubectl annotate`.
+Re-apply it after any `helm upgrade` that recreates the Service, or manage the annotation with a kustomize patch so it survives.
 
 TLS on GKE typically uses a **ManagedCertificate**, which the chart references by annotation but **does not create** — create it yourself before the first deploy:
 
@@ -264,10 +297,28 @@ A proxy body limit of 250 MB accommodates all three defaults. If you lower the a
 
 ## Outbound connectivity
 
-The app makes outbound calls to model providers, integration APIs, your email provider, and object storage. There is no global forward-proxy setting. Sim does not read `HTTP_PROXY` / `HTTPS_PROXY`, so model-provider calls, integration calls, and email delivery cannot be routed through a forward proxy. (The HTTP Request block accepts a per-request `proxyUrl`, but that covers only that one block, not the platform's own outbound traffic.) Environments with a mandatory egress proxy need a transparent proxy or NAT-based egress instead.
+The app makes outbound calls to model providers, integration APIs, your email provider, object storage, and your telemetry backend. Whether `HTTP_PROXY` / `HTTPS_PROXY` apply depends on which of those paths a call takes — there is no single answer, and no global setting that covers all of them.
 
-<FAQ items={[
-  { question: "Do I need two hostnames?", answer: "No. A single hostname works if your proxy can route /socket.io to the realtime service and everything else to the app. Two hostnames are useful when path-based splitting is awkward, which is common on GKE's built-in load balancer."},
-  { question: "Websockets disconnect every 30 seconds on GKE. How do I fix it?", answer: "The GCE load balancer defaults to a 30-second backend timeout. Create a BackendConfig with timeoutSec: 3600 and attach it to the realtime Service with the cloud.google.com/backend-config annotation. On AWS, raise the ALB idle_timeout instead."},
-  { question: "Does Sim support an outbound HTTP proxy?", answer: "Not globally. Sim does not read HTTP_PROXY or HTTPS_PROXY, so platform traffic cannot be routed through a forward proxy. The HTTP Request block accepts a per-request proxyUrl for its own calls only. Use a transparent proxy or NAT-based egress if your network requires one."},
-]} />
+The server runs on Bun, and Bun's native `fetch` honors `$HTTP_PROXY` and `$HTTPS_PROXY`. Sim installs no global dispatcher, so every call that goes through the default `fetch` is proxied. The rest either build their own HTTP agent or speak a non-HTTP protocol.
+
+| Outbound path | Honors `HTTP_PROXY` / `HTTPS_PROXY` |
+|---|---|
+| Model provider APIs — Anthropic and every OpenAI-compatible provider | Yes |
+| Email via Resend | Yes |
+| The desktop update feed's calls to GitHub | Yes |
+| Everything through the SSRF guard — the HTTP block, tools, connectors, outbound webhooks, content fetches, MCP servers | No |
+| Azure OpenAI, Azure Anthropic, and vLLM | No — these pass an IP-pinned fetch through the guard |
+| Email via SMTP or Amazon SES | No — Nodemailer opens a raw TCP connection |
+| Object storage — S3, Azure Blob, GCS | No — the cloud SDKs use their own request handlers |
+| OTLP telemetry export | No |
+| Postgres and Redis | No — raw TCP |
+
+The practical consequence: a mandatory-egress-proxy environment can route LLM traffic and Resend mail through the proxy, but integration calls, storage, telemetry, and datastore traffic still need a transparent proxy or NAT-based egress.
+
+### The per-request escape hatch
+
+The HTTP block's `proxyUrl` is honored per request by the SSRF guard, which builds a proxy agent for that call instead of pinning the target IP.
+
+<Callout type="warn">
+  `proxyUrl` must be an `http://` URL **and** must resolve to a public address. The guard validates the proxy host under a dedicated `proxy` profile that has no operator allowlist, so `EGRESS_ALLOWED_HOSTS` and `EGRESS_ALLOWED_IP_RANGES` do not reach it. A corporate proxy on an RFC 1918 address is refused even when that range is allowlisted for everything else. See [Security](/platform/self-hosting/security#the-ssrf-boundary).
+</Callout>

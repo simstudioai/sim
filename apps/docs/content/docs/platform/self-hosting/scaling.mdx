@@ -4,7 +4,6 @@ description: Replicas, connection pooling, autoscaling, and where the limits act
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
 
 ## What scales how
 
@@ -37,6 +36,8 @@ app:
       memory: 4Gi
       cpu: 1000m
 ```
+
+The `resources` block above is the chart's default — it is shown so the numbers are visible, not because it changes anything. Only `replicaCount` needs setting unless you are raising the ceiling.
 
 **Memory is the constraint, not CPU.** Workflow executions run inside the app process in isolated-vm sandboxes, and file parsing happens in memory. Production telemetry shows 4–8 GB steady with peaks to 12 GB under heavy execution load. Under-provision memory and you get OOMKills that terminate in-flight workflow runs.
 
@@ -129,9 +130,6 @@ A production deployment serving ~100 active users:
 ```yaml
 app:
   replicaCount: 3
-  resources:
-    limits: { memory: 8Gi, cpu: 2000m }
-    requests: { memory: 4Gi, cpu: 1000m }
   env:
     REDIS_URL: "rediss://:<password>@redis.internal:6380"
 
@@ -160,10 +158,3 @@ podDisruptionBudget:
 ```
 
 Plus: managed Postgres with PITR, managed Redis in an HA tier, object storage with versioning, and images pinned to an explicit tag.
-
-<FAQ items={[
-  { question: "Should I scale up or scale out?", answer: "Scale out for concurrent users and workflow throughput. Scale up when individual executions are memory-hungry — a single large document parse or execution has to fit in one pod. Memory is almost always the binding constraint."},
-  { question: "When do I need PgBouncer?", answer: "Once replica count times pool size approaches Postgres max_connections — typically past a handful of replicas. Transaction pooling decouples app replicas from database connections and is the highest-leverage change for a large deployment."},
-  { question: "Does the HPA interrupt running workflows?", answer: "Scale-down can terminate a pod mid-execution. Use a conservative minReplicas and a long scale-down stabilization window so long-running executions are not repeatedly interrupted."},
-  { question: "Can I use a read replica?", answer: "Yes. Set DATABASE_REPLICA_URL and latency-tolerant reads — log listing, audit logs, dashboard aggregations — are routed to it. Per-role overrides exist for the web, realtime, and trigger components." },
-]} />

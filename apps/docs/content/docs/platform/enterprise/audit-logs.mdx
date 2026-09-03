@@ -14,7 +14,7 @@ Audit logs give your organization a tamper-evident record of every significant a
 
 ### In the UI
 
-Go to **Settings → Enterprise → Audit Logs** in your workspace. Logs are displayed in a table with the following columns:
+Go to **Settings → Organization → Audit logs** in your workspace. Logs are displayed in a table with the following columns:
 
 <Image src="/static/enterprise/audit-logs.png" alt="Audit Logs settings showing a table of events with columns for Timestamp, Event, Description, and Actor, along with search and filter controls" width={900} height={830} />
 
@@ -149,4 +149,13 @@ AUDIT_LOGS_ENABLED=true
 NEXT_PUBLIC_AUDIT_LOGS_ENABLED=true
 ```
 
-Once enabled, audit logs are viewable in **Settings → Enterprise → Audit Logs** and accessible via the API.
+Once enabled, audit logs are viewable in **Settings → Organization → Audit logs** and accessible via the API.
+
+`GET /api/v1/audit-logs` requires a session and an organization on an Enterprise plan, so it is unreachable on a deployment that has no organization yet. The admin-key equivalent has neither requirement:
+
+```http
+GET /api/v1/admin/audit-logs
+x-admin-key: <admin-api-key>
+```
+
+It accepts the same filters as the organization endpoint plus `limit` (max 250) and `offset`, and returns entries across the whole deployment rather than one organization. `GET /api/v1/admin/audit-logs/<id>` returns a single entry. Set `ADMIN_API_KEY` to use it — see the [self-hosted enterprise guide](/platform/enterprise/self-hosted).

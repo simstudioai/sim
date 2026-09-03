@@ -18,7 +18,7 @@ Both are configured once at the **organization level** and apply to every worksp
 
 ## Setup
 
-Go to **Settings → Enterprise → Data Retention** in your workspace.
+Go to **Settings → Organization → Data retention** in your workspace.
 
 <Image src="/static/enterprise/data-retention.png" alt="Data Retention settings showing the Retention policies list with the Organization default row and its summary of retention periods and PII stages" width={900} height={537} />
 
@@ -97,10 +97,10 @@ The **Workflow input** and **Block outputs** stages alter what the workflow comp
 
 For each stage, choose the **entity types** to redact from the searchable grid. They are grouped as:
 
-- **Common** — person name, email, phone, credit card, IP address, URL, IBAN, crypto wallet, medical license, VIN
+- **Common** — person name, email, phone, credit card, IP address, location, date or time, URL, IBAN, crypto wallet, nationality/religious/political group, medical license, VIN
 - **United States** — SSN, passport, driver's license, bank account, ITIN
 - **United Kingdom** — NHS number, National Insurance number
-- **Other regions** — Singapore, Australian, and Indian identifiers
+- **Other regions** — Spanish (NIF, NIE), Italian (fiscal code, driver's licence, VAT code, passport, identity card), Polish (PESEL), Singaporean (NRIC/FIN, UEN), Australian (ABN, ACN, TFN, Medicare), Indian (PAN, Aadhaar, vehicle registration, voter ID, passport), and Finnish (personal identity code) identifiers
 
 The **Block outputs** stage is restricted to regex- and checksum-based recognizers, so it can run in-flight over large payloads without a performance penalty. Types that need name-model detection — person name, location, date or time — are not offered for that stage.
 
@@ -182,7 +182,30 @@ NEXT_PUBLIC_DATA_RETENTION_ENABLED=true
 DATA_RETENTION_ENABLED=true
 ```
 
-Once enabled, retention settings are configurable through **Settings → Enterprise → Data Retention** the same way as Sim Cloud.
+Once enabled, retention settings are configurable through **Settings → Organization → Data retention** the same way as Sim Cloud.
+
+### Scheduling the deletion pass
+
+`DATA_RETENTION_ENABLED` permits deletion; it does not perform it. Deletion runs when a scheduled request reaches one of three endpoints, each authenticated with a bearer token equal to `CRON_SECRET`:
+
+| Category | Endpoint |
+|----------|----------|
+| Execution and job logs | `GET /api/logs/cleanup` |
+| Soft-deleted resources | `GET /api/cron/cleanup-soft-deletes` |
+| Chats and Chat runs | `GET /api/cron/cleanup-tasks` |
+
+<Callout type="warn">
+The Helm chart does **not** schedule these three endpoints. An operator who sets `DATA_RETENTION_ENABLED=true` on the chart alone still deletes nothing. Add them to `cronjobs.jobs`, or call them daily from an external scheduler.
+</Callout>
+
+```bash
+CRON_SECRET=$(openssl rand -hex 32)
+
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  https://sim.example.com/api/logs/cleanup
+```
+
+Each call fans the work out as background jobs, so the deployment also needs `TRIGGER_DEV_ENABLED` with a configured Trigger.dev project, or the local job backend.
 
 ### PII redaction
 
@@ -193,4 +216,4 @@ PII redaction runs against a standalone [Presidio](https://microsoft.github.io/p
 PII_URL=http://localhost:5001
 ```
 
-All PII stages are configurable under **Settings → Enterprise → Data Retention**.
+All PII stages are configurable under **Settings → Organization → Data retention**.

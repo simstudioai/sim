@@ -16,7 +16,7 @@ Verified Domains let organization owners and admins on Enterprise plans prove th
 
 ## Verify a domain
 
-Go to **Settings → Security → Single sign-on** in your organization settings. Domains are managed in the **Verified domains** section at the top of that page, directly above the identity provider configuration.
+Go to **Settings → Organization → Single sign-on** in your organization settings. Domains are managed in the **Verified domains** section at the top of that page, directly above the identity provider configuration.
 
 1. Enter the domain, for example `acme.com`, and click **Add domain**.
 2. Sim shows a DNS **TXT record** to publish — a host (`_sim-challenge.acme.com`) and a unique value (`sim-domain-verification=…`).
@@ -59,3 +59,18 @@ Add each domain you own separately. Subdomains (`eng.acme.com`) are verified ind
     },
   ]}
 />
+
+---
+
+## Self-hosted setup
+
+Domain verification has no flag of its own. It lives on the single sign-on page, so it appears exactly when SSO does:
+
+```bash
+SSO_ENABLED=true
+NEXT_PUBLIC_SSO_ENABLED=true
+```
+
+`ENTERPRISE_ENABLED` turns both on together. See the [self-hosted enterprise guide](/platform/enterprise/self-hosted).
+
+Once enabled, verify domains from **Settings → Organization → Single sign-on**, in the **Verified domains** section above the identity provider configuration. The older `/settings/domains` link still resolves — it redirects to the same page.
