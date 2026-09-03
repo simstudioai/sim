@@ -145,7 +145,7 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
   describe('move file', () => {
     it('sends the canonical destination the picker produced', () => {
       const params = paramsFor('file_move', {
-        moveFileId: 'wf_123',
+        moveFileInput: 'wf_123',
         moveTargetRef: '/Reports/Q3%20Results',
       })
 
@@ -157,12 +157,65 @@ describe('file_v5 folder operations produce contract-valid tool input', () => {
     })
 
     it('omits the destination when no folder is picked', () => {
-      const params = paramsFor('file_move', { moveFileId: 'wf_123' })
+      const params = paramsFor('file_move', { moveFileInput: 'wf_123' })
 
       expect(params.folderPath).toBeUndefined()
       expect(fileManageMoveBodySchema.safeParse({ operation: 'move', ...params }).success).toBe(
         true
       )
+    })
+
+    /*
+     * The file is a basic/advanced pair like every other single-file operand,
+     * so it can be picked as well as typed. The tool takes only an id, so a
+     * picked file travels as the id its selection carries.
+     */
+    it('pairs a workspace file picker with the typed id', () => {
+      const picker = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'moveFile')
+      const typed = FileV5Block.subBlocks.find((subBlock) => subBlock.id === 'moveFileId')
+
+      expect(picker?.type).toBe('file-upload')
+      expect(picker?.mode).toBe('basic')
+      expect(picker?.canonicalParamId).toBe('moveFileInput')
+      expect(typed?.type).toBe('short-input')
+      expect(typed?.mode).toBe('advanced')
+      expect(typed?.canonicalParamId).toBe('moveFileInput')
+      expect(typed?.condition).toEqual(picker?.condition)
+      expect(typed?.required).toEqual(picker?.required)
+    })
+
+    it('moves a picked file by the id it carries', () => {
+      const params = paramsFor('file_move', {
+        moveFileInput: { id: 'wf_abc', name: 'notes.md', key: 'workspace/ws-1/notes.md' },
+      })
+
+      expect(params.fileId).toBe('wf_abc')
+      expect(fileManageMoveBodySchema.safeParse({ operation: 'move', ...params }).success).toBe(
+        true
+      )
+    })
+
+    it('reads one id from the serialized list a reference can produce', () => {
+      expect(paramsFor('file_move', { moveFileInput: '["wf_abc"]' }).fileId).toBe('wf_abc')
+    })
+
+    it('refuses more than one file', () => {
+      expect(() => paramsFor('file_move', { moveFileInput: '["wf_a","wf_b"]' })).toThrow(
+        /single file/
+      )
+      expect(() =>
+        paramsFor('file_move', { moveFileInput: [{ id: 'wf_a' }, { id: 'wf_b' }] })
+      ).toThrow(/single file/)
+    })
+
+    it('refuses a file object that carries no id, naming the remedy', () => {
+      expect(() =>
+        paramsFor('file_move', { moveFileInput: { name: 'notes.md', key: 'k' } })
+      ).toThrow(/workspace file ID/)
+    })
+
+    it('refuses an empty operand', () => {
+      expect(() => paramsFor('file_move', {})).toThrow(/File is required for move/)
     })
   })
 

@@ -92,6 +92,7 @@ const APPEND_FILE_FIELD = ['appendFile', 'appendFileName'] as const
 const COMPRESS_FILE_FIELD = ['compressFile', 'compressFileId'] as const
 const DECOMPRESS_FILE_FIELD = ['decompressFile', 'decompressFileId'] as const
 const SHARE_FILE_FIELD = ['shareFile', 'shareFileId'] as const
+const MOVE_FILE_FIELD = ['moveFile', 'moveFileId'] as const
 /* Text and file are mutually exclusive sources, so the clause names whichever
    one the card actually carries. */
 const WRITE_CONTENT_FIELD = ['content', 'writeFile', 'writeFileId'] as const
@@ -1129,6 +1130,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   - Use Write to create a new workspace file and Append to add content to an existing one. Write adds a numeric suffix when the name is taken; turn on "Overwrite Existing File" to replace the contents of the file at that exact path (folder and name) instead — a same-named file in another folder is left alone.
   - Use Compress to bundle one or more files into a single .zip archive stored in the workspace. The new archive is returned in the "files" output.
   - Use Decompress to extract a .zip archive back into the workspace; the extracted files are returned in the "files" output, ready to chain into Get Content or downstream blocks.
+  - Move File takes one workspace file, picked or given as a canonical file ID such as an earlier block's file output, and the folder to move it into.
   `,
   canvasPresentation: {
     defaultTitle: 'File',
@@ -1178,7 +1180,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         file_delete_folder: [{ text: 'Delete folder', field: FOLDER_PATH_FIELD, core: true }],
         file_restore_folder: [{ text: 'Restore folder', field: 'restoreFolderId', core: true }],
         file_move: [
-          { text: 'Move', field: 'moveFileId', core: true },
+          { text: 'Move', field: MOVE_FILE_FIELD, core: true },
           { text: 'into', field: MOVE_TARGET_FIELD },
         ],
         file_decompress: [{ text: 'Unzip', field: DECOMPRESS_FILE_FIELD, core: true }],
@@ -1874,10 +1876,23 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       condition: { field: 'operation', value: 'file_delete_folder' },
     },
     {
+      id: 'moveFile',
+      title: 'File',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'moveFileInput',
+      acceptedTypes: '*',
+      placeholder: 'Select a workspace file',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_move' },
+      required: { field: 'operation', value: 'file_move' },
+    },
+    {
       id: 'moveFileId',
       title: 'File ID',
       type: 'short-input' as SubBlockType,
-      placeholder: 'Canonical workspace file ID',
+      canonicalParamId: 'moveFileInput',
+      placeholder: 'Workspace file ID',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'file_move' },
       required: { field: 'operation', value: 'file_move' },
     },
@@ -2045,8 +2060,35 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         }
 
         if (operation === 'file_move') {
+          const moveInput = params.moveFileInput
+          if (!moveInput) {
+            throw new Error('File is required for move')
+          }
+
+          /*
+           * The tool takes an id and nothing else, so a picked file resolves
+           * here by the id every picker selection and in-place upload carries.
+           * A file object without one is refused with the remedy rather than
+           * forwarded as a shape the contract rejects.
+           */
+          const fileIds = parseReadFileIds(moveInput)
+          if (Array.isArray(fileIds)) {
+            throw new Error('Move File accepts a single file at a time')
+          }
+          const file = fileIds
+            ? null
+            : (normalizeFileInput(moveInput, {
+                single: true,
+                errorMessage: 'Move File accepts a single file at a time',
+              }) as Record<string, unknown> | undefined)
+          const pickedId = typeof file?.id === 'string' ? file.id.trim() : ''
+          const fileId = fileIds ?? pickedId
+          if (!fileId) {
+            throw new Error('Could not determine the file to move; pass its workspace file ID')
+          }
+
           return {
-            fileId: optionalText(params.moveFileId),
+            fileId,
             folderPath: optionalText(params.moveTargetRef),
             workspaceId: params._context?.workspaceId,
           }
@@ -2293,9 +2335,9 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       type: 'string',
       description: 'Folder the file is moved into (move file)',
     },
-    moveFileId: {
-      type: 'string',
-      description: 'Canonical ID of the file to move (move file)',
+    moveFileInput: {
+      type: 'json',
+      description: 'Selected workspace file or canonical file ID to move (move file)',
     },
     restoreFolderId: {
       type: 'string',
