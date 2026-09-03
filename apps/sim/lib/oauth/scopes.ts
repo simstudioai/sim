@@ -632,6 +632,38 @@ export const ADDITIONAL_PROVIDER_IDS = {
 } as const satisfies Record<string, readonly string[]>
 
 /**
+ * Provider ids whose managed connector is the Google one.
+ *
+ * Lives here because the docs need it and `managed-oauth.ts` cannot be imported
+ * outside Next, and it is the single source both read: the connector factory
+ * matches against this set, so a Google service added to one is added to both.
+ */
+export const GOOGLE_MANAGED_OAUTH_PROVIDER_IDS: ReadonlySet<string> = new Set([
+  'google-email',
+  'google-calendar',
+  'google-drive',
+  'google-docs',
+  'google-forms',
+  'google-chat',
+  'google-meet',
+  'google-sheets',
+])
+
+/**
+ * Scopes a managed connection requests on top of the service's declared set,
+ * keyed by provider id.
+ *
+ * A managed connector unions `getCanonicalScopesForProvider` with its own
+ * `additionalScopes`, so a table printed from the declared set alone understates
+ * what that connection asks for. Google's adds `openid`, which is how the
+ * connector verifies the identity behind the credential.
+ */
+export const MANAGED_OAUTH_ADDITIONAL_SCOPES: Readonly<Record<string, readonly string[]>> =
+  Object.fromEntries(
+    [...GOOGLE_MANAGED_OAUTH_PROVIDER_IDS].map((providerId) => [providerId, ['openid']])
+  )
+
+/**
  * A caveat the scope rows of one service cannot carry on their own, keyed by
  * service id.
  *

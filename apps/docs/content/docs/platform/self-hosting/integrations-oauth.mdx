@@ -204,6 +204,8 @@ Every connector below also requests `https://www.googleapis.com/auth/userinfo.em
 | Google Meet | `google-meet` | `https://www.googleapis.com/auth/meetings.space.created`, `https://www.googleapis.com/auth/meetings.space.readonly` |
 | Vertex AI | `vertex-ai` | `https://www.googleapis.com/auth/cloud-platform` |
 
+A managed connection also requests `openid`, which is how Sim verifies the account behind the credential.
+
 ### HubSpot
 
 `HUBSPOT_CLIENT_ID` / `HUBSPOT_CLIENT_SECRET`

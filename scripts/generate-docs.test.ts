@@ -1002,6 +1002,22 @@ describe('the generated Scopes section', () => {
     expect(buildScopesSection('sharepoint', 'SharePoint')).not.toContain('.default')
   })
 
+  /**
+   * A managed connector unions the declared scopes with its own
+   * `additionalScopes`, so a Google table printed from the declared set alone
+   * understates the request by exactly `openid`. Keyed by provider id, which is
+   * what the connector factory matches on and differs from the service id for
+   * Gmail.
+   */
+  it('names the scopes a managed connection adds to the declared set', () => {
+    const gmail = buildScopesSection('gmail', 'Gmail')
+
+    expect(gmail).toContain('A managed connection also requests `openid`')
+    expect(gmail).not.toMatch(/\| `openid` \|/)
+    // Vault has no managed connector, so nothing is added to its request.
+    expect(buildScopesSection('google-vault', 'Google Vault')).not.toContain('managed connection')
+  })
+
   it('names the opt-in scopes in prose even though the table omits them', () => {
     const section = buildScopesSection('slack', 'Slack')
 

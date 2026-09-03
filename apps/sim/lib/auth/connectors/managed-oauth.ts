@@ -9,6 +9,7 @@ import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { deriveMicrosoftEmailVerified, mapMicrosoftProfileToUser } from '@/lib/oauth/microsoft'
 import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
+import { GOOGLE_MANAGED_OAUTH_PROVIDER_IDS } from '@/lib/oauth/scopes'
 import { isTerminalRefreshError } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { MONDAY_API_URL, MONDAY_API_VERSION } from '@/tools/monday/utils'
@@ -1287,16 +1288,7 @@ export function getManagedOAuthConnectorPolicy(
 function resolveManagedOAuthPolicy(
   providerId: string
 ): (() => ManagedOAuthConnectorConfig) | undefined {
-  if (
-    providerId === 'google-email' ||
-    providerId === 'google-calendar' ||
-    providerId === 'google-drive' ||
-    providerId === 'google-docs' ||
-    providerId === 'google-forms' ||
-    providerId === 'google-chat' ||
-    providerId === 'google-meet' ||
-    providerId === 'google-sheets'
-  ) {
+  if (GOOGLE_MANAGED_OAUTH_PROVIDER_IDS.has(providerId)) {
     return () => createGoogleManagedOAuthConnector(providerId)
   }
   if (providerId === 'confluence' || providerId === 'jira') {

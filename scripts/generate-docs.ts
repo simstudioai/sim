@@ -11,6 +11,7 @@ import {
   ADDITIONAL_PROVIDER_IDS,
   ENV_GATED_SCOPES,
   getScopeDescription,
+  MANAGED_OAUTH_ADDITIONAL_SCOPES,
   OAUTH_SCOPES,
   SERVICE_SCOPE_NOTES,
 } from '../apps/sim/lib/oauth/scopes'
@@ -1512,7 +1513,7 @@ export function buildScopesSection(serviceId: string | undefined, name: string):
     })
     .join('\n')
 
-  const gatedNote = renderEnvGatedScopeNote(serviceId)
+  const gatedNote = renderEnvGatedScopeNote(serviceId, connectInfo.providerId)
 
   return (
     `## Scopes\n\n` +
@@ -1556,8 +1557,16 @@ const SELF_HOSTING_GENERATED_END = '{/* GENERATED-END:oauth-apps */}'
  * by deployment, which would leave everyone else failing `docs:check`. Saying so
  * in prose keeps the page honest for the reader who does set the flag.
  */
-function renderEnvGatedScopeNote(serviceId: string): string {
+function renderEnvGatedScopeNote(serviceId: string, providerId: string): string {
   const notes: string[] = []
+
+  const managed = MANAGED_OAUTH_ADDITIONAL_SCOPES[providerId]
+  if (managed) {
+    notes.push(
+      `A managed connection also requests ${renderScopeList(managed)}, which is how Sim ` +
+        `verifies the account behind the credential.`
+    )
+  }
 
   const gated = ENV_GATED_SCOPES[serviceId as keyof typeof ENV_GATED_SCOPES]
   if (gated) {
@@ -1644,10 +1653,16 @@ function buildSelfHostingOAuthReference(): string {
       })
       .join('\n')
 
-    const gatedNotes = connectors
-      .map(({ service }) => renderEnvGatedScopeNote(service.serviceId))
-      .filter(Boolean)
-      .join(' ')
+    // Deduplicated: a note that applies to every connector of an app (Google's
+    // managed `openid`) is one sentence about the app, not the same sentence
+    // fifteen times.
+    const gatedNotes = [
+      ...new Set(
+        connectors
+          .map(({ service }) => renderEnvGatedScopeNote(service.serviceId, service.providerId))
+          .filter(Boolean)
+      ),
+    ].join(' ')
 
     const callbackNote = NON_STANDARD_OAUTH_CALLBACKS[capabilityId]
 
