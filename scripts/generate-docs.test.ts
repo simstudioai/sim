@@ -988,6 +988,18 @@ describe('the generated Scopes section', () => {
    * app: Slack rejects the whole authorization when the app is not approved for
    * one, so omitting them entirely costs that reader the integration.
    */
+  /**
+   * Dataverse declares a resource scope, but binding an environment swaps it for
+   * that environment's `/.default`, so the rows alone claim a request the
+   * runtime does not make.
+   */
+  it('carries a service caveat the rows cannot state on their own', () => {
+    const section = buildScopesSection('microsoft-dataverse', 'Microsoft Dataverse')
+
+    expect(section).toContain('`<environment-url>/.default`')
+    expect(buildScopesSection('sharepoint', 'SharePoint')).not.toContain('.default')
+  })
+
   it('names the opt-in scopes in prose even though the table omits them', () => {
     const section = buildScopesSection('slack', 'Slack')
 

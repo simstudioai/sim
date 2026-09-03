@@ -7,7 +7,12 @@ import { isVersionedType, stripVersionSuffix } from '@sim/utils/string'
 import { glob } from 'glob'
 import type { BlockCategory } from '../apps/sim/blocks/types'
 import { IntegrationType } from '../apps/sim/blocks/types'
-import { ENV_GATED_SCOPES, getScopeDescription, OAUTH_SCOPES } from '../apps/sim/lib/oauth/scopes'
+import {
+  ENV_GATED_SCOPES,
+  getScopeDescription,
+  OAUTH_SCOPES,
+  SERVICE_SCOPE_NOTES,
+} from '../apps/sim/lib/oauth/scopes'
 import type { ToolOutputProperty } from '../apps/sim/tools/types'
 
 /**
@@ -1516,12 +1521,20 @@ const SELF_HOSTING_GENERATED_END = '{/* GENERATED-END:oauth-apps */}'
  * in prose keeps the page honest for the reader who does set the flag.
  */
 function renderEnvGatedScopeNote(serviceId: string): string {
+  const notes: string[] = []
+
   const gated = ENV_GATED_SCOPES[serviceId as keyof typeof ENV_GATED_SCOPES]
-  if (!gated) return ''
-  return (
-    `With \`${gated.envVar}\` set, Sim also requests ${renderScopeList(gated.scopes)}. ` +
-    `Add them to the app as well, or leave the flag unset.`
-  )
+  if (gated) {
+    notes.push(
+      `With \`${gated.envVar}\` set, Sim also requests ${renderScopeList(gated.scopes)}. ` +
+        `Add them to the app as well, or leave the flag unset.`
+    )
+  }
+
+  const caveat = SERVICE_SCOPE_NOTES[serviceId as keyof typeof SERVICE_SCOPE_NOTES]
+  if (caveat) notes.push(caveat)
+
+  return notes.join(' ')
 }
 
 const renderScopeList = (scopes: readonly string[]): string =>

@@ -262,6 +262,8 @@ Every connector below also requests `openid`, `profile`, `email`, `offline_acces
 | OneDrive | `onedrive` | `Files.Read`, `Files.ReadWrite` |
 | SharePoint | `sharepoint` | `Sites.Read.All`, `Sites.ReadWrite.All`, `Sites.Manage.All` |
 
+Connecting a specific environment requests `<environment-url>/.default` instead of the resource scope above, so the scope Sim asks for depends on the environment you pick.
+
 ### Monday.com
 
 `MONDAY_CLIENT_ID` / `MONDAY_CLIENT_SECRET`

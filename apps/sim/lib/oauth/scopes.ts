@@ -578,6 +578,21 @@ export const OAUTH_SCOPES = {
 export type OAuthScopedService = keyof typeof OAUTH_SCOPES
 
 /**
+ * A caveat the scope rows of one service cannot carry on their own, keyed by
+ * service id.
+ *
+ * Dataverse is the case that forced this: the row below is the resource scope
+ * the connector declares, but binding an environment swaps it for that
+ * environment's `/.default`, so a table printed without the caveat claims to
+ * list a request the runtime does not make.
+ */
+export const SERVICE_SCOPE_NOTES = {
+  'microsoft-dataverse':
+    'Connecting a specific environment requests `<environment-url>/.default` instead of the ' +
+    'resource scope above, so the scope Sim asks for depends on the environment you pick.',
+} as const satisfies Record<string, string>
+
+/**
  * Scopes a service requests only where the deployment has opted in, keyed by
  * service id.
  *
@@ -643,7 +658,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/chat.messages.readonly':
     'View messages in Google Chat spaces you are a member of',
   'https://www.googleapis.com/auth/meetings.space.created':
-    'Create and manage Google Meet meeting spaces',
+    'Create Google Meet spaces and manage the ones created through Sim',
   'https://www.googleapis.com/auth/meetings.space.readonly':
     'View Google Meet meeting space details',
   'https://www.googleapis.com/auth/cloud-platform':
@@ -859,7 +874,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'GroupMember.ReadWrite.All': 'Read and write all group memberships',
   'Directory.Read.All': 'Read directory data',
   'LicenseAssignment.Read.All': 'Read license assignments and subscribed SKUs',
-  'LicenseAssignment.ReadWrite.All': 'Assign and remove user licenses',
+  'LicenseAssignment.ReadWrite.All': 'Read, assign, and remove user licenses',
   'UserAuthenticationMethod.ReadWrite.All':
     'Read and reset authentication methods and passwords for all users',
   'AuditLog.Read.All': 'Read sign-in and directory audit logs',
@@ -997,7 +1012,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   write_customers: 'Read and manage Shopify customers',
   write_inventory: 'Read and manage Shopify inventory levels',
   read_locations: 'View store locations',
-  write_merchant_managed_fulfillment_orders: 'Create fulfillments for orders',
+  write_merchant_managed_fulfillment_orders: 'Read orders and create fulfillments for them',
 
   // Zoom scopes
   'user:read:user': 'View Zoom profile information',

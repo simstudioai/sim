@@ -65,7 +65,7 @@ Word splits a sentence across several internal runs whenever formatting changes 
 
 ### Permissions
 
-Connecting a Microsoft account grants Sim `Files.Read` and `Files.ReadWrite`, the permissions Microsoft Graph requires to read and write drive items. The same permissions cover SharePoint document libraries the account can already reach — Sim never gains access to anything the signed-in account could not open itself.
+Connecting a Microsoft account grants Sim the `Files` permissions Microsoft Graph requires to read and write drive items, listed in full under [Scopes](#scopes). `Files.Read` and `Files.ReadWrite` cover your own OneDrive; the `.All` variants are what make a SharePoint document library work, because the basic pair reaches only the signed-in user's own drive. Sim never gains access to anything the signed-in account could not open itself.
 {/* MANUAL-CONTENT-END */}
 
 
