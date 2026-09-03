@@ -12,12 +12,16 @@ const SLACK_V2 = {
   operations: { send_message: { toolId: 'slack_send' } },
 }
 
-function runtimeWith(responses: Record<string, unknown>): AgentCliRuntime {
+function runtimeWith(
+  responses: Record<string, unknown>,
+  requested: string[] = []
+): AgentCliRuntime {
   return {
     workspaceId: `ws-${Math.random().toString(36).slice(2)}`,
     userId: 'user-1',
     client: {
       request: async <T>(path: string): Promise<T> => {
+        requested.push(path)
         const hit = responses[path]
         if (hit === undefined) throw new Error(`Unexpected request: ${path}`)
         return hit as T
@@ -56,6 +60,32 @@ describe('universal grep', () => {
       count: true,
     })
     expect(count.stdout).toMatch(/^\d+ \(blocks=\d+\)$/)
+  })
+
+  it('resolves a bare --in against the listings and fetches only what it names', async () => {
+    // `grep x --in agent` used to materialize every searched world to find one block —
+    // 65 block details plus every workflow state; on dev that took 18-34s per call and
+    // tripped the per-user rate limit. Now the listings resolve the selector and only
+    // the matching resources are fetched.
+    const requested: string[] = []
+    const runtime = runtimeWith(
+      {
+        ...CATALOG,
+        '/api/v2/workflows': { data: [{ id: 'wf-1', name: 'Agent runner' }], nextCursor: null },
+        '/api/v2/workflows/wf-1/state': { data: { blocks: { b1: { type: 'agent' } } } },
+      },
+      requested
+    )
+    const result = await runEngine('grep', ['id'], runtime, {
+      scope: 'blocks,workflows',
+      in: 'agent',
+    })
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('blocks/agent:')
+    expect(requested).toContain('/api/v2/blocks/agent')
+    expect(requested).not.toContain('/api/v2/blocks/slack_v2')
+    // A workflow whose NAME contains the selector is a match too, fetched by the same rule.
+    expect(requested).toContain('/api/v2/workflows/wf-1/state')
   })
 
   it('accepts the world/resource path a match line prints as --in', async () => {
