@@ -114,7 +114,11 @@ describe('WorkspaceHostProvider', () => {
     expect(getDeploymentShape()).toBe(HOST_CONTEXT.deployment)
   })
 
-  it('follows the refetched host context over the initial one', () => {
+  it('follows a host context that arrives after mount over the initial seed', () => {
+    renderProvider(HOST_CONTEXT)
+    expect(textOf('context')).toBe('true')
+    expect(getDeploymentShape().billingEnabled).toBe(true)
+
     mockUseWorkspaceHostContextQuery.mockReturnValue({
       data: {
         ...HOST_CONTEXT,
@@ -122,7 +126,6 @@ describe('WorkspaceHostProvider', () => {
       },
       error: null,
     })
-
     renderProvider(HOST_CONTEXT)
 
     expect(textOf('context')).toBe('false')

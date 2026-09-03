@@ -62,6 +62,18 @@ const useDeploymentShapeStore = create<DeploymentShapeState>()(
 )
 
 /**
+ * The browser's env fallback, built once per document. The env constants it packages are
+ * themselves frozen at module init, so caching changes nothing semantically, and it gives
+ * {@link useDeploymentShape} a stable reference that memo dependencies can key on.
+ */
+let browserEnvFallback: DeploymentShape | null = null
+
+function browserFallbackShape(): DeploymentShape {
+  browserEnvFallback ??= resolveDeploymentShape()
+  return browserEnvFallback
+}
+
+/**
  * The shape this runtime's own configuration resolves to. On the server that is the
  * deployment's truth, and what the workspace host context projects. In the browser it
  * is the `NEXT_PUBLIC_*` fallback: right on every document that ran the root layout,
@@ -117,8 +129,9 @@ export function seedDeploymentShape(shape: DeploymentShape | undefined): void {
   seed(shape)
 }
 
-/** Drops the seeded shape. For tests; the app never unseeds on purpose. */
+/** Drops the seeded shape and the cached fallback. For tests; the app never unseeds on purpose. */
 export function resetDeploymentShape(): void {
+  browserEnvFallback = null
   useDeploymentShapeStore.getState().reset()
 }
 
@@ -130,11 +143,16 @@ export function resetDeploymentShape(): void {
  */
 export function getDeploymentShape(): DeploymentShape {
   if (typeof window === 'undefined') return resolveDeploymentShape()
-  return useDeploymentShapeStore.getState().seeded ?? resolveDeploymentShape()
+  return useDeploymentShapeStore.getState().seeded ?? browserFallbackShape()
 }
 
-/** {@link getDeploymentShape} for components, subscribed to the seeded value. */
+/**
+ * {@link getDeploymentShape} for components, subscribed to the seeded value. Returns the
+ * same object until the shape actually changes, so it is safe as a memo dependency for
+ * option lists and other derived values that read the shape outside React.
+ */
 export function useDeploymentShape(): DeploymentShape {
   const seeded = useDeploymentShapeStore((state) => state.seeded)
-  return seeded ?? resolveDeploymentShape()
+  if (seeded) return seeded
+  return typeof window === 'undefined' ? resolveDeploymentShape() : browserFallbackShape()
 }
