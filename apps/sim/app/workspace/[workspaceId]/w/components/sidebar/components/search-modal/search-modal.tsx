@@ -1317,7 +1317,7 @@ function SearchModalContent({
         aria-hidden={!visuallyOpen}
         aria-label='Search'
         className={cn(
-          '-translate-x-1/2 fixed top-[15%] z-[var(--z-modal)] w-[min(500px,calc(100%-32px))] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
+          '-translate-x-1/2 fixed top-[15%] z-[var(--z-modal)] w-[min(500px,calc(100%-32px))] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] dark:bg-[var(--surface-5)]',
           visuallyOpen ? 'visible opacity-100' : 'invisible opacity-0'
         )}
         style={{

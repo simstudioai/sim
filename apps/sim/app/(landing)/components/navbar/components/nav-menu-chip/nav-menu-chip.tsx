@@ -77,7 +77,7 @@ export function NavMenuChip({ menu }: NavMenuChipProps) {
       </button>
 
       <div className={cn(PANEL_BASE, !closed && PANEL_REVEAL)}>
-        <div className='w-[840px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)]'>
+        <div className='w-[840px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px]'>
           <div className='rounded-lg border border-[var(--border-1)] bg-[var(--bg)] p-2'>
             <div className='grid grid-cols-3 gap-1' role='group' aria-label={label}>
               {items.map((item) => (

@@ -82,7 +82,6 @@ describe('StatusNotice', () => {
     const notice = container.querySelector('[role="alert"]')
     const action = container.querySelector<HTMLAnchorElement>('a')
     expect(notice?.className).toContain('border-[var(--terminal-status-error-border)]')
-    expect(notice?.className).toContain('shadow-[var(--shadow-overlay)]')
     expect(notice?.className).toContain(
       '[--surface-hover:color-mix(in_srgb,var(--text-error)_8%,transparent)]'
     )
