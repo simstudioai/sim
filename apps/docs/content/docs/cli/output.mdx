@@ -68,7 +68,7 @@ sim logs get 9c4f0b7e-2d81-4a35-b6e9-70f1c8a2d543 --output json | jq '.traceSpan
 
 ## Exceptions
 
-`sim profiles` and `sim configure` print local configuration for humans.
+`sim configure` prints local configuration for humans. `sim profiles` honors `--output`.
 `sim files get` writes the file’s raw content to stdout or `--output-file`.
 
 `sim chat` streams reply text in `table` and `text` modes. In `json` or `yaml`
