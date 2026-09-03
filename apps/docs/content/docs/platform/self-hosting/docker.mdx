@@ -169,7 +169,7 @@ docker compose -f "$COMPOSE_FILE" up -d --force-recreate simstudio
 | `sim-setup` | The setup wizard. `--quick` skips the prompts, `--dir <path>` picks the directory, `--mode compose\|dev\|k8s` picks the target (`dev` and `k8s` need a source checkout) |
 | `sim-setup status` | Show what is installed and healthy |
 | `sim-setup logs` | Follow logs. On a source checkout it prints where the logs are — the dev server streams in its own terminal — rather than following a stream |
-| `sim-setup start` / `stop` / `restart` | Bring the install up, down, or cycle it |
+| `sim-setup start` / `stop` / `restart` | Bring the install up, down, or cycle it. On a source checkout this covers only the managed Postgres and Redis containers — the dev server is yours to start and stop. On Kubernetes it prints the equivalent `kubectl` commands instead of acting |
 | `sim-setup update` | Pull or rebuild images and apply them. Compose installs only — it refuses on source checkouts and Kubernetes, which update through git and `helm upgrade` |
 | `sim-setup down` | Remove containers, keep the data |
 | `sim-setup reset` | Archive `.env` and wipe managed data |
