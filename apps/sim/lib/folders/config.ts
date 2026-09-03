@@ -329,6 +329,12 @@ async function archiveTableChildren(context: CascadeChildrenContext): Promise<nu
       result.failed[0].reason
     )
   }
+  if (result.notFound.length > 0 || result.archived.length !== ids.length) {
+    throw new OrchestrationError(
+      'conflict',
+      'One or more tables changed while their folder was being deleted'
+    )
+  }
 
   return result.archived.length
 }

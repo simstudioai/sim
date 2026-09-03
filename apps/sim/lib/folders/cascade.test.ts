@@ -617,6 +617,30 @@ describe('knowledge_base and table folder resources', () => {
     ).rejects.toMatchObject({ code: 'locked', message: 'Table deletion is locked' })
   })
 
+  it('rejects the cohort when a table changes after child selection', async () => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.userTableDefinitions, [
+      { id: 'tbl_accounts' },
+      { id: 'tbl_contacts' },
+    ])
+    tableServiceMocks.deleteTables.mockResolvedValueOnce({
+      archived: [],
+      failed: [],
+      notFound: ['tbl_contacts'],
+    })
+
+    await expect(
+      tableConfig.archiveChildren?.({
+        workspaceId: 'ws-1',
+        folderIds: ['folder-1'],
+        timestamp: TIMESTAMP,
+      })
+    ).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'One or more tables changed while their folder was being deleted',
+    })
+  })
+
   it('re-archives a successful restore prefix when a later cohort table fails', async () => {
     resetDbChainMock()
     queueTableRows(schemaMock.userTableDefinitions, [

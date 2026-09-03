@@ -1468,7 +1468,7 @@ export async function deleteTables(
 
     const archived: DeleteTablesResult['archived'] = []
     if (options.archiveAsCohort) {
-      if (failed.length > 0) return { archived, failed, notFound }
+      if (failed.length > 0 || notFound.length > 0) return { archived, failed, notFound }
       const cohort = [...archivePlan.ordered, ...archivePlan.blockedByCycle]
       if (cohort.length > 0) {
         archived.push(

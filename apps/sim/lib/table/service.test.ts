@@ -831,6 +831,24 @@ describe('deleteTables reference guard', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
+  it('archives none of a restore cohort when one selected table is no longer active', async () => {
+    queueTableRows(schemaMock.userTableDefinitions, [batchTable('tbl_accounts', 'Accounts')])
+
+    await expect(
+      deleteTables(['tbl_accounts', 'tbl_contacts'], 'folder-cascade-folder-1', {
+        expectedWorkspaceId: WORKSPACE_ID,
+        skipNotify: true,
+        archiveAsCohort: true,
+      })
+    ).resolves.toEqual({
+      archived: [],
+      failed: [],
+      notFound: ['tbl_contacts'],
+    })
+
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
   it('allows a self-referencing table to archive', async () => {
     queueTableRows(schemaMock.userTableDefinitions, [
       batchTable('tbl_categories', 'Categories', ['tbl_categories']),
