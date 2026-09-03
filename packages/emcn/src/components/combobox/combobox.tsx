@@ -285,7 +285,7 @@ const Combobox = memo(
       )
       const searchInputRef = useRef<HTMLInputElement>(null)
       const containerRef = useRef<HTMLDivElement>(null)
-      const scrollAreaRef = useRef<HTMLDivElement>(null)
+      const [scrollArea, setScrollArea] = useState<HTMLDivElement | null>(null)
       const dropdownRef = useRef<HTMLDivElement>(null)
       const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null)
       const internalInputRef = useRef<HTMLInputElement>(null)
@@ -428,7 +428,7 @@ const Combobox = memo(
         !filteredGroups && !showAllOption && filteredOptions.length >= VIRTUALIZE_OPTION_THRESHOLD
       const optionVirtualizer = useVirtualizer({
         count: virtualizeOptions ? filteredOptions.length : 0,
-        getScrollElement: () => scrollAreaRef.current,
+        getScrollElement: () => scrollArea,
         estimateSize: () => (size === 'sm' ? 28 : 34),
         overscan: 8,
       })
@@ -944,7 +944,7 @@ const Combobox = memo(
                 </div>
               )}
               <PopoverScrollArea
-                ref={scrollAreaRef}
+                ref={setScrollArea}
                 className='flex-none! p-1'
                 style={{ maxHeight: `${maxHeight}px` }}
                 onScroll={(event) => {
