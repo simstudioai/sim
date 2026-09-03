@@ -8,6 +8,8 @@
  */
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { parseFolderPath } from '@/lib/folders/paths'
+import { readFolderPaths } from '@/lib/folders/selection'
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import type { FilterRule, SortRule } from '@/lib/table/types'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
@@ -601,4 +603,33 @@ export function resolveSandboxLabel(
   if (typeof rawValue !== 'string' || !rawValue) return null
 
   return sandboxes.find((sandbox) => sandbox.id === rawValue)?.name ?? null
+}
+
+/**
+ * Names a picked folder from the canonical path the picker stores.
+ *
+ * The path is in `SELECTOR_TYPES_HYDRATION_REQUIRED` because it is not fit to
+ * show raw — `/Reports/Q3%20Results` is percent-encoded — and a type in that
+ * list with no resolver renders as the unset placeholder, which reads as "you
+ * picked nothing" rather than "this could not be named".
+ *
+ * The path already carries the names, so this decodes rather than fetches: no
+ * request per canvas row, no loading state, and nothing to go stale that the
+ * stored path has not gone stale with.
+ */
+export function resolveFolderPathLabel(
+  subBlock: SubBlockConfig | undefined,
+  rawValue: unknown
+): string | null {
+  if (subBlock?.type !== 'folder-selector' || !subBlock.resourceType) return null
+
+  const names = readFolderPaths(rawValue).flatMap((path) => {
+    try {
+      const segments = parseFolderPath(path)
+      return segments.length > 0 ? [segments.join(' / ')] : []
+    } catch {
+      return [path]
+    }
+  })
+  return summarizeNames(names)
 }

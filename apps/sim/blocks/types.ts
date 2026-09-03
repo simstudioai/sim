@@ -5,6 +5,7 @@ import type {
   PrimitiveValueType,
   SubBlockType,
 } from '@sim/workflow-types/blocks'
+import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { ToolResponse } from '@/tools/types'
 
@@ -282,6 +283,16 @@ export interface SubBlockConfig {
    * stored, where a backslash is the author's own character.
    */
   searchTextFormat?: 'markdown'
+  /**
+   * Marks a `folder-selector` as a Sim workspace-folder field and selects which
+   * resource folders it offers. Provider folder selectors omit this property.
+   */
+  resourceType?: FolderResourceType
+  /**
+   * Narrows this control's options to a folder chosen elsewhere on the block,
+   * and identifies the sibling deciding whether that scope reaches nested folders.
+   */
+  folderScope?: { fieldId: string; recursiveFieldId?: string }
   /** Controls parameter visibility in agent/tool-input context */
   paramVisibility?: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'
   /**

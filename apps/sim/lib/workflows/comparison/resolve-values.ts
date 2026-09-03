@@ -8,6 +8,7 @@ import { buildSelectorRawContext, projectSelectorContext } from '@/lib/selectors
 import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
 import type { SelectorContext, SelectorScope } from '@/lib/selectors/types'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
+import { resolveFolderPathLabel } from '@/lib/workflows/subblocks/display'
 import { getBlock } from '@/blocks/registry'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { isUuid } from '@/executor/constants'
@@ -261,6 +262,17 @@ export async function resolveValueForDisplay(
     } catch {
       logger.warn('Failed to resolve dropdown display label')
     }
+  }
+
+  /*
+   * A folder picker is in the hydration list but has no selector manifest entry,
+   * so without this it falls through to the generic semantic fallback and a diff
+   * renders both the old and the new path as the same word — hiding the change
+   * it exists to show. Same resolver the canvas card uses, so the two agree.
+   */
+  const folderPathLabel = resolveFolderPathLabel(subBlockConfig, value)
+  if (folderPathLabel) {
+    return { original: value, displayLabel: folderPathLabel, resolved: true }
   }
 
   if (SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlockConfig.type)) {

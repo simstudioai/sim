@@ -7,6 +7,7 @@ import { isRecordLike } from '@sim/utils/object'
 import JSZip from 'jszip'
 import type { ContractBody } from '@/lib/api/contracts'
 import type { fileManageContract } from '@/lib/api/contracts/tools/file'
+import { DEFAULT_FILE_LIST_LIMIT } from '@/lib/api/contracts/tools/file'
 import { splitWorkspaceFilePath } from '@/lib/copilot/tools/server/files/workspace-file'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -26,7 +27,9 @@ import {
   requestsPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
-import { buildFolderPath } from '@/lib/folders/paths'
+import { buildFolderPath, parseFolderPath, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
+import type { FolderIdScope } from '@/lib/folders/scope'
+import { collectFolderDepths } from '@/lib/folders/subtree'
 import { ShareValidationError } from '@/lib/public-shares/share-manager'
 import {
   ArchiveError,
@@ -35,7 +38,11 @@ import {
   MAX_ARCHIVE_BYTES,
   statusForArchiveError,
 } from '@/lib/uploads/archive'
-import type { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { normalizeWorkspaceFileItemName } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import type {
+  getWorkspaceFile,
+  WorkspaceFileRecord,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
@@ -57,6 +64,11 @@ import {
   createWorkspaceFile,
   createWorkspaceFileFromBuffer,
 } from '@/lib/workspace-files/application/create-workspace-file'
+import { editWorkspaceFileContent } from '@/lib/workspace-files/application/edit-workspace-file-content'
+import {
+  listWorkspaceFilesInFolderScope,
+  queryWorkspaceFilePage,
+} from '@/lib/workspace-files/application/list-workspace-files'
 import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
@@ -65,11 +77,27 @@ import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/r
 import { readWorkspaceFileSecretProvenance } from '@/lib/workspace-files/application/read-workspace-file-secret-provenance'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import {
-  getWorkspaceFileShare,
+  getWorkspaceFileShares,
   updateWorkspaceFileShare,
 } from '@/lib/workspace-files/application/share-workspace-file'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
-import { ensureWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import {
+  createWorkspaceFileFolderOperation,
+  deleteWorkspaceFileFolderOperation,
+  ensureWorkspaceFileFolderPathOperation,
+  listWorkspaceFileFoldersOperation,
+  restoreWorkspaceFileFolderOperation,
+  updateWorkspaceFileFolderOperation,
+} from '@/lib/workspace-files/application/workspace-file-folders'
+import { selectDirectoryEntries } from '@/lib/workspace-files/directory-listing'
+import type { WorkspaceFileContentEdit } from '@/lib/workspace-files/edit-content'
+import { countLines, detectLineEnding } from '@/lib/workspace-files/edit-content'
+import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
+import { resolveFolderIdsForPaths } from '@/lib/workspace-files/folder-path-selection'
+import {
+  MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
+  MAX_ZIP_DOWNLOAD_FILES,
+} from '@/lib/workspace-files/limits'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 import { isWorkspaceAccessDeniedError } from '@/lib/workspaces/permissions/utils'
 import type { UserFile } from '@/executor/types'
@@ -96,6 +124,29 @@ export interface FileManageOperationContext {
   headers: Headers
   requestId: string
   signal?: AbortSignal
+}
+
+function directoryFileScopeForDepthRange(
+  rootId: string | null,
+  folderDepths: ReadonlyMap<string, number>,
+  minDepth: number,
+  maxDepth: number
+): FolderIdScope {
+  const folderIds = new Set<string>()
+
+  if (minDepth <= 0 && maxDepth >= 0 && rootId !== null) folderIds.add(rootId)
+  for (const [folderId, depth] of folderDepths) {
+    if (depth >= minDepth && depth <= maxDepth) folderIds.add(folderId)
+  }
+
+  return {
+    folderIds,
+    includeRootItems: rootId === null && minDepth <= 0 && maxDepth >= 0,
+  }
+}
+
+function hasDirectoryFileScope(scope: FolderIdScope): boolean {
+  return scope.includeRootItems || scope.folderIds.size > 0
 }
 
 async function assertOperationFileAccess(
@@ -187,31 +238,48 @@ const normalizeFileIdList = (value: unknown): string[] => {
     const trimmed = value.trim()
     if (!trimmed) return []
 
+    let parsed: unknown
     try {
-      return normalizeFileIdList(JSON.parse(trimmed))
+      parsed = JSON.parse(trimmed)
     } catch {
       return [trimmed]
     }
+    return normalizeFileIdList(parsed)
   }
 
   if (!Array.isArray(value)) return []
 
-  return value
+  const ids = value
     .map((item) => (typeof item === 'string' ? item.trim() : ''))
     .filter((id) => id.length > 0)
+  if (ids.length > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+    )
+  }
+  return ids
+}
+
+const fileInputs = (fileInput: unknown): unknown[] => {
+  const inputs = Array.isArray(fileInput) ? fileInput : fileInput ? [fileInput] : []
+  if (inputs.length > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `File input contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+    )
+  }
+  return inputs
 }
 
 const extractUserFilesFromInput = (fileInput: unknown) => {
-  const inputs = Array.isArray(fileInput) ? fileInput : fileInput ? [fileInput] : []
-  return inputs
+  return fileInputs(fileInput)
     .map((input) => fileInputToUserFile(input))
     .filter((file): file is NonNullable<ReturnType<typeof fileInputToUserFile>> => Boolean(file))
 }
 
 const extractFileIdsFromInput = (fileInput: unknown): string[] => {
-  const inputs = Array.isArray(fileInput) ? fileInput : fileInput ? [fileInput] : []
-
-  return inputs
+  const ids = fileInputs(fileInput)
     .flatMap((input) => {
       if (typeof input === 'string') return normalizeFileIdList(input)
       if (input && typeof input === 'object') {
@@ -222,6 +290,31 @@ const extractFileIdsFromInput = (fileInput: unknown): string[] => {
       return []
     })
     .filter((id) => id.length > 0)
+  if (ids.length > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+    )
+  }
+  return ids
+}
+
+function assertFileSelectionLimit(count: number, limit: number, message: string): void {
+  if (count > limit) throw new OrchestrationError('payload_too_large', message)
+}
+
+function resolveSelectedFileIds(fileId: unknown, fileInput: unknown): string[] {
+  const ids = Array.isArray(fileId)
+    ? fileId.map((id) => (typeof id === 'string' ? id.trim() : '')).filter(Boolean)
+    : fileId
+      ? normalizeFileIdList(fileId)
+      : extractFileIdsFromInput(fileInput)
+  assertFileSelectionLimit(
+    ids.length,
+    MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
+    `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+  )
+  return ids
 }
 
 /** Per-file download cap for the content operation. Aligned with the durable large-value ceiling. */
@@ -259,9 +352,12 @@ const stripExtension = (name: string): string => {
  * untrusted input cannot introduce nested or zip-slip-style paths.
  */
 const toFlatFileName = (name: string, fallback: string): string => {
-  const leaf = name.replace(/\\/g, '/').split('/').pop()?.trim()
-  if (!leaf || leaf === '.' || leaf === '..') return fallback
-  return leaf
+  const { leafName } = splitWorkspaceFilePath(name.replaceAll('\\', '/'))
+  try {
+    return normalizeWorkspaceFileItemName(leafName, 'File')
+  } catch {
+    return fallback
+  }
 }
 
 /** A file bound for a compress archive, paired with the workspace folder it lives in. */
@@ -272,15 +368,68 @@ interface ArchiveEntry {
 
 const isLikelyTextBuffer = (buffer: Buffer): boolean => isUtf8(buffer) && !buffer.includes(0)
 
+/** What a caller needs to tell a file that ended from a window that ran out. */
+interface FileContentLineRange {
+  offset: number
+  lineCount: number
+  totalLines: number
+  /** False when extraction was truncated, so `totalLines` is not the file's end. */
+  totalLinesExact: boolean
+}
+
+/**
+ * Narrows extracted text to a line window.
+ *
+ * Reported alongside the text rather than inferred from it: without
+ * `totalLines` a caller cannot distinguish a file that ended from a window
+ * that stopped early, which is the same absent-versus-unknown confusion the
+ * search index carries.
+ */
+function sliceTextLines(
+  text: string,
+  offset: number | undefined,
+  limit: number | undefined,
+  truncatedExtraction: boolean
+): { text: string; range?: FileContentLineRange } {
+  if (offset === undefined && limit === undefined) return { text }
+
+  /* Counted the same way insert accepts them; see {@link countLines}. */
+  const effective = text.split(/\r\n|\n/).slice(0, countLines(text))
+  const start = Math.max((offset ?? 1) - 1, 0)
+  const window = effective.slice(start, limit === undefined ? undefined : start + limit)
+
+  return {
+    /* Rejoined with the text's own ending, so the window stays usable verbatim as an edit's search text. */
+    text: window.join(detectLineEnding(text)),
+    range: {
+      offset: start + 1,
+      lineCount: window.length,
+      totalLines: effective.length,
+      totalLinesExact: !truncatedExtraction,
+    },
+  }
+}
+
 /**
  * Download a stored file and extract its text content. Parseable types (PDF, DOCX,
  * CSV, etc.) go through the shared file-parsers; other UTF-8 files are returned as
  * raw text; binary files yield a short placeholder rather than corrupt bytes.
  */
+/**
+ * Extracted text, plus whether the parser reached the end of the input.
+ *
+ * `truncated` travels because a line range computed over a truncated
+ * extraction would otherwise report the prefix's length as the file's end.
+ */
+interface ExtractedFileText {
+  text: string
+  truncated: boolean
+}
+
 const extractUserFileTextContent = async (
   userFile: UserFile,
   requestId: string
-): Promise<string> => {
+): Promise<ExtractedFileText> => {
   const { buffer } = await downloadServableFileFromStorage(userFile, requestId, logger, {
     maxBytes: MAX_GET_CONTENT_FILE_BYTES,
   })
@@ -289,7 +438,7 @@ const extractUserFileTextContent = async (
   if (extension && isSupportedFileType(extension)) {
     try {
       const result = await parseBuffer(buffer, extension)
-      return result.content ?? ''
+      return { text: result.content ?? '', truncated: result.metadata?.truncated === true }
     } catch (error) {
       logger.warn('Falling back to raw text after parser failure', {
         name: userFile.name,
@@ -299,10 +448,13 @@ const extractUserFileTextContent = async (
   }
 
   if (isLikelyTextBuffer(buffer)) {
-    return buffer.toString('utf-8')
+    return { text: buffer.toString('utf-8'), truncated: false }
   }
 
-  return `[Binary file: ${userFile.name} (${userFile.type || 'application/octet-stream'}, ${buffer.length} bytes). Cannot extract text content.]`
+  return {
+    text: `[Binary file: ${userFile.name} (${userFile.type || 'application/octet-stream'}, ${buffer.length} bytes). Cannot extract text content.]`,
+    truncated: false,
+  }
 }
 
 export interface FileContentProvenanceSource {
@@ -486,24 +638,29 @@ function resolveFileWriteSecretProvenance(options: {
 
 /**
  * Resolves the file an overwriting write should replace, or null when nothing exists at the
- * target path. The shared reference resolver falls back to a workspace-wide name match, so the
- * result is accepted only when it sits at exactly the folder and leaf name being written.
+ * target path. A picker path is already resolved to a canonical folder id, so its exact-name
+ * lookup stays inside that folder and never expands the folder's descendants.
  */
 async function resolveWriteOverwriteTarget(options: {
   principal: Principal
   workspaceId: string
   folderId: string | null
+  /** Canonical destination when one was picked; unambiguous where a joined reference is not. */
+  folderPath?: string
   folderSegments: string[]
   leafName: string
 }) {
-  const { principal, workspaceId, folderId, folderSegments, leafName } = options
+  const { principal, workspaceId, folderId, folderPath, folderSegments, leafName } = options
+  const reference = folderPath ? leafName : [...folderSegments, leafName].join('/')
+
   let existing: Awaited<ReturnType<typeof resolveWorkspaceFileReference>>
   try {
     existing = await resolveWorkspaceFileReference({
       principal,
       operation: fileOperations.updateContent,
       workspaceId,
-      reference: [...folderSegments, leafName].join('/'),
+      reference,
+      ...(folderPath ? { folderId } : {}),
     })
   } catch (error) {
     if (error instanceof OrchestrationError && error.code === 'not_found') return null
@@ -553,6 +710,195 @@ export function fileContentJsonResponse(
     { ...body, [RESOLVED_SECRET_PROVENANCE_FIELD]: provenance },
     { ...init, headers }
   )
+}
+
+/**
+ * Expands folder paths to every file beneath them.
+ *
+ * The scope resolution is shared with content search, which pushes the same
+ * scope down into SQL rather than listing files; this is the file half of it.
+ */
+async function expandFolderPathsToFiles(args: {
+  principal: Principal
+  workspaceId: string
+  folderPaths: string[] | undefined
+  includeSubfolders: boolean | undefined
+  limit?: number
+}): Promise<WorkspaceFileRecord[]> {
+  if (!args.folderPaths?.length) return []
+
+  const limit = args.limit ?? MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS
+  const { files, truncated } = await listWorkspaceFilesInFolderScope.execute({
+    principal: args.principal,
+    input: {
+      workspaceId: args.workspaceId,
+      folderPaths: args.folderPaths,
+      includeSubfolders: args.includeSubfolders,
+      limit,
+    },
+  })
+  if (truncated) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `Folder selection contains more than ${limit} files`
+    )
+  }
+  return files
+}
+
+/**
+ * Resolves explicit ids and dynamic folder contents into one bounded metadata
+ * selection. Folder rows already crossed the authorized list boundary, so only
+ * explicit ids need individual lookup; a folder-only read remains two bounded
+ * queries instead of becoming one metadata query per file.
+ */
+async function loadSelectedWorkspaceFileMetadata(args: {
+  principal: Principal
+  workspaceId: string
+  fileIds: string[]
+  folderPaths: string[] | undefined
+  includeSubfolders: boolean | undefined
+}): Promise<WorkspaceFileRecord[]> {
+  const folderFiles = await expandFolderPathsToFiles(args)
+  const folderFileById = new Map(folderFiles.map((file) => [file.id, file]))
+  const files: WorkspaceFileRecord[] = []
+  const seen = new Set<string>()
+
+  for (const id of args.fileIds) {
+    if (seen.has(id)) continue
+    const folderFile = folderFileById.get(id)
+    if (folderFile) {
+      files.push(folderFile)
+      seen.add(id)
+      continue
+    }
+    try {
+      files.push(
+        (
+          await readWorkspaceFileMetadata.execute({
+            principal: args.principal,
+            input: { fileId: id, assertedWorkspaceId: args.workspaceId },
+          })
+        ).file
+      )
+      seen.add(id)
+    } catch (error) {
+      if (error instanceof OrchestrationError && error.code === 'not_found') {
+        throw new OrchestrationError('not_found', `File not found: "${id}"`)
+      }
+      throw error
+    }
+  }
+
+  for (const file of folderFiles) {
+    if (seen.has(file.id)) continue
+    files.push(file)
+    seen.add(file.id)
+  }
+  if (files.length > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+    )
+  }
+  return files
+}
+
+async function expandFolderPathsToFileIds(args: {
+  principal: Principal
+  workspaceId: string
+  folderPaths: string[] | undefined
+  includeSubfolders: boolean | undefined
+  limit?: number
+}): Promise<string[]> {
+  return (await expandFolderPathsToFiles(args)).map((file) => file.id)
+}
+
+/**
+ * Resolves a typed file name inside a chosen folder to a canonical id.
+ *
+ * A picked file arrives as a canonical id, which is already exact. A typed name
+ * is not: the same name can exist in several folders, and a workspace-wide
+ * lookup takes the oldest match anywhere. When a folder was chosen it is the
+ * only thing disambiguating the target, so the name is resolved inside it, by
+ * id, so the slash-in-a-folder-name hazard of a path-shaped reference never
+ * arises.
+ *
+ * Shared by every operation that writes to a named file, because each of them
+ * has the same way to go wrong and this logic has already been rewritten twice
+ * under review.
+ */
+async function resolveScopedFileReference(args: {
+  principal: Principal
+  workspaceId: string
+  fileName: string
+  folderPath: string | undefined
+  folderPaths: string[] | undefined
+  includeSubfolders: boolean | undefined
+}): Promise<string> {
+  const { fileName } = args
+  const folderPaths = args.folderPaths ?? (args.folderPath ? [args.folderPath] : [])
+  if (folderPaths.length === 0) return fileName
+  const scopeLabel = folderPaths.join(', ')
+
+  const scoped = await expandFolderPathsToFiles({
+    principal: args.principal,
+    workspaceId: args.workspaceId,
+    folderPaths,
+    includeSubfolders: args.includeSubfolders,
+  })
+  /*
+   * An exact id inside the scope wins outright. Matching id and name together
+   * let a file NAMED like an id outproduce the file that actually carries it:
+   * `wf_` is a legal filename prefix, so a caller passing a real id could be
+   * answered with a different file that merely happens to be called that.
+   */
+  const byId = scoped.find((file) => file.id === fileName)
+  if (byId) return byId.id
+
+  /*
+   * A reference that IS a real file id, but for a file outside this folder, is
+   * out of scope — never a name match. Falling through would answer a caller
+   * who named one file exactly with a different file that happens to be called
+   * like that id, which is the same lookalike hazard pointed the other way.
+   *
+   * Decided by looking the id up rather than by its shape, because `wf_` is a
+   * legal filename prefix and inferring from it is what this resolution has
+   * twice been wrong about.
+   */
+  let exactIdExists = false
+  try {
+    await readWorkspaceFileMetadata.execute({
+      principal: args.principal,
+      input: { fileId: fileName, assertedWorkspaceId: args.workspaceId },
+    })
+    exactIdExists = true
+  } catch (error) {
+    if (!(error instanceof OrchestrationError) || error.code !== 'not_found') throw error
+  }
+  if (exactIdExists) {
+    throw new OrchestrationError('not_found', `File ${fileName} is not in ${scopeLabel}`)
+  }
+
+  const matches = scoped.filter((file) => file.name === fileName)
+  if (matches.length === 0) {
+    throw new OrchestrationError('not_found', `No file named ${fileName} in ${scopeLabel}`)
+  }
+  /*
+   * A recursive scope can hold the same name at several depths, and writing to
+   * whichever the walk happened to reach first is a silent write to an
+   * arbitrary file. Refusing names the candidates so the caller can pick one,
+   * which is the whole reason the scope exists.
+   */
+  if (matches.length > 1) {
+    throw new OrchestrationError(
+      'validation',
+      `${matches.length} files named ${fileName} under ${scopeLabel}: ${matches
+        .map((file) => file.id)
+        .join(', ')}. Give the file ID, name a deeper folder, or set includeSubfolders to false.`
+    )
+  }
+  return matches[0].id
 }
 
 export async function executeFileManageOperation(
@@ -626,57 +972,39 @@ export async function executeFileManageOperation(
       }
 
       case 'read': {
-        const { fileId, fileInput } = body
-        const selectedFileIds = Array.isArray(fileId)
-          ? fileId.map((id) => id.trim()).filter(Boolean)
-          : fileId
-            ? normalizeFileIdList(fileId)
-            : extractFileIdsFromInput(fileInput)
+        const { fileId, fileInput, folderPaths, includeSubfolders } = body
+        const explicitFileIds = resolveSelectedFileIds(fileId, fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
 
-        if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
+        assertFileSelectionLimit(
+          explicitFileIds.length + selectedInputFiles.length,
+          MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
+          `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+        )
+
+        signal?.throwIfAborted()
+        const files = await loadSelectedWorkspaceFileMetadata({
+          principal,
+          workspaceId,
+          fileIds: explicitFileIds,
+          folderPaths,
+          includeSubfolders,
+        })
+
+        if (files.length === 0 && selectedInputFiles.length === 0) {
           return Response.json({ success: false, error: 'File is required' }, { status: 400 })
         }
-
-        const files = [] as Array<NonNullable<Awaited<ReturnType<typeof getWorkspaceFile>>>>
-        for (const id of selectedFileIds) {
-          signal?.throwIfAborted()
-          try {
-            files.push(
-              (
-                await readWorkspaceFileMetadata.execute({
-                  principal,
-                  input: { fileId: id, assertedWorkspaceId: workspaceId },
-                })
-              ).file
-            )
-          } catch (error) {
-            if (error instanceof OrchestrationError && error.code === 'not_found') {
-              return Response.json(
-                { success: false, error: `File not found: "${id}"` },
-                { status: 404 }
-              )
-            }
-            throw error
-          }
+        if (files.length + selectedInputFiles.length > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
+          throw new OrchestrationError(
+            'payload_too_large',
+            `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+          )
         }
 
-        const shares = new Map(
-          await Promise.all(
-            files.map(
-              async (file) =>
-                [
-                  file.id,
-                  (
-                    await getWorkspaceFileShare.execute({
-                      principal,
-                      input: { fileId: file.id, assertedWorkspaceId: workspaceId },
-                    })
-                  ).share,
-                ] as const
-            )
-          )
-        )
+        const { shares } = await getWorkspaceFileShares.execute({
+          principal,
+          input: { workspaceId, fileIds: files.map((file) => file.id) },
+        })
         const privateReadShare = () => ({
           visibility: 'private' as const,
           url: null,
@@ -717,41 +1045,36 @@ export async function executeFileManageOperation(
       }
 
       case 'content': {
-        const { fileId, fileInput } = body
-        const selectedFileIds = Array.isArray(fileId)
-          ? fileId.map((id) => id.trim()).filter(Boolean)
-          : fileId
-            ? normalizeFileIdList(fileId)
-            : extractFileIdsFromInput(fileInput)
+        const { fileId, fileInput, folderPaths, includeSubfolders } = body
+        const explicitFileIds = resolveSelectedFileIds(fileId, fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
 
-        if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
+        assertFileSelectionLimit(
+          explicitFileIds.length + selectedInputFiles.length,
+          MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
+          `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+        )
+
+        signal?.throwIfAborted()
+        const workspaceFiles = await loadSelectedWorkspaceFileMetadata({
+          principal,
+          workspaceId,
+          fileIds: explicitFileIds,
+          folderPaths,
+          includeSubfolders,
+        })
+
+        if (workspaceFiles.length === 0 && selectedInputFiles.length === 0) {
           return contentResponse({ success: false, error: 'File is required' }, { status: 400 })
         }
-
-        const workspaceFiles = [] as Array<
-          NonNullable<Awaited<ReturnType<typeof getWorkspaceFile>>>
-        >
-        for (const id of selectedFileIds) {
-          signal?.throwIfAborted()
-          try {
-            workspaceFiles.push(
-              (
-                await readWorkspaceFileMetadata.execute({
-                  principal,
-                  input: { fileId: id, assertedWorkspaceId: workspaceId },
-                })
-              ).file
-            )
-          } catch (error) {
-            if (error instanceof OrchestrationError && error.code === 'not_found') {
-              return contentResponse(
-                { success: false, error: `File not found: "${id}"` },
-                { status: 404 }
-              )
-            }
-            throw error
-          }
+        if (
+          workspaceFiles.length + selectedInputFiles.length >
+          MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS
+        ) {
+          throw new OrchestrationError(
+            'payload_too_large',
+            `File selection contains more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+          )
         }
 
         const canonicalSources: FileContentSource[] = workspaceFiles.flatMap((file) => {
@@ -776,6 +1099,7 @@ export async function executeFileManageOperation(
         const sources = canonicalSources.concat(selectedSources)
 
         const contents: string[] = []
+        const lineRanges: FileContentLineRange[] = []
         let totalBytes = 0
         for (const source of sources) {
           signal?.throwIfAborted()
@@ -791,7 +1115,14 @@ export async function executeFileManageOperation(
             })
           }
 
-          const content = await extractUserFileTextContent(source.file, requestId)
+          const extracted = await extractUserFileTextContent(source.file, requestId)
+          const { text: content, range } = sliceTextLines(
+            extracted.text,
+            body.offset,
+            body.limit,
+            extracted.truncated
+          )
+          if (range) lineRanges.push(range)
           totalBytes += Buffer.byteLength(content, 'utf8')
           if (totalBytes > MAX_GET_CONTENT_TOTAL_BYTES) {
             return contentResponse(
@@ -812,11 +1143,18 @@ export async function executeFileManageOperation(
           ? await getFileContentProvenance(principal, workspaceId, sources, signal)
           : undefined
 
-        return contentResponse({ success: true, data: { contents } }, undefined, provenance)
+        return contentResponse(
+          {
+            success: true,
+            data: { contents, ...(lineRanges.length > 0 ? { lineRanges } : {}) },
+          },
+          undefined,
+          provenance
+        )
       }
 
       case 'write': {
-        const { fileName, content, fileInput, contentType, overwrite } = body
+        const { fileName, content, fileInput, contentType, overwrite, folderPath } = body
         signal?.throwIfAborted()
         const provenanceResolution = resolveFileWriteSecretProvenance({
           headers,
@@ -908,7 +1246,16 @@ export async function executeFileManageOperation(
           ? mergeWorkspaceFileSecretProvenance(...writeProvenanceSources)
           : undefined
 
-        const { folderSegments, leafName } = splitWorkspaceFilePath(sourceName ?? '')
+        const { folderSegments: nameSegments, leafName } = splitWorkspaceFilePath(sourceName ?? '')
+        /*
+         * The destination is the picked folder, then whatever folders the name
+         * itself spells. `folderPath` is canonical and percent-encoded, so it is
+         * decoded to names here — the same names `splitWorkspaceFilePath` yields
+         * — because the folder operation takes decoded segments.
+         */
+        const folderSegments = folderPath
+          ? [...parseFolderPath(folderPath), ...nameSegments]
+          : nameSegments
         await admitCreateWorkspaceFile(principal, workspaceId)
         const { folderId } = await ensureWorkspaceFileFolderPathOperation.execute({
           principal,
@@ -921,6 +1268,7 @@ export async function executeFileManageOperation(
             principal,
             workspaceId,
             folderId: folderId ?? null,
+            folderPath,
             folderSegments,
             leafName,
           })
@@ -1001,20 +1349,29 @@ export async function executeFileManageOperation(
       }
 
       case 'move': {
-        const { fileId, targetFolder } = body
+        const { fileId, folderPath, targetFolder } = body
         signal?.throwIfAborted()
-        const pathSegments = targetFolder.trim()
-          ? targetFolder
-              .trim()
-              .split('/')
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : []
+        /*
+         * `folderPath` is already canonical, so it is taken as-is. `targetFolder`
+         * is decoded segments joined by `/`, which cannot express a folder whose
+         * own name contains a slash — hence the newer field, and hence it wins.
+         */
         let targetFolderPath: string
-        try {
-          targetFolderPath = buildFolderPath(pathSegments)
-        } catch (error) {
-          throw new OrchestrationError('validation', getErrorMessage(error))
+        if (folderPath) {
+          targetFolderPath = folderPath
+        } else {
+          const pathSegments = targetFolder.trim()
+            ? targetFolder
+                .trim()
+                .split('/')
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : []
+          try {
+            targetFolderPath = buildFolderPath(pathSegments)
+          } catch (error) {
+            throw new OrchestrationError('validation', getErrorMessage(error))
+          }
         }
         await moveWorkspaceFileItemsOperation.execute({
           principal,
@@ -1024,10 +1381,10 @@ export async function executeFileManageOperation(
             targetFolderPath,
           },
         })
-        logger.info('File moved', { fileId, targetFolder: targetFolder || '(root)' })
+        logger.info('File moved', { fileId, targetFolderPath })
         return Response.json({
           success: true,
-          data: { fileId, targetFolder: targetFolder || '(root)' },
+          data: { fileId, folderPath: targetFolderPath, targetFolder: targetFolder || '(root)' },
         })
       }
 
@@ -1090,14 +1447,23 @@ export async function executeFileManageOperation(
       }
 
       case 'append': {
-        const { fileName, content } = body
+        const { fileName, content, folderPath, folderPaths, includeSubfolders } = body
         signal?.throwIfAborted()
+
+        const scopedReference = await resolveScopedFileReference({
+          principal,
+          workspaceId,
+          fileName,
+          folderPath,
+          folderPaths,
+          includeSubfolders,
+        })
 
         const existing = await resolveWorkspaceFileReference({
           principal,
           operation: fileOperations.updateContent,
           workspaceId,
-          reference: fileName,
+          reference: scopedReference,
         })
 
         const lockKey = `file-append:${workspaceId}:${existing.id}`
@@ -1184,17 +1550,143 @@ export async function executeFileManageOperation(
         }
       }
 
+      case 'edit': {
+        const { fileName, folderPath, folderPaths, includeSubfolders } = body
+        signal?.throwIfAborted()
+
+        const reference = await resolveScopedFileReference({
+          principal,
+          workspaceId,
+          fileName,
+          folderPath,
+          folderPaths,
+          includeSubfolders,
+        })
+        const target = await resolveWorkspaceFileReference({
+          principal,
+          operation: fileOperations.updateContent,
+          workspaceId,
+          reference,
+        })
+
+        /*
+         * The new text is caller-supplied and lands inside a file that already
+         * carries its own lineage, so the two are merged exactly as append
+         * merges them. Without this the edit would store secret-derived text
+         * with no provenance row, which is the state the platform reads as
+         * "safe".
+         */
+        const selectionKeys = body.mode === 'delete_between' ? [] : ['content']
+        const editResolution = resolveFileMutationSecretProvenance({
+          headers,
+          payload: body,
+          userId,
+          workspaceId,
+          selectionKeys,
+        })
+        if (!editResolution.success) {
+          return Response.json({ success: false, error: editResolution.error }, { status: 400 })
+        }
+        const editedProvenance = editResolution.provenanceBySelection?.get('content')
+        let secretProvenance: WorkspaceFileSecretProvenance | undefined
+        if (editedProvenance) {
+          const { provenance: existingProvenance } =
+            await readWorkspaceFileSecretProvenance.execute({
+              principal,
+              input: { fileId: target.id, assertedWorkspaceId: workspaceId },
+            })
+          secretProvenance =
+            editedProvenance.status === 'exact' &&
+            editedProvenance.entries.length > 0 &&
+            target.uploadedBy !== userId
+              ? { status: 'unknown' as const }
+              : mergeWorkspaceFileSecretProvenance(existingProvenance, editedProvenance)
+        }
+
+        let edit: WorkspaceFileContentEdit
+        switch (body.mode) {
+          case 'search_replace':
+            edit = {
+              mode: body.mode,
+              search: body.search,
+              content: body.content,
+              replaceAll: body.replaceAll,
+            }
+            break
+          case 'replace_between':
+            edit = {
+              mode: body.mode,
+              beforeAnchor: body.beforeAnchor,
+              afterAnchor: body.afterAnchor,
+              content: body.content,
+              occurrence: body.occurrence,
+            }
+            break
+          case 'insert_after':
+            edit = {
+              mode: body.mode,
+              anchor: body.anchor,
+              content: body.content,
+              occurrence: body.occurrence,
+            }
+            break
+          case 'delete_between':
+            edit = {
+              mode: body.mode,
+              startAnchor: body.startAnchor,
+              endAnchor: body.endAnchor,
+              occurrence: body.occurrence,
+            }
+            break
+        }
+
+        signal?.throwIfAborted()
+        const { file, lineCount } = await editWorkspaceFileContent.execute({
+          principal,
+          input: {
+            fileId: target.id,
+            assertedWorkspaceId: workspaceId,
+            ...(secretProvenance ? { secretProvenance } : {}),
+            edit,
+          },
+        })
+
+        return Response.json({
+          success: true,
+          data: { id: file.id, name: file.name, size: file.size, lineCount },
+        })
+      }
+
       case 'compress': {
-        const { fileId, fileInput, archiveName } = body
-        const selectedFileIds = Array.isArray(fileId)
-          ? fileId.map((id) => id.trim()).filter(Boolean)
-          : fileId
-            ? normalizeFileIdList(fileId)
-            : extractFileIdsFromInput(fileInput)
+        const { fileId, fileInput, archiveName, folderPaths, includeSubfolders } = body
+        const selectedFileIds = resolveSelectedFileIds(fileId, fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        assertFileSelectionLimit(
+          selectedFileIds.length + selectedInputFiles.length,
+          MAX_ZIP_DOWNLOAD_FILES,
+          `Compress accepts at most ${MAX_ZIP_DOWNLOAD_FILES} files`
+        )
+
+        signal?.throwIfAborted()
+        for (const id of await expandFolderPathsToFileIds({
+          principal,
+          workspaceId,
+          folderPaths,
+          includeSubfolders,
+          limit: MAX_ZIP_DOWNLOAD_FILES,
+        })) {
+          if (!selectedFileIds.includes(id)) selectedFileIds.push(id)
+        }
 
         if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
           return Response.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+        if (selectedFileIds.length + selectedInputFiles.length > MAX_ZIP_DOWNLOAD_FILES) {
+          throw new OrchestrationError(
+            'payload_too_large',
+            `Compress accepts at most ${MAX_ZIP_DOWNLOAD_FILES} files`
+          )
         }
         await admitCreateWorkspaceFile(principal, workspaceId)
 
@@ -1485,6 +1977,211 @@ export async function executeFileManageOperation(
           },
         })
       }
+
+      case 'list': {
+        /*
+         * Listing takes the whole tree rather than asking the folder operation
+         * to filter, because the answer mixes folders and files: depth, search
+         * and ordering have to be decided over both at once, and two separately
+         * filtered queries cannot be interleaved afterwards.
+         */
+        signal?.throwIfAborted()
+        const { folders } = await listWorkspaceFileFoldersOperation.execute({
+          principal,
+          input: { workspaceId },
+        })
+
+        const rootPath = body.path ?? ROOT_FOLDER_PATH
+        const projected = folders.map((folder) => ({
+          ...toWorkspaceFileFolderPathView(folder),
+          id: folder.id,
+          parentId: folder.parentId,
+        }))
+
+        let rootId: string | null = null
+        if (body.path && body.path !== ROOT_FOLDER_PATH) {
+          const selection = resolveFolderIdsForPaths(projected, [body.path], {
+            includeSubfolders: false,
+          })
+          if (selection.missingPath !== undefined) {
+            throw new OrchestrationError('not_found', `Folder not found: ${selection.missingPath}`)
+          }
+          rootId = [...selection.folderIds][0] ?? null
+        }
+
+        const maxDepth = body.recursive ? (body.depth ?? Number.POSITIVE_INFINITY) : 1
+        const limit = body.limit ?? DEFAULT_FILE_LIST_LIMIT
+        const folderDepths = collectFolderDepths(projected, rootId, { maxDepth })
+        let maxParentDepth = 0
+        for (const depth of folderDepths.values()) {
+          if (depth < maxDepth) maxParentDepth = Math.max(maxParentDepth, depth)
+        }
+
+        const folderListing = selectDirectoryEntries(projected, [], {
+          rootId,
+          rootPath,
+          maxDepth,
+          search: body.search,
+          limit: projected.length,
+        })
+        const matchingFolderCountByDepth = new Map<number, number>()
+        for (const entry of folderListing.entries) {
+          matchingFolderCountByDepth.set(
+            entry.depth,
+            (matchingFolderCountByDepth.get(entry.depth) ?? 0) + 1
+          )
+        }
+
+        const files: WorkspaceFileRecord[] = []
+        let processedMatchingFolders = 0
+        let fileListingTruncated = false
+
+        const queryFileScope = (folderScope: FolderIdScope, pageLimit: number) =>
+          queryWorkspaceFilePage.execute({
+            principal,
+            input: {
+              workspaceId,
+              folderScope,
+              search: body.search,
+              sortBy: 'name',
+              sortOrder: 'asc',
+              limit: pageLimit,
+            },
+          })
+
+        for (let fileDepth = 1; fileDepth <= maxParentDepth + 1; fileDepth++) {
+          processedMatchingFolders += matchingFolderCountByDepth.get(fileDepth) ?? 0
+          const parentDepth = fileDepth - 1
+          const knownEntryCount = processedMatchingFolders + files.length
+
+          if (knownEntryCount >= limit) {
+            fileListingTruncated =
+              knownEntryCount > limit || folderListing.entries.length > processedMatchingFolders
+            if (!fileListingTruncated) {
+              const remainingScope = directoryFileScopeForDepthRange(
+                rootId,
+                folderDepths,
+                parentDepth,
+                maxParentDepth
+              )
+              if (hasDirectoryFileScope(remainingScope)) {
+                const remainingPage = await queryFileScope(remainingScope, 1)
+                fileListingTruncated = remainingPage.files.length > 0
+              }
+            }
+            break
+          }
+
+          const depthScope = directoryFileScopeForDepthRange(
+            rootId,
+            folderDepths,
+            parentDepth,
+            parentDepth
+          )
+          if (!hasDirectoryFileScope(depthScope)) continue
+
+          const filePage = await queryFileScope(depthScope, limit)
+          files.push(...filePage.files)
+
+          const populatedEntryCount = processedMatchingFolders + files.length
+          if (filePage.nextKeys !== null || populatedEntryCount > limit) {
+            fileListingTruncated = true
+            break
+          }
+          if (populatedEntryCount === limit) {
+            fileListingTruncated = folderListing.entries.length > processedMatchingFolders
+            if (!fileListingTruncated && parentDepth < maxParentDepth) {
+              const remainingScope = directoryFileScopeForDepthRange(
+                rootId,
+                folderDepths,
+                parentDepth + 1,
+                maxParentDepth
+              )
+              if (hasDirectoryFileScope(remainingScope)) {
+                const remainingPage = await queryFileScope(remainingScope, 1)
+                fileListingTruncated = remainingPage.files.length > 0
+              }
+            }
+            break
+          }
+        }
+
+        const listing = selectDirectoryEntries(
+          projected,
+          files.map((file) => ({
+            id: file.id,
+            name: file.name,
+            folderId: file.folderId ?? null,
+            size: file.size,
+            type: file.type,
+            updatedAt: file.updatedAt.toISOString(),
+          })),
+          {
+            rootId,
+            rootPath,
+            maxDepth,
+            search: body.search,
+            limit,
+          }
+        )
+
+        return Response.json({
+          success: true,
+          data: {
+            path: rootPath,
+            entries: listing.entries,
+            truncated: listing.truncated || fileListingTruncated,
+          },
+        })
+      }
+
+      case 'create_folder': {
+        signal?.throwIfAborted()
+        const { folder } = await createWorkspaceFileFolderOperation.execute({
+          principal,
+          input: { workspaceId, path: body.path },
+        })
+        return Response.json({
+          success: true,
+          data: { folder: toWorkspaceFileFolderPathView(folder) },
+        })
+      }
+
+      case 'update_folder': {
+        signal?.throwIfAborted()
+        const { folder } = await updateWorkspaceFileFolderOperation.execute({
+          principal,
+          input: { workspaceId, path: body.path, destinationPath: body.destinationPath },
+        })
+        return Response.json({
+          success: true,
+          data: { folder: toWorkspaceFileFolderPathView(folder), previousPath: body.path },
+        })
+      }
+
+      case 'delete_folder': {
+        signal?.throwIfAborted()
+        const { deletedItems, path } = await deleteWorkspaceFileFolderOperation.execute({
+          principal,
+          input: { workspaceId, path: body.path, recursive: body.recursive },
+        })
+        return Response.json({
+          success: true,
+          data: { path: path ?? body.path, deleted: true, deletedItems },
+        })
+      }
+
+      case 'restore_folder': {
+        signal?.throwIfAborted()
+        const { folder, restoredItems } = await restoreWorkspaceFileFolderOperation.execute({
+          principal,
+          input: { workspaceId, folderId: body.folderId },
+        })
+        return Response.json({
+          success: true,
+          data: { folder: toWorkspaceFileFolderPathView(folder), restoredItems },
+        })
+      }
     }
   } catch (error) {
     if (isWorkspaceAccessDeniedError(error)) {
@@ -1502,7 +2199,10 @@ export async function executeFileManageOperation(
                 ? 413
                 : error.code === 'validation'
                   ? 400
-                  : 500
+                  : /* Lock contention is retryable, so it must not read as a server fault. */
+                    error.code === 'locked'
+                    ? 423
+                    : 500
       return contentResponse({ success: false, error: error.message }, { status })
     }
     const notReady = docNotReadyResponse(error)

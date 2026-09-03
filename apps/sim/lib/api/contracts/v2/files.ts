@@ -39,9 +39,17 @@ import {
   v2UploadTokenHeadersSchema,
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
+import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
+import {
+  FILE_SEARCH_DEFAULT_MAX_RESULTS,
+  FILE_SEARCH_MAX_QUERY_LENGTH,
+  FILE_SEARCH_MAX_RESULTS,
+  FILE_SEARCH_MIN_QUERY_LENGTH,
+} from '@/lib/workspace-files/search/constants'
+import { FILE_SEARCH_MODES } from '@/lib/workspace-files/search/pattern'
 
 /**
  * v2 files contracts. v2 drops the v1 `{ success, data, limits }` envelope in
@@ -506,13 +514,35 @@ export const v2DeleteFileFolderDataSchema = z
  * knowledge folders do not — so `scope` is added here rather than to the shared
  * schema, which would give three other surfaces a parameter they ignore.
  */
-export const v2ListFileFoldersQuerySchema = v2ListFoldersQuerySchema.extend({
-  scope: v2FileScopeSchema
-    .default('active')
-    .describe(
-      'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.'
-    ),
-})
+export const v2ListFileFoldersQuerySchema = v2ListFoldersQuerySchema
+  .extend({
+    scope: v2FileScopeSchema
+      .default('active')
+      .describe(
+        'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive delete soft-deleted, which is how a caller finds a path to hand to the folder restore. Authorization is identical for both.'
+      ),
+    recursive: z
+      .stringbool({ case: 'sensitive' })
+      .optional()
+      .describe('Whether parentPath includes every descendant instead of direct children only.')
+      .meta({ enum: [...V2_TRUE_VALUES, ...V2_FALSE_VALUES] }),
+    depth: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_FOLDER_PATH_SEGMENTS)
+      .optional()
+      .describe('Deepest level below parentPath to include when recursive is true.'),
+  })
+  .superRefine((query, context) => {
+    if (query.depth !== undefined && query.recursive !== true) {
+      context.addIssue({
+        code: 'custom',
+        path: ['depth'],
+        message: 'depth requires recursive=true',
+      })
+    }
+  })
 export type V2ListFileFoldersQuery = z.output<typeof v2ListFileFoldersQuerySchema>
 
 export const v2ListFileFoldersContract = defineRouteContract({
@@ -765,6 +795,18 @@ export const v2ReadFileTextQuerySchema = z
       .describe(
         'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.'
       ),
+    offset: z.coerce
+      .number()
+      .int()
+      .min(1, 'offset starts at line 1')
+      .optional()
+      .describe('First line to return, 1-based. Absent starts at the first line.'),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1, 'limit must be at least 1')
+      .optional()
+      .describe('How many lines to return from `offset`. Absent reads to the end.'),
   })
   .strict()
 export type V2ReadFileTextQuery = z.output<typeof v2ReadFileTextQuerySchema>
@@ -793,6 +835,22 @@ export const v2FileTextSchema = z
       .int()
       .nonnegative()
       .describe('Source bytes read from storage before extraction.'),
+    lineRange: z
+      .object({
+        offset: z.number().int().min(1).describe('First line returned, 1-based.'),
+        lineCount: z.number().int().nonnegative().describe('Lines returned.'),
+        totalLines: z.number().int().nonnegative().describe('Lines the whole file holds.'),
+        totalLinesExact: z
+          .boolean()
+          .describe(
+            'False when text extraction was truncated, so `totalLines` counts only the extracted prefix and is not the end of the file.'
+          ),
+      })
+      .strict()
+      .optional()
+      .describe(
+        'Present when `offset` or `limit` narrowed the response. `totalLines` is what separates a file that ended from a window that stopped early.'
+      ),
   })
   .strict()
   .meta({
@@ -1041,6 +1099,345 @@ export const v2UpsertFileShareContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2FileShareSchema),
+  },
+})
+
+/**
+ * Partial content edit body.
+ *
+ * `PUT` on the same path replaces the whole file; this changes part of it,
+ * which is what makes correcting one line possible without regenerating
+ * everything around it. Discriminated so a client narrows exhaustively.
+ */
+export const v2EditFileContentBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
+    edit: z
+      .discriminatedUnion('mode', [
+        z
+          .object({
+            mode: z.literal('search_replace').describe('Replace exact text.'),
+            search: z
+              .string()
+              .min(1, 'search cannot be empty')
+              .describe(
+                'Exact text to replace, matched verbatim. It must appear once unless replaceAll is true.'
+              ),
+            content: z
+              .string()
+              .describe('Text to put in its place. An empty string deletes the matched text.'),
+            replaceAll: z
+              .boolean()
+              .optional()
+              .describe('Replace every non-overlapping match. Defaults to false.'),
+          })
+          .strict(),
+        z
+          .object({
+            mode: z
+              .literal('replace_between')
+              .describe('Replace content between two complete-line anchors.'),
+            beforeAnchor: z
+              .string()
+              .trim()
+              .min(1, 'beforeAnchor cannot be empty')
+              .describe('Boundary line before the replaced content. This line remains.'),
+            afterAnchor: z
+              .string()
+              .trim()
+              .min(1, 'afterAnchor cannot be empty')
+              .describe('Boundary line after the replaced content. This line remains.'),
+            content: z.string().describe('Replacement text. An empty string clears the interior.'),
+            occurrence: z
+              .number()
+              .int('occurrence must be a whole number')
+              .min(1, 'occurrence must be at least 1')
+              .optional()
+              .describe('Matching anchor occurrence, starting at 1. Defaults to 1.'),
+          })
+          .strict(),
+        z
+          .object({
+            mode: z
+              .literal('insert_after')
+              .describe('Insert content after a complete-line anchor.'),
+            anchor: z
+              .string()
+              .trim()
+              .min(1, 'anchor cannot be empty')
+              .describe('Complete line after which content is inserted.'),
+            content: z.string().min(1, 'content cannot be empty').describe('Text to insert.'),
+            occurrence: z
+              .number()
+              .int('occurrence must be a whole number')
+              .min(1, 'occurrence must be at least 1')
+              .optional()
+              .describe('Matching anchor occurrence, starting at 1. Defaults to 1.'),
+          })
+          .strict(),
+        z
+          .object({
+            mode: z
+              .literal('delete_between')
+              .describe('Delete from one complete-line anchor to another.'),
+            startAnchor: z
+              .string()
+              .trim()
+              .min(1, 'startAnchor cannot be empty')
+              .describe('First line to delete. This start anchor is removed.'),
+            endAnchor: z
+              .string()
+              .trim()
+              .min(1, 'endAnchor cannot be empty')
+              .describe('Ending boundary line. This end anchor remains.'),
+            occurrence: z
+              .number()
+              .int('occurrence must be a whole number')
+              .min(1, 'occurrence must be at least 1')
+              .optional()
+              .describe('Matching anchor occurrence, starting at 1. Defaults to 1.'),
+          })
+          .strict(),
+      ])
+      .describe(
+        'One exact or anchor-based edit: search_replace, replace_between, insert_after, or delete_between.'
+      ),
+  })
+  .strict()
+
+export type V2EditFileContentBody = z.input<typeof v2EditFileContentBodySchema>
+
+export const v2EditedFileSchema = z
+  .object({
+    file: v2FileSchema.describe('The file after the edit.'),
+    lineCount: z.number().int().nonnegative().describe('Lines the file holds after the edit.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2EditedFile',
+    title: 'Edited file',
+    description: 'A workspace file after an in-place content edit.',
+  })
+
+/**
+ * Splits a comma-separated folder list, dropping blanks.
+ *
+ * Exported so the route splits exactly the way the schema validated, rather
+ * than each side keeping its own idea of the separator.
+ */
+export function splitFolderPathList(value: string): string[] {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
+/**
+ * Splits a comma-separated folder list and normalizes each entry.
+ *
+ * `v2FolderPathInputSchema` accepts a path with the leading slash omitted and
+ * emits the canonical form. Validating with it and keeping the raw string
+ * throws that normalization away, so `Reports` passed validation and then
+ * reached folder resolution as `Reports`, which matches nothing.
+ *
+ * Entries are already known valid by the time the route calls this — the
+ * schema's `superRefine` rejected the request otherwise — so a parse failure
+ * here would be a contract bug, and the raw entry is kept rather than throwing
+ * inside a mapper.
+ */
+export function parseFolderPathList(value: string): string[] {
+  return splitFolderPathList(value).map((entry) => {
+    const parsed = v2FolderPathInputSchema.safeParse(entry)
+    return parsed.success ? parsed.data : entry
+  })
+}
+
+export const v2SearchFileContentQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace to search.'),
+    query: z
+      .string()
+      /*
+       * Bounded in code points, not UTF-16 units, because that is how
+       * `compileFileSearchPattern` counts. A length bound rejects a valid
+       * 512-code-point query built from astral characters as overlong.
+       */
+      .refine(
+        (query) => [...query].length >= FILE_SEARCH_MIN_QUERY_LENGTH,
+        `query must be at least ${FILE_SEARCH_MIN_QUERY_LENGTH} characters`
+      )
+      .refine(
+        (query) => [...query].length <= FILE_SEARCH_MAX_QUERY_LENGTH,
+        `query cannot exceed ${FILE_SEARCH_MAX_QUERY_LENGTH} characters`
+      )
+      .refine((query) => !query.includes('\0'), 'query cannot contain NUL characters')
+      .describe('Regular expression, or exact text when `mode` is `exact`.')
+      /*
+       * Published separately because the bounds above are refinements, which
+       * emit no JSON-schema length keywords — a generated client would
+       * otherwise see an unbounded string and send a query the route rejects.
+       * Counted in code points at runtime; these are the same numbers.
+       */
+      .meta({
+        minLength: FILE_SEARCH_MIN_QUERY_LENGTH,
+        maxLength: FILE_SEARCH_MAX_QUERY_LENGTH,
+      }),
+    mode: z.enum(FILE_SEARCH_MODES).default('regex').describe('How `query` is read.'),
+    maxResults: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(FILE_SEARCH_MAX_RESULTS)
+      .default(FILE_SEARCH_DEFAULT_MAX_RESULTS)
+      .describe('Maximum matching lines to return.'),
+    /*
+     * Comma-separated, and parsed here rather than declared as an array:
+     * this is a GET, so every value arrives as a string, and v2 rejects a
+     * query parameter sent more than once — so a repeated-parameter array
+     * would be refused before it ever reached a schema. Matches the sibling
+     * selection lists on bulk download.
+     */
+    /*
+     * Stays a comma-separated STRING through parsing, and is split by the
+     * route. A transform to an array here would validate correctly and then
+     * break serialization: the client's `appendQuery` runs over the PARSED
+     * value and repeat-appends a scalar array, which v2 rejects as duplicate
+     * query parameters — so every multi-folder search would answer 400.
+     */
+    folderPaths: z
+      .string()
+      .optional()
+      .superRefine((value, ctx) => {
+        if (value === undefined) return
+        const entries = splitFolderPathList(value)
+        if (entries.length === 0) {
+          ctx.addIssue({ code: 'custom', message: 'folderPaths cannot be empty' })
+          return
+        }
+        if (entries.length > 64) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'folderPaths cannot contain more than 64 entries',
+          })
+          return
+        }
+        for (const entry of entries) {
+          const parsed = v2FolderPathInputSchema.safeParse(entry)
+          if (!parsed.success) {
+            ctx.addIssue({ code: 'custom', message: `${entry} is not a valid folder path` })
+          }
+        }
+      })
+      .describe(
+        'Folders the search is confined to, comma-separated. Absent searches the whole workspace. The scope also narrows `indexStatus`, so `complete` describes the folders searched rather than the workspace.'
+      ),
+    /*
+     * `z.stringbool` rather than `z.boolean()`, which rejects every query
+     * string, and rather than `z.coerce.boolean()`, which is `Boolean(input)`
+     * and reads `includeSubfolders=false` as `true`. Matches the sibling
+     * `recursive` on the file listing.
+     */
+    includeSubfolders: z
+      .stringbool({ case: 'sensitive' })
+      .optional()
+      .describe(
+        'Whether the scope descends into nested folders. Absent means yes. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.'
+      )
+      .meta({ enum: [...V2_TRUE_VALUES, ...V2_FALSE_VALUES] }),
+  })
+  .strict()
+export type V2SearchFileContentQuery = z.output<typeof v2SearchFileContentQuerySchema>
+
+export const v2FileSearchResultsSchema = z
+  .object({
+    results: z
+      .array(
+        z
+          .object({
+            fileId: workspaceFileIdSchema.describe('File the line belongs to.'),
+            lineNumber: z.number().int().min(1).describe('1-based line the match sits on.'),
+            text: z.string().describe('The matching line.'),
+          })
+          .strict()
+      )
+      .describe('Matching lines, one entry per line.'),
+    count: z.number().int().nonnegative().describe('Number of results returned.'),
+    truncated: z.boolean().describe('True when more matches exist beyond `maxResults`.'),
+    complete: z
+      .boolean()
+      .describe(
+        'True when no file in the searched scope is still pending or failed indexing. It does NOT cover `skippedFiles` (never indexed, such as binaries) or `partialFiles` (indexed only in part), so a missing match is authoritative only when all three are clear. Treat any of them as nonzero meaning unknown rather than absent.'
+      ),
+    indexStatus: z
+      .object({
+        readyFiles: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe('Files whose current revision is indexed and searchable.'),
+        pendingFiles: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe(
+            'Files not yet indexed at their current revision. Their content was not searched.'
+          ),
+        failedFiles: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe('Files whose indexing failed. Their content was not searched.'),
+        skippedFiles: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe(
+            'Files deliberately not indexed, such as binaries and files above the size ceiling.'
+          ),
+        partialFiles: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe(
+            'Files indexed only in part, so matches beyond the indexed portion are not found.'
+          ),
+      })
+      .strict()
+      .describe('Index coverage across the searched scope.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2FileSearchResults',
+    title: 'File search results',
+    description: 'Matching lines from indexed workspace file content, with index coverage.',
+  })
+
+/**
+ * Searches the indexed text of workspace files.
+ *
+ * Index-backed, so coverage is reported rather than assumed: `complete` and
+ * `indexStatus` are what separate "this is not in the files" from "the index
+ * has not caught up yet", and only the first of those is safe to act on.
+ */
+export const v2SearchFileContentContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/files/search',
+  query: v2SearchFileContentQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2FileSearchResultsSchema),
+  },
+})
+
+export const v2EditFileContentContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/files/[fileId]/content',
+  query: noInputSchema,
+  params: v2FileParamsSchema,
+  body: v2EditFileContentBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2EditedFileSchema),
   },
 })
 

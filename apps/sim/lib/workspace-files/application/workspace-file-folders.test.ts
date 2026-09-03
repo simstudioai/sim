@@ -10,6 +10,7 @@ const {
   mockAssertItems,
   mockArchive,
   mockCreate,
+  mockDeleteByPath,
   mockEnsure,
   mockList,
   mockRelocate,
@@ -23,6 +24,7 @@ const {
   mockAssertItems: vi.fn(),
   mockArchive: vi.fn(),
   mockCreate: vi.fn(),
+  mockDeleteByPath: vi.fn(),
   mockEnsure: vi.fn(),
   mockList: vi.fn(),
   mockRelocate: vi.fn(),
@@ -35,6 +37,7 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   assertWorkspaceFileItemsBelongToWorkspace: mockAssertItems,
   bulkArchiveWorkspaceFileItems: mockArchive,
   createWorkspaceFileFolderAtPath: mockCreate,
+  deleteWorkspaceFileFolderByPath: mockDeleteByPath,
   ensureWorkspaceFileFolderPath: mockEnsure,
   listWorkspaceFileFolders: mockList,
   loadWorkspaceFileOperationContext: mockLoadContext,
@@ -58,6 +61,7 @@ vi.mock('@sim/audit', () => ({
 }))
 vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mockNotify }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createWorkspaceFileFolderOperation,
   deleteWorkspaceFileFolderOperation,
@@ -98,6 +102,89 @@ describe('workspace file folder operations', () => {
     })
     mockAssertItems.mockResolvedValue(undefined)
     mockArchive.mockResolvedValue({ files: 0, folders: 1, fileIds: [], folderIds: ['folder-1'] })
+  })
+
+  const LEAF = {
+    folder: {
+      id: 'folder-c',
+      name: 'C',
+      path: 'A/B/C',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    path: 'A/B/C',
+  }
+
+  /*
+   * The tool description promises "Parent folders are created as needed", and
+   * the manager throws "Parent folder not found" when they are not — so a
+   * missing ancestor is materialized and the create retried. Only the
+   * ancestors: the leaf keeps its own call so it still audits and still
+   * conflicts when something is already there.
+   */
+  it('materializes missing ancestors and retries the leaf', async () => {
+    mockEnsure.mockResolvedValue({
+      folderId: 'folder-b',
+      createdFolderIds: ['folder-a', 'folder-b'],
+    })
+    mockCreate
+      .mockRejectedValueOnce(new OrchestrationError('not_found', 'Parent folder not found'))
+      .mockResolvedValue(LEAF)
+
+    await createWorkspaceFileFolderOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1', path: '/A/B/C' },
+    })
+
+    expect(mockEnsure).toHaveBeenCalledWith(expect.objectContaining({ pathSegments: ['A', 'B'] }))
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+  })
+
+  /*
+   * A folder name may contain a slash; a path segment may not. Materializing
+   * ancestors up front re-normalized the decoded name and rejected the folder's
+   * own existing parent, so the ancestors are only touched once the create has
+   * actually reported the parent missing.
+   */
+  it('does not touch the materializer when the parent already exists', async () => {
+    mockCreate.mockResolvedValue(LEAF)
+
+    await createWorkspaceFileFolderOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1', path: '/A/Q3%2FQ4/C' },
+    })
+
+    expect(mockEnsure).not.toHaveBeenCalled()
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces a create failure that is not a missing parent', async () => {
+    mockCreate.mockRejectedValue(new OrchestrationError('conflict', 'Folder already exists'))
+
+    await expect(
+      createWorkspaceFileFolderOperation.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { workspaceId: 'ws-1', path: '/A/B/C' },
+      })
+    ).rejects.toThrow(/already exists/)
+    expect(mockEnsure).not.toHaveBeenCalled()
+  })
+
+  it('does not materialize anything for a top-level folder', async () => {
+    mockCreate.mockResolvedValue({
+      id: 'folder-a',
+      name: 'A',
+      path: 'A',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+
+    await createWorkspaceFileFolderOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1', path: '/A' },
+    })
+
+    expect(mockEnsure).not.toHaveBeenCalled()
   })
 
   it('creates a canonical path folder through the manager primitive', async () => {
@@ -181,6 +268,78 @@ describe('workspace file folder operations', () => {
     expect(result.folders.map((item) => item.id)).toEqual(['child-1'])
   })
 
+  describe('recursive listing', () => {
+    const tree = [
+      { ...folder, id: 'reports', name: 'Reports', path: 'Reports' },
+      { ...folder, id: 'q3', name: 'Q3', path: 'Reports/Q3' },
+      { ...folder, id: 'draft', name: 'Draft', path: 'Reports/Q3/Draft' },
+      { ...folder, id: 'reportsx', name: 'Reportsx', path: 'Reportsx' },
+    ]
+
+    const list = (input: Record<string, unknown>) =>
+      listWorkspaceFileFoldersOperation.execute({
+        principal: { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' },
+        input: { workspaceId: 'ws-1', ...input },
+      })
+
+    beforeEach(() => {
+      mockList.mockResolvedValue(tree)
+    })
+
+    it('returns only direct children without the flag', async () => {
+      const result = await list({ parentPath: '/Reports' })
+
+      expect(result.folders.map((item) => item.id)).toEqual(['q3'])
+    })
+
+    it('descends every level with the flag', async () => {
+      const result = await list({ parentPath: '/Reports', recursive: true })
+
+      expect(result.folders.map((item) => item.id)).toEqual(['q3', 'draft'])
+    })
+
+    it('excludes a sibling whose name merely starts with the parent name', async () => {
+      const result = await list({ parentPath: '/Reports', recursive: true })
+
+      expect(result.folders.map((item) => item.id)).not.toContain('reportsx')
+    })
+
+    it('bounds the walk by depth', async () => {
+      const result = await list({ parentPath: '/Reports', recursive: true, depth: 1 })
+
+      expect(result.folders.map((item) => item.id)).toEqual(['q3'])
+    })
+
+    it('descends a parent whose name contains an escaped slash', async () => {
+      mockList.mockResolvedValue([
+        { ...folder, id: 'child', name: 'Q1', path: 'Finance\\/Legal/Q1' },
+        { ...folder, id: 'grandchild', name: 'Deep', path: 'Finance\\/Legal/Q1/Deep' },
+        { ...folder, id: 'other', name: 'Other', path: 'Finance/Legal/Other' },
+      ])
+
+      const result = await list({ parentPath: '/Finance%2FLegal', recursive: true })
+
+      expect(result.folders.map((item) => item.id)).toEqual(['child', 'grandchild'])
+    })
+
+    /*
+     * The historical contract for an unfiltered list is every folder at every
+     * level. Copilot and the VFS depend on it, so depth-bounding must not leak
+     * into the no-parent, non-recursive case.
+     */
+    it('still returns every level when neither a parent nor the flag is given', async () => {
+      const result = await list({})
+
+      expect(result.folders.map((item) => item.id)).toEqual(['reports', 'q3', 'draft', 'reportsx'])
+    })
+
+    it('narrows a recursive walk by search', async () => {
+      const result = await list({ parentPath: '/Reports', recursive: true, search: 'draft' })
+
+      expect(result.folders.map((item) => item.id)).toEqual(['draft'])
+    })
+  })
+
   it('ensures an entire decoded folder chain for a file write', async () => {
     mockEnsure.mockResolvedValue({
       folderId: 'nested-folder',
@@ -220,6 +379,29 @@ describe('workspace file folder operations', () => {
     })
     expect(mockAudit).toHaveBeenCalledOnce()
     expect(mockNotify).toHaveBeenCalledOnce()
+  })
+
+  /*
+   * A path-addressed delete used to audit with no resourceId, because the
+   * projector read input.folderId and v2 and the tools both address by path.
+   * The execution resolves the path to an id either way — this asserts the
+   * audit now carries it rather than leaving the folder as free text.
+   */
+  it('audits a path-addressed delete against the folder id it resolved', async () => {
+    mockDeleteByPath.mockResolvedValue({ files: 2, folders: 1, folderId: 'folder-resolved' })
+
+    await deleteWorkspaceFileFolderOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1', path: '/Reports', recursive: true },
+    })
+
+    expect(mockAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'folder.deleted',
+        resourceId: 'folder-resolved',
+        metadata: expect.objectContaining({ path: '/Reports' }),
+      })
+    )
   })
 
   it('does not audit or notify when a folder archive updates no rows', async () => {

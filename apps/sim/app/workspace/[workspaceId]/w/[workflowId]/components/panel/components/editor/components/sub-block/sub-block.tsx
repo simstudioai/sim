@@ -50,6 +50,7 @@ import {
   WorkflowInputMapper,
   WorkflowOutputSelector,
   WorkflowSelectorInput,
+  WorkspaceFolderSelector,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
 import { MODAL_REGISTRY } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/modal-registry'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
@@ -908,6 +909,7 @@ function SubBlockComponent({
             multiple={config.multiple === true}
             maxSize={config.maxSize}
             requiresCloudStorage={config.requiresCloudStorage === true}
+            folderScope={config.folderScope}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
@@ -945,6 +947,18 @@ function SubBlockComponent({
         )
 
       case 'folder-selector':
+        if (config.resourceType) {
+          return (
+            <WorkspaceFolderSelector
+              blockId={blockId}
+              subBlock={config}
+              disabled={isDisabled}
+              required={isFieldRequired(config, subBlockValues)}
+              isPreview={isPreview}
+              previewValue={previewValue}
+            />
+          )
+        }
         return (
           <SelectorInput
             blockId={blockId}

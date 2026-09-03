@@ -127,9 +127,37 @@ describe('/api/v2/files/folders', () => {
         search: undefined,
         sortBy: 'name',
         sortOrder: 'asc',
+        recursive: undefined,
+        depth: undefined,
       },
       request: expect.anything(),
     })
+  })
+
+  it('forwards recursive folder traversal controls', async () => {
+    await GET(
+      request(
+        'GET',
+        `/api/v2/files/folders?workspaceId=${WORKSPACE_ID}&parentPath=%2FReports&recursive=true&depth=2`
+      ),
+      context
+    )
+
+    expect(mocks.listFolders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ parentPath: '/Reports', recursive: true, depth: 2 }),
+      })
+    )
+  })
+
+  it('rejects depth without recursive traversal', async () => {
+    const response = await GET(
+      request('GET', `/api/v2/files/folders?workspaceId=${WORKSPACE_ID}&depth=2`),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.listFolders).not.toHaveBeenCalled()
   })
 
   /**

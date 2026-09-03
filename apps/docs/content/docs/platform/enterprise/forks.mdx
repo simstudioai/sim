@@ -81,7 +81,7 @@ A **mapping** means: “this resource in the source is the same logical thing as
 
 Mappings are saved on the fork relationship. You can click **Save** without syncing. Sync always uses the saved mappings.
 
-After you map or copy a parent resource (credential, knowledge base, table, …), **dependent fields** — Gmail labels, Slack channels, knowledge base documents, and similar — often need a fresh pick in the target. Required dependents block **Sync** until they are filled.
+After you map or copy a parent resource (credential, knowledge base, table, …), **dependent fields** — Gmail labels, Slack channels, knowledge base documents, and similar — often need a fresh pick in the target. Required dependents block **Sync** until they are filled. Workspace file-folder scopes are mapped by canonical path; an empty folder selection creates no mapping requirement, and **Include Subfolders** does not block by itself.
 
 ### 5. Map, reconfigure, then Sync
 
@@ -173,6 +173,7 @@ How each resource behaves at **fork** time vs **sync** time. Use this when you a
 | Undeployed workflows | Not copied | Not synced |
 | [Excluded workflows](#excluded-workflows) | Never | Never — not sent, not overwritten, not archived |
 | Files | Optional copy (default on) | Map or copy |
+| File folders referenced by workflows | Mirrored with their ancestor folders, even when empty | Map by canonical path |
 | Tables | Optional copy (default on) | Map or copy |
 | Knowledge bases (+ documents) | Optional copy; uploaded documents come with the KB, [connector-synced ones do not](#connector-synced-documents-are-not-copied) | Map or copy; documents follow the KB |
 | Custom tools | Optional copy (default on) | Map or copy |
@@ -205,10 +206,12 @@ Only **deployed** workflows move. Deploy is the commit; sync is the force push/p
 
 | | Behavior |
 |---|----------|
-| **Fork** | Listed under **Copy resources** (default on). Copies land at the child’s **file root** (original file folders are not rebuilt). Deselect → file fields in workflows clear. |
-| **Sync** | Map to a file that already exists on the target, or copy. Files used by the sync’s workflows default to selected. |
+| **Fork** | Listed under **Copy resources** (default on). A copied file keeps its containing folder structure. Folder scopes referenced by copied workflows are mirrored with their ancestors even when they are empty; mirroring a scope does not implicitly copy every file inside it. Deselect a file → that file field clears. |
+| **Sync** | Map to a file that already exists on the target, or copy. Files used by the sync’s workflows default to selected. Selected workspace file-folder scopes are mapped separately by canonical path. The same path is suggested automatically when it exists on both sides; otherwise create or choose the intended target folder before syncing. |
 
-**Example:** A workflow attaches `brand-guide.pdf`. Fork with Files selected → the child has its own copy and the block still points at it.
+**Example:** A workflow attaches `Brand/brand-guide.pdf` and searches an empty `/Incoming` folder. Fork with Files selected → the child gets its own file under `/Brand`, and `/Incoming` is also created so the search scope still points somewhere valid without copying unrelated files into it.
+
+Only concrete, active workspace folder selections participate in this mapping. Leaving **Folder** empty means “anywhere in the workspace” and never blocks sync. **Include Subfolders** only changes how a selected scope is expanded. Folder selectors backed by external providers are credential-scoped provider values, not workspace file-folder mappings.
 
 ---
 

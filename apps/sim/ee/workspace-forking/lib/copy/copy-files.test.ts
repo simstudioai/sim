@@ -536,6 +536,49 @@ describe('executeForkFileBlobCopies target name collisions', () => {
 })
 
 describe('planForkFileCopies', () => {
+  it('mirrors a referenced empty folder without planning any file copy', async () => {
+    const sourceFolders = [
+      {
+        id: 'folder-reports',
+        name: 'Reports',
+        parentId: null,
+        workspaceId: 'src-ws',
+        resourceType: 'file',
+        deletedAt: null,
+      },
+    ]
+    const insertedFolders: Array<Record<string, unknown>> = []
+    const selects: unknown[][] = [sourceFolders, [], [{ total: 0 }]]
+    let selectIndex = 0
+    const tx = {
+      select: () => ({
+        from: () => ({
+          where: () => Promise.resolve(selects[selectIndex++] ?? []),
+        }),
+      }),
+      insert: () => ({
+        values: (rows: Array<Record<string, unknown>>) => {
+          insertedFolders.push(...rows)
+          return Promise.resolve()
+        },
+      }),
+    } as unknown as DbOrTx
+
+    const result = await planForkFileCopies({
+      tx,
+      sourceWorkspaceId: 'src-ws',
+      childWorkspaceId: 'child-ws',
+      userId: 'user-1',
+      folderPaths: ['/Reports'],
+      now: new Date('2026-02-01'),
+    })
+
+    expect(result.blobTasks).toEqual([])
+    expect(result.folderPathMap).toEqual(new Map([['/Reports', '/Reports']]))
+    expect(insertedFolders).toHaveLength(1)
+    expect(insertedFolders[0]).toMatchObject({ name: 'Reports', workspaceId: 'child-ws' })
+  })
+
   it('plans deterministic target metadata without inserting an active row before blob copy', async () => {
     const sourceMeta = {
       id: 'wf_src1',

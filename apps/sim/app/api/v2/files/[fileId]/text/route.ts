@@ -17,6 +17,10 @@ export const dynamic = 'force-dynamic'
  * `ppt` parsers deliberately return best-effort content instead of throwing,
  * so the flag — not an error — is how that is reported.
  *
+ * `offset` and `limit` narrow the response to a line window, reported back as
+ * `lineRange`. `totalLines` there is what separates a file that ended from a
+ * window that stopped early, so a caller can tell whether to read further.
+ *
  * Head-safe: no audit is projected and nothing is written. The read does pull
  * bytes from object storage, but so does the metadata read beside it, and a
  * bodiless `HEAD` would answer no useful question here.
@@ -31,9 +35,11 @@ export const GET = defineV2JsonRoute({
     fileId: params.fileId,
     assertedWorkspaceId: query.workspaceId,
     maxBytes: query.maxBytes,
+    offset: query.offset,
+    limit: query.limit,
   }),
   useCase: readWorkspaceFileText,
-  present: ({ file, text, truncated, degraded, degradedReason, byteCount }) => ({
+  present: ({ file, text, truncated, degraded, degradedReason, byteCount, lineRange }) => ({
     data: {
       fileId: file.id,
       name: file.name,
@@ -44,6 +50,7 @@ export const GET = defineV2JsonRoute({
       degradedReason,
       charCount: text.length,
       byteCount,
+      ...(lineRange ? { lineRange } : {}),
     },
   }),
 })

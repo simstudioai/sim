@@ -5,13 +5,18 @@ import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shar
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getShareForResource,
+  getWorkspaceSharesForResources,
   ShareValidationError,
   upsertFileShare,
 } from '@/lib/public-shares/share-manager'
-import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  getWorkspaceFile,
+  loadActiveWorkspaceContext,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
+import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 import { validatePublicFileSharing } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('WorkspaceFileShare')
@@ -23,6 +28,15 @@ export interface GetWorkspaceFileShareInput {
 
 export interface GetWorkspaceFileShareResult {
   share: ShareRecord | null
+}
+
+export interface GetWorkspaceFileSharesInput {
+  workspaceId: string
+  fileIds: string[]
+}
+
+export interface GetWorkspaceFileSharesResult {
+  shares: Map<string, ShareRecord>
 }
 
 export interface UpdateWorkspaceFileShareInput {
@@ -54,6 +68,27 @@ export const getWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
   async execute({ context }): Promise<GetWorkspaceFileShareResult> {
     const share = await getShareForResource('file', context.fileId)
     return { share }
+  },
+})
+
+export const getWorkspaceFileShares = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.readShare,
+  async resolveContext({ input }: { input: GetWorkspaceFileSharesInput }) {
+    const workspace = await loadActiveWorkspaceContext(input.workspaceId)
+    if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
+    return workspace
+  },
+  async execute({ input, context }): Promise<GetWorkspaceFileSharesResult> {
+    const fileIds = [...new Set(input.fileIds)]
+    if (fileIds.length > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
+      throw new OrchestrationError(
+        'payload_too_large',
+        `Cannot read shares for more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} files`
+      )
+    }
+    return {
+      shares: await getWorkspaceSharesForResources('file', context.workspaceId, fileIds),
+    }
   },
 })
 

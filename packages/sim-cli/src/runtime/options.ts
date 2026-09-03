@@ -71,12 +71,17 @@ function withoutWireVocabulary(documented: string): string {
 }
 
 /**
- * What `--limit` means on an operation that does not paginate.
+ * What `--limit` means on a filtered batch operation that does not paginate.
  *
  * The pager's `0 for everything` spelling is false here: these routes bound the
  * field at `1`, and the unbounded form is the flag left off entirely. Said in
  * `--help` because nothing else in the terminal says it — the refusal only
  * arrives from the server, after the caller has already typed the command.
+ *
+ * Gated on the operation actually taking a `--filter`, because a non-paginating
+ * `limit` is not always a match cap: `files read --limit` bounds a line range,
+ * and telling its reader the flag "caps a --filter match" names a flag that
+ * command does not have.
  */
 const NON_PAGINATED_LIMIT_HINT =
   ' (caps a --filter match only; omit it to act on every match, and note 0 is not accepted)'
@@ -87,7 +92,8 @@ function addFieldOption(
   field: string,
   descriptor: FieldSpec,
   slot: 'query' | 'body' | 'headers',
-  paginates: boolean
+  paginates: boolean,
+  capsAFilter: boolean
 ): void {
   if (field === PROFILE_INJECTED_FIELD || field === 'cursor') return
 
@@ -115,7 +121,9 @@ function addFieldOption(
   }
 
   const documented = `${describeField(flag, descriptor, name, field)}${
-    field === 'limit' && (descriptor.kind === 'number' || descriptor.kind === 'integer')
+    capsAFilter &&
+    field === 'limit' &&
+    (descriptor.kind === 'number' || descriptor.kind === 'integer')
       ? NON_PAGINATED_LIMIT_HINT
       : ''
   }`
@@ -209,11 +217,14 @@ export function addOperationOptions(
   }
 
   const paginates = cursorSlot(operationSpec) !== null
+  const capsAFilter = (['query', 'body', 'headers'] as const).some(
+    (slot) => operationSpec[slot] !== undefined && 'filter' in operationSpec[slot]
+  )
   for (const slot of ['query', 'body', 'headers'] as const) {
     for (const [field, descriptor] of Object.entries(operationSpec[slot] ?? {})) {
       if (commandSpec.requestFields && !commandSpec.requestFields.includes(field)) continue
       if (commandSpec.positionals?.includes(field)) continue
-      addFieldOption(command, operation, field, descriptor, slot, paginates)
+      addFieldOption(command, operation, field, descriptor, slot, paginates, capsAFilter)
     }
   }
 

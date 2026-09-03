@@ -67,3 +67,14 @@ export function collectReferencedDocumentIds(states: Iterable<WorkflowState>): S
   }
   return ids
 }
+
+/** Canonical workspace file-folder paths referenced by deployed workflow fields and nested tools. */
+export function collectReferencedFileFolderPaths(states: Iterable<WorkflowState>): Set<string> {
+  const paths = new Set<string>()
+  for (const state of states) {
+    for (const path of collectReferencedResourceIds(toScannerBlocks(state), 'file-folder')) {
+      paths.add(path)
+    }
+  }
+  return paths
+}

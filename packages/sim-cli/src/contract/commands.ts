@@ -13,6 +13,8 @@ const CUSTOM_TOOL_SCHEMA_HELP =
   'OpenAI function schema: {"type":"function","function":{"name":"...","parameters":{"type":"object","properties":{}}}}'
 const DISPATCH_ROW_LIMIT_HELP =
   'Stop after this many eligible rows have run (1-1,000,000). Omit for an unbounded run'
+const FILE_EDIT_HELP =
+  'One edit object: {"mode":"search_replace","search":"old","content":"new","replaceAll":false}, {"mode":"replace_between","beforeAnchor":"start line","afterAnchor":"end line","content":"new"}, {"mode":"insert_after","anchor":"line","content":"new"}, or {"mode":"delete_between","startAnchor":"first line deleted","endAnchor":"ending line kept"}. Anchored modes also accept occurrence starting at 1'
 /**
  * The shapes behind the graph-write batches.
  *
@@ -583,6 +585,26 @@ export const CLI_CONTRACT: CliContract = {
     flags: { folderPaths: FOLDER_PATHS_FLAG },
     confirm: 'This deletes every listed table and all of their rows.',
   },
+  searchFileContent: {
+    flags: {
+      folderPaths: {
+        ...FOLDER_PATHS_FLAG,
+        describe:
+          'Folders to search, by path as shown in the app; omit to search the whole workspace',
+      },
+      includeSubfolders: {
+        boolean: true,
+        negatable: true,
+        describe: 'Whether each folder scope includes nested folders; on by default',
+      },
+    },
+    itemsPath: 'results',
+    columns: [
+      { header: 'file', path: 'fileId' },
+      { header: 'line', path: 'lineNumber' },
+      { header: 'text' },
+    ],
+  },
   searchKnowledge: {
     // Accepts a string or an array on the wire; the CLI always sends the array.
     flags: {
@@ -1103,6 +1125,13 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       fileIds: { list: true },
       folderPaths: FOLDER_PATHS_FLAG,
+    },
+  },
+  editFileContent: {
+    command: 'files edit',
+    describe: 'Apply one exact or anchor-based edit to a text file',
+    flags: {
+      edit: { describe: FILE_EDIT_HELP },
     },
   },
   updateFileContent: {

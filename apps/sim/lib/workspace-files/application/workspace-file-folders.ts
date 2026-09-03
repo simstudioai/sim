@@ -40,6 +40,10 @@ export interface ListWorkspaceFileFoldersInput {
    */
   sortBy?: Exclude<FolderSortBy, 'position'>
   sortOrder?: ListSortOrder
+  /** Descend the whole subtree instead of listing direct children only. */
+  recursive?: boolean
+  /** Deepest level below `parentPath` to include. Only meaningful with `recursive`. */
+  depth?: number
 }
 
 export interface ListWorkspaceFileFoldersResult {
@@ -96,6 +100,8 @@ export interface DeleteWorkspaceFileFolderInput {
 
 export interface DeleteWorkspaceFileFolderResult {
   deletedItems: WorkspaceFileArchiveResult
+  /** The folder actually deleted, so a path-addressed delete can still be audited by id. */
+  folderId?: string
   path?: string
 }
 
@@ -133,9 +139,22 @@ async function executeListWorkspaceFileFolders(args: {
   })
   if (args.input.parentPath !== undefined) {
     const parentSegments = parseFolderPath(args.input.parentPath)
+    /*
+     * Descendants are matched against the stored materialized path rather than
+     * walked by `parentId`, because a scoped list need not contain the parent
+     * row at all — an `archived` listing under an active parent is the case
+     * that breaks a walk. Comparison stays positional over decoded segments, so
+     * `Reportsx` is never read as a child of `Reports`.
+     */
+    const maxSegments = args.input.recursive
+      ? args.input.depth === undefined
+        ? Number.POSITIVE_INFINITY
+        : parentSegments.length + args.input.depth
+      : parentSegments.length + 1
     folders = folders.filter((folder) => {
       const folderSegments = parseWorkspaceFileFolderDisplayPath(folder.path)
-      if (folderSegments.length !== parentSegments.length + 1) return false
+      if (folderSegments.length <= parentSegments.length) return false
+      if (folderSegments.length > maxSegments) return false
       return parentSegments.every((segment, index) => folderSegments[index] === segment)
     })
   }
@@ -144,6 +163,45 @@ async function executeListWorkspaceFileFolders(args: {
     folders = folders.filter((folder) => folder.name.toLowerCase().includes(search))
   }
   return { folders }
+}
+
+/**
+ * Creates a folder at a path, materializing missing ancestors.
+ *
+ * Ancestors are created only after the direct attempt reports the parent
+ * missing, rather than up front. `ensureWorkspaceFileFolderPath` re-normalizes
+ * every segment it is handed, and a folder name is allowed to contain a slash
+ * while a segment is not — so materializing first rejected `/A/Q3%2FQ4/C` on
+ * its own existing parent. Reaching for the materializer only when the parent
+ * is genuinely absent keeps that path untouched in the common case.
+ *
+ * Only the ancestors go through the materializer. The leaf keeps its own call
+ * so it still emits FOLDER_CREATED with a full record, and still conflicts when
+ * something is already there — the materializer is silent on both counts, so
+ * routing the whole path through it would make "create" stop meaning create.
+ */
+async function createWorkspaceFileFolderAtPathCreatingAncestors(params: {
+  workspaceId: string
+  userId: string
+  path: string
+}) {
+  try {
+    return await createWorkspaceFileFolderAtPath(params)
+  } catch (error) {
+    const parentMissing =
+      error instanceof OrchestrationError &&
+      error.code === 'not_found' &&
+      error.message === 'Parent folder not found'
+    const segments = parseFolderPath(params.path)
+    if (!parentMissing || segments.length <= 1) throw error
+
+    await ensureWorkspaceFileFolderPath({
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      pathSegments: segments.slice(0, -1),
+    })
+    return await createWorkspaceFileFolderAtPath(params)
+  }
 }
 
 async function executeCreateWorkspaceFileFolder(args: {
@@ -156,7 +214,7 @@ async function executeCreateWorkspaceFileFolder(args: {
   })
   const result =
     args.input.path !== undefined
-      ? await createWorkspaceFileFolderAtPath({
+      ? await createWorkspaceFileFolderAtPathCreatingAncestors({
           workspaceId: args.context.workspaceId,
           userId: attribution.attributedUserId,
           path: args.input.path,
@@ -225,12 +283,15 @@ async function executeDeleteWorkspaceFileFolder(args: {
   context: FolderOperationContext
 }): Promise<DeleteWorkspaceFileFolderResult> {
   let deletedItems: WorkspaceFileArchiveResult
+  let deletedFolderId: string | undefined
   if (args.input.path !== undefined) {
-    deletedItems = await deleteWorkspaceFileFolderByPath({
+    const { folderId, ...archived } = await deleteWorkspaceFileFolderByPath({
       workspaceId: args.context.workspaceId,
       path: args.input.path,
       recursive: args.input.recursive ?? false,
     })
+    deletedItems = archived
+    deletedFolderId = folderId
   } else {
     if (!args.input.folderId) throw new OrchestrationError('validation', 'Folder ID is required')
     await assertWorkspaceFileItemsBelongToWorkspace({
@@ -242,11 +303,12 @@ async function executeDeleteWorkspaceFileFolder(args: {
       folderIds: [args.input.folderId],
     })
     deletedItems = { files: archived.fileIds.length, folders: archived.folderIds.length }
+    deletedFolderId = args.input.folderId
   }
   if (deletedItems.files === 0 && deletedItems.folders === 0) {
     throw new OrchestrationError('not_found', 'Folder not found')
   }
-  return { deletedItems, path: args.input.path }
+  return { deletedItems, folderId: deletedFolderId, path: args.input.path }
 }
 
 /**
@@ -356,7 +418,12 @@ export const deleteWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileU
     return {
       action: AuditAction.FOLDER_DELETED,
       resourceType: AuditResourceType.FOLDER,
-      resourceId: input.folderId,
+      /*
+       * A path-addressed delete has no `input.folderId`, so the audit carried no
+       * resource at all and the folder survived only as free text in metadata.
+       * The execution resolves the path to an id either way; this is that id.
+       */
+      resourceId: result.folderId ?? input.folderId,
       description: 'Deleted file folder',
       metadata: {
         path: input.path,

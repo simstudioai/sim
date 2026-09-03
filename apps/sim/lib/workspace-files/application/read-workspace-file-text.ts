@@ -18,11 +18,16 @@ import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/appl
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
+import { countLines, detectLineEnding } from '@/lib/workspace-files/edit-content'
 
 export interface ReadWorkspaceFileTextInput {
   fileId: string
   assertedWorkspaceId?: string
   maxBytes?: number
+  /** First line to return, 1-based. Absent starts at the first line. */
+  offset?: number
+  /** How many lines to return from `offset`. Absent reads to the end. */
+  limit?: number
 }
 
 export interface ReadWorkspaceFileTextResult {
@@ -39,6 +44,14 @@ export interface ReadWorkspaceFileTextResult {
   degraded: boolean
   degradedReason: string | null
   byteCount: number
+  /** Present when `offset` or `limit` narrowed `text` to a window. */
+  lineRange?: {
+    offset: number
+    lineCount: number
+    totalLines: number
+    /** False when extraction was truncated, so `totalLines` is not the file's end. */
+    totalLinesExact: boolean
+  }
 }
 
 /**
@@ -105,13 +118,67 @@ async function executeReadWorkspaceFileText({
   const parsed = await parseFileText(content, extension, file.name)
   const metadata = parsed.metadata ?? {}
 
+  const truncated = metadata.truncated === true
+  const { text, lineRange } = sliceTextLines(parsed.content, input.offset, input.limit, truncated)
+
   return {
     file,
-    text: parsed.content,
-    truncated: metadata.truncated === true,
+    text,
+    truncated,
     degraded: metadata.degraded === true,
     degradedReason: metadata.degraded === true ? (metadata.warning ?? null) : null,
     byteCount: content.byteLength,
+    ...(lineRange ? { lineRange } : {}),
+  }
+}
+
+/**
+ * Narrows extracted text to a line window.
+ *
+ * `totalLines` travels with it because without it a caller cannot tell a file
+ * that ended from a window that stopped early, and would either stop reading
+ * too soon or keep asking for lines that do not exist. Lines are counted the
+ * way {@link countLines} counts them, so the numbers here name the same lines
+ * that search reports and that an insert will accept.
+ *
+ * `totalLinesExact` is false when the parser stopped early: the count then
+ * describes only the part that was extracted, and reporting it as the file's
+ * end would tell a caller it had read everything. The separate flag is what
+ * keeps `totalLines` useful in the ordinary case without lying in this one.
+ *
+ * The window is rejoined with the line ending the text already used, so a
+ * ranged read of a CRLF file stays usable verbatim as exact search text for an edit.
+ */
+function sliceTextLines(
+  text: string,
+  offset: number | undefined,
+  limit: number | undefined,
+  truncatedExtraction: boolean
+): {
+  text: string
+  lineRange?: {
+    offset: number
+    lineCount: number
+    totalLines: number
+    totalLinesExact: boolean
+  }
+} {
+  if (offset === undefined && limit === undefined) return { text }
+
+  const totalLines = countLines(text)
+  const eol = detectLineEnding(text)
+  const lines = text.split(/\r\n|\n/).slice(0, totalLines)
+  const start = Math.max((offset ?? 1) - 1, 0)
+  const window = lines.slice(start, limit === undefined ? undefined : start + limit)
+
+  return {
+    text: window.join(eol),
+    lineRange: {
+      offset: start + 1,
+      lineCount: window.length,
+      totalLines,
+      totalLinesExact: !truncatedExtraction,
+    },
   }
 }
 

@@ -196,6 +196,24 @@ describe('a similarity score, at a width a person can read', () => {
   })
 })
 
+describe('file-content search results', () => {
+  const response = {
+    results: [{ fileId: 'file_1', lineNumber: 7, text: 'quarterly revenue' }],
+    total: 1,
+  }
+  const spec = CLI_CONTRACT.searchFileContent as CommandSpec
+
+  it('renders result rows instead of the response envelope', () => {
+    renderResult('searchFileContent', 'text', response, spec)
+    expect(logged).toEqual(['file_1\t7\tquarterly revenue'])
+  })
+
+  it('preserves the response envelope for json output', () => {
+    renderResult('searchFileContent', 'json', response, spec)
+    expect(JSON.parse(logged[0])).toEqual(response)
+  })
+})
+
 describe('folder paths are shown by name, but piped in wire form', () => {
   const folders = [
     {

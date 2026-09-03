@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import type { RoomType } from '@sim/realtime-protocol/rooms'
+import type { Socket } from 'socket.io-client'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 
 const logger = createLogger('WorkspaceInvalidationRoom')
@@ -18,6 +19,72 @@ interface JoinErrorPayload {
   retryable?: boolean
 }
 
+interface SharedRoomSubscription {
+  callbacks: Map<string | symbol, Set<() => void>>
+  dispose: () => void
+}
+
+const subscriptionsBySocket = new WeakMap<Socket, Map<string, SharedRoomSubscription>>()
+
+function createSharedRoomSubscription(
+  socket: Socket,
+  workspaceId: string,
+  roomType: RoomType
+): SharedRoomSubscription {
+  const joinEvent = `join-${roomType}`
+  const successEvent = `${joinEvent}-success`
+  const errorEvent = `${joinEvent}-error`
+  const leaveEvent = `leave-${roomType}`
+  const changedEvent = `${roomType}-changed`
+  const callbacks = new Map<string | symbol, Set<() => void>>()
+  let retries = 0
+  let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+  const join = () => socket.emit(joinEvent, { workspaceId })
+  const handleConnect = () => {
+    retries = 0
+    if (retryTimer) clearTimeout(retryTimer)
+    retryTimer = null
+    join()
+  }
+  const handleJoinSuccess = (data: { workspaceId: string }) => {
+    if (data.workspaceId !== workspaceId) return
+    retries = 0
+    if (retryTimer) clearTimeout(retryTimer)
+    retryTimer = null
+  }
+  const handleJoinError = (data: JoinErrorPayload) => {
+    if (data.workspaceId !== workspaceId) return
+    logger.warn(`Failed to join ${roomType} room`, { code: data.code, error: data.error })
+    if (!data.retryable || retries >= MAX_JOIN_RETRIES) return
+    retries += 1
+    if (retryTimer) clearTimeout(retryTimer)
+    retryTimer = setTimeout(join, JOIN_RETRY_BASE_MS * retries)
+  }
+  const handleChanged = (data: { workspaceId: string }) => {
+    if (data.workspaceId !== workspaceId) return
+    for (const group of callbacks.values()) group.values().next().value?.()
+  }
+
+  if (socket.connected) join()
+  socket.on('connect', handleConnect)
+  socket.on(successEvent, handleJoinSuccess)
+  socket.on(errorEvent, handleJoinError)
+  socket.on(changedEvent, handleChanged)
+
+  return {
+    callbacks,
+    dispose: () => {
+      if (retryTimer) clearTimeout(retryTimer)
+      socket.off('connect', handleConnect)
+      socket.off(successEvent, handleJoinSuccess)
+      socket.off(errorEvent, handleJoinError)
+      socket.off(changedEvent, handleChanged)
+      socket.emit(leaveEvent, { workspaceId })
+    },
+  }
+}
+
 /**
  * Joins a workspace-scoped, presence-free "invalidation room" over the shared socket and runs
  * `onChanged` whenever the server broadcasts `${roomType}-changed` for this workspace, so the list
@@ -30,82 +97,41 @@ interface JoinErrorPayload {
 export function useWorkspaceInvalidationRoom(
   workspaceId: string,
   roomType: RoomType,
-  onChanged: () => void
+  onChanged: () => void,
+  dedupeKey?: string
 ): void {
   const { socket } = useSocket()
-  // Held by ref so a caller passing a fresh closure each render never re-subscribes the socket.
   const onChangedRef = useRef(onChanged)
   onChangedRef.current = onChanged
+  const privateCallbackKeyRef = useRef(Symbol('workspace-invalidation-callback'))
 
   useEffect(() => {
     if (!socket || !workspaceId) return
-
-    const joinEvent = `join-${roomType}`
-    const successEvent = `${joinEvent}-success`
-    const errorEvent = `${joinEvent}-error`
-    const leaveEvent = `leave-${roomType}`
-    const changedEvent = `${roomType}-changed`
-
-    let retries = 0
-    let retryTimer: ReturnType<typeof setTimeout> | null = null
-
-    const join = () => socket.emit(joinEvent, { workspaceId })
-
-    // A fresh (re)connect gets a fresh retry budget, so a prior full exhaustion doesn't leave the
-    // socket unable to retry a failed re-join until the next success. Cancel any retry still pending
-    // from before the reconnect so it can't fire a duplicate join after this immediate one.
-    const handleConnect = () => {
-      retries = 0
-      if (retryTimer) {
-        clearTimeout(retryTimer)
-        retryTimer = null
-      }
-      join()
+    const subscriberKey = `${workspaceId}|${roomType}`
+    let socketSubscriptions = subscriptionsBySocket.get(socket)
+    if (!socketSubscriptions) {
+      socketSubscriptions = new Map()
+      subscriptionsBySocket.set(socket, socketSubscriptions)
+    }
+    let subscription = socketSubscriptions.get(subscriberKey)
+    if (!subscription) {
+      subscription = createSharedRoomSubscription(socket, workspaceId, roomType)
+      socketSubscriptions.set(subscriberKey, subscription)
     }
 
-    const handleJoinSuccess = (data: { workspaceId: string }) => {
-      if (data.workspaceId !== workspaceId) return
-      retries = 0
-      // Cancel any retry scheduled by a prior retryable error so it can't fire an extra
-      // join after we're already in.
-      if (retryTimer) {
-        clearTimeout(retryTimer)
-        retryTimer = null
-      }
-    }
-    const handleJoinError = (data: JoinErrorPayload) => {
-      if (data.workspaceId !== workspaceId) return
-      logger.warn(`Failed to join ${roomType} room`, { code: data.code, error: data.error })
-      if (data.retryable && retries < MAX_JOIN_RETRIES) {
-        retries += 1
-        // Clear any still-pending retry before scheduling a new one, so reconnect churn can't
-        // orphan a timer that fires an extra join().
-        if (retryTimer) clearTimeout(retryTimer)
-        retryTimer = setTimeout(join, JOIN_RETRY_BASE_MS * retries)
-      }
-    }
-    const handleChanged = (data: { workspaceId: string }) => {
-      if (data.workspaceId === workspaceId) onChangedRef.current()
-    }
-
-    // Join now if the socket is already connected; `connect` covers (re)connects.
-    if (socket.connected) join()
-    socket.on('connect', handleConnect)
-    socket.on(successEvent, handleJoinSuccess)
-    socket.on(errorEvent, handleJoinError)
-    socket.on(changedEvent, handleChanged)
+    const callbackKey = dedupeKey ?? privateCallbackKeyRef.current
+    const callback = () => onChangedRef.current()
+    const callbackGroup = subscription.callbacks.get(callbackKey) ?? new Set()
+    callbackGroup.add(callback)
+    subscription.callbacks.set(callbackKey, callbackGroup)
 
     return () => {
-      if (retryTimer) clearTimeout(retryTimer)
-      socket.off('connect', handleConnect)
-      socket.off(successEvent, handleJoinSuccess)
-      socket.off(errorEvent, handleJoinError)
-      socket.off(changedEvent, handleChanged)
-
-      // Leave the room, scoped to THIS workspace: the server no-ops if the socket has already
-      // switched to another workspace's room (so a workspace A→B switch, where B's join runs first
-      // and auto-leaves A, can't have A's leave evict B).
-      socket.emit(leaveEvent, { workspaceId })
+      callbackGroup.delete(callback)
+      if (callbackGroup.size === 0) subscription.callbacks.delete(callbackKey)
+      if (subscription.callbacks.size > 0) return
+      subscription.dispose()
+      socketSubscriptions.delete(subscriberKey)
+      if (socketSubscriptions.size === 0) subscriptionsBySocket.delete(socket)
     }
-  }, [socket, workspaceId, roomType])
+  }, [dedupeKey, socket, workspaceId, roomType])
 }

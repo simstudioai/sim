@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   loadWorkspace: vi.fn(),
   loadFolderIndex: vi.fn(),
   queryFiles: vi.fn(),
+  resolveFolderScope: vi.fn(),
   resolvePermission: vi.fn(),
   recordAudit: vi.fn(),
 }))
@@ -30,13 +31,20 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
 
 vi.mock('@/lib/public-shares/share-manager', () => ({ getWorkspaceShares: vi.fn() }))
 
+vi.mock('@/lib/workspace-files/resolve-folder-scope', () => ({
+  resolveWorkspaceFolderScope: mocks.resolveFolderScope,
+}))
+
 vi.mock('@/lib/folders/queries', async () => {
   const { resolveFolderPathFilter } =
     await vi.importActual<typeof import('@/lib/folders/queries')>('@/lib/folders/queries')
   return { loadActiveFolderPathIndex: mocks.loadFolderIndex, resolveFolderPathFilter }
 })
 
-import { queryWorkspaceFilePage } from '@/lib/workspace-files/application/list-workspace-files'
+import {
+  listWorkspaceFilesInFolderScope,
+  queryWorkspaceFilePage,
+} from '@/lib/workspace-files/application/list-workspace-files'
 
 /**
  * Projects / (a)
@@ -103,12 +111,54 @@ describe('queryWorkspaceFilePage folder scoping', () => {
       billedAccountUserId: 'billing-owner',
     })
     mocks.loadFolderIndex.mockResolvedValue(buildIndex())
+    mocks.resolveFolderScope.mockResolvedValue({
+      folderIds: new Set(['a', 'b', 'c']),
+      includeRootItems: false,
+    })
     mocks.queryFiles.mockResolvedValue({ files: [], nextKeys: null })
   })
 
   it('applies no folder predicate when folderPath is omitted', async () => {
     const options = await run()
     expect(options.folderId).toBeUndefined()
+    expect(mocks.loadFolderIndex).not.toHaveBeenCalled()
+  })
+
+  it('pushes a multi-path scope into the bounded query', async () => {
+    await listWorkspaceFilesInFolderScope.execute({
+      principal,
+      input: {
+        workspaceId: 'workspace-1',
+        folderPaths: ['/Projects', '/Archive'],
+        includeSubfolders: false,
+        limit: 5000,
+      },
+    })
+
+    expect(mocks.resolveFolderScope).toHaveBeenCalledWith({
+      principal,
+      workspaceId: 'workspace-1',
+      folderPaths: ['/Projects', '/Archive'],
+      includeSubfolders: false,
+    })
+    expect(mocks.queryFiles).toHaveBeenCalledWith(
+      'workspace-1',
+      expect.objectContaining({
+        folderScope: { folderIds: new Set(['a', 'b', 'c']), includeRootItems: false },
+        limit: 5000,
+      })
+    )
+  })
+
+  it('reports when another scoped page exists', async () => {
+    mocks.queryFiles.mockResolvedValueOnce({ files: [{ id: 'f1' }], nextKeys: ['cursor'] })
+
+    await expect(
+      listWorkspaceFilesInFolderScope.execute({
+        principal,
+        input: { workspaceId: 'workspace-1', folderPaths: ['/Projects'], limit: 1 },
+      })
+    ).resolves.toEqual({ files: [{ id: 'f1' }], truncated: true })
   })
 
   it('matches one folder when not recursive', async () => {
