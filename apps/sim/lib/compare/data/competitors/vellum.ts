@@ -823,10 +823,10 @@ export const vellumProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          'HIPAA compliant, with a BAA available for enterprise customers; no other certifications (ISO 27001, GDPR-specific attestation, PCI, FedRAMP) confirmed',
+          'SOC 2 Type 2 and HIPAA compliant, with a BAA available for enterprise customers; no other certifications (ISO 27001, GDPR-specific attestation, PCI, FedRAMP) confirmed',
         detail:
-          "Vellum's docs and a third-party Drata case study state it is HIPAA compliant and that enterprise customers can sign a Business Associate Agreement (BAA). No mention of ISO 27001, PCI, or FedRAMP certification was found.",
-        shortValue: 'HIPAA + BAA; no other certs confirmed',
+          "Vellum's docs state it is HIPAA compliant and that enterprise customers can sign a Business Associate Agreement (BAA). A third-party Drata case study also notes its SOC 2 Type 1 and Type 2 attestations. No mention of ISO 27001, PCI, or FedRAMP certification was found.",
+        shortValue: 'SOC 2 Type 2, HIPAA + BAA; no other certs confirmed',
         confidence: 'verified',
         sources: [
           {

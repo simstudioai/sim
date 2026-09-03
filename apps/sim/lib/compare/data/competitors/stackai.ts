@@ -748,10 +748,10 @@ export const stackaiProfile: CompetitorProfile = {
       },
       additionalCompliance: {
         value:
-          'ISO 27001 certified, and audited against HIPAA in the same review cycle as its SOC 2 Type II audit, though the public Trust Center page itself lists only SOC 2 and ISO 27001, not HIPAA',
+          'SOC 2 Type II and ISO 27001 certified, and audited against HIPAA in the same review cycle, though the public Trust Center page itself lists only SOC 2 and ISO 27001, not HIPAA',
         detail:
           'The Trust Center confirms SOC 2 Type II and ISO 27001, DPAs with OpenAI and Anthropic, and a May 2025 penetration test with a Low risk rating. A separate StackAI blog post states the company "was also audited against HIPAA standards during the same period as the SOC 2 Type II audit." GDPR compliance is referenced on the Enterprise pricing page but has no dedicated audit source.',
-        shortValue: 'ISO 27001 certified; HIPAA audited, GDPR marketing-only',
+        shortValue: 'SOC 2 Type II and ISO 27001 certified; HIPAA audited, GDPR marketing-only',
         confidence: 'estimated',
         sources: [
           { url: 'https://trust.stackai.com/', label: 'StackAI Trust Center', asOf: '2026-07-02' },
