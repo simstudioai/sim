@@ -913,16 +913,14 @@ export const simProfile: CompetitorProfile = {
         ],
       },
       additionalCompliance: {
-        value: 'SOC2',
-        detail:
-          'Self-hosting is the primary lever Sim offers for data-residency-sensitive compliance needs beyond SOC2, rather than additional certifications.',
-        shortValue: 'SOC2',
-        confidence: 'estimated',
+        value: 'SOC 2 Type II, ISO 27001, GDPR',
+        shortValue: 'SOC 2 Type II, ISO 27001, GDPR',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://sim.ai/enterprise',
-            label: 'Sim Enterprise Page',
-            asOf: '2026-07-02',
+            url: 'https://trust.sim.ai',
+            label: 'Sim Trust Center',
+            asOf: '2026-09-03',
           },
         ],
       },
