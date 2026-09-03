@@ -27,7 +27,7 @@ Describe what the workflow should do — what triggers it, what it should do, wh
 Open an existing workflow with `@workflow-name` or the **+** menu, then describe the change. Sim reads the current structure before modifying it — you don't need to explain what already exists.
 
 - "Add a condition that routes to a different branch if the confidence score is below 0.7"
-- "Replace the GPT-4o model with Claude Opus 4.6 on the summarizer block"
+- "Replace the GPT-4o model with Claude Opus 5 on the summarizer block"
 - "Add a Slack notification at the end that includes the output"
 
 ## Running Workflows
@@ -112,4 +112,5 @@ Variables set this way are available via `<variable.VARIABLE_NAME>` syntax insid
 <FAQ items={[
   { question: "Can Sim edit a workflow while it's deployed?", answer: "Yes. Editing a workflow does not affect the live deployment. The deployed version is a snapshot — you need to ask Sim to redeploy to push changes to production." },
   { question: "What happens to a workflow's deployment when I delete it?", answer: "Deleting a workflow removes it from the active workspace and disables its deployments. Any API endpoints, chat URLs, or MCP tools that pointed to that workflow will stop working." },
+  { question: "Can I run a workflow with specific inputs from Chat?", answer: "Yes. Describe the inputs in your message and Sim passes them to the workflow's start block." },
 ]} />
