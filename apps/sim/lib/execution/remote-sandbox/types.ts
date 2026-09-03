@@ -131,7 +131,14 @@ export interface SandboxShellExecutionRequest {
 export interface SandboxExecutionCost {
   input: number
   output: number
+  /** What the platform bills: the provider cost with the cost multiplier applied. */
   total: number
+  /**
+   * The provider cost before the multiplier. The copilot settles through the worker,
+   * which applies its own platform multiplier to every raw charge (model tokens, web
+   * research, and now sandbox time), so it must receive the unmarked amount.
+   */
+  raw?: number
 }
 
 /**

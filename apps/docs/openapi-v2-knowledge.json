@@ -6217,7 +6217,7 @@
           },
           "rankScore": {
             "type": "number",
-            "description": "The score results are ordered by, descending. In `vector` mode it equals `similarity`; in `hybrid` mode it is the reciprocal-rank-fusion score (a sum of 1/(60 + rank) over the lexical and vector legs, so a chunk both legs ranked first scores 2/61); when a reranker ordered the results it is `rerankerScore`.",
+            "description": "The retrieval score, or reranker score when reranked. In `vector` mode it equals `similarity`; in `hybrid` mode it is the reciprocal-rank-fusion score (a sum of 1/(60 + rank) over the lexical and vector legs, so a chunk both legs ranked first scores 2/61); when a reranker ordered the results it is `rerankerScore`. Recency boosting may reorder retrieval results without changing this score; `rank` always reflects returned order.",
             "examples": [0.0328]
           },
           "rank": {
