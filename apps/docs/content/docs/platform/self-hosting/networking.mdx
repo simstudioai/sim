@@ -336,7 +336,7 @@ The practical consequence: a mandatory-egress-proxy environment can route most L
   # Helm — for a release named `acme`
   app:
     env:
-      NO_PROXY: "localhost,127.0.0.1,.svc,.svc.cluster.local,acme-sim-realtime,acme-sim-pii,acme-sim-ollama"
+      NO_PROXY: "localhost,127.0.0.1,.svc,.svc.cluster.local,acme-sim-app,acme-sim-realtime,acme-sim-pii,acme-sim-ollama"
   ```
 
   ```yaml

@@ -70,8 +70,15 @@ helm upgrade --install sim ./helm/sim \
   --set app.env.CRON_SECRET="$CRON_SECRET" \
   --set postgresql.auth.password="$POSTGRES_PASSWORD" \
   --set app.env.NEXT_PUBLIC_APP_URL="https://sim.yourdomain.com" \
+  --set app.env.BETTER_AUTH_URL="https://sim.yourdomain.com" \
+  --set app.env.NEXT_PUBLIC_SOCKET_URL="https://sim-ws.yourdomain.com" \
+  --set realtime.env.ALLOWED_ORIGINS="https://sim.yourdomain.com" \
+  --set ingress.app.host="sim.yourdomain.com" \
+  --set ingress.realtime.host="sim-ws.yourdomain.com" \
   --namespace simstudio --create-namespace
 ```
+
+Every one of those overrides is required. The cloud values files hardcode a placeholder domain in all six places, and overriding only `NEXT_PUBLIC_APP_URL` leaves sign-in pointed at the placeholder, realtime rejecting every socket upgrade, and the Ingress serving the wrong host.
 
 Swap the `--values` file for your cloud: `values-aws.yaml` (EKS), `values-azure.yaml` (AKS), or `values-gcp.yaml` (GKE). Everything else is identical.
 

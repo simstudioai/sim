@@ -1892,10 +1892,9 @@ externalSecrets:
   # Enable External Secrets Operator integration
   enabled: false
 
-  # ESO API version. Default "v1beta1" — supported by every ESO release from
-  # Current ESO releases serve only external-secrets.io/v1 (the v1beta1
-  # compatibility path was removed in 2026). Set to "v1beta1" only for
-  # clusters still running ESO < 0.17.
+  # ESO API version. Current ESO releases serve only external-secrets.io/v1
+  # (the v1beta1 compatibility path was removed in 2026). Set this to
+  # "v1beta1" only for clusters still running ESO < 0.17.
   apiVersion: "v1"
 
   # How often to sync secrets from the external store

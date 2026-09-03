@@ -32,7 +32,7 @@ In increasing order of production-readiness:
 2. **A pre-created Kubernetes Secret** — set `app.secrets.existingSecret.enabled: true` and the secret name. Works with Sealed Secrets and SOPS. The secret is consumed wholesale and must use the standard key names.
 3. **External Secrets Operator** — sync from Vault, AWS Secrets Manager, Azure Key Vault, or GCP Secret Manager. Recommended.
 
-In the default and External Secrets modes, the chart writes every key under `app.env` and `realtime.env` into a chart-managed Secret mounted via `envFrom`, so no value is inlined into a pod spec. (In `existingSecret` mode the pre-created Secret is the source of truth and any `app.env` values you still pass are rendered inline — supply everything through the Secret in that mode.) Either way, a secret committed to `values.yaml` is a secret in your git history.
+In the default mode the chart writes every key under `app.env` and `realtime.env` into a chart-managed Secret mounted via `envFrom`, so no value is inlined into a pod spec. Under External Secrets the chart renders no Secret of its own: a Secret of the same name is populated by the operator from `externalSecrets.remoteRefs.app`, and a non-empty `app.env` key that is not mapped there fails the render. (In `existingSecret` mode the pre-created Secret is the source of truth and any `app.env` values you still pass are rendered inline — supply everything through the Secret in that mode.) Either way, a secret committed to `values.yaml` is a secret in your git history.
 
 ## Network boundaries
 
@@ -108,17 +108,17 @@ So a workflow can never reach instance metadata, but the pod-level block is only
 
 ### The `copilot` deployment ships no NetworkPolicy
 
-The `copilot` and `copilot-postgresql` workloads deliberately have no policy of their own. The `copilot` service requires `REDIS_URL` on a non-443 port, and the chart cannot know your Redis host at render time — a default egress rule would block Redis on most installs. If you run `networkPolicy.enabled: true` with `copilot.enabled: true`, those two pods are unisolated until you write dedicated NetworkPolicies for them. The chart-level `networkPolicy.egress` list does not reach them — it is only rendered into the policies the chart creates, and it creates none for these workloads.
+The `copilot` and `copilot-postgresql` workloads deliberately have no policy of their own, and neither do the CronJob pods — nothing in the chart's policies selects them, so they are unisolated whenever `networkPolicy.enabled: true`. The `copilot` service requires `REDIS_URL` on a non-443 port, and the chart cannot know your Redis host at render time — a default egress rule would block Redis on most installs. If you run `networkPolicy.enabled: true` with `copilot.enabled: true`, those two pods are unisolated until you write dedicated NetworkPolicies for them. The chart-level `networkPolicy.egress` list does not reach them — it is only rendered into the policies the chart creates, and it creates none for these workloads.
 
 ### Pod Security Standards
 
-All workloads set `runAsNonRoot`, drop all Linux capabilities, disable privilege escalation, and use `seccompProfile: RuntimeDefault` — the four controls the `restricted` profile requires. Label the namespace to enforce it:
+All workloads set `runAsNonRoot`, drop all Linux capabilities, disable privilege escalation, and use `seccompProfile: RuntimeDefault` — the four controls the `restricted` profile requires — with one exception. The NVIDIA device-plugin DaemonSet the chart renders when `ollama.gpu.enabled: true` sets only `allowPrivilegeEscalation` and `capabilities.drop`, and mounts three `hostPath` volumes that `restricted` forbids outright. Enforce it at the namespace level only when GPU Ollama is off, or exempt that DaemonSet. Label the namespace to enforce it:
 
 ```bash
 kubectl label namespace simstudio pod-security.kubernetes.io/enforce=restricted
 ```
 
-`readOnlyRootFilesystem` is not set by default: Postgres and Ollama need a writable root, and the app container writes to Next.js's `.next/cache`. It is viable on the genuinely stateless services (`realtime`, `pii`, `copilot`) — set `<component>.securityContext.readOnlyRootFilesystem: true` and mount an `emptyDir` at `/tmp` via `extraVolumes` / `extraVolumeMounts`.
+`readOnlyRootFilesystem` is not set by default: Postgres and Ollama need a writable root, and the app container writes to Next.js's `.next/cache`. It is viable on the genuinely stateless services — set `realtime.securityContext`, `pii.securityContext`, or `copilot.server.securityContext` (the copilot keys nest one level deeper) to `readOnlyRootFilesystem: true`, and mount an `emptyDir` at `/tmp` via the matching `extraVolumes` / `extraVolumeMounts`.
 
 ## Where user code runs
 
@@ -251,6 +251,22 @@ app:
 ```
 
 `INTERNAL_API_BASE_URL` must be the **in-cluster** Service URL. The redaction path calls the app's own API, and a public ingress URL is usually not hairpin-reachable from inside the cluster. Without a reachable value the path fails closed — affected fields are scrubbed to `[REDACTION_FAILED]` rather than leaking, but redaction does not actually run.
+
+With `networkPolicy.enabled: true` that self-call is blocked: the chart's app policy permits Postgres, Redis, realtime, Ollama, PII, telemetry, DNS, and TCP 443, but has no app-to-app rule. Add one, or set `networkPolicy.allowExternalEgress: true`:
+
+```yaml
+networkPolicy:
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: sim
+              app.kubernetes.io/instance: <release>
+              app.kubernetes.io/component: app
+      ports:
+        - protocol: TCP
+          port: 3000
+```
 
 The service bundles ~2.2 GB of spaCy models, so first start takes around three minutes and it needs at least 4 GB of memory.
 

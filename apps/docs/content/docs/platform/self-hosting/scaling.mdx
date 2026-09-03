@@ -41,7 +41,7 @@ The `resources` block above is the chart's default — it is shown so the number
 
 **Memory is the constraint, not CPU.** Workflow executions run inside the app process in isolated-vm sandboxes, and file parsing happens in memory. Production telemetry shows 4–8 GB steady with peaks to 12 GB under heavy execution load. Under-provision memory and you get OOMKills that terminate in-flight workflow runs — so raise `limits.memory` above the 8 Gi default if your workload shows those peaks.
 
-A PodDisruptionBudget is created automatically once `replicaCount > 1` (`maxUnavailable: 25%`). Tighten it with `podDisruptionBudget.minAvailable` if you need to.
+A PodDisruptionBudget is created automatically once `replicaCount > 1`, or once `autoscaling.enabled` with `minReplicas > 1` — for the app and realtime independently (`maxUnavailable: 25%`). Tighten it with `podDisruptionBudget.minAvailable` if you need to.
 
 ### Autoscaling
 
@@ -78,7 +78,7 @@ Each app replica opens a pool. Total connections grow with replica count, and Po
 
 Budget it: `replicas × pool size + realtime + cronjobs + migrations + headroom` must stay under `max_connections`.
 
-For anything beyond a handful of replicas, put **PgBouncer** in transaction pooling mode in front of the database and point `DATABASE_URL` at it. This is the single highest-leverage change for a large deployment — it decouples app replica count from database connection count.
+For anything beyond a handful of replicas, put **PgBouncer** in transaction pooling mode in front of the database and point the chart at it with `externalDatabase.host` / `externalDatabase.port` and `postgresql.enabled: false`. Setting `app.env.DATABASE_URL` does nothing — the chart computes `DATABASE_URL` itself and inlines it on the container, where it overrides anything from the Secret. This is the single highest-leverage change for a large deployment — it decouples app replica count from database connection count.
 
 ### Read replicas
 
@@ -147,6 +147,9 @@ externalDatabase:
   port: 6432
   database: simstudio
   sslMode: require
+  # Required — supply it here, through externalDatabase.existingSecret, or
+  # through External Secrets, or the chart refuses to render.
+  password: "<password>"
 
 autoscaling:
   enabled: true
