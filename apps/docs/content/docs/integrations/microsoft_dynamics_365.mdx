@@ -27,6 +27,18 @@ Connect one credential per Dynamics environment. The credential is bound to that
 Manage standard Microsoft Dynamics 365 CRM records through the Dataverse Web API. List, search, create, retrieve, and update accounts, contacts, leads, opportunities, and cases; assign records to users or teams; qualify leads; close opportunities; and resolve cases. Connect a separate Microsoft credential for each environment from this Dynamics integration page or from its workflow block; existing generic Dataverse credentials remain unchanged and are not automatically rebound. This version supports public-cloud Dynamics environments; national clouds require separate OAuth authorities. Dataverse Search must be enabled for search, and lifecycle actions require the corresponding Dynamics 365 app, security role, and record privileges.
 
 
+## Scopes
+
+Connecting Microsoft Dynamics 365 CRM requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `https://dynamics.microsoft.com/user_impersonation` | Access Microsoft Dataverse on your behalf |
+| `offline_access` | Access account when not using the application |
+
 
 ## Actions
 

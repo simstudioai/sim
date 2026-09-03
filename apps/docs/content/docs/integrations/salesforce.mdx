@@ -30,6 +30,18 @@ The Salesforce tool is ideal for workflows where your agents need to streamline 
 Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and manage org schema by creating custom fields and objects via the Tooling API.
 
 
+## Scopes
+
+Connecting Salesforce requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `api` | Access Salesforce API |
+| `refresh_token` | Maintain long-term access to Salesforce account |
+| `openid` | Standard authentication |
+
+Salesforce also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

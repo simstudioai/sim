@@ -28,6 +28,18 @@ In Sim, the Google Contacts integration allows your agents to create, read, upda
 Integrate Google Contacts into the workflow. Can create, read, update, delete, list, and search contacts.
 
 
+## Scopes
+
+Connecting Google Contacts requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/contacts` | View and manage Google Contacts |
+
+Google Contacts also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

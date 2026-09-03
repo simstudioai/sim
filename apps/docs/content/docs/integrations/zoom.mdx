@@ -38,6 +38,26 @@ These capabilities let you streamline remote collaboration, automate recurring v
 Integrate Zoom into workflows. Create, list, update, and delete Zoom meetings. Get meeting details, invitations, recordings, and participants. Manage cloud recordings programmatically.
 
 
+## Scopes
+
+Connecting Zoom requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `user:read:user` | View Zoom profile information |
+| `meeting:write:meeting` | Create Zoom meetings |
+| `meeting:read:meeting` | View Zoom meeting details |
+| `meeting:read:list_meetings` | List Zoom meetings |
+| `meeting:update:meeting` | Update Zoom meetings |
+| `meeting:delete:meeting` | Delete Zoom meetings |
+| `meeting:read:invitation` | View Zoom meeting invitations |
+| `meeting:read:list_past_participants` | View past meeting participants |
+| `cloud_recording:read:list_user_recordings` | List Zoom cloud recordings |
+| `cloud_recording:read:list_recording_files` | View recording files |
+| `cloud_recording:delete:recording_file` | Delete cloud recordings |
+
+Zoom also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

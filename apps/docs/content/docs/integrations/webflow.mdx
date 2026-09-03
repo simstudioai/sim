@@ -31,6 +31,20 @@ In Sim, the Webflow integration enables your agents to seamlessly interact with 
 Integrates Webflow CMS into the workflow. Can create, get, list, update, or delete items in Webflow CMS collections. Manage your Webflow content programmatically. Can be used in trigger mode to trigger workflows when collection items change or forms are submitted.
 
 
+## Scopes
+
+Connecting Webflow requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `cms:read` | View CMS content |
+| `cms:write` | Manage CMS content |
+| `sites:read` | View Webflow sites |
+| `sites:write` | Manage webhooks and site settings |
+| `forms:read` | View form submissions |
+
+Webflow also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

@@ -29,6 +29,20 @@ In Sim, the Airtable integration enables your agents to interact with your Airta
 Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, update, upsert, or delete records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.
 
 
+## Scopes
+
+Connecting Airtable requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `data.records:read` | Read records |
+| `data.records:write` | Write to records |
+| `schema.bases:read` | View bases and tables |
+| `user.email:read` | Read email address |
+| `webhook:manage` | Manage webhooks |
+
+Airtable also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

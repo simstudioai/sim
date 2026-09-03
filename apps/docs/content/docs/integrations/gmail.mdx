@@ -34,6 +34,20 @@ In Sim, the Gmail integration enables your agents to interact with your inbox pr
 Integrate Gmail into the workflow. Can send, read, search, and move emails. Can be used in trigger mode to trigger a workflow when a new email is received.
 
 
+## Scopes
+
+Connecting Gmail requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/gmail.send` | Send emails |
+| `https://www.googleapis.com/auth/gmail.modify` | View and manage email messages |
+| `https://www.googleapis.com/auth/gmail.labels` | View and manage email labels |
+
+Gmail also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

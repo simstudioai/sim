@@ -57,7 +57,9 @@ https://sim.yourdomain.com/api/auth/oauth2/callback/google-email
 https://sim.yourdomain.com/api/auth/oauth2/callback/google-drive
 ```
 
-Scopes are requested by Sim at authorization time; you generally do not need to pre-declare them, but Google and Microsoft require you to enable the corresponding APIs on the project/app first (for example Gmail API, Drive API, Calendar API).
+Most providers let Sim request scopes at authorization time, but several need them declared on the app before anyone can connect. Microsoft Entra requires every delegated permission to be added to the registration, and the `microsoft-ad` connector's directory permissions additionally need tenant admin consent. Bitbucket fixes permissions on the consumer rather than per request. Google needs the matching API enabled on the Cloud project (Gmail API, Drive API, Calendar API, and so on) as well as the scopes on the consent screen.
+
+The [provider reference](#provider-reference) below lists the exact scopes each connector asks for, grouped by the app that covers it.
 
 </Step>
 
@@ -94,58 +96,301 @@ Open a workflow, add the integration's block, and connect an account. A successf
 
 Every provider ID below maps to the redirect URI `https://<your-domain>/api/auth/oauth2/callback/<provider-id>`.
 
+{/* GENERATED-START:oauth-apps */}
+
+### Airtable
+
+`AIRTABLE_CLIENT_ID` / `AIRTABLE_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Airtable | `airtable` | `data.records:read`, `data.records:write`, `schema.bases:read`, `user.email:read`, `webhook:manage` |
+
+### Asana
+
+`ASANA_CLIENT_ID` / `ASANA_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Asana | `asana` | `default` |
+
+### Attio
+
+`ATTIO_CLIENT_ID` / `ATTIO_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Attio | `attio` | `record_permission:read-write`, `object_configuration:read-write`, `list_configuration:read-write`, `list_entry:read-write`, `note:read-write`, `task:read-write`, `comment:read-write`, `user_management:read`, `webhook:read-write` |
+
+### Bitbucket
+
+`BITBUCKET_CLIENT_ID` / `BITBUCKET_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Bitbucket | `bitbucket` | `account`, `repository`, `repository:write`, `pullrequest`, `pullrequest:write`, `pipeline`, `pipeline:write`, `webhook` |
+
+### Box
+
+`BOX_CLIENT_ID` / `BOX_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Box | `box` | `root_readwrite`, `sign_requests.readwrite` |
+
+### Cal.com
+
+`CALCOM_CLIENT_ID`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Cal.com | `calcom` | None to select |
+
+### ClickUp
+
+`CLICKUP_CLIENT_ID` / `CLICKUP_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| ClickUp | `clickup` | None to select |
+
+### Confluence
+
+`CONFLUENCE_CLIENT_ID` / `CONFLUENCE_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Confluence | `confluence` | `read:confluence-content.all`, `read:confluence-space.summary`, `read:space:confluence`, `write:confluence-content`, `write:confluence-space`, `write:confluence-file`, `read:page:confluence`, `write:page:confluence`, `read:comment:confluence`, `write:comment:confluence`, `delete:comment:confluence`, `delete:attachment:confluence`, `delete:page:confluence`, `read:label:confluence`, `write:label:confluence`, `read:attachment:confluence`, `write:attachment:confluence`, `search:confluence`, `read:me`, `offline_access`, `read:hierarchical-content:confluence`, `read:content.metadata:confluence`, `read:user:confluence`, `read:confluence-user`, `read:task:confluence`, `write:task:confluence`, `write:space:confluence`, `delete:space:confluence`, `read:blogpost:confluence`, `write:blogpost:confluence`, `delete:blogpost:confluence`, `read:content.property:confluence`, `write:content.property:confluence`, `read:space.property:confluence`, `write:space.property:confluence`, `read:space.permission:confluence` |
+
+### DocuSign
+
+`DOCUSIGN_CLIENT_ID` / `DOCUSIGN_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| DocuSign | `docusign` | `signature`, `extended` |
+
+### Dropbox
+
+`DROPBOX_CLIENT_ID` / `DROPBOX_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Dropbox | `dropbox` | `account_info.read`, `files.metadata.read`, `files.metadata.write`, `files.content.read`, `files.content.write`, `sharing.read`, `sharing.write` |
+
 ### Google
 
-One OAuth client in [Google Cloud Console](https://console.cloud.google.com/apis/credentials) covers all of these. Enable the matching API for each connector you use.
+`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
 
-| Environment variables | Provider IDs |
-|---|---|
-| `GOOGLE_CLIENT_ID`<br />`GOOGLE_CLIENT_SECRET` | `google-email`, `google-drive`, `google-sheets`, `google-docs`, `google-calendar`, `google-contacts`, `google-forms`, `google-tasks`, `google-meet`, `google-groups`, `google-chat`, `google-ads`, `google-bigquery`, `google-vault`, `vertex-ai` |
+Every connector below also requests `https://www.googleapis.com/auth/userinfo.email`, `https://www.googleapis.com/auth/userinfo.profile`.
 
-The same variables also power "Sign in with Google". See [Authentication](/platform/self-hosting/authentication).
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Gmail | `google-email` | `https://www.googleapis.com/auth/gmail.send`, `https://www.googleapis.com/auth/gmail.modify`, `https://www.googleapis.com/auth/gmail.labels` |
+| Google Drive | `google-drive` | `https://www.googleapis.com/auth/drive.file`, `https://www.googleapis.com/auth/drive` |
+| Google Docs | `google-docs` | `https://www.googleapis.com/auth/drive.file`, `https://www.googleapis.com/auth/drive` |
+| Google Sheets | `google-sheets` | `https://www.googleapis.com/auth/drive.file`, `https://www.googleapis.com/auth/drive` |
+| Google Forms | `google-forms` | `https://www.googleapis.com/auth/drive`, `https://www.googleapis.com/auth/forms.body`, `https://www.googleapis.com/auth/forms.responses.readonly` |
+| Google Calendar | `google-calendar` | `https://www.googleapis.com/auth/calendar` |
+| Google Contacts | `google-contacts` | `https://www.googleapis.com/auth/contacts` |
+| Google Ads | `google-ads` | `https://www.googleapis.com/auth/adwords` |
+| Google BigQuery | `google-bigquery` | `https://www.googleapis.com/auth/bigquery` |
+| Google Tasks | `google-tasks` | `https://www.googleapis.com/auth/tasks` |
+| Google Vault | `google-vault` | `https://www.googleapis.com/auth/ediscovery`, `https://www.googleapis.com/auth/ediscovery.readonly`, `https://www.googleapis.com/auth/devstorage.read_only` |
+| Google Groups | `google-groups` | `https://www.googleapis.com/auth/admin.directory.group`, `https://www.googleapis.com/auth/admin.directory.group.member` |
+| Google Chat | `google-chat` | `https://www.googleapis.com/auth/chat.spaces.readonly`, `https://www.googleapis.com/auth/chat.messages.readonly` |
+| Google Meet | `google-meet` | `https://www.googleapis.com/auth/meetings.space.created`, `https://www.googleapis.com/auth/meetings.space.readonly` |
+| Vertex AI | `vertex-ai` | `https://www.googleapis.com/auth/cloud-platform` |
+
+### HubSpot
+
+`HUBSPOT_CLIENT_ID` / `HUBSPOT_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| HubSpot | `hubspot` | `crm.objects.contacts.read`, `crm.objects.contacts.write`, `crm.objects.companies.read`, `crm.objects.companies.write`, `crm.objects.deals.read`, `crm.objects.deals.write`, `crm.objects.owners.read`, `crm.objects.users.read`, `crm.objects.marketing_events.read`, `crm.objects.line_items.read`, `crm.objects.line_items.write`, `crm.objects.quotes.read`, `crm.objects.appointments.read`, `crm.objects.appointments.write`, `crm.objects.carts.read`, `sales-email-read`, `crm.lists.read`, `crm.lists.write`, `tickets`, `oauth` |
+
+### Instagram
+
+`INSTAGRAM_CLIENT_ID` / `INSTAGRAM_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Instagram | `instagram` | `instagram_business_basic`, `instagram_business_content_publish`, `instagram_business_manage_comments`, `instagram_business_manage_messages`, `instagram_business_manage_insights` |
+
+### Jira
+
+`JIRA_CLIENT_ID` / `JIRA_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Jira | `jira` | `read:jira-user`, `read:jira-work`, `write:jira-work`, `read:me`, `offline_access`, `read:issue.vote:jira`, `read:user:jira`, `delete:issue:jira`, `delete:comment:jira`, `delete:attachment:jira`, `delete:issue-worklog:jira`, `delete:issue-link:jira`, `read:servicedesk-request`, `write:servicedesk-request`, `manage:servicedesk-customer`, `read:servicedesk:jira-service-management`, `read:requesttype:jira-service-management`, `read:request:jira-service-management`, `write:request:jira-service-management`, `read:request.comment:jira-service-management`, `write:request.comment:jira-service-management`, `read:servicedesk.customer:jira-service-management`, `write:servicedesk.customer:jira-service-management`, `read:organization:jira-service-management`, `write:organization:jira-service-management`, `read:servicedesk.organization:jira-service-management`, `write:servicedesk.organization:jira-service-management`, `read:queue:jira-service-management`, `read:request.sla:jira-service-management`, `read:request.status:jira-service-management`, `write:request.status:jira-service-management`, `read:request.participant:jira-service-management`, `write:request.participant:jira-service-management`, `read:request.approval:jira-service-management`, `write:request.approval:jira-service-management`, `read:cmdb-object:jira`, `write:cmdb-object:jira`, `delete:cmdb-object:jira`, `read:cmdb-schema:jira`, `read:cmdb-type:jira`, `read:cmdb-attribute:jira` |
+
+### Linear
+
+`LINEAR_CLIENT_ID` / `LINEAR_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Linear | `linear` | `read`, `write` |
+
+### LinkedIn
+
+`LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| LinkedIn | `linkedin` | `profile`, `openid`, `email`, `w_member_social` |
 
 ### Microsoft
 
-One app registration in [Entra ID](https://entra.microsoft.com) covers all of these.
+`MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET`
 
-| Environment variables | Provider IDs |
-|---|---|
-| `MICROSOFT_CLIENT_ID`<br />`MICROSOFT_CLIENT_SECRET` | `outlook`, `onedrive`, `sharepoint`, `microsoft-teams`, `microsoft-excel`, `microsoft-word`, `microsoft-planner`, `microsoft-dataverse`, `microsoft-ad` |
+Every connector below also requests `openid`, `profile`, `email`, `offline_access`.
 
-The same variables also power "Sign in with Microsoft".
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Azure AD | `microsoft-ad` | `User.ReadWrite.All`, `Group.ReadWrite.All`, `GroupMember.ReadWrite.All`, `LicenseAssignment.Read.All`, `LicenseAssignment.ReadWrite.All`, `UserAuthenticationMethod.ReadWrite.All`, `AuditLog.Read.All`, `Application.Read.All`, `AppRoleAssignment.ReadWrite.All`, `RoleManagement.ReadWrite.Directory`, `Device.Read.All`, `Policy.Read.All` |
+| Microsoft Dataverse | `microsoft-dataverse` | `https://dynamics.microsoft.com/user_impersonation` |
+| Microsoft Excel | `microsoft-excel` | `Files.Read`, `Files.ReadWrite` |
+| Microsoft Planner | `microsoft-planner` | `Group.ReadWrite.All`, `Group.Read.All`, `Tasks.ReadWrite` |
+| Microsoft Teams | `microsoft-teams` | `User.Read`, `Chat.Read`, `Chat.ReadWrite`, `Chat.ReadBasic`, `ChatMessage.Send`, `Channel.ReadBasic.All`, `ChannelMessage.Send`, `ChannelMessage.Read.All`, `ChannelMessage.ReadWrite`, `ChannelMember.Read.All`, `Group.Read.All`, `Group.ReadWrite.All`, `Team.ReadBasic.All`, `TeamMember.Read.All`, `Files.Read`, `Sites.Read.All` |
+| Microsoft Word | `microsoft-word` | `Files.Read`, `Files.ReadWrite`, `Files.Read.All`, `Files.ReadWrite.All` |
+| Outlook | `outlook` | `Mail.ReadWrite`, `Mail.ReadBasic`, `Mail.Read`, `Mail.Send`, `Calendars.ReadWrite` |
+| OneDrive | `onedrive` | `Files.Read`, `Files.ReadWrite` |
+| SharePoint | `sharepoint` | `Sites.Read.All`, `Sites.ReadWrite.All`, `Sites.Manage.All` |
 
-### Everything else
+### Monday.com
 
-| Service | Environment variables | Provider ID |
-|---|---|---|
-| Slack | `SLACK_CLIENT_ID` / `SLACK_CLIENT_SECRET` | `slack` |
-| Notion | `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` | `notion` |
-| Jira | `JIRA_CLIENT_ID` / `JIRA_CLIENT_SECRET` | `jira` |
-| Confluence | `CONFLUENCE_CLIENT_ID` / `CONFLUENCE_CLIENT_SECRET` | `confluence` |
-| Linear | `LINEAR_CLIENT_ID` / `LINEAR_CLIENT_SECRET` | `linear` |
-| Asana | `ASANA_CLIENT_ID` / `ASANA_CLIENT_SECRET` | `asana` |
-| ClickUp | `CLICKUP_CLIENT_ID` / `CLICKUP_CLIENT_SECRET` | `clickup` |
-| Monday | `MONDAY_CLIENT_ID` / `MONDAY_CLIENT_SECRET` | `monday` |
-| Airtable | `AIRTABLE_CLIENT_ID` / `AIRTABLE_CLIENT_SECRET` | `airtable` |
-| Bitbucket | `BITBUCKET_CLIENT_ID` / `BITBUCKET_CLIENT_SECRET` | `bitbucket` |
-| HubSpot | `HUBSPOT_CLIENT_ID` / `HUBSPOT_CLIENT_SECRET` | `hubspot` |
-| Salesforce | `SALESFORCE_CLIENT_ID` / `SALESFORCE_CLIENT_SECRET` | `salesforce` |
-| Pipedrive | `PIPEDRIVE_CLIENT_ID` / `PIPEDRIVE_CLIENT_SECRET` | `pipedrive` |
-| Attio | `ATTIO_CLIENT_ID` / `ATTIO_CLIENT_SECRET` | `attio` |
-| Zoho Desk | `ZOHO_CLIENT_ID` / `ZOHO_CLIENT_SECRET` | `zoho-desk` |
-| Wealthbox | `WEALTHBOX_CLIENT_ID` / `WEALTHBOX_CLIENT_SECRET` | `wealthbox` |
-| Box | `BOX_CLIENT_ID` / `BOX_CLIENT_SECRET` | `box` |
-| Dropbox | `DROPBOX_CLIENT_ID` / `DROPBOX_CLIENT_SECRET` | `dropbox` |
-| DocuSign | `DOCUSIGN_CLIENT_ID` / `DOCUSIGN_CLIENT_SECRET` | `docusign` |
-| Zoom | `ZOOM_CLIENT_ID` / `ZOOM_CLIENT_SECRET` | `zoom` |
-| Cal.com | `CALCOM_CLIENT_ID` only — PKCE public client, no secret | `calcom` |
-| Webflow | `WEBFLOW_CLIENT_ID` / `WEBFLOW_CLIENT_SECRET` | `webflow` |
-| WordPress | `WORDPRESS_CLIENT_ID` / `WORDPRESS_CLIENT_SECRET` | `wordpress` |
-| LinkedIn | `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` | `linkedin` |
-| X | `X_CLIENT_ID` / `X_CLIENT_SECRET` | `x` |
-| Reddit | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | `reddit` |
-| Spotify | `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | `spotify` |
-| TikTok | `TIKTOK_CLIENT_ID` / `TIKTOK_CLIENT_SECRET` | `tiktok` |
+`MONDAY_CLIENT_ID` / `MONDAY_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Monday.com | `monday` | `boards:read`, `boards:write`, `updates:read`, `updates:write`, `webhooks:read`, `webhooks:write`, `me:read` |
+
+### Notion
+
+`NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Notion | `notion` | None to select |
+
+### Pipedrive
+
+`PIPEDRIVE_CLIENT_ID` / `PIPEDRIVE_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Pipedrive | `pipedrive` | `base`, `deals:full`, `contacts:full`, `leads:full`, `activities:full`, `mail:full`, `projects:full` |
+
+### Reddit
+
+`REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Reddit | `reddit` | `identity`, `read`, `submit`, `vote`, `save`, `edit`, `subscribe`, `history`, `privatemessages`, `account`, `mysubreddits`, `flair`, `report`, `modposts`, `modflair`, `modmail` |
+
+### Salesforce
+
+`SALESFORCE_CLIENT_ID` / `SALESFORCE_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Salesforce | `salesforce` | `api`, `refresh_token`, `openid` |
+
+### Shopify
+
+`SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Shopify | `shopify` | `write_products`, `write_orders`, `write_customers`, `write_inventory`, `read_locations`, `write_merchant_managed_fulfillment_orders` |
+
+### Slack
+
+`SLACK_CLIENT_ID` / `SLACK_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Slack | `slack` | `channels:read`, `channels:history`, `channels:manage`, `groups:read`, `groups:history`, `groups:write`, `chat:write`, `chat:write.public`, `im:write`, `im:read`, `users:read`, `files:write`, `files:read`, `canvases:read`, `canvases:write`, `reactions:write`, `reactions:read` |
+
+### Spotify
+
+`SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Spotify | `spotify` | `user-read-private`, `user-read-email`, `user-library-read`, `user-library-modify`, `playlist-read-private`, `playlist-read-collaborative`, `playlist-modify-public`, `playlist-modify-private`, `user-read-playback-state`, `user-modify-playback-state`, `user-read-currently-playing`, `user-read-recently-played`, `user-top-read`, `user-follow-read`, `user-follow-modify`, `user-read-playback-position`, `ugc-image-upload` |
+
+### TikTok
+
+`TIKTOK_CLIENT_ID` / `TIKTOK_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| TikTok | `tiktok` | `user.info.basic`, `user.info.profile`, `user.info.stats`, `video.upload`, `video.list` |
+
+### Trello
+
+`TRELLO_API_KEY`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Trello | `trello` | `read`, `write` |
+
+Trello is API-key based rather than OAuth 2.0 and calls back to `/api/auth/trello/callback`.
+
+### Wealthbox
+
+`WEALTHBOX_CLIENT_ID` / `WEALTHBOX_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Wealthbox | `wealthbox` | `login`, `data` |
+
+### Webflow
+
+`WEBFLOW_CLIENT_ID` / `WEBFLOW_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Webflow | `webflow` | `cms:read`, `cms:write`, `sites:read`, `sites:write`, `forms:read` |
+
+### WordPress
+
+`WORDPRESS_CLIENT_ID` / `WORDPRESS_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| WordPress | `wordpress` | `global` |
+
+### X
+
+`X_CLIENT_ID` / `X_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| X | `x` | `tweet.read`, `tweet.write`, `tweet.moderate.write`, `users.read`, `follows.read`, `follows.write`, `bookmark.read`, `bookmark.write`, `like.read`, `like.write`, `block.read`, `block.write`, `mute.read`, `mute.write`, `offline.access` |
+
+### Zoho Desk
+
+`ZOHO_CLIENT_ID` / `ZOHO_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Zoho Desk | `zoho-desk` | `Desk.tickets.READ`, `Desk.tickets.UPDATE`, `Desk.contacts.READ`, `Desk.articles.READ`, `Desk.organization.READ`, `Desk.agents.READ`, `Desk.basic.READ`, `Desk.webhooks.CREATE`, `Desk.webhooks.DELETE`, `aaaserver.profile.READ` |
+
+### Zoom
+
+`ZOOM_CLIENT_ID` / `ZOOM_CLIENT_SECRET`
+
+| Connector | Provider ID | Scopes to grant |
+| --- | --- | --- |
+| Zoom | `zoom` | `user:read:user`, `meeting:write:meeting`, `meeting:read:meeting`, `meeting:read:list_meetings`, `meeting:update:meeting`, `meeting:delete:meeting`, `meeting:read:invitation`, `meeting:read:list_past_participants`, `cloud_recording:read:list_user_recordings`, `cloud_recording:read:list_recording_files`, `cloud_recording:delete:recording_file` |
+
+{/* GENERATED-END:oauth-apps */}
 
 For Bitbucket, create an OAuth consumer and register
 `https://<your-domain>/api/auth/oauth2/callback/bitbucket` as its callback URL. Bitbucket fixes
@@ -199,7 +444,7 @@ Webhook triggers receive callbacks from the provider and must be able to verify 
 Your deployment must also be reachable from the provider's servers for webhook triggers to fire — a Sim instance on a private network can use polling triggers but not webhook triggers. Polling triggers additionally require the scheduler; see [Background Jobs](/platform/self-hosting/background-jobs).
 
 <FAQ items={[
-  { question: "Do I have to register an OAuth app for every integration?", answer: "Only for the integrations your team uses. Nothing breaks if a provider's credentials are unset — that connector simply cannot be connected. One Google app covers 15 connectors and one Microsoft app covers 9, so most deployments need only a handful of registrations."},
+  { question: "Do I have to register an OAuth app for every integration?", answer: "Only for the integrations your team uses. Nothing breaks if a provider's credentials are unset — that connector simply cannot be connected. One Google app covers every Google connector and one Microsoft app covers every Microsoft connector, so most deployments need only a handful of registrations."},
   { question: "Users get a redirect_uri_mismatch error. What is wrong?", answer: "Almost always NEXT_PUBLIC_APP_URL does not match the URI registered with the provider. Check for http vs https, a trailing slash, an apex-vs-www difference, or a port. The URI Sim sends is built from NEXT_PUBLIC_APP_URL at request time."},
   { question: "Can I use the same OAuth app for staging and production?", answer: "Yes, if the provider allows multiple redirect URIs on one app — register both hosts. Providers that allow only one URI need a separate app per environment."},
   { question: "Why does the Instagram integration need cloud storage?", answer: "Meta fetches media from a public HTTPS URL rather than accepting an upload, so published files must live in S3, Azure Blob, or GCS. Local-disk storage cannot serve them. Gmail attachments and other integrations do not have this constraint." },

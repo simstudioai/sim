@@ -31,6 +31,35 @@ New to the integration? Follow the [HubSpot setup guide](/integrations/hubspot-s
 Integrate HubSpot into your workflow. Manage contacts, companies, deals, tickets, and other CRM objects with powerful automation capabilities. Can be used in trigger mode to start workflows when records are created, updated, a specific property changes, or a contact joins a list.
 
 
+## Scopes
+
+Connecting HubSpot requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `crm.objects.contacts.read` | Read HubSpot contacts |
+| `crm.objects.contacts.write` | Create and update HubSpot contacts |
+| `crm.objects.companies.read` | Read HubSpot companies |
+| `crm.objects.companies.write` | Create and update HubSpot companies |
+| `crm.objects.deals.read` | Read HubSpot deals |
+| `crm.objects.deals.write` | Create and update HubSpot deals |
+| `crm.objects.owners.read` | Read HubSpot object owners |
+| `crm.objects.users.read` | Read HubSpot users |
+| `crm.objects.marketing_events.read` | Read HubSpot marketing events |
+| `crm.objects.line_items.read` | Read HubSpot line items |
+| `crm.objects.line_items.write` | Create and update HubSpot line items |
+| `crm.objects.quotes.read` | Read HubSpot quotes |
+| `crm.objects.appointments.read` | Read HubSpot appointments |
+| `crm.objects.appointments.write` | Create and update HubSpot appointments |
+| `crm.objects.carts.read` | Read HubSpot shopping carts |
+| `sales-email-read` | Read the content of HubSpot email engagements |
+| `crm.lists.read` | Read HubSpot lists |
+| `crm.lists.write` | Create and update HubSpot lists |
+| `tickets` | Access HubSpot tickets |
+| `oauth` | Authenticate with HubSpot OAuth |
+
+HubSpot also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

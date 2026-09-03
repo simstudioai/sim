@@ -35,6 +35,56 @@ In Sim, the Jira integration enables your agents to interact with your project m
 Integrate Jira into the workflow. Can read, write, and update issues. Can also trigger workflows based on Jira webhook events.
 
 
+## Scopes
+
+Connecting Jira requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `read:jira-user` | Read Jira user |
+| `read:jira-work` | Read Jira work |
+| `write:jira-work` | Write to Jira work |
+| `read:me` | Read profile information |
+| `offline_access` | Access account when not using the application |
+| `read:issue.vote:jira` | Read Jira issue votes |
+| `read:user:jira` | Read Jira user |
+| `delete:issue:jira` | Delete Jira issues |
+| `delete:comment:jira` | Delete comments from Jira issues |
+| `delete:attachment:jira` | Delete attachments from Jira issues |
+| `delete:issue-worklog:jira` | Delete worklog entries from Jira issues |
+| `delete:issue-link:jira` | Delete links between Jira issues |
+| `read:servicedesk-request` | View service desk requests |
+| `write:servicedesk-request` | Create and update service desk requests |
+| `manage:servicedesk-customer` | Manage service desk customers and organizations |
+| `read:servicedesk:jira-service-management` | View service desks and their settings |
+| `read:requesttype:jira-service-management` | View request types available in service desks |
+| `read:request:jira-service-management` | View customer requests in service desks |
+| `write:request:jira-service-management` | Create customer requests in service desks |
+| `read:request.comment:jira-service-management` | View comments on customer requests |
+| `write:request.comment:jira-service-management` | Add comments to customer requests |
+| `read:servicedesk.customer:jira-service-management` | View customers linked to service desks |
+| `write:servicedesk.customer:jira-service-management` | Add and remove customers from service desks |
+| `read:organization:jira-service-management` | View organizations |
+| `write:organization:jira-service-management` | Create and manage organizations |
+| `read:servicedesk.organization:jira-service-management` | View organizations linked to service desks |
+| `write:servicedesk.organization:jira-service-management` | Add and remove organizations from service desks |
+| `read:queue:jira-service-management` | View service desk queues and their issues |
+| `read:request.sla:jira-service-management` | View SLA information for customer requests |
+| `read:request.status:jira-service-management` | View status of customer requests |
+| `write:request.status:jira-service-management` | Transition customer request status |
+| `read:request.participant:jira-service-management` | View participants on customer requests |
+| `write:request.participant:jira-service-management` | Add and remove participants from customer requests |
+| `read:request.approval:jira-service-management` | View approvals on customer requests |
+| `write:request.approval:jira-service-management` | Approve or decline customer requests |
+| `read:cmdb-object:jira` | View Assets objects and run AQL searches |
+| `write:cmdb-object:jira` | Create and update Assets objects |
+| `delete:cmdb-object:jira` | Delete Assets objects |
+| `read:cmdb-schema:jira` | View Assets object schemas |
+| `read:cmdb-type:jira` | View Assets object types |
+| `read:cmdb-attribute:jira` | View Assets object type attributes |
+
+Jira also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

@@ -29,6 +29,21 @@ Use Sim's Shopify integration to automate common store management workflows—su
 Integrate Shopify into your workflow. Manage products, orders, customers, and inventory. Create, read, update, and delete products. List and manage orders. Handle customer data and adjust inventory levels.
 
 
+## Scopes
+
+Connecting Shopify requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `write_products` | Read and manage Shopify products |
+| `write_orders` | Read and manage Shopify orders |
+| `write_customers` | Read and manage Shopify customers |
+| `write_inventory` | Read and manage Shopify inventory levels |
+| `read_locations` | View store locations |
+| `write_merchant_managed_fulfillment_orders` | Create fulfillments for orders |
+
+Shopify also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

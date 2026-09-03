@@ -30,6 +30,24 @@ In Sim, the Attio integration lets your agents programmatically query lists, fet
 Connect to Attio to manage CRM records (people, companies, custom objects), notes, tasks, lists, list entries, comments, workspace members, and webhooks.
 
 
+## Scopes
+
+Connecting Attio requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `record_permission:read-write` | Read and write CRM records |
+| `object_configuration:read-write` | Read and manage object schemas |
+| `list_configuration:read-write` | Read and manage list configurations |
+| `list_entry:read-write` | Read and write list entries |
+| `note:read-write` | Read and write notes |
+| `task:read-write` | Read and write tasks |
+| `comment:read-write` | Read and write comments and threads |
+| `user_management:read` | View workspace members |
+| `webhook:read-write` | Manage webhooks |
+
+Attio also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

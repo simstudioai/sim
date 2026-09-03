@@ -32,6 +32,19 @@ In Sim, the Google Meet integration allows your agents to create meeting spaces 
 Integrate Google Meet into your workflow. Create meeting spaces, get space details, end conferences, list conference records, and view participants.
 
 
+## Scopes
+
+Connecting Google Meet requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/meetings.space.created` | Create and manage Google Meet meeting spaces |
+| `https://www.googleapis.com/auth/meetings.space.readonly` | View Google Meet meeting space details |
+
+Google Meet also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

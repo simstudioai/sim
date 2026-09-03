@@ -31,6 +31,19 @@ In Sim, the Google Drive integration allows your agents to read, upload, downloa
 Integrate Google Drive into the workflow. Can create, upload, download, copy, move, delete, share files and manage permissions.
 
 
+## Scopes
+
+Connecting Google Drive requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files |
+| `https://www.googleapis.com/auth/drive` | Access all Google Drive files |
+
+Google Drive also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

@@ -33,6 +33,19 @@ In Sim, the Google Slides integration enables your agents to interact directly w
 Build, edit, and export branded Google Slides presentations end-to-end. Copy a template, replace text and image tokens, embed Sheets charts, style text and shapes with brand fonts and colors, manage tables and layouts, group elements, run atomic batch updates, and export to PDF or PPTX.
 
 
+## Scopes
+
+Connecting Google Slides requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files |
+| `https://www.googleapis.com/auth/drive` | Access all Google Drive files |
+
+Google Slides also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

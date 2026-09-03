@@ -30,6 +30,19 @@ In Sim, the Google Docs integration allows your agents to read document content,
 Integrate Google Docs into the workflow. Read, write, and create documents, insert text, tables, images, and page breaks, find and replace text, and apply text styling.
 
 
+## Scopes
+
+Connecting Google Docs requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files |
+| `https://www.googleapis.com/auth/drive` | Access all Google Drive files |
+
+Google Docs also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

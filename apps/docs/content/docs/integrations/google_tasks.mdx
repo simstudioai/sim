@@ -31,6 +31,18 @@ In Sim, the Google Tasks integration allows your agents to manage to-do items pr
 Integrate Google Tasks into your workflow. Create, read, update, delete, and list tasks and task lists.
 
 
+## Scopes
+
+Connecting Google Tasks requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/tasks` | Create, read, update, and delete Google Tasks |
+
+Google Tasks also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

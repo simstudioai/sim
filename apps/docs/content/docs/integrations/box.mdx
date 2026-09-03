@@ -39,6 +39,17 @@ These capabilities allow your Sim agents to automate Box operations directly wit
 Integrate Box into your workflow to manage files, folders, and e-signatures. Upload and download files, search content, create folders, send documents for e-signature, track signing status, and more.
 
 
+## Scopes
+
+Connecting Box requests these scopes.
+
+| Scope | Description |
+| ----- | ----------- |
+| `root_readwrite` | Read and write all files and folders in Box account |
+| `sign_requests.readwrite` | Create and manage Box Sign e-signature requests |
+
+Box also accepts a credential you create yourself. Grant it the same access, since Sim can only request scopes on a connection it opens.
+
 
 ## Actions
 

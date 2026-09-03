@@ -1,14 +1,19 @@
 import fs from 'fs'
 import path from 'path'
+import { OAUTH_CLIENT_CAPABILITIES } from '@sim/deployment-config/env-capabilities'
 import { describe, expect, it } from 'vitest'
+import { OAUTH_SCOPES } from '../apps/sim/lib/oauth/scopes'
 import {
+  buildScopesSection,
   extractAllBlockConfigs,
   extractBlockSuppliedParamIds,
   extractToolInfo,
   extractUserSettableParamIds,
   getToolInfo,
+  loadOAuthConnectCatalog,
   parseConstProperties,
   parsePropertiesContent,
+  sharedScopesAcrossConnectors,
 } from './generate-docs'
 
 describe('documentation tool metadata', () => {
@@ -941,5 +946,118 @@ describe('template interpolation is lexed rather than brace-counted', () => {
     )
 
     expect(ids).toEqual(['a', 'b'])
+  })
+})
+
+describe('the generated Scopes section', () => {
+  it('lists every scope the service requests, with a label for each', () => {
+    const section = buildScopesSection('sharepoint', 'SharePoint')
+
+    for (const scope of OAUTH_SCOPES.sharepoint) {
+      expect(section).toContain(`| \`${scope}\` |`)
+    }
+    expect(section).not.toMatch(/\| {2}\|/)
+  })
+
+  /**
+   * Slack's approval-gated scopes are appended from an environment flag, so
+   * including them would make the published page depend on which deployment
+   * ran the generator and break `docs:check` for everyone else.
+   */
+  it('omits scopes that are only requested under an environment flag', () => {
+    const section = buildScopesSection('slack', 'Slack')
+
+    expect(section).toContain('`chat:write`')
+    expect(section).not.toContain('assistant:write')
+  })
+
+  it('tells the reader a self-issued credential needs the same access', () => {
+    expect(buildScopesSection('slack', 'Slack')).toContain('credential you create yourself')
+    expect(buildScopesSection('sharepoint', 'SharePoint')).not.toContain(
+      'credential you create yourself'
+    )
+  })
+
+  /**
+   * A provider that hands out one all-or-nothing token has nothing to choose,
+   * so the heading would introduce an empty table.
+   */
+  it('emits nothing for a service that declares no scopes', () => {
+    expect(OAUTH_SCOPES.notion).toEqual([])
+    expect(buildScopesSection('notion', 'Notion')).toBe('')
+  })
+
+  it('refuses to document a block pointing at an unknown OAuth service', () => {
+    expect(() => buildScopesSection('sharepoint-classic', 'SharePoint')).toThrow(
+      /no OAUTH_PROVIDERS service declares/
+    )
+  })
+
+  it('reads the scope labels under the service own provider id', () => {
+    expect(loadOAuthConnectCatalog().services.get('gmail')?.providerId).toBe('google-email')
+    expect(buildScopesSection('microsoft-word', 'Microsoft Word')).toContain(
+      'Read your Word documents in OneDrive'
+    )
+  })
+})
+
+describe('the self-hosting OAuth app reference', () => {
+  /**
+   * The page is what a self-hoster reads before registering an app, so a
+   * connector missing from its provider's table is a connector nobody can
+   * connect. The hand-maintained version of this table had lost Microsoft Word.
+   */
+  it('covers every OAuth-connectable service of every registrable app', () => {
+    const { providers } = loadOAuthConnectCatalog()
+
+    for (const capabilityId of Object.keys(OAUTH_CLIENT_CAPABILITIES)) {
+      const provider = providers.get(capabilityId)
+
+      expect(provider, capabilityId).toBeDefined()
+      expect(
+        provider!.services.some((service) => !service.serviceAccountOnly),
+        capabilityId
+      ).toBe(true)
+    }
+  })
+
+  /**
+   * Service-account services have no OAuth flow, so no app registration covers
+   * them and listing one would send the reader looking for a client id that
+   * does not exist.
+   */
+  it('leaves out services that have no OAuth flow', () => {
+    const { services } = loadOAuthConnectCatalog()
+
+    expect(services.get('google-service-account')?.serviceAccountOnly).toBe(true)
+    expect(services.get('snowflake')?.serviceAccountOnly).toBe(true)
+    expect(services.get('gmail')?.serviceAccountOnly).toBe(false)
+  })
+
+  /**
+   * Only apps with several connectors hoist, and only scopes literally present
+   * in every one of them. Hoisting a scope one connector does not request would
+   * tell a reader to over-grant; keeping a scope in a row that every sibling
+   * also needs is the repetition this exists to remove.
+   */
+  it('hoists only the scopes shared by every connector of an app', () => {
+    expect(
+      sharedScopesAcrossConnectors([
+        ['openid', 'email', 'Mail.Send'],
+        ['openid', 'email', 'Files.Read'],
+      ])
+    ).toEqual(['openid', 'email'])
+
+    expect(sharedScopesAcrossConnectors([['openid', 'email']])).toEqual([])
+    expect(sharedScopesAcrossConnectors([['openid'], ['email']])).toEqual([])
+  })
+
+  it('reads each service display name and provider id', () => {
+    const { providers } = loadOAuthConnectCatalog()
+    const microsoft = providers.get('microsoft')!
+
+    expect(microsoft.name).toBe('Microsoft')
+    expect(microsoft.services.find((s) => s.serviceId === 'sharepoint')?.name).toBe('SharePoint')
+    expect(microsoft.services.find((s) => s.serviceId === 'gmail')).toBeUndefined()
   })
 })
