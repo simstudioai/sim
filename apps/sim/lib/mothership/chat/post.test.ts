@@ -71,6 +71,21 @@ const billingAttribution = {
   workspaceId: 'ws-1',
 }
 
+// The inventory reads nine application worlds; these suites exercise the request shape, not the reads.
+vi.mock('@/lib/mothership/chat/workspace-inventory', () => ({
+  buildWorkspaceInventory: vi.fn(async () => ({
+    workflows: [],
+    tables: [],
+    knowledgeBases: [],
+    files: [],
+    skills: [],
+    customTools: [],
+    mcpServers: [],
+    credentials: [],
+    secrets: [],
+    truncated: [],
+  })),
+}))
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
@@ -148,7 +163,7 @@ describe('handleUnifiedChatPost', () => {
     })
     storeChatSendResult.mockResolvedValue(true)
     releaseChatSendClaim.mockResolvedValue(undefined)
-    getSession.mockResolvedValue({ user: { id: 'user-1' } })
+    getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     resolveWorkflowIdForUser.mockResolvedValue({
       status: 'resolved',
       workflowId: 'wf-1',

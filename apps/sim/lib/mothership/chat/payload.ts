@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import type { BrowserKnownSession } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { isPermissionType, permissionSatisfies } from '@sim/platform-authz/predicates'
@@ -13,6 +14,7 @@ import {
   getBlockVisibilityForCopilot,
   visibilitySignature,
 } from '@/lib/mothership/block-visibility'
+import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-inventory'
 import type { ChatRequest } from '@/lib/mothership/generated/protocol'
 import {
   type IntegrationGateConfig,
@@ -40,6 +42,8 @@ interface BuildPayloadParams {
    * workflow). A missing value used to make the worker fabricate a random identity. */
   workspaceId: string
   userId: string
+  /** The caller's principal — lets the request carry a workspace inventory read under the caller's own authorization. */
+  principal?: Principal
   userMessageId: string
   mode: string
   model: string
@@ -419,6 +423,11 @@ export async function buildCopilotRequestPayload(
   // are enforced by v2 under the delegation token, not asserted here; desktop capabilities
   // are out of scope for v1. The params above still carry sim-internal knowledge (mode
   // gates which tool schemas get built), but none of it rides the wire.
+  // Orientation for the agent: names and ids per world, under the caller's own principal.
+  // Absent when the surface has no principal to read with (headless callers).
+  const inventory = params.principal
+    ? await buildWorkspaceInventory(params.principal, params.workspaceId)
+    : undefined
   return {
     message,
     userId,
@@ -431,6 +440,7 @@ export async function buildCopilotRequestPayload(
     ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     ...(params.effort ? { effort: params.effort } : {}),
+    ...(inventory ? { inventory } : {}),
     // The mounted chat view executes client-routed workflow tools (run panel UX), so the
     // UI declares that capability explicitly; headless callers omit or send [] and the
     // server runs those tools immediately instead of waiting out the pickup grace.
