@@ -56,6 +56,7 @@ import { createPortal } from 'react-dom'
 import { Check, ChevronLeft, ChevronRight, Search } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chrome'
+import { InsideModalContext } from '../modal/modal'
 import { TOOLTIP_MAX_WIDTH_PX, TOOLTIP_SURFACE_CLASS } from '../tooltip/tooltip-styles'
 
 type PopoverSize = 'sm' | 'md'
@@ -209,8 +210,10 @@ const Popover: React.FC<PopoverProps> = ({
   colorScheme = 'default',
   open,
   onOpenChange,
+  modal,
   ...props
 }) => {
+  const insideModal = React.useContext(InsideModalContext)
   const [currentFolder, setCurrentFolder] = React.useState<string | null>(null)
   const [folderTitle, setFolderTitle] = React.useState<string | null>(null)
   const [onFolderSelect, setOnFolderSelect] = React.useState<(() => void) | null>(null)
@@ -329,7 +332,12 @@ const Popover: React.FC<PopoverProps> = ({
 
   return (
     <PopoverContext.Provider value={contextValue}>
-      <PopoverPrimitive.Root open={open} onOpenChange={handleOpenChange} {...props}>
+      <PopoverPrimitive.Root
+        open={open}
+        onOpenChange={handleOpenChange}
+        modal={insideModal ? true : modal}
+        {...props}
+      >
         {children}
       </PopoverPrimitive.Root>
     </PopoverContext.Provider>
