@@ -1,0 +1,764 @@
+---
+title: Oracle B2C Service
+description: Manage Oracle B2C Service incidents, contacts, organizations, and answers
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_b2c_service"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Create, retrieve, update, delete, filter, sort, and page through Oracle B2C Service incidents, contacts, organizations, and Classic Answers using the Connect REST API.
+
+
+
+## Actions
+
+### Oracle B2C Service List Incidents
+
+Return one bounded page of Oracle B2C Service incident summaries.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `q` | string | No | Oracle collection filter expression |
+| `orderBy` | string | No | Oracle collection sort expression, for example updatedTime:desc |
+| `limit` | number | No | Maximum items in this single page \(1-1000; defaults to 100\) |
+| `offset` | number | No | Zero-based number of items to skip |
+| `includeTotalResults` | boolean | No | Ask Oracle to include totalResults for the filtered collection |
+| `pageUrl` | string | No | Same-origin nextPageUrl or previousPageUrl from an earlier call. Mutually exclusive with q, orderBy, limit, offset, and includeTotalResults. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Get Incident
+
+Retrieve an Oracle B2C Service incident by ID, optionally including its threads.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `id` | string | Yes | Oracle numeric resource ID, represented as a string to preserve precision |
+| `includeThreads` | boolean | No | Expand incident threads. Leave disabled unless thread context is needed because a long history can be large. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Create Incident
+
+Create an Oracle B2C Service incident with a subject and primary contact.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `subject` | string | Yes | Incident subject |
+| `primaryContactId` | string | Yes | Primary contact numeric ID |
+| `organizationId` | string | No | Organization numeric ID |
+| `queueId` | string | No | Queue numeric ID |
+| `severityId` | string | No | Severity numeric ID |
+| `categoryId` | string | No | Category numeric ID |
+| `productId` | string | No | Product numeric ID |
+| `statusId` | string | No | Incident status numeric ID |
+| `assignedAccountId` | string | No | Assigned staff account numeric ID |
+| `assignedStaffGroupId` | string | No | Assigned staff group numeric ID |
+| `customFields` | json | No | Tenant-defined incident customFields object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Update Incident
+
+Update named fields on an Oracle B2C Service incident.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `id` | string | Yes | Oracle numeric resource ID, represented as a string to preserve precision |
+| `subject` | string | No | Incident subject |
+| `primaryContactId` | string | No | Primary contact numeric ID |
+| `organizationId` | string | No | Organization numeric ID |
+| `queueId` | string | No | Queue numeric ID |
+| `severityId` | string | No | Severity numeric ID |
+| `categoryId` | string | No | Category numeric ID |
+| `productId` | string | No | Product numeric ID |
+| `statusId` | string | No | Incident status numeric ID |
+| `assignedAccountId` | string | No | Assigned staff account numeric ID |
+| `assignedStaffGroupId` | string | No | Assigned staff group numeric ID |
+| `customFields` | json | No | Tenant-defined incident customFields object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Delete Incident
+
+Delete an Oracle B2C Service incident by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `id` | string | Yes | Oracle numeric resource ID, represented as a string to preserve precision |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Create Incident Response
+
+Send a customer-facing email response through an Oracle B2C Service incident.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `incidentId` | string | Yes | Incident numeric ID |
+| `text` | string | Yes | Response body text |
+| `subject` | string | No | Optional response subject |
+| `ccEmails` | array | No | CC email addresses |
+| `bccEmails` | array | No | BCC email addresses |
+| `useEmailSignature` | boolean | No | Append the responding staff account email signature |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service List Contacts
+
+Return one bounded page of Oracle B2C Service contact summaries.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `q` | string | No | Oracle collection filter expression |
+| `orderBy` | string | No | Oracle collection sort expression, for example updatedTime:desc |
+| `limit` | number | No | Maximum items in this single page \(1-1000; defaults to 100\) |
+| `offset` | number | No | Zero-based number of items to skip |
+| `includeTotalResults` | boolean | No | Ask Oracle to include totalResults for the filtered collection |
+| `pageUrl` | string | No | Same-origin nextPageUrl or previousPageUrl from an earlier call. Mutually exclusive with q, orderBy, limit, offset, and includeTotalResults. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Get Contact
+
+Retrieve an Oracle B2C Service contact by ID, including email addresses and phone numbers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `id` | string | Yes | Oracle numeric resource ID, represented as a string to preserve precision |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Create Contact
+
+Create an Oracle B2C Service contact with the supplied fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `firstName` | string | No | Contact first name |
+| `lastName` | string | No | Contact last name |
+| `title` | string | No | Contact title |
+| `organizationId` | string | No | Organization numeric ID |
+| `externalReference` | string | No | Numeric external-system reference \(1-20 digits, first digit 1-9\) |
+| `disabled` | boolean | No | Whether the contact is disabled |
+| `emails` | array | No | Contact email addresses with Oracle address-type IDs |
+| `customFields` | json | No | Tenant-defined contact customFields object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Update Contact
+
+Update named fields on an Oracle B2C Service contact.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `id` | string | Yes | Oracle numeric resource ID, represented as a string to preserve precision |
+| `firstName` | string | No | Contact first name |
+| `lastName` | string | No | Contact last name |
+| `title` | string | No | Contact title |
+| `organizationId` | string | No | Organization numeric ID |
+| `externalReference` | string | No | Numeric external-system reference \(1-20 digits, first digit 1-9\) |
+| `disabled` | boolean | No | Whether the contact is disabled |
+| `emails` | array | No | Contact email addresses with Oracle address-type IDs |
+| `customFields` | json | No | Tenant-defined contact customFields object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Delete Contact
+
+Delete an Oracle B2C Service contact by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `id` | string | Yes | Oracle numeric resource ID, represented as a string to preserve precision |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service List Organizations
+
+Return one bounded page of Oracle B2C Service organization summaries.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `q` | string | No | Oracle collection filter expression |
+| `orderBy` | string | No | Oracle collection sort expression, for example updatedTime:desc |
+| `limit` | number | No | Maximum items in this single page \(1-1000; defaults to 100\) |
+| `offset` | number | No | Zero-based number of items to skip |
+| `includeTotalResults` | boolean | No | Ask Oracle to include totalResults for the filtered collection |
+| `pageUrl` | string | No | Same-origin nextPageUrl or previousPageUrl from an earlier call. Mutually exclusive with q, orderBy, limit, offset, and includeTotalResults. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Get Organization
+
+Retrieve an Oracle B2C Service organization by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `id` | string | Yes | Oracle numeric resource ID, represented as a string to preserve precision |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Create Organization
+
+Create an Oracle B2C Service organization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `name` | string | Yes | Organization name |
+| `externalReference` | string | No | Numeric external-system reference \(1-20 digits, first digit 1-9\) |
+| `parentOrganizationId` | string | No | Parent organization numeric ID |
+| `industryId` | string | No | Industry numeric ID |
+| `numberOfEmployees` | number | No | Number of employees |
+| `customFields` | json | No | Tenant-defined organization customFields object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Update Organization
+
+Update named fields on an Oracle B2C Service organization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `id` | string | Yes | Oracle numeric resource ID, represented as a string to preserve precision |
+| `name` | string | No | Organization name |
+| `externalReference` | string | No | Numeric external-system reference \(1-20 digits, first digit 1-9\) |
+| `parentOrganizationId` | string | No | Parent organization numeric ID |
+| `industryId` | string | No | Industry numeric ID |
+| `numberOfEmployees` | number | No | Number of employees |
+| `customFields` | json | No | Tenant-defined organization customFields object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Delete Organization
+
+Delete an Oracle B2C Service organization by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `id` | string | Yes | Oracle numeric resource ID, represented as a string to preserve precision |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service List Classic Answers
+
+Return one bounded page of Oracle B2C Service Classic Answer summaries.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `q` | string | No | Oracle collection filter expression |
+| `orderBy` | string | No | Oracle collection sort expression, for example updatedTime:desc |
+| `limit` | number | No | Maximum items in this single page \(1-1000; defaults to 100\) |
+| `offset` | number | No | Zero-based number of items to skip |
+| `includeTotalResults` | boolean | No | Ask Oracle to include totalResults for the filtered collection |
+| `pageUrl` | string | No | Same-origin nextPageUrl or previousPageUrl from an earlier call. Mutually exclusive with q, orderBy, limit, offset, and includeTotalResults. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Get Classic Answer
+
+Retrieve an Oracle B2C Service Classic Answer by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `id` | string | Yes | Oracle numeric resource ID, represented as a string to preserve precision |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Create Classic Answer
+
+Create an Oracle B2C Service Classic Answer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `answerTypeId` | string | Yes | Answer type numeric ID |
+| `languageId` | string | Yes | Language numeric ID |
+| `summary` | string | Yes | Answer summary |
+| `question` | string | No | Question the answer addresses |
+| `solution` | string | No | Answer solution content |
+| `keywords` | string | No | Search keywords |
+| `statusId` | string | No | Answer status numeric ID |
+| `publishOnDate` | string | No | Publication timestamp accepted by Oracle |
+| `expiresDate` | string | No | Expiration timestamp accepted by Oracle |
+| `customFields` | json | No | Tenant-defined answer customFields object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Update Classic Answer
+
+Update named fields on an Oracle B2C Service Classic Answer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `id` | string | Yes | Oracle numeric resource ID, represented as a string to preserve precision |
+| `answerTypeId` | string | No | Answer type numeric ID |
+| `languageId` | string | No | Language numeric ID |
+| `summary` | string | No | Answer summary |
+| `question` | string | No | Question the answer addresses |
+| `solution` | string | No | Answer solution content |
+| `keywords` | string | No | Search keywords |
+| `statusId` | string | No | Answer status numeric ID |
+| `publishOnDate` | string | No | Publication timestamp accepted by Oracle |
+| `expiresDate` | string | No | Expiration timestamp accepted by Oracle |
+| `customFields` | json | No | Tenant-defined answer customFields object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+### Oracle B2C Service Delete Classic Answer
+
+Delete an Oracle B2C Service Classic Answer by ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteUrl` | string | Yes | Oracle B2C Service REST Server origin, for example https://example.custhelp.com |
+| `username` | string | Yes | Oracle B2C Service staff account username |
+| `password` | string | Yes | Oracle B2C Service staff account password |
+| `applicationContext` | string | No | OSvC-CREST-Application-Context value used for Oracle resource-pool reporting \(defaults to Sim; maximum 40 characters\) |
+| `id` | string | Yes | Oracle numeric resource ID, represented as a string to preserve precision |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | json | Created or retrieved Oracle resource |
+| `items` | array | One bounded Oracle collection page |
+| `count` | number | Items in the returned page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `totalResults` | number | Total matching resources when requested |
+| `nextPageUrl` | string | URL for the next page |
+| `previousPageUrl` | string | URL for the previous page |
+| `id` | string | Updated or deleted resource ID |
+| `updated` | boolean | Whether the resource was updated |
+| `deleted` | boolean | Whether the resource was deleted |
+| `incident` | json | Incident that received a response |
+| `responseSent` | boolean | Whether the response was sent |
+
+
